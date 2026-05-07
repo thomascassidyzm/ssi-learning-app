@@ -1748,12 +1748,29 @@ const playCommentaryAudio = async (commentary) => {
   playingCommentaryAudio.value = true
   console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
 
+  // Reset cancellation flag for this commentary play. Mirrors the same
+  // pattern as playPodLap so togglePlayback / handleSkip can cancel
+  // commentary mid-clip and have handleRoundBoundary advance promptly
+  // instead of waiting on the 60s safety timeout.
+  podLapCancelled.value = false
+
   return new Promise((resolve) => {
     const audio = audioController.value
+    let cancelPoll: ReturnType<typeof setInterval> | null = null
+    let safetyTimeout: ReturnType<typeof setTimeout> | null = null
+    let settled = false
+
+    const cleanup = () => {
+      audio.offEnded(onEnded)
+      if (cancelPoll) { clearInterval(cancelPoll); cancelPoll = null }
+      if (safetyTimeout) { clearTimeout(safetyTimeout); safetyTimeout = null }
+    }
 
     // Create a one-time ended handler
     const onEnded = () => {
-      audio.offEnded(onEnded)
+      if (settled) return
+      settled = true
+      cleanup()
       playingCommentaryAudio.value = false
       resolve(true)
     }
@@ -1766,20 +1783,34 @@ const playCommentaryAudio = async (commentary) => {
       url: commentary.url,
       duration_ms: commentary.duration_ms,
     }).catch((err) => {
+      if (settled) return
+      settled = true
       console.error('[LearningPlayer] Commentary audio error:', err)
-      audio.offEnded(onEnded)
+      cleanup()
       playingCommentaryAudio.value = false
       resolve(false)
     })
 
+    // Cancellation poll — handleSkip / togglePlayback set podLapCancelled
+    // when the user wants commentary to stop. 100ms is fine-grained
+    // enough that a tap feels responsive.
+    cancelPoll = setInterval(() => {
+      if (settled || !podLapCancelled.value) return
+      settled = true
+      try { audio.stop() } catch {}
+      cleanup()
+      playingCommentaryAudio.value = false
+      resolve(false)
+    }, 100)
+
     // Safety timeout (max 60 seconds for any commentary)
-    setTimeout(() => {
-      if (playingCommentaryAudio.value) {
-        audio.offEnded(onEnded)
-        audio.stop()
-        playingCommentaryAudio.value = false
-        resolve(false)
-      }
+    safetyTimeout = setTimeout(() => {
+      if (settled) return
+      settled = true
+      try { audio.stop() } catch {}
+      cleanup()
+      playingCommentaryAudio.value = false
+      resolve(false)
     }, 60000)
   })
 }
@@ -4434,15 +4465,15 @@ const handleSkip = async () => {
     return
   }
 
-  // Skip during a pod lap: cancel the lap and let handleRoundBoundary's
-  // resume() advance into the next round. Don't fall through to the
-  // jumpToRound path — simplePlayer is already queued at the next round
-  // (advanceRound bumped roundIndex when it was paused for the lap).
-  // Turbo decides whether the ratchet advances; that logic lives in
-  // handleRoundBoundary so this stays a thin signal.
-  if (playingPodLapAudio.value) {
-    console.log('[LearningPlayer] Skip during pod lap — cancelling lap')
-    podLapSkippedByUser.value = true
+  // Skip during inter-round audio (pod lap OR commentary): cancel and
+  // let handleRoundBoundary's resume() advance into the next round.
+  // Don't fall through to jumpToRound — simplePlayer is already queued
+  // at the next round (advanceRound bumped roundIndex when it was
+  // paused for the lap/commentary). Turbo's ratchet bump for pod laps
+  // lives in handleRoundBoundary so this stays a thin signal.
+  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    console.log('[LearningPlayer] Skip during inter-round audio — cancelling')
+    if (playingPodLapAudio.value) podLapSkippedByUser.value = true
     podLapCancelled.value = true
     audioController.value?.stop()
     return
