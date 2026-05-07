@@ -282,6 +282,27 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
+   * Mirror the current learner id into a cookie so the audio proxy can
+   * attribute audio_plays rows to the right user. <audio> elements can't
+   * carry custom headers, so cookies (sent automatically same-origin) are
+   * the cleanest channel for this. Cleared on sign-out.
+   *
+   * Not load-bearing — purely for analytics. Failures are silent.
+   */
+  function syncAudioUserCookie(learnerId: string | null): void {
+    if (typeof document === 'undefined') return
+    try {
+      if (learnerId) {
+        // 30-day cookie; renewed on every auth change.
+        const maxAge = 60 * 60 * 24 * 30
+        document.cookie = `ssi-user-id=${encodeURIComponent(learnerId)}; path=/; max-age=${maxAge}; SameSite=Lax`
+      } else {
+        document.cookie = 'ssi-user-id=; path=/; max-age=0; SameSite=Lax'
+      }
+    } catch { /* document.cookie can throw in some sandboxed contexts */ }
+  }
+
+  /**
    * Handle auth state change (sign in or sign out)
    */
   async function handleAuthChange(user: User | null): Promise<void> {
@@ -292,6 +313,7 @@ export function useAuth(): AuthState & AuthActions {
       // User just signed in
       isLoading.value = true
       learner.value = await ensureLearnerExists()
+      syncAudioUserCookie(learner.value?.id ?? null)
 
       // Migrate guest progress if any
       const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
@@ -303,6 +325,7 @@ export function useAuth(): AuthState & AuthActions {
     } else if (!user && previousUser) {
       // User signed out
       learner.value = null
+      syncAudioUserCookie(null)
       // Reinitialize guest ID
       guestId.value = getOrCreateGuestId()
     }
@@ -353,6 +376,7 @@ export function useAuth(): AuthState & AuthActions {
         // syncRealRoleCache(null, null) and wipe the correct values out
         // of useUserRole cache.
         learner.value = await ensureLearnerExists()
+        syncAudioUserCookie(learner.value?.id ?? null)
 
         // Check if there's guest progress to migrate
         const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
