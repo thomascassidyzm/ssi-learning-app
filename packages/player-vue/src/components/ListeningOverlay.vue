@@ -2,6 +2,7 @@
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useOfflineCache } from '../composables/useOfflineCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
+import { usePlayerLog } from '../composables/usePlayerLog'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -586,6 +587,10 @@ watch(isPlaying, async (playing) => {
 
 const { cache: offlineCache } = useOfflineCache()
 
+// Diagnostic event log — same session_id as LearningPlayer's instance
+// so a user's actions across the player + overlay land on one timeline.
+const { event: logEvent } = usePlayerLog({ courseCode: computed(() => props.courseCode) })
+
 const packState = ref('idle') // 'idle' | 'downloading' | 'complete' | 'error'
 const packTotal = ref(0)
 const packDone = ref(0)
@@ -634,8 +639,17 @@ const fetchAllAudioIds = async () => {
 const PACK_CONCURRENCY = 5
 
 const downloadListeningPack = async () => {
-  if (packState.value === 'downloading') return
+  logEvent('tap_listening_download', {
+    upToSeed: props.upToSeed ?? null,
+    currentState: packState.value,
+  })
 
+  if (packState.value === 'downloading') {
+    logEvent('listening_pack_skip', { reason: 'already_downloading' })
+    return
+  }
+
+  let cacheFailures = 0
   try {
     packState.value = 'downloading'
     packDone.value = 0
@@ -643,10 +657,12 @@ const downloadListeningPack = async () => {
 
     const ids = await fetchAllAudioIds()
     packTotal.value = ids.length
+    logEvent('listening_pack_start', { totalIds: ids.length })
 
     if (ids.length === 0) {
       packState.value = 'complete'
       try { localStorage.setItem(packKey.value, 'complete') } catch {}
+      logEvent('listening_pack_end', { reason: 'no_ids', total: 0, failures: 0 })
       return
     }
 
@@ -659,12 +675,20 @@ const downloadListeningPack = async () => {
         missing.push(id)
       }
     }
+    logEvent('listening_pack_progress', {
+      total: ids.length,
+      alreadyCached: ids.length - missing.length,
+      toFetch: missing.length,
+    })
 
     // cacheAudio fetches the URL internally and stores the blob in IndexedDB;
     // the SW (CacheFirst on /api/audio/*) also caches en route, giving
     // belt-and-braces durability.
     for (let i = 0; i < missing.length; i += PACK_CONCURRENCY) {
-      if (packState.value !== 'downloading') return // cancelled by close
+      if (packState.value !== 'downloading') {
+        logEvent('listening_pack_end', { reason: 'cancelled', total: ids.length, failures: cacheFailures, completed: packDone.value })
+        return
+      }
 
       const batch = missing.slice(i, i + PACK_CONCURRENCY)
       await Promise.all(batch.map(async (id) => {
@@ -672,6 +696,7 @@ const downloadListeningPack = async () => {
         try {
           await offlineCache.cacheAudio({ id, url, durationMs: 0 }, props.courseCode)
         } catch (err) {
+          cacheFailures++
           console.warn('[ListeningOverlay] Failed to cache', id, err)
         } finally {
           packDone.value++
@@ -681,9 +706,19 @@ const downloadListeningPack = async () => {
 
     packState.value = 'complete'
     try { localStorage.setItem(packKey.value, 'complete') } catch {}
+    logEvent('listening_pack_end', {
+      reason: 'complete',
+      total: ids.length,
+      failures: cacheFailures,
+    })
   } catch (err) {
     console.error('[ListeningOverlay] Pack download failed:', err)
     packState.value = 'error'
+    logEvent('listening_pack_end', {
+      reason: 'error',
+      message: (err && err.message) || String(err),
+      failures: cacheFailures,
+    })
   }
 }
 
@@ -974,7 +1009,7 @@ watch(playbackSpeed, (newSpeed) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: var(--bg-elevated);
+  background: transparent;
   border: 1px solid var(--border-medium);
   border-radius: 20px;
   color: var(--text-muted);
@@ -984,15 +1019,23 @@ watch(playbackSpeed, (newSpeed) => {
   transition: all 0.2s ease;
 }
 
-.mode-btn:hover {
+.mode-btn:hover:not(.active) {
   background: var(--pill-bg-hover);
   color: var(--text-secondary);
 }
 
+/* Active = inverted pill — solid filled with the belt accent so the
+ * current mode is unmissable at a glance. Was previously near-identical
+ * to the inactive state (same background, only subtle border/text shifts)
+ * which made it impossible to tell on phone screens. */
 .mode-btn.active {
-  background: var(--bg-elevated);
-  border-color: var(--text-secondary);
-  color: var(--text-primary);
+  background: var(--belt-color, var(--text-primary));
+  border-color: var(--belt-color, var(--text-primary));
+  color: white;
+  font-weight: 600;
+}
+.mode-btn.active svg {
+  color: white;
 }
 
 .mode-btn svg {
