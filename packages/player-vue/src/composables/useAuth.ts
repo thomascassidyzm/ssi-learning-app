@@ -106,12 +106,15 @@ export function useAuth(): AuthState & AuthActions {
   const isAuthenticated = computed(() => !!supabaseUser.value || !!learner.value)
   const isGuest = computed(() => !supabaseUser.value && !learner.value && !!guestId.value)
   // learnerId = learners table PK — use for FK references (sessions, enrollments, progress)
+  // Never fall back to supabaseUser.value.id: that's the auth UID, not the
+  // learners.id, and using it as learner_id silently misses every row in
+  // course_enrollments / lego_progress / etc. — writes look successful but
+  // match no rows. If the learners row hasn't loaded yet (or
+  // ensureLearnerExists errored), prefer guestId so isGuestLearner skips
+  // the write entirely rather than writing to nothing.
   const learnerId = computed(() => {
     if (learner.value) {
       return learner.value.id
-    }
-    if (supabaseUser.value) {
-      return supabaseUser.value.id
     }
     return guestId.value
   })
@@ -187,16 +190,24 @@ export function useAuth(): AuthState & AuthActions {
       if (existingLearner) {
         syncRealRoleCache(existingLearner.platform_role, existingLearner.educational_role)
 
-        // Load verified_emails via RPC (column revoked from direct SELECT)
-        let emails = await loadMyVerifiedEmails()
-
-        // Ensure this email is in verified_emails (backfill for existing accounts)
-        if (email && !emails.includes(email)) {
-          emails = [...emails, email]
-          await supabase.value
-            .from('learners')
-            .update({ verified_emails: emails })
-            .eq('id', existingLearner.id)
+        // verified_emails enrichment is best-effort. If the RPC or
+        // backfill UPDATE throws (e.g. RLS hiccup, schema drift), we
+        // STILL return the learner so progress writes work. Letting
+        // these throw used to take out the whole function and leave
+        // learner.value null — which then fell back to the auth UID
+        // and silently missed every persistence row.
+        let emails: string[] = []
+        try {
+          emails = await loadMyVerifiedEmails()
+          if (email && !emails.includes(email)) {
+            emails = [...emails, email]
+            await supabase.value
+              .from('learners')
+              .update({ verified_emails: emails })
+              .eq('id', existingLearner.id)
+          }
+        } catch (err) {
+          console.warn('[useAuth] verified_emails enrichment failed (non-fatal):', err)
         }
 
         return toLearnerRecord({ ...existingLearner, verified_emails: emails })
