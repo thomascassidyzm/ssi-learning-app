@@ -8,7 +8,7 @@
  * - Progress migration when guest signs up
  */
 
-import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 import { useUserRole } from '@/composables/useUserRole'
@@ -302,6 +302,18 @@ export function useAuth(): AuthState & AuthActions {
     } catch { /* document.cookie can throw in some sandboxed contexts */ }
   }
 
+  // Single source of truth for the audio-attribution cookie: whatever
+  // `learner.value.id` is at any moment, the cookie reflects it. Covers
+  // initial mount (immediate: true), sign-in/out, account switch, future
+  // auth flows we haven't built yet — they all just update `learner` and
+  // the cookie follows. No need to add explicit syncAudioUserCookie calls
+  // anywhere else.
+  watch(
+    () => learner.value?.id ?? null,
+    (id) => syncAudioUserCookie(id),
+    { immediate: true },
+  )
+
   /**
    * Handle auth state change (sign in or sign out)
    */
@@ -313,7 +325,6 @@ export function useAuth(): AuthState & AuthActions {
       // User just signed in
       isLoading.value = true
       learner.value = await ensureLearnerExists()
-      syncAudioUserCookie(learner.value?.id ?? null)
 
       // Migrate guest progress if any
       const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
@@ -325,10 +336,12 @@ export function useAuth(): AuthState & AuthActions {
     } else if (!user && previousUser) {
       // User signed out
       learner.value = null
-      syncAudioUserCookie(null)
       // Reinitialize guest ID
       guestId.value = getOrCreateGuestId()
     }
+    // No explicit syncAudioUserCookie here — the watcher above mirrors
+    // learner.id reactively, so any path that mutates learner.value
+    // automatically updates the audio-attribution cookie.
   }
 
   /**
@@ -376,7 +389,6 @@ export function useAuth(): AuthState & AuthActions {
         // syncRealRoleCache(null, null) and wipe the correct values out
         // of useUserRole cache.
         learner.value = await ensureLearnerExists()
-        syncAudioUserCookie(learner.value?.id ?? null)
 
         // Check if there's guest progress to migrate
         const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
