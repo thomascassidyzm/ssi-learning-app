@@ -29,7 +29,7 @@
  * That unlocks audio for every subsequent element on the page.
  */
 
-import { watch, onUnmounted, type Ref, type ComputedRef } from 'vue'
+import { watch, onMounted, onUnmounted, type Ref, type ComputedRef } from 'vue'
 import { getSilentAudioUrl } from '../utils/silentAudio'
 
 /**
@@ -49,6 +49,11 @@ export function useAudioSessionKeepalive(
 ): void {
   let silentAudio: HTMLAudioElement | null = null
   let releaseTimer: ReturnType<typeof setTimeout> | null = null
+  // True while we *want* the silent loop running. Distinct from
+  // silentAudio.paused so the auto-restart logic can tell intentional
+  // pauses (release()) apart from iOS-induced ones (interruption,
+  // backgrounding, suspended-tab quirks).
+  let shouldBePlaying = false
 
   const cancelPendingRelease = (): void => {
     if (releaseTimer) {
@@ -57,8 +62,16 @@ export function useAudioSessionKeepalive(
     }
   }
 
+  const startSilent = (): void => {
+    if (!silentAudio || !silentAudio.paused) return
+    silentAudio.play().catch((err) => {
+      console.warn('[audioSessionKeepalive] play failed:', err)
+    })
+  }
+
   const ensure = (): void => {
     cancelPendingRelease()
+    shouldBePlaying = true
     if (!silentAudio) {
       silentAudio = new Audio()
       silentAudio.src = getSilentAudioUrl()
@@ -66,15 +79,24 @@ export function useAudioSessionKeepalive(
       silentAudio.volume = 0
       silentAudio.setAttribute('playsinline', 'true')
       silentAudio.setAttribute('webkit-playsinline', 'true')
-    }
-    if (silentAudio.paused) {
-      silentAudio.play().catch((err) => {
-        console.warn('[audioSessionKeepalive] play failed:', err)
+
+      // iOS occasionally pauses our silent loop on its own (long
+      // backgrounding, audio interruptions, system memory pressure).
+      // Without auto-restart the next gap in cycle / pod-lap audio
+      // finds no silent loop to bridge it, the session unlock is lost,
+      // and subsequent main audio plays internally without sound. The
+      // 'pause' handler kicks it back on whenever we still want it
+      // running. Guard with `shouldBePlaying` so deliberate release()
+      // calls don't loop.
+      silentAudio.addEventListener('pause', () => {
+        if (shouldBePlaying) startSilent()
       })
     }
+    startSilent()
   }
 
   const release = (): void => {
+    shouldBePlaying = false
     if (silentAudio && !silentAudio.paused) {
       silentAudio.pause()
     }
@@ -92,8 +114,28 @@ export function useAudioSessionKeepalive(
     }
   })
 
+  // When a backgrounded tab returns to the foreground, defensively
+  // re-ensure. iOS Safari can suspend the silent loop while hidden
+  // even if it didn't fire a 'pause' event we caught — visibility
+  // change is the cleanest moment to restore.
+  const handleVisibilityChange = (): void => {
+    if (typeof document === 'undefined') return
+    if (document.visibilityState === 'visible' && shouldBePlaying) {
+      startSilent()
+    }
+  }
+
+  onMounted(() => {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
+  })
+
   onUnmounted(() => {
     cancelPendingRelease()
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
     if (silentAudio) {
       silentAudio.pause()
       silentAudio.src = ''
