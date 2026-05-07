@@ -162,7 +162,8 @@
   "phase": {
     "getReadyToSpeak": "get ready to speak",
     "speakNow": "you're meant to be speaking now",
-    "listenCarefully": "listen carefully"
+    "listenCarefully": "listen carefully",
+    "passiveAttention": "Just listen now — without effort but with attention, like listening to birdsong."
   },
   "onboarding": {
     "beltIsProgress": "Your belt = progress",

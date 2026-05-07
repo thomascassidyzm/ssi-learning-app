@@ -3062,8 +3062,22 @@ const showLearningHint = computed(() => {
   return true
 })
 
-// Computed: instruction text based on current phase
+// Computed: instruction text based on current phase. During any
+// listening context (L1 cluster cycle, L2 pod lap, listen bookend),
+// override with the passive-attention pedagogy line so the hint
+// doesn't say "get ready to speak" while the learner is meant to be
+// just absorbing — and the main hero text doesn't show the next
+// LEGO's word that the learner hasn't met yet.
+const passiveListeningHint = computed(() =>
+  t('phase.passiveAttention', 'Just listen now — without effort but with attention, like listening to birdsong.')
+)
+const inListeningContext = computed(() => {
+  if (playingPodLapAudio.value) return true
+  const cycleType = simplePlayer.currentCycle.value?.type
+  return cycleType === 'listen_intro' || cycleType === 'listening' || cycleType === 'pod' || cycleType === 'listen_outro'
+})
 const phaseInstruction = computed(() => {
+  if (inListeningContext.value) return passiveListeningHint.value
   switch (currentPhase.value) {
     case Phase.PROMPT:
       return t('phase.getReadyToSpeak', 'get ready to speak')
@@ -6827,6 +6841,9 @@ defineExpose({
               <p v-else-if="isPreparingToPlay" class="hero-known loading-text preparing-text">
                 {{ preparingMessage }}<span class="loading-cursor">▌</span>
               </p>
+              <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
+                {{ passiveListeningHint }}
+              </p>
               <p v-else class="hero-known">
                 {{ displayedKnownText }}
               </p>
@@ -9168,6 +9185,15 @@ defineExpose({
   overflow-wrap: break-word;
   word-break: break-word;
   max-width: 100%;
+}
+
+/* Listening pedagogy — calmer, italic, slightly smaller. The learner is
+ * meant to be passive here; the text is a nudge, not a prompt. */
+.hero-known.listening-pedagogy {
+  font-style: italic;
+  opacity: 0.85;
+  font-size: calc(var(--known-text-size) * 0.92);
+  letter-spacing: 0.005em;
 }
 
 .hero-target {
