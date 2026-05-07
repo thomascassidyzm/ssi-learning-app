@@ -2066,13 +2066,23 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
         simplePlayer.pause()
         const completed = await playPodLap(lap, l1FiredThisRound)
+        // Ratchet writes are fire-and-forget — awaiting the Supabase
+        // round-trip put a 200-1000ms silence between the lap outro and
+        // the next round's intro on mobile networks. The audible audio
+        // pipeline shouldn't block on a write that doesn't affect the
+        // next round; if the write fails the ratchet just doesn't bump
+        // and the same lap plays next session, which is acceptable.
         if (completed) {
-          await podScheduler.markLapCompleted()
+          podScheduler.markLapCompleted().catch((err) => {
+            console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
+          })
         } else if (podLapSkippedByUser.value && turboActive.value) {
           // Turbo skip: bump the ratchet so the same sentences don't keep
           // resurfacing. Regular skip leaves the counter — listening work
           // still has to be done next session.
-          await podScheduler.skipAhead(1)
+          podScheduler.skipAhead(1).catch((err) => {
+            console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
+          })
           console.log('[LearningPlayer] Pod lap skipped in Turbo, ratchet advanced')
         } else {
           // Regular skip, audio error, or user stop — counter stays so the
