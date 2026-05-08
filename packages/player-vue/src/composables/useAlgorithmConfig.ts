@@ -42,6 +42,20 @@ export interface PodsConfig {
   gapBetweenMs: number        // chunk → non-glued, intro→first, last→outro
 }
 
+/**
+ * Resume regression — long absences re-engage the learner with familiar
+ * territory. Cursor regression is one-way (only on resume); ceiling
+ * (highest_completed_*) is always preserved so they keep access.
+ */
+export interface ResumeConfig {
+  /** After this gap in days, ignore current_cycle_index on resume —
+   *  start at the beginning of the in-progress round. */
+  cycleResetDays: number
+  /** After this gap in days, walk the round cursor back to the start of
+   *  the learner's current belt. Set to a very large number to disable. */
+  beltRegressionDays: number
+}
+
 /** Per-round script shape — phrase counts + Fibonacci spaced-rep schedule. */
 export interface ScriptShapeConfig {
   spacedRepOffsets: number[]   // fib offsets at which spaced rep fires
@@ -82,7 +96,8 @@ export interface AlgorithmConfigs {
   listening: ListeningModeConfig
   pods: PodsConfig
   script_shape: ScriptShapeConfig
-  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig
+  resume: ResumeConfig
+  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig
 }
 
 // Default fallbacks (used if DB fetch fails)
@@ -158,6 +173,11 @@ const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {
   n1PhraseCount: 3,
 }
 
+const DEFAULT_RESUME: ResumeConfig = {
+  cycleResetDays: 14,
+  beltRegressionDays: 60,
+}
+
 // Singleton cache - shared across all component instances
 let configCache: AlgorithmConfigs | null = null
 let cacheTimestamp: number = 0
@@ -170,6 +190,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     listening: DEFAULT_LISTENING,
     pods: DEFAULT_PODS,
     script_shape: DEFAULT_SCRIPT_SHAPE,
+    resume: DEFAULT_RESUME,
   })
   const isLoaded = ref(false)
   const loadError = ref<string | null>(null)
@@ -218,6 +239,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           listening: { ...DEFAULT_LISTENING, ...(loaded.listening || {}) },
           pods: { ...DEFAULT_PODS, ...(loaded.pods || {}) },
           script_shape: { ...DEFAULT_SCRIPT_SHAPE, ...(loaded.script_shape || {}) },
+          resume: { ...DEFAULT_RESUME, ...(loaded.resume || {}) },
         }
 
         // Update cache
@@ -241,9 +263,10 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const listeningConfig = computed(() => configs.value.listening as ListeningModeConfig)
   const podsConfig = computed(() => configs.value.pods as PodsConfig)
   const scriptShapeConfig = computed(() => configs.value.script_shape as ScriptShapeConfig)
+  const resumeConfig = computed(() => configs.value.resume as ResumeConfig)
 
   // Get any config by key
-  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | null => {
+  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | null => {
     return configs.value[key] || null
   }
 
@@ -269,6 +292,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     listeningConfig,
     podsConfig,
     scriptShapeConfig,
+    resumeConfig,
     getConfig,
     calculatePause,
     invalidateCache,
@@ -278,5 +302,6 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     DEFAULT_LISTENING,
     DEFAULT_PODS,
     DEFAULT_SCRIPT_SHAPE,
+    DEFAULT_RESUME,
   }
 }

@@ -245,6 +245,11 @@ export class ProgressStore implements IProgressStore {
       .update({
         last_completed_lego_id: legoId,
         last_completed_round_index: roundIndex,
+        // Backwards regressions (e.g. resume TTL belt-reset) imply the
+        // learner is restarting the round; carry-over cycle indices
+        // belong to a different round and would mislead the resume
+        // logic. Always reset on cursor set.
+        current_cycle_index: 0,
         last_practiced_at: new Date().toISOString(),
       })
       .eq('learner_id', learnerId)

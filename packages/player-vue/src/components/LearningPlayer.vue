@@ -245,6 +245,7 @@ const {
   listeningConfig,
   podsConfig,
   scriptShapeConfig,
+  resumeConfig,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
@@ -499,6 +500,7 @@ const loadSavedProgress = async () => {
         highestCompletedLegoId: enrollment.highest_completed_lego_id,
         highestCompletedRoundIndex: enrollment.highest_completed_round_index,
         currentCycleIndex: enrollment.current_cycle_index ?? 0,
+        lastPracticedAt: enrollment.last_practiced_at ?? null,
       }
     }
   } catch (err) {
@@ -567,6 +569,10 @@ const highestCompletedLegoId = ref<string | null>(null)
 // from the cycle the learner was on rather than restarting cycle 0
 // (a 20-cycle penalty on long rounds). Reset to 0 when the round finishes.
 const savedCurrentCycleIndex = ref<number>(0)
+// Last DB-recorded practice time. Drives resume-TTL regression: long
+// gaps re-engage the learner with familiar territory by ignoring the
+// cycle bookmark (round reset) or stepping back to the belt start.
+const savedLastPracticedAt = ref<Date | null>(null)
 
 // Independent of the resume cascade — fires whenever course or learner
 // changes so the ceiling is loaded for both cached-script and fresh-
@@ -583,10 +589,12 @@ watch(
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
+        savedLastPracticedAt.value = saved.lastPracticedAt ?? null
       } else {
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
         savedCurrentCycleIndex.value = 0
+        savedLastPracticedAt.value = null
       }
     } catch { /* silent */ }
   },
@@ -5952,12 +5960,55 @@ onMounted(async () => {
               // missing.
               if (isReturningUser) {
                 const personalLastLegoId = beltProgress.value?.lastLegoId?.value ?? null
-                const resumeLegoId = classLastLegoId ?? personalLastLegoId
+                let resumeLegoId = classLastLegoId ?? personalLastLegoId
                 // Mid-round cycle cursor — only meaningful for the in-progress
                 // round (lastIdx + 1). Other resume branches (final round, or
                 // jumps that change which round is "current") fall back to
                 // cycle 0 because the saved index doesn't apply there.
-                const resumeCycle = savedCurrentCycleIndex.value
+                let resumeCycle = savedCurrentCycleIndex.value
+
+                // Resume TTL — re-engage long-absent learners with material
+                // they're starting to forget. Compute against the saved DB
+                // timestamp (not auth restoration time) so a session that
+                // stays open for hours doesn't trigger a regression.
+                if (savedLastPracticedAt.value) {
+                  const daysSince = (Date.now() - savedLastPracticedAt.value.getTime()) / (1000 * 60 * 60 * 24)
+                  const ttl = resumeConfig.value
+                  if (daysSince >= ttl.beltRegressionDays && resumeLegoId) {
+                    // Belt regression: walk the cursor back to the start of
+                    // the learner's current belt. Ceiling preserved by the
+                    // setEnrollmentCursor write — that update doesn't lower
+                    // highest_completed_*.
+                    const seed = getSeedFromLegoId(resumeLegoId)
+                    if (seed !== null) {
+                      let beltIdx = 0
+                      for (let i = BELTS.length - 1; i >= 0; i--) {
+                        if (seed >= BELTS[i].seedsRequired) { beltIdx = i; break }
+                      }
+                      const beltStartSeed = Math.max(BELTS[beltIdx].seedsRequired, 1)
+                      const beltStartRoundIdx = simplePlayer.findRoundIndexForSeed(beltStartSeed)
+                      if (beltStartRoundIdx > 0) {
+                        const priorRound = simpleRounds[beltStartRoundIdx - 1]
+                        if (priorRound?.legoId) {
+                          console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → belt regression to ${BELTS[beltIdx].name} (seed ${beltStartSeed}, lego ${priorRound.legoId})`)
+                          resumeLegoId = priorRound.legoId
+                          resumeCycle = 0
+                          if (!isGuestLearner.value && progressStore?.value) {
+                            progressStore.value.setEnrollmentCursor(
+                              learnerId.value, courseCode.value,
+                              priorRound.legoId, beltStartRoundIdx - 1,
+                            ).catch((err: unknown) => {
+                              console.warn('[ResumeTTL] setEnrollmentCursor failed:', err)
+                            })
+                          }
+                        }
+                      }
+                    }
+                  } else if (daysSince >= ttl.cycleResetDays) {
+                    console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → cycle reset (round restart)`)
+                    resumeCycle = 0
+                  }
+                }
 
                 if (resumeLegoId) {
                   const lastIdx = simpleRounds.findIndex(r => r.legoId === resumeLegoId)
