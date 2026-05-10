@@ -61,10 +61,16 @@ const mLegoComponents = computed(() => {
   const fullText = props.blocks[0]?.targetText || ''
   if (!fullText) return rawComps
   const aligned = alignComponentsToFullText(rawComps, fullText)
-  // Verify aligned text covers full text (golden rule check)
-  const alignedText = aligned.map(c => c.target).join(CJK_RE.test(fullText) ? '' : ' ')
-  const normFull = fullText.toLowerCase().trim().replace(PUNCT_RE, '')
-  const normAligned = alignedText.toLowerCase().trim().replace(PUNCT_RE, '')
+  // Verify aligned text covers full text (golden rule check). For CJK
+  // content, strip ALL whitespace from both sides — Chinese/Japanese
+  // doesn't use spaces, but the dashboard sometimes stores fullText with
+  // analyst-inserted spaces ("也 想") while the components join into
+  // un-spaced form ("也想"). Same logical content; the warning was just
+  // whitespace noise.
+  const isCJK = CJK_RE.test(fullText)
+  const alignedText = aligned.map(c => c.target).join(isCJK ? '' : ' ')
+  const normFull = normaliseForCompare(fullText, isCJK)
+  const normAligned = normaliseForCompare(alignedText, isCJK)
   if (normAligned !== normFull) {
     // Alignment produced incomplete text — drop component stubs entirely
     console.warn(`[LegoAssembly] Component alignment mismatch: "${alignedText}" vs "${fullText}" — showing full text`)
@@ -72,6 +78,12 @@ const mLegoComponents = computed(() => {
   }
   return aligned
 })
+
+function normaliseForCompare(text: string, isCJK: boolean): string {
+  let s = text.toLowerCase().trim().replace(PUNCT_RE, '')
+  if (isCJK) s = s.replace(/\s+/g, '')
+  return s
+}
 
 // CJK detection — matches ensureTileCoverage.ts
 const CJK_RE = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
@@ -328,10 +340,12 @@ function softHyphenate(text: string): string {
 function alignedBlockComponents(block: LegoBlock): ComponentBreakdown[] | null {
   if (!block.components || block.components.length <= 1) return null
   const aligned = alignComponentsToFullText(block.components, block.targetText)
-  // Golden rule check: verify aligned text covers full block text
-  const alignedText = aligned.map(c => c.target).join(CJK_RE.test(block.targetText) ? '' : ' ')
-  const normFull = block.targetText.toLowerCase().trim().replace(PUNCT_RE, '')
-  const normAligned = alignedText.toLowerCase().trim().replace(PUNCT_RE, '')
+  // Golden rule check: verify aligned text covers full block text. CJK
+  // content tolerates whitespace differences (see normaliseForCompare).
+  const isCJK = CJK_RE.test(block.targetText)
+  const alignedText = aligned.map(c => c.target).join(isCJK ? '' : ' ')
+  const normFull = normaliseForCompare(block.targetText, isCJK)
+  const normAligned = normaliseForCompare(alignedText, isCJK)
   if (normAligned !== normFull) {
     console.warn(`[LegoAssembly] Block component mismatch: "${alignedText}" vs "${block.targetText}"`)
     return null

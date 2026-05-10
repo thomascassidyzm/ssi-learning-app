@@ -27,7 +27,7 @@ import {
   type ConcatenatedAudio,
   type AudioSegment
 } from '../utils/audioConcatenator'
-import { getSilentAudioUrl } from '../utils/silentAudio'
+import { useAudioSessionKeepalive } from './useAudioSessionKeepalive'
 import type { Cycle } from '../types/Cycle'
 import type { GetAudioSourceFn } from '../playback/types'
 
@@ -89,9 +89,6 @@ interface DrivingModeReturn {
 // Constants
 // ============================================================================
 
-/** Time remaining (seconds) when we start silent audio to bridge gap */
-const SILENT_BRIDGE_THRESHOLD_SECS = 2.0
-
 /** Position update interval (ms) for animation frame updates */
 const POSITION_UPDATE_INTERVAL = 250
 
@@ -121,7 +118,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   // Audio elements
   let audioContext: AudioContext | null = null
   let mainAudio: HTMLAudioElement | null = null
-  let silentAudio: HTMLAudioElement | null = null
 
   // Concatenated audio storage
   let currentRoundAudio: ConcatenatedAudio | null = null
@@ -129,7 +125,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
 
   // State tracking
   let isLoadingNext = false
-  let isSilentPlaying = false
   let positionUpdateFrame: number | null = null
   let lastPositionUpdateTime = 0
 
@@ -171,6 +166,13 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     preparedRoundAudio !== null
   )
 
+  // iOS audio-session keepalive — runs the silent loop for the whole
+  // driving session. Replaces the old per-transition bridge that only
+  // fired in the last 2s of each round. Continuous coverage means the
+  // brief gap between concatenated round blobs (mainAudio.src swap +
+  // load() + play()) can't drop the session.
+  useAudioSessionKeepalive(isActive)
+
   // ----------------------------------------
   // Audio Element Management
   // ----------------------------------------
@@ -190,23 +192,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   }
 
   /**
-   * Create and configure the silent audio element for session keep-alive
-   */
-  function createSilentAudio(): HTMLAudioElement {
-    const audio = new Audio()
-    audio.src = getSilentAudioUrl()
-    audio.loop = true
-    audio.volume = 0 // Completely silent but keeps audio session alive
-    audio.preload = 'auto'
-
-    // iOS-specific attributes
-    audio.setAttribute('playsinline', 'true')
-    audio.setAttribute('webkit-playsinline', 'true')
-
-    return audio
-  }
-
-  /**
    * Create AudioContext for decoding
    */
   function createAudioContext(): AudioContext {
@@ -219,25 +204,18 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   // ----------------------------------------
 
   /**
-   * Handle timeupdate events to track position and trigger silent audio bridge
+   * Handle timeupdate events to track segment position
    */
   function handleTimeUpdate(): void {
     if (!mainAudio || !currentRoundAudio) return
 
     const currentTime = mainAudio.currentTime
-    const duration = mainAudio.duration
-    const timeRemaining = duration - currentTime
 
     // Update current segment based on time
     const foundSegment = findSegmentAtTime(currentRoundAudio.segments, currentTime)
     if (foundSegment && foundSegment !== segment.value) {
       segment.value = foundSegment
       emitPositionUpdate()
-    }
-
-    // Start silent audio bridge near end of round
-    if (timeRemaining < SILENT_BRIDGE_THRESHOLD_SECS && !isSilentPlaying && nextRoundAudio) {
-      startSilentBridge()
     }
   }
 
@@ -274,33 +252,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     } else if (!mainAudio.paused && internalState.value === 'paused') {
       internalState.value = isLoadingNext ? 'loading-next' : 'playing'
     }
-  }
-
-  // ----------------------------------------
-  // Silent Audio Bridge
-  // ----------------------------------------
-
-  /**
-   * Start silent audio to maintain iOS audio session during transition
-   */
-  function startSilentBridge(): void {
-    if (!silentAudio || isSilentPlaying) return
-
-    silentAudio.play().catch((err) => {
-      console.warn('[useDrivingMode] Silent audio play failed:', err)
-    })
-    isSilentPlaying = true
-  }
-
-  /**
-   * Stop silent audio after transition
-   */
-  function stopSilentBridge(): void {
-    if (!silentAudio || !isSilentPlaying) return
-
-    silentAudio.pause()
-    silentAudio.currentTime = 0
-    isSilentPlaying = false
   }
 
   // ----------------------------------------
@@ -451,7 +402,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     mainAudio.load()
 
     await playWithRetry()
-    stopSilentBridge()
 
     // Start preloading next round
     preloadNextRound()
@@ -762,7 +712,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
         audioContext = createAudioContext()
       }
       mainAudio = createMainAudio()
-      silentAudio = createSilentAudio()
 
       // Setup event listeners
       const timeUpdateHandler = () => handleTimeUpdate()
@@ -937,7 +886,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     mainAudio.load()
 
     await playWithRetry()
-    stopSilentBridge()
     preloadNextRound()
   }
 
@@ -982,12 +930,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
       mainAudio.pause()
       mainAudio.src = ''
       mainAudio = null
-    }
-
-    if (silentAudio) {
-      silentAudio.pause()
-      silentAudio.src = ''
-      silentAudio = null
     }
 
     // Close audio context
@@ -1035,7 +977,6 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
     segment.value = null
     prepProgress.value = 0
     isLoadingNext = false
-    isSilentPlaying = false
     preloadGeneration = 0
     lastKnownCurrentTime = -1
   }

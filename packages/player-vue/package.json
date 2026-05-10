@@ -21,7 +21,8 @@
     "e2e:prod": "PROD_URL=https://saysomethingin.app playwright test"
   },
   "dependencies": {
-"@ssi/core": "workspace:*",
+    "@paddle/paddle-js": "^1.6.4",
+    "@ssi/core": "workspace:*",
     "@supabase/supabase-js": "^2.86.0",
     "@vueuse/core": "^14.1.0",
     "d3": "^7.9.0",

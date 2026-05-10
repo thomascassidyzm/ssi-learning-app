@@ -1,8 +1,32 @@
 # APML Learning: Listening Layers Specification
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
-# Status: Designed
+# Status: Superseded in part (2026-04-29) — see banner below
 # Source: Aran Jones methodology insights, 2025-12-03
+
+# =============================================================================
+# REVISION BANNER (2026-04-29)
+# =============================================================================
+# Aran revised the firing schedule and stage definitions. The CANONICAL spec
+# is now the live visualiser at https://popty.app/listening-playground.html.
+# Implementation in packages/player-vue/src/providers/generateLearningScript.ts
+# (DEFAULT_LISTENING_CONFIG + Phase 6/7) and dashboard mirror at
+# services/learning-script-generator.cjs reflects the revised spec.
+#
+# Headline differences from this 2025-12 doc:
+#   - L2 activation: every round at and after R6 (start of seed 2), NOT
+#     "150 seeds completed".
+#   - L1 windowing: active-10 (10 most recent graduated seeds, every 3 rounds)
+#     plus reserve-50 (next 50 older seeds, every 13 rounds), NOT 4 batches
+#     of 20 with hourly rotation.
+#   - Speeds: only 1.0× and 2.0× exist for listening playback. The 1.2/1.4/1.6
+#     intermediates are dropped.
+#   - Pod stage definitions corrected (see STAGE_PLAYLIST in player code).
+#   - Reserve overflow (older than active-10 + reserve-50) will eventually
+#     feed into Choice Pods (P1 music / P2 sport / P3 society) — TBD.
+#
+# The body of this spec below is preserved for historical context.
+# =============================================================================
 
 ## ============================================================================
 ## OVERVIEW

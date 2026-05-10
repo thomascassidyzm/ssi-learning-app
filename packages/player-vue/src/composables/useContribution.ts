@@ -77,7 +77,13 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
       let user30 = { minutes: 0, phrases: 0 }
       let userAll = { minutes: 0, phrases: 0 }
 
-      if (learnerId) {
+      // Skip the per-user query for guests — `learner_id` is uuid-typed and
+      // guest IDs use a `guest-{uuid}` prefix, which Supabase rejects with 400.
+      // Guests still see the global stats above; their own row will populate
+      // once they sign in.
+      const isGuest = !learnerId || learnerId.startsWith('guest-') || learnerId === 'demo-learner'
+
+      if (learnerId && !isGuest) {
         const { data: userSessions } = await client.value
           .from('sessions')
           .select('started_at, duration_seconds, items_practiced')

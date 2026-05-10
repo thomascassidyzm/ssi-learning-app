@@ -175,6 +175,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
 
   const fetchRemoteProgress = async (): Promise<{ beltIndex: number; lastLegoId: string | null } | null> => {
+    // Skip for guests — `course_enrollments.learner_id` is uuid-typed and the
+    // `guest-{uuid}` prefix breaks the column constraint (400 from Supabase).
+    // canSync() applies the same guard for the write path; mirror it here.
+    if (!canSync()) return null
+
     const supabase = getSupabase()
     const learnerId = getLearnerId()
 
@@ -206,7 +211,11 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     }
   }
 
-  const syncToRemote = async (beltIndex: number): Promise<void> => {
+  // Background sync of last_practiced_at + last_completed_lego_id (the lego
+  // high-water mark, used for cross-device resume). highest_completed_seed
+  // is no longer written: belt is now derived purely from current playing
+  // position, and the column is being deprecated.
+  const syncToRemote = async (_beltIndex: number): Promise<void> => {
     if (!canSync()) return
 
     const supabase = getSupabase()
@@ -217,16 +226,12 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     isSyncing.value = true
     lastSyncError.value = null
 
-    // Convert belt index to seed threshold for storage
-    const seedsForBelt = BELTS[beltIndex]?.seedsRequired ?? 0
-
     try {
       const { error } = await supabase
         .from('course_enrollments')
         .upsert({
           learner_id: learnerId,
           course_id: courseCode,
-          highest_completed_seed: seedsForBelt,
           last_completed_lego_id: highestLegoId.value,
           last_practiced_at: new Date().toISOString(),
         }, {
@@ -237,7 +242,6 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         const { error: updateError } = await supabase
           .from('course_enrollments')
           .update({
-            highest_completed_seed: seedsForBelt,
             last_completed_lego_id: highestLegoId.value,
             last_practiced_at: new Date().toISOString(),
           })
@@ -247,11 +251,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         if (updateError) {
           console.warn('[BeltProgress] Remote sync failed:', updateError.message)
           lastSyncError.value = updateError.message
-        } else {
-          console.log('[BeltProgress] Synced to remote: belt', beltIndex, `(${BELTS[beltIndex]?.name})`)
         }
-      } else {
-        console.log('[BeltProgress] Synced to remote: belt', beltIndex, `(${BELTS[beltIndex]?.name})`)
       }
     } catch (err) {
       console.warn('[BeltProgress] Remote sync error:', err)
@@ -422,22 +422,43 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   // ============================================================================
-  // BELT INFO (computed from highestBeltIndex)
+  // BELT INFO (your belt = highest you've engaged with, never regresses)
+  //
+  // The pill belt is `max(playingBelt, highestBelt)`:
+  //   • Skip forward / natural advance → playing bumps highest, both rise
+  //   • Skip back / revisit earlier seeds → playing drops, highest stays;
+  //     pill keeps the higher value, so the learner doesn't see a demotion
+  //     when they're consolidating foundations.
+  //
+  // Where you ARE right now is on the journey bar (current cursor); the
+  // pill represents engagement *breadth*. This matches the "you've been
+  // higher than this" resume cue that already exists.
+  //
+  // Belt-skip taps to a higher belt also bump highest immediately
+  // (checkBeltPromotion fires from setLastLegoId on the new position).
+  // That's intentional — the pill marks "I have engaged with this band",
+  // not "I have mastered it"; mastery is what spaced rep tracks.
   // ============================================================================
 
   const currentBelt = computed((): Belt => {
-    const idx = Math.min(Math.max(highestBeltIndex.value, 0), BELTS.length - 1)
+    const idx = Math.min(
+      Math.max(playingBeltIndex.value, highestBeltIndex.value, 0),
+      BELTS.length - 1,
+    )
     return { ...BELTS[idx], index: idx }
   })
 
+  // next/previous are relative to the *pill* belt (not the playing
+  // cursor) so prompts like "next belt: green" stay coherent with what
+  // the user sees on the badge.
   const nextBelt = computed((): Belt | null => {
-    const nextIndex = highestBeltIndex.value + 1
+    const nextIndex = currentBelt.value.index + 1
     if (nextIndex >= availableBelts.value.length) return null
     return { ...BELTS[nextIndex], index: nextIndex }
   })
 
   const previousBelt = computed((): Belt | null => {
-    const prevIndex = highestBeltIndex.value - 1
+    const prevIndex = currentBelt.value.index - 1
     if (prevIndex < 0) return null
     return { ...BELTS[prevIndex], index: prevIndex }
   })
@@ -446,16 +467,15 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // PROGRESS CALCULATIONS (for display)
   // ============================================================================
 
-  // Seeds needed to reach next belt (from current belt's threshold)
+  // Seed gap from current belt threshold to next belt threshold
   const seedsToNextBelt = computed(() => {
     if (!nextBelt.value) return 0
     return nextBelt.value.seedsRequired - currentBelt.value.seedsRequired
   })
 
-  // Course progress based on highest belt achieved
+  // Course progress based on current playing position
   const courseProgress = computed(() => {
-    const beltSeed = currentBelt.value.seedsRequired
-    return Math.min((beltSeed / courseSeedCount.value) * 100, 100)
+    return Math.min((playingSeedNumber.value / courseSeedCount.value) * 100, 100)
   })
 
   // ============================================================================
@@ -804,6 +824,32 @@ const sharedInstanceRef = shallowRef<ReturnType<typeof useBeltProgress> | null>(
 let sharedCourseCode: string | null = null
 let sharedSyncConfig: BeltProgressSyncConfig | null = null
 
+// Unwrap a Ref-or-raw value the same way useBeltProgress' internal helpers do
+// (lines 153-164). Lets us compare configs by leaf value instead of by
+// reference identity — necessary because LearningPlayer creates a fresh
+// `computed(() => learnerId.value)` on every mount.
+function unwrapMaybeRef<T>(v: Ref<T> | T | null | undefined): T | null {
+  if (v === null || v === undefined) return null
+  if (typeof v === 'object' && v !== null && 'value' in v) {
+    return (v as Ref<T>).value
+  }
+  return v as T
+}
+
+function syncConfigsMatch(
+  a: BeltProgressSyncConfig | null,
+  b: BeltProgressSyncConfig | undefined,
+): boolean {
+  // unwrapMaybeRef pulls primitives or the underlying client out of a Ref;
+  // comparing those by === is safe (and avoids JSON.stringify, which crashes
+  // on Vue's reactive proxy graph: 'deps' → 'sub' → cycle).
+  const aSb = unwrapMaybeRef(a?.supabase)
+  const bSb = unwrapMaybeRef(b?.supabase)
+  const aLi = unwrapMaybeRef(a?.learnerId)
+  const bLi = unwrapMaybeRef(b?.learnerId)
+  return aSb === bSb && aLi === bLi
+}
+
 export function useSharedBeltProgress(
   courseCode: string,
   syncConfig?: BeltProgressSyncConfig
@@ -811,7 +857,7 @@ export function useSharedBeltProgress(
   if (
     sharedInstanceRef.value &&
     sharedCourseCode === courseCode &&
-    JSON.stringify(sharedSyncConfig) === JSON.stringify(syncConfig)
+    syncConfigsMatch(sharedSyncConfig, syncConfig)
   ) {
     return sharedInstanceRef.value
   }

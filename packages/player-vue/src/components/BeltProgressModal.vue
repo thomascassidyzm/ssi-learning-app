@@ -10,16 +10,7 @@ const props = defineProps({
   currentBelt: {
     type: Object,
     required: true
-    // Shape: { name, color, seedsRequired, glow }
-  },
-  nextBelt: {
-    type: Object,
-    default: null
-    // Shape: { name, color, seedsRequired, glow } or null if at black belt
-  },
-  completedRounds: {
-    type: Number,
-    default: 0
+    // Belt at current playing position. Shape: { name, color, seedsRequired, glow }
   },
   sessionSeconds: {
     type: Number,
@@ -35,66 +26,85 @@ const props = defineProps({
   },
   availableBelts: {
     type: Array,
-    default: () => BELTS // Falls back to all belts if not provided
+    default: () => BELTS
+  },
+  // Round-cursor pair driving the map markers. Both 1-based for display.
+  // Both null for guests / fresh enrollments — markers don't render then.
+  currentRound: {
+    type: Number,
+    default: null
+  },
+  highestRound: {
+    type: Number,
+    default: null
+  },
+  // Belt index for each marker. Derived upstream from the actual lego id
+  // so it always agrees with the belt label. Avoids the round÷3 estimate
+  // putting the marker over the wrong chip when the round-to-seed ratio
+  // isn't clean (intros, build phases inflate early-course round counts).
+  currentBeltIndex: {
+    type: Number,
+    default: null
+  },
+  highestBeltIndex: {
+    type: Number,
+    default: null
   }
 })
 
 const emit = defineEmits(['close', 'viewProgress', 'skipToBelt'])
 
-// Format session time as MM:SS
 const formattedSessionTime = computed(() => {
   const mins = Math.floor(props.sessionSeconds / 60)
   const secs = props.sessionSeconds % 60
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 })
 
-// Format lifetime learning time
 const formattedLifetimeTime = computed(() => {
   const hours = Math.floor(props.lifetimeLearningMinutes / 60)
   const mins = props.lifetimeLearningMinutes % 60
-  if (hours === 0) {
-    return `${mins}m`
-  }
+  if (hours === 0) return `${mins}m`
   return `${hours}h ${mins}m`
 })
 
-// Progress toward next belt
-const progressToNextBelt = computed(() => {
-  if (!props.nextBelt) return 100
-  const currentRequired = props.currentBelt.seedsRequired || 0
-  const nextRequired = props.nextBelt.seedsRequired
-  const progressInTier = props.completedRounds - currentRequired
-  const tierSize = nextRequired - currentRequired
-  return Math.min(100, Math.max(0, (progressInTier / tierSize) * 100))
+// Belt indices come straight from the parent (computed from real lego
+// ids upstream). Fall back to 0 if not provided so the markers still
+// render somewhere sensible.
+const currentBeltIndexFromRound = computed(() => props.currentBeltIndex ?? 0)
+const highestBeltIndexFromRound = computed(() => props.highestBeltIndex ?? 0)
+
+// Centre of belt chip i along the row, as a percentage. The belt row is
+// drawn as N equal segments; markers sit at chip centres.
+const chipCenterPercent = (idx) => {
+  const total = props.availableBelts.length || BELTS.length
+  return ((idx + 0.5) / total) * 100
+}
+
+const nowMarkerLeft = computed(() => chipCenterPercent(currentBeltIndexFromRound.value))
+const furthestMarkerLeft = computed(() => chipCenterPercent(highestBeltIndexFromRound.value))
+
+const showFurthestMarker = computed(() => {
+  return typeof props.highestRound === 'number'
+    && typeof props.currentRound === 'number'
+    && highestBeltIndexFromRound.value > currentBeltIndexFromRound.value
 })
 
-// Seeds display text
-const seedsProgressText = computed(() => {
-  if (!props.nextBelt) {
-    return 'Black belt achieved!'
-  }
-  return `${props.completedRounds} / ${props.nextBelt.seedsRequired} seeds to ${props.nextBelt.name} belt`
+const furthestBeltName = computed(() => {
+  const idx = highestBeltIndexFromRound.value
+  return BELTS[idx]?.name ?? null
 })
 
-// CSS variables for belt colors
 const beltCssVars = computed(() => ({
   '--belt-color': props.currentBelt.color,
   '--belt-glow': props.currentBelt.glow || props.currentBelt.color,
-  '--next-belt-color': props.nextBelt?.color || props.currentBelt.color
 }))
 
-// Handle clicking on a belt to skip to it
 const handleBeltClick = (belt) => {
-  // Don't allow skipping to current belt
   if (belt.name === props.currentBelt.name) return
   emit('skipToBelt', belt)
 }
 
-// Check if a belt is the current belt
 const isCurrent = (belt) => belt.name === props.currentBelt.name
-
-// Check if a belt is "completed" (past current)
-const isCompleted = (belt) => belt.seedsRequired < props.currentBelt.seedsRequired
 
 // Close on escape key
 const handleKeydown = (e) => {
@@ -158,51 +168,54 @@ onUnmounted(() => {
               <div class="time-label">This session</div>
             </div>
 
-            <!-- Belt Progress Section -->
-            <div class="belt-progress-section">
-              <!-- Current belt indicator -->
-              <div class="current-belt">
-                <span class="belt-dot" :style="{ background: currentBelt.color }"></span>
-                <span class="belt-name">{{ currentBelt.name }} Belt</span>
-              </div>
+            <!-- Course map: belts are stations. Tap any belt to jump there.
+                 Belt at current position is the only thing called "your belt"
+                 — no "earned" gating, no progress percentages. -->
+            <div class="course-map">
+              <p class="course-map-prompt">
+                you're working on
+                <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+              </p>
+              <p v-if="showFurthestMarker" class="course-map-furthest-note">
+                you've been as far as <strong>{{ furthestBeltName }} belt</strong>
+              </p>
 
-              <!-- Progress bar -->
-              <div class="progress-bar-container">
-                <div class="progress-bar-bg">
-                  <div
-                    class="progress-bar-fill"
-                    :style="{ width: `${progressToNextBelt}%` }"
-                  ></div>
+              <div class="map-row">
+                <button
+                  v-for="(belt, i) in availableBelts"
+                  :key="belt.name"
+                  class="map-chip"
+                  :class="{
+                    'map-chip--current': isCurrent(belt),
+                    'is-skipping': isSkipping
+                  }"
+                  :style="{ '--chip-color': belt.color }"
+                  :disabled="isCurrent(belt) || isSkipping"
+                  @click="handleBeltClick(belt)"
+                  :title="`Jump to ${belt.name} belt`"
+                >
+                  <span class="map-chip-dot"></span>
+                  <span class="map-chip-label">{{ belt.name }}</span>
+                </button>
+
+                <!-- Markers float above the chip row to indicate position -->
+                <div
+                  v-if="typeof currentRound === 'number'"
+                  class="map-marker map-marker--now"
+                  :style="{ left: nowMarkerLeft + '%' }"
+                >
+                  <span class="map-marker-label">now</span>
+                </div>
+                <div
+                  v-if="showFurthestMarker"
+                  class="map-marker map-marker--furthest"
+                  :style="{ left: furthestMarkerLeft + '%' }"
+                >
+                  <span class="map-marker-label">furthest</span>
                 </div>
               </div>
 
-              <!-- Progress text -->
-              <div class="progress-text" :class="{ 'progress-text--complete': !nextBelt }">
-                {{ seedsProgressText }}
-              </div>
-            </div>
-
-            <!-- Jump to Belt Section -->
-            <div class="belt-jump-section">
-              <div class="belt-jump-label">Jump to belt:</div>
-              <div class="belt-grid">
-                <button
-                  v-for="belt in availableBelts"
-                  :key="belt.name"
-                  class="belt-chip"
-                  :class="{
-                    'belt-chip--current': isCurrent(belt),
-                    'belt-chip--completed': isCompleted(belt),
-                    'is-skipping': isSkipping
-                  }"
-                  :style="{ '--chip-color': belt.color, '--chip-glow': belt.glow }"
-                  :disabled="isCurrent(belt) || isSkipping"
-                  @click="handleBeltClick(belt)"
-                  :title="`Jump to ${belt.name} belt (seed ${belt.seedsRequired})`"
-                >
-                  <span class="belt-chip-dot"></span>
-                </button>
-              </div>
+              <p class="course-map-hint">tap a belt to jump there</p>
             </div>
 
             <!-- Lifetime Stats -->
@@ -339,88 +352,61 @@ onUnmounted(() => {
   margin-top: 0.5rem;
 }
 
-/* Belt Progress */
-.belt-progress-section {
+/* Course map (replaces the old belt-progress + jump sections) */
+.course-map {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-.current-belt {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.course-map-prompt {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
-.belt-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  box-shadow: 0 0 8px var(--belt-color);
-}
-
-.belt-name {
-  font-size: 1rem;
+.course-map-prompt strong {
   font-weight: 600;
-  color: var(--text-primary);
+  text-transform: capitalize;
 }
 
-.progress-bar-container {
-  width: 100%;
+.course-map-furthest-note {
+  margin: -0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-style: italic;
 }
 
-.progress-bar-bg {
-  width: 100%;
-  height: 8px;
-  background: var(--bg-interactive, rgba(255, 255, 255, 0.1));
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--belt-color), var(--next-belt-color));
-  border-radius: 4px;
-  transition: width 0.5s ease;
-  box-shadow: 0 0 10px var(--belt-glow);
-}
-
-.progress-text {
-  font-size: 0.875rem;
+.course-map-furthest-note strong {
+  font-weight: 500;
+  text-transform: capitalize;
   color: var(--text-secondary);
 }
 
-.progress-text--complete {
-  color: var(--ssi-gold);
-  font-weight: 500;
-}
-
-/* Jump to Belt Section */
-.belt-jump-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.belt-jump-label {
-  font-size: 0.8125rem;
+.course-map-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-align: center;
+  letter-spacing: 0.02em;
 }
 
-.belt-grid {
+.map-row {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.25rem;
+  padding-top: 22px; /* room for markers above */
 }
 
-.belt-chip {
+.map-chip {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.5rem 0.25rem;
+  padding: 0.5rem 0.125rem;
   background: var(--bg-card);
   border: 1px solid var(--border-medium);
   border-radius: 8px;
@@ -428,47 +414,78 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 }
 
-.belt-chip:hover:not(:disabled) {
+.map-chip:hover:not(:disabled) {
   background: var(--bg-card-hover);
   border-color: var(--chip-color);
-  box-shadow: 0 0 12px var(--chip-glow);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--chip-color) 35%, transparent);
   transform: translateY(-1px);
 }
 
-.belt-chip:disabled {
+.map-chip:disabled {
   cursor: default;
 }
 
-.belt-chip--current {
+.map-chip--current {
   background: var(--bg-card-hover);
   border-color: var(--chip-color);
-  box-shadow: 0 0 8px var(--chip-glow);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--chip-color) 40%, transparent);
 }
 
-.belt-chip--completed {
-  opacity: 0.5;
-}
-
-.belt-chip--completed:hover:not(:disabled) {
-  opacity: 0.8;
-}
-
-.belt-chip.is-skipping {
-  animation: belt-chip-pulse 0.6s ease-in-out infinite;
+.map-chip.is-skipping {
+  animation: map-chip-pulse 0.6s ease-in-out infinite;
   pointer-events: none;
 }
 
-@keyframes belt-chip-pulse {
+@keyframes map-chip-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
 
-.belt-chip-dot {
-  width: 14px;
-  height: 14px;
+.map-chip-dot {
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--chip-color);
-  box-shadow: 0 0 6px var(--chip-glow);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--chip-color) 50%, transparent);
+}
+
+.map-chip-label {
+  font-size: 0.625rem;
+  text-transform: capitalize;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Markers above the chip row, positioned by left % */
+.map-marker {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.map-marker-label {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.map-marker--now .map-marker-label::before {
+  content: "▼ ";
+  color: var(--belt-color);
+}
+
+.map-marker--furthest {
+  top: -2px;
+}
+
+.map-marker--furthest .map-marker-label::before {
+  content: "▽ ";
+  color: var(--text-muted);
 }
 
 /* Lifetime Stats */

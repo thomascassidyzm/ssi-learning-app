@@ -445,10 +445,12 @@ const loadScript = async (forceRefresh = false) => {
     if (forceRefresh) isRefreshing.value = true
     error.value = null
 
-    // Use the new RoundBuilder for complete course generation
-    console.log('[CourseExplorer] Generating FULL course script using RoundBuilder for:', courseId)
+    // Generate via the same generator the player uses (generateLearningScript)
+    // — includes Listening Pods, bookends, Layer 1 cycles. RoundBuilder, the
+    // previous source, has no pod handling and silently diverged from playback.
+    console.log('[CourseExplorer] Generating FULL course script via generateLearningScript for:', courseId)
     const result = await fullCourseScript.generateScript(
-      courseDataProvider.value,
+      supabase?.value ?? null,
       courseId
     )
     console.log('[CourseExplorer] Full script generated:', result.rounds.length, 'rounds')

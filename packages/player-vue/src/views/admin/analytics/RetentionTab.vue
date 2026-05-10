@@ -2,8 +2,7 @@
 import { onMounted, computed } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAnalyticsRetention } from '@/composables/admin/useAnalyticsRetention'
-import Card from '@/components/schools/shared/Card.vue'
-import StatsCard from '@/components/schools/StatsCard.vue'
+import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient } = useAdminClient()
 const client = getClient()
@@ -25,18 +24,42 @@ function formatWeek(dateStr: string): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-function retentionColor(pct: number): string {
-  if (pct >= 60) return '#4ade80'
-  if (pct >= 40) return '#fbbf24'
-  if (pct >= 20) return '#f97316'
-  return '#ef4444'
+type RetentionTone = 'green' | 'gold' | 'orange' | 'red'
+
+function retentionTone(pct: number): RetentionTone {
+  if (pct >= 60) return 'green'
+  if (pct >= 40) return 'gold'
+  if (pct >= 20) return 'orange'
+  return 'red'
 }
 
-function retentionBgColor(pct: number): string {
-  if (pct >= 60) return 'rgba(74, 222, 128, 0.15)'
-  if (pct >= 40) return 'rgba(251, 191, 36, 0.15)'
-  if (pct >= 20) return 'rgba(249, 115, 22, 0.15)'
-  return 'rgba(239, 68, 68, 0.15)'
+function retentionStyle(pct: number): Record<string, string> {
+  const tone = retentionTone(pct)
+  // Use tonal triplets, except orange which falls back to a warm amber
+  const map: Record<RetentionTone, { bg: string; border: string; color: string }> = {
+    green: {
+      bg: 'rgba(var(--tone-green), 0.14)',
+      border: 'rgba(var(--tone-green), 0.32)',
+      color: 'rgb(var(--tone-green))',
+    },
+    gold: {
+      bg: 'rgba(var(--tone-gold), 0.14)',
+      border: 'rgba(var(--tone-gold), 0.32)',
+      color: 'rgb(var(--tone-gold))',
+    },
+    orange: {
+      bg: 'rgba(220, 130, 60, 0.14)',
+      border: 'rgba(220, 130, 60, 0.32)',
+      color: 'rgb(180, 105, 45)',
+    },
+    red: {
+      bg: 'rgba(var(--tone-red), 0.14)',
+      border: 'rgba(var(--tone-red), 0.32)',
+      color: 'rgb(var(--tone-red))',
+    },
+  }
+  const m = map[tone]
+  return { background: m.bg, borderColor: m.border, color: m.color }
 }
 
 onMounted(() => {
@@ -47,51 +70,46 @@ onMounted(() => {
 <template>
   <div class="tab-content">
     <!-- Loading -->
-    <div v-if="retention.isLoading.value" class="loading-state animate-in">
-      Loading retention data...
-    </div>
-    <div v-if="retention.error.value" class="alert-error animate-in">
-      {{ retention.error.value }}
+    <div v-if="retention.isLoading.value" class="loading">Loading retention data…</div>
+    <div v-if="retention.error.value" class="error-banner">{{ retention.error.value }}</div>
+
+    <!-- KPI stones -->
+    <div v-if="retention.data.value.length > 0" class="kpi-strip">
+      <FrostCard variant="stone" tone="green">
+        <div class="stone-content">
+          <span class="stone-label">Avg W1 retention</span>
+          <span class="stone-value frost-mono-nums">{{ avgW1 }}%</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="gold">
+        <div class="stone-content">
+          <span class="stone-label">Avg W4 retention</span>
+          <span class="stone-value frost-mono-nums">{{ avgW4 }}%</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="red">
+        <div class="stone-content">
+          <span class="stone-label">Avg W8 retention</span>
+          <span class="stone-value frost-mono-nums">{{ avgW8 }}%</span>
+        </div>
+      </FrostCard>
     </div>
 
-    <!-- Summary Stats -->
-    <div v-if="retention.data.value.length > 0" class="summary-grid animate-in delay-1">
-      <StatsCard
-        :value="`${avgW1}%`"
-        label="Avg W1 Retention"
-        variant="green"
-        size="compact"
-      />
-      <StatsCard
-        :value="`${avgW4}%`"
-        label="Avg W4 Retention"
-        variant="gold"
-        size="compact"
-      />
-      <StatsCard
-        :value="`${avgW8}%`"
-        label="Avg W8 Retention"
-        variant="red"
-        size="compact"
-      />
-    </div>
+    <!-- Cohort table -->
+    <FrostCard variant="panel" class="cohort-panel">
+      <div class="panel-head">
+        <span class="frost-eyebrow">Retention by signup cohort · % active in window</span>
+      </div>
 
-    <!-- Heatmap -->
-    <Card
-      title="Retention by Signup Cohort"
-      subtitle="Percentage of users active in each window after signup"
-      accent="red"
-      class="animate-in delay-2"
-    >
-      <div v-if="retention.data.value.length === 0" class="empty-state">
-        Not enough data yet. Cohorts need at least 8 weeks of history.
+      <div v-if="retention.data.value.length === 0 && !retention.isLoading.value" class="empty-inline">
+        Not enough data yet — cohorts need at least 8 weeks of history.
       </div>
 
       <div v-else class="table-wrapper">
-        <table class="retention-table">
+        <table class="cohort-table">
           <thead>
             <tr>
-              <th>Cohort Week</th>
+              <th>Cohort week</th>
               <th>Users</th>
               <th>Week 1</th>
               <th>Week 2</th>
@@ -101,49 +119,25 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-for="c in retention.data.value" :key="c.cohort_week">
-              <td>{{ formatWeek(c.cohort_week) }}</td>
-              <td class="users-cell">{{ c.cohort_size }}</td>
+              <td class="cell-week frost-mono-nums">{{ formatWeek(c.cohort_week) }}</td>
+              <td class="cell-users frost-mono-nums">{{ c.cohort_size }}</td>
               <td>
-                <span
-                  class="retention-cell"
-                  :style="{
-                    color: retentionColor(c.w1_pct),
-                    background: retentionBgColor(c.w1_pct),
-                  }"
-                >
+                <span class="retention-cell frost-mono-nums" :style="retentionStyle(c.w1_pct)">
                   {{ c.w1_pct }}%
                 </span>
               </td>
               <td>
-                <span
-                  class="retention-cell"
-                  :style="{
-                    color: retentionColor(c.w2_pct),
-                    background: retentionBgColor(c.w2_pct),
-                  }"
-                >
+                <span class="retention-cell frost-mono-nums" :style="retentionStyle(c.w2_pct)">
                   {{ c.w2_pct }}%
                 </span>
               </td>
               <td>
-                <span
-                  class="retention-cell"
-                  :style="{
-                    color: retentionColor(c.w4_pct),
-                    background: retentionBgColor(c.w4_pct),
-                  }"
-                >
+                <span class="retention-cell frost-mono-nums" :style="retentionStyle(c.w4_pct)">
                   {{ c.w4_pct }}%
                 </span>
               </td>
               <td>
-                <span
-                  class="retention-cell"
-                  :style="{
-                    color: retentionColor(c.w8_pct),
-                    background: retentionBgColor(c.w8_pct),
-                  }"
-                >
+                <span class="retention-cell frost-mono-nums" :style="retentionStyle(c.w8_pct)">
                   {{ c.w8_pct }}%
                 </span>
               </td>
@@ -153,25 +147,25 @@ onMounted(() => {
       </div>
 
       <!-- Legend -->
-      <div class="legend">
-        <div class="legend-item">
-          <span class="legend-swatch" style="background: #4ade80;"></span>
+      <div v-if="retention.data.value.length > 0" class="legend">
+        <span class="legend-item">
+          <span class="legend-swatch" :style="retentionStyle(80)"></span>
           <span>60%+</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-swatch" style="background: #fbbf24;"></span>
-          <span>40-59%</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-swatch" style="background: #f97316;"></span>
-          <span>20-39%</span>
-        </div>
-        <div class="legend-item">
-          <span class="legend-swatch" style="background: #ef4444;"></span>
+        </span>
+        <span class="legend-item">
+          <span class="legend-swatch" :style="retentionStyle(50)"></span>
+          <span>40–59%</span>
+        </span>
+        <span class="legend-item">
+          <span class="legend-swatch" :style="retentionStyle(30)"></span>
+          <span>20–39%</span>
+        </span>
+        <span class="legend-item">
+          <span class="legend-swatch" :style="retentionStyle(10)"></span>
           <span>&lt;20%</span>
-        </div>
+        </span>
       </div>
-    </Card>
+    </FrostCard>
   </div>
 </template>
 
@@ -179,113 +173,150 @@ onMounted(() => {
 .tab-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6, 24px);
+  gap: var(--space-6);
 }
 
-.summary-grid {
+/* KPI stones */
+.kpi-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4, 16px);
+  gap: var(--space-4);
 }
 
-.loading-state {
+.stone-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: var(--space-5) var(--space-6);
+  min-height: 120px;
+}
+
+.stone-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.stone-value {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.025em;
+  color: var(--ink-primary);
+  margin-top: var(--space-3);
+}
+
+/* Panel */
+.cohort-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel-head {
+  padding: var(--space-4) var(--space-6) var(--space-3);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
+}
+
+.empty-inline {
   text-align: center;
-  padding: var(--space-10, 40px) var(--space-5, 20px);
-  color: var(--text-secondary);
-  font-size: var(--text-sm, 0.875rem);
+  padding: var(--space-8) var(--space-5);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
 }
 
-.alert-error {
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  border-radius: var(--radius-lg, 12px);
-  font-size: var(--text-sm, 0.875rem);
-  background: var(--bg-card);
-  border: 1px solid var(--ssi-red);
-  color: var(--ssi-red-light, #ff8080);
-}
-
-.empty-state {
-  text-align: center;
-  padding: var(--space-8, 32px) var(--space-5, 20px);
-  color: var(--text-muted);
-  font-size: var(--text-sm, 0.875rem);
-}
-
-/* Retention Table */
+/* Cohort table */
 .table-wrapper {
   overflow-x: auto;
-  margin-top: var(--space-2, 8px);
+  padding: var(--space-2) var(--space-4) var(--space-4);
 }
 
-.retention-table {
+.cohort-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-sm, 0.875rem);
+  font-size: var(--text-sm);
 }
 
-.retention-table th {
+.cohort-table th {
   text-align: left;
-  padding: var(--space-3, 10px) var(--space-3, 12px);
-  color: var(--text-muted);
-  font-weight: var(--font-medium, 500);
-  font-size: var(--text-xs, 0.75rem);
+  padding: var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--border-medium);
+  color: var(--ink-muted);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
 }
 
-.retention-table td {
-  padding: var(--space-3, 12px);
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-primary);
+.cohort-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.05);
+  color: var(--ink-secondary);
 }
 
-.users-cell {
-  font-weight: var(--font-semibold, 600);
-  color: var(--text-muted) !important;
-}
+.cell-week { color: var(--ink-primary); font-weight: var(--font-medium); }
+.cell-users { color: var(--ink-muted); }
 
 .retention-cell {
   display: inline-block;
-  font-weight: var(--font-bold, 700);
-  font-size: 0.9375rem;
-  padding: var(--space-1, 4px) var(--space-2, 8px);
-  border-radius: var(--radius-md, 6px);
-  min-width: 52px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  min-width: 56px;
   text-align: center;
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
 }
 
 /* Legend */
 .legend {
   display: flex;
-  gap: var(--space-4, 16px);
-  margin-top: var(--space-4, 16px);
-  padding-top: var(--space-3, 12px);
-  border-top: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-6) var(--space-4);
+  border-top: 1px solid rgba(44, 38, 34, 0.06);
 }
 
 .legend-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2, 6px);
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--text-muted);
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
 }
 
 .legend-swatch {
   width: 12px;
   height: 12px;
   border-radius: 3px;
+  border: 1px solid transparent;
   flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
+/* Status */
+.loading {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
 
-  .legend {
-    flex-wrap: wrap;
-  }
+.error-banner {
+  padding: var(--space-3) var(--space-4);
+  background: rgba(var(--tone-red), 0.08);
+  border: 1px solid rgba(var(--tone-red), 0.25);
+  border-radius: var(--radius-lg);
+  color: rgb(var(--tone-red));
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 768px) {
+  .kpi-strip { grid-template-columns: 1fr; }
 }
 </style>

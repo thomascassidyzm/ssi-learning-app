@@ -2,10 +2,8 @@
 import { onMounted, computed } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAnalyticsEngagement } from '@/composables/admin/useAnalyticsEngagement'
-import Card from '@/components/schools/shared/Card.vue'
-import StatsCard from '@/components/schools/StatsCard.vue'
+import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import BarChart from '@/components/admin/charts/BarChart.vue'
-import HorizontalBarChart from '@/components/admin/charts/HorizontalBarChart.vue'
 import { parseCourseCode, formatDuration } from '@/composables/admin/adminUtils'
 
 const { getClient } = useAdminClient()
@@ -59,6 +57,26 @@ function formatCourseLabel(code: string): string {
   return parseCourseCode(code).label
 }
 
+const beltColorMap: Record<string, string> = {
+  white: 'rgb(180, 175, 165)',
+  yellow: 'rgb(220, 180, 70)',
+  orange: 'rgb(220, 130, 60)',
+  green: 'rgb(74, 180, 110)',
+  blue: 'rgb(96, 145, 220)',
+  purple: 'rgb(150, 110, 200)',
+  brown: 'rgb(150, 100, 60)',
+  black: 'rgb(40, 36, 32)',
+}
+
+function beltStyle(belt: string): Record<string, string> {
+  const c = beltColorMap[belt.toLowerCase()] || 'rgb(120, 110, 100)'
+  return {
+    background: 'rgba(44, 38, 34, 0.04)',
+    borderColor: c,
+    color: c,
+  }
+}
+
 onMounted(() => {
   engagement.fetch()
 })
@@ -67,109 +85,100 @@ onMounted(() => {
 <template>
   <div class="tab-content">
     <!-- Loading -->
-    <div v-if="engagement.isLoading.value" class="loading-state animate-in">
-      Loading engagement metrics...
-    </div>
-    <div v-if="engagement.error.value" class="alert-error animate-in">
-      {{ engagement.error.value }}
-    </div>
+    <div v-if="engagement.isLoading.value" class="loading">Loading engagement metrics…</div>
+    <div v-if="engagement.error.value" class="error-banner">{{ engagement.error.value }}</div>
 
-    <!-- Hero Stats -->
-    <div v-if="engagement.data.value" class="hero-grid animate-in delay-1">
-      <StatsCard
-        :value="engagement.data.value.dau"
-        label="Daily Active Users"
-        icon="&#128994;"
-        variant="green"
-        size="compact"
-      />
-      <StatsCard
-        :value="engagement.data.value.wau"
-        label="Weekly Active Users"
-        icon="&#128200;"
-        variant="blue"
-        size="compact"
-      />
-      <StatsCard
-        :value="engagement.data.value.mau"
-        label="Monthly Active Users"
-        icon="&#127775;"
-        variant="gold"
-        size="compact"
-      />
-      <StatsCard
-        :value="avgDurationFormatted"
-        label="Avg Session Duration"
-        icon="&#9201;"
-        variant="purple"
-        size="compact"
-      />
-      <StatsCard
-        :value="avgSessionsFormatted"
-        label="Avg Sessions / User / Week"
-        icon="&#9889;"
-        variant="red"
-        size="compact"
-      />
+    <!-- KPI stones -->
+    <div v-if="engagement.data.value" class="kpi-strip">
+      <FrostCard variant="stone" tone="green">
+        <div class="stone-content">
+          <span class="stone-label">Daily active</span>
+          <span class="stone-value frost-mono-nums">{{ engagement.data.value.dau }}</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="blue">
+        <div class="stone-content">
+          <span class="stone-label">Weekly active</span>
+          <span class="stone-value frost-mono-nums">{{ engagement.data.value.wau }}</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="gold">
+        <div class="stone-content">
+          <span class="stone-label">Monthly active</span>
+          <span class="stone-value frost-mono-nums">{{ engagement.data.value.mau }}</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="red">
+        <div class="stone-content">
+          <span class="stone-label">Avg session</span>
+          <span class="stone-value frost-mono-nums">{{ avgDurationFormatted }}</span>
+        </div>
+      </FrostCard>
+      <FrostCard variant="stone" tone="gold">
+        <div class="stone-content">
+          <span class="stone-label">Sessions / user / wk</span>
+          <span class="stone-value frost-mono-nums">{{ avgSessionsFormatted }}</span>
+        </div>
+      </FrostCard>
     </div>
 
-    <!-- Session Frequency Distribution -->
-    <Card
-      title="Session Frequency Distribution"
-      subtitle="Sessions per user per week"
-      accent="blue"
-      class="animate-in delay-2"
-    >
-      <BarChart
-        :data="frequencyChartData"
-        x-key="bucket"
-        y-key="count"
-        color="var(--info, #3b82f6)"
-        :height="220"
-        :format-x="(v: any) => `${v}/wk`"
-        :format-y="(v: number) => `${v} users`"
-      />
-    </Card>
-
-    <!-- Session Duration Distribution -->
-    <Card
-      title="Session Duration Distribution"
-      subtitle="How long learners practice"
-      accent="green"
-      class="animate-in delay-3"
-    >
-      <BarChart
-        :data="durationChartData"
-        x-key="bucket"
-        y-key="count"
-        color="var(--success, #4ade80)"
-        :height="220"
-        :format-x="(v: any) => String(v)"
-        :format-y="(v: number) => `${v} sessions`"
-      />
-    </Card>
-
-    <!-- Average Belt Per Course -->
-    <Card
-      title="Average Belt Per Course"
-      subtitle="Typical learner progression by course"
-      accent="gold"
-      class="animate-in delay-4"
-    >
-      <div v-if="beltChartData.length === 0" class="empty-state">
-        No belt data available yet.
+    <!-- Session frequency distribution -->
+    <FrostCard variant="panel" class="chart-panel">
+      <div class="panel-head">
+        <span class="frost-eyebrow">Session frequency · sessions / user / week</span>
       </div>
-      <div v-else class="belt-list">
-        <div
-          v-for="item in beltChartData"
-          :key="item.course"
-          class="belt-row"
-        >
-          <span class="belt-course">{{ formatCourseLabel(item.course) }}</span>
-          <span class="belt-badge" :data-belt="item.belt">{{ item.belt }}</span>
+      <div class="panel-body">
+        <BarChart
+          :data="frequencyChartData"
+          x-key="bucket"
+          y-key="count"
+          color="rgb(var(--tone-blue))"
+          :height="220"
+          :format-x="(v: any) => `${v}/wk`"
+          :format-y="(v: number) => `${v} users`"
+        />
+      </div>
+    </FrostCard>
+
+    <!-- Session duration distribution -->
+    <FrostCard variant="panel" class="chart-panel">
+      <div class="panel-head">
+        <span class="frost-eyebrow">Session duration · how long learners practise</span>
+      </div>
+      <div class="panel-body">
+        <BarChart
+          :data="durationChartData"
+          x-key="bucket"
+          y-key="count"
+          color="rgb(var(--tone-green))"
+          :height="220"
+          :format-x="(v: any) => String(v)"
+          :format-y="(v: number) => `${v} sessions`"
+        />
+      </div>
+    </FrostCard>
+
+    <!-- Average belt per course -->
+    <FrostCard variant="panel" class="chart-panel">
+      <div class="panel-head">
+        <span class="frost-eyebrow">Average belt per course</span>
+      </div>
+      <div class="panel-body">
+        <div v-if="beltChartData.length === 0" class="empty-inline">
+          No belt data available yet.
+        </div>
+        <div v-else class="belt-list">
+          <div
+            v-for="item in beltChartData"
+            :key="item.course"
+            class="belt-row"
+          >
+            <span class="belt-course">{{ formatCourseLabel(item.course) }}</span>
+            <span class="belt-pill" :style="beltStyle(item.belt)">{{ item.belt }}</span>
+          </div>
         </div>
       </div>
-    </Card>
+    </FrostCard>
   </div>
 </template>
 
@@ -177,88 +186,125 @@ onMounted(() => {
 .tab-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6, 24px);
+  gap: var(--space-6);
 }
 
-.hero-grid {
+/* KPI stones */
+.kpi-strip {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-4, 16px);
+  gap: var(--space-4);
 }
 
-.loading-state {
-  text-align: center;
-  padding: var(--space-10, 40px) var(--space-5, 20px);
-  color: var(--text-secondary);
-  font-size: var(--text-sm, 0.875rem);
+.stone-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: var(--space-5) var(--space-6);
+  min-height: 140px;
 }
 
-.alert-error {
-  padding: var(--space-3, 12px) var(--space-4, 16px);
-  border-radius: var(--radius-lg, 12px);
-  font-size: var(--text-sm, 0.875rem);
-  background: var(--bg-card);
-  border: 1px solid var(--ssi-red);
-  color: var(--ssi-red-light, #ff8080);
+.stone-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
 }
 
-.empty-state {
-  text-align: center;
-  padding: var(--space-8, 32px) var(--space-5, 20px);
-  color: var(--text-muted);
-  font-size: var(--text-sm, 0.875rem);
+.stone-value {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.025em;
+  color: var(--ink-primary);
+  margin-top: var(--space-3);
+}
+
+/* Panels */
+.chart-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel-head {
+  padding: var(--space-4) var(--space-6) var(--space-3);
+  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
+}
+
+.panel-body {
+  padding: var(--space-5) var(--space-6);
 }
 
 /* Belt list */
 .belt-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3, 12px);
+  gap: var(--space-2);
 }
 
 .belt-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--space-2, 8px) var(--space-3, 12px);
-  border-radius: var(--radius-md, 8px);
-  background: var(--bg-secondary);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  transition: background var(--transition-fast);
+}
+
+.belt-row:hover {
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .belt-course {
-  font-size: var(--text-sm, 0.875rem);
-  color: var(--text-primary);
-  font-weight: var(--font-medium, 500);
+  color: var(--ink-primary);
+  font-weight: var(--font-medium);
 }
 
-.belt-badge {
-  font-size: var(--text-xs, 0.75rem);
-  font-weight: var(--font-bold, 700);
-  text-transform: capitalize;
-  padding: var(--space-1, 4px) var(--space-3, 12px);
-  border-radius: var(--radius-full, 9999px);
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+.belt-pill {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
 }
 
-.belt-badge[data-belt="white"] { color: #ffffff; }
-.belt-badge[data-belt="yellow"] { color: #facc15; }
-.belt-badge[data-belt="orange"] { color: #f97316; }
-.belt-badge[data-belt="green"] { color: #4ade80; }
-.belt-badge[data-belt="blue"] { color: #3b82f6; }
-.belt-badge[data-belt="purple"] { color: #a855f7; }
-.belt-badge[data-belt="brown"] { color: #a16207; }
-.belt-badge[data-belt="black"] { color: #e2e8f0; }
+/* Status */
+.loading {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.error-banner {
+  padding: var(--space-3) var(--space-4);
+  background: rgba(var(--tone-red), 0.08);
+  border: 1px solid rgba(var(--tone-red), 0.25);
+  border-radius: var(--radius-lg);
+  color: rgb(var(--tone-red));
+  font-size: var(--text-sm);
+}
+
+.empty-inline {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
 
 @media (max-width: 1200px) {
-  .hero-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 768px) {
-  .hero-grid {
-    grid-template-columns: 1fr;
-  }
+  .kpi-strip { grid-template-columns: 1fr; }
 }
 </style>
