@@ -177,16 +177,9 @@ export default async function handler(
     }
     const sample: AudioRecord = validation.value
 
-    // Log analytics (fire and forget). user_id comes from the
-    // ssi-user-id cookie set on the client by useAuth's handleAuthChange.
-    // <audio> elements can't add custom headers, but cookies flow with
-    // them automatically (same-origin), and Vercel populates req.cookies.
-    // Falls back to the legacy x-user-id header for fetch-based callers.
-    const userId = (req.cookies?.['ssi-user-id'] as string | undefined)
-      || (req.headers['x-user-id'] as string | undefined)
-      || null
+    // Log analytics (fire and forget)
     const analyticsEvent: AudioPlayEvent = {
-      user_id: userId,
+      user_id: req.headers['x-user-id'] as string | null,
       audio_id: audioId,
       course_id: req.query.courseId as string | null,
       seed_id: req.query.seedId as string | null,

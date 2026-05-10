@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { getSchoolsClient } from '@/composables/schools/client'
 
 type TimePeriod = '7d' | '30d' | 'all'
 
-const { currentUser: selectedUser } = useSchoolContext()
+const { selectedUser } = useGodMode()
 const { classes: classesData, fetchClasses } = useClassesData()
 
 const selectedPeriod = ref<TimePeriod>('30d')

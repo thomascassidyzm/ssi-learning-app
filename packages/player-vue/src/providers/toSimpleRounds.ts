@@ -58,10 +58,6 @@ function estimateDurationMs(targetText: string): number {
 /**
  * Calculate pause duration based on target audio length
  * Formula: bootUpTime + scaleFactor * target1Duration
- *
- * Cap of 16000ms covers the realistic upper end of phrase lengths (a 7s
- * target gets the full 2 + 14 = 16s pause). Audit 2026-05-05 showed only
- * ~0.5% of fleet phrases exceed 7s; the previous 10s cap was clamping 15%.
  */
 function calculatePauseDuration(
   target1DurationMs: number | undefined,
@@ -71,7 +67,7 @@ function calculatePauseDuration(
 ): number {
   const t1 = target1DurationMs || estimateDurationMs(targetText || '')
 
-  return Math.min(16000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
+  return Math.min(10000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
 }
 
 /**
@@ -189,20 +185,8 @@ export function toSimpleRounds(
     const cycles: Cycle[] = []
     let skippedNoAudio = 0
     for (const i of roundItems) {
-      if (i.type === 'listening') {
-        // Listening cycles now carry one audio per cycle (one playlist
-        // entry: ps/ps2x → target1Id, trans → knownAudioId). Either is
-        // acceptable; missing both means a stale row to skip.
-        if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
-      } else if (i.type === 'component_intro') {
+      if (i.type === 'listening' || i.type === 'component_intro') {
         if (!i.target1Id) { skippedNoAudio++; continue }
-      } else if (i.type === 'listen_intro' || i.type === 'listen_outro') {
-        // Bookends play one known-language clip with no target voices.
-        if (!i.knownAudioId) { skippedNoAudio++; continue }
-      } else if (i.type === 'pod') {
-        // Pod plays carry exactly one of {knownAudioId (translation play),
-        // target1Id (target play at slow/fast/2× via playbackSpeed)}.
-        if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
       } else if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
       }
@@ -223,39 +207,22 @@ export function toSimpleRounds(
         targetSpeed
       )
 
-      const isBookend = i.type === 'listen_intro' || i.type === 'listen_outro'
-      const isPod = i.type === 'pod'
-
       cycles.push({
         id: i.uuid,
-        type: i.type,
         legoId: i.legoKey,
         known: {
           text: i.knownText,
           audioUrl: audioUrl(promptAudioId)
         },
         target: {
-          // Bookends carry no target text/audio — SimplePlayer's voice1/voice2
-          // phases gracefully skip when URLs are empty.
-          // Pods: target1 holds the play audio for slow/fast/2× (with
-          // playbackSpeed); voice2 always empty (single-play cycle).
           text: i.targetText,
           ...(i.targetTextNative ? { textNative: i.targetTextNative } : {}),
-          voice1Url: isBookend ? '' : audioUrl(i.target1Id),
-          voice2Url: (isBookend || isPod) ? '' : audioUrl(i.target2Id)
+          voice1Url: audioUrl(i.target1Id),
+          voice2Url: audioUrl(i.target2Id)
         },
-        // Expose raw target durations so runtime overrides (Turbo) can
-        // recompute pauseDuration with their own formula instead of just
-        // scaling the baked value.
-        ...(i.target1DurationMs ? { target1DurationMs: i.target1DurationMs } : {}),
-        ...(i.target2DurationMs ? { target2DurationMs: i.target2DurationMs } : {}),
-        // Turbo skip flag — set on 4th–7th BUILD, 2nd USE, alternate fib
-        // spaced rep. SimplePlayer's shouldSkipCycle override (gated on
-        // turboActive) decides whether to actually skip at play time.
-        ...(i.turboOmit ? { turboOmit: true } : {}),
-        // Intro/listening/component_intro/bookends/pods: no pause.
-        // Other cycles: dynamic pause based on target audio lengths.
-        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)
+        // Intro/listening/component_intro has no pause (learner doesn't know it yet / passive listening)
+        // Other cycles: dynamic pause based on target audio lengths
+        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro')
           ? 0
           : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
         // Intro/component_intro: linger after voice2 so learner can read

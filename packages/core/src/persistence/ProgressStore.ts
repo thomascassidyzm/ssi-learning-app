@@ -164,99 +164,19 @@ export class ProgressStore implements IProgressStore {
     legoId: string,
     roundIndex: number
   ): Promise<void> {
-    // Cursor advance is forward-only at the persistence layer. A round-
-    // completion at index N never regresses the cursor — without this
-    // guard, a single bug that zeroed the in-memory round index could
-    // overwrite a learner's furthest position with "round 0" the next
-    // time a cycle completed (which is exactly what happened to the
-    // pod-stop reset before commit e09dc41).
-    //
-    // Intentional cursor regression — say, a future "track revisit
-    // position" feature — would need a separate explicit method. All
-    // current callers want forward-only progress.
     const { error } = await this.client
       .schema(this.schema)
       .from('course_enrollments')
       .update({
         last_completed_lego_id: legoId,
         last_completed_round_index: roundIndex,
-        // Round just completed → next round starts at cycle 0. Resets
-        // the mid-round cursor (see updateCurrentCycle / migration
-        // 20260507_current_cycle_index.sql).
-        current_cycle_index: 0,
         last_practiced_at: new Date().toISOString(),
       })
       .eq('learner_id', learnerId)
-      .eq('course_id', courseId)
-      .or(`last_completed_round_index.is.null,last_completed_round_index.lt.${roundIndex}`);
+      .eq('course_id', courseId);
 
     if (error) {
       throw new Error(`Failed to update enrollment progress: ${error.message}`);
-    }
-  }
-
-  /**
-   * Mid-round cursor write — bumps `current_cycle_index` so an app
-   * reload (PWA update, close+open) resumes from the cycle the learner
-   * was on, not the start of the round. Fires on every cycle_completed.
-   *
-   * Bypasses the forward-only round guard because the round itself
-   * isn't moving here; only the cycle within an in-progress round is.
-   */
-  async updateCurrentCycle(
-    learnerId: string,
-    courseId: string,
-    cycleIndex: number
-  ): Promise<void> {
-    const { error } = await this.client
-      .schema(this.schema)
-      .from('course_enrollments')
-      .update({
-        current_cycle_index: cycleIndex,
-        last_practiced_at: new Date().toISOString(),
-      })
-      .eq('learner_id', learnerId)
-      .eq('course_id', courseId);
-
-    if (error) {
-      throw new Error(`Failed to update current cycle: ${error.message}`);
-    }
-  }
-
-  /**
-   * Explicit cursor write for intentional navigation events (belt-back,
-   * jump-to-furthest, jump-to-belt). Bypasses the max-only guard in
-   * updateEnrollmentProgress because the user has chosen this position —
-   * "I am now at round X" — even if X is behind their high-water mark.
-   *
-   * The DB trigger still preserves the ceiling: a backward write here
-   * doesn't lower highest_completed_round_index, and a forward one doesn't
-   * lower the ceiling either (it ratchets only up).
-   */
-  async setEnrollmentCursor(
-    learnerId: string,
-    courseId: string,
-    legoId: string,
-    roundIndex: number
-  ): Promise<void> {
-    const { error } = await this.client
-      .schema(this.schema)
-      .from('course_enrollments')
-      .update({
-        last_completed_lego_id: legoId,
-        last_completed_round_index: roundIndex,
-        // Backwards regressions (e.g. resume TTL belt-reset) imply the
-        // learner is restarting the round; carry-over cycle indices
-        // belong to a different round and would mislead the resume
-        // logic. Always reset on cursor set.
-        current_cycle_index: 0,
-        last_practiced_at: new Date().toISOString(),
-      })
-      .eq('learner_id', learnerId)
-      .eq('course_id', courseId);
-
-    if (error) {
-      throw new Error(`Failed to set enrollment cursor: ${error.message}`);
     }
   }
 
@@ -609,9 +529,6 @@ export class ProgressStore implements IProgressStore {
       helix_state: data.helix_state as HelixState,
       last_completed_lego_id: (data.last_completed_lego_id as string) ?? null,
       last_completed_round_index: (data.last_completed_round_index as number) ?? null,
-      current_cycle_index: (data.current_cycle_index as number) ?? null,
-      highest_completed_round_index: (data.highest_completed_round_index as number) ?? null,
-      highest_completed_lego_id: (data.highest_completed_lego_id as string) ?? null,
     };
   }
 

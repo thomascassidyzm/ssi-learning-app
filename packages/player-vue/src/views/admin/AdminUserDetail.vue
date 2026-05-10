@@ -5,7 +5,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
+import Card from '@/components/schools/shared/Card.vue'
 
 const { getClient, getAuthToken } = useAdminClient()
 const route = useRoute()
@@ -15,7 +15,6 @@ const {
   enrollments,
   sessions,
   userEntitlements,
-  playerEvents,
   isLoading,
   error,
   roleUpdateStatus,
@@ -26,22 +25,7 @@ const {
   getCourseProgress,
 } = useAdminUserDetail(getClient())
 
-const expandedEventId = ref<number | null>(null)
-function toggleEvent(id: number) {
-  expandedEventId.value = expandedEventId.value === id ? null : id
-}
-function eventTime(t: string): string {
-  try {
-    const d = new Date(t)
-    return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  } catch { return t }
-}
-// Ranges of session_ids — group consecutive same-session events visually.
-function eventSessionTag(sessionId: string | null): string {
-  if (!sessionId) return ''
-  return sessionId.slice(0, 6) // short hash for visual grouping
-}
-
+// Grant form state
 const showGrantForm = ref(false)
 const grantAccessType = ref('full')
 const grantDurationType = ref('lifetime')
@@ -65,18 +49,16 @@ function getUserInitials(name: string | undefined): string {
   return name.substring(0, 2).toUpperCase()
 }
 
-type Tone = 'blue' | 'gold' | 'red' | 'green'
-
-function beltTone(beltName: string): Tone | undefined {
+function getBeltAccent(beltName: string): 'red' | 'gold' | 'green' | 'blue' | 'gradient' {
   switch (beltName) {
+    case 'white': return 'gradient'
     case 'yellow': return 'gold'
     case 'orange': return 'red'
     case 'green': return 'green'
     case 'blue': return 'blue'
-    case 'purple': return 'blue'
-    case 'brown': return 'gold'
-    case 'black': return 'gold'
-    default: return undefined
+    case 'brown': return 'red'
+    case 'black': return 'gradient'
+    default: return 'gradient'
   }
 }
 
@@ -125,31 +107,19 @@ async function handleRevoke(entitlementId: string) {
 <template>
   <div class="admin-user-detail">
     <!-- Breadcrumb -->
-    <nav class="breadcrumb">
+    <nav class="breadcrumb animate-in">
       <button class="breadcrumb-link" @click="goBack">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
         Users
       </button>
-      <span class="breadcrumb-sep">/</span>
-      <span class="breadcrumb-current">{{ profile?.display_name || 'Loading…' }}</span>
-      <button
-        v-if="profile"
-        class="breadcrumb-action"
-        @click="$router.push(`/admin/users/${$route.params.learnerId}/progress`)"
-        title="Open the learner's own progress dashboard"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-        Learner dashboard
-      </button>
+      <span class="breadcrumb-separator">/</span>
+      <span class="breadcrumb-current">{{ profile?.display_name || 'Loading...' }}</span>
     </nav>
 
     <!-- Error -->
-    <div v-if="error" class="banner banner-error">
+    <div v-if="error" class="error-banner animate-in delay-1">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"/>
         <line x1="12" y1="8" x2="12" y2="12"/>
@@ -159,56 +129,42 @@ async function handleRevoke(entitlementId: string) {
     </div>
 
     <!-- Loading -->
-    <div v-if="isLoading" class="loading">Loading user detail…</div>
+    <div v-if="isLoading" class="loading-state animate-in delay-1">
+      Loading user detail...
+    </div>
 
     <template v-else-if="profile">
-      <!-- Profile panel -->
-      <FrostCard variant="panel" class="profile-panel">
+      <!-- Profile card -->
+      <Card accent="gradient" class="animate-in delay-1">
         <div class="profile-layout">
           <div class="profile-avatar">
             {{ getUserInitials(profile.display_name) }}
           </div>
           <div class="profile-info">
             <div class="profile-header">
-              <div class="profile-id-block">
-                <h2 class="profile-name frost-display">
-                  {{ profile.display_name || 'Anonymous' }}
-                </h2>
-                <div v-if="profile.emails.length > 0" class="profile-emails">
-                  <div
-                    v-for="email in profile.emails"
-                    :key="email"
-                    class="profile-email-row"
-                  >
-                    <span class="profile-email-text frost-mono-nums">{{ email }}</span>
-                    <span v-if="email === profile.primary_email" class="email-primary-pill">primary</span>
-                  </div>
-                </div>
+              <div>
+                <h2 class="profile-name">{{ profile.display_name || 'Anonymous' }}</h2>
                 <div class="profile-meta">
-                  <span>Joined {{ new Date(profile.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }}</span>
+                  <span>Joined {{ new Date(profile.created_at).toLocaleDateString() }}</span>
                   <span class="meta-dot"></span>
-                  <span class="profile-uid frost-mono-nums">{{ profile.user_id }}</span>
+                  <span class="profile-id">{{ profile.user_id }}</span>
                 </div>
               </div>
               <div class="profile-badges">
                 <Badge v-if="profile.platform_role === 'ssi_admin'" variant="ssi-red" pill>Admin</Badge>
                 <Badge v-if="profile.educational_role === 'god'" variant="ssi-gold" pill>God</Badge>
-                <Badge
-                  v-if="profile.educational_role && profile.educational_role !== 'god'"
-                  variant="info"
-                  pill
-                >
+                <Badge v-if="profile.educational_role && profile.educational_role !== 'god'" variant="info" pill>
                   {{ profile.educational_role }}
                 </Badge>
               </div>
             </div>
 
-            <!-- Role editor -->
+            <!-- Role editing -->
             <div class="role-editor">
               <div class="role-field">
-                <label class="frost-eyebrow">Platform role</label>
+                <label class="role-label">Platform Role</label>
                 <select
-                  class="frost-select"
+                  class="role-select"
                   :value="profile.platform_role || ''"
                   @change="handlePlatformRoleChange"
                 >
@@ -217,9 +173,9 @@ async function handleRevoke(entitlementId: string) {
                 </select>
               </div>
               <div class="role-field">
-                <label class="frost-eyebrow">Educational role</label>
+                <label class="role-label">Educational Role</label>
                 <select
-                  class="frost-select"
+                  class="role-select"
                   :value="profile.educational_role || ''"
                   @change="handleEducationalRoleChange"
                 >
@@ -231,146 +187,111 @@ async function handleRevoke(entitlementId: string) {
                   <option value="student">student</option>
                 </select>
               </div>
-              <span
-                v-if="roleUpdateStatus === 'saved'"
-                class="role-status role-saved"
-              >Saved</span>
-              <span
-                v-if="roleUpdateStatus === 'error'"
-                class="role-status role-error"
-              >Failed</span>
+              <span v-if="roleUpdateStatus === 'saved'" class="role-status role-saved">Saved</span>
+              <span v-if="roleUpdateStatus === 'error'" class="role-status role-error">Failed</span>
             </div>
           </div>
         </div>
-      </FrostCard>
+      </Card>
 
-      <!-- Entitlements section -->
-      <section class="section">
-        <div class="section-head">
-          <h3 class="section-title frost-display">
-            Entitlements
-            <span class="title-count frost-mono-nums">{{ userEntitlements.length }}</span>
-          </h3>
-          <button class="btn-ghost" @click="showGrantForm = !showGrantForm">
+      <!-- Entitlements -->
+      <section class="section animate-in delay-2">
+        <div class="section-header">
+          <h3 class="section-title">Entitlements ({{ userEntitlements.length }})</h3>
+          <button class="btn-small" @click="showGrantForm = !showGrantForm">
             {{ showGrantForm ? 'Cancel' : '+ Grant' }}
           </button>
         </div>
 
-        <!-- Grant form (inline FrostCard panel) -->
-        <Transition name="reveal">
-          <FrostCard v-if="showGrantForm" variant="panel" class="grant-panel">
-            <div class="panel-head">
-              <span class="frost-eyebrow">Grant entitlement</span>
-            </div>
-            <div class="grant-form">
-              <div class="grant-row">
-                <div class="grant-field">
-                  <label class="frost-eyebrow">Access</label>
-                  <select v-model="grantAccessType" class="frost-select">
-                    <option value="full">Full · all courses</option>
-                    <option value="courses">Specific courses</option>
-                  </select>
-                </div>
-                <div class="grant-field">
-                  <label class="frost-eyebrow">Duration</label>
-                  <select v-model="grantDurationType" class="frost-select">
-                    <option value="lifetime">Lifetime</option>
-                    <option value="time_limited">Time limited</option>
-                  </select>
-                </div>
-                <div v-if="grantDurationType === 'time_limited'" class="grant-field grant-field-narrow">
-                  <label class="frost-eyebrow">Days</label>
-                  <input
-                    v-model.number="grantDurationDays"
-                    type="number"
-                    min="1"
-                    class="frost-input"
-                  />
-                </div>
+        <!-- Grant form -->
+        <Card v-if="showGrantForm" accent="gold">
+          <div class="grant-form">
+            <div class="grant-row">
+              <div class="grant-field">
+                <label class="grant-label">Access</label>
+                <select v-model="grantAccessType" class="role-select">
+                  <option value="full">Full (all courses)</option>
+                  <option value="courses">Specific courses</option>
+                </select>
               </div>
-              <div v-if="grantAccessType === 'courses'" class="grant-field">
-                <label class="frost-eyebrow">Course codes <span class="optional">(comma-separated)</span></label>
-                <input
-                  class="frost-input"
-                  placeholder="e.g. spa_for_eng, fra_for_eng"
-                  @input="grantCourses = ($event.target as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean)"
-                />
+              <div class="grant-field">
+                <label class="grant-label">Duration</label>
+                <select v-model="grantDurationType" class="role-select">
+                  <option value="lifetime">Lifetime</option>
+                  <option value="time_limited">Time limited</option>
+                </select>
               </div>
-              <div class="field-actions">
-                <button class="btn-primary" :disabled="grantLoading" @click="handleGrant">
-                  {{ grantLoading ? 'Granting…' : 'Grant entitlement' }}
-                </button>
+              <div v-if="grantDurationType === 'time_limited'" class="grant-field">
+                <label class="grant-label">Days</label>
+                <input v-model.number="grantDurationDays" type="number" min="1" class="grant-input" />
               </div>
             </div>
-          </FrostCard>
-        </Transition>
+            <div v-if="grantAccessType === 'courses'" class="grant-field">
+              <label class="grant-label">Course codes (comma-separated)</label>
+              <input
+                class="grant-input grant-input-wide"
+                placeholder="e.g. spa_for_eng, fra_for_eng"
+                @input="grantCourses = ($event.target as HTMLInputElement).value.split(',').map(s => s.trim()).filter(Boolean)"
+              />
+            </div>
+            <button class="btn-grant" :disabled="grantLoading" @click="handleGrant">
+              {{ grantLoading ? 'Granting...' : 'Grant Entitlement' }}
+            </button>
+          </div>
+        </Card>
 
         <!-- Entitlements list -->
-        <FrostCard
-          v-if="userEntitlements.length > 0"
-          variant="panel"
-          class="list-panel"
-        >
-          <table class="list-table">
-            <thead>
-              <tr>
-                <th>Source</th>
-                <th>Access</th>
-                <th>Courses</th>
-                <th>Expires</th>
-                <th>Granted</th>
-                <th aria-label="Actions"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="ent in userEntitlements" :key="ent.id">
-                <td class="cell-strong">{{ ent.label }}</td>
-                <td>
-                  <span
-                    class="access-pill"
-                    :class="ent.access_type === 'full' ? 'tone-green' : 'tone-blue'"
-                  >
-                    {{ ent.access_type }}
-                  </span>
-                </td>
-                <td class="cell-muted">
-                  {{ ent.granted_courses ? ent.granted_courses.join(', ') : 'All' }}
-                </td>
-                <td class="cell-muted frost-mono-nums">
-                  {{ ent.expires_at ? new Date(ent.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : 'Never' }}
-                </td>
-                <td class="cell-muted">{{ timeAgo(ent.redeemed_at) }}</td>
-                <td class="cell-actions">
-                  <button class="row-action is-danger" title="Revoke" @click="handleRevoke(ent.id)">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </FrostCard>
-        <FrostCard v-else variant="tile" class="ent-empty">
-          <span>No active entitlements.</span>
-        </FrostCard>
+        <Card v-if="userEntitlements.length > 0">
+          <div class="table-container">
+            <table class="sessions-table">
+              <thead>
+                <tr>
+                  <th>Source</th>
+                  <th>Access</th>
+                  <th>Courses</th>
+                  <th>Expires</th>
+                  <th>Granted</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="ent in userEntitlements" :key="ent.id">
+                  <td>{{ ent.label }}</td>
+                  <td>
+                    <Badge :variant="ent.access_type === 'full' ? 'success' : 'info'" size="sm" pill>
+                      {{ ent.access_type }}
+                    </Badge>
+                  </td>
+                  <td class="text-muted">
+                    {{ ent.granted_courses ? ent.granted_courses.join(', ') : 'All' }}
+                  </td>
+                  <td class="text-muted">
+                    {{ ent.expires_at ? new Date(ent.expires_at).toLocaleDateString() : 'Never' }}
+                  </td>
+                  <td class="text-muted">{{ timeAgo(ent.redeemed_at) }}</td>
+                  <td>
+                    <button class="btn-revoke" @click="handleRevoke(ent.id)">Revoke</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        <Card v-else>
+          <div class="empty-state">No active entitlements.</div>
+        </Card>
       </section>
 
-      <!-- Course progress -->
-      <section v-if="enrollments.length > 0" class="section">
-        <h3 class="section-title frost-display">
-          Courses
-          <span class="title-count frost-mono-nums">{{ enrollments.length }}</span>
-        </h3>
-        <div class="course-grid">
-          <FrostCard
+      <!-- Course progress cards -->
+      <section v-if="enrollments.length > 0" class="section animate-in delay-3">
+        <h3 class="section-title">Courses ({{ enrollments.length }})</h3>
+        <div class="course-cards">
+          <Card
             v-for="enrollment in enrollments"
             :key="enrollment.course_id"
-            variant="tile"
-            :tone="beltTone(getBeltForSeeds(getCourseProgress(enrollment.course_id).seeds_introduced).name)"
-            :hoverable="true"
-            class="course-tile"
+            :accent="getBeltAccent(getBeltForSeeds(getCourseProgress(enrollment.course_id).seeds_introduced).name)"
+            hoverable
+            class="course-card"
           >
             <div class="course-inner">
               <div class="course-header">
@@ -385,126 +306,69 @@ async function handleRevoke(entitlementId: string) {
               </div>
               <div class="course-stats">
                 <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).seeds_introduced }}</span>
-                  <span class="stat-label">Seeds</span>
+                  <span class="course-stat-value">{{ getCourseProgress(enrollment.course_id).seeds_introduced }}</span>
+                  <span class="course-stat-label">Seeds</span>
                 </div>
                 <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).legos_seen }}</span>
-                  <span class="stat-label">LEGOs</span>
+                  <span class="course-stat-value">{{ getCourseProgress(enrollment.course_id).legos_seen }}</span>
+                  <span class="course-stat-label">LEGOs seen</span>
                 </div>
                 <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).legos_retired }}</span>
-                  <span class="stat-label">Retired</span>
+                  <span class="course-stat-value">{{ getCourseProgress(enrollment.course_id).legos_retired }}</span>
+                  <span class="course-stat-label">Retired</span>
                 </div>
                 <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
-                  <span class="stat-label">Practice</span>
+                  <span class="course-stat-value">{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
+                  <span class="course-stat-label">Practice</span>
                 </div>
               </div>
-              <div class="course-foot">
-                Last active
-                <span class="course-active-time frost-mono-nums">
-                  {{ enrollment.last_practiced_at ? timeAgo(enrollment.last_practiced_at) : 'never' }}
+              <div class="course-footer">
+                <span class="course-last-active">
+                  Last active: {{ enrollment.last_practiced_at ? timeAgo(enrollment.last_practiced_at) : 'never' }}
                 </span>
               </div>
             </div>
-          </FrostCard>
+          </Card>
         </div>
       </section>
 
-      <!-- Sessions -->
-      <section class="section">
-        <h3 class="section-title frost-display">
-          Recent sessions
-          <span class="title-count frost-mono-nums">{{ sessions.length }}</span>
-        </h3>
-        <FrostCard
-          v-if="sessions.length > 0"
-          variant="panel"
-          class="list-panel"
-        >
-          <table class="list-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Course</th>
-                <th>Duration</th>
-                <th>Items</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="session in sessions" :key="session.id">
-                <td class="cell-muted frost-mono-nums">
-                  {{ new Date(session.started_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}
-                </td>
-                <td>
-                  <Badge variant="default" size="sm" pill>
-                    {{ parseCourseCode(session.course_id).label }}
-                  </Badge>
-                </td>
-                <td class="cell-muted frost-mono-nums">
-                  {{ session.duration_seconds ? formatDuration(session.duration_seconds / 60) : '—' }}
-                </td>
-                <td class="cell-muted frost-mono-nums">{{ session.items_practiced || '—' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </FrostCard>
-        <FrostCard v-else variant="tile" class="ent-empty">
-          <span>No sessions recorded.</span>
-        </FrostCard>
-      </section>
-
-      <!-- Recent player events — diagnostics for "skip didn't work" etc. -->
-      <section class="section">
-        <h3 class="section-title frost-display">
-          Recent player events
-          <span class="title-count frost-mono-nums">{{ playerEvents.length }}</span>
-        </h3>
-        <FrostCard
-          v-if="playerEvents.length > 0"
-          variant="panel"
-          class="list-panel"
-        >
-          <table class="list-table events-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Event</th>
-                <th>Course</th>
-                <th>Session</th>
-                <th>Payload</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template v-for="ev in playerEvents" :key="ev.id">
-                <tr
-                  class="event-row"
-                  :class="{ expanded: expandedEventId === ev.id, 'has-payload': !!ev.payload }"
-                  @click="ev.payload ? toggleEvent(ev.id) : undefined"
-                >
-                  <td class="cell-muted frost-mono-nums">{{ eventTime(ev.occurred_at) }}</td>
-                  <td><span class="event-type-pill">{{ ev.event_type }}</span></td>
-                  <td class="cell-muted frost-mono-nums">{{ ev.course_code || '—' }}</td>
-                  <td class="cell-muted frost-mono-nums session-tag">{{ eventSessionTag(ev.session_id) }}</td>
-                  <td class="cell-muted payload-cell">
-                    <span v-if="!ev.payload">—</span>
-                    <span v-else-if="expandedEventId === ev.id">click to collapse</span>
-                    <span v-else class="payload-preview">{{ JSON.stringify(ev.payload).slice(0, 80) }}{{ JSON.stringify(ev.payload).length > 80 ? '…' : '' }}</span>
-                  </td>
+      <!-- Session history -->
+      <section class="section animate-in delay-4">
+        <Card title="Recent Sessions" :subtitle="`${sessions.length} sessions`">
+          <template #icon>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </template>
+          <div v-if="sessions.length > 0" class="table-container">
+            <table class="sessions-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Course</th>
+                  <th>Duration</th>
+                  <th>Items</th>
                 </tr>
-                <tr v-if="expandedEventId === ev.id && ev.payload" :key="`${ev.id}-payload`" class="event-payload-row">
-                  <td colspan="5">
-                    <pre class="event-payload-pre">{{ JSON.stringify(ev.payload, null, 2) }}</pre>
+              </thead>
+              <tbody>
+                <tr v-for="session in sessions" :key="session.id">
+                  <td>{{ new Date(session.started_at).toLocaleString() }}</td>
+                  <td>
+                    <Badge variant="default" size="sm" pill>
+                      {{ parseCourseCode(session.course_id).label }}
+                    </Badge>
                   </td>
+                  <td class="text-muted">
+                    {{ session.duration_seconds ? formatDuration(session.duration_seconds / 60) : '—' }}
+                  </td>
+                  <td class="text-muted">{{ session.items_practiced || '—' }}</td>
                 </tr>
-              </template>
-            </tbody>
-          </table>
-        </FrostCard>
-        <FrostCard v-else variant="tile" class="ent-empty">
-          <span>No player events recorded.</span>
-        </FrostCard>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="empty-state">No sessions recorded.</div>
+        </Card>
       </section>
     </template>
   </div>
@@ -515,9 +379,10 @@ async function handleRevoke(entitlementId: string) {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+  max-width: 1200px;
 }
 
-/* ---------- Breadcrumb ---------- */
+/* Breadcrumb */
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -526,85 +391,34 @@ async function handleRevoke(entitlementId: string) {
 }
 
 .breadcrumb-link {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-1);
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(44, 38, 34, 0.1);
-  color: var(--ink-secondary);
+  background: none;
+  border: none;
+  color: var(--ssi-red);
   cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  padding: 6px 12px;
-  border-radius: var(--radius-full);
+  font-size: inherit;
+  font-family: inherit;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
   transition: all var(--transition-base);
 }
 
 .breadcrumb-link:hover {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(44, 38, 34, 0.18);
-  color: var(--ink-primary);
+  background: var(--bg-elevated);
 }
 
-.breadcrumb-sep {
-  color: var(--ink-faint);
+.breadcrumb-separator {
+  color: var(--text-muted);
 }
 
 .breadcrumb-current {
-  color: var(--ink-primary);
-  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  font-weight: var(--font-medium, 500);
 }
 
-.breadcrumb-action {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin-left: auto;
-  padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(44, 38, 34, 0.1);
-  border-radius: var(--radius-full);
-  color: var(--ink-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  transition: all var(--transition-base);
-}
-
-.breadcrumb-action:hover {
-  color: rgb(var(--tone-blue));
-  border-color: rgba(var(--tone-blue), 0.45);
-  background: rgba(var(--tone-blue), 0.10);
-}
-
-/* ---------- Banners ---------- */
-.banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-}
-
-.banner-error {
-  background: rgba(var(--tone-red), 0.08);
-  border: 1px solid rgba(var(--tone-red), 0.28);
-  color: rgb(var(--tone-red));
-}
-
-.loading {
-  text-align: center;
-  padding: var(--space-12);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
-}
-
-/* ---------- Profile panel ---------- */
-.profile-panel {
-  padding: var(--space-6);
-}
-
+/* Profile card */
 .profile-layout {
   display: flex;
   align-items: flex-start;
@@ -614,15 +428,15 @@ async function handleRevoke(entitlementId: string) {
 .profile-avatar {
   width: 56px;
   height: 56px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
   background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
   border-radius: var(--radius-lg);
-  color: #fff;
-  font-family: var(--font-display);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-bold, 700);
   font-size: var(--text-lg);
-  font-weight: var(--font-bold);
+  color: white;
+  flex-shrink: 0;
   letter-spacing: 0.02em;
 }
 
@@ -639,65 +453,34 @@ async function handleRevoke(entitlementId: string) {
 }
 
 .profile-name {
-  font-size: var(--text-2xl);
-  margin: 0 0 4px;
-  letter-spacing: -0.015em;
-  color: var(--ink-primary);
-}
-
-.profile-emails {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0 0 8px;
-}
-
-.profile-email-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.profile-email-text {
-  font-size: var(--text-sm);
-  color: var(--ink-secondary);
-  word-break: break-all;
-}
-
-.email-primary-pill {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: var(--font-medium);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgb(var(--tone-green));
-  background: rgba(var(--tone-green), 0.12);
-  border: 1px solid rgba(var(--tone-green), 0.30);
-  padding: 1px 7px;
-  border-radius: var(--radius-full);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold, 700);
+  margin: 0;
+  color: var(--text-primary);
 }
 
 .profile-meta {
   font-size: var(--text-sm);
-  color: var(--ink-muted);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 .meta-dot {
   width: 3px;
   height: 3px;
-  border-radius: 50%;
-  background: var(--ink-faint);
+  border-radius: var(--radius-full);
+  background: var(--text-muted);
+  opacity: 0.5;
 }
 
-.profile-uid {
+.profile-id {
+  font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: var(--text-xs);
-  letter-spacing: 0.04em;
-  opacity: 0.8;
+  opacity: 0.6;
 }
 
 .profile-badges {
@@ -711,160 +494,138 @@ async function handleRevoke(entitlementId: string) {
   display: flex;
   align-items: flex-end;
   gap: var(--space-4);
-  margin-top: var(--space-5);
+  margin-top: var(--space-4);
   padding-top: var(--space-4);
-  border-top: 1px solid rgba(44, 38, 34, 0.08);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .role-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-1);
+}
+
+.role-label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.role-select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.role-select:focus {
+  outline: none;
+  border-color: var(--ssi-red);
 }
 
 .role-status {
   font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
+  font-weight: var(--font-semibold, 600);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
 }
 
 .role-saved {
-  color: rgb(var(--tone-green));
-  background: rgba(var(--tone-green), 0.14);
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
 }
 
 .role-error {
-  color: rgb(var(--tone-red));
-  background: rgba(var(--tone-red), 0.14);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
 }
 
-/* ---------- Section ---------- */
+/* Section */
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
-.section-head {
+.section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .section-title {
-  font-size: var(--text-xl);
-  font-weight: var(--font-semibold);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold, 600);
   margin: 0;
-  color: var(--ink-primary);
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
+  color: var(--text-primary);
 }
 
-.title-count {
+/* Buttons */
+.btn-small {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--ink-muted);
-}
-
-/* ---------- Form controls (shared) ---------- */
-.frost-input,
-.frost-select {
-  font: inherit;
-  font-size: var(--text-base);
-  padding: 9px 14px;
-  color: var(--ink-primary);
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(44, 38, 34, 0.12);
-  border-radius: var(--radius-lg);
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.frost-input::placeholder {
-  color: var(--ink-faint);
-}
-
-.frost-input:focus,
-.frost-select:focus {
-  outline: none;
-  border-color: rgba(var(--tone-red), 0.55);
-  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
-}
-
-.frost-select {
-  appearance: none;
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238A8078' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
-
-.optional {
-  color: var(--ink-faint);
-  font-weight: var(--font-normal);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-/* ---------- Buttons ---------- */
-.btn-primary,
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 8px 16px;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  border-radius: var(--radius-full);
-  border: 1px solid transparent;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-base);
 }
 
-.btn-primary {
+.btn-small:hover {
+  background: var(--bg-elevated);
+  border-color: var(--ssi-red);
+  color: var(--ssi-red);
+}
+
+.btn-grant {
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
   background: var(--ssi-red);
-  color: #fff;
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.08), 0 4px 14px rgba(194, 58, 58, 0.22);
+  color: white;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold, 600);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity var(--transition-base);
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--ssi-red-light);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
+.btn-grant:hover {
+  opacity: 0.9;
 }
 
-.btn-primary:disabled {
-  opacity: 0.4;
+.btn-grant:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn-ghost {
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--ink-secondary);
-  border-color: rgba(44, 38, 34, 0.1);
+.btn-revoke {
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: #ef4444;
+  font-size: var(--text-xs);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-base);
 }
 
-.btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(44, 38, 34, 0.18);
-  color: var(--ink-primary);
+.btn-revoke:hover {
+  background: rgba(239, 68, 68, 0.1);
 }
 
-/* ---------- Grant panel ---------- */
-.grant-panel {
-  padding: 0;
-  overflow: hidden;
-}
-
-.panel-head {
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
-}
-
+/* Grant form */
 .grant-form {
-  padding: var(--space-5) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -876,219 +637,42 @@ async function handleRevoke(entitlementId: string) {
   flex-wrap: wrap;
 }
 
-.grant-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  min-width: 180px;
-}
-
-.grant-field-narrow {
-  flex: 0 0 100px;
-  min-width: 100px;
-}
-
-.field-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.reveal-enter-active,
-.reveal-leave-active {
-  transition: all 240ms var(--ease-out-expo);
-  overflow: hidden;
-}
-
-.reveal-enter-from,
-.reveal-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
-  max-height: 0;
-}
-
-.reveal-enter-to,
-.reveal-leave-from {
-  opacity: 1;
-  max-height: 480px;
-}
-
-/* ---------- List panel + table ---------- */
-.list-panel {
-  padding: 0;
-  overflow: hidden;
-}
-
-.list-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.list-table thead th {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-medium);
-  letter-spacing: 0.14em;
+.grant-label {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold, 600);
   text-transform: uppercase;
-  text-align: left;
-  color: var(--ink-muted);
-  padding: 14px 18px 12px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.list-table thead th:last-child {
-  width: 56px;
-}
-
-.list-table tbody tr {
-  transition: background var(--transition-base);
-}
-
-.list-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.48);
-}
-
-.list-table td {
-  padding: 12px 18px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.05);
-  vertical-align: middle;
-  color: var(--ink-secondary);
-  font-size: var(--text-sm);
-}
-
-.list-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.cell-strong {
-  color: var(--ink-primary);
-  font-weight: var(--font-medium);
-}
-
-.cell-muted {
-  color: var(--ink-muted);
-  white-space: nowrap;
-}
-
-/* Player events table */
-.events-table .event-row.has-payload {
-  cursor: pointer;
-}
-.events-table .event-row.expanded {
-  background: rgba(96, 165, 250, 0.06);
-}
-.event-type-pill {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--ink-primary);
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: 0.75rem;
-  font-weight: var(--font-medium);
-}
-.session-tag { font-size: 0.75rem; opacity: 0.7; }
-.payload-preview { font-family: var(--font-mono, ui-monospace, Menlo, monospace); font-size: 0.75rem; }
-.payload-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
-.event-payload-row td {
-  background: rgba(0, 0, 0, 0.03);
-  border-top: 0;
-  padding: 0 18px 12px !important;
-}
-.event-payload-pre {
-  margin: 4px 0 0;
-  padding: 10px 12px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 6px;
-  font-family: var(--font-mono, ui-monospace, Menlo, monospace);
-  font-size: 0.75rem;
-  line-height: 1.5;
-  color: var(--ink-secondary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 300px;
-  overflow: auto;
-}
-
-.access-pill {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-medium);
   letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border: 1px solid transparent;
+  color: var(--text-muted);
 }
 
-.access-pill.tone-green {
-  background: rgba(var(--tone-green), 0.14);
-  border-color: rgba(var(--tone-green), 0.36);
-  color: rgb(var(--tone-green));
-}
-
-.access-pill.tone-blue {
-  background: rgba(var(--tone-blue), 0.14);
-  border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue));
-}
-
-.cell-actions {
-  text-align: right;
-  padding-right: 12px;
-}
-
-.row-action {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 1px solid transparent;
+.grant-input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  color: var(--ink-muted);
-  cursor: pointer;
-  opacity: 0;
-  transform: translateX(4px);
-  transition: all var(--transition-fast);
-}
-
-.list-table tbody tr:hover .row-action,
-.list-table tbody tr:focus-within .row-action {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.row-action:hover {
-  color: var(--ink-primary);
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(44, 38, 34, 0.1);
-}
-
-.row-action.is-danger:hover {
-  color: rgb(var(--tone-red));
-  background: rgba(var(--tone-red), 0.10);
-  border-color: rgba(var(--tone-red), 0.32);
-}
-
-/* Inline empty (smaller than canon §5.5 for nested sections) */
-.ent-empty {
-  padding: var(--space-6) var(--space-8);
-  text-align: center;
-  color: var(--ink-muted);
+  background: var(--bg-primary);
+  color: var(--text-primary);
   font-size: var(--text-sm);
+  font-family: inherit;
+  width: 80px;
 }
 
-/* ---------- Course tiles ---------- */
-.course-grid {
+.grant-input-wide {
+  width: 100%;
+}
+
+.grant-input:focus {
+  outline: none;
+  border-color: var(--ssi-red);
+}
+
+/* Course cards */
+.course-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: var(--space-4);
 }
 
-.course-tile {
+.course-card :deep(.card-body) {
   padding: 0;
 }
 
@@ -1103,92 +687,159 @@ async function handleRevoke(entitlementId: string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-3);
 }
 
 .course-name {
-  font-family: var(--font-display);
-  font-size: var(--text-base);
-  font-weight: var(--font-semibold);
-  color: var(--ink-primary);
-  letter-spacing: -0.005em;
+  font-weight: var(--font-semibold, 600);
+  color: var(--text-primary);
 }
 
 .course-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-2);
-  padding: var(--space-3) 0;
-  border-top: 1px solid rgba(44, 38, 34, 0.08);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .course-stat {
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
-.stat-value {
+.course-stat-value {
+  display: block;
   font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: var(--font-bold);
-  color: var(--ink-primary);
-  line-height: 1;
-  letter-spacing: -0.025em;
+  font-weight: var(--font-bold, 700);
+  color: var(--text-primary);
+  line-height: 1.2;
 }
 
-.stat-label {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  color: var(--ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-}
-
-.course-foot {
+.course-stat-label {
+  display: block;
   font-size: var(--text-xs);
-  color: var(--ink-muted);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: var(--space-1);
+}
+
+.course-footer {
+  font-size: var(--text-sm);
+}
+
+.course-last-active {
+  color: var(--text-muted);
+}
+
+/* Sessions table */
+.table-container {
+  overflow-x: auto;
+}
+
+.sessions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sessions-table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.sessions-table td {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.sessions-table tbody tr {
+  transition: background var(--transition-base);
+}
+
+.sessions-table tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* Error */
+.error-banner {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  background: var(--error-muted, rgba(239, 68, 68, 0.1));
+  border: 1px solid var(--error, rgba(239, 68, 68, 0.3));
+  border-radius: var(--radius-lg);
+  color: var(--error, #ef4444);
+  font-size: var(--text-sm);
 }
 
-.course-active-time {
-  color: var(--ink-secondary);
-  font-weight: var(--font-medium);
+.error-banner svg {
+  flex-shrink: 0;
+  opacity: 0.8;
 }
 
-/* ---------- Responsive ---------- */
+/* Loading */
+.loading-state {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Empty */
+.empty-state {
+  text-align: center;
+  padding: var(--space-8);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Responsive */
 @media (max-width: 768px) {
   .profile-layout {
     flex-direction: column;
     align-items: center;
     text-align: center;
   }
+
   .profile-header {
     flex-direction: column;
     align-items: center;
   }
+
   .profile-meta {
     justify-content: center;
+    flex-wrap: wrap;
   }
+
   .profile-badges {
     justify-content: center;
   }
+
   .role-editor {
     flex-wrap: wrap;
     justify-content: center;
   }
+
   .course-stats {
     grid-template-columns: repeat(2, 1fr);
   }
+
   .grant-row {
     flex-direction: column;
-  }
-  .breadcrumb-action {
-    margin-left: 0;
   }
 }
 </style>

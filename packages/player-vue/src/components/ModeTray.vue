@@ -179,8 +179,8 @@ const handleMode = (mode: string) => {
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">HISE</span>
-            <span class="tray-desc">High Intensity Speaking Exercises</span>
+            <span class="tray-name">Standard</span>
+            <span class="tray-desc">Full speaking practice</span>
           </div>
           <div class="radio-indicator" :class="{ on: !hasExperienceMode }"></div>
         </button>

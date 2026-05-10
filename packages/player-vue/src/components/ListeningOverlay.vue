@@ -1,8 +1,5 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useOfflineCache } from '../composables/useOfflineCache'
-import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
-import { usePlayerLog } from '../composables/usePlayerLog'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -150,13 +147,6 @@ const isLoadingMore = ref(false)
 
 // Audio - use /api/audio proxy for CORS bypass
 const audioMap = ref(new Map())
-
-// Session-wide iOS audio-session keepalive (shared with LearningPlayer's
-// pod/commentary path). Runs the silent loop whenever this overlay is
-// playing, so the inter-phrase 800ms gap doesn't drop the session when
-// the tab is backgrounded. Debounced release means brief async gaps
-// (audio-element src swaps, network reads) don't cause a flicker.
-useAudioSessionKeepalive(isPlaying)
 
 let playbackId = 0
 
@@ -500,249 +490,16 @@ const handleOverlayTap = (e) => {
 }
 
 // ============================================================================
-// Wake Lock + Media Session (lock-screen + bluetooth controls)
-// ============================================================================
-
-let wakeLock = null
-
-const acquireWakeLock = async () => {
-  if (!('wakeLock' in navigator)) return
-  try {
-    wakeLock = await navigator.wakeLock.request('screen')
-    wakeLock.addEventListener('release', () => { wakeLock = null })
-  } catch {
-    // Wake Lock not available or denied — fine, silent bridge keeps audio alive
-  }
-}
-
-const releaseWakeLock = () => {
-  if (wakeLock) {
-    wakeLock.release().catch(() => {})
-    wakeLock = null
-  }
-}
-
-const handleVisibilityChange = async () => {
-  // Android releases wake lock on tab switch — re-acquire on return
-  if (document.visibilityState === 'visible' && isPlaying.value && !wakeLock) {
-    await acquireWakeLock()
-  }
-}
-
-const setupMediaSession = () => {
-  if (!('mediaSession' in navigator)) return
-
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: 'Listening Mode',
-    artist: 'SSi Learning',
-    album: 'Practice'
-  })
-
-  const handlers = [
-    ['play', () => { if (!isPlaying.value) togglePlayback() }],
-    ['pause', () => { if (isPlaying.value) togglePlayback() }],
-    ['nexttrack', () => {
-      if (currentIndex.value + 1 < availablePhrases.value.length) {
-        playFromIndex(currentIndex.value + 1)
-      }
-    }],
-    ['previoustrack', () => {
-      if (currentIndex.value > 0) {
-        playFromIndex(currentIndex.value - 1)
-      }
-    }]
-  ]
-
-  for (const [action, handler] of handlers) {
-    try {
-      navigator.mediaSession.setActionHandler(action, handler)
-    } catch {
-      // Action not supported — skip
-    }
-  }
-}
-
-const clearMediaSession = () => {
-  if (!('mediaSession' in navigator)) return
-  navigator.mediaSession.metadata = null
-  for (const action of ['play', 'pause', 'nexttrack', 'previoustrack']) {
-    try { navigator.mediaSession.setActionHandler(action, null) } catch {}
-  }
-}
-
-watch(isPlaying, async (playing) => {
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
-  }
-  if (playing) {
-    await acquireWakeLock()
-  } else {
-    releaseWakeLock()
-  }
-})
-
-// ============================================================================
-// Offline Pack Download — preload USE phrase audio for plane-ride listening
-// ============================================================================
-
-const { cache: offlineCache } = useOfflineCache()
-
-// Diagnostic event log — same session_id as LearningPlayer's instance
-// so a user's actions across the player + overlay land on one timeline.
-const { event: logEvent } = usePlayerLog({ courseCode: computed(() => props.courseCode) })
-
-const packState = ref('idle') // 'idle' | 'downloading' | 'complete' | 'error'
-const packTotal = ref(0)
-const packDone = ref(0)
-
-const packKey = computed(() => `listening-pack:${props.courseCode}:${props.upToSeed ?? 'all'}`)
-
-const packPercent = computed(() => {
-  if (packTotal.value === 0) return 0
-  return Math.round((packDone.value / packTotal.value) * 100)
-})
-
-const checkPackComplete = () => {
-  try {
-    if (localStorage.getItem(packKey.value) === 'complete') {
-      packState.value = 'complete'
-    }
-  } catch {
-    // localStorage may be blocked — fine, just skip the persisted flag
-  }
-}
-
-const fetchAllAudioIds = async () => {
-  if (!supabase?.value || !props.courseCode) return []
-
-  let query = supabase.value
-    .from('course_practice_phrases')
-    .select('target1_audio_id, target2_audio_id')
-    .eq('course_code', props.courseCode)
-    .in('phrase_role', ['use', 'eternal_eligible'])
-
-  if (props.upToSeed) {
-    query = query.lt('seed_number', props.upToSeed)
-  }
-
-  const { data, error: fetchError } = await query
-  if (fetchError) throw fetchError
-
-  const ids = new Set()
-  for (const row of data || []) {
-    if (row.target1_audio_id) ids.add(row.target1_audio_id)
-    if (row.target2_audio_id) ids.add(row.target2_audio_id)
-  }
-  return Array.from(ids)
-}
-
-const PACK_CONCURRENCY = 5
-
-const downloadListeningPack = async () => {
-  logEvent('tap_listening_download', {
-    upToSeed: props.upToSeed ?? null,
-    currentState: packState.value,
-  })
-
-  if (packState.value === 'downloading') {
-    logEvent('listening_pack_skip', { reason: 'already_downloading' })
-    return
-  }
-
-  let cacheFailures = 0
-  try {
-    packState.value = 'downloading'
-    packDone.value = 0
-    packTotal.value = 0
-
-    const ids = await fetchAllAudioIds()
-    packTotal.value = ids.length
-    logEvent('listening_pack_start', { totalIds: ids.length })
-
-    if (ids.length === 0) {
-      packState.value = 'complete'
-      try { localStorage.setItem(packKey.value, 'complete') } catch {}
-      logEvent('listening_pack_end', { reason: 'no_ids', total: 0, failures: 0 })
-      return
-    }
-
-    // Filter out already-cached IDs
-    const missing = []
-    for (const id of ids) {
-      if (offlineCache.isAudioCached(id)) {
-        packDone.value++
-      } else {
-        missing.push(id)
-      }
-    }
-    logEvent('listening_pack_progress', {
-      total: ids.length,
-      alreadyCached: ids.length - missing.length,
-      toFetch: missing.length,
-    })
-
-    // cacheAudio fetches the URL internally and stores the blob in IndexedDB;
-    // the SW (CacheFirst on /api/audio/*) also caches en route, giving
-    // belt-and-braces durability.
-    for (let i = 0; i < missing.length; i += PACK_CONCURRENCY) {
-      if (packState.value !== 'downloading') {
-        logEvent('listening_pack_end', { reason: 'cancelled', total: ids.length, failures: cacheFailures, completed: packDone.value })
-        return
-      }
-
-      const batch = missing.slice(i, i + PACK_CONCURRENCY)
-      await Promise.all(batch.map(async (id) => {
-        const url = `/api/audio/${id}?courseId=${encodeURIComponent(props.courseCode)}`
-        try {
-          await offlineCache.cacheAudio({ id, url, durationMs: 0 }, props.courseCode)
-        } catch (err) {
-          cacheFailures++
-          console.warn('[ListeningOverlay] Failed to cache', id, err)
-        } finally {
-          packDone.value++
-        }
-      }))
-    }
-
-    packState.value = 'complete'
-    try { localStorage.setItem(packKey.value, 'complete') } catch {}
-    logEvent('listening_pack_end', {
-      reason: 'complete',
-      total: ids.length,
-      failures: cacheFailures,
-    })
-  } catch (err) {
-    console.error('[ListeningOverlay] Pack download failed:', err)
-    packState.value = 'error'
-    logEvent('listening_pack_end', {
-      reason: 'error',
-      message: (err && err.message) || String(err),
-      failures: cacheFailures,
-    })
-  }
-}
-
-// ============================================================================
 // Lifecycle
 // ============================================================================
 
 onMounted(() => {
   audioController.value = new ListeningAudioController()
   loadPhrases()
-  setupMediaSession()
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  checkPackComplete()
 })
 
 onUnmounted(() => {
   stopPlayback()
-  releaseWakeLock()
-  clearMediaSession()
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
-  // Cancel any in-flight pack download
-  if (packState.value === 'downloading') {
-    packState.value = 'idle'
-  }
 })
 
 // Sync playback speed with audio controller
@@ -760,28 +517,6 @@ watch(playbackSpeed, (newSpeed) => {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M18 6L6 18M6 6l12 12"/>
       </svg>
-    </button>
-
-    <!-- Offline download button -->
-    <button
-      class="download-btn"
-      :class="{ downloading: packState === 'downloading', complete: packState === 'complete', error: packState === 'error' }"
-      :disabled="packState === 'downloading'"
-      :title="packState === 'complete' ? 'Available offline' : packState === 'downloading' ? `Downloading ${packPercent}%` : 'Download for offline'"
-      @click.stop="downloadListeningPack"
-    >
-      <svg v-if="packState === 'idle'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
-      </svg>
-      <svg v-else-if="packState === 'complete'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="20 6 9 17 4 12"/>
-      </svg>
-      <svg v-else-if="packState === 'error'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      <span v-else class="download-pct">{{ packPercent }}%</span>
     </button>
 
     <!-- Controls bar: mode toggle + transport + speed -->
@@ -937,57 +672,6 @@ watch(playbackSpeed, (newSpeed) => {
   height: 20px;
 }
 
-/* Offline download button — sits to the left of close */
-.download-btn {
-  position: absolute;
-  top: calc(env(safe-area-inset-top, 20px) + 12px);
-  right: 72px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-medium);
-  border-radius: 50%;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 10;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.65rem;
-  font-weight: 600;
-}
-
-.download-btn:hover:not(:disabled) {
-  background: var(--pill-bg-hover);
-  color: var(--text-primary);
-}
-
-.download-btn:disabled {
-  cursor: progress;
-}
-
-.download-btn.complete {
-  color: var(--belt-color, #4a7c4a);
-  border-color: var(--belt-color, #4a7c4a);
-}
-
-.download-btn.error {
-  color: var(--ssi-red, #b83232);
-  border-color: var(--ssi-red, #b83232);
-}
-
-.download-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.download-pct {
-  font-size: 0.6875rem;
-  letter-spacing: -0.02em;
-}
-
 /* Controls bar — pushed down to clear the SSi logo */
 .controls-bar {
   display: flex;
@@ -1009,7 +693,7 @@ watch(playbackSpeed, (newSpeed) => {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background: transparent;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-medium);
   border-radius: 20px;
   color: var(--text-muted);
@@ -1019,23 +703,15 @@ watch(playbackSpeed, (newSpeed) => {
   transition: all 0.2s ease;
 }
 
-.mode-btn:hover:not(.active) {
+.mode-btn:hover {
   background: var(--pill-bg-hover);
   color: var(--text-secondary);
 }
 
-/* Active = inverted pill — solid filled with the belt accent so the
- * current mode is unmissable at a glance. Was previously near-identical
- * to the inactive state (same background, only subtle border/text shifts)
- * which made it impossible to tell on phone screens. */
 .mode-btn.active {
-  background: var(--belt-color, var(--text-primary));
-  border-color: var(--belt-color, var(--text-primary));
-  color: white;
-  font-weight: 600;
-}
-.mode-btn.active svg {
-  color: white;
+  background: var(--bg-elevated);
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .mode-btn svg {

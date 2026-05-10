@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
-import { useSchoolContext, type SchoolUser } from '@/composables/schools/useSchoolContext'
-import { useUserRole } from '@/composables/useUserRole'
+import { useGodMode } from '@/composables/schools/useGodMode'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useDemoController } from '@/composables/demo/useDemoController'
 import { populateDemoData } from '@/composables/demo/populateDemoData'
 import { setLocale } from '@/composables/useI18n'
 import type { EagerScriptPreload } from '@/composables/useEagerScriptPreload'
+import type { GodModeUser } from '@/composables/schools/useGodMode'
 
 const router = useRouter()
 const supabase = inject<any>('supabase', ref(null))
@@ -22,7 +22,7 @@ const preloadStatus = ref('')
 // anyone who visits /demo without starting a demo.
 
 // Pre-built demo users with full context (no DB fetch needed)
-const demoUsers: Record<string, SchoolUser> = {
+const demoUsers: Record<string, GodModeUser> = {
   teacher: {
     user_id: 'test_teacher_rhian',
     learner_id: 'e0200000-0000-0000-0000-000000000001',
@@ -89,23 +89,23 @@ async function startDemo(demo: typeof demos[0]) {
   if (isStarting.value) return
   isStarting.value = true
 
-  const ctx = useSchoolContext()
+  const godMode = useGodMode()
   const demoController = useDemoController()
   const user = demoUsers[demo.userKey]
 
-  // Demo flags (sessionStorage — auto-clears on tab close).
+  // Set the God Mode user directly (bypasses checkGodAccess + fetchUsers)
+  godMode.selectUser(user)
+
+  // Also populate allUsers so the controller's waitForGodModeUsers resolves
+  if (godMode.allUsers.value.length === 0) {
+    godMode.allUsers.value = Object.values(demoUsers)
+  }
+
+  // Set course + tier for demo (must happen before navigation)
+  // Use sessionStorage so demo state auto-clears on tab close
   sessionStorage.setItem('ssi-demo-active', 'true')
   sessionStorage.setItem('ssi-demo-last-course', 'cym_s_for_eng')
   sessionStorage.setItem('ssi-demo-tier', 'paid')
-
-  // Set the school context directly to the demo persona. Schools composables
-  // read ctx.currentUser to scope queries; for demo they also see
-  // isDemoMode=true and short-circuit to the pre-populated data refs.
-  ctx.currentUser.value = user
-
-  // Sync the demo persona's role into useUserRole so the /schools route
-  // guard and SchoolsContainer's canAccessSchools see a school-scoped role.
-  useUserRole().initialize(user.platform_role, user.educational_role)
 
   // Set locale to English (demo audience speaks English)
   setLocale('eng')

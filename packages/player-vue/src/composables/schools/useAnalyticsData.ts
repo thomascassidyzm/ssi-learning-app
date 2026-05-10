@@ -6,7 +6,7 @@
 
 import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
-import { useSchoolContext } from './useSchoolContext'
+import { useGodMode } from './useGodMode'
 import { isDemoMode } from '../demo/demoMode'
 
 export interface DailyActivity {
@@ -66,7 +66,7 @@ const error = ref<string | null>(null)
 
 export function useAnalyticsData() {
   const client = getSchoolsClient()
-  const { currentUser: selectedUser, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
+  const { selectedUser, isSchoolAdmin, isGovtAdmin } = useGodMode()
 
   // Fetch daily activity for last 30 days
   async function fetchDailyActivity(): Promise<void> {

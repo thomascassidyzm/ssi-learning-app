@@ -10,47 +10,9 @@ const props = defineProps({
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
   isPlayerReady: { type: Boolean, default: false },
-  // Round-cursor pair for the journey-bar / jump-back UX. When the cursor
-  // is behind the ceiling (the learner has revisited earlier content),
-  // we surface a visual showing both positions along the course and a
-  // single CTA to jump back to their furthest. Both null for guests /
-  // fresh enrollments.
-  currentRound: { type: Number, default: null },
-  highestRound: { type: Number, default: null },
-  // Belt colours for the two journey-bar markers. Derived upstream from
-  // the actual lego IDs (which encode the seed — S0042L05 → seed 42),
-  // so they match the belt label exactly. Pre-computed here rather than
-  // estimated from the round number.
-  cursorBeltColor: { type: String, default: null },
-  highestBeltColor: { type: String, default: null },
 })
 
-const emit = defineEmits(['start', 'change-course', 'jump-to-furthest'])
-
-const showJumpChoice = computed(() => {
-  if (!props.isPlayerReady) return false
-  const c = props.currentRound
-  const h = props.highestRound
-  return typeof c === 'number' && typeof h === 'number' && c < h
-})
-
-// Three-zone schematic: "now" anchored on the left, "furthest" sits at a
-// fixed midpoint, and the area after "furthest" is the "rest of course"
-// — visually deemphasised so the eye is drawn to the actionable gap
-// between now and furthest. Positions are intentionally non-proportional;
-// this is a logical scrubber, not a real-distance indicator.
-const CURSOR_ANCHOR_PCT = 10
-const HIGHEST_ANCHOR_PCT = 62
-
-const cursorPercent = computed(() => CURSOR_ANCHOR_PCT)
-const highestPercent = computed(() => HIGHEST_ANCHOR_PCT)
-
-// Belt colours for the two markers. Both come from the parent (LearningPlayer
-// derives them from the actual lego IDs, which is the same source the belt
-// label uses — guarantees the marker colour matches the badge). Fall back
-// to the current belt's colour if the parent hasn't supplied them.
-const cursorBeltColorFinal = computed(() => props.cursorBeltColor ?? belt.value.color)
-const furthestBeltColorFinal = computed(() => props.highestBeltColor ?? props.cursorBeltColor ?? belt.value.color)
+const emit = defineEmits(['start', 'change-course'])
 
 const courseName = computed(() => {
   if (!props.course) return 'Loading...'
@@ -109,63 +71,21 @@ const handleChangeCourse = () => {
       </h2>
       <p v-if="courseSubtitle" class="course-subtitle">{{ courseSubtitle }}</p>
 
-      <!-- Belt badge — purely a label of where they are right now, no
-           "X% to next belt" gating. Belt is derived from current playing
-           position via beltProgress.playingBelt. -->
+      <!-- Belt badge -->
       <div class="belt-badge" :style="{ '--belt-accent': belt.color }">
         <div class="belt-dot"></div>
         <span class="belt-name">{{ beltDisplay }}</span>
       </div>
 
-      <!-- Cursor < ceiling: show the journey-bar + a single CTA to jump
-           back to the furthest. Surfaces only when the learner has
-           revisited earlier content. Doing nothing (just tapping play)
-           is the implicit "stay here" — no second button needed. -->
-      <div v-if="showJumpChoice" class="journey">
-        <p class="journey-prompt">{{ t('resting.youHaveBeenFurther', "you've been further than this") }}</p>
-        <div
-          class="journey-bar"
-          :style="{
-            '--belt-accent': belt.color,
-            '--cursor-color': cursorBeltColorFinal,
-            '--furthest-color': furthestBeltColorFinal,
-          }"
-        >
+      <!-- Progress -->
+      <div class="progress-section">
+        <div class="progress-bar-track" :style="{ background: belt.color + '26' }">
           <div
-            class="journey-track journey-track--solid"
-            :style="{
-              left: cursorPercent + '%',
-              width: (highestPercent - cursorPercent) + '%',
-              background: `linear-gradient(to right, ${cursorBeltColorFinal}, ${furthestBeltColorFinal})`
-            }"
+            class="progress-bar-fill"
+            :style="{ width: progressPercent + '%', background: belt.color }"
           ></div>
-          <div
-            class="journey-track journey-track--rest"
-            :style="{ left: highestPercent + '%', width: (100 - highestPercent) + '%' }"
-          ></div>
-          <div
-            class="journey-marker journey-marker--current"
-            :style="{ left: cursorPercent + '%', background: cursorBeltColorFinal }"
-            :aria-label="t('resting.youAreHere', 'you are here')"
-          >
-            <span class="journey-marker-label">{{ t('resting.now', 'now') }}</span>
-          </div>
-          <div
-            class="journey-marker journey-marker--highest"
-            :style="{ left: highestPercent + '%', background: furthestBeltColorFinal }"
-            :aria-label="t('resting.yourFurthest', 'your furthest point')"
-          >
-            <span class="journey-marker-label">{{ t('resting.furthest', 'furthest') }}</span>
-          </div>
-          <span class="journey-rest-label">{{ t('resting.restOfCourse', 'rest of course') }}</span>
         </div>
-        <button
-          class="journey-cta"
-          :style="{ '--belt-accent': belt.color }"
-          @click.stop="emit('jump-to-furthest')"
-        >
-          {{ t('resting.jumpForward', 'pick up where you got to') }}
-        </button>
+        <span class="progress-label">{{ progressPercent }}%</span>
       </div>
 
     </div>
@@ -306,132 +226,6 @@ const handleChangeCourse = () => {
   color: var(--text-secondary);
   margin: 8px 0 0;
   font-style: italic;
-}
-
-/* ===== Journey bar ===== */
-.journey {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
-  margin-top: 20px;
-  width: 100%;
-  max-width: 320px;
-}
-
-.journey-prompt {
-  font-family: var(--font-body);
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0;
-  font-style: italic;
-  text-align: center;
-}
-
-.journey-bar {
-  position: relative;
-  height: 36px;
-  margin: 0 12px;
-}
-
-.journey-track {
-  position: absolute;
-  top: 50%;
-  height: 3px;
-  border-radius: 2px;
-  transform: translateY(-50%);
-}
-
-/* Now → furthest: the actionable gap, drawn solid */
-.journey-track--solid {
-  background: color-mix(in srgb, var(--belt-accent, #ffffff) 55%, transparent);
-}
-
-/* Past furthest: dotted, deemphasised */
-.journey-track--rest {
-  background: linear-gradient(
-    to right,
-    color-mix(in srgb, var(--belt-accent, #ffffff) 30%, transparent) 0,
-    color-mix(in srgb, var(--belt-accent, #ffffff) 30%, transparent) 4px,
-    transparent 4px,
-    transparent 8px
-  );
-  background-size: 8px 3px;
-  opacity: 0.7;
-}
-
-.journey-rest-label {
-  position: absolute;
-  top: calc(100% + 18px); /* below the now/furthest labels so they don't collide */
-  right: 0;
-  font-family: var(--font-body);
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.journey-marker {
-  position: absolute;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  /* background is set inline per marker via the belt color */
-  transform: translate(-50%, -50%);
-  transition: left 0.3s ease;
-}
-
-.journey-marker--current {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cursor-color, #ffffff) 25%, transparent);
-}
-
-.journey-marker--highest {
-  width: 14px;
-  height: 14px;
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--furthest-color, #ffffff) 25%, transparent),
-    0 0 8px color-mix(in srgb, var(--furthest-color, #ffffff) 50%, transparent);
-}
-
-.journey-marker-label {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.journey-marker-label--right {
-  /* keep it centred on the marker; CSS clamp prevents it overflowing */
-  left: 50%;
-}
-
-.journey-cta {
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 500;
-  padding: 11px 20px;
-  border-radius: 22px;
-  border: 1.5px solid color-mix(in srgb, var(--belt-accent, #ffffff) 50%, transparent);
-  background: color-mix(in srgb, var(--belt-accent, #ffffff) 18%, transparent);
-  color: var(--text-primary);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background 0.2s ease, border-color 0.2s ease;
-  text-align: center;
-  text-transform: lowercase;
-  letter-spacing: 0.01em;
-  margin-top: 4px;
-}
-
-.journey-cta:hover {
-  background: color-mix(in srgb, var(--belt-accent, #ffffff) 28%, transparent);
 }
 
 .tap-hint {

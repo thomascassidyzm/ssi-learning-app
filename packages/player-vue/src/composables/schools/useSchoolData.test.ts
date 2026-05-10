@@ -42,24 +42,24 @@ describe('useSchoolData', () => {
     const { setSchoolsClient } = await import('./client')
     setSchoolsClient(createMockClient(responses))
 
-    const { useSchoolContext } = await import('./useSchoolContext')
-    const ctx = useSchoolContext()
+    const { useGodMode } = await import('./useGodMode')
+    const gm = useGodMode()
 
     // Set up a user matching the role
     if (role === 'govt_admin') {
-      ctx.currentUser.value = ({
+      gm.selectUser({
         user_id: 'u1', learner_id: 'l1', display_name: 'Gov',
         educational_role: 'govt_admin', platform_role: null,
         region_code: 'WALES'
       })
     } else if (role === 'school_admin') {
-      ctx.currentUser.value = ({
+      gm.selectUser({
         user_id: 'u2', learner_id: 'l2', display_name: 'Admin',
         educational_role: 'school_admin', platform_role: null,
         school_id: 's1'
       })
     } else if (role === 'teacher') {
-      ctx.currentUser.value = ({
+      gm.selectUser({
         user_id: 'u3', learner_id: 'l3', display_name: 'Teacher',
         educational_role: 'teacher', platform_role: null,
         school_id: 's1'
@@ -173,8 +173,8 @@ describe('useSchoolData', () => {
     const { setSchoolsClient } = await import('./client')
     const mockClient = createMockClient({})
     setSchoolsClient(mockClient)
-    const { useSchoolContext } = await import('./useSchoolContext')
-    useSchoolContext() // no user selected
+    const { useGodMode } = await import('./useGodMode')
+    useGodMode() // no user selected
     const { useSchoolData } = await import('./useSchoolData')
     const sd = useSchoolData()
     await sd.fetchSchools()

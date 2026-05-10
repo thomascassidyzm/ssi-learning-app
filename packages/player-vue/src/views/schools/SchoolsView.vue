@@ -2,11 +2,11 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
-import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useGodMode } from '@/composables/schools/useGodMode'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 
 const router = useRouter()
-const { currentUser: selectedUser } = useSchoolContext()
+const { selectedUser } = useGodMode()
 const { schools, groupSummary, totalClasses, fetchSchools, selectSchoolToView } = useSchoolData()
 
 // Search

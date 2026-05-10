@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, reactive, inject } from 'vue'
+import { ref, computed, onMounted, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import ClassCard from '@/components/schools/ClassCard.vue'
 import CreateClassModal from '@/components/schools/CreateClassModal.vue'
 import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
-import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
 
-// School context and data. isAdminView is provided by the Admin*
-// containers for read-only views; self-view paths default to false.
-const isAdminView = inject<boolean>('isAdminView', false)
-const { currentUser: selectedUser } = useSchoolContext()
+// God Mode and data
+const { selectedUser } = useGodMode()
 const { classes: classesData, fetchClasses, createClass, getClassReport, isLoading } = useClassesData()
 
 // Modal state
@@ -192,7 +190,7 @@ const handleClassSettings = (classData) => {
           </p>
         </div>
 
-        <div v-if="!isAdminView" class="header-actions">
+        <div class="header-actions">
           <button class="btn-create" @click="openCreateModal">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>

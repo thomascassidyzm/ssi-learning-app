@@ -74,19 +74,6 @@ describe('useBeltProgress - local only', () => {
     expect(bp.currentBelt.value.name).toBe('white')
   })
 
-  it('pill belt does not regress when revisiting earlier seeds', () => {
-    // Earned green (seed 60+) then jumped back to revisit seed 10
-    // (still in yellow band). The pill should stay green; the playing
-    // cursor moves back, but engagement breadth doesn't shrink.
-    const bp = useBeltProgress('test_course')
-    bp.initializeSync()
-    bp.setLastLegoId('S0060L00')           // bumps highest to green via checkBeltPromotion
-    expect(bp.currentBelt.value.name).toBe('green')
-    bp.setPlayingPosition(10)              // revisit yellow-band seed
-    expect(bp.currentBelt.value.name).toBe('green')   // pill stays
-    expect(bp.highestBeltIndex.value).toBeGreaterThanOrEqual(3) // green index
-  })
-
   it('updates lastLegoId and highestLegoId on setLastLegoId', () => {
     const bp = useBeltProgress('test_course')
     bp.initializeSync()

@@ -149,14 +149,12 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
         items.value = demoItems
       }
 
-      // Start session tracking only for real learners — Supabase rejects
-      // guest IDs (the `guest-` prefix breaks the uuid column constraint),
-      // and the failed round-trip costs ~200ms on every cold start.
-      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+      // Start session tracking if database is available (including guests)
+      if (sessionStore && learnerId && courseId && learnerId !== 'demo-learner') {
         try {
           const session = await sessionStore.startSession(learnerId, courseId)
           sessionId.value = session.id
-          console.log('[useLearningSession] Session started:', session.id)
+          console.log('[useLearningSession] Session started:', session.id, isGuestLearner(learnerId) ? '(guest)' : '')
         } catch (err: any) {
           console.warn('[useLearningSession] Session tracking unavailable:', err.message)
           // Continue without session tracking

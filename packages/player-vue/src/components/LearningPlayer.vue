@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
-import { useRouter } from 'vue-router'
 import {
   AudioController,
   CyclePhase,
@@ -21,21 +20,15 @@ import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
-import { INITIAL_PRELOAD_SEEDS, LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
-import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
-import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
-import { usePlayerLog } from '../composables/usePlayerLog'
-import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
-import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
-import { resolvePodActivationRound } from '../composables/usePodActivation'
+import { generateLearningScript as generateSimpleScript } from '../providers/generateLearningScript'
 import { toSimpleRounds, type TargetSpeedConfig, NATIVE_PAUSE_CONFIG, LEGACY_PAUSE_CONFIG } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { useAuthModal } from '../composables/useAuthModal'
@@ -48,7 +41,7 @@ import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
-import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
+import { updateAvailable as pwaUpdateAvailable, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
 import BeltProgressModal from './BeltProgressModal.vue'
@@ -60,8 +53,6 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'pronunciationModeChanged', 'cycle-started'])
-
-const router = useRouter()
 
 interface VoiceSettings {
   voiceId?: string
@@ -241,41 +232,11 @@ const showContributionExpanded = ref(false)
 // Algorithm config - admin-tweakable parameters (Turbo Boost, pause timing, etc.)
 const {
   loadConfigs: loadAlgorithmConfigs,
+  normalConfig,
   turboConfig,
-  listeningConfig,
-  podsConfig,
-  scriptShapeConfig,
-  resumeConfig,
+  calculatePause,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
-
-/**
- * Wrapper for generateSimpleScript that threads the live algorithm_config
- * triple (listening, scriptShape, turbo cull) into every script-generation
- * call. Pass `listeningOverride` only when you need the per-learner pod
- * activation pin merged on top.
- */
-const generateScript = (
-  startSeed: number,
-  endSeed: number,
-  emitFromRound: number = 1,
-  listeningOverride?: ListeningConfigType,
-) => {
-  if (!supabase?.value) {
-    return Promise.reject(new Error('No supabase client'))
-  }
-  const tc = turboConfig.value
-  return generateSimpleScript(
-    supabase.value,
-    courseCode.value,
-    startSeed,
-    endSeed,
-    emitFromRound,
-    listeningOverride || listeningConfig.value,
-    scriptShapeConfig.value,
-    { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
-  )
-}
 
 // Auth modal for sign-in/sign-up prompts
 const { open: openAuth } = useAuthModal()
@@ -415,52 +376,6 @@ const endClassSessionTracking = async () => {
 }
 
 // Save round completion progress to database
-/**
- * Explicit cursor write for intentional navigation (belt-back, jump-to-belt
- * pill, jump-to-furthest). Lets the cursor regress to where the learner has
- * navigated, so the resting-state "skip to round N" choice surfaces during
- * real revisits. Round-completion writes still go through saveRoundProgress
- * which is forward-only — the bug-overwrite safety net stays in place.
- */
-const setRemoteCursor = async (legoId: string, roundIndex: number) => {
-  if (isGuestLearner.value || !progressStore?.value || !legoId) return
-  try {
-    await progressStore.value.setEnrollmentCursor(
-      learnerId.value,
-      courseCode.value,
-      legoId,
-      roundIndex
-    )
-    console.log('[LearningPlayer] Cursor set to round', roundIndex, 'LEGO:', legoId)
-  } catch (err) {
-    console.warn('[LearningPlayer] Failed to set cursor:', err)
-  }
-}
-
-/** Persist the simplePlayer's current position as the cursor. Called after
- *  intentional navigation (belt-back, belt-pill, jump-to-furthest) so the
- *  resting-state choice surfaces if the learner is now behind their ceiling. */
-/** Mirror the DB ceiling trigger locally. Whenever the cursor advances
- *  past where we've been, lift the in-memory ceiling refs so the journey
- *  bar reflects current truth without needing a page reload. The DB
- *  trigger does this on its side; this keeps the client in sync. */
-const liftLocalCeilingIfHigher = (legoId: string | null, roundIndex: number) => {
-  if (typeof roundIndex !== 'number' || !legoId) return
-  if (highestCompletedRoundIndex.value === null || roundIndex > highestCompletedRoundIndex.value) {
-    highestCompletedRoundIndex.value = roundIndex
-    highestCompletedLegoId.value = legoId
-  }
-}
-
-const persistCursorAtCurrentRound = async () => {
-  const round = simplePlayer.currentRound.value
-  const idx = simplePlayer.roundIndex.value
-  if (round?.legoId && typeof idx === 'number') {
-    await setRemoteCursor(round.legoId, idx)
-    liftLocalCeilingIfHigher(round.legoId, idx)
-  }
-}
-
 const saveRoundProgress = async (legoId, roundIndex) => {
   if (isGuestLearner.value || !progressStore?.value) {
     console.log('[LearningPlayer] Skipping progress save (guest mode)')
@@ -475,7 +390,6 @@ const saveRoundProgress = async (legoId, roundIndex) => {
       roundIndex
     )
     console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoId)
-    liftLocalCeilingIfHigher(legoId, roundIndex)
   } catch (err) {
     console.warn('[LearningPlayer] Failed to save progress:', err)
     // Don't throw - continue learning even if save fails
@@ -496,11 +410,7 @@ const loadSavedProgress = async () => {
     if (enrollment && enrollment.last_completed_round_index !== null) {
       return {
         lastCompletedLegoId: enrollment.last_completed_lego_id,
-        lastCompletedRoundIndex: enrollment.last_completed_round_index,
-        highestCompletedLegoId: enrollment.highest_completed_lego_id,
-        highestCompletedRoundIndex: enrollment.highest_completed_round_index,
-        currentCycleIndex: enrollment.current_cycle_index ?? 0,
-        lastPracticedAt: enrollment.last_practiced_at ?? null,
+        lastCompletedRoundIndex: enrollment.last_completed_round_index
       }
     }
   } catch (err) {
@@ -524,13 +434,6 @@ const {
 // SIMPLE PLAYER - Clean playback architecture
 // ============================================
 const simplePlayer = useSimplePlayer()
-
-// Diagnostic event log — captures play/pause/skip/stop taps + lap and
-// commentary lifecycle. Persisted in player_events; surfaced in the
-// admin user-detail page so user reports like "skip didn't work" can
-// be diagnosed without DevTools.
-const playerLog = usePlayerLog({ courseCode })
-const logEvent = playerLog.event
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
 const audioFailedBanner = simplePlayer.audioFailed
@@ -558,71 +461,14 @@ const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
 const isPlaying = ref(false)
 
-// Furthest round the learner has ever reached, with its lego companion.
-// Read once on resume; the trigger keeps the DB ceiling in sync as the
-// cursor moves. Drives the "skip to round N" choice in the resting state
-// when the cursor is currently behind this ceiling.
-const highestCompletedRoundIndex = ref<number | null>(null)
-const highestCompletedLegoId = ref<string | null>(null)
-// Cycle cursor within the in-progress round, persisted on every cycle
-// completion. Read once on resume so a PWA reload mid-round picks up
-// from the cycle the learner was on rather than restarting cycle 0
-// (a 20-cycle penalty on long rounds). Reset to 0 when the round finishes.
-const savedCurrentCycleIndex = ref<number>(0)
-// Last DB-recorded practice time. Drives resume-TTL regression: long
-// gaps re-engage the learner with familiar territory by ignoring the
-// cycle bookmark (round reset) or stepping back to the belt start.
-const savedLastPracticedAt = ref<Date | null>(null)
-
-// Independent of the resume cascade — fires whenever course or learner
-// changes so the ceiling is loaded for both cached-script and fresh-
-// generate paths, and refreshes on course switch. Single row read, errors
-// silently if offline / unauthenticated (choice just won't surface).
-watch(
-  () => [courseCode.value, learnerId.value],
-  async () => {
-    if (!progressStore?.value || !learnerId.value || !courseCode.value) return
-    if (isGuestLearner.value) return
-    try {
-      const saved = await loadSavedProgress()
-      if (saved) {
-        highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
-        highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
-        savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
-        savedLastPracticedAt.value = saved.lastPracticedAt ?? null
-      } else {
-        highestCompletedRoundIndex.value = null
-        highestCompletedLegoId.value = null
-        savedCurrentCycleIndex.value = 0
-        savedLastPracticedAt.value = null
-      }
-    } catch { /* silent */ }
-  },
-  { immediate: true }
-)
-
 // Sync state with simplePlayer
-watch(() => simplePlayer.roundIndex.value, (idx) => {
-  currentRoundIndex.value = idx
-  // Near-edge trigger: when within LOOKAHEAD_TRIGGER_ROUNDS of the loaded
-  // edge, fetch the next chunk. The threshold is in rounds (the unit users
-  // experience); seeds are just the script generator's query unit. The
-  // chunk size is small — the player only ever needs a short lookahead,
-  // never the whole course.
-  const totalLoaded = simplePlayer.roundCount?.value ?? 0
-  if (totalLoaded > 0 && idx >= totalLoaded - LOOKAHEAD_TRIGGER_ROUNDS) {
-    const currentLegoId = simplePlayer.currentRound?.value?.legoId
-    const currentSeed = currentLegoId ? getSeedFromLegoId(currentLegoId) : null
-    if (currentSeed != null && currentSeed > 0) {
-      // loadSeedIfNeeded is idempotent — early-returns if the target seed
-      // is already loaded, so this is safe to call from inside the watcher.
-      loadSeedIfNeeded(currentSeed + LOOKAHEAD_CHUNK_SEEDS).catch(() => { /* silent */ })
-    }
-  }
-})
+watch(() => simplePlayer.roundIndex.value, (idx) => { currentRoundIndex.value = idx })
 watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
 watch(() => simplePlayer.isPlaying.value, (playing) => {
   isPlaying.value = playing
+  // Track actual play time — only count seconds where audio is active
+  if (playing) learningSession.markPlayStart()
+  else learningSession.markPlayStop()
 })
 
 // Backwards compatibility aliases
@@ -697,47 +543,11 @@ simplePlayer.onCycleCompleted((cycle) => {
       console.error('[LearningPlayer] Failed to record cycle:', err)
     })
   }
-
-  // Persist mid-round cursor so a PWA reload / app close+open mid-round
-  // resumes from the cycle the learner was on instead of restarting
-  // the whole 20-cycle round. The cycle that JUST completed is N; the
-  // resume point is N+1 (next cycle to play). Reset to 0 happens on
-  // round_completed via saveRoundProgress.
-  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-    const nextCycleIdx = simplePlayer.cycleIndex.value + 1
-    progressStore.value.updateCurrentCycle(
-      learnerId.value,
-      courseCode.value,
-      nextCycleIdx,
-    ).catch(err => {
-      console.warn('[LearningPlayer] Failed to persist current cycle:', err)
-    })
-  }
 })
 
 // Round completed - save progress and update current LEGO ID
 simplePlayer.onRoundCompleted((round) => {
   const completedRoundIndex = simplePlayer.roundIndex.value
-  logEvent('round_complete', {
-    roundIndex: completedRoundIndex,
-    legoId: round.legoId,
-    seedId: round.seedId,
-  })
-
-  // Synchronously pause if a pod is about to fire on this boundary.
-  // handleRoundBoundary is async and runs on a later microtask — by the
-  // time its own pause() lands, simplePlayer's orchestrator may have
-  // already started the next round's prompt audio, causing the pod intro
-  // to overlap with main-player audio. Pausing here, in the same tick as
-  // the round-completed event, beats that race.
-  const willFirePod = !!podScheduler
-    && podScheduler.isInitialized.value
-    && !beltJustEarned.value
-    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
-  if (willFirePod) {
-    simplePlayer.pause()
-  }
-
   if (round.legoId) {
     if (props.classContext) {
       // Class mode: update class progress, NOT personal belt
@@ -760,7 +570,7 @@ simplePlayer.onRoundCompleted((round) => {
     } else {
       // Individual mode: existing behavior
       saveRoundProgress(round.legoId, completedRoundIndex)
-      handleRoundBoundary(completedRoundIndex, round.legoId, round)
+      handleRoundBoundary(completedRoundIndex, round.legoId)
       if (beltProgress.value?.setCurrentLegoId) {
         beltProgress.value.setCurrentLegoId(round.legoId)
       }
@@ -791,21 +601,9 @@ simplePlayer.onRoundCompleted((round) => {
   }
 })
 
-// Session complete — last round finished. If a pod lap or commentary
-// is still in-flight (handleRoundBoundary fires lap → meanwhile
-// advanceRound emits session_complete on the same tick), defer the
-// summary screen. handleRoundBoundary checks sessionEnded after the
-// lap and calls showPausedSummary then. Surfacing the summary now
-// would call simplePlayer.stop() + release audioEngaged mid-lap and
-// iOS would drop the session.
+// Session complete - show summary
 simplePlayer.onSessionComplete(() => {
-  sessionEnded.value = true
-  logEvent('session_complete', {
-    deferredForLap: playingPodLapAudio.value || playingCommentaryAudio.value,
-  })
-  if (!playingPodLapAudio.value && !playingCommentaryAudio.value) {
-    showPausedSummary()
-  }
+  showPausedSummary()
 })
 
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
@@ -1346,59 +1144,6 @@ const metaCommentary = courseDataProvider.value
 const playingCommentaryAudio = ref(false)
 
 // ============================================
-// LISTENING POD LAP SCHEDULER (Layer 2 — runtime, ratchet-driven)
-// Replaces the old script-baked pod emission. Fires between rounds when
-// the user has crossed pod_activation_round, plays the lap composed from
-// completed_pod_rounds + 1, and increments the ratchet on completion.
-// ============================================
-const podScheduler = supabase?.value
-  ? usePodLapScheduler({
-      supabase: supabase as any,
-      courseCode: courseCode,
-      learnerId: learnerId,
-      // Live from algorithm_config.pods — admin tweaks land on next lap.
-      stagePlaylist: computed(() => podsConfig.value.stagePlaylist),
-      stageDuration: computed(() => podsConfig.value.stageDuration),
-    })
-  : null
-const playingPodLapAudio = ref(false)
-// Set true when the learner presses stop *during* a pod lap or commentary.
-// handleRoundBoundary checks this before calling simplePlayer.resume() so a
-// deliberate stop doesn't auto-advance into the next round mid-pod.
-const userStoppedDuringLap = ref(false)
-// Set true when the learner presses skip *during* a pod lap. Distinct from
-// userStoppedDuringLap: skip means "advance to the next round" (so resume
-// fires), stop means "stay paused". In Turbo mode a skip also bumps the
-// pod ratchet so the same sentences don't resurface; in regular mode the
-// ratchet stays put so the listening work still has to be done.
-const podLapSkippedByUser = ref(false)
-// When the learner stops *during* a pod lap, we bookmark the lap here so
-// the next play tap re-fires it (with omitIntro=true so the bookend
-// doesn't double up). Without this, SimplePlayer was already parked at
-// end-of-round-N when the lap started, so a plain resume() would advance
-// straight to round N+1 and silently drop the lap until the next round
-// completes — which felt like "stop in listening = skipped to next round".
-const pendingLapResume = ref<PodLap | null>(null)
-// Set true when SimplePlayer fires session_complete (the LAST round just
-// finished). If this fires while a pod lap is still in-flight, we defer
-// the summary screen until the lap finishes — otherwise showPausedSummary
-// would tear down audioEngaged mid-lap and iOS would drop the session.
-const sessionEnded = ref(false)
-
-// Session-wide iOS audio-session keepalive is wired further down — see
-// the useAudioSessionKeepalive call after isPlayingIntroduction +
-// isPlayingWelcome are declared. Putting it here would cause a TDZ
-// reference error since those refs come later in the setup script.
-// Initialize once we know the course; re-init when course changes
-watch(
-  () => [courseCode.value, learnerId.value],
-  async () => {
-    if (podScheduler) await podScheduler.initialize()
-  },
-  { immediate: true }
-)
-
-// ============================================
 // INK SPIRIT REWARDS
 // Target language congratulations that drift upward
 // Hidden formula - show results, not mechanics
@@ -1705,7 +1450,7 @@ const initializeBeltLoader = async () => {
   const generateScriptChunk = async (startSeed: number, count: number) => {
     if (!supabase?.value) return { rounds: [] as any[], nextSeed: startSeed, hasMore: false }
     const endSeed = startSeed + count
-    const result = await generateScript(startSeed, endSeed)
+    const result = await generateSimpleScript(supabase.value, courseCode.value, startSeed, endSeed, 1)
     if (result.hasRomanizedText) hasRomanizedText.value = true
     const rounds = toSimpleRoundsWithComponents(result.items)
     return {
@@ -1799,40 +1544,16 @@ const playCommentaryAudio = async (commentary) => {
 
   playingCommentaryAudio.value = true
   console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
-  logEvent('commentary_start', {
-    type: commentary.type ?? null,
-    textPreview: typeof commentary.text === 'string' ? commentary.text.substring(0, 80) : null,
-  })
-
-  // Reset cancellation flag for this commentary play. Mirrors the same
-  // pattern as playPodLap so togglePlayback / handleSkip can cancel
-  // commentary mid-clip and have handleRoundBoundary advance promptly
-  // instead of waiting on the 60s safety timeout.
-  podLapCancelled.value = false
 
   return new Promise((resolve) => {
     const audio = audioController.value
-    let cancelPoll: ReturnType<typeof setInterval> | null = null
-    let safetyTimeout: ReturnType<typeof setTimeout> | null = null
-    let settled = false
-
-    const cleanup = () => {
-      audio.offEnded(onEnded)
-      if (cancelPoll) { clearInterval(cancelPoll); cancelPoll = null }
-      if (safetyTimeout) { clearTimeout(safetyTimeout); safetyTimeout = null }
-    }
-
-    const finish = (reason: 'natural' | 'error' | 'cancelled' | 'safety_timeout', success: boolean) => {
-      if (settled) return
-      settled = true
-      cleanup()
-      playingCommentaryAudio.value = false
-      logEvent('commentary_end', { reason, type: commentary.type ?? null })
-      resolve(success)
-    }
 
     // Create a one-time ended handler
-    const onEnded = () => finish('natural', true)
+    const onEnded = () => {
+      audio.offEnded(onEnded)
+      playingCommentaryAudio.value = false
+      resolve(true)
+    }
 
     audio.onEnded(onEnded)
 
@@ -1843,178 +1564,21 @@ const playCommentaryAudio = async (commentary) => {
       duration_ms: commentary.duration_ms,
     }).catch((err) => {
       console.error('[LearningPlayer] Commentary audio error:', err)
-      finish('error', false)
+      audio.offEnded(onEnded)
+      playingCommentaryAudio.value = false
+      resolve(false)
     })
-
-    // Cancellation poll — handleSkip / togglePlayback set podLapCancelled
-    // when the user wants commentary to stop. 100ms is fine-grained
-    // enough that a tap feels responsive.
-    cancelPoll = setInterval(() => {
-      if (settled || !podLapCancelled.value) return
-      try { audio.stop() } catch {}
-      finish('cancelled', false)
-    }, 100)
 
     // Safety timeout (max 60 seconds for any commentary)
-    safetyTimeout = setTimeout(() => {
-      if (settled) return
-      try { audio.stop() } catch {}
-      finish('safety_timeout', false)
+    setTimeout(() => {
+      if (playingCommentaryAudio.value) {
+        audio.offEnded(onEnded)
+        audio.stop()
+        playingCommentaryAudio.value = false
+        resolve(false)
+      }
     }, 60000)
   })
-}
-
-/**
- * Explicit cancellation flag for pod laps. Set to true when the learner
- * presses stop during a pod (togglePlayback), reset at the start of each
- * lap. playPodSegment polls this and resolves false when set, so a user
- * stop ends the segment immediately rather than waiting on the 30s
- * safety timeout. We use this rather than audioController.playGeneration
- * because every audio.play() internally calls stop() (bumping the gen),
- * which would otherwise trigger spurious cancellations from the lap's
- * own play calls.
- */
-const podLapCancelled = ref(false)
-
-/**
- * Play a single pod-lap audio segment (one bookend or one pod play).
- * Uses the same audioController as commentary. Resolves on ended/error.
- */
-const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<boolean> => {
-  if (!audioId || !audioController.value) return false
-  const audio = audioController.value
-  return new Promise((resolve) => {
-    let cancelPoll: ReturnType<typeof setInterval> | null = null
-    let safetyTimeout: ReturnType<typeof setTimeout> | null = null
-    const cleanup = () => {
-      audio.offEnded(onEnded)
-      try { (audio as any).setPlaybackRate?.(1.0) } catch {}
-      if (cancelPoll) clearInterval(cancelPoll)
-      if (safetyTimeout) clearTimeout(safetyTimeout)
-    }
-    const onEnded = () => {
-      cleanup()
-      resolve(true)
-    }
-    audio.onEnded(onEnded)
-    try {
-      ;(audio as any).setPlaybackRate?.(playbackSpeed)
-    } catch {}
-    audio.play({ id: audioId, url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`, duration_ms: durationMs })
-      .catch((err: any) => {
-        console.warn('[LearningPlayer] Pod segment audio error:', err?.message || err)
-        cleanup()
-        resolve(false)
-      })
-    cancelPoll = setInterval(() => {
-      if (podLapCancelled.value) {
-        // User stop signal — abort and stop the audio so it doesn't keep
-        // playing in the background after we've released the promise.
-        try { audio.stop() } catch {}
-        cleanup()
-        resolve(false)
-      }
-    }, 100)
-    safetyTimeout = setTimeout(() => {
-      cleanup()
-      resolve(false)
-    }, 30000)
-  })
-}
-
-/**
- * Inter-play gap matrix per Aran's 2026-05-05 spec.
- *
- * Within ONE chunk's playlist (target → known → target → target):
- *   target → known   = TIGHT       — slight beat for translation transition
- *   known → target   = SUPER_TIGHT — comparison wants immediacy
- *   target → target  = SUPER_TIGHT — reinforcement reps flow
- *
- * Between chunks (one chunk's last play → next chunk's first play):
- *   glued at eternal stage = 0ms — sew them together at the single-2× rep
- *   glued earlier         = GLUED — small breath, still close-coupled
- *   not glued             = BETWEEN — Aran's "between phrases" pause
- */
-// Inter-play gap matrix — values come live from algorithm_config.pods so
-// admin tweaks land on the next lap. Aran's 2026-05-05 defaults are kept
-// as fallback in DEFAULT_PODS (useAlgorithmConfig). The "eternal stage"
-// is the highest-numbered key in stagePlaylist (was 7, will become 8
-// after the new stage 2 ships, may shift again as Aran tunes).
-const eternalStage = computed(() => {
-  const keys = Object.keys(podsConfig.value.stagePlaylist || {}).map(Number).filter(n => !Number.isNaN(n))
-  return keys.length > 0 ? Math.max(...keys) : 7
-})
-const podGapMs = (curr: PodPlay, next: PodPlay | null): number => {
-  if (!next) return 0
-  const gaps = podsConfig.value
-  // Same chunk → role transition decides
-  if (curr.sentenceIdx === next.sentenceIdx) {
-    const c = curr.playRole // 'ps' or 'ps2x' = target; 'trans' = known
-    const n = next.playRole
-    const cIsTarget = c === 'ps' || c === 'ps2x'
-    const nIsTarget = n === 'ps' || n === 'ps2x'
-    if (cIsTarget && n === 'trans') return gaps.gapTightMs       // target → known
-    if (c === 'trans' && nIsTarget) return gaps.gapSuperTightMs  // known → target
-    return gaps.gapSuperTightMs                                   // target → target
-  }
-  // Different chunk — glue + stage decide
-  if (curr.glueToNextChunk) {
-    return curr.stage === eternalStage.value ? 0 : gaps.gapGluedMs
-  }
-  return gaps.gapBetweenMs
-}
-
-const podDelay = (ms: number) => ms <= 0
-  ? Promise.resolve()
-  : new Promise<void>(resolve => setTimeout(resolve, ms))
-
-/**
- * Play a full pod lap (intro bookend → all plays → outro bookend).
- * Returns true iff the lap played to completion (so the ratchet should advance).
- * Caller is responsible for pausing/resuming simplePlayer around this.
- */
-const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
-  podLapCancelled.value = false
-  podLapSkippedByUser.value = false
-  playingPodLapAudio.value = true
-  logEvent('pod_lap_start', {
-    podRound: lap.podRound,
-    plays: lap.plays.length,
-    omitIntro,
-  })
-  try {
-    if (lap.intro && !omitIntro) {
-      const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
-      if (!ok) return false
-      // Intro → first play: between-phrases pause, gives the bookend room
-      await podDelay(podsConfig.value.gapBetweenMs)
-    }
-    for (let i = 0; i < lap.plays.length; i++) {
-      const play = lap.plays[i] as PodPlay
-      const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
-      const ok = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
-      if (!ok) return false
-      if (next) {
-        await podDelay(podGapMs(play, next))
-      } else if (lap.outro) {
-        // Last play → outro: between-phrases pause before the bookend
-        await podDelay(podsConfig.value.gapBetweenMs)
-      }
-    }
-    if (lap.outro) {
-      const ok = await playPodSegment(lap.outro.id, lap.outro.duration_ms, 1.0)
-      if (!ok) return false
-    }
-    return true
-  } finally {
-    playingPodLapAudio.value = false
-    logEvent('pod_lap_end', {
-      podRound: lap.podRound,
-      cancelled: podLapCancelled.value,
-      skippedByUser: podLapSkippedByUser.value,
-      stoppedByUser: userStoppedDuringLap.value,
-    })
-  }
 }
 
 /**
@@ -2034,16 +1598,8 @@ const updateBeltForPosition = (roundIndex) => {
 }
 
 // Handle round boundary - called when a round completes
-const handleRoundBoundary = async (completedRoundIndex, completedLegoId, completedRound = null) => {
+const handleRoundBoundary = async (completedRoundIndex, completedLegoId) => {
   roundsThisSession.value++
-
-  // Did the round we just finished contain a Layer 1 listen cluster? If so,
-  // the L2 pod lap should drop its intro bookend so the two clusters play
-  // as one continuous listening section. Pairs with the omitOutro flag in
-  // emitL1Cluster (script side).
-  const l1FiredThisRound = !!completedRound?.cycles?.some(
-    (c: { type?: string }) => c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro'
-  )
 
   // Update belt progress to match current position (NO celebration during play - manual only)
   updateBeltForPosition(completedRoundIndex)
@@ -2080,71 +1636,9 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       // Play the commentary audio
       await playCommentaryAudio(commentary)
 
-      // Mark commentary as complete and resume learning — unless the learner
-      // pressed stop during commentary, in which case stay paused.
+      // Mark commentary as complete and resume learning
       metaCommentary.finishCommentaryPlayback()
-      if (userStoppedDuringLap.value) {
-        userStoppedDuringLap.value = false
-      } else {
-        simplePlayer.resume()
-      }
-    }
-  }
-
-  // ============================================
-  // LISTENING POD LAP (Layer 2 — runtime, ratchet-driven)
-  // Fires between rounds when learner has crossed activation. Lap is keyed
-  // off completed_pod_rounds + 1, NOT main round arithmetic. Only advances
-  // the ratchet when the lap plays to completion.
-  // ============================================
-  if (podScheduler && podScheduler.isInitialized.value && !beltJustEarned.value) {
-    const completedMainRound = (completedRoundIndex || 0) + 1
-    if (podScheduler.shouldFireLapAt(completedMainRound)) {
-      const lap = podScheduler.nextLap()
-      if (lap) {
-        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
-        simplePlayer.pause()
-        const completed = await playPodLap(lap, l1FiredThisRound)
-        // Ratchet writes are fire-and-forget — awaiting the Supabase
-        // round-trip put a 200-1000ms silence between the lap outro and
-        // the next round's intro on mobile networks. The audible audio
-        // pipeline shouldn't block on a write that doesn't affect the
-        // next round; if the write fails the ratchet just doesn't bump
-        // and the same lap plays next session, which is acceptable.
-        if (completed) {
-          podScheduler.markLapCompleted().catch((err) => {
-            console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
-          })
-        } else if (podLapSkippedByUser.value && turboActive.value) {
-          // Turbo skip: bump the ratchet so the same sentences don't keep
-          // resurfacing. Regular skip leaves the counter — listening work
-          // still has to be done next session.
-          podScheduler.skipAhead(1).catch((err) => {
-            console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
-          })
-          console.log('[LearningPlayer] Pod lap skipped in Turbo, ratchet advanced')
-        } else {
-          // Regular skip, audio error, or user stop — counter stays so the
-          // same lap plays next session ("the listening work has to be done").
-          console.log('[LearningPlayer] Pod lap not completed, ratchet unchanged')
-        }
-        podLapSkippedByUser.value = false
-        // Resume into the next round — unless one of these has happened:
-        //   • session_complete fired while the lap was playing (last round)
-        //     → surface the deferred summary now that the lap is done
-        //   • the learner pressed stop during the lap → stay paused
-        if (sessionEnded.value) {
-          showPausedSummary()
-        } else if (userStoppedDuringLap.value) {
-          // Bookmark the lap so the next play tap re-fires it instead of
-          // skipping silently into round N+1. Re-fire uses omitIntro=true
-          // so the bookend doesn't double up.
-          userStoppedDuringLap.value = false
-          pendingLapResume.value = lap
-        } else {
-          simplePlayer.resume()
-        }
-      }
+      simplePlayer.resume()
     }
   }
 
@@ -2534,16 +2028,8 @@ const clearPreparingState = () => {
   }
 }
 
-// Emit play state changes to parent (for nav bar play/stop toggle).
-// Includes pod-lap and commentary audio so the big play/stop button keeps
-// reading "stop" while THOSE are playing — pressing it during a pod halts
-// everything (handled in togglePlayback below). Without this, the button
-// flips to play whenever simplePlayer pauses for a between-rounds lap,
-// which looks like nothing's happening even though pod audio is mid-air.
-const isAudioPlaying = computed(() =>
-  isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value
-)
-watch(isAudioPlaying, (playing) => {
+// Emit play state changes to parent (for nav bar play/stop toggle)
+watch(isPlaying, (playing) => {
   emit('playStateChanged', playing)
 })
 
@@ -2577,63 +2063,6 @@ if (typeof document !== 'undefined') {
       acquireWakeLock()
     }
   })
-}
-
-// ============================================
-// Media Session API: lock-screen and bluetooth controls
-// Pairs with the silent-bridge inside SimplePlayer to give backgrounded
-// playback parity with Driving Mode (without the concatenator overhead).
-// ============================================
-function setupMediaSession() {
-  if (!('mediaSession' in navigator)) return
-
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: 'SSi Learning',
-    artist: 'Practice Session',
-    album: 'Player'
-  })
-
-  const handlers: Array<[MediaSessionAction, MediaSessionActionHandler]> = [
-    ['play', () => {
-      if (!isPlaying.value) simplePlayer.resume()
-    }],
-    ['pause', () => {
-      if (isPlaying.value) simplePlayer.pause()
-    }],
-    ['nexttrack', () => {
-      simplePlayer.skipRound()
-    }],
-    ['previoustrack', () => {
-      const idx = simplePlayer.roundIndex.value
-      if (idx > 0) simplePlayer.jumpToRound(idx - 1)
-    }]
-  ]
-
-  for (const [action, handler] of handlers) {
-    try {
-      navigator.mediaSession.setActionHandler(action, handler)
-    } catch {
-      // Action not supported on this platform — skip
-    }
-  }
-}
-
-function clearMediaSession() {
-  if (!('mediaSession' in navigator)) return
-  navigator.mediaSession.metadata = null
-  for (const action of ['play', 'pause', 'nexttrack', 'previoustrack'] as MediaSessionAction[]) {
-    try { navigator.mediaSession.setActionHandler(action, null) } catch { /* ignore */ }
-  }
-}
-
-watch(isPlaying, (playing) => {
-  if ('mediaSession' in navigator) {
-    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
-  }
-})
-
-if (typeof navigator !== 'undefined') {
-  setupMediaSession()
 }
 
 // Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
@@ -2801,36 +2230,6 @@ const welcomeChecked = ref(false) // True after we've checked welcome status
 const isPlayingWelcome = ref(false) // True when welcome audio is playing
 const showWelcomeSkip = ref(false) // Show skip button during welcome
 const welcomeText = ref('') // Text to display during welcome audio
-
-// Session-wide iOS audio-session keepalive.
-// Triggered by the play button: goes true on the user's first tap and
-// stays true until they explicitly stop the session (or the component
-// unmounts via the composable's own cleanup). Pause/resume mid-session
-// is internal — keepalive stays on through pauses since the user is
-// still engaged. Single signal beats a computed of "all the audio
-// paths" because new paths (pod laps, intros, future) keep being added
-// and we'd keep rediscovering "that path wasn't on the list".
-const audioEngaged = ref(false)
-useAudioSessionKeepalive(audioEngaged)
-
-// Tick the session play-time timer whenever ANY audio path is sounding —
-// not just simplePlayer cycles, but pod laps, commentary, intros, and
-// welcome too. Previously the timer gated on simplePlayer.isPlaying,
-// which froze during pod laps (handleRoundBoundary pauses simplePlayer
-// to play the lap on a separate audio element). Aran reported the
-// session timer stopping during listening; same bug class as the
-// keepalive — anything audible should keep the timer running.
-watch(
-  () => simplePlayer.isPlaying.value
-    || playingPodLapAudio.value
-    || playingCommentaryAudio.value
-    || isPlayingIntroduction.value
-    || isPlayingWelcome.value,
-  (active) => {
-    if (active) learningSession.markPlayStart()
-    else learningSession.markPlayStop()
-  },
-)
 
 // Initial state - before user has ever tapped play
 const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
@@ -3115,22 +2514,8 @@ const showLearningHint = computed(() => {
   return true
 })
 
-// Computed: instruction text based on current phase. During any
-// listening context (L1 cluster cycle, L2 pod lap, listen bookend),
-// override with the passive-attention pedagogy line so the hint
-// doesn't say "get ready to speak" while the learner is meant to be
-// just absorbing — and the main hero text doesn't show the next
-// LEGO's word that the learner hasn't met yet.
-const passiveListeningHint = computed(() =>
-  t('phase.passiveAttention', 'Just listen now — without effort but with attention, like listening to birdsong.')
-)
-const inListeningContext = computed(() => {
-  if (playingPodLapAudio.value) return true
-  const cycleType = simplePlayer.currentCycle.value?.type
-  return cycleType === 'listen_intro' || cycleType === 'listening' || cycleType === 'pod' || cycleType === 'listen_outro'
-})
+// Computed: instruction text based on current phase
 const phaseInstruction = computed(() => {
-  if (inListeningContext.value) return passiveListeningHint.value
   switch (currentPhase.value) {
     case Phase.PROMPT:
       return t('phase.getReadyToSpeak', 'get ready to speak')
@@ -3249,7 +2634,6 @@ class RealAudioController {
   suppressAllCallbacks: boolean
   playGeneration: number
   audioSource: any
-  pendingPlaybackRate: number
   _lastEndedHandler: (() => void) | null
   _lastErrorHandler: ((e: any) => void) | null
 
@@ -3266,7 +2650,6 @@ class RealAudioController {
     this.suppressAllCallbacks = false  // Set true during skip to prevent any audio callbacks
     this.playGeneration = 0  // Incremented on stop() to invalidate pending callbacks
     this.audioSource = null  // Optional AudioSource for IndexedDB caching
-    this.pendingPlaybackRate = 1.0  // Re-applied after audio.load() resets it
     this._lastEndedHandler = null
     this._lastErrorHandler = null
   }
@@ -3277,18 +2660,6 @@ class RealAudioController {
    */
   setAudioSource(audioSource) {
     this.audioSource = audioSource
-  }
-
-  /**
-   * Set HTMLAudioElement playbackRate. Used by the pod lap scheduler so
-   * `ps2x` cycles actually play at 2× their native speed. The rate is
-   * stored and re-applied after each `audio.load()` (which resets it back
-   * to 1.0), so calling `setPlaybackRate(2.0); play(ref)` actually plays
-   * at 2×. Reset to 1.0 between segments so the next call defaults right.
-   */
-  setPlaybackRate(rate) {
-    this.pendingPlaybackRate = rate || 1.0
-    if (this.audio) this.audio.playbackRate = this.pendingPlaybackRate
   }
 
   async play(audioRef) {
@@ -3365,12 +2736,6 @@ class RealAudioController {
       // Set source and play
       this.audio.src = url
       this.audio.load()
-      // load() resets playbackRate to 1.0 — re-apply any pending rate
-      // (set by setPlaybackRate before this play() call). Pod ps2x relies
-      // on this to actually play at 2×.
-      if (this.pendingPlaybackRate && this.pendingPlaybackRate !== 1.0) {
-        this.audio.playbackRate = this.pendingPlaybackRate
-      }
 
       const playPromise = this.audio.play()
       if (playPromise) {
@@ -3541,7 +2906,7 @@ class RealAudioController {
 // ENGINE EVENT HANDLING
 // ============================================
 
-const handleCycleEvent = async (event) => {
+const handleCycleEvent = (event) => {
   switch (event.type) {
     case 'phase_changed':
       // Handle phase-specific logic
@@ -3680,19 +3045,11 @@ const handleCycleEvent = async (event) => {
           currentRoundIndex.value++
           currentItemInRound.value = 0
 
-          // The course never ends. If we've somehow run past the tail of
-          // cachedRounds (proactive expansion at line 894 should have kept
-          // us ahead), do an emergency expansion and re-check. Only fall
-          // back to the summary screen if expansion genuinely can't
-          // produce any more content (no LEGOs in the course at all).
+          // Check if we've completed all rounds
           if (currentRoundIndex.value >= cachedRounds.value.length) {
-            console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
-            await expandScript()
-            if (currentRoundIndex.value >= cachedRounds.value.length) {
-              console.error('[LearningPlayer] Expansion produced nothing — showing summary as last resort')
-              showPausedSummary()
-              return
-            }
+            console.log('[LearningPlayer] All rounds complete!')
+            showPausedSummary()
+            return
           }
 
           console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
@@ -3899,16 +3256,6 @@ const handleRingTap = () => {
 }
 
 const handlePause = () => {
-  logEvent('tap_pause', {
-    during: isPlayingIntroduction.value ? 'intro'
-      : isPlayingWelcome.value ? 'welcome'
-      : playingPodLapAudio.value ? 'pod_lap'
-      : playingCommentaryAudio.value ? 'commentary'
-      : 'cycle',
-    roundIndex: simplePlayer.roundIndex.value,
-    legoId: simplePlayer.currentRound.value?.legoId ?? null,
-  })
-
   // Stop introduction audio if playing
   if (isPlayingIntroduction.value) {
     skipIntroduction()
@@ -3932,54 +3279,9 @@ const handlePause = () => {
 }
 
 const handleResume = async () => {
-  logEvent('tap_play', {
-    firstPlay: !hasEverStarted.value,
-    roundIndex: simplePlayer.roundIndex.value,
-    legoId: simplePlayer.currentRound.value?.legoId ?? null,
-  })
-
-  // Engage the iOS audio-session keepalive on every play tap. This is
-  // the user-gesture moment — the silent loop's first play() hooks into
-  // it for the iOS unlock, and it stays running through pauses until
-  // explicit stop / session-complete / unmount.
-  audioEngaged.value = true
-  sessionEnded.value = false
-
   // RESUME from pause — use resume() to continue from current phase
   // (play() always restarts from prompt, losing position mid-cycle)
   if (hasEverStarted.value) {
-    // If a pod lap was bookmarked by an earlier user-stop, replay it
-    // before letting SimplePlayer move on. omitIntro=true so the bookend
-    // doesn't repeat. After the replay we mirror the post-lap branches
-    // from the round-complete handler (ratchet write, session-end, or
-    // simplePlayer.resume into the next round).
-    if (pendingLapResume.value) {
-      const lap = pendingLapResume.value
-      pendingLapResume.value = null
-      isPlaying.value = true
-      const completed = await playPodLap(lap, true)
-      if (completed) {
-        podScheduler?.markLapCompleted().catch((err) => {
-          console.warn('[LearningPlayer] markLapCompleted failed (will retry next session):', err)
-        })
-      } else if (podLapSkippedByUser.value && turboActive.value) {
-        podScheduler?.skipAhead(1).catch((err) => {
-          console.warn('[LearningPlayer] skipAhead failed (will retry next session):', err)
-        })
-      }
-      podLapSkippedByUser.value = false
-      if (sessionEnded.value) {
-        showPausedSummary()
-      } else if (userStoppedDuringLap.value) {
-        // Stopped again during the replayed lap — bookmark and stay paused.
-        userStoppedDuringLap.value = false
-        pendingLapResume.value = lap
-        isPlaying.value = false
-      } else {
-        simplePlayer.resume()
-      }
-      return
-    }
     simplePlayer.resume()
     return
   }
@@ -4604,55 +3906,11 @@ const haltAllPlayback = () => {
   if (isPlayingWelcome.value) skipWelcome()
 }
 
-/**
- * Cancel any in-flight pod lap or commentary so a jump (belt skip / belt
- * pill) doesn't overlap with it. Sets userStoppedDuringLap so
- * handleRoundBoundary's resume() is gated — the jump itself takes over
- * positioning. Ratchet stays put (jump-during-lap doesn't bump it; the
- * learner is moving past the content, not completing it).
- */
-const cancelInFlightLap = () => {
-  if (!playingPodLapAudio.value && !playingCommentaryAudio.value) return
-  userStoppedDuringLap.value = true
-  podLapCancelled.value = true
-  audioController.value?.stop()
-}
-
 const handleSkip = async () => {
-  logEvent('tap_skip', {
-    during: playingPodLapAudio.value ? 'pod_lap'
-      : playingCommentaryAudio.value ? 'commentary'
-      : isPlayingIntroduction.value ? 'intro'
-      : isPlayingWelcome.value ? 'welcome'
-      : (simplePlayer.currentCycle.value?.type === 'listening'
-        || simplePlayer.currentCycle.value?.type === 'listen_intro'
-        || simplePlayer.currentCycle.value?.type === 'listen_outro') ? 'l1_cluster'
-      : 'cycle',
-    roundIndex: simplePlayer.roundIndex.value,
-    cycleIndex: simplePlayer.cycleIndex.value,
-    cycleType: simplePlayer.currentCycle.value?.type ?? null,
-    legoId: simplePlayer.currentRound.value?.legoId ?? null,
-    skipInProgress: isSkipInProgress.value,
-  })
-
   // CRITICAL: Guard against concurrent skips - if already skipping, abort any playing intro and return
   if (isSkipInProgress.value) {
     console.log('[LearningPlayer] Skip already in progress - aborting current intro and returning')
     skipIntroduction() // Nuclear abort any playing intro
-    return
-  }
-
-  // Skip during inter-round audio (pod lap OR commentary): cancel and
-  // let handleRoundBoundary's resume() advance into the next round.
-  // Don't fall through to jumpToRound — simplePlayer is already queued
-  // at the next round (advanceRound bumped roundIndex when it was
-  // paused for the lap/commentary). Turbo's ratchet bump for pod laps
-  // lives in handleRoundBoundary so this stays a thin signal.
-  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
-    console.log('[LearningPlayer] Skip during inter-round audio — cancelling')
-    if (playingPodLapAudio.value) podLapSkippedByUser.value = true
-    podLapCancelled.value = true
-    audioController.value?.stop()
     return
   }
 
@@ -4723,7 +3981,6 @@ const jumpToRound = async (roundIndex) => {
  * Uses SessionController's lazy loading to load the target round on demand
  */
 const handleSkipToNextBelt = async () => {
-  cancelInFlightLap()
   // Get current playing position's seed (not stored progress)
   const currentRound = simplePlayer.currentRound.value
   const currentSeedId = currentRound?.seedId || 'S0001'
@@ -4772,7 +4029,7 @@ const handleSkipToNextBelt = async () => {
       // Target seed not loaded - load it via generateSimpleScript (blocking)
       // Always emit from round 1 to ensure correct round building (including intros)
       console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-      const skipResult = await generateScript(targetSeed, targetSeed + 5)
+      const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
 
       if (skipResult.items.length > 0) {
         const newRounds = toSimpleRoundsWithComponents(skipResult.items)
@@ -4788,10 +4045,6 @@ const handleSkipToNextBelt = async () => {
     if (beltProgress.value) {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
-
-    // Persist the new position so the resting-state "skip to round N"
-    // choice can surface if this jump put the learner behind their ceiling.
-    await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
   }
@@ -4809,7 +4062,7 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
 
   // Always emit from round 1 to ensure correct round building (including intros)
   console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-  const skipResult = await generateScript(targetSeed, targetSeed + 5)
+  const skipResult = await generateSimpleScript(supabase.value, courseCode.value, targetSeed, targetSeed + 5, 1)
 
   if (skipResult.items.length > 0) {
     const newRounds = toSimpleRoundsWithComponents(skipResult.items)
@@ -4878,10 +4131,6 @@ const handleGoBackBelt = async () => {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
 
-    // Belt-back is the canonical revisit gesture — write the cursor so
-    // the resting-state choice surfaces next time the player pauses.
-    await persistCursorAtCurrentRound()
-
     console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
   } catch (err) {
     console.warn('[LearningPlayer] handleGoBackBelt error:', err)
@@ -4900,7 +4149,6 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
 
   isSkippingBelt.value = true
   try {
-    cancelInFlightLap()
     haltAllPlayback()
     console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`)
 
@@ -4911,9 +4159,6 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     if (beltProgress.value) {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
-
-    // Belt-pill jump can land anywhere (forward or back) — persist cursor.
-    await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
   }
@@ -4922,43 +4167,6 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
 // Mode toggles
 const turboActive = ref(false)
 const turboPopupShownThisSession = ref(false)
-
-// ============================================
-// TURBO RUNTIME OVERRIDES
-// Wire turboActive + turboConfig into SimplePlayer's per-phase callbacks
-// so toggling Turbo takes effect on the very next pause / voice phase
-// (no script regen, no round-boundary wait). Listening/pod cycles keep
-// their explicit speed and zero-pause regardless.
-// ============================================
-const TURBO_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
-
-simplePlayer.setRuntimeOverrides({
-  getPauseDuration: (cycle) => {
-    if (!turboActive.value) return undefined
-    // Cycles with no pause (intro/listening/bookend/pod) stay at 0.
-    if (!cycle.pauseDuration) return cycle.pauseDuration
-    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
-    // Recompute pause from raw target durations using turboConfig formula.
-    const t1 = cycle.target1DurationMs ?? 0
-    const t2 = cycle.target2DurationMs ?? 0
-    const cfg = turboConfig.value
-    const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
-    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
-  },
-  getPlaybackSpeedMultiplier: (cycle) => {
-    if (!turboActive.value) return 1.0
-    // Don't double up on listening/pod cycles that already have a
-    // purposeful 2.0× speed — turbo on top would give 2.5×.
-    if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return 1.0
-    return turboConfig.value.playback_speed
-  },
-  shouldSkipCycle: (cycle) => {
-    // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
-    // alternate-fib spaced rep. Tagging happens at script generation;
-    // this just gates on the live Turbo flag.
-    return turboActive.value && cycle.turboOmit === true
-  },
-})
 const showListeningOverlay = ref(false) // Show listening mode overlay
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
 const isDrivingModeActive = ref(false)
@@ -5031,6 +4239,12 @@ const showTurboPopup = ref(false)
 // Belt skip feedback state
 const isSkippingBelt = ref(false)
 const showBeltModal = ref(false)
+
+// Helper: Calculate pause duration using current mode config
+const getPauseDuration = (targetDurationMs: number): number => {
+  const config = turboActive.value ? turboConfig.value : normalConfig.value
+  return calculatePause(config, targetDurationMs)
+}
 
 // ============================================
 // ADAPTATION CONSENT & TIMING
@@ -5362,6 +4576,7 @@ const confirmTurbo = () => {
   showTurboPopup.value = false
   turboPopupShownThisSession.value = true  // Don't show popup again this session
   turboActive.value = true
+  applyTurboConfig()
 }
 
 // Close turbo popup without enabling
@@ -5370,8 +4585,24 @@ const closeTurboPopup = () => {
   turboPopupShownThisSession.value = true  // They've seen it, don't show again
 }
 
+// Apply turbo config to orchestrator
+const applyTurboConfig = () => {
+  {
+    const config = turboActive.value ? turboConfig.value : normalConfig.value
+    const item = currentItem.value
+    const targetDurationMs = item?.audioDurations
+      ? Math.round(item.audioDurations.target1 * 1000)
+      : 2000 // Fallback
+
+    // Calculate pause using the config formula
+    const pauseMs = calculatePause(config, targetDurationMs)
+    console.log(`[Turbo] ${turboActive.value ? 'ON' : 'OFF'} - pause: ${pauseMs}ms`)
+  }
+}
+
 const toggleTurbo = () => {
   turboActive.value = !turboActive.value
+  applyTurboConfig()
 }
 
 // ============================================
@@ -5384,7 +4615,6 @@ const showPausedSummary = () => {
     stopCycle()
   }
   simplePlayer.stop()
-  audioEngaged.value = false
   showSessionComplete.value = true
 
   // End belt progress session (saves session history for time estimates)
@@ -5421,7 +4651,6 @@ const handleExit = () => {
     stopCycle()
   }
   simplePlayer.stop()
-  audioEngaged.value = false
 
   // End belt progress session (saves session history)
   if (beltProgress.value) {
@@ -5438,33 +4667,14 @@ const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 
 // ============================================
 // PROGRESSIVE SCRIPT EXPANSION
-// The course never ends. As the learner approaches the tail of
-// cachedRounds we regenerate with a bigger endSeed — generateLearningScript
-// produces revival rounds past the last new LEGO, so play is unbounded.
+// Now handled by PriorityRoundLoader in the background
+// This function is kept as a no-op stub for backwards compatibility
 // ============================================
-const EXPANSION_BATCH = 50  // generate this many more rounds on each expand
 const expandScript = async () => {
-  if (isExpandingScript.value) return
-  if (!supabase?.value) return
-  if (!courseCode.value) return
-
-  isExpandingScript.value = true
-  try {
-    const currentLength = cachedRounds.value.length
-    const neededEnd = scriptBaseOffset.value + currentLength + EXPANSION_BATCH
-    const result = await generateScript(1, neededEnd)
-    const expandedRounds = toSimpleRoundsWithComponents(result.items)
-    if (expandedRounds.length > currentLength) {
-      cachedRounds.value = expandedRounds as any
-      console.log(`[LearningPlayer] Expanded script: ${currentLength} → ${expandedRounds.length} rounds`)
-    } else {
-      console.warn('[LearningPlayer] Expansion produced no new rounds — generator may be out of LEGOs to revive')
-    }
-  } catch (err) {
-    console.error('[LearningPlayer] Expansion failed:', err)
-  } finally {
-    isExpandingScript.value = false
-  }
+  // PriorityRoundLoader handles script expansion automatically in the background
+  // This function is a no-op stub - the background loader should have already
+  // loaded rounds before they're needed
+  console.log('[LearningPlayer] expandScript called - handled by PriorityRoundLoader')
 }
 
 // Network interaction functions removed — see archive/brain-views branch
@@ -5886,64 +5096,15 @@ onMounted(async () => {
               beltProgress.value?.setPlayingPosition(startingSeed)
             }
 
-            // Await eager script (preloaded from App.vue) or fall back to direct call.
-            // Two-phase preload: phase 1 covers seeds 1-INITIAL_PRELOAD_SEEDS for fast
-            // start; phase 2 fills in the rest in the background. Returning users
-            // beyond the initial window must await phase 2 so jumpToRound finds them.
-            //
-            // Listening Pods (Layer 2) activation: for returning users with progress,
-            // resolve their per-enrollment pod_activation_round pin (writing it on
-            // first session if NULL) so the pod sequence starts from where they
-            // are now, not from R6 retroactively. When the pin differs from the
-            // default we bypass the eager preload and load fresh with the override
-            // — eager preload always uses the default config.
-            // Resolve the pod activation pin once — feeds into listeningConfig
-            // for any path that doesn't use the eager preload's default config.
-            // Base config comes from algorithm_config (DB-tweakable) so admins
-            // can change layer1Playlist / graduation offset / window sizes
-            // without redeploying. Falls back to DEFAULT_LISTENING_CONFIG if
-            // the load hasn't completed yet.
-            const baseListeningConfig = listeningConfig.value || DEFAULT_LISTENING_CONFIG
-            let podActivationOverride: number | null = null
-            if (isReturningUser && startingSeed > 0) {
-              const resolved = await resolvePodActivationRound(
-                supabase.value,
-                learnerId.value,
-                courseCode.value
-              )
-              if (resolved !== baseListeningConfig.podActivationRound) {
-                podActivationOverride = resolved
-                console.log(`[LearningPlayer] Pod activation pinned at round ${resolved} for returning user`)
-              }
-            }
-
-            // Pick the load path:
-            //   - Returning user (past seed 0):       own load, seeds 1..(startingSeed + LOOKAHEAD_CHUNK_SEEDS), with pod pin
-            //   - New user, eager preload available:  use the eager preload (seeds 1..INITIAL_PRELOAD_SEEDS)
-            //   - Fallback (no eager):                own load, seeds 1..INITIAL_PRELOAD_SEEDS
-            //
-            // No two-phase preload, no extension await. Near-edge watcher
-            // (set up further down) extends the loaded set chunk-by-chunk
-            // as the player advances.
+            // Await eager script (preloaded from App.vue) or fall back to direct call
             let result
-            const eagerCourseMatches = eagerScript?.scriptPromise?.value &&
-              eagerScript.courseCode.value === courseCode.value
-            const config = podActivationOverride !== null
-              ? { ...baseListeningConfig, podActivationRound: podActivationOverride }
-              : baseListeningConfig
-
-            if (isReturningUser && startingSeed > 0) {
-              const endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
-              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading seeds 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
-              result = await generateScript(1, endSeed, 1, config)
-              console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
-            } else if (eagerCourseMatches) {
+            if (eagerScript?.scriptPromise?.value && eagerScript.courseCode.value === courseCode.value) {
               console.log('[LearningPlayer] Awaiting eager script preload...')
               result = await eagerScript.scriptPromise.value
-              console.log(`[LearningPlayer] Eager preload ready: ${result.items.length} items, ${result.roundCount} rounds`)
+              console.log(`[LearningPlayer] Eager script ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else {
               console.log('[LearningPlayer] No eager preload available, loading directly...')
-              result = await generateScript(1, INITIAL_PRELOAD_SEEDS, 1, config)
+              result = await generateSimpleScript(supabase.value, courseCode.value, 1, 668, 1)
               console.log(`[LearningPlayer] Direct load: ${result.items.length} items, ${result.roundCount} rounds`)
             }
 
@@ -5952,90 +5113,24 @@ onMounted(async () => {
 
               simplePlayer.initialize(simpleRounds as any)
 
-              // Restore position for returning users.
-              // Uses last_completed_lego_id (exact LEGO position) instead of
-              // seed number — seed-based resume jumps to the first round of
-              // the NEXT seed, which skips mid-seed LEGOs the learner hadn't
-              // finished. Falls back to seed-based only if lastLegoId is
-              // missing.
+              // Restore position for returning users
               if (isReturningUser) {
-                const personalLastLegoId = beltProgress.value?.lastLegoId?.value ?? null
-                let resumeLegoId = classLastLegoId ?? personalLastLegoId
-                // Mid-round cycle cursor — only meaningful for the in-progress
-                // round (lastIdx + 1). Other resume branches (final round, or
-                // jumps that change which round is "current") fall back to
-                // cycle 0 because the saved index doesn't apply there.
-                let resumeCycle = savedCurrentCycleIndex.value
-
-                // Resume TTL — re-engage long-absent learners with material
-                // they're starting to forget. Compute against the saved DB
-                // timestamp (not auth restoration time) so a session that
-                // stays open for hours doesn't trigger a regression.
-                if (savedLastPracticedAt.value) {
-                  const daysSince = (Date.now() - savedLastPracticedAt.value.getTime()) / (1000 * 60 * 60 * 24)
-                  const ttl = resumeConfig.value
-                  if (daysSince >= ttl.beltRegressionDays && resumeLegoId) {
-                    // Belt regression: walk the cursor back to the start of
-                    // the learner's current belt. Ceiling preserved by the
-                    // setEnrollmentCursor write — that update doesn't lower
-                    // highest_completed_*.
-                    const seed = getSeedFromLegoId(resumeLegoId)
-                    if (seed !== null) {
-                      let beltIdx = 0
-                      for (let i = BELTS.length - 1; i >= 0; i--) {
-                        if (seed >= BELTS[i].seedsRequired) { beltIdx = i; break }
-                      }
-                      const beltStartSeed = Math.max(BELTS[beltIdx].seedsRequired, 1)
-                      const beltStartRoundIdx = simplePlayer.findRoundIndexForSeed(beltStartSeed)
-                      if (beltStartRoundIdx > 0) {
-                        const priorRound = simpleRounds[beltStartRoundIdx - 1]
-                        if (priorRound?.legoId) {
-                          console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → belt regression to ${BELTS[beltIdx].name} (seed ${beltStartSeed}, lego ${priorRound.legoId})`)
-                          resumeLegoId = priorRound.legoId
-                          resumeCycle = 0
-                          if (!isGuestLearner.value && progressStore?.value) {
-                            progressStore.value.setEnrollmentCursor(
-                              learnerId.value, courseCode.value,
-                              priorRound.legoId, beltStartRoundIdx - 1,
-                            ).catch((err: unknown) => {
-                              console.warn('[ResumeTTL] setEnrollmentCursor failed:', err)
-                            })
-                          }
-                        }
-                      }
-                    }
-                  } else if (daysSince >= ttl.cycleResetDays) {
-                    console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → cycle reset (round restart)`)
-                    resumeCycle = 0
-                  }
-                }
-
-                if (resumeLegoId) {
-                  const lastIdx = simpleRounds.findIndex(r => r.legoId === resumeLegoId)
-                  const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
+                if (classLastLegoId) {
+                  // Class mode: find the round AFTER the last completed LEGO
+                  const lastIdx = simpleRounds.findIndex(r => r.legoId === classLastLegoId)
                   if (lastIdx >= 0 && lastIdx + 1 < simpleRounds.length) {
-                    console.debug(`[eagerLoad] ${modeTag}: resuming after ${resumeLegoId} (round ${lastIdx + 1}, cycle ${resumeCycle})`)
-                    simplePlayer.jumpToRound(lastIdx + 1, resumeCycle)
+                    console.debug(`[eagerLoad] Class mode: resuming after ${classLastLegoId} (round ${lastIdx + 1})`)
+                    simplePlayer.jumpToRound(lastIdx + 1)
                   } else if (lastIdx >= 0) {
                     // Last LEGO was the final round — stay there
                     simplePlayer.jumpToRound(lastIdx)
-                  } else {
-                    // legoId not in loaded set (e.g. extension hasn't landed)
-                    // — fall back to seed-based as a last resort
-                    const nextSeed = startingSeed + 1
-                    const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
-                    if (roundIndex >= 0) {
-                      console.debug(`[eagerLoad] LegoId ${resumeLegoId} not loaded, falling back to seed ${nextSeed} (round ${roundIndex}, cycle ${resumeCycle})`)
-                      simplePlayer.jumpToRound(roundIndex, resumeCycle)
-                    }
                   }
                 } else {
-                  // No legoId on record — seed-based fallback
                   const nextSeed = startingSeed + 1
                   const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                   if (roundIndex >= 0) {
-                    console.debug(`[eagerLoad] No legoId, restoring by seed ${startingSeed} → ${nextSeed} (round ${roundIndex}, cycle ${resumeCycle})`)
-                    simplePlayer.jumpToRound(roundIndex, resumeCycle)
+                    console.debug(`[eagerLoad] Restoring: seed ${startingSeed} → starting at seed ${nextSeed} (round ${roundIndex})`)
+                    simplePlayer.jumpToRound(roundIndex)
                   }
                 }
               }
@@ -6218,10 +5313,6 @@ onMounted(async () => {
           parallelTasks.push(initializeVad().catch(() => {}))
         }
 
-        // (Ceiling fetch is handled by the unconditional watch on
-        // courseCode + learnerId near where the refs are declared — it
-        // covers both cached-script and fresh-generate paths.)
-
         // Wait for all parallel tasks
         await Promise.all(parallelTasks)
 
@@ -6255,7 +5346,7 @@ onMounted(async () => {
 
           // Use real generateLearningScript + toSimpleRounds for legacy fallback
           const endSeed = startOffset + INITIAL_ROUNDS
-          const result = await generateScript(1, endSeed)
+          const result = await generateSimpleScript(supabase.value, courseCode.value, 1, endSeed, 1)
           const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
           if (simpleRounds.length > 0) {
@@ -6360,7 +5451,7 @@ onMounted(async () => {
       if (targetIndex >= absoluteEnd && supabase?.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
         const neededEnd = absoluteEnd + (targetIndex - absoluteEnd) + 10
-        const expandResult = await generateScript(1, neededEnd)
+        const expandResult = await generateSimpleScript(supabase.value, courseCode.value, 1, neededEnd, 1)
         const expandedRounds = toSimpleRoundsWithComponents(expandResult.items)
         if (expandedRounds.length > cachedRounds.value.length) {
           cachedRounds.value = expandedRounds as any
@@ -6406,13 +5497,9 @@ onMounted(async () => {
 
   // No orchestrator initialization needed - using useCyclePlayback composable
 
-  // Start session timer. Tick whenever the learner is engaged with audio —
-  // including listening pods and commentary, not just the cycle player. A
-  // 6-minute pod lap is still 6 minutes of practice and should count.
+  // Start session timer
   sessionTimerInterval = setInterval(() => {
-    if (isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value) {
-      sessionSeconds.value++
-    }
+    if (isPlaying.value) sessionSeconds.value++
   }, 1000)
 
   // Auto-start if prop is true (default), otherwise wait for user to click play
@@ -6470,9 +5557,6 @@ onUnmounted(() => {
 
   // Release wake lock
   releaseWakeLock()
-
-  // Clear Media Session metadata + action handlers
-  clearMediaSession()
 
   // Stop cycle playback
   stopCycle()
@@ -6636,13 +5720,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
       freshResult = await eagerScript.scriptPromise.value
     } else {
       console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
-      const tc = turboConfig.value
-      freshResult = await generateSimpleScript(
-        supabase.value, newCourseCode, 1, 668, 1,
-        listeningConfig.value,
-        scriptShapeConfig.value,
-        { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
-      )
+      freshResult = await generateSimpleScript(supabase.value, newCourseCode, 1, 668, 1)
     }
     const freshRounds = toSimpleRoundsWithComponents(freshResult.items)
     cachedRounds.value = freshRounds as any
@@ -6661,101 +5739,11 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
 // Expose methods for parent component (PlayerContainer) to control playback
 const togglePlayback = () => {
-  // If a pod lap or commentary is playing, the big button reads "stop"
-  // (per isAudioPlaying). Pressing it should halt everything — the runtime
-  // audio AND any auto-resume into the next round. Without this we'd
-  // resume() simplePlayer mid-pod, overlapping audio.
-  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
-    // Halt the runtime audio and tell handleRoundBoundary not to auto-resume.
-    // Do NOT call simplePlayer.stop() — it resets roundIndex to 0, wiping the
-    // learner's in-session position. simplePlayer is already paused while the
-    // pod/commentary plays; leave its state alone so handleResume can pick up
-    // where it left off.
-    userStoppedDuringLap.value = true
-    podLapCancelled.value = true
-    audioController.value?.stop()
-    return
-  }
   if (isPlaying.value) {
     handlePause()
   } else {
     handleResume()
   }
-}
-
-// Absolute round positions for the resting-state "skip to round N" UX.
-// 1-based for display. Both cursor and ceiling are derived: the script is
-// always loaded from seed 1 so simplePlayer.roundIndex IS the absolute
-// round index for the cursor. The ceiling comes from the enrollment row.
-const currentAbsoluteRound = computed(() => {
-  const idx = simplePlayer.roundIndex.value
-  return typeof idx === 'number' ? idx + 1 : null
-})
-const highestAbsoluteRound = computed(() => {
-  const idx = highestCompletedRoundIndex.value
-  return typeof idx === 'number' ? idx + 1 : null
-})
-
-// Belt colours for the journey-bar markers, derived from the same source
-// the belt label uses. The "now" colour matches playingBelt (cursor's
-// belt). The "furthest" colour is computed from the ceiling's lego id —
-// lego ids encode the seed (S0042L05 → seed 42), and the seed determines
-// the belt. Using the lego id directly avoids the round÷3 estimate that
-// previously caused the marker to disagree with the belt label.
-const cursorBeltColor = computed(() => playingBelt.value.color)
-const cursorBeltIndex = computed(() => playingBelt.value.index)
-
-const highestBeltIndex = computed(() => {
-  const lego = highestCompletedLegoId.value
-  if (!lego) return playingBelt.value.index
-  const seed = getSeedFromLegoId(lego)
-  if (seed === null) return playingBelt.value.index
-  if (seed >= BELTS[BELTS.length - 1].seedsRequired) return BELTS.length - 1
-  return BELTS.findIndex((_b, i) => seed < (BELTS[i + 1]?.seedsRequired ?? Infinity))
-})
-const highestBeltColor = computed(() => BELTS[Math.max(0, highestBeltIndex.value)].color)
-
-// Jump the cursor forward to the ceiling. The ceiling's companion lego
-// tells us which seed to load — that's our navigational hook. After the
-// load, find the exact round at that lego and jump there. The cursor
-// will advance on the next saveRoundProgress; we don't write here so
-// that backing out (closing the app) doesn't strand them at the new spot.
-const jumpToFurthest = async () => {
-  const targetLegoId = highestCompletedLegoId.value
-  const targetRoundIndex = highestCompletedRoundIndex.value
-  if (!targetLegoId || typeof targetRoundIndex !== 'number') {
-    console.warn('[LearningPlayer] jumpToFurthest: no ceiling stored')
-    return
-  }
-
-  // Lego IDs have the form S0042L05 — seed number is digits 1..5.
-  const seedMatch = targetLegoId.match(/^S(\d+)L/)
-  const targetSeed = seedMatch ? parseInt(seedMatch[1], 10) : null
-  if (!targetSeed) {
-    console.warn('[LearningPlayer] jumpToFurthest: cannot parse seed from', targetLegoId)
-    return
-  }
-
-  console.log(`[LearningPlayer] jumpToFurthest: round ${targetRoundIndex + 1} (lego ${targetLegoId}, seed ${targetSeed})`)
-  haltAllPlayback()
-  await loadSeedIfNeeded(targetSeed)
-
-  // Prefer the exact lego; fall back to the start of its seed if the
-  // lego id isn't present (unlikely but defensive).
-  const exactIdx = simplePlayer.findRoundIndexForLegoId(targetLegoId)
-  if (exactIdx >= 0) {
-    simplePlayer.jumpToRound(exactIdx)
-  } else {
-    simplePlayer.jumpToSeed(targetSeed)
-  }
-
-  if (beltProgress.value) {
-    beltProgress.value.setPlayingPosition(targetSeed)
-  }
-
-  // Cursor catches up to the ceiling — no longer "behind". Resting-state
-  // choice will not re-appear until they navigate backwards again.
-  await persistCursorAtCurrentRound()
 }
 
 // Safari requires audio.play() within a user gesture to unlock the audio element.
@@ -6774,19 +5762,6 @@ const unlockAudio = () => {
   })
 }
 
-// Whether the current cycle is part of a listening section
-// (LISTEN cluster, pod lap, or their bookends). Drives the subtle
-// skip-button cue in the BottomNav so learners notice that "skip" is
-// their out — without making the listening feel optional by default.
-const isInListeningCycle = computed(() => {
-  // Runtime pod lap (new ratchet model) — current cycle is still the
-  // last LEGO cycle (simplePlayer is paused), but pod audio is playing
-  // separately. Surface the listening cue so skip-ahead glows.
-  if (playingPodLapAudio.value) return true
-  const t = simplePlayer.currentCycle.value?.type
-  return t === 'listen_intro' || t === 'listening' || t === 'pod' || t === 'listen_outro'
-})
-
 defineExpose({
   isPlaying,
   isAwakening,
@@ -6795,7 +5770,6 @@ defineExpose({
   handleResume,
   handleRevisit,
   handleSkip,
-  isInListeningCycle,
   exitListeningMode,
   exitAllModes,
   unlockAudio,
@@ -6813,13 +5787,6 @@ defineExpose({
   toggleTurbo,
   turboActive,
   sessionSeconds,
-  currentAbsoluteRound,
-  highestAbsoluteRound,
-  cursorBeltColor,
-  highestBeltColor,
-  cursorBeltIndex,
-  highestBeltIndex,
-  jumpToFurthest,
 })
 </script>
 
@@ -6856,14 +5823,12 @@ defineExpose({
   <BeltProgressModal
     :is-open="showBeltModal"
     :current-belt="playingBelt"
+    :next-belt="playingNextBelt"
+    :completed-rounds="beltProgress?.playingSeedNumber?.value ?? 0"
     :session-seconds="sessionSeconds"
     :lifetime-learning-minutes="beltProgress?.totalLearningMinutes?.value ?? 0"
     :is-skipping="isSkippingBelt"
     :available-belts="beltProgress?.availableBelts?.value ?? []"
-    :current-round="currentAbsoluteRound"
-    :highest-round="highestAbsoluteRound"
-    :current-belt-index="cursorBeltIndex"
-    :highest-belt-index="highestBeltIndex"
     @close="showBeltModal = false"
     @viewProgress="showBeltModal = false; emit('viewProgress')"
     @skipToBelt="handleSkipToBelt"
@@ -6890,11 +5855,10 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay">
       <div class="paywall-card">
         <h2 class="paywall-title">You've completed the free preview!</h2>
-        <p class="paywall-subtitle">SSi Premium unlocks every paid course. Free for 7 days, £15/month from day 8. Cancel anytime.</p>
+        <p class="paywall-subtitle">Enter an access code to keep learning beyond seed {{ PREMIUM_PREVIEW_MAX_SEED }}.</p>
         <div class="paywall-actions">
-          <button class="paywall-btn paywall-btn-primary" @click="router.push({ name: 'premium', query: { course: courseCode } })">Start 7-day free trial</button>
-          <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
-          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep previewing</button>
+          <button class="paywall-btn paywall-btn-primary" @click="emit('viewProgress')">Enter Code</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep Previewing</button>
         </div>
       </div>
     </div>
@@ -6973,9 +5937,6 @@ defineExpose({
               </p>
               <p v-else-if="isPreparingToPlay" class="hero-known loading-text preparing-text">
                 {{ preparingMessage }}<span class="loading-cursor">▌</span>
-              </p>
-              <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
-                {{ passiveListeningHint }}
               </p>
               <p v-else class="hero-known">
                 {{ displayedKnownText }}
@@ -7216,7 +6177,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="pwaUpdateAvailable" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -9318,15 +8279,6 @@ defineExpose({
   overflow-wrap: break-word;
   word-break: break-word;
   max-width: 100%;
-}
-
-/* Listening pedagogy — calmer, italic, slightly smaller. The learner is
- * meant to be passive here; the text is a nudge, not a prompt. */
-.hero-known.listening-pedagogy {
-  font-style: italic;
-  opacity: 0.85;
-  font-size: calc(var(--known-text-size) * 0.92);
-  letter-spacing: 0.005em;
 }
 
 .hero-target {

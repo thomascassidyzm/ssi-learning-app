@@ -20,8 +20,8 @@ const props = withDefaults(defineProps<{
 
 const JOURNEY_MAP: Record<string, string> = {
   jpn: '/design/journey-jpn.webp',
-  zho: '/design/journey-zho.webp',
-  cmn: '/design/journey-zho.webp',
+  zho: '/design/journey-cmn.webp',
+  cmn: '/design/journey-cmn.webp',
   ita: '/design/journey-ita.webp',
   gle: '/design/journey-gle.webp',
   nld: '/design/journey-nld.webp',
@@ -48,7 +48,6 @@ const JOURNEY_MAP: Record<string, string> = {
   hye: '/design/journey-hye.webp',
   isl: '/design/journey-isl.webp',
   swe: '/design/journey-swe.webp',
-  dan: '/design/journey-dan.webp',
   tha: '/design/journey-tha.webp',
   gla: '/design/journey-gla.webp',
   gsw: '/design/journey-gsw.webp',
@@ -62,11 +61,6 @@ const JOURNEY_MAP: Record<string, string> = {
   hin: '/design/journey-hin.webp',
   sin: '/design/journey-sin.webp',
   tam: '/design/journey-tam.webp',
-  est: '/design/journey-est.webp',
-  heb: '/design/journey-heb.webp',
-  lav: '/design/journey-lav.webp',
-  lit: '/design/journey-lit.webp',
-  nep: '/design/journey-nep.webp',
 }
 
 // Dawn glow per belt: colour warms and intensifies as learner progresses

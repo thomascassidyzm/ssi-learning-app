@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useGodMode } from '@/composables/schools/useGodMode'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
@@ -10,9 +10,8 @@ import { getLanguageName } from '@/composables/useI18n'
 const router = useRouter()
 const route = useRoute()
 
-// School context and data
-const isAdminView = inject<boolean>('isAdminView', false)
-const { currentUser: selectedUser } = useSchoolContext()
+// God Mode and data
+const { selectedUser } = useGodMode()
 const { classDetail, fetchClassDetail, getClassReport, getClassSessions } = useClassesData()
 
 // Report data
@@ -349,7 +348,7 @@ const handleRemoveStudent = async (student: { id: string; name: string }) => {
           </div>
         </div>
 
-        <button v-if="!isAdminView" class="btn-play-main" @click="handlePlay">
+        <button class="btn-play-main" @click="handlePlay">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>

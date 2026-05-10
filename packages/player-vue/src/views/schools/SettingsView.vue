@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, inject } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import Card from '@/components/schools/shared/Card.vue'
 import Button from '@/components/schools/shared/Button.vue'
-import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useGodMode } from '@/composables/schools/useGodMode'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 
-const isAdminView = inject<boolean>('isAdminView', false)
-const { currentUser: selectedUser } = useSchoolContext()
+const { selectedUser } = useGodMode()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 
 // Settings state - editable refs initialized from real data
@@ -161,7 +160,7 @@ onMounted(() => {
           <label class="form-label">Contact Email</label>
           <input type="email" v-model="schoolEmailEdit" class="form-input" />
         </div>
-        <div v-if="!isAdminView" class="form-actions">
+        <div class="form-actions">
           <Button variant="primary" size="sm" @click="saveSchoolProfile" :disabled="saveStatus === 'saving'">
             {{ saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Changes' }}
           </Button>
@@ -194,7 +193,7 @@ onMounted(() => {
             <option value="es">Espanol (Spanish)</option>
           </select>
         </div>
-        <div v-if="!isAdminView" class="form-actions">
+        <div class="form-actions">
           <Button variant="primary" size="sm" @click="saveLocalization" :disabled="localizationSaveStatus === 'saving'">
             {{ localizationSaveStatus === 'saving' ? 'Saving...' : localizationSaveStatus === 'saved' ? 'Saved!' : 'Save Changes' }}
           </Button>

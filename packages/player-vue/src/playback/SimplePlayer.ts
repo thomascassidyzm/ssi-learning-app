@@ -2,12 +2,6 @@
 
 export interface Cycle {
   id: string
-  /**
-   * Source ScriptItem type. Optional — older cycles in cache may not carry it.
-   * Used by the UI to subtly cue the skip button during listening cycles
-   * (listen_intro/listening/pod/listen_outro) without changing button behaviour.
-   */
-  type?: string
   known: { text: string; audioUrl: string }
   target: { text: string; textNative?: string; voice1Url: string; voice2Url: string }
   pauseDuration?: number // ms — set by toSimpleRounds formula
@@ -21,34 +15,6 @@ export interface Cycle {
   componentsNative?: Array<{ known: string; target: string }>
   /** Listening phase: playback speed multiplier (1.0 = normal, 2.0 = double) */
   playbackSpeed?: number
-  /** Raw target audio durations (ms). Kept on the cycle so runtime overrides
-   * (e.g. Turbo) can recompute pauseDuration with a different formula
-   * instead of just scaling the baked value. */
-  target1DurationMs?: number
-  target2DurationMs?: number
-  /** Tagged at script-generation time on cycles that Turbo skips: 4th–7th
-   * BUILD phrases, 2nd USE phrase, spaced_rep at alternate fib offsets.
-   * intro/debut/listening/pod/bookend cycles are never tagged. SimplePlayer
-   * consults the runtime override (which checks turboActive) to decide
-   * whether to actually skip. */
-  turboOmit?: boolean
-}
-
-/**
- * Runtime overrides that LearningPlayer can supply to apply mode-dependent
- * timing (Turbo) without baking it into the script. Pure callbacks — the
- * engine reads them at the moment of each phase, so flipping Turbo
- * mid-round takes effect on the very next pause / voice phase.
- */
-export interface SimplePlayerRuntimeOverrides {
-  /** Return ms to override cycle.pauseDuration for this cycle, or undefined to use the baked value. */
-  getPauseDuration?: (cycle: Cycle) => number | undefined
-  /** Return a multiplier applied to the cycle's playback rate (target voices only). 1.0 = no change. */
-  getPlaybackSpeedMultiplier?: (cycle: Cycle) => number
-  /** Return true to skip this cycle entirely (advance to the next). Used by Turbo to
-   * cull turboOmit-tagged cycles. Consulted before starting any phase, so toggling
-   * Turbo mid-round shortens the remaining round on the next cycle boundary. */
-  shouldSkipCycle?: (cycle: Cycle) => boolean
 }
 
 export interface Round {
@@ -110,11 +76,6 @@ function isGestureRequiredError(err: unknown): boolean {
 export class SimplePlayer {
   private rounds: Round[]
   private audio: HTMLAudioElement
-  // The iOS audio-session keepalive (the silent looped audio that holds the
-  // session through PAUSE phases and inter-phase gaps when backgrounded) is
-  // owned at the LearningPlayer level via useAudioSessionKeepalive — it spans
-  // the whole session, including pod laps and commentary on other audio
-  // elements. SimplePlayer only manages cycle audio.
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
@@ -129,12 +90,8 @@ export class SimplePlayer {
   // advancing the phase machine from a superseded audio request.
   private playGeneration: number = 0
 
-  /** Runtime overrides — set via setRuntimeOverrides, may be reassigned at any time. */
-  private runtimeOverrides: SimplePlayerRuntimeOverrides = {}
-
-  constructor(rounds: Round[], overrides: SimplePlayerRuntimeOverrides = {}) {
+  constructor(rounds: Round[]) {
     this.rounds = rounds
-    this.runtimeOverrides = overrides
     this.audio = new Audio()
     this.state = { roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false }
 
@@ -211,15 +168,6 @@ export class SimplePlayer {
     return this.rounds.length
   }
 
-  /**
-   * Replace the runtime overrides. Used when LearningPlayer wants to
-   * supply Turbo-aware callbacks after the player has been constructed,
-   * e.g. once the algorithm config has loaded from Supabase.
-   */
-  setRuntimeOverrides(overrides: SimplePlayerRuntimeOverrides): void {
-    this.runtimeOverrides = overrides
-  }
-
   // Dynamic round management (for priority loading)
 
   /**
@@ -276,19 +224,6 @@ export class SimplePlayer {
     return this.rounds.findIndex(r => r.roundNumber === roundNumber)
   }
 
-  /**
-   * Find the next cycle index in a round that the runtime override says to play.
-   * Returns -1 if every remaining cycle is being skipped — caller advances the round.
-   */
-  private findNextPlayableCycleIndex(round: Round, fromIndex: number): number {
-    const skip = this.runtimeOverrides.shouldSkipCycle
-    if (!skip) return fromIndex < round.cycles.length ? fromIndex : -1
-    for (let i = fromIndex; i < round.cycles.length; i++) {
-      if (!skip(round.cycles[i])) return i
-    }
-    return -1
-  }
-
   // Controls
   play(): void {
     if (this.state.isPlaying) return
@@ -301,18 +236,6 @@ export class SimplePlayer {
       console.warn(`[SimplePlayer] Round ${round.roundNumber} has no cycles, skipping`)
       this.advanceRound()
       return
-    }
-    // Skip leading turboOmit cycles when Turbo is on. If every cycle is
-    // skipped, the round is empty in this mode — advance to the next.
-    const startIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex)
-    if (startIdx === -1) {
-      console.debug(`[SimplePlayer] Round ${round.roundNumber}: all cycles skipped under Turbo, advancing`)
-      this.updateState({ isPlaying: true })
-      this.advanceRound()
-      return
-    }
-    if (startIdx !== this.state.cycleIndex) {
-      this.updateState({ cycleIndex: startIdx })
     }
     console.debug(`[SimplePlayer] Starting Round ${round.roundNumber} (${round.legoId}): ${round.cycles.length} cycles`)
     this.updateState({ isPlaying: true })
@@ -330,6 +253,8 @@ export class SimplePlayer {
 
   resume(): void {
     if (this.state.isPlaying) return
+    // Resume is user-initiated (tap). The tap provides the audio unlock
+    // iOS needs after a backgrounded pause.
     this.updateState({ isPlaying: true })
 
     if (this.state.phase === 'pause') {
@@ -365,24 +290,12 @@ export class SimplePlayer {
     this.advanceRound()
   }
 
-  /**
-   * Jump to a specific round, optionally landing on a specific cycle
-   * within that round. cycleIndex defaults to 0 (start of round) — the
-   * legacy behaviour. Mid-round resume after PWA reload passes the
-   * persisted cycle so the learner picks up where they left off.
-   * Out-of-range cycleIndex is clamped to a valid index in the round.
-   */
-  jumpToRound(index: number, cycleIndex: number = 0): void {
-    console.debug(`[SimplePlayer] jumpToRound(${index}, cycle=${cycleIndex}) - rounds.length=${this.rounds.length}, isPlaying=${this.state.isPlaying}`)
+  jumpToRound(index: number): void {
+    console.debug(`[SimplePlayer] jumpToRound(${index}) - rounds.length=${this.rounds.length}, isPlaying=${this.state.isPlaying}`)
     if (index < 0 || index >= this.rounds.length) {
       console.warn(`[SimplePlayer] jumpToRound(${index}) OUT OF BOUNDS - only ${this.rounds.length} rounds loaded`)
       return
     }
-    const round = this.rounds[index]
-    const cycleCount = round?.cycles?.length ?? 0
-    const safeCycle = cycleCount > 0
-      ? Math.min(Math.max(cycleIndex | 0, 0), cycleCount - 1)
-      : 0
     this.clearPauseTimer()
     this.clearSafetyTimer()
     this.clearLingerTimer()
@@ -390,7 +303,7 @@ export class SimplePlayer {
     this.audio.src = ''
     const wasPlaying = this.state.isPlaying
     // Must set isPlaying: false so play() doesn't early-return
-    this.updateState({ roundIndex: index, cycleIndex: safeCycle, phase: 'idle', isPlaying: false })
+    this.updateState({ roundIndex: index, cycleIndex: 0, phase: 'idle', isPlaying: false })
     console.debug(`[SimplePlayer] jumpToRound: wasPlaying=${wasPlaying}, calling play()`)
     if (wasPlaying) this.play()
   }
@@ -446,16 +359,8 @@ export class SimplePlayer {
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
     this.audio.src = url
-    // Only modulate target language audio — known language always plays at 1.0x.
-    // Runtime override (Turbo) can multiply the baked rate; the override is
-    // expected to gate itself on cycle type so it doesn't double up on
-    // listening cycles that already have an explicit speed.
-    let rate = 1.0
-    if (isTarget && this.currentCycle) {
-      rate = this.currentCycle.playbackSpeed ?? 1.0
-      const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
-      rate *= multiplier
-    }
+    // Only slow down target language audio — known language always plays at 1.0x
+    const rate = isTarget ? (this.currentCycle?.playbackSpeed ?? 1.0) : 1.0
     if (rate > 1.05) {
       console.warn(`[SimplePlayer] ⚠️ SPEED ${rate}x on "${this.currentCycle?.target?.text}" (cycle.playbackSpeed=${this.currentCycle?.playbackSpeed})`)
     }
@@ -484,11 +389,7 @@ export class SimplePlayer {
   }
 
   private startPausePhase(): void {
-    const cycle = this.currentCycle
-    // Runtime override (Turbo) can shorten the pause; if it returns
-    // undefined, fall back to the baked cycle.pauseDuration.
-    const override = cycle ? this.runtimeOverrides.getPauseDuration?.(cycle) : undefined
-    const duration = override ?? cycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION
+    const duration = this.currentCycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION
     this.pauseTimer = setTimeout(() => {
       if (this.state.isPlaying) this.onAudioEnded()
     }, duration)
@@ -561,12 +462,8 @@ export class SimplePlayer {
       this.advanceRound()
       return
     }
-    // Find the next non-skipped cycle. Lets Turbo cull tagged cycles
-    // mid-round: the current cycle finishes, then the runtime override
-    // jumps over any turboOmit'd cycles before the next prompt.
-    const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
-    if (nextIdx !== -1) {
-      this.updateState({ cycleIndex: nextIdx })
+    if (this.state.cycleIndex < round.cycles.length - 1) {
+      this.updateState({ cycleIndex: this.state.cycleIndex + 1 })
       this.startPhase('prompt')
     } else {
       this.advanceRound()
@@ -575,23 +472,6 @@ export class SimplePlayer {
 
   private advanceRound(): void {
     this.emit('round_completed', { round: this.currentRound })
-
-    // The round_completed listener (LearningPlayer.handleRoundBoundary) runs
-    // synchronously up to its first await; it can call pause() in that window
-    // to schedule a between-round pod lap or commentary. If it did, isPlaying
-    // is now false and we must NOT start the next round's prompt — that
-    // would overlap with the pod lap on a separate audio element. We still
-    // advance roundIndex so resume() picks up at the next round, with phase
-    // set to 'idle' so resume() routes through startPhase('prompt').
-    if (!this.state.isPlaying) {
-      if (this.state.roundIndex < this.rounds.length - 1) {
-        this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0, phase: 'idle' })
-      } else {
-        this.updateState({ phase: 'idle' })
-        this.emit('session_complete')
-      }
-      return
-    }
 
     if (this.state.roundIndex < this.rounds.length - 1) {
       this.updateState({ roundIndex: this.state.roundIndex + 1, cycleIndex: 0 })

@@ -10,7 +10,6 @@ import {
   type Cycle,
   type Phase,
   type AudioFailedEvent,
-  type SimplePlayerRuntimeOverrides,
 } from '../playback/SimplePlayer'
 
 export interface UseSimplePlayerReturn {
@@ -31,17 +30,15 @@ export interface UseSimplePlayerReturn {
    * "Tap to resume" banner or a connection-problem toast. */
   audioFailed: Ref<AudioFailedEvent | null>
   initialize: (rounds: Round[]) => void
-  setRuntimeOverrides: (overrides: SimplePlayerRuntimeOverrides) => void
   play: () => void
   pause: () => void
   resume: () => void
   stop: () => void
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   skipRound: () => void
-  jumpToRound: (index: number, cycleIndex?: number) => void
+  jumpToRound: (index: number) => void
   jumpToSeed: (seedNumber: number) => void
   findRoundIndexForSeed: (seedNumber: number) => number
-  findRoundIndexForLegoId: (legoId: string) => number
   addRounds: (rounds: Round[]) => void
   hasRound: (roundNumber: number) => boolean
   onPhaseChanged: (callback: (phase: Phase) => void) => void
@@ -54,9 +51,6 @@ export interface UseSimplePlayerReturn {
 export function useSimplePlayer(): UseSimplePlayerReturn {
   // Internal state
   let player: SimplePlayer | null = null
-  // Runtime overrides survive across initialize() calls so wiring Turbo
-  // before any rounds load still applies once playback starts.
-  let runtimeOverrides: SimplePlayerRuntimeOverrides = {}
   const internalState = ref<PlaybackState>({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   const roundsRef = ref<Round[]>([])
 
@@ -89,7 +83,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     }
 
     roundsRef.value = rounds
-    player = new SimplePlayer(rounds, runtimeOverrides)
+    player = new SimplePlayer(rounds)
 
     // Subscribe to state changes
     player.on('state_changed', (data) => {
@@ -156,16 +150,6 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   // corresponding SimplePlayer method also resets the circuit budget.
   const clearAudioFailed = () => { audioFailed.value = null }
 
-  /**
-   * Replace the runtime overrides (Turbo-aware pause / speed callbacks).
-   * Stored locally so a later initialize() call gets them too. Live player
-   * (if any) is updated in place so toggles take effect on the next phase.
-   */
-  const setRuntimeOverrides = (overrides: SimplePlayerRuntimeOverrides) => {
-    runtimeOverrides = overrides
-    player?.setRuntimeOverrides(overrides)
-  }
-
   // Methods (passthrough to player)
   const play = () => { clearAudioFailed(); player?.play() }
   const pause = () => player?.pause()
@@ -173,10 +157,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const stop = () => { clearAudioFailed(); player?.stop() }
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   const skipRound = () => player?.skipRound()
-  const jumpToRound = (index: number, cycleIndex?: number) => {
-    clearAudioFailed()
-    player?.jumpToRound(index, cycleIndex)
-  }
+  const jumpToRound = (index: number) => { clearAudioFailed(); player?.jumpToRound(index) }
 
   /**
    * Find the first round index that belongs to a given seed number.
@@ -191,15 +172,6 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const findRoundIndexForSeed = (seedNumber: number): number => {
     const targetSeedId = `S${String(seedNumber).padStart(4, '0')}`
     return roundsRef.value.findIndex(r => r.seedId === targetSeedId)
-  }
-
-  /**
-   * Find a round by its exact LEGO id (e.g. "S0042L05"). Used by the
-   * resting-state "skip to round N" flow to navigate to the precise round
-   * at the ceiling, not just the start of the seed it lives in.
-   */
-  const findRoundIndexForLegoId = (legoId: string): number => {
-    return roundsRef.value.findIndex(r => r.legoId === legoId)
   }
 
   /**
@@ -282,7 +254,6 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     roundCount,
     audioFailed,
     initialize,
-    setRuntimeOverrides,
     play,
     pause,
     resume,
@@ -291,7 +262,6 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     jumpToRound,
     jumpToSeed,
     findRoundIndexForSeed,
-    findRoundIndexForLegoId,
     addRounds,
     hasRound,
     onPhaseChanged,

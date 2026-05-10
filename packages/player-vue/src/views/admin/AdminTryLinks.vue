@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
+import Card from '@/components/schools/shared/Card.vue'
 
 interface TryLink {
   id: string
@@ -18,6 +18,7 @@ interface TryLink {
 
 const { getAuthToken } = useAdminClient()
 
+// State
 const links = ref<TryLink[]>([])
 const isLoading = ref(false)
 const isCreating = ref(false)
@@ -25,12 +26,9 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const copiedId = ref<string | null>(null)
 
+// Form state
 const formLabel = ref('')
 const formTtlDays = ref<number>(90)
-
-const activeCount = computed(() =>
-  links.value.filter(l => l.is_active && !l.is_expired).length,
-)
 
 async function fetchLinks(): Promise<void> {
   isLoading.value = true
@@ -42,7 +40,7 @@ async function fetchLinks(): Promise<void> {
       return
     }
     const response = await fetch('/api/try-link/list', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { 'Authorization': `Bearer ${token}` },
     })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
@@ -78,7 +76,7 @@ async function createLink(): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         label: formLabel.value.trim(),
@@ -93,9 +91,10 @@ async function createLink(): Promise<void> {
 
     const created = await response.json()
     const tryUrl = `${window.location.origin}/try/${created.code}`
-    successMessage.value = `Created: ${tryUrl}`
+    successMessage.value = `Created! Link: ${tryUrl}`
     setTimeout(() => { successMessage.value = null }, 8000)
 
+    // Reset form
     formLabel.value = ''
     formTtlDays.value = 90
 
@@ -117,7 +116,7 @@ async function deactivateLink(id: string): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ id }),
     })
@@ -133,35 +132,29 @@ async function deactivateLink(id: string): Promise<void> {
   }
 }
 
-async function copyLink(code: string, id: string): Promise<void> {
+function copyLink(code: string, id: string) {
   const url = `${window.location.origin}/try/${code}`
-  try {
-    await navigator.clipboard.writeText(url)
-  } catch {
-    const el = document.createElement('textarea')
-    el.value = url
-    document.body.appendChild(el)
-    el.select()
-    document.execCommand('copy')
-    document.body.removeChild(el)
-  }
-  copiedId.value = id
-  setTimeout(() => {
-    if (copiedId.value === id) copiedId.value = null
-  }, 1800)
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', year: '2-digit',
+  navigator.clipboard.writeText(url).then(() => {
+    copiedId.value = id
+    setTimeout(() => { copiedId.value = null }, 2000)
   })
 }
 
-function linkStatus(link: TryLink): { label: string; tone: 'green' | 'gold' | 'muted' } {
-  if (!link.is_active) return { label: 'Disabled', tone: 'muted' }
-  if (link.is_expired) return { label: 'Expired', tone: 'gold' }
-  return { label: 'Active', tone: 'green' }
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return 'Never'
+  return new Date(dateStr).toLocaleDateString()
+}
+
+function linkStatus(link: TryLink): string {
+  if (!link.is_active) return 'Deactivated'
+  if (link.is_expired) return 'Expired'
+  return 'Active'
+}
+
+function statusClass(link: TryLink): string {
+  if (!link.is_active) return 'status-deactivated'
+  if (link.is_expired) return 'status-expired'
+  return 'status-active'
 }
 
 onMounted(() => {
@@ -171,587 +164,448 @@ onMounted(() => {
 
 <template>
   <div class="admin-try-links">
-    <!-- Page header -->
-    <header class="page-header">
-      <div class="title-block">
-        <h1 class="frost-display">Try Links</h1>
-        <div class="metrics">
-          <span class="metric">
-            <span class="metric-value frost-mono-nums">{{ links.length }}</span>
-            links
-          </span>
-          <template v-if="activeCount > 0">
-            <span class="metric-sep">·</span>
-            <span class="metric metric-active">
-              <span class="metric-value frost-mono-nums">{{ activeCount }}</span>
-              active
-            </span>
-          </template>
-        </div>
-        <p class="page-subtitle">Zero-friction preview links for partners and affiliates</p>
-      </div>
+    <!-- Page Header -->
+    <header class="page-header animate-in">
+      <h1 class="page-title">Try Links</h1>
+      <p class="page-subtitle">Zero-friction preview links for partners and affiliates</p>
     </header>
 
-    <!-- Banners -->
-    <Transition name="fade">
-      <div v-if="successMessage" class="banner banner-success">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-          <polyline points="22 4 12 14.01 9 11.01"/>
-        </svg>
-        <span class="banner-msg">{{ successMessage }}</span>
-      </div>
-    </Transition>
-    <Transition name="fade">
-      <div v-if="error" class="banner banner-error">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="15" y1="9" x2="9" y2="15"/>
-          <line x1="9" y1="9" x2="15" y2="15"/>
-        </svg>
-        <span>{{ error }}</span>
-      </div>
-    </Transition>
-
-    <!-- Create form — FrostCard panel -->
-    <FrostCard variant="panel" class="create-panel">
-      <div class="panel-head">
-        <span class="frost-eyebrow">Create new try link</span>
-      </div>
-      <form class="create-form" @submit.prevent="createLink">
-        <div class="field field-wide">
-          <label class="frost-eyebrow">Label <span class="required">*</span></label>
-          <input
-            v-model="formLabel"
-            type="text"
-            class="frost-input"
-            placeholder="e.g. Duolingo partnership, Aran's Twitter…"
-          />
-        </div>
-        <div class="field">
-          <label class="frost-eyebrow">Expires after <span class="optional">(days)</span></label>
-          <input
-            v-model.number="formTtlDays"
-            type="number"
-            min="1"
-            max="365"
-            class="frost-input"
-          />
-        </div>
-
-        <div class="field-actions">
-          <button
-            type="submit"
-            class="btn-primary"
-            :disabled="isCreating || !formLabel.trim()"
-          >
-            <svg v-if="!isCreating" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            <span v-else class="spinner"></span>
-            {{ isCreating ? 'Creating…' : 'Create link' }}
-          </button>
-        </div>
-      </form>
-    </FrostCard>
-
-    <!-- Links list -->
-    <FrostCard
-      v-if="links.length > 0"
-      variant="panel"
-      class="links-panel"
-    >
-      <table class="links-table">
-        <thead>
-          <tr>
-            <th>Label</th>
-            <th>Code</th>
-            <th>Visits</th>
-            <th>Unique</th>
-            <th>Expires</th>
-            <th>Status</th>
-            <th aria-label="Actions"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="link in links"
-            :key="link.id"
-            :class="{ 'is-inactive': !link.is_active || link.is_expired }"
-          >
-            <td class="cell-label">{{ link.label }}</td>
-            <td class="cell-code">
-              <button
-                class="code-chip"
-                :class="{ 'is-copied': copiedId === link.id }"
-                :title="copiedId === link.id ? 'Copied!' : 'Click to copy link'"
-                @click="copyLink(link.code, link.id)"
-              >
-                <span class="code-value frost-mono-nums">{{ link.code }}</span>
-                <svg v-if="copiedId !== link.id" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </button>
-            </td>
-            <td class="cell-muted frost-mono-nums">{{ link.visit_count }}</td>
-            <td class="cell-muted frost-mono-nums">{{ link.unique_visitors }}</td>
-            <td class="cell-muted frost-mono-nums">{{ formatDate(link.expires_at) }}</td>
-            <td>
-              <span class="status-pill" :class="`tone-${linkStatus(link).tone}`">
-                <span class="status-dot"></span>
-                {{ linkStatus(link).label }}
-              </span>
-            </td>
-            <td class="cell-actions">
-              <button
-                v-if="link.is_active && !link.is_expired"
-                class="row-action row-action-danger"
-                title="Deactivate link"
-                @click.stop="deactivateLink(link.id)"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="15" y1="9" x2="9" y2="15"/>
-                  <line x1="9" y1="9" x2="15" y2="15"/>
-                </svg>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </FrostCard>
-
-    <!-- Empty state -->
-    <FrostCard
-      v-else-if="!isLoading"
-      variant="tile"
-      class="empty"
-    >
-      <div class="empty-ghost">try</div>
-      <div class="empty-copy">
-        <strong>No try links yet</strong>
-        <p>Create one above and share it with partners or affiliates.</p>
-      </div>
-    </FrostCard>
-
-    <!-- Loading -->
-    <div v-if="isLoading && links.length === 0" class="loading">
-      Loading try links…
+    <!-- Success Message -->
+    <div v-if="successMessage" class="message-banner success-banner animate-in">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <span>{{ successMessage }}</span>
     </div>
+
+    <!-- Error Message -->
+    <div v-if="error" class="message-banner error-banner animate-in">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+      <span>{{ error }}</span>
+    </div>
+
+    <!-- Create Form -->
+    <section class="create-section animate-in delay-1">
+      <Card title="Create Try Link" accent="gold">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </template>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Label</label>
+            <input v-model="formLabel" type="text" placeholder="e.g. Duolingo partnership, Aran's Twitter..." />
+          </div>
+
+          <div class="form-group">
+            <label>Expires after (days)</label>
+            <input v-model.number="formTtlDays" type="number" min="1" max="365" />
+          </div>
+        </div>
+
+        <template #footer>
+          <div class="form-actions">
+            <button class="btn-create" :disabled="isCreating || !formLabel.trim()" @click="createLink">
+              <span v-if="isCreating" class="spinner" />
+              {{ isCreating ? 'Creating...' : 'Create Link' }}
+            </button>
+          </div>
+        </template>
+      </Card>
+    </section>
+
+    <!-- Links Table -->
+    <section class="links-section animate-in delay-2">
+      <Card title="All Try Links" accent="gradient" :loading="isLoading">
+        <template #icon>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </template>
+
+        <div v-if="links.length > 0" class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Code</th>
+                <th>Visits</th>
+                <th>Unique</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="link in links" :key="link.id" :class="{ inactive: !link.is_active || link.is_expired }">
+                <td class="label-cell">{{ link.label }}</td>
+                <td class="code-cell"><code>{{ link.code }}</code></td>
+                <td class="count-cell">{{ link.visit_count }}</td>
+                <td class="count-cell">{{ link.unique_visitors }}</td>
+                <td>{{ formatDate(link.expires_at) }}</td>
+                <td>
+                  <span class="status-badge" :class="statusClass(link)">
+                    {{ linkStatus(link) }}
+                  </span>
+                </td>
+                <td class="actions-cell">
+                  <button class="action-btn" @click="copyLink(link.code, link.id)" :title="copiedId === link.id ? 'Copied!' : 'Copy link'">
+                    <svg v-if="copiedId !== link.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                    <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {{ copiedId === link.id ? 'Copied' : 'Copy link' }}
+                  </button>
+                  <button
+                    v-if="link.is_active && !link.is_expired"
+                    class="action-btn action-danger"
+                    @click="deactivateLink(link.id)"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="15" y1="9" x2="9" y2="15"/>
+                      <line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                    Deactivate
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else-if="!isLoading" class="empty-state">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <p>No try links yet</p>
+          <span>Create one above to share with partners</span>
+        </div>
+      </Card>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .admin-try-links {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  padding: 0;
+  max-width: 1200px;
 }
 
-/* Page header */
+/* Page Header */
 .page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-6);
+  margin-bottom: var(--space-8);
 }
 
-.title-block h1 {
+.page-title {
   font-family: var(--font-display);
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
-  letter-spacing: -0.015em;
-  color: var(--ink-primary);
-  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-1);
 }
-
-.metrics {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
-}
-
-.metric-value {
-  color: var(--ink-primary);
-  font-weight: var(--font-semibold);
-  margin-right: 4px;
-}
-
-.metric-sep { color: var(--ink-faint); }
-.metric-active .metric-value { color: rgb(var(--tone-green)); }
 
 .page-subtitle {
-  margin: var(--space-2) 0 0;
-  color: var(--ink-muted);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
+  margin: 0;
 }
 
-/* Banners */
-.banner {
+/* Message Banners */
+.message-banner {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
-}
-
-.banner-msg {
+  margin-bottom: var(--space-4);
   word-break: break-all;
 }
 
-.banner-success {
-  background: rgba(var(--tone-green), 0.10);
-  border: 1px solid rgba(var(--tone-green), 0.28);
-  color: rgb(var(--tone-green));
+.success-banner {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  color: var(--success);
 }
 
-.banner-error {
-  background: rgba(var(--tone-red), 0.08);
-  border: 1px solid rgba(var(--tone-red), 0.28);
-  color: rgb(var(--tone-red));
+.error-banner {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--error) 25%, transparent);
+  color: var(--error);
 }
 
-/* Create form */
-.create-panel {
-  padding: 0;
-  overflow: hidden;
+/* Sections */
+.create-section {
+  margin-bottom: var(--space-8);
 }
 
-.panel-head {
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
+.links-section {
+  margin-bottom: var(--space-8);
 }
 
-.create-form {
-  padding: var(--space-5) var(--space-6) var(--space-6);
+/* Form Grid */
+.form-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-4);
 }
 
-.field {
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+  gap: var(--space-2);
 }
 
-.field-wide {
-  grid-column: 1 / -1;
+.form-group label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: var(--font-medium);
 }
 
-.field-actions {
-  grid-column: 1 / -1;
+.form-group input,
+.form-group select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  transition: border-color var(--transition-fast);
+}
+
+.form-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--ssi-red);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ssi-red) 15%, transparent);
+}
+
+/* Form Actions */
+.form-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: var(--space-2);
 }
 
-.field label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.required {
-  color: rgb(var(--tone-red));
-  font-weight: var(--font-bold);
-  font-family: var(--font-mono);
-}
-
-.optional {
-  color: var(--ink-faint);
-  font-weight: var(--font-normal);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.frost-input {
-  font: inherit;
-  font-size: var(--text-base);
-  padding: 10px 14px;
-  color: var(--ink-primary);
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(44, 38, 34, 0.12);
-  border-radius: var(--radius-lg);
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.frost-input::placeholder { color: var(--ink-faint); }
-
-.frost-input:focus {
-  outline: none;
-  border-color: rgba(var(--tone-red), 0.55);
-  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
-}
-
-/* Buttons */
-.btn-primary {
+.btn-create {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 10px 18px;
-  font: inherit;
+  padding: var(--space-3) var(--space-6);
+  background: var(--ssi-gold);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-  border-radius: var(--radius-full);
-  border: 1px solid transparent;
-  background: var(--ssi-red);
-  color: #fff;
+  font-family: var(--font-body);
   cursor: pointer;
-  transition: all var(--transition-base);
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.08), 0 4px 14px rgba(194, 58, 58, 0.22);
+  transition: all var(--transition-fast);
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--ssi-red-light);
-  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
+.btn-create:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 
-.btn-primary:disabled {
-  opacity: 0.4;
+.btn-create:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.2);
+  border-top-color: #000;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Links table */
-.links-panel {
-  padding: 0;
-  overflow: hidden;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.links-table {
+/* Table */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table {
   width: 100%;
   border-collapse: collapse;
-}
-
-.links-table thead th {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-medium);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-align: left;
-  color: var(--ink-muted);
-  padding: 14px 18px 12px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
-  background: rgba(255, 255, 255, 0.35);
-}
-
-.links-table thead th:last-child { width: 56px; }
-
-.links-table tbody tr {
-  transition: background var(--transition-base);
-}
-
-.links-table tbody tr:hover { background: rgba(255, 255, 255, 0.48); }
-.links-table tbody tr.is-inactive { opacity: 0.5; }
-
-.links-table td {
-  padding: 12px 18px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.05);
-  vertical-align: middle;
-  color: var(--ink-secondary);
   font-size: var(--text-sm);
 }
 
-.links-table tbody tr:last-child td { border-bottom: none; }
-
-.cell-label {
-  color: var(--ink-primary);
-  font-weight: var(--font-medium);
-}
-
-.cell-muted {
-  color: var(--ink-muted);
+thead th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
 }
 
-/* Code chip */
-.code-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(44, 38, 34, 0.08);
-  border-radius: var(--radius-md);
-  font: inherit;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  color: var(--ink-secondary);
+tbody td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  vertical-align: middle;
 }
 
-.code-chip:hover {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(44, 38, 34, 0.16);
-  color: var(--ink-primary);
+tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.code-chip.is-copied {
-  background: rgba(var(--tone-green), 0.16);
-  border-color: rgba(var(--tone-green), 0.45);
-  color: rgb(var(--tone-green));
+tbody tr.inactive {
+  opacity: 0.5;
 }
 
-.code-value {
-  font-size: var(--text-sm);
-  letter-spacing: 0.05em;
+.label-cell {
+  font-weight: var(--font-medium);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Status pill */
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+.code-cell code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+}
+
+.count-cell {
+  font-family: var(--font-mono);
+  font-weight: var(--font-semibold);
+}
+
+/* Status Badges */
+.status-badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-full);
   font-size: var(--text-xs);
   font-weight: var(--font-medium);
-  border: 1px solid transparent;
 }
 
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
+.status-active {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
 }
 
-.status-pill.tone-green {
-  color: rgb(var(--tone-green));
-  background: rgba(var(--tone-green), 0.10);
-  border-color: rgba(var(--tone-green), 0.30);
+.status-expired {
+  background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
+  color: var(--warning, #f59e0b);
 }
 
-.status-pill.tone-gold {
-  color: rgb(var(--tone-gold));
-  background: rgba(var(--tone-gold), 0.12);
-  border-color: rgba(var(--tone-gold), 0.32);
+.status-deactivated {
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
 }
 
-.status-pill.tone-muted {
-  color: var(--ink-faint);
-  background: rgba(44, 38, 34, 0.04);
-  border-color: rgba(44, 38, 34, 0.10);
+/* Actions */
+.actions-cell {
+  white-space: nowrap;
 }
 
-/* Hover-reveal action */
-.cell-actions {
-  text-align: right;
-  padding-right: 12px;
-}
-
-.row-action {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--ink-muted);
-  cursor: pointer;
-  opacity: 0;
-  transform: translateX(4px);
-  transition: all var(--transition-fast);
-}
-
-.links-table tbody tr:hover .row-action,
-.links-table tbody tr:focus-within .row-action {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.row-action:hover {
-  color: var(--ink-primary);
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(44, 38, 34, 0.1);
-}
-
-.row-action-danger:hover {
-  color: rgb(var(--tone-red));
-  background: rgba(var(--tone-red), 0.08);
-  border-color: rgba(var(--tone-red), 0.25);
-}
-
-/* Empty state */
-.empty {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-6);
+.action-btn {
+  display: inline-flex;
   align-items: center;
-  padding: var(--space-10) var(--space-8);
-  min-height: 180px;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font-body);
+  margin-right: var(--space-2);
 }
 
-.empty-ghost {
-  font-family: var(--font-display);
-  font-size: 88px;
-  font-weight: var(--font-bold);
-  letter-spacing: -0.03em;
-  color: var(--ink-faint);
-  opacity: 0.35;
-  line-height: 0.9;
-  user-select: none;
+.action-btn:hover {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
 }
 
-.empty-copy strong {
-  display: block;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  color: var(--ink-primary);
-  margin-bottom: 4px;
+.action-danger:hover {
+  border-color: var(--error);
+  color: var(--error);
 }
 
-.empty-copy p {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
-}
-
-.loading {
+/* Empty State */
+.empty-state {
   text-align: center;
-  padding: var(--space-12);
-  color: var(--ink-muted);
+  padding: var(--space-12) var(--space-4);
+  color: var(--text-muted);
+}
+
+.empty-state svg {
+  opacity: 0.3;
+  margin-bottom: var(--space-4);
+}
+
+.empty-state p {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-2);
+}
+
+.empty-state span {
   font-size: var(--text-sm);
 }
 
-/* Transitions */
-.fade-enter-active, .fade-leave-active {
-  transition: opacity var(--transition-base), transform var(--transition-base);
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
+/* Animations */
+.animate-in {
+  animation: fadeSlideIn 0.3s ease-out both;
 }
 
-@media (max-width: 768px) {
-  .create-form { grid-template-columns: 1fr; }
-  /* Hide Visits + Unique on mobile */
-  .links-table thead th:nth-child(3),
-  .links-table tbody td:nth-child(3),
-  .links-table thead th:nth-child(4),
-  .links-table tbody td:nth-child(4) {
-    display: none;
+.delay-1 { animation-delay: 0.05s; }
+.delay-2 { animation-delay: 0.1s; }
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

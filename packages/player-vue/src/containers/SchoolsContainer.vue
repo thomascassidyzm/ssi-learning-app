@@ -6,13 +6,13 @@ import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useUserRole } from '@/composables/useUserRole'
-import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useGodMode } from '@/composables/schools/useGodMode'
 import { setSchoolsClient } from '@/composables/schools/client'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
 
-// Set client immediately during setup (before child components call useSchoolContext)
+// Set client immediately during setup (before child components call useGodMode)
 if (supabase.value) {
   setSchoolsClient(supabase.value)
 }
@@ -21,23 +21,101 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, restoreFromCache } = useUserRole()
+const { canAccessSchools, educationalRole, restoreFromCache } = useUserRole()
 restoreFromCache()
 
-// Load the school context for the real authenticated user — the schools
-// composables scope their queries off this.
-const ctx = useSchoolContext()
-// Populate school context from the real auth session once both are ready.
+// Auto-populate GodMode selectedUser from real auth session
+// The entire dashboard pipeline depends on selectedUser being set
+const godMode = useGodMode()
+
+async function ensureGodModeUser() {
+  if (godMode.selectedUser.value) return // Already set (God Mode or previous call)
+  if (!supabase.value || !auth?.user?.value) return
+
+  const userId = auth.user.value.id
+  const client = supabase.value
+
+  try {
+    // Get learner record
+    const { data: learner } = await client
+      .from('learners')
+      .select('id, user_id, display_name, educational_role, platform_role')
+      .eq('user_id', userId)
+      .single()
+
+    if (!learner) return
+
+    const user: any = {
+      user_id: learner.user_id,
+      learner_id: learner.id,
+      display_name: learner.display_name,
+      educational_role: learner.educational_role,
+      platform_role: learner.platform_role,
+    }
+
+    // Enrich with school/group context based on role
+    if (learner.educational_role === 'govt_admin') {
+      const { data: govt } = await client
+        .from('govt_admins')
+        .select('region_code, organization_name')
+        .eq('user_id', userId)
+        .single()
+      if (govt) {
+        user.region_code = govt.region_code
+        user.organization_name = govt.organization_name
+      }
+    } else if (['school_admin', 'teacher'].includes(learner.educational_role)) {
+      // Check user_tags for school link
+      const { data: tag } = await client
+        .from('user_tags')
+        .select('tag_value')
+        .eq('user_id', userId)
+        .eq('tag_type', 'school')
+        .is('removed_at', null)
+        .limit(1)
+        .single()
+
+      if (tag) {
+        const schoolId = tag.tag_value.replace('SCHOOL:', '')
+        user.school_id = schoolId
+        const { data: school } = await client
+          .from('schools')
+          .select('school_name, region_code')
+          .eq('id', schoolId)
+          .single()
+        if (school) {
+          user.school_name = school.school_name
+          user.region_code = school.region_code
+        }
+      } else {
+        // Fallback: check if they're the admin_user_id on a school
+        const { data: school } = await client
+          .from('schools')
+          .select('id, school_name, region_code')
+          .eq('admin_user_id', userId)
+          .limit(1)
+          .single()
+        if (school) {
+          user.school_id = school.id
+          user.school_name = school.school_name
+          user.region_code = school.region_code
+        }
+      }
+    }
+
+    godMode.selectUser(user)
+  } catch (err) {
+    console.error('[SchoolsContainer] Failed to build user context:', err)
+  }
+}
+
+// Run when auth becomes ready
 watch(
   () => auth?.isAuthenticated?.value && canAccessSchools.value,
   (ready) => {
-    if (ready && supabase.value && auth?.user?.value?.id) {
-      ctx.loadFromAuth(auth.user.value.id, supabase.value).catch((err: unknown) => {
-        console.error('[SchoolsContainer] Failed to load school context:', err)
-      })
-    }
+    if (ready) ensureGodModeUser()
   },
-  { immediate: true },
+  { immediate: true }
 )
 
 // Inline login state
@@ -51,21 +129,19 @@ const isEmailValid = computed(() =>
   loginEmail.value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.value)
 )
 
-// Demo flow sets ctx.currentUser directly without a real auth session, so
-// treat a populated context as sufficient to render the dashboard even
-// when isAuthenticated is false. Real sign-ins also populate ctx.
-const hasSchoolContext = computed(() => !!ctx.currentUser.value)
-
+// Show dashboard if authenticated with school role
 const showDashboard = computed(() =>
-  (isAuthenticated.value || hasSchoolContext.value) && canAccessSchools.value,
+  isAuthenticated.value && canAccessSchools.value
 )
 
+// Show "no access" if authenticated but no school role
 const showNoAccess = computed(() =>
-  isAuthenticated.value && !canAccessSchools.value && !isAuthLoading.value,
+  isAuthenticated.value && !canAccessSchools.value && !isAuthLoading.value
 )
 
+// Show login if not authenticated
 const showLogin = computed(() =>
-  !isAuthenticated.value && !hasSchoolContext.value && !isAuthLoading.value,
+  !isAuthenticated.value && !isAuthLoading.value
 )
 
 async function handleSendOtp() {

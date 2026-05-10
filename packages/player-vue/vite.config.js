@@ -23,18 +23,6 @@ export default defineConfig(({ mode }) => ({
         // DON'T cache audio via workbox precache - runtime caching handles it
         globIgnores: ['**/*.{mp3,wav,ogg,m4a}'],
 
-        // Workbox' default navigation handler returns the cached index.html
-        // for *every* document navigation, which intercepts requests like
-        // /terms before they can hit Vercel's cross-origin rewrite. List the
-        // paths we want to bypass the SW so the rewrite to the marketing
-        // site actually runs. /api/* must also stay on the network.
-        navigateFallbackDenylist: [
-          /^\/terms$/,
-          /^\/privacy$/,
-          /^\/refunds$/,
-          /^\/api\//,
-        ],
-
         // Clear ALL runtime caches when a new SW activates.
         // This ensures stale audio/font caches never persist across deploys.
         // Cost: users re-download audio after each deploy.
@@ -47,21 +35,6 @@ export default defineConfig(({ mode }) => ({
 
         // Runtime caching for fonts/CDN/audio
         runtimeCaching: [
-          // Document navigations (the HTML shell): NetworkFirst so a fresh
-          // deploy propagates on next navigation without the user having to
-          // explicitly tap "Update". Without this, the precache serves the
-          // OLD index.html — which references OLD hashed JS bundles that no
-          // longer exist on Vercel after a redeploy → MIME error on those
-          // chunks. 3s timeout means offline users still fall back to cache.
-          {
-            urlPattern: ({ request }) => request.mode === 'navigate',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'navigation-cache',
-              networkTimeoutSeconds: 3,
-              expiration: { maxEntries: 4 },
-            },
-          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',

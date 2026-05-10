@@ -16,7 +16,7 @@ const router = useRouter()
 // Entitlement + subscription (same check as CourseSelector)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
 const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
-const { platformRole, hasSchoolRole } = useUserRole()
+const { platformRole } = useUserRole()
 
 const hasFullAccess = (course) => {
   const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
@@ -48,8 +48,17 @@ const auth = inject('auth')
 const isGuest = computed(() => auth?.isGuest?.value ?? true)
 const { open: openAuth } = useAuthModal()
 
-// Show schools link for users with a school-scoped educational role.
-const hasSchoolsAccess = computed(() => hasSchoolRole.value)
+// Show schools link when god mode user is set (teacher/admin)
+const hasSchoolsAccess = computed(() => {
+  try {
+    const stored = localStorage.getItem('ssi-god-mode-user')
+    if (!stored) return false
+    const user = JSON.parse(stored)
+    return ['teacher', 'school_admin', 'govt_admin'].includes(user.educational_role)
+  } catch {
+    return false
+  }
+})
 
 const goToSchools = () => {
   router.push('/schools')
@@ -164,8 +173,17 @@ const fetchCourses = async () => {
   }
 }
 
-// Admin check: real user's platform_role from useUserRole.
-const isAdmin = computed(() => platformRole.value === 'ssi_admin')
+// Admin check: ssi_admin platform_role in god mode user
+const isAdmin = computed(() => {
+  try {
+    const stored = localStorage.getItem('ssi-god-mode-user')
+    if (!stored) return false
+    const user = JSON.parse(stored)
+    return user.platform_role === 'ssi_admin'
+  } catch {
+    return false
+  }
+})
 
 // Course search
 const courseSearchQuery = ref('')
@@ -197,10 +215,9 @@ const getVariantLabel = (course) => {
   return null
 }
 
-// All courses — premium courses ARE shown to non-subscribers (locked, click
-// routes to /premium for upgrade) so the catalogue advertises the offer.
+// All courses — same access check as CourseSelector (entitlements + subscription)
 const displayedCourses = computed(() => {
-  let courses = allCourses.value
+  let courses = allCourses.value.filter(c => !isPremiumCourse(c) || hasFullAccess(c))
 
   const q = courseSearchQuery.value.trim().toLowerCase()
   if (q) {
@@ -208,17 +225,6 @@ const displayedCourses = computed(() => {
   }
   return courses.sort((a, b) => getLanguageName(a.target_lang).localeCompare(getLanguageName(b.target_lang)))
 })
-
-// Premium course without access → upgrade funnel
-const isLocked = (course) => isPremiumCourse(course) && !hasFullAccess(course)
-
-const handleCourseClick = (course) => {
-  if (isLocked(course)) {
-    router.push({ name: 'premium', query: { course: course.course_code } })
-    return
-  }
-  emit('select-course', course)
-}
 
 // Group by target_lang + known_lang for variant handling
 const expandedGroup = ref(null)
@@ -245,7 +251,7 @@ const courseGroups = computed(() => {
 
 const handleGroupClick = (group) => {
   if (group.courses.length === 1) {
-    handleCourseClick(group.courses[0])
+    emit('select-course', group.courses[0])
   } else {
     expandedGroup.value = expandedGroup.value === group.key ? null : group.key
   }
@@ -454,15 +460,14 @@ onMounted(() => {
             <template v-if="group.courses.length === 1">
               <button
                 class="course-card"
-                :class="{ active: isActiveCourse(group.courses[0].course_code), locked: isLocked(group.courses[0]) }"
-                @click="handleCourseClick(group.courses[0])"
+                :class="{ active: isActiveCourse(group.courses[0].course_code) }"
+                @click="emit('select-course', group.courses[0])"
               >
                 <div v-if="isActiveCourse(group.courses[0].course_code)" class="course-badge active-badge">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                   </svg>
                 </div>
-                <div v-else-if="isLocked(group.courses[0])" class="course-badge premium-badge">Premium</div>
                 <div v-else-if="group.courses[0].new_app_status === 'beta'" class="course-badge beta-badge">β</div>
 
                 <LanguageFlag :code="group.courses[0].target_lang" :size="18" />
@@ -470,8 +475,7 @@ onMounted(() => {
                 <span class="course-for">for {{ group.forLabel }} speakers</span>
 
                 <span class="course-status">
-                  <template v-if="isLocked(group.courses[0])">Try free →</template>
-                  <template v-else-if="isEnrolled(group.courses[0].course_code)">
+                  <template v-if="isEnrolled(group.courses[0].course_code)">
                     {{ getProgress(group.courses[0].course_code) }}%
                   </template>
                 </span>
@@ -500,12 +504,11 @@ onMounted(() => {
                   v-for="course in group.courses"
                   :key="course.course_code"
                   class="variant-card"
-                  :class="{ active: isActiveCourse(course.course_code), locked: isLocked(course) }"
-                  @click="handleCourseClick(course)"
+                  :class="{ active: isActiveCourse(course.course_code) }"
+                  @click="emit('select-course', course)"
                 >
                   <span class="variant-name">{{ getVariantLabel(course) || course.display_name }}</span>
-                  <span v-if="isLocked(course)" class="course-status">Try free →</span>
-                  <span v-else-if="isEnrolled(course.course_code)" class="course-status">{{ getProgress(course.course_code) }}%</span>
+                  <span v-if="isEnrolled(course.course_code)" class="course-status">{{ getProgress(course.course_code) }}%</span>
                 </button>
               </div>
             </template>
@@ -836,24 +839,6 @@ onMounted(() => {
 .course-badge.new-badge {
   background: var(--accent);
   color: #fff;
-}
-
-.course-badge.premium-badge {
-  background: linear-gradient(135deg, #d4a853, #b8893c);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  width: auto;
-  padding: 2px 7px;
-  border-radius: 999px;
-}
-
-.course-card.locked,
-.variant-card.locked {
-  /* Locked courses are still fully visible — opacity stays — but the status
-     "Try free →" + premium badge advertise the upgrade. */
 }
 
 .course-flag {

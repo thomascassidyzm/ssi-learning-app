@@ -13,7 +13,7 @@
     "retry": "Retry",
     "freePreview": "Free preview",
     "forSpeakers": "for {lang} speakers",
-    "searchPlaceholder": "Search for any language..."
+    "searchPlaceholder": "Search other languages..."
   },
   "player": {
     "listen": "Listen",
@@ -150,20 +150,12 @@
     "youreOnARoll": "You're on a roll",
     "impressiveProgress": "Impressive progress",
     "nearlyThere": "Nearly there",
-    "forSpeakers": "for {lang} speakers",
-    "youHaveBeenFurther": "you've been further than this",
-    "now": "now",
-    "furthest": "furthest",
-    "restOfCourse": "rest of course",
-    "youAreHere": "you are here",
-    "yourFurthest": "your furthest point",
-    "jumpForward": "pick up where you got to"
+    "forSpeakers": "for {lang} speakers"
   },
   "phase": {
     "getReadyToSpeak": "get ready to speak",
     "speakNow": "you're meant to be speaking now",
-    "listenCarefully": "listen carefully",
-    "passiveAttention": "Just listen now — without effort but with attention, like listening to birdsong."
+    "listenCarefully": "listen carefully"
   },
   "onboarding": {
     "beltIsProgress": "Your belt = progress",

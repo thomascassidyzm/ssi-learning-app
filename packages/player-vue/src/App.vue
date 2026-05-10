@@ -19,6 +19,7 @@ import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import InstallBanner from './components/InstallBanner.vue'
 import DemoOverlay from './components/demo/DemoOverlay.vue'
 import TesterFeedback from './components/TesterFeedback.vue'
+import GodModePanel from './components/schools/GodModePanel.vue'
 import { setSchoolsClient } from './composables/schools/client'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
@@ -63,15 +64,9 @@ if (localStorage.getItem('ssi-dev-tier') === 'paid' && !sessionStorage.getItem('
   console.log('[App] Cleaning up stale demo state from localStorage')
   localStorage.removeItem('ssi-dev-tier')
   localStorage.removeItem('ssi-active-class')
-  // Don't remove ssi-last-course — user might have set that themselves.
+  // Don't remove ssi-last-course — user might have set that themselves
+  // Don't remove ssi-god-mode-user — that's used outside demo too
 }
-
-// Wipe dead god-mode storage keys — impersonation was removed from the
-// app. These only exist on browsers that ran a prior version; safe to
-// drop unconditionally every boot until enough users have rotated.
-localStorage.removeItem('ssi-god-mode-user')
-sessionStorage.removeItem('ssi-god-mode-user')
-localStorage.removeItem('ssi-god-fab-pos')
 
 // Initialize theme (reads from localStorage, applies to document)
 const { theme, toggleTheme, setTheme } = useTheme()
@@ -147,25 +142,6 @@ const sessionStore = ref(null)
 const courseDataProvider = ref(null)
 const supabaseClient = ref(null)
 
-// Create Supabase client synchronously (before children mount) so globally-
-// mounted components like <GodModePanel> can read the schools-client bridge
-// during their own onMounted. Deferring this to App.vue's onMounted meant
-// the child's onMounted (which fires first in Vue 3) saw a missing client,
-// getSchoolsClient() threw, the error was swallowed, and GOD mode never
-// surfaced on non-/schools routes.
-if (config.features.useDatabase && isSupabaseConfigured(config)) {
-  try {
-    supabaseClient.value = createClient(
-      config.supabase.url,
-      config.supabase.anonKey,
-      { auth: { persistSession: true, autoRefreshToken: true } }
-    )
-    setSchoolsClient(supabaseClient.value)
-  } catch (err) {
-    console.error('[App] Failed to initialize Supabase client synchronously:', err)
-  }
-}
-
 // Eager script preload - fires as soon as course is known
 const eagerScript = useEagerScriptPreload()
 
@@ -182,9 +158,6 @@ window.addEventListener('beforeinstallprompt', (e) => {
 // Active course and enrolled courses state
 const activeCourse = ref(null)
 const enrolledCourses = ref([])
-// True only when both URL and stored preference were absent — drives the
-// auto-open of the Choose Course modal on first run.
-const noPriorCourseSelection = ref(false)
 
 // Course persistence key
 const LAST_COURSE_KEY = 'ssi-last-course'
@@ -326,11 +299,9 @@ const fetchEnrolledCourses = async () => {
           defaultCourse = saved
         }
       }
-      // Fall back to first accessible course (and flag this as a first-run
-      // / no-preference state so HomeScreen can auto-open the picker).
+      // Fall back to first accessible course
       if (!defaultCourse) {
         defaultCourse = data.find(c => canAccessCourse(c)) || data[0]
-        noPriorCourseSelection.value = true
       }
 
       if (defaultCourse && !activeCourse.value) {
@@ -372,7 +343,6 @@ provide('supabase', supabaseClient)
 provide('config', config)
 provide('activeCourse', activeCourse)
 provide('enrolledCourses', enrolledCourses)
-provide('noPriorCourseSelection', noPriorCourseSelection)
 provide('handleCourseSelect', handleCourseSelect)
 provide('theme', { theme, toggleTheme, setTheme })
 provide('eagerScript', eagerScript)
@@ -390,10 +360,26 @@ onMounted(async () => {
     console.warn('[App] Kill switch check failed (non-fatal):', err)
   })
 
-  // Supabase client was created synchronously above. Finish the async parts
-  // (stores + auth init) now that mount is complete.
-  if (supabaseClient.value) {
+  // Only initialize Supabase if configured and feature flag is enabled
+  if (config.features.useDatabase && isSupabaseConfigured(config)) {
     try {
+      supabaseClient.value = createClient(
+        config.supabase.url,
+        config.supabase.anonKey,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+          },
+        }
+      )
+
+      // Prime the schools-client bridge so God Mode (mounted globally in
+      // App.vue) can verify god access on any route, not just /schools/*
+      // where SchoolsContainer would otherwise be the only setter.
+      setSchoolsClient(supabaseClient.value)
+
+      // Create store instances
       progressStore.value = createProgressStore({ client: supabaseClient.value })
       sessionStore.value = createSessionStore({ client: supabaseClient.value })
 
@@ -488,6 +474,7 @@ onMounted(async () => {
     <InstallBanner />
     <DemoOverlay />
     <TesterFeedback />
+    <GodModePanel />
   </div>
 </template>
 
