@@ -3,6 +3,15 @@
 > Source: Aran Jones, 2025-12-03
 > Context: Insights from Irish course development on managing long-tail spaced repetition
 
+> **⚠️ Superseded in part (2026-04-29).** Aran revised the firing schedule and
+> stage definitions — canonical spec is now the visualiser at
+> [popty.app/listening-playground.html](https://popty.app/listening-playground.html).
+> Headline changes: L2 activates at R6 (start of seed 2) and fires every round;
+> L1 uses an active-10 (every 3 rounds) + reserve-50 (every 13 rounds) windowed
+> rotation rather than block-based batches; only 1.0× and 2.0× speeds exist.
+> Implementation in `packages/player-vue/src/providers/generateLearningScript.ts`
+> (`DEFAULT_LISTENING_CONFIG` + Phase 6/7) reflects the revised spec.
+
 ---
 
 ## Core Insight

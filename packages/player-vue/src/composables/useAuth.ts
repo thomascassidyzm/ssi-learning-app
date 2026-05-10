@@ -8,7 +8,7 @@
  * - Progress migration when guest signs up
  */
 
-import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 import { useUserRole } from '@/composables/useUserRole'
@@ -100,16 +100,21 @@ export function useAuth(): AuthState & AuthActions {
     localStorage.getItem(SIGNUP_PROMPT_SEEN_KEY) === 'true'
   )
 
-  // Computed state (accounts for god mode where learner is set without Supabase Auth)
+  // Computed state. learner is populated from ensureLearnerExists after
+  // Supabase Auth resolves; demo flow populates useSchoolContext directly
+  // without going through useAuth.
   const isAuthenticated = computed(() => !!supabaseUser.value || !!learner.value)
   const isGuest = computed(() => !supabaseUser.value && !learner.value && !!guestId.value)
   // learnerId = learners table PK — use for FK references (sessions, enrollments, progress)
+  // Never fall back to supabaseUser.value.id: that's the auth UID, not the
+  // learners.id, and using it as learner_id silently misses every row in
+  // course_enrollments / lego_progress / etc. — writes look successful but
+  // match no rows. If the learners row hasn't loaded yet (or
+  // ensureLearnerExists errored), prefer guestId so isGuestLearner skips
+  // the write entirely rather than writing to nothing.
   const learnerId = computed(() => {
     if (learner.value) {
       return learner.value.id
-    }
-    if (supabaseUser.value) {
-      return supabaseUser.value.id
     }
     return guestId.value
   })
@@ -128,6 +133,13 @@ export function useAuth(): AuthState & AuthActions {
   /**
    * Convert a DB learner row to LearnerRecord
    */
+  // Sync the authenticated user's roles into useUserRole. Demo flow writes
+  // its own impersonated role directly and overrides this until demo ends
+  // (see DemoLauncher / useDemoController).
+  function syncRealRoleCache(platformRole: string | null, educationalRole: string | null): void {
+    useUserRole().initialize(platformRole, educationalRole)
+  }
+
   function toLearnerRecord(row: any): LearnerRecord {
     return {
       id: row.id,
@@ -176,19 +188,26 @@ export function useAuth(): AuthState & AuthActions {
         .single()
 
       if (existingLearner) {
-        const { initialize: initRole } = useUserRole()
-        initRole(existingLearner.platform_role, existingLearner.educational_role)
+        syncRealRoleCache(existingLearner.platform_role, existingLearner.educational_role)
 
-        // Load verified_emails via RPC (column revoked from direct SELECT)
-        let emails = await loadMyVerifiedEmails()
-
-        // Ensure this email is in verified_emails (backfill for existing accounts)
-        if (email && !emails.includes(email)) {
-          emails = [...emails, email]
-          await supabase.value
-            .from('learners')
-            .update({ verified_emails: emails })
-            .eq('id', existingLearner.id)
+        // verified_emails enrichment is best-effort. If the RPC or
+        // backfill UPDATE throws (e.g. RLS hiccup, schema drift), we
+        // STILL return the learner so progress writes work. Letting
+        // these throw used to take out the whole function and leave
+        // learner.value null — which then fell back to the auth UID
+        // and silently missed every persistence row.
+        let emails: string[] = []
+        try {
+          emails = await loadMyVerifiedEmails()
+          if (email && !emails.includes(email)) {
+            emails = [...emails, email]
+            await supabase.value
+              .from('learners')
+              .update({ verified_emails: emails })
+              .eq('id', existingLearner.id)
+          }
+        } catch (err) {
+          console.warn('[useAuth] verified_emails enrichment failed (non-fatal):', err)
         }
 
         return toLearnerRecord({ ...existingLearner, verified_emails: emails })
@@ -219,8 +238,7 @@ export function useAuth(): AuthState & AuthActions {
           const ll = linkedLearner as any
           ll.user_id = userId
 
-          const { initialize: initRole } = useUserRole()
-          initRole(ll.platform_role, ll.educational_role)
+          syncRealRoleCache(ll.platform_role, ll.educational_role)
 
           // Load emails now that this user owns the learner
           const emails = await loadMyVerifiedEmails()
@@ -275,6 +293,39 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
+   * Mirror the current learner id into a cookie so the audio proxy can
+   * attribute audio_plays rows to the right user. <audio> elements can't
+   * carry custom headers, so cookies (sent automatically same-origin) are
+   * the cleanest channel for this. Cleared on sign-out.
+   *
+   * Not load-bearing — purely for analytics. Failures are silent.
+   */
+  function syncAudioUserCookie(learnerId: string | null): void {
+    if (typeof document === 'undefined') return
+    try {
+      if (learnerId) {
+        // 30-day cookie; renewed on every auth change.
+        const maxAge = 60 * 60 * 24 * 30
+        document.cookie = `ssi-user-id=${encodeURIComponent(learnerId)}; path=/; max-age=${maxAge}; SameSite=Lax`
+      } else {
+        document.cookie = 'ssi-user-id=; path=/; max-age=0; SameSite=Lax'
+      }
+    } catch { /* document.cookie can throw in some sandboxed contexts */ }
+  }
+
+  // Single source of truth for the audio-attribution cookie: whatever
+  // `learner.value.id` is at any moment, the cookie reflects it. Covers
+  // initial mount (immediate: true), sign-in/out, account switch, future
+  // auth flows we haven't built yet — they all just update `learner` and
+  // the cookie follows. No need to add explicit syncAudioUserCookie calls
+  // anywhere else.
+  watch(
+    () => learner.value?.id ?? null,
+    (id) => syncAudioUserCookie(id),
+    { immediate: true },
+  )
+
+  /**
    * Handle auth state change (sign in or sign out)
    */
   async function handleAuthChange(user: User | null): Promise<void> {
@@ -299,14 +350,18 @@ export function useAuth(): AuthState & AuthActions {
       // Reinitialize guest ID
       guestId.value = getOrCreateGuestId()
     }
+    // No explicit syncAudioUserCookie here — the watcher above mirrors
+    // learner.id reactively, so any path that mutates learner.value
+    // automatically updates the audio-attribution cookie.
   }
 
   /**
    * Initialize auth state.
-   * In god mode (ssi-god-mode-user set), skips Supabase Auth entirely and uses mock user IDs.
    *
-   * Guest mode is always available immediately — the Supabase session check
-   * runs with a timeout so the app is never blocked by network issues.
+   * Guest mode is always available immediately — the Supabase session
+   * check runs with a timeout so the app is never blocked by network
+   * issues. On a real session, learner is loaded and useUserRole is
+   * synced; otherwise the app runs as guest until sign-in.
    */
   async function initialize(supabaseClient: SupabaseClient): Promise<void> {
     supabase.value = supabaseClient
@@ -327,7 +382,7 @@ export function useAuth(): AuthState & AuthActions {
     })
 
     // Check for existing Supabase Auth session with a timeout.
-    // Real auth sessions ALWAYS take priority over god mode.
+    // Check for existing Supabase Auth session with a timeout.
     try {
       const SESSION_TIMEOUT_MS = 5000
       const sessionPromise = supabaseClient.auth.getSession()
@@ -338,6 +393,12 @@ export function useAuth(): AuthState & AuthActions {
 
       if (result && 'data' in result && result.data.session?.user) {
         supabaseUser.value = result.data.session.user
+        // ensureLearnerExists handles the syncRealRoleCache call internally
+        // (it has the raw DB row with platform_role / educational_role).
+        // toLearnerRecord strips those fields from the returned object, so
+        // we must NOT re-sync from learner.value here — it would call
+        // syncRealRoleCache(null, null) and wipe the correct values out
+        // of useUserRole cache.
         learner.value = await ensureLearnerExists()
 
         // Check if there's guest progress to migrate
@@ -346,8 +407,6 @@ export function useAuth(): AuthState & AuthActions {
           await migrateGuestProgress()
         }
 
-        // Real session found — clear any stale god mode state
-        localStorage.removeItem('ssi-god-mode-user')
         isLoading.value = false
         return
       } else if (result === null) {
@@ -355,32 +414,6 @@ export function useAuth(): AuthState & AuthActions {
       }
     } catch (err) {
       console.warn('[useAuth] Session check failed, continuing as guest:', err)
-    }
-
-    // No real Supabase session — check for god mode (demo/admin impersonation)
-    const godModeUser = sessionStorage.getItem('ssi-god-mode-user') || localStorage.getItem('ssi-god-mode-user')
-    if (godModeUser) {
-      try {
-        const parsed = JSON.parse(godModeUser)
-        guestId.value = null
-        learner.value = {
-          id: parsed.learner_id || parsed.user_id,
-          user_id: parsed.user_id,
-          display_name: parsed.display_name,
-          created_at: new Date(),
-          updated_at: new Date(),
-          preferences: defaultPreferences(),
-        } as any
-        // Sync roles to useUserRole so router guard works in god mode
-        const { initialize: initRole } = useUserRole()
-        initRole(parsed.platform_role ?? null, parsed.educational_role ?? null)
-        isLoading.value = false
-        console.log('[useAuth] God mode active, using user:', parsed.display_name)
-        return
-      } catch {
-        // Invalid stored user, continue with normal auth
-        localStorage.removeItem('ssi-god-mode-user')
-      }
     }
 
     isLoading.value = false

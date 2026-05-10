@@ -4,7 +4,10 @@ import { useUserRole } from '@/composables/useUserRole'
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
+const TeachContainer = () => import('@/containers/TeachContainer.vue')
 const AdminContainer = () => import('@/containers/AdminContainer.vue')
+const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
+const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
 // Schools views (lazy-loaded)
@@ -17,6 +20,10 @@ const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const StudentProgressView = () => import('@/views/schools/StudentProgressView.vue')
+// Teach (private tutor) views
+const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
+const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
+const WithTeacher = () => import('@/views/teach/WithTeacher.vue')
 
 const routes: RouteRecordRaw[] = [
   // Learning player (default)
@@ -129,6 +136,32 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // Teach (private tutor) routes
+  {
+    path: '/teach',
+    component: TeachContainer,
+    children: [
+      {
+        path: '',
+        name: 'teach-dashboard',
+        component: TeachDashboard,
+        meta: { title: 'Teach' },
+      },
+      {
+        path: 'setup',
+        name: 'teach-setup',
+        component: TeachSetup,
+        meta: { title: 'Set up your teacher profile' },
+      },
+    ],
+  },
+  // Student attribution gateway (no auth required)
+  {
+    path: '/with/:code',
+    name: 'with-teacher',
+    component: WithTeacher,
+    meta: { title: 'Learning with your teacher' },
+  },
   // Listening Pods
   {
     path: '/pods',
@@ -153,10 +186,20 @@ const routes: RouteRecordRaw[] = [
     component: AdminContainer,
     children: [
       {
+        // Default /admin landing — redirect to the Setup page (schools + groups
+        // + staff + entitlements), not the Invite-Codes subpage.
         path: '',
-        name: 'admin',
-        component: () => import('@/views/admin/AdminPanel.vue'),
-        meta: { title: 'SSi Admin', description: 'Admin panel for managing invite codes' },
+        redirect: '/admin/schools',
+      },
+      {
+        path: 'access',
+        name: 'admin-access',
+        component: () => import('@/views/admin/AdminAccess.vue'),
+        meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
+      },
+      {
+        path: 'invites',
+        redirect: '/admin/access',
       },
       {
         path: 'analytics',
@@ -190,9 +233,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'entitlements',
-        name: 'admin-entitlements',
-        component: () => import('@/views/admin/AdminEntitlements.vue'),
-        meta: { title: 'Entitlements', description: 'Manage entitlement access codes' },
+        redirect: '/admin/access',
       },
       {
         path: 'try-links',
@@ -207,6 +248,96 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Schools Setup' },
       },
     ],
+  },
+  // Admin read-views — view a specific school's dashboard as ssi_admin
+  // without impersonating. useSchoolContext is populated from the :id
+  // route param; queries still run as the real admin.
+  {
+    path: '/admin/schools/:id',
+    component: AdminSchoolsContainer,
+    children: [
+      {
+        path: '',
+        name: 'admin-school-dashboard',
+        component: DashboardView,
+        meta: { title: 'School Dashboard', description: 'Admin view of a school' },
+      },
+      {
+        path: 'classes',
+        name: 'admin-school-classes',
+        component: TeacherDashboard,
+        meta: { title: 'School Classes' },
+      },
+      {
+        path: 'classes/:classId',
+        name: 'admin-school-class-detail',
+        component: ClassDetail,
+        meta: { title: 'Class Detail' },
+      },
+      {
+        path: 'students',
+        name: 'admin-school-students',
+        component: StudentsView,
+        meta: { title: 'School Students' },
+      },
+      {
+        path: 'teachers',
+        name: 'admin-school-teachers',
+        component: TeachersView,
+        meta: { title: 'School Teachers' },
+      },
+      {
+        path: 'analytics',
+        name: 'admin-school-analytics',
+        component: AnalyticsView,
+        meta: { title: 'School Analytics' },
+      },
+    ],
+  },
+  // Admin read-view for groups (cross-schools, govt_admin-scope queries)
+  {
+    path: '/admin/groups/:id',
+    component: AdminGroupContainer,
+    children: [
+      {
+        path: '',
+        name: 'admin-group-dashboard',
+        component: DashboardView,
+        meta: { title: 'Group Dashboard' },
+      },
+      {
+        path: 'schools',
+        name: 'admin-group-schools',
+        component: SchoolsView,
+        meta: { title: 'Schools in Group' },
+      },
+      {
+        path: 'analytics',
+        name: 'admin-group-analytics',
+        component: AnalyticsView,
+        meta: { title: 'Group Analytics' },
+      },
+    ],
+  },
+  // Premium upgrade landing
+  {
+    path: '/premium',
+    name: 'premium',
+    component: () => import('@/views/PremiumView.vue'),
+    meta: { title: 'SSi Premium' },
+  },
+  // Standalone admin read-views
+  {
+    path: '/admin/classes/:id',
+    name: 'admin-class-detail',
+    component: () => import('@/views/admin/AdminClassDetail.vue'),
+    meta: { title: 'Class Detail (Admin)' },
+  },
+  {
+    path: '/admin/users/:learnerId/progress',
+    name: 'admin-user-progress',
+    component: () => import('@/views/admin/AdminUserProgress.vue'),
+    meta: { title: 'User Progress (Admin)' },
   },
   // Shareable redeem link
   {
@@ -254,7 +385,7 @@ const router = createRouter({
   },
 })
 
-// Guard admin routes — useUserRole is the single authority
+// Guard admin routes — useUserRole is the single authority.
 router.beforeEach((to, _from, next) => {
   if (!to.path.startsWith('/admin')) return next()
   const { canAccessAdmin, restoreFromCache } = useUserRole()

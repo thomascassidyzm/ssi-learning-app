@@ -1,5 +1,13 @@
 /**
- * useAdminUsers - Paginated user list with enrollments
+ * useAdminUsers - Loads ALL users once on mount, filters client-side.
+ *
+ * At ~1.3k users this is far snappier than round-tripping to the server
+ * on every keystroke; total payload is ~300KB once. Switch back to
+ * server-side search once user count crosses ~5k.
+ *
+ * Pulls users (with emails) from /api/admin/users (service-role on the
+ * server, only safe way to read auth.users.email + learner_emails).
+ * Enrollments are still queried directly via the user's Supabase client.
  */
 
 import { ref, computed } from 'vue'
@@ -9,6 +17,8 @@ export interface AdminUser {
   id: string
   user_id: string
   display_name: string
+  primary_email: string | null
+  emails: string[]
   created_at: string
   educational_role: string | null
   platform_role: string | null
@@ -22,11 +32,26 @@ export interface UserEnrollment {
 }
 
 const PAGE_SIZE = 50
+const FETCH_LIMIT = 10000 // grab everything in one shot
 
-const users = ref<AdminUser[]>([])
+// PostgREST URL length cap is ~16KB. A UUID + comma is ~37 chars, ~39 once
+// URL-encoded, so a single .in() with all 1348 learner IDs blows past it.
+// 200 IDs per chunk ≈ 7.8KB, comfortably under the cap with headroom for
+// the rest of the URL.
+const ENROLLMENT_CHUNK_SIZE = 200
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  if (size <= 0) return [arr]
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size))
+  }
+  return out
+}
+
+const allUsers = ref<AdminUser[]>([])
 const enrollments = ref<Map<string, UserEnrollment[]>>(new Map())
 
-const totalCount = ref(0)
 const currentPage = ref(1)
 const searchQuery = ref('')
 const courseFilter = ref<string | null>(null)
@@ -34,62 +59,69 @@ const courseFilter = ref<string | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-// Hero stats
-const totalUsers = ref(0)
-const newThisWeek = ref(0)
-
 export function useAdminUsers(client: SupabaseClient) {
 
-  const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_SIZE)))
+  async function getToken(): Promise<string | null> {
+    try {
+      const { data } = await client.auth.getSession()
+      return data?.session?.access_token ?? null
+    } catch {
+      return null
+    }
+  }
 
-  async function fetchUsers(): Promise<void> {
+  async function fetchAll(): Promise<void> {
     isLoading.value = true
     error.value = null
 
     try {
-      const offset = (currentPage.value - 1) * PAGE_SIZE
+      const token = await getToken()
+      const params = new URLSearchParams({
+        page: '1',
+        limit: String(FETCH_LIMIT),
+      })
 
-      // Build learners query
-      let query = client
-        .from('learners')
-        .select('id, user_id, display_name, created_at, educational_role, platform_role', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + PAGE_SIZE - 1)
-
-      if (searchQuery.value) {
-        query = query.ilike('display_name', `%${searchQuery.value}%`)
+      const res = await fetch(`/api/admin/users?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Request failed: ${res.status}`)
       }
+      const data = await res.json()
 
-      const { data: learnerData, count, error: learnersErr } = await query
+      allUsers.value = data.users || []
 
-      if (learnersErr) throw learnersErr
-
-      users.value = learnerData || []
-      totalCount.value = count || 0
-
-      if (users.value.length === 0) {
+      if (allUsers.value.length === 0) {
         enrollments.value = new Map()
         return
       }
 
-      const pageIds = users.value.map(u => u.id)
+      // Batch fetch enrollments. We chunk the IN clause so the request URL
+      // stays under PostgREST's ~16KB limit — at ~1.3k learners a single
+      // .in() produces a ~50KB URL and gets rejected with 400 Bad Request.
+      const ids = allUsers.value.map(u => u.id)
+      const idChunks = chunk(ids, ENROLLMENT_CHUNK_SIZE)
 
-      // Batch fetch enrollments
-      const { data: enrollData, error: enrollErr } = await client
-        .from('course_enrollments')
-        .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
-        .in('learner_id', pageIds)
+      const enrollResults = await Promise.all(
+        idChunks.map(chunkIds =>
+          client
+            .from('course_enrollments')
+            .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
+            .in('learner_id', chunkIds),
+        ),
+      )
 
-      if (enrollErr) throw enrollErr
-
-      // Group enrollments by learner_id
       const enrollMap = new Map<string, UserEnrollment[]>()
-      enrollData?.forEach(e => {
-        if (!enrollMap.has(e.learner_id)) {
-          enrollMap.set(e.learner_id, [])
-        }
-        enrollMap.get(e.learner_id)!.push(e)
-      })
+      for (const { data: enrollData, error: enrollErr } of enrollResults) {
+        if (enrollErr) throw enrollErr
+        enrollData?.forEach(e => {
+          if (!enrollMap.has(e.learner_id)) {
+            enrollMap.set(e.learner_id, [])
+          }
+          enrollMap.get(e.learner_id)!.push(e)
+        })
+      }
       enrollments.value = enrollMap
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch users'
@@ -99,50 +131,18 @@ export function useAdminUsers(client: SupabaseClient) {
     }
   }
 
-  async function fetchHeroStats(): Promise<void> {
-    try {
-      // Total users
-      const { count } = await client
-        .from('learners')
-        .select('id', { count: 'exact', head: true })
-      totalUsers.value = count || 0
-
-      // New this week
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      const { count: newCount } = await client
-        .from('learners')
-        .select('id', { count: 'exact', head: true })
-        .gte('created_at', weekAgo.toISOString())
-      newThisWeek.value = newCount || 0
-    } catch (err) {
-      console.error('[AdminUsers] hero stats error:', err)
-    }
-  }
-
-  async function fetchAll(): Promise<void> {
-    await Promise.all([fetchUsers(), fetchHeroStats()])
-  }
-
-  function setPage(page: number) {
-    currentPage.value = page
-    fetchUsers()
-  }
-
-  function setSearch(query: string) {
-    searchQuery.value = query
-    currentPage.value = 1
-    fetchUsers()
-  }
-
-  function setCourseFilter(course: string | null) {
-    courseFilter.value = course
-    currentPage.value = 1
-  }
-
-  // Client-side filtering for course (applied to already-fetched page)
+  // Apply search + course filter, then return the current page slice.
   const filteredUsers = computed(() => {
-    let result = users.value
+    let result = allUsers.value
+
+    const q = searchQuery.value.trim().toLowerCase()
+    if (q) {
+      result = result.filter(u => {
+        if (u.display_name?.toLowerCase().includes(q)) return true
+        if (u.emails.some(e => e.toLowerCase().includes(q))) return true
+        return false
+      })
+    }
 
     if (courseFilter.value) {
       const courseId = courseFilter.value
@@ -153,6 +153,47 @@ export function useAdminUsers(client: SupabaseClient) {
     }
 
     return result
+  })
+
+  const totalCount = computed(() => filteredUsers.value.length)
+  const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / PAGE_SIZE)))
+
+  // Visible page slice
+  const users = computed(() => {
+    const offset = (currentPage.value - 1) * PAGE_SIZE
+    return filteredUsers.value.slice(offset, offset + PAGE_SIZE)
+  })
+
+  // Hero stats — derived from full set, not the filtered/paged view
+  const totalUsers = computed(() => allUsers.value.length)
+  const newThisWeek = computed(() => {
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return allUsers.value.filter(u => new Date(u.created_at).getTime() >= weekAgo).length
+  })
+
+  function setPage(page: number) {
+    currentPage.value = page
+  }
+
+  function setSearch(query: string) {
+    searchQuery.value = query
+    currentPage.value = 1
+  }
+
+  function setCourseFilter(course: string | null) {
+    courseFilter.value = course
+    currentPage.value = 1
+  }
+
+  // Distinct course IDs across the entire enrollment map. The course filter
+  // dropdown needs every course any user is enrolled in, not just the
+  // courses visible on the current page slice.
+  const allEnrolledCourseIds = computed(() => {
+    const set = new Set<string>()
+    for (const list of enrollments.value.values()) {
+      for (const e of list) set.add(e.course_id)
+    }
+    return Array.from(set)
   })
 
   function getUserEnrollments(learnerId: string): UserEnrollment[] {
@@ -179,7 +220,7 @@ export function useAdminUsers(client: SupabaseClient) {
 
   return {
     // State
-    users: filteredUsers,
+    users,
     totalCount,
     currentPage,
     totalPages,
@@ -192,9 +233,11 @@ export function useAdminUsers(client: SupabaseClient) {
     totalUsers,
     newThisWeek,
 
+    // Aggregates across the full dataset (not just the visible page)
+    allEnrolledCourseIds,
+
     // Actions
     fetchAll,
-    fetchUsers,
     setPage,
     setSearch,
     setCourseFilter,

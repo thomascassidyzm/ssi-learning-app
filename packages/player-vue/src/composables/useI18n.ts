@@ -21,6 +21,18 @@ import jpn from '../locales/jpn.json'
 import kor from '../locales/kor.json'
 import por from '../locales/por.json'
 import zho from '../locales/zho.json'
+// Indian-subcontinent + Sri Lanka
+import sin from '../locales/sin.json'
+import tam from '../locales/tam.json'
+import hin from '../locales/hin.json'
+import ben from '../locales/ben.json'
+import guj from '../locales/guj.json'
+import pan from '../locales/pan.json'
+import urd from '../locales/urd.json'
+// Other interface languages
+import aze from '../locales/aze.json'
+import lit from '../locales/lit.json'
+import yor from '../locales/yor.json'
 
 // Map ISO 639-3 codes to locale files
 // Multiple codes can map to same locale (e.g., cym_n and cym_s both use cym)
@@ -40,6 +52,18 @@ const LOCALE_MAP: Record<string, Record<string, any>> = {
   por: por,
   zho: zho,
   cmn: zho,
+  // Indian-subcontinent + Sri Lanka
+  sin: sin,
+  tam: tam,
+  hin: hin,
+  ben: ben,
+  guj: guj,
+  pan: pan,
+  urd: urd,
+  // Other interface languages
+  aze: aze,
+  lit: lit,
+  yor: yor,
 }
 
 // localStorage key for persisting locale preference

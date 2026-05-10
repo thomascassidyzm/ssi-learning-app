@@ -38,21 +38,14 @@ onMounted(() => {
             <router-link
               :to="{ name: 'admin-schools' }"
               class="nav-link"
-              :class="{ active: route.path.startsWith('/admin/schools') }"
+              :class="{ active: route.path === '/admin' || route.path.startsWith('/admin/schools') }"
             >
-              <span class="nav-label">Schools</span>
+              <span class="nav-label">Setup</span>
             </router-link>
             <router-link
-              to="/admin"
+              to="/admin/access"
               class="nav-link"
-              :class="{ active: route.path === '/admin' }"
-            >
-              <span class="nav-label">Invites</span>
-            </router-link>
-            <router-link
-              to="/admin/entitlements"
-              class="nav-link"
-              :class="{ active: route.path === '/admin/entitlements' }"
+              :class="{ active: route.path === '/admin/access' }"
             >
               <span class="nav-label">Access</span>
             </router-link>
@@ -99,7 +92,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <main class="admin-main">
+    <main class="admin-main schools-surface">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
@@ -122,11 +115,11 @@ onMounted(() => {
         </svg>
         <span>Schools</span>
       </router-link>
-      <router-link to="/admin" class="bottom-nav-item" :class="{ active: route.path === '/admin' }">
+      <router-link to="/admin/access" class="bottom-nav-item" :class="{ active: route.path === '/admin/access' }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
         </svg>
-        <span>Invites</span>
+        <span>Access</span>
       </router-link>
       <router-link to="/admin/users" class="bottom-nav-item" :class="{ active: route.path.startsWith('/admin/users') }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

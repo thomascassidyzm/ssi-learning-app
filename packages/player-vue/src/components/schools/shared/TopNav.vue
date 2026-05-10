@@ -2,7 +2,7 @@
 import { ref, computed, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useUserRole } from '@/composables/useUserRole'
 import { isDemoMode } from '@/composables/demo/demoMode'
 
@@ -12,16 +12,24 @@ interface NavTab {
   label: string
 }
 
+const props = withDefaults(defineProps<{
+  mode?: 'schools' | 'teach'
+}>(), {
+  mode: 'schools',
+})
+
 const emit = defineEmits<{
   signIn: []
   signUp: []
 }>()
 
+const logoHref = computed(() => (props.mode === 'teach' ? '/teach' : '/schools'))
+
 const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth')
 const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
-const { selectedUser, isGovtAdmin } = useGodMode()
+const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const { canAccessAdmin, hasSchoolRole } = useUserRole()
 
 declare const __BUILD_NUMBER__: string
@@ -42,6 +50,7 @@ const baseTabs: NavTab[] = [
 
 const tabs = computed(() => {
   const result: NavTab[] = []
+  if (props.mode === 'teach') return result
   if (isGovtAdmin.value) {
     result.push({ name: 'all-schools', path: '/schools/all', label: 'Schools' })
   }
@@ -114,9 +123,9 @@ const closeMobileMenu = () => {
 </script>
 
 <template>
-  <nav class="top-nav" :aria-label="'Schools navigation'">
+  <nav class="top-nav" :aria-label="props.mode === 'teach' ? 'Teach navigation' : 'Schools navigation'">
     <!-- Logo -->
-    <router-link to="/schools" class="logo" aria-label="SaySomethingin — Schools">
+    <router-link :to="logoHref" class="logo" :aria-label="props.mode === 'teach' ? 'SaySomethingin — Teach' : 'SaySomethingin — Schools'">
       <span class="logo-text">
         <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
       </span>
@@ -181,8 +190,8 @@ const closeMobileMenu = () => {
 
       <!-- Authenticated User Section -->
       <template v-else-if="isLoaded && isSignedIn">
-        <!-- School Badge -->
-        <div class="school-badge" :title="schoolName">
+        <!-- School Badge (schools context only) -->
+        <div v-if="props.mode !== 'teach'" class="school-badge" :title="schoolName">
           <div class="school-badge-avatar">
             <span>{{ schoolInitials }}</span>
           </div>

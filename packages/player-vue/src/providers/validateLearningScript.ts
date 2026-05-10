@@ -130,6 +130,17 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
     if (!isNonEmpty(item.target2Id)) {
       results.push(makeError(item, 'target2Id', 'listening cycle missing target2Id (second voice)', 'warning'))
     }
+  } else if (item.type === 'listen_intro' || item.type === 'listen_outro') {
+    // Bookends play one known-language clip — no target audio expected.
+    if (!isNonEmpty(item.knownAudioId)) {
+      results.push(makeError(item, 'knownAudioId', `${item.type} cycle missing knownAudioId`, 'error'))
+    }
+  } else if (item.type === 'pod') {
+    // Pod plays carry exactly one of {knownAudioId, target1Id} depending on
+    // whether the play is a translation (known) or a target-language play.
+    if (!isNonEmpty(item.knownAudioId) && !isNonEmpty(item.target1Id)) {
+      results.push(makeError(item, 'audio', 'pod cycle missing both knownAudioId and target1Id', 'error'))
+    }
   } else {
     // debut, build, spaced_rep, use — all require knownAudioId + target IDs
     if (!isNonEmpty(item.knownAudioId)) {
@@ -151,7 +162,12 @@ export function validateScriptItem(item: ScriptItem): CycleValidationError[] {
 // ---------------------------------------------------------------------------
 
 /** Expected type ordering within a round. */
-const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'component_intro', 'component_practice', 'debut', 'build', 'spaced_rep', 'use', 'listening']
+// Pod plays sit inside their own listen_intro/listen_outro bookends, which
+// arrive after the LISTEN cluster's own bookends — so within a single round
+// listen_intro/listen_outro can appear twice. The type-ordering check below
+// fires a warning when this happens; that's noise, not a real error, and
+// we accept it for the simpler "two bookended sections" implementation.
+const TYPE_ORDER: ScriptItem['type'][] = ['intro', 'component_intro', 'component_practice', 'debut', 'build', 'spaced_rep', 'use', 'listen_intro', 'listening', 'pod', 'listen_outro']
 
 function typeOrderIndex(type: ScriptItem['type']): number {
   const idx = TYPE_ORDER.indexOf(type)

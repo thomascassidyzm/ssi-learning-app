@@ -79,6 +79,38 @@ const playerHasRomanized = computed(() => learningPlayerRef.value?.hasRomanizedT
 const playerIsNativeScript = computed(() => learningPlayerRef.value?.isNativeScript ?? false)
 const isPlayerReady = computed(() => !(learningPlayerRef.value?.isAwakening ?? true))
 
+// Round-cursor pair for the resting-state "skip to round N" choice.
+// Read through the player ref so we don't have to duplicate the resume
+// pipeline up here. `jumpChoiceDismissed` is session-scoped — once the
+// learner taps "stay" we don't badger them again until app reload.
+const currentRound = computed(() => learningPlayerRef.value?.currentAbsoluteRound ?? null)
+const highestRound = computed(() => learningPlayerRef.value?.highestAbsoluteRound ?? null)
+const cursorBeltColor = computed(() => learningPlayerRef.value?.cursorBeltColor ?? null)
+const highestBeltColor = computed(() => learningPlayerRef.value?.highestBeltColor ?? null)
+const jumpChoiceDismissed = ref(false)
+const restingCurrentRound = computed(() => jumpChoiceDismissed.value ? null : currentRound.value)
+const restingHighestRound = computed(() => jumpChoiceDismissed.value ? null : highestRound.value)
+
+// Reset the dismissal whenever the cursor changes — a belt-back or
+// belt-pill jump after dismissing means a fresh "where do you want to
+// be?" question, not a continuation of the previous one.
+watch(currentRound, (next, prev) => {
+  if (next !== prev && jumpChoiceDismissed.value) {
+    jumpChoiceDismissed.value = false
+  }
+})
+
+const handleJumpToFurthest = async () => {
+  if (learningPlayerRef.value?.jumpToFurthest) {
+    await learningPlayerRef.value.jumpToFurthest()
+    // The cursor write inside jumpToFurthest catches it up to the
+    // ceiling, so the choice naturally falls away on next render.
+    // Don't auto-play — leave the learner in resting state so they
+    // can press play themselves when they're actually ready.
+    jumpChoiceDismissed.value = true
+  }
+}
+
 // Class context (when launched from Schools)
 const classContext = ref(null)
 
@@ -427,6 +459,16 @@ onMounted(() => {
     if (['library', 'browse', 'belt-browser'].includes(screenParam)) showLibrary.value = true
   }
 
+  // 'Or browse our free courses' on /premium pushes here with ?openCourses=1
+  // — open the Choose Your Course modal directly. The modal lives in this
+  // container (CourseSelector at the bottom of the template), not in
+  // HomeScreen (which is dead code).
+  if (urlParams.get('openCourses') === '1') {
+    showCourseSelector.value = true
+    // Strip the param so a refresh doesn't keep re-opening the modal.
+    router.replace({ path: '/', query: {} })
+  }
+
   // Listen for mode tip "open settings" from LearningPlayer
   window.addEventListener('ssi-open-settings', () => {
     if (!showSettings.value) toggleSettings()
@@ -478,8 +520,13 @@ onMounted(() => {
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
       :is-player-ready="isPlayerReady"
+      :current-round="restingCurrentRound"
+      :highest-round="restingHighestRound"
+      :cursor-belt-color="cursorBeltColor"
+      :highest-belt-color="highestBeltColor"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
+      @jump-to-furthest="handleJumpToFurthest"
     />
 
     <!-- Library overlay (slide-up modal, same pattern as Settings) -->
@@ -522,6 +569,7 @@ onMounted(() => {
       :showPronunciationBtn="showPronunciationBtn"
       :showDrivingBtn="showDrivingBtn"
       :isTurboMode="learningPlayerRef?.turboActive ?? false"
+      :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"

@@ -6,7 +6,7 @@
 
 import { ref, computed } from 'vue'
 import { getSchoolsClient } from './client'
-import { useGodMode } from './useGodMode'
+import { useSchoolContext } from './useSchoolContext'
 import { isDemoMode } from '../demo/demoMode'
 
 interface GroupSummary {
@@ -44,7 +44,7 @@ const error = ref<string | null>(null)
 
 export function useSchoolData() {
   const client = getSchoolsClient()
-  const { selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher } = useGodMode()
+  const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher } = useSchoolContext()
 
   // Fetch school(s) based on user role
   async function fetchSchools(): Promise<void> {

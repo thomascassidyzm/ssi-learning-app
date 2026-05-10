@@ -4,7 +4,6 @@ export interface DemoScene {
   narration: string       // Explanatory text shown in overlay
   route?: string          // Vue Router path to navigate to
   routeQuery?: Record<string, string>  // Query params
-  godModeUserId?: string  // test_* user ID to impersonate via God Mode
   duration: number        // ms to stay on this scene (0 = manual advance only)
   autoAdvance?: boolean   // auto-advance when duration expires (default true)
   highlight?: string      // CSS selector to highlight/spotlight

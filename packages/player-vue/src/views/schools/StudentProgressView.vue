@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import Card from '@/components/schools/shared/Card.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
-import { useGodMode } from '@/composables/schools/useGodMode'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { getLanguageName } from '@/composables/useI18n'
 
@@ -16,7 +16,7 @@ interface CourseProgress {
   legos_retired: number
 }
 
-const { selectedUser } = useGodMode()
+const { currentUser: selectedUser } = useSchoolContext()
 const client = getSchoolsClient()
 
 const courses = ref<CourseProgress[]>([])
