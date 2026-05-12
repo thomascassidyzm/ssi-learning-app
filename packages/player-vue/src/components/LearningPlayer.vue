@@ -798,14 +798,25 @@ simplePlayer.onRoundCompleted((round) => {
 // lap and calls showPausedSummary then. Surfacing the summary now
 // would call simplePlayer.stop() + release audioEngaged mid-lap and
 // iOS would drop the session.
-simplePlayer.onSessionComplete(() => {
-  sessionEnded.value = true
+simplePlayer.onSessionComplete(async () => {
   logEvent('session_complete', {
     deferredForLap: playingPodLapAudio.value || playingCommentaryAudio.value,
   })
-  if (!playingPodLapAudio.value && !playingCommentaryAudio.value) {
-    showPausedSummary()
+  // Lap/commentary in flight? Defer — handleRoundBoundary will retry
+  // expansion after the lap finishes (see post-lap branch below).
+  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    sessionEnded.value = true
+    return
   }
+  // Infinite play: the course should never end. Try expanding the
+  // script and resuming before falling through to a paused-quiet state.
+  const added = await expandScript()
+  if (added > 0) {
+    simplePlayer.resume()
+    return
+  }
+  sessionEnded.value = true
+  showPausedSummary()
 })
 
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
@@ -2130,11 +2141,19 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         }
         podLapSkippedByUser.value = false
         // Resume into the next round — unless one of these has happened:
-        //   • session_complete fired while the lap was playing (last round)
-        //     → surface the deferred summary now that the lap is done
+        //   • session_complete fired while the lap was playing → try
+        //     to expand the script and resume; only fall through to
+        //     the quiet pause if expansion genuinely produces nothing
+        //     (infinite play means the course should never end)
         //   • the learner pressed stop during the lap → stay paused
         if (sessionEnded.value) {
-          showPausedSummary()
+          const added = await expandScript()
+          if (added > 0) {
+            sessionEnded.value = false
+            simplePlayer.resume()
+          } else {
+            showPausedSummary()
+          }
         } else if (userStoppedDuringLap.value) {
           // Bookmark the lap so the next play tap re-fires it instead of
           // skipping silently into round N+1. Re-fire uses omitIntro=true
@@ -3969,7 +3988,15 @@ const handleResume = async () => {
       }
       podLapSkippedByUser.value = false
       if (sessionEnded.value) {
-        showPausedSummary()
+        // Infinite-play guard: try expanding the script before showing
+        // the quiet pause. Mirrors the post-lap branch in handleRoundBoundary.
+        const added = await expandScript()
+        if (added > 0) {
+          sessionEnded.value = false
+          simplePlayer.resume()
+        } else {
+          showPausedSummary()
+        }
       } else if (userStoppedDuringLap.value) {
         // Stopped again during the replayed lap — bookmark and stay paused.
         userStoppedDuringLap.value = false
@@ -5378,15 +5405,18 @@ const toggleTurbo = () => {
 // PAUSE/RESUME HANDLERS
 // ============================================
 
-// Quiet session-end: stop playback and save bookkeeping, but do NOT pop the
-// SessionComplete overlay. Infinite play means the course no longer ends in
-// normal play; if simplePlayer's session_complete still fires (e.g. a course
-// with zero usable LEGOs, or expansion genuinely produces nothing), we'd
-// rather silently pause than confront the learner with a "course finished"
-// modal they then have to dismiss with Continue.
+// Quiet session-end: stop playback and save bookkeeping, but do NOT pop
+// the SessionComplete overlay AND do NOT reset position. Infinite play
+// means the course no longer ends in normal play; if simplePlayer's
+// session_complete still fires (e.g. a course with zero usable LEGOs,
+// or expansion genuinely produces nothing), we want to silently pause
+// at the current position so a play-tap can pick straight back up —
+// previously the embedded simplePlayer.stop() wiped roundIndex back to
+// 0, which surfaced as "course finished but resumed at LEGO #1".
 const showPausedSummary = () => {
   stopCycle()
-  simplePlayer.stop()
+  simplePlayer.pause()
+  isPlaying.value = false
   audioEngaged.value = false
 
   // End belt progress session (saves session history for time estimates)
@@ -5445,10 +5475,10 @@ const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 // produces revival rounds past the last new LEGO, so play is unbounded.
 // ============================================
 const EXPANSION_BATCH = 50  // generate this many more rounds on each expand
-const expandScript = async () => {
-  if (isExpandingScript.value) return
-  if (!supabase?.value) return
-  if (!courseCode.value) return
+const expandScript = async (): Promise<number> => {
+  if (isExpandingScript.value) return 0
+  if (!supabase?.value) return 0
+  if (!courseCode.value) return 0
 
   isExpandingScript.value = true
   try {
@@ -5457,13 +5487,22 @@ const expandScript = async () => {
     const result = await generateScript(1, neededEnd)
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
     if (expandedRounds.length > currentLength) {
+      const newRounds = expandedRounds.slice(currentLength)
       cachedRounds.value = expandedRounds as any
-      console.log(`[LearningPlayer] Expanded script: ${currentLength} → ${expandedRounds.length} rounds`)
+      // Feed the new rounds to simplePlayer too — its internal queue is
+      // separate from cachedRounds and `addRounds` would dedupe these
+      // away (infinite-play rounds reuse existing legoIds). `appendRounds`
+      // just pushes them at the end without dedupe, which is what we want.
+      simplePlayer.appendRounds(newRounds as any)
+      console.log(`[LearningPlayer] Expanded script: ${currentLength} → ${expandedRounds.length} rounds (+${newRounds.length} appended)`)
+      return newRounds.length
     } else {
       console.warn('[LearningPlayer] Expansion produced no new rounds — generator may be out of LEGOs to revive')
+      return 0
     }
   } catch (err) {
     console.error('[LearningPlayer] Expansion failed:', err)
+    return 0
   } finally {
     isExpandingScript.value = false
   }

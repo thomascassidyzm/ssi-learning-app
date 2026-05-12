@@ -43,6 +43,7 @@ export interface UseSimplePlayerReturn {
   findRoundIndexForSeed: (seedNumber: number) => number
   findRoundIndexForLegoId: (legoId: string) => number
   addRounds: (rounds: Round[]) => void
+  appendRounds: (rounds: Round[]) => void
   hasRound: (roundNumber: number) => boolean
   onPhaseChanged: (callback: (phase: Phase) => void) => void
   onCycleCompleted: (callback: (cycle: Cycle) => void) => void
@@ -244,6 +245,17 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Append rounds verbatim to the end. No dedupe, no sort — for the
+   * infinite-play expansion path where new rounds reuse existing
+   * legoIds (they're reviews of already-introduced LEGOs).
+   */
+  const appendRounds = (newRounds: Round[]) => {
+    if (!player || newRounds.length === 0) return
+    player.appendRounds(newRounds)
+    roundsRef.value = [...roundsRef.value, ...newRounds]
+  }
+
+  /**
    * Check if a round exists by roundNumber
    */
   const hasRound = (roundNumber: number): boolean => {
@@ -293,6 +305,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     findRoundIndexForSeed,
     findRoundIndexForLegoId,
     addRounds,
+    appendRounds,
     hasRound,
     onPhaseChanged,
     onCycleCompleted,

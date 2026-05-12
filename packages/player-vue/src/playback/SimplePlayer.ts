@@ -251,6 +251,19 @@ export class SimplePlayer {
       }
       existingLegoIds.add(round.legoId)
     }
+  }
+
+  /**
+   * Append rounds verbatim to the end of the queue. No dedupe, no sort —
+   * caller is responsible for ordering. Use for infinite-play expansion
+   * where new rounds reuse existing legoIds (they're reviews of already-
+   * introduced LEGOs) and must NOT be deduped against the main-loop
+   * rounds. `addRounds` is the right call for belt-skip / progressive
+   * load of NEW main-loop seeds.
+   */
+  appendRounds(newRounds: Round[]): void {
+    if (newRounds.length === 0) return
+    this.rounds.push(...newRounds)
 
     console.debug(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
   }
