@@ -251,6 +251,44 @@ export class SimplePlayer {
       }
       existingLegoIds.add(round.legoId)
     }
+  }
+
+  /**
+   * Insert rounds keyed by roundNumber, with sorted insertion and
+   * dedupe-by-roundNumber. Use for the infinite-play expansion path
+   * (where new rounds reuse existing legoIds because they're reviews
+   * of already-introduced LEGOs) and for any other path that re-runs
+   * generateScript and produces overlapping main-loop rounds.
+   *
+   * `addRounds` dedupes by legoId — wrong for infinite-play rounds
+   * (multiple revival rounds share the same primaryLegoKey of the
+   * first random-USE LEGO they happened to pick). roundNumber is the
+   * stable, unique key across the whole script.
+   */
+  appendRounds(newRounds: Round[]): void {
+    if (newRounds.length === 0) return
+    const existingRoundNumbers = new Set(this.rounds.map(r => r.roundNumber))
+    let indexShift = 0
+    for (const round of newRounds) {
+      if (existingRoundNumbers.has(round.roundNumber)) continue
+      const insertIndex = this.rounds.findIndex(r => r.roundNumber > round.roundNumber)
+      if (insertIndex === -1) {
+        this.rounds.push(round)
+      } else {
+        this.rounds.splice(insertIndex, 0, round)
+        // Accumulate the shift; emit once at the end via updateState so
+        // the state_changed event fires (otherwise direct ++ bypasses
+        // Vue reactivity and the expansion-watcher chain never re-fires
+        // when the resumed learner is far from the loaded edge).
+        if (insertIndex <= this.state.roundIndex + indexShift) {
+          indexShift++
+        }
+      }
+      existingRoundNumbers.add(round.roundNumber)
+    }
+    if (indexShift > 0) {
+      this.updateState({ roundIndex: this.state.roundIndex + indexShift })
+    }
 
     console.debug(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
   }
@@ -411,12 +449,25 @@ export class SimplePlayer {
     // Safety check: ensure we have the required data before playing
     const currentCycle = this.currentCycle
 
+    // Listening / pod / bookend cycles only carry ONE audio track each
+    // (target at 1×/2× OR known for translation). The 4-phase prompt /
+    // pause / voice1 / voice2 walk hits phases that legitimately have
+    // no audio — those gaps are by design, not missing data. Suppress
+    // the warning for these cycle types so the console stays useful
+    // for real audio gaps in speaking cycles.
+    const isSingleAudioCycle = currentCycle?.type === 'listening'
+      || currentCycle?.type === 'pod'
+      || currentCycle?.type === 'listen_intro'
+      || currentCycle?.type === 'listen_outro'
+
     switch (phase) {
       case 'prompt':
         if (currentCycle?.known?.audioUrl) {
           this.playAudio(currentCycle.known.audioUrl)
         } else {
-          console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          if (!isSingleAudioCycle) {
+            console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          }
           this.onAudioEnded()
         }
         break
@@ -427,7 +478,9 @@ export class SimplePlayer {
         if (currentCycle?.target?.voice1Url) {
           this.playAudio(currentCycle.target.voice1Url, true)
         } else {
-          console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          if (!isSingleAudioCycle) {
+            console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          }
           this.onAudioEnded()
         }
         break
@@ -435,7 +488,9 @@ export class SimplePlayer {
         if (currentCycle?.target?.voice2Url) {
           this.playAudio(currentCycle.target.voice2Url, true)
         } else {
-          console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          if (!isSingleAudioCycle) {
+            console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          }
           this.onAudioEnded()
         }
         break
@@ -456,7 +511,12 @@ export class SimplePlayer {
       const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
       rate *= multiplier
     }
-    if (rate > 1.05) {
+    // Speed >1.05× is unexpected on speaking cycles (Turbo only goes
+    // to 1.25×) but expected on L1 ps2x and L2 pod-stage 2× plays.
+    // Only warn for non-listening cycles to keep the console useful.
+    const isExpectedFastCycle = this.currentCycle?.type === 'listening'
+      || this.currentCycle?.type === 'pod'
+    if (rate > 1.05 && !isExpectedFastCycle) {
       console.warn(`[SimplePlayer] ⚠️ SPEED ${rate}x on "${this.currentCycle?.target?.text}" (cycle.playbackSpeed=${this.currentCycle?.playbackSpeed})`)
     }
     this.audio.playbackRate = rate

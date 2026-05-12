@@ -101,12 +101,17 @@ export interface AlgorithmConfigs {
 }
 
 // Default fallbacks (used if DB fetch fails)
+//
+// Normal-mode pause formula: clamp(min_pause_ms, max_pause_ms, pause_base_ms + (target1 + target2) × pause_multiplier).
+// The previous fallback (base 1500, mul 1.0, ceiling 8000) was the legacy too-tight curve;
+// values below match the formula deployed for SSi's generate-from-prompt loop, so when
+// the DB algorithm_config row is missing the fallback gives the same answer.
 const DEFAULT_NORMAL: ModeConfig = {
   playback_speed: 1.0,
-  pause_base_ms: 1500,
-  pause_multiplier: 1.0,
+  pause_base_ms: 2000,
+  pause_multiplier: 1.5,
   min_pause_ms: 3000,
-  max_pause_ms: 8000,
+  max_pause_ms: 22000,
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false
@@ -114,21 +119,28 @@ const DEFAULT_NORMAL: ModeConfig = {
 
 const DEFAULT_TURBO: ModeConfig = {
   playback_speed: 1.25,
-  pause_base_ms: 500,
-  pause_multiplier: 0.5,
-  min_pause_ms: 800,
-  max_pause_ms: 2000,
+  // Pause formula: clamp(min_pause_ms, max_pause_ms, pause_base_ms + (target1 + target2) × pause_multiplier).
+  // Previous values (base 500, mul 0.5, max 2000) capped Turbo at 2s flat for
+  // medium-or-longer phrases, which is below the floor of human speech production
+  // for a 5+-LEGO sentence — those phrases became unanswerable. The defaults below
+  // land Turbo at roughly 60% of Normal-mode pause across the curve, keeping it
+  // a real time-saver while still letting the learner physically produce the
+  // target from the L1 prompt. Tunable per-course via DB config.
+  pause_base_ms: 1000,
+  pause_multiplier: 0.9,
+  min_pause_ms: 2000,
+  max_pause_ms: 12000,
   spaced_rep_fraction: 0.33,
   debut_phrases_fraction: 0.5,
   skip_voice2: false,
   fibKeep: [0, 1, 2, 4, 6, 8],
   buildKeep: 3,
-  useKeep: 1,
+  useKeep: 2,
 }
 
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
-  offset: 56,
+  offset: 90,
   l1ActiveSize: 10,
   l1ActiveInterval: 3,
   l1ReserveSize: 50,

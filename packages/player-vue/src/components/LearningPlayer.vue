@@ -238,10 +238,11 @@ const eagerScript = inject<any>('eagerScript', null)
 const contribution = useContribution(supabase as any)
 const showContributionExpanded = ref(false)
 
-// Algorithm config - admin-tweakable parameters (Turbo Boost, pause timing, etc.)
+// Algorithm config - admin-tweakable parameters (Turbo Boost, Normal mode pause, etc.)
 const {
   loadConfigs: loadAlgorithmConfigs,
   turboConfig,
+  normalConfig,
   listeningConfig,
   podsConfig,
   scriptShapeConfig,
@@ -467,15 +468,44 @@ const saveRoundProgress = async (legoId, roundIndex) => {
     return
   }
 
+  // For infinite-play rounds, substitute the last main-loop LEGO as
+  // the cursor. The round's primaryLegoKey is the first random-USE
+  // LEGO drawn (could be anywhere in the course); writing it as
+  // last_completed_lego_id makes the cursor meaningless as a
+  // course-progress marker. Even with the trigger fix that ratchets
+  // highest_completed_lego_id independently, the CURSOR (last_lego_id)
+  // should keep pointing at the boundary of what the learner has been
+  // introduced to, not at whatever random review LEGO came up first.
+  let legoIdToSave = legoId
+  const round = cachedRounds.value[roundIndex]
+  const isInfPlayRound = !!round?.cycles?.length && !round.cycles.some((c: any) =>
+    c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+  )
+  if (isInfPlayRound) {
+    for (let i = roundIndex - 1; i >= 0; i--) {
+      const r = cachedRounds.value[i]
+      if (r?.cycles?.some((c: any) =>
+        c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+      )) {
+        legoIdToSave = r.legoId
+        break
+      }
+    }
+  }
+
   try {
     await progressStore.value.updateEnrollmentProgress(
       learnerId.value,
       courseCode.value,
-      legoId,
+      legoIdToSave,
       roundIndex
     )
-    console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoId)
-    liftLocalCeilingIfHigher(legoId, roundIndex)
+    if (isInfPlayRound && legoIdToSave !== legoId) {
+      console.log(`[LearningPlayer] Saved progress: round ${roundIndex}, LEGO ${legoIdToSave} (infinite-play; substituted from round primaryLegoKey ${legoId})`)
+    } else {
+      console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoIdToSave)
+    }
+    liftLocalCeilingIfHigher(legoIdToSave, roundIndex)
   } catch (err) {
     console.warn('[LearningPlayer] Failed to save progress:', err)
     // Don't throw - continue learning even if save fails
@@ -507,6 +537,80 @@ const loadSavedProgress = async () => {
     console.warn('[LearningPlayer] Failed to load saved progress:', err)
   }
   return null
+}
+
+// ============================================
+// INFINITE-PLAY DETECTION (lego-id keyed)
+// ============================================
+// Cache the course's main-loop round count per session to avoid
+// duplicate Supabase round-trips when the helpers fire from multiple
+// branches (initial resume + jumpToFurthest both consult them).
+let courseMainLoopCountCache: number | null = null
+let courseMainLoopCountCacheKey: string | null = null
+
+/**
+ * True iff the learner has been introduced to every LEGO in the course
+ * — i.e. they belong in infinite-play mode.
+ *
+ * highest_completed_lego_id is the canonical signal. The trigger on
+ * course_enrollments ratchets it independently of round_index
+ * (migration 20260512_lego_id_independent_ratchet.sql), and
+ * saveRoundProgress substitutes the last main-loop LEGO when writing
+ * the cursor for an infinite-play round, so the ceiling LEGO stays at
+ * the actual course-progress boundary. Lexicographic comparison
+ * works because lego_id is the zero-padded SNNNNLNN format.
+ */
+const hasReachedInfinitePlay = async (
+  highestLegoId: string | null,
+  course: string,
+): Promise<boolean> => {
+  if (!highestLegoId || !supabase?.value || !course) return false
+  try {
+    const { data, error } = await supabase.value
+      .from('course_legos')
+      .select('lego_id')
+      .eq('course_code', course)
+      .eq('is_new', true)
+      .gt('lego_id', highestLegoId)
+      .limit(1)
+    if (error) {
+      console.warn('[LearningPlayer] hasReachedInfinitePlay query failed:', error)
+      return false
+    }
+    return (data?.length ?? 0) === 0
+  } catch (err) {
+    console.warn('[LearningPlayer] hasReachedInfinitePlay threw:', err)
+    return false
+  }
+}
+
+/**
+ * Number of is_new LEGOs in the course — used to size endSeed so the
+ * script generator emits the entire main loop plus EXPANSION_BATCH
+ * worth of infinite-play rounds.
+ */
+const getCourseMainLoopRoundCount = async (course: string): Promise<number> => {
+  if (courseMainLoopCountCache !== null && courseMainLoopCountCacheKey === course) {
+    return courseMainLoopCountCache
+  }
+  if (!supabase?.value || !course) return 0
+  try {
+    const { count, error } = await supabase.value
+      .from('course_legos')
+      .select('lego_id', { count: 'exact', head: true })
+      .eq('course_code', course)
+      .eq('is_new', true)
+    if (error) {
+      console.warn('[LearningPlayer] getCourseMainLoopRoundCount failed:', error)
+      return 0
+    }
+    courseMainLoopCountCache = count ?? 0
+    courseMainLoopCountCacheKey = course
+    return courseMainLoopCountCache
+  } catch (err) {
+    console.warn('[LearningPlayer] getCourseMainLoopRoundCount threw:', err)
+    return 0
+  }
 }
 
 // ============================================
@@ -564,6 +668,13 @@ const isPlaying = ref(false)
 // when the cursor is currently behind this ceiling.
 const highestCompletedRoundIndex = ref<number | null>(null)
 const highestCompletedLegoId = ref<string | null>(null)
+// Current cursor (vs ceiling). Critical for infinite-play resume:
+// in infinite-play rounds the saved lastLegoId points to a LEGO
+// reviewed via random-USE, which the legoId-based resume would map to
+// that LEGO's MAIN-LOOP debut round — not the infinite-play round the
+// learner was actually on. The round index is the only unambiguous
+// position when legoIds get reused across infinite-play rounds.
+const lastCompletedRoundIndex = ref<number | null>(null)
 // Cycle cursor within the in-progress round, persisted on every cycle
 // completion. Read once on resume so a PWA reload mid-round picks up
 // from the cycle the learner was on rather than restarting cycle 0
@@ -588,11 +699,13 @@ watch(
       if (saved) {
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
+        lastCompletedRoundIndex.value = saved.lastCompletedRoundIndex ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
       } else {
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
+        lastCompletedRoundIndex.value = null
         savedCurrentCycleIndex.value = 0
         savedLastPracticedAt.value = null
       }
@@ -798,14 +911,25 @@ simplePlayer.onRoundCompleted((round) => {
 // lap and calls showPausedSummary then. Surfacing the summary now
 // would call simplePlayer.stop() + release audioEngaged mid-lap and
 // iOS would drop the session.
-simplePlayer.onSessionComplete(() => {
-  sessionEnded.value = true
+simplePlayer.onSessionComplete(async () => {
   logEvent('session_complete', {
     deferredForLap: playingPodLapAudio.value || playingCommentaryAudio.value,
   })
-  if (!playingPodLapAudio.value && !playingCommentaryAudio.value) {
-    showPausedSummary()
+  // Lap/commentary in flight? Defer — handleRoundBoundary will retry
+  // expansion after the lap finishes (see post-lap branch below).
+  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    sessionEnded.value = true
+    return
   }
+  // Infinite play: the course should never end. Try expanding the
+  // script and resuming before falling through to a paused-quiet state.
+  const added = await expandScript()
+  if (added > 0) {
+    simplePlayer.resume()
+    return
+  }
+  sessionEnded.value = true
+  showPausedSummary()
 })
 
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
@@ -1121,15 +1245,20 @@ watch([currentRoundIndex, currentItemInRound], () => {
   }
 })
 
-// Watch for approaching end of cached rounds - trigger expansion
-// This enables infinite progressive loading without hard limits
+// Watch for approaching end of loaded rounds - trigger expansion.
+// Uses simplePlayer.roundCount as the source of truth: cachedRounds
+// is only populated on the legacy path and stays empty on the modern
+// SessionController path, but simplePlayer.roundCount reflects the
+// rounds actually queued for playback in both paths. This is what
+// the user can hit with skip/advance, so it's the right cutoff.
 watch(currentRoundIndex, async (index) => {
   if (!positionInitialized.value) return
-  if (!cachedRounds.value.length) return
+  const loaded = simplePlayer.roundCount.value
+  if (loaded === 0) return
 
-  const remaining = cachedRounds.value.length - index
+  const remaining = loaded - index
   if (remaining <= EXPANSION_THRESHOLD && !isExpandingScript.value) {
-    console.log(`[LearningPlayer] Approaching end (${remaining} rounds left), expanding...`)
+    console.log(`[LearningPlayer] Approaching end (${remaining} rounds left of ${loaded}), expanding...`)
     await expandScript()
   }
 })
@@ -2130,11 +2259,19 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         }
         podLapSkippedByUser.value = false
         // Resume into the next round — unless one of these has happened:
-        //   • session_complete fired while the lap was playing (last round)
-        //     → surface the deferred summary now that the lap is done
+        //   • session_complete fired while the lap was playing → try
+        //     to expand the script and resume; only fall through to
+        //     the quiet pause if expansion genuinely produces nothing
+        //     (infinite play means the course should never end)
         //   • the learner pressed stop during the lap → stay paused
         if (sessionEnded.value) {
-          showPausedSummary()
+          const added = await expandScript()
+          if (added > 0) {
+            sessionEnded.value = false
+            simplePlayer.resume()
+          } else {
+            showPausedSummary()
+          }
         } else if (userStoppedDuringLap.value) {
           // Bookmark the lap so the next play tap re-fires it instead of
           // skipping silently into round N+1. Re-fire uses omitIntro=true
@@ -3969,7 +4106,15 @@ const handleResume = async () => {
       }
       podLapSkippedByUser.value = false
       if (sessionEnded.value) {
-        showPausedSummary()
+        // Infinite-play guard: try expanding the script before showing
+        // the quiet pause. Mirrors the post-lap branch in handleRoundBoundary.
+        const added = await expandScript()
+        if (added > 0) {
+          sessionEnded.value = false
+          simplePlayer.resume()
+        } else {
+          showPausedSummary()
+        }
       } else if (userStoppedDuringLap.value) {
         // Stopped again during the replayed lap — bookmark and stay paused.
         userStoppedDuringLap.value = false
@@ -4413,6 +4558,16 @@ const playWelcomeIfNeeded = async () => {
     // If resuming beyond round 1, they've obviously already heard/skipped the welcome
     if (currentRoundIndex.value > 0) {
       console.log('[LearningPlayer] Resuming at round', currentRoundIndex.value + 1, '- skipping welcome')
+      return false
+    }
+
+    // Returning learner: enrollment row has a non-null ceiling. The
+    // existing completedRounds check below also covers this but races
+    // beltProgress's load — highestCompletedLegoId is populated up-
+    // front by loadAllData's direct read, so it's the more reliable
+    // "they've been here before" signal on a cold ?reset=1 start.
+    if (highestCompletedLegoId.value) {
+      console.log('[LearningPlayer] Returning learner (ceiling:', highestCompletedLegoId.value, ') - skipping welcome')
       return false
     }
 
@@ -4924,24 +5079,25 @@ const turboActive = ref(false)
 const turboPopupShownThisSession = ref(false)
 
 // ============================================
-// TURBO RUNTIME OVERRIDES
-// Wire turboActive + turboConfig into SimplePlayer's per-phase callbacks
-// so toggling Turbo takes effect on the very next pause / voice phase
-// (no script regen, no round-boundary wait). Listening/pod cycles keep
-// their explicit speed and zero-pause regardless.
+// RUNTIME PAUSE / SPEED OVERRIDES
+// Both Normal and Turbo modes compute pause from the active ModeConfig
+// (algorithm_config table, admin-tweakable). Selection switches on
+// turboActive at runtime — toggling Turbo takes effect on the very next
+// pause / voice phase, no script regen, no round-boundary wait.
+// Listening/pod cycles keep their explicit zero-pause regardless.
 // ============================================
 const TURBO_BYPASS_TYPES = new Set(['intro', 'listening', 'pod', 'listen_intro', 'listen_outro', 'component_intro'])
 
 simplePlayer.setRuntimeOverrides({
   getPauseDuration: (cycle) => {
-    if (!turboActive.value) return undefined
     // Cycles with no pause (intro/listening/bookend/pod) stay at 0.
     if (!cycle.pauseDuration) return cycle.pauseDuration
     if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
-    // Recompute pause from raw target durations using turboConfig formula.
+    // Recompute pause from raw target durations using the active mode's config.
+    // Same formula shape for both modes; the multiplier/base/floor/ceiling differ.
     const t1 = cycle.target1DurationMs ?? 0
     const t2 = cycle.target2DurationMs ?? 0
-    const cfg = turboConfig.value
+    const cfg = turboActive.value ? turboConfig.value : normalConfig.value
     const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
   },
@@ -5378,14 +5534,19 @@ const toggleTurbo = () => {
 // PAUSE/RESUME HANDLERS
 // ============================================
 
+// Quiet session-end: stop playback and save bookkeeping, but do NOT pop
+// the SessionComplete overlay AND do NOT reset position. Infinite play
+// means the course no longer ends in normal play; if simplePlayer's
+// session_complete still fires (e.g. a course with zero usable LEGOs,
+// or expansion genuinely produces nothing), we want to silently pause
+// at the current position so a play-tap can pick straight back up —
+// previously the embedded simplePlayer.stop() wiped roundIndex back to
+// 0, which surfaced as "course finished but resumed at LEGO #1".
 const showPausedSummary = () => {
-  // Stop playback and show summary
-  {
-    stopCycle()
-  }
-  simplePlayer.stop()
+  stopCycle()
+  simplePlayer.pause()
+  isPlaying.value = false
   audioEngaged.value = false
-  showSessionComplete.value = true
 
   // End belt progress session (saves session history for time estimates)
   if (beltProgress.value) {
@@ -5443,25 +5604,39 @@ const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 // produces revival rounds past the last new LEGO, so play is unbounded.
 // ============================================
 const EXPANSION_BATCH = 50  // generate this many more rounds on each expand
-const expandScript = async () => {
-  if (isExpandingScript.value) return
-  if (!supabase?.value) return
-  if (!courseCode.value) return
+const expandScript = async (): Promise<number> => {
+  if (isExpandingScript.value) return 0
+  if (!supabase?.value) return 0
+  if (!courseCode.value) return 0
 
   isExpandingScript.value = true
   try {
-    const currentLength = cachedRounds.value.length
-    const neededEnd = scriptBaseOffset.value + currentLength + EXPANSION_BATCH
+    // simplePlayer.roundCount is the live truth (works on both modern
+    // SessionController and legacy paths). cachedRounds may be empty
+    // on the SessionController path even when simplePlayer has rounds
+    // queued — using its length here would lead to an under-sized
+    // neededEnd and miss the infinite-play threshold entirely.
+    const loadedCount = simplePlayer.roundCount.value
+    const neededEnd = scriptBaseOffset.value + loadedCount + EXPANSION_BATCH
     const result = await generateScript(1, neededEnd)
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
-    if (expandedRounds.length > currentLength) {
+    if (expandedRounds.length > loadedCount) {
+      const newRounds = expandedRounds.slice(loadedCount)
+      // Keep cachedRounds in sync where other consumers read from it.
       cachedRounds.value = expandedRounds as any
-      console.log(`[LearningPlayer] Expanded script: ${currentLength} → ${expandedRounds.length} rounds`)
+      // Feed the new rounds to simplePlayer. appendRounds dedupes by
+      // roundNumber so any overlap (loadSeedIfNeeded may have already
+      // added some main-loop rounds) is handled cleanly.
+      simplePlayer.appendRounds(newRounds as any)
+      console.log(`[LearningPlayer] Expanded script: ${loadedCount} → ${expandedRounds.length} rounds (+${newRounds.length} appended)`)
+      return newRounds.length
     } else {
       console.warn('[LearningPlayer] Expansion produced no new rounds — generator may be out of LEGOs to revive')
+      return 0
     }
   } catch (err) {
     console.error('[LearningPlayer] Expansion failed:', err)
+    return 0
   } finally {
     isExpandingScript.value = false
   }
@@ -5811,6 +5986,12 @@ onMounted(async () => {
   // Track data loading state
   let dataReady = false
   let cachedScript = null
+  // Whether the learner had already been introduced to the course's
+  // final LEGO before this session started — set during the returning-
+  // user resume branch and read by the jump-to-position logic to skip
+  // the legoId.findIndex (which would map to the LEGO's main-loop
+  // debut) and jump straight to the first infinite-play round.
+  let hasReachedInfinitePlayInSession = false
 
 
   // ============================================
@@ -5869,16 +6050,46 @@ onMounted(async () => {
             let isReturningUser: boolean
             const classLastLegoId = props.classContext?.last_lego_id
 
+            // Fetch enrollment row up-front. beltProgress is a localStorage-
+            // + remote-cache UI helper and races loadAllData on cold start
+            // (PWA reload, ?reset=1, fresh tab), so reading from it alone
+            // can yield startingSeed=0 for a learner who clearly has DB
+            // progress. The enrollment row IS canonical — pull it now so
+            // returning-user detection, infinite-play detection, the
+            // welcome-skip check, and the belt label all converge on the
+            // same source of truth before we generate the script.
+            const freshProgress = !isGuestLearner.value ? await loadSavedProgress() : null
+            const freshLastLego = freshProgress?.lastCompletedLegoId ?? null
+            const freshHighestLego = freshProgress?.highestCompletedLegoId ?? null
+
+            // Mirror into the refs immediately so the belt label, journey
+            // bar, and welcome-skip guard see the ceiling without waiting
+            // for the separate watcher to fire.
+            if (freshHighestLego && !highestCompletedLegoId.value) {
+              highestCompletedLegoId.value = freshHighestLego
+              highestCompletedRoundIndex.value = freshProgress?.highestCompletedRoundIndex ?? null
+            }
+            // And push the lastLegoId into beltProgress so the belt label
+            // shows the right colour before the user even taps play.
+            if (freshLastLego && beltProgress.value?.setLastLegoId) {
+              beltProgress.value.setLastLegoId(freshLastLego)
+            }
+
             if (classLastLegoId) {
               // Class mode: derive seed from class's last LEGO position
               const seedMatch = classLastLegoId.match(/^S(\d{4})L/)
               startingSeed = seedMatch ? parseInt(seedMatch[1], 10) : 0
               isReturningUser = startingSeed > 0
             } else {
+              const dbSeed = freshLastLego ? (getSeedFromLegoId(freshLastLego) ?? 0) : 0
               const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
               const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value ?? 0
-              startingSeed = currentSeedFromLegoId > 0 ? currentSeedFromLegoId : (completedSeeds > 0 ? completedSeeds : 0)
-              isReturningUser = startingSeed > 0
+              // Take the max of all three sources — the DB read is
+              // authoritative but the legacy beltProgress paths can
+              // occasionally have a higher value (e.g. mid-session
+              // updates not yet written to the enrollment row).
+              startingSeed = Math.max(dbSeed, currentSeedFromLegoId, completedSeeds)
+              isReturningUser = startingSeed > 0 || !!freshHighestLego
             }
 
             // Set playing belt to match starting position
@@ -5933,8 +6144,41 @@ onMounted(async () => {
               : baseListeningConfig
 
             if (isReturningUser && startingSeed > 0) {
-              const endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
-              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading seeds 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
+              // Infinite-play detection — keyed on legoId, not round_index.
+              // Round indices aren't stable across sessions (lazy loading
+              // produces different scripts each time), so we can't trust
+              // a saved round number. lego_id IS stable.
+              //
+              // The signal: if the learner's highest-ever-introduced LEGO
+              // (highest_completed_lego_id, ratcheted server-side) equals
+              // the course's LAST is_new LEGO, every main-loop LEGO has
+              // been seen and they belong in infinite-play territory —
+              // regardless of which LEGO the cursor (random USE review)
+              // happens to have last touched.
+              //
+              // freshHighestLego was already read at the top of this
+              // branch and mirrored into the ref. Run the infinite-play
+              // detection against it.
+              hasReachedInfinitePlayInSession = await hasReachedInfinitePlay(
+                freshHighestLego,
+                courseCode.value,
+              )
+              console.log(`[LearningPlayer] Infinite-play check: highest_lego=${freshHighestLego} → ${hasReachedInfinitePlayInSession ? 'YES, course complete' : 'no, still in main loop'}`)
+
+              let endSeed: number
+              if (hasReachedInfinitePlayInSession) {
+                // Force a script with the whole main loop + a fresh
+                // batch of infinite-play rounds. endSeed acts as a round
+                // cap inside the infinite-play while-loop, so it must
+                // exceed the main-loop round count by EXPANSION_BATCH
+                // for revival rounds to be emitted.
+                const mainLoopCount = await getCourseMainLoopRoundCount(courseCode.value)
+                endSeed = mainLoopCount + EXPANSION_BATCH
+                console.log(`[LearningPlayer] Returning user has reached infinite play — loading full course + ${EXPANSION_BATCH} infinite-play rounds (endSeed=${endSeed})`)
+              } else {
+                endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
+                console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
+              }
               result = await generateScript(1, endSeed, 1, config)
               console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else if (eagerCourseMatches) {
@@ -6010,18 +6254,44 @@ onMounted(async () => {
                   }
                 }
 
-                if (resumeLegoId) {
+                const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
+
+                if (hasReachedInfinitePlayInSession) {
+                  // Learner has been introduced to the course's last
+                  // LEGO. Don't try to restore exact position — find
+                  // the first round in simpleRounds that has no intro /
+                  // debut / build cycle (= the first infinite-play
+                  // round) and start there. The exact LEGO they last
+                  // reviewed doesn't matter; infinite play is
+                  // recency-weighted random USE + spaced rep, so a
+                  // fresh series is as good as any restored point.
+                  const firstInfPlayIdx = simpleRounds.findIndex(r =>
+                    !r.cycles?.some(c =>
+                      c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+                    )
+                  )
+                  if (firstInfPlayIdx >= 0) {
+                    console.debug(`[eagerLoad] ${modeTag}: infinite play reached — resuming at first infinite-play round (index ${firstInfPlayIdx})`)
+                    simplePlayer.jumpToRound(firstInfPlayIdx)
+                  } else {
+                    // Shouldn't happen — endSeed was sized to force
+                    // infinite-play emission — but fall through to the
+                    // last loaded round if it does.
+                    console.warn('[eagerLoad] Infinite play flagged but no infinite-play round found in simpleRounds — staying at last main-loop round')
+                    simplePlayer.jumpToRound(simpleRounds.length - 1)
+                  }
+                } else if (resumeLegoId) {
+                  // Main-loop resume — legoId is canonical. Find it and
+                  // start at the NEXT round (so the learner doesn't
+                  // re-do the LEGO they just finished).
                   const lastIdx = simpleRounds.findIndex(r => r.legoId === resumeLegoId)
-                  const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
                   if (lastIdx >= 0 && lastIdx + 1 < simpleRounds.length) {
                     console.debug(`[eagerLoad] ${modeTag}: resuming after ${resumeLegoId} (round ${lastIdx + 1}, cycle ${resumeCycle})`)
                     simplePlayer.jumpToRound(lastIdx + 1, resumeCycle)
                   } else if (lastIdx >= 0) {
-                    // Last LEGO was the final round — stay there
+                    console.debug(`[eagerLoad] ${modeTag}: resuming at final loaded round (${resumeLegoId})`)
                     simplePlayer.jumpToRound(lastIdx)
                   } else {
-                    // legoId not in loaded set (e.g. extension hasn't landed)
-                    // — fall back to seed-based as a last resort
                     const nextSeed = startingSeed + 1
                     const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                     if (roundIndex >= 0) {
@@ -6030,7 +6300,7 @@ onMounted(async () => {
                     }
                   }
                 } else {
-                  // No legoId on record — seed-based fallback
+                  // No legoId on record — seed-based fallback.
                   const nextSeed = startingSeed + 1
                   const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                   if (roundIndex >= 0) {
@@ -6060,7 +6330,12 @@ onMounted(async () => {
           // Network data is loaded lazily when the user navigates to the Progress screen
           // This avoids blocking startup for courses with many LEGOs (1000+)
 
-          // Mark data as ready
+          // Mark data + position as ready. The legacy fallback paths
+          // below set positionInitialized too — flipping it here covers
+          // the modern SessionController path so the proactive-expansion
+          // watcher actually fires (it bails on !positionInitialized,
+          // which without this flip stays false for the entire session).
+          positionInitialized.value = true
           dataReady = true
           return
         } catch (err) {
@@ -6722,12 +6997,59 @@ const highestBeltColor = computed(() => BELTS[Math.max(0, highestBeltIndex.value
 // that backing out (closing the app) doesn't strand them at the new spot.
 const jumpToFurthest = async () => {
   const targetLegoId = highestCompletedLegoId.value
-  const targetRoundIndex = highestCompletedRoundIndex.value
-  if (!targetLegoId || typeof targetRoundIndex !== 'number') {
+  if (!targetLegoId) {
     console.warn('[LearningPlayer] jumpToFurthest: no ceiling stored')
     return
   }
 
+  haltAllPlayback()
+
+  // Infinite-play branch: if the ceiling IS the course's final LEGO
+  // there's nothing further than that on the main loop. Generate a
+  // script with the whole course + a fresh batch of infinite-play
+  // rounds and drop the learner at the first infinite-play round.
+  // This is "go to your furthest point" for a course-complete learner.
+  const infPlay = await hasReachedInfinitePlay(targetLegoId, courseCode.value)
+  if (infPlay) {
+    const mainLoopCount = await getCourseMainLoopRoundCount(courseCode.value)
+    const endSeed = mainLoopCount + EXPANSION_BATCH
+    console.log(`[LearningPlayer] jumpToFurthest: course complete — loading full course + ${EXPANSION_BATCH} infinite-play rounds (endSeed=${endSeed})`)
+    try {
+      const result = await generateScript(1, endSeed)
+      const newRounds = toSimpleRoundsWithComponents(result.items) as any[]
+      if (newRounds.length > 0) {
+        cachedRounds.value = newRounds
+        // appendRounds dedupes by roundNumber — overlap with what's
+        // already in simplePlayer is fine, only the new rounds get added.
+        simplePlayer.appendRounds(newRounds)
+      }
+    } catch (err) {
+      console.warn('[LearningPlayer] jumpToFurthest: script reload failed:', err)
+    }
+
+    const firstInfIdx = cachedRounds.value.findIndex((r: any) =>
+      !r.cycles?.some((c: any) =>
+        c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+      )
+    )
+    if (firstInfIdx >= 0) {
+      console.log(`[LearningPlayer] jumpToFurthest: jumping to first infinite-play round (index ${firstInfIdx})`)
+      simplePlayer.jumpToRound(firstInfIdx)
+      if (beltProgress.value) {
+        // Sync belt label to the last main-loop seed (= top belt).
+        const lastMainLegoId = targetLegoId
+        const lastSeed = getSeedFromLegoId(lastMainLegoId)
+        if (lastSeed) beltProgress.value.setPlayingPosition(lastSeed)
+      }
+      await persistCursorAtCurrentRound()
+      return
+    }
+    // Fall through to the legoId-based jump if we somehow couldn't
+    // find an infinite-play round to land on.
+    console.warn('[LearningPlayer] jumpToFurthest: infinite play flagged but no infinite-play round found — falling back to ceiling LEGO')
+  }
+
+  // Standard "go to your furthest LEGO" — main-loop resume.
   // Lego IDs have the form S0042L05 — seed number is digits 1..5.
   const seedMatch = targetLegoId.match(/^S(\d+)L/)
   const targetSeed = seedMatch ? parseInt(seedMatch[1], 10) : null
@@ -6736,8 +7058,7 @@ const jumpToFurthest = async () => {
     return
   }
 
-  console.log(`[LearningPlayer] jumpToFurthest: round ${targetRoundIndex + 1} (lego ${targetLegoId}, seed ${targetSeed})`)
-  haltAllPlayback()
+  console.log(`[LearningPlayer] jumpToFurthest: targeting lego ${targetLegoId}, seed ${targetSeed}`)
   await loadSeedIfNeeded(targetSeed)
 
   // Prefer the exact lego; fall back to the start of its seed if the

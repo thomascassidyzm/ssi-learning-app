@@ -43,6 +43,7 @@ export interface UseSimplePlayerReturn {
   findRoundIndexForSeed: (seedNumber: number) => number
   findRoundIndexForLegoId: (legoId: string) => number
   addRounds: (rounds: Round[]) => void
+  appendRounds: (rounds: Round[]) => void
   hasRound: (roundNumber: number) => boolean
   onPhaseChanged: (callback: (phase: Phase) => void) => void
   onCycleCompleted: (callback: (cycle: Cycle) => void) => void
@@ -244,6 +245,33 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Insert rounds keyed by roundNumber, with sorted insertion and
+   * dedupe-by-roundNumber. For infinite-play expansion where new
+   * rounds reuse existing legoIds (legoId dedupe in addRounds would
+   * either throw them away or, without dedupe, stack duplicates of
+   * any main-loop rounds also present in the regenerated script).
+   */
+  const appendRounds = (newRounds: Round[]) => {
+    if (!player || newRounds.length === 0) return
+    player.appendRounds(newRounds)
+    // Mirror SimplePlayer's roundNumber-keyed insertion into roundsRef
+    // so any consumer reading the reactive mirror sees the same order.
+    const existingRoundNumbers = new Set(roundsRef.value.map(r => r.roundNumber))
+    const currentRounds = [...roundsRef.value]
+    for (const round of newRounds) {
+      if (existingRoundNumbers.has(round.roundNumber)) continue
+      const insertIndex = currentRounds.findIndex(r => r.roundNumber > round.roundNumber)
+      if (insertIndex === -1) {
+        currentRounds.push(round)
+      } else {
+        currentRounds.splice(insertIndex, 0, round)
+      }
+      existingRoundNumbers.add(round.roundNumber)
+    }
+    roundsRef.value = currentRounds
+  }
+
+  /**
    * Check if a round exists by roundNumber
    */
   const hasRound = (roundNumber: number): boolean => {
@@ -293,6 +321,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     findRoundIndexForSeed,
     findRoundIndexForLegoId,
     addRounds,
+    appendRounds,
     hasRound,
     onPhaseChanged,
     onCycleCompleted,
