@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
@@ -191,6 +192,12 @@ const handleAuthSuccess = () => {
 
 // Email of the currently authenticated user (for no-access copy).
 const authedEmail = computed(() => auth?.user?.value?.email || '')
+
+// The /schools/play route renders the LearningPlayer inside the schools
+// surface — drop main-content's padding/max-width so the player fills the
+// area below the top bar instead of sitting in a centred card.
+const route = useRoute()
+const isPlayRoute = computed(() => route.name === 'schools-play')
 </script>
 
 <template>
@@ -378,7 +385,7 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
     <template v-else-if="showDashboard">
       <SchoolsTopBar />
 
-      <main class="main-content">
+      <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -409,6 +416,14 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
   max-width: 1400px;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Class session: player fills the area below the schools top bar. */
+.main-content.main-content--full {
+  margin-top: 0;
+  padding: 0;
+  max-width: none;
+  min-height: calc(100vh - 54px);
 }
 
 /* Loading */

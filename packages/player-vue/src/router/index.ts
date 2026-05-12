@@ -139,6 +139,15 @@ const routes: RouteRecordRaw[] = [
           description: 'Individual student progress view',
         },
       },
+      {
+        path: 'play',
+        name: 'schools-play',
+        component: PlayerContainer,
+        meta: {
+          title: 'Class session',
+          description: 'Run a class learning session — schools top bar stays above the player',
+        },
+      },
     ],
   },
   // Teach (private tutor) routes

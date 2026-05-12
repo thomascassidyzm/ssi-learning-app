@@ -146,10 +146,10 @@ function benchFor(report: ClassReport | undefined) {
 
 // ---------- Actions ----------
 function handlePlayClass(cls: ClassInfo) {
-  // Full-page navigation so PlayerContainer re-mounts with fresh course +
-  // class context — router.push leaves singleton player state from /schools
-  // mounted, so the schools top bar stays visible above the player.
-  // Matches the demo-mode pattern in useDemoController (commit 2dd346e).
+  // Launch the player inside the schools surface so the SchoolsTopBar stays
+  // above it (teacher keeps classroom context while running a session).
+  // The /schools/play route renders PlayerContainer as a child of
+  // SchoolsContainer.
   localStorage.setItem('ssi-last-course', cls.course_code)
   localStorage.setItem('ssi-active-class', JSON.stringify({
     id: cls.id,
@@ -160,7 +160,7 @@ function handlePlayClass(cls: ClassInfo) {
     teacherUserId: currentUser.value?.user_id,
     timestamp: new Date().toISOString(),
   }))
-  window.location.href = `/?class=${cls.id}`
+  router.push({ path: '/schools/play', query: { class: cls.id } })
 }
 </script>
 
