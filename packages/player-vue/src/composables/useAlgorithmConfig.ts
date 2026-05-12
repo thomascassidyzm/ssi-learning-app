@@ -101,12 +101,17 @@ export interface AlgorithmConfigs {
 }
 
 // Default fallbacks (used if DB fetch fails)
+//
+// Normal-mode pause formula: clamp(min_pause_ms, max_pause_ms, pause_base_ms + (target1 + target2) × pause_multiplier).
+// The previous fallback (base 1500, mul 1.0, ceiling 8000) was the legacy too-tight curve;
+// values below match the formula deployed for SSi's generate-from-prompt loop, so when
+// the DB algorithm_config row is missing the fallback gives the same answer.
 const DEFAULT_NORMAL: ModeConfig = {
   playback_speed: 1.0,
-  pause_base_ms: 1500,
-  pause_multiplier: 1.0,
+  pause_base_ms: 2000,
+  pause_multiplier: 1.5,
   min_pause_ms: 3000,
-  max_pause_ms: 8000,
+  max_pause_ms: 22000,
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false
