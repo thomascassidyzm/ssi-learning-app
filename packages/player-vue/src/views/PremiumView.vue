@@ -68,6 +68,35 @@ const otherPremiumCourses = computed(() => {
   return premiumCourses.value.filter(c => c.course_code !== contextCourseCode.value)
 })
 
+// "for" word in each known language, used between the target name and
+// the known-language endonym on the Premium-courses list. For languages
+// where "for X speakers" doesn't render cleanly as a simple connector
+// (CJK, RTL, postpositional languages), we fall back to a middle dot —
+// "英語 · 日本語" reads neutrally without forcing awkward grammar.
+const FOR_WORD: Record<string, string> = {
+  eng: 'for',
+  spa: 'para',
+  por: 'para',
+  fra: 'pour',
+  ita: 'per',
+  deu: 'für',
+  nld: 'voor',
+  cat: 'per a',
+  glg: 'para',
+  ron: 'pentru',
+  pol: 'dla',
+  rus: 'для',
+  ukr: 'для',
+  swe: 'för',
+  nor: 'for',
+  dan: 'til',
+  tur: 'için',
+  ell: 'για',
+}
+function forWord(knownLang: string): string {
+  return FOR_WORD[knownLang] || '·'
+}
+
 function selectContextCourse(c: Course) {
   router.replace({ name: 'premium', query: { course: c.course_code } })
   // Scroll the page back up so the user actually sees the headline echo
@@ -286,8 +315,13 @@ onMounted(async () => {
           >
             <LanguageFlag :code="c.target_lang" :size="20" />
             <span class="premium-list__text">
-              <span class="premium-list__name">{{ getLanguageName(c.target_lang) }}</span>
-              <span class="premium-list__for">for {{ getLanguageEndonym(c.known_lang) }}</span>
+              <!-- Render each card in the perspective of the learner the
+                   course is for — target language name shown in the
+                   known language (e.g. "Inglés" rather than "English"
+                   on the Spanish-speaker card) — and the connector
+                   word ("for"/"para"/"pour"/…) localized to match. -->
+              <span class="premium-list__name">{{ getLanguageName(c.target_lang, c.known_lang) }}</span>
+              <span class="premium-list__for">{{ forWord(c.known_lang) }} {{ getLanguageEndonym(c.known_lang) }}</span>
             </span>
           </button>
         </div>
@@ -343,7 +377,14 @@ onMounted(async () => {
   z-index: 10;
   max-width: 640px;
   margin: 0 auto;
-  padding: var(--space-12) var(--space-6);
+  /* On iOS the page is full-bleed (no app header above it), so the
+     `SSI PREMIUM` eyebrow sits under the status bar / notch unless we
+     pad in the safe-area inset. max() preserves the desktop spacing
+     where the inset is 0. */
+  padding:
+    calc(var(--space-12) + env(safe-area-inset-top, 0px))
+    var(--space-6)
+    calc(var(--space-12) + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
@@ -620,7 +661,12 @@ onMounted(async () => {
 
 @media (max-width: 768px) {
   .content {
-    padding: var(--space-8) var(--space-4);
+    /* Preserve safe-area insets at mobile widths — the desktop rule's
+       inset additions would otherwise be wiped out here. */
+    padding:
+      calc(var(--space-8) + env(safe-area-inset-top, 0px))
+      var(--space-4)
+      calc(var(--space-8) + env(safe-area-inset-bottom, 0px));
   }
 
   .state-card {

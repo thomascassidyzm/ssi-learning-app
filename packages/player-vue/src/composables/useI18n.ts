@@ -155,14 +155,23 @@ const ISO3_TO_LOCALE: Record<string, string> = {
 }
 
 /**
- * Get language name in current locale using Intl.DisplayNames.
+ * Get language name using Intl.DisplayNames.
+ *
+ * By default renders in the current UI locale. Pass `overrideLangCode`
+ * (ISO 639-3) to render the name in a specific language instead — used
+ * by the Premium-courses list so each card reads in the perspective
+ * of the learner who would take that course (e.g. "Inglés" instead of
+ * "English" on the Spanish-speaker card).
+ *
  * Falls back to locale JSON files, then to the raw code.
  */
-export const getLanguageName = (langCode: string): string => {
+export const getLanguageName = (langCode: string, overrideLangCode?: string): string => {
   // Try Intl.DisplayNames first (browser-native, always up to date)
   // Use explicit mapping if available, otherwise try the raw code (works for many ISO 639-3 codes)
   const bcp47 = ISO3_TO_BCP47[langCode] || langCode
-  const localeCode = ISO3_TO_LOCALE[currentLocale.value] || 'en'
+  const localeCode = overrideLangCode
+    ? (ISO3_TO_LOCALE[overrideLangCode] || overrideLangCode)
+    : (ISO3_TO_LOCALE[currentLocale.value] || 'en')
   try {
     const displayNames = new Intl.DisplayNames([localeCode], { type: 'language' })
     const name = displayNames.of(bcp47)
