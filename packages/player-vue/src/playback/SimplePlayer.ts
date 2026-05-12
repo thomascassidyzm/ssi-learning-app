@@ -449,12 +449,25 @@ export class SimplePlayer {
     // Safety check: ensure we have the required data before playing
     const currentCycle = this.currentCycle
 
+    // Listening / pod / bookend cycles only carry ONE audio track each
+    // (target at 1×/2× OR known for translation). The 4-phase prompt /
+    // pause / voice1 / voice2 walk hits phases that legitimately have
+    // no audio — those gaps are by design, not missing data. Suppress
+    // the warning for these cycle types so the console stays useful
+    // for real audio gaps in speaking cycles.
+    const isSingleAudioCycle = currentCycle?.type === 'listening'
+      || currentCycle?.type === 'pod'
+      || currentCycle?.type === 'listen_intro'
+      || currentCycle?.type === 'listen_outro'
+
     switch (phase) {
       case 'prompt':
         if (currentCycle?.known?.audioUrl) {
           this.playAudio(currentCycle.known.audioUrl)
         } else {
-          console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          if (!isSingleAudioCycle) {
+            console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          }
           this.onAudioEnded()
         }
         break
@@ -465,7 +478,9 @@ export class SimplePlayer {
         if (currentCycle?.target?.voice1Url) {
           this.playAudio(currentCycle.target.voice1Url, true)
         } else {
-          console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          if (!isSingleAudioCycle) {
+            console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          }
           this.onAudioEnded()
         }
         break
@@ -473,7 +488,9 @@ export class SimplePlayer {
         if (currentCycle?.target?.voice2Url) {
           this.playAudio(currentCycle.target.voice2Url, true)
         } else {
-          console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          if (!isSingleAudioCycle) {
+            console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
+          }
           this.onAudioEnded()
         }
         break
@@ -494,7 +511,12 @@ export class SimplePlayer {
       const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
       rate *= multiplier
     }
-    if (rate > 1.05) {
+    // Speed >1.05× is unexpected on speaking cycles (Turbo only goes
+    // to 1.25×) but expected on L1 ps2x and L2 pod-stage 2× plays.
+    // Only warn for non-listening cycles to keep the console useful.
+    const isExpectedFastCycle = this.currentCycle?.type === 'listening'
+      || this.currentCycle?.type === 'pod'
+    if (rate > 1.05 && !isExpectedFastCycle) {
       console.warn(`[SimplePlayer] ⚠️ SPEED ${rate}x on "${this.currentCycle?.target?.text}" (cycle.playbackSpeed=${this.currentCycle?.playbackSpeed})`)
     }
     this.audio.playbackRate = rate
