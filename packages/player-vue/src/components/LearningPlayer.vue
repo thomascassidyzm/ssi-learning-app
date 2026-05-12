@@ -2637,11 +2637,24 @@ watch(pendingPhase, (phase) => {
   }
   currentPhase.value = phaseMap[phase] ?? Phase.PROMPT
 
-  // Start ring animation when entering pause phase
+  // Start ring animation when entering pause phase.
+  //
+  // Use the SAME pause-duration formula that the SimplePlayer's setTimeout
+  // uses (the runtime override, driven by normalConfig / turboConfig from
+  // algorithm_config) — NOT the baked cycle.pauseDuration. The baked value
+  // is computed in toSimpleRounds with a different formula (currently
+  // 2000 + 3.0 × target1), while the override uses
+  // 2000 + 1.5 × (target1 + target2) with floor/ceiling clamps. If we
+  // animate against the baked value, the visible countdown ends a few
+  // hundred ms (or seconds, on longer phrases) before the real timer
+  // fires, producing a "timer stops, silent gap, voice1 starts" feel.
   if (phase === 'pause') {
-    // Get pause duration from current cycle
     const cycle = simplePlayer.currentCycle.value
-    const duration = cycle?.pauseDuration || 6500
+    const cfg = turboActive.value ? turboConfig.value : normalConfig.value
+    const t1 = cycle?.target1DurationMs ?? 0
+    const t2 = cycle?.target2DurationMs ?? 0
+    const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
+    const duration = Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
     startRingAnimation(duration)
   }
 })
