@@ -93,6 +93,12 @@ CREATE POLICY "Users can insert own milestones"
 
 -- ============================================
 -- audio_plays: read own (guarded — table may not exist in older envs)
+--
+-- audio_plays.user_id is UUID, not TEXT. The 20260226 migration tried to
+-- ALTER it to TEXT inside a DO block guarded on "table exists", but the
+-- table was only created later (20260418_audio_plays.sql), so that ALTER
+-- never fired and the column stayed UUID. Bare auth.uid() (no ::text cast)
+-- is correct for this column.
 -- ============================================
 
 DO $$
@@ -101,7 +107,7 @@ BEGIN
     DROP POLICY IF EXISTS "Users can read own audio plays" ON audio_plays;
     EXECUTE 'CREATE POLICY "Users can read own audio plays"
       ON audio_plays FOR SELECT TO authenticated
-      USING (user_id = (SELECT auth.uid()::text))';
+      USING (user_id = (SELECT auth.uid()))';
   END IF;
 END $$;
 
