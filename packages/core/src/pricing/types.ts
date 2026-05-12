@@ -98,7 +98,7 @@ export interface CourseAccessResult {
 }
 
 /**
- * User subscription status from Clerk metadata
+ * User subscription status (sourced from Supabase + Stripe webhooks).
  */
 export interface UserSubscriptionStatus {
   /** Whether user has an active subscription */

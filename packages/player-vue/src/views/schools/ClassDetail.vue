@@ -151,7 +151,7 @@ const students = computed(() => {
       return {
         id: s.learner_id,
         name: s.display_name,
-        email: `${s.user_id.replace('user_2bre_', '')}@student.edu`,
+        email: `${s.display_name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '')}@student.edu`,
         initials: getInitials(s.display_name),
         avatarColor: beltGradients[belt],
         textColor: beltTextColors[belt],

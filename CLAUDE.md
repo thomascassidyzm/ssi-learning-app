@@ -38,6 +38,24 @@ git pull origin staging
 
 ---
 
+## Canonical RLS / auth pattern
+
+`learners.user_id` is TEXT (it was changed from UUID by the Clerk migration `20251219120000` for Clerk's string IDs; Clerk was never shipped — auth is Supabase). Several sibling columns are TEXT for the same reason: `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id`, `audio_plays.user_id`, `player_events.user_id`.
+
+**The one true comparison pattern, in any new RLS policy or migration:**
+
+```sql
+WHERE user_id = auth.uid()::text
+```
+
+**Do not** use any of:
+- Bare `auth.uid() = user_id` — throws `operator does not exist: text = uuid` at policy creation time
+- `auth.jwt()->>'sub'` — Clerk-era artefact. Evaluates to the same value as `auth.uid()::text` under Supabase Auth today, but the two definitions could diverge under impersonation or future JWT-claims work. Migration `20260512_unify_user_id_auth_pattern.sql` converted every direct use to `auth.uid()::text`.
+
+After any policy change, end the migration with `NOTIFY pgrst, 'reload schema';`.
+
+---
+
 ## Project Overview
 
 **SSi Learning App** is the language learning player application that delivers SSi courses to learners. It's built as a monorepo with a framework-agnostic TypeScript core and UI adapters.
