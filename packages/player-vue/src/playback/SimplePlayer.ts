@@ -254,16 +254,33 @@ export class SimplePlayer {
   }
 
   /**
-   * Append rounds verbatim to the end of the queue. No dedupe, no sort —
-   * caller is responsible for ordering. Use for infinite-play expansion
-   * where new rounds reuse existing legoIds (they're reviews of already-
-   * introduced LEGOs) and must NOT be deduped against the main-loop
-   * rounds. `addRounds` is the right call for belt-skip / progressive
-   * load of NEW main-loop seeds.
+   * Insert rounds keyed by roundNumber, with sorted insertion and
+   * dedupe-by-roundNumber. Use for the infinite-play expansion path
+   * (where new rounds reuse existing legoIds because they're reviews
+   * of already-introduced LEGOs) and for any other path that re-runs
+   * generateScript and produces overlapping main-loop rounds.
+   *
+   * `addRounds` dedupes by legoId — wrong for infinite-play rounds
+   * (multiple revival rounds share the same primaryLegoKey of the
+   * first random-USE LEGO they happened to pick). roundNumber is the
+   * stable, unique key across the whole script.
    */
   appendRounds(newRounds: Round[]): void {
     if (newRounds.length === 0) return
-    this.rounds.push(...newRounds)
+    const existingRoundNumbers = new Set(this.rounds.map(r => r.roundNumber))
+    for (const round of newRounds) {
+      if (existingRoundNumbers.has(round.roundNumber)) continue
+      const insertIndex = this.rounds.findIndex(r => r.roundNumber > round.roundNumber)
+      if (insertIndex === -1) {
+        this.rounds.push(round)
+      } else {
+        this.rounds.splice(insertIndex, 0, round)
+        if (insertIndex <= this.state.roundIndex) {
+          this.state.roundIndex++
+        }
+      }
+      existingRoundNumbers.add(round.roundNumber)
+    }
 
     console.debug(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
   }

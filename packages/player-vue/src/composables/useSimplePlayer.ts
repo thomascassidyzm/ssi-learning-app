@@ -245,14 +245,30 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
-   * Append rounds verbatim to the end. No dedupe, no sort — for the
-   * infinite-play expansion path where new rounds reuse existing
-   * legoIds (they're reviews of already-introduced LEGOs).
+   * Insert rounds keyed by roundNumber, with sorted insertion and
+   * dedupe-by-roundNumber. For infinite-play expansion where new
+   * rounds reuse existing legoIds (legoId dedupe in addRounds would
+   * either throw them away or, without dedupe, stack duplicates of
+   * any main-loop rounds also present in the regenerated script).
    */
   const appendRounds = (newRounds: Round[]) => {
     if (!player || newRounds.length === 0) return
     player.appendRounds(newRounds)
-    roundsRef.value = [...roundsRef.value, ...newRounds]
+    // Mirror SimplePlayer's roundNumber-keyed insertion into roundsRef
+    // so any consumer reading the reactive mirror sees the same order.
+    const existingRoundNumbers = new Set(roundsRef.value.map(r => r.roundNumber))
+    const currentRounds = [...roundsRef.value]
+    for (const round of newRounds) {
+      if (existingRoundNumbers.has(round.roundNumber)) continue
+      const insertIndex = currentRounds.findIndex(r => r.roundNumber > round.roundNumber)
+      if (insertIndex === -1) {
+        currentRounds.push(round)
+      } else {
+        currentRounds.splice(insertIndex, 0, round)
+      }
+      existingRoundNumbers.add(round.roundNumber)
+    }
+    roundsRef.value = currentRounds
   }
 
   /**
