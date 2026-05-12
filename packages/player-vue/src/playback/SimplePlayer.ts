@@ -268,6 +268,7 @@ export class SimplePlayer {
   appendRounds(newRounds: Round[]): void {
     if (newRounds.length === 0) return
     const existingRoundNumbers = new Set(this.rounds.map(r => r.roundNumber))
+    let indexShift = 0
     for (const round of newRounds) {
       if (existingRoundNumbers.has(round.roundNumber)) continue
       const insertIndex = this.rounds.findIndex(r => r.roundNumber > round.roundNumber)
@@ -275,11 +276,18 @@ export class SimplePlayer {
         this.rounds.push(round)
       } else {
         this.rounds.splice(insertIndex, 0, round)
-        if (insertIndex <= this.state.roundIndex) {
-          this.state.roundIndex++
+        // Accumulate the shift; emit once at the end via updateState so
+        // the state_changed event fires (otherwise direct ++ bypasses
+        // Vue reactivity and the expansion-watcher chain never re-fires
+        // when the resumed learner is far from the loaded edge).
+        if (insertIndex <= this.state.roundIndex + indexShift) {
+          indexShift++
         }
       }
       existingRoundNumbers.add(round.roundNumber)
+    }
+    if (indexShift > 0) {
+      this.updateState({ roundIndex: this.state.roundIndex + indexShift })
     }
 
     console.debug(`[SimplePlayer] Added ${newRounds.length} rounds, total now: ${this.rounds.length}`)
