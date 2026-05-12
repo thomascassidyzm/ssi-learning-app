@@ -162,6 +162,59 @@ export interface LearningScriptResult {
   hasRomanizedText: boolean
 }
 
+/**
+ * Allocate a total budget across weighted tiers, respecting pool sizes.
+ * Empty tiers contribute their weight to the remaining non-empty tiers
+ * (proportional redistribution). If any tier is undersized for its share,
+ * the leftover is topped up from other tiers with remaining room.
+ *
+ * Used by the infinite-play revival loop to size the recency-weighted
+ * random-USE selection. Short courses with no LEGOs in the "old" tier
+ * collapse gracefully (e.g. Italian's ~80 LEGOs → ~67/33/0 effective).
+ */
+function allocateAcrossTiers<T>(
+  total: number,
+  tiers: { pool: T[]; weight: number }[],
+): { pool: T[]; count: number }[] {
+  const result = tiers.map(t => ({ pool: t.pool, count: 0 }))
+  const nonEmpty = tiers
+    .map((t, i) => ({ t, i }))
+    .filter(({ t }) => t.pool.length > 0)
+  if (nonEmpty.length === 0 || total <= 0) return result
+  const weightSum = nonEmpty.reduce((s, { t }) => s + t.weight, 0)
+  let allocated = 0
+  for (const { t, i } of nonEmpty) {
+    const want = Math.min(t.pool.length, Math.round(total * t.weight / weightSum))
+    result[i].count = want
+    allocated += want
+  }
+  // Top up rounding loss + capped-tier leftover from anywhere with room.
+  let leftover = total - allocated
+  while (leftover > 0) {
+    let topped = false
+    for (const r of result) {
+      if (leftover <= 0) break
+      if (r.count >= r.pool.length) continue
+      r.count++
+      leftover--
+      topped = true
+    }
+    if (!topped) break
+  }
+  return result
+}
+
+/** Sample `n` items without replacement using a partial Fisher-Yates shuffle. */
+function sampleWithoutReplacement<T>(arr: T[], n: number): T[] {
+  if (n >= arr.length) return [...arr]
+  const a = [...arr]
+  for (let i = 0; i < n; i++) {
+    const j = i + Math.floor(Math.random() * (a.length - i))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a.slice(0, n)
+}
+
 export async function generateLearningScript(
   supabase: SupabaseClient,
   courseCode: string,
@@ -1309,73 +1362,119 @@ export async function generateLearningScript(
   }
 
   // ==========================================================================
-  // REVIVAL ROUNDS — infinite play after all new LEGOs are introduced
+  // INFINITE-PLAY ROUNDS — review-only rounds after all new LEGOs introduced
   // ==========================================================================
   //
   // The course never ends. Once the main loop has introduced every new LEGO
-  // from the range, we keep incrementing roundNumber and pulling LEGOs from
-  // the "retired" pool (those outside the fib-decay window, i.e. lastRound
-  // older than MAX_FIB_OFFSET rounds ago) back into rotation.
+  // from the range, we keep incrementing roundNumber and emitting review
+  // rounds shaped as:
   //
-  // A revived LEGO's lastRound is updated to the current round, so it
-  // re-enters the fib decay cycle naturally: spaced-rep in the following
-  // rounds picks it up at N-1, N-2, N-3, ..., N-89, and it eventually
-  // retires again. The schedule is self-sustaining — every LEGO the
-  // learner has introduced keeps coming back.
+  //   - target ~TARGET_ROUND_CYCLES (20) cycles per round
+  //   - spaced-rep fills first via the same N-1, N-2, ..., N-89 fib-offset
+  //     logic as the main loop, capped at MAX_SPACED_REP_PHRASES
+  //   - random USE fills the remainder, with a floor of MIN_RANDOM_USE (10):
+  //     one phrase each from distinct LEGOs sampled with a recency bias —
+  //         50%  last RECENT_TIER_SIZE (55) debuted LEGOs
+  //         25%  next MID_TIER_SIZE (100) older LEGOs
+  //         25%  everything older still
+  //     Empty tiers redistribute their weight proportionally to non-empty
+  //     tiers, so short courses degrade gracefully. Random-USE selections
+  //     are deduped against this round's spaced-rep set.
   //
-  // How many revival rounds we generate is driven by endSeed: the caller
-  // effectively says "give me this many rounds of content." The player's
-  // expansion logic bumps endSeed as the learner approaches the end, so
-  // play is unbounded in practice.
-  const MAX_FIB_OFFSET = SPACED_REP_OFFSETS[SPACED_REP_OFFSETS.length - 1]  // 89
-  const REVIVE_PHRASES_PER_ROUND = 3
-  let revivalShuffle: string[] = []
+  // We do NOT mutate lastRound on random USE — the fib decay drains
+  // naturally. Long-tail steady state is pure recency-biased USE.
+  //
+  // How many infinite-play rounds we generate is driven by endSeed: the
+  // caller effectively says "give me this many rounds of content." The
+  // player's expansion logic bumps endSeed as the learner approaches the
+  // tail, so play is unbounded in practice.
 
-  const refillRevivalPool = () => {
-    revivalShuffle = [...legoState.entries()]
-      .filter(([, s]) => s.usePhrases.length > 0 && roundNumber - s.lastRound > MAX_FIB_OFFSET)
-      .map(([key]) => key)
-      .sort(() => Math.random() - 0.5)
-  }
+  const TARGET_ROUND_CYCLES = 20
+  const MIN_RANDOM_USE = 10
+  const RECENT_TIER_SIZE = 55
+  const MID_TIER_SIZE = 100  // positions [total-156 .. total-56]
+  const RECENT_WEIGHT = 0.5
+  const MID_WEIGHT = 0.25
+  const OLD_WEIGHT = 0.25
 
   while (roundNumber < endSeed) {
     roundNumber++
-
-    // Pick a retired LEGO to revive. If the retired pool is empty (course
-    // has fewer than ~90 LEGOs, or we just started revival), fall back to
-    // the oldest-seen LEGO in legoState.
-    if (revivalShuffle.length === 0) refillRevivalPool()
-    if (revivalShuffle.length === 0) {
-      // Fallback: pick the LEGO with the oldest lastRound that has USE phrases.
-      const fallback = [...legoState.entries()]
-        .filter(([, s]) => s.usePhrases.length > 0)
-        .sort((a, b) => a[1].lastRound - b[1].lastRound)[0]
-      if (!fallback) break  // no LEGOs at all — nothing to revive
-      revivalShuffle.push(fallback[0])
-    }
-
-    const revivedKey = revivalShuffle.shift()!
-    const revivedState = legoState.get(revivedKey)
-    if (!revivedState || revivedState.usePhrases.length === 0) continue
-
-    const revivedLegoNum = revivedKey.match(/L(\d+)/)?.[1] || ''
-    const revivedSeedId = revivedKey.match(/S\d+/)?.[0] || ''
+    const usedPhrasesThisRound = new Set<string>()
     let cycleNum = 0
 
-    // Revival phase: emit a few USE phrases for the revived LEGO. Treat
-    // this as the "featured" slot of the round — similar shape to what
-    // a normal consolidate phase emits, but for a revived LEGO.
+    // Phase 1: SPACED-REP candidate set — same logic as the main loop.
+    // LEGOs whose lastRound matches N-1, N-2, ..., N-89 from the current
+    // round, skipping graduated-into-listening seeds.
+    const dueForReview: { key: string; state: LegoState; fibPosition: number; phraseCount: number }[] = []
+    const seenLegos = new Set<string>()
+    for (let offsetIdx = 0; offsetIdx < SPACED_REP_OFFSETS.length; offsetIdx++) {
+      const offset = SPACED_REP_OFFSETS[offsetIdx]
+      const reviewRound = roundNumber - offset
+      if (reviewRound < 1) break
+      for (const [prevKey, state] of legoState.entries()) {
+        if (seenLegos.has(prevKey)) continue
+        if (graduatedSeeds.has(state.seedNum)) continue
+        if (state.lastRound === reviewRound) {
+          const isN1 = offset === 1
+          const phraseCount = isN1 ? N1_PHRASE_COUNT : 1
+          dueForReview.push({ key: prevKey, state, fibPosition: offsetIdx, phraseCount })
+          seenLegos.add(prevKey)
+        }
+      }
+    }
+
+    // Project how many spaced-rep cycles will actually fire (capped) so
+    // we can size the random-USE bucket to maintain ~TARGET_ROUND_CYCLES.
+    let projectedSpacedRep = 0
+    for (const { phraseCount } of dueForReview) {
+      if (projectedSpacedRep >= MAX_SPACED_REP_PHRASES) break
+      projectedSpacedRep += Math.min(phraseCount, MAX_SPACED_REP_PHRASES - projectedSpacedRep)
+    }
+    const randomUseCount = Math.max(MIN_RANDOM_USE, TARGET_ROUND_CYCLES - projectedSpacedRep)
+
+    // Phase 2: RANDOM USE selection — recency-tiered sampling over debut
+    // order (Map iteration preserves insertion order). Deduped against the
+    // spaced-rep set so a LEGO can't appear twice in one round.
+    const spacedRepKeys = new Set(dueForReview.map(d => d.key))
+    const allKeys = [...legoState.keys()]
+    const total = allKeys.length
+
+    const recentStart = Math.max(0, total - RECENT_TIER_SIZE)
+    const midStart = Math.max(0, total - RECENT_TIER_SIZE - MID_TIER_SIZE)
+
+    const recentPool = allKeys.slice(recentStart).filter(k => !spacedRepKeys.has(k))
+    const midPool = allKeys.slice(midStart, recentStart).filter(k => !spacedRepKeys.has(k))
+    const oldPool = allKeys.slice(0, midStart).filter(k => !spacedRepKeys.has(k))
+
+    const tierAllocations = allocateAcrossTiers(randomUseCount, [
+      { pool: recentPool, weight: RECENT_WEIGHT },
+      { pool: midPool,    weight: MID_WEIGHT },
+      { pool: oldPool,    weight: OLD_WEIGHT },
+    ])
+    const chosenKeys: string[] = []
+    for (const { pool, count } of tierAllocations) {
+      chosenKeys.push(...sampleWithoutReplacement(pool, count))
+    }
+
+    // Phase 3: emit random USE (1 phrase per LEGO, advance round-robin
+    // useIndex so phrases rotate across visits).
     if (shouldEmit()) {
-      const phrasesToEmit = Math.min(REVIVE_PHRASES_PER_ROUND, revivedState.usePhrases.length)
-      for (let p = 0; p < phrasesToEmit; p++) {
-        const phrase = revivedState.usePhrases[revivedState.useIndex % revivedState.usePhrases.length]
-        revivedState.useIndex++
+      for (const legoKey of chosenKeys) {
+        const state = legoState.get(legoKey)
+        if (!state || state.usePhrases.length === 0) continue
+        const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
+        state.useIndex++
         if (!phrase.known_audio_id || !phrase.target1_audio_id || !phrase.target2_audio_id) continue
+        const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
+        if (usedPhrasesThisRound.has(phraseId)) continue
+        usedPhrasesThisRound.add(phraseId)
+        const legoNum = legoKey.match(/L(\d+)/)?.[1] || ''
+        const seedId = legoKey.match(/S\d+/)?.[0] || ''
         cycleNum++
         emitItem({
-          uuid: `${revivedKey}_revive_R${roundNumber}_${cycleNum}`,
-          cycleNum, roundNumber, seedId: revivedSeedId, legoKey: revivedKey,
-          seedCode: revivedSeedId, legoCode: revivedLegoNum,
+          uuid: `${legoKey}_inf_R${roundNumber}_${cycleNum}`,
+          cycleNum, roundNumber, seedId, legoKey,
+          seedCode: seedId, legoCode: legoNum,
           type: 'use',
           knownText: phrase.known_text,
           targetText: phrase.target_text_roman || phrase.target_text,
@@ -1390,31 +1489,10 @@ export async function generateLearningScript(
       }
     }
 
-    // Spaced-rep phase — same logic as the main loop. Pulls LEGOs that
-    // fall on N-1, N-2, ..., N-89 offsets. After several revival rounds
-    // this includes previously-revived LEGOs, so the fib cycle carries
-    // the rotation forward automatically.
-    const revivalDueForReview: { key: string; state: LegoState; fibPosition: number; phraseCount: number }[] = []
-    const revivalSeenLegos = new Set<string>()
-    for (let offsetIdx = 0; offsetIdx < SPACED_REP_OFFSETS.length; offsetIdx++) {
-      const offset = SPACED_REP_OFFSETS[offsetIdx]
-      const reviewRound = roundNumber - offset
-      if (reviewRound < 1) break
-      for (const [prevKey, state] of legoState.entries()) {
-        if (prevKey === revivedKey || revivalSeenLegos.has(prevKey)) continue
-        if (graduatedSeeds.has(state.seedNum)) continue
-        if (state.lastRound === reviewRound) {
-          const isN1 = offset === 1
-          const phraseCount = isN1 ? N1_PHRASE_COUNT : 1
-          revivalDueForReview.push({ key: prevKey, state, fibPosition: offsetIdx, phraseCount })
-          revivalSeenLegos.add(prevKey)
-        }
-      }
-    }
-
+    // Phase 4: emit spaced rep — same shape as main-loop spaced rep.
     if (shouldEmit()) {
       let spacedRepCount = 0
-      for (const { key: reviewKey, state, fibPosition, phraseCount } of revivalDueForReview) {
+      for (const { key: reviewKey, state, fibPosition, phraseCount } of dueForReview) {
         if (spacedRepCount >= MAX_SPACED_REP_PHRASES) break
         if (state.usePhrases.length === 0) continue
 
@@ -1425,11 +1503,14 @@ export async function generateLearningScript(
         for (let i = 0; i < phrasesToUse; i++) {
           const phrase = state.usePhrases[state.useIndex % state.usePhrases.length]
           state.useIndex++
+          const phraseId = getPhraseId(phrase.known_text, phrase.target_text)
+          if (usedPhrasesThisRound.has(phraseId)) continue
+          usedPhrasesThisRound.add(phraseId)
           if (!phrase.known_audio_id || !phrase.target1_audio_id || !phrase.target2_audio_id) continue
           cycleNum++
           spacedRepCount++
           emitItem({
-            uuid: `${reviewKey}_revive_sr_R${roundNumber}_${cycleNum}`,
+            uuid: `${reviewKey}_inf_sr_R${roundNumber}_${cycleNum}`,
             cycleNum, roundNumber, seedId: reviewSeedId, legoKey: reviewKey,
             seedCode: reviewSeedId, legoCode: reviewLegoNum,
             type: 'spaced_rep',
@@ -1450,13 +1531,9 @@ export async function generateLearningScript(
       }
     }
 
-    // Mark the revived LEGO as freshly used so it re-enters the fib cycle.
-    revivedState.lastRound = roundNumber
-
-    // Phase 6+7 (revival): listening continues forever. L1 active-10 every 3
-    // rounds + reserve every 13 rounds keeps graduated seeds in rotation. L2
-    // pod lap holds Stage 7 (eternal 2× holding bay) as steady state every
-    // round.
+    // Phase 5: Listening (L1 active-10 every 3 rounds + reserve every 13;
+    // L2 runtime-scheduled). Same as main loop — keeps the listening layer
+    // ticking through infinite play.
     if (shouldEmit()) {
       const fireActive = l1ActiveFiresAt(roundNumber)
       const fireReserve = l1ReserveFiresAt(roundNumber)
@@ -1465,13 +1542,14 @@ export async function generateLearningScript(
         if (fireReserve) seeds.push(...l1ReserveSeedsList())
         if (fireActive) seeds.push(...l1ActiveSeedsList())
         const listenCounter = { v: cycleNum }
-        // Same merge-bookends gating as Phase 6 above.
         emitL1Cluster(seeds, roundNumber, listenCounter, l2FiresAt(roundNumber))
         cycleNum = listenCounter.v
       }
-      // Phase 7 (Layer 2 Pod 0) — runtime-scheduled, no longer baked here.
-      // See note at the matching site above and migration 20260504_pod_ratchet.sql.
     }
+
+    // Safety: if nothing emitted (no usable LEGOs at all), stop — otherwise
+    // we'd loop emitting empty rounds.
+    if (cycleNum === 0) break
   }
 
   // Decompose phrases into component LEGO IDs
