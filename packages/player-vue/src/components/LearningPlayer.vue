@@ -5378,14 +5378,16 @@ const toggleTurbo = () => {
 // PAUSE/RESUME HANDLERS
 // ============================================
 
+// Quiet session-end: stop playback and save bookkeeping, but do NOT pop the
+// SessionComplete overlay. Infinite play means the course no longer ends in
+// normal play; if simplePlayer's session_complete still fires (e.g. a course
+// with zero usable LEGOs, or expansion genuinely produces nothing), we'd
+// rather silently pause than confront the learner with a "course finished"
+// modal they then have to dismiss with Continue.
 const showPausedSummary = () => {
-  // Stop playback and show summary
-  {
-    stopCycle()
-  }
+  stopCycle()
   simplePlayer.stop()
   audioEngaged.value = false
-  showSessionComplete.value = true
 
   // End belt progress session (saves session history for time estimates)
   if (beltProgress.value) {
