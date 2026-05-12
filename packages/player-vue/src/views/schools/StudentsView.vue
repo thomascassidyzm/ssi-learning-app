@@ -1,649 +1,520 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
-import SearchBox from '@/components/schools/shared/SearchBox.vue'
-import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
-import Badge from '@/components/schools/shared/Badge.vue'
-import Button from '@/components/schools/shared/Button.vue'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
+import { useRouter } from 'vue-router'
+import BeltDot from '@/components/schools/shared/BeltDot.vue'
+import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 
-// School context and data
+type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
+type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
+
+const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser } = useSchoolContext()
 const { students: studentsData, fetchStudents } = useStudentsData()
 
-// Filters
 const searchQuery = ref('')
-const selectedClass = ref<string | null>(null)
-const selectedBelt = ref<string | null>(null)
+const classFilter = ref<string>('all')
+const beltFilter = ref<string>('all')
+const healthFilter = ref<string>('all')
 
-// Get belt based on seeds completed (rough approximation)
-function getBelt(seedsCompleted: number): 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'brown' | 'black' {
-  if (seedsCompleted >= 400) return 'black'
-  if (seedsCompleted >= 280) return 'brown'
-  if (seedsCompleted >= 150) return 'blue'
-  if (seedsCompleted >= 80) return 'green'
-  if (seedsCompleted >= 40) return 'orange'
-  if (seedsCompleted >= 20) return 'yellow'
+function deriveBelt(seeds: number): Belt {
+  if (seeds >= 280) return 'black'
+  if (seeds >= 150) return 'blue'
+  if (seeds >= 80) return 'green'
+  if (seeds >= 40) return 'orange'
+  if (seeds >= 20) return 'yellow'
   return 'white'
 }
 
-// Get initials from name
 function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
 }
 
-// Format last active
+function deriveHealth(seeds: number, lastActiveAt: string | null, classAvg: number): Health {
+  if (!lastActiveAt) return 'inactive'
+  const diffDays = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000)
+  if (diffDays > 14) return 'needs-attention'
+  if (classAvg > 0 && seeds < classAvg * 0.5) return 'needs-attention'
+  if (classAvg > 0 && seeds >= classAvg * 1.25 && diffDays <= 2) return 'excellent'
+  return 'good'
+}
+
 function formatLastActive(dateStr: string | null): string {
   if (!dateStr) return 'Never'
   const date = new Date(dateStr)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffDays === 0) return 'Today'
+  const diffMs = Date.now() - date.getTime()
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  if (diffHours < 1) return 'now'
+  if (diffHours < 24) return `${diffHours}h ago`
+  const diffDays = Math.floor(diffHours / 24)
   if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`
-  return `${Math.floor(diffDays / 30)} months ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+  return `${Math.floor(diffDays / 30)}mo ago`
 }
 
-// Transform students data for display
-const students = computed(() => {
-  return studentsData.value.map((s, idx) => ({
-    id: idx + 1,
-    name: s.display_name,
-    initials: getInitials(s.display_name),
-    email: s.learner_id ? `student_${s.learner_id.substring(0, 8)}` : 'N/A', // No email in schema yet
-    class: s.class_name,
-    belt: getBelt(s.seeds_completed),
-    phrasesLearned: s.legos_mastered, // LEGOs mastered = phrases learned
-    sessionsCompleted: Math.ceil(s.total_practice_minutes / 30), // ~30 min per session
-    lastActive: formatLastActive(s.last_active_at),
-    progress: s.seeds_completed // Seeds completed is the actual progress
-  }))
+const classAvgByClass = computed(() => {
+  const map = new Map<string, { sum: number; count: number }>()
+  for (const s of studentsData.value) {
+    const cur = map.get(s.class_id) || { sum: 0, count: 0 }
+    cur.sum += s.seeds_completed
+    cur.count += 1
+    map.set(s.class_id, cur)
+  }
+  const result = new Map<string, number>()
+  for (const [k, v] of map) result.set(k, v.count > 0 ? v.sum / v.count : 0)
+  return result
 })
 
-// Build class options from actual classes
-const classOptions = computed(() => {
-  const uniqueClasses = [...new Set(studentsData.value.map(s => s.class_name))]
-  return uniqueClasses.map(c => ({ value: c, label: c }))
-})
-
-const beltOptions = [
-  { value: 'white', label: 'White Belt' },
-  { value: 'yellow', label: 'Yellow Belt' },
-  { value: 'orange', label: 'Orange Belt' },
-  { value: 'green', label: 'Green Belt' },
-  { value: 'blue', label: 'Blue Belt' },
-  { value: 'brown', label: 'Brown Belt' },
-  { value: 'black', label: 'Black Belt' },
-]
-
-const filteredStudents = computed(() => {
-  return students.value.filter(student => {
-    const matchesSearch = !searchQuery.value ||
-      student.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchQuery.value.toLowerCase())
-
-    const matchesClass = !selectedClass.value || student.class === selectedClass.value
-    const matchesBelt = !selectedBelt.value || student.belt === selectedBelt.value
-
-    return matchesSearch && matchesClass && matchesBelt
+const enrichedStudents = computed(() => {
+  return studentsData.value.map(s => {
+    const belt = deriveBelt(s.seeds_completed)
+    const avg = classAvgByClass.value.get(s.class_id) || 0
+    return {
+      user_id: s.user_id,
+      learner_id: s.learner_id,
+      name: s.display_name,
+      initials: getInitials(s.display_name),
+      class_id: s.class_id,
+      class_name: s.class_name,
+      course_code: s.course_code,
+      belt,
+      seeds_completed: s.seeds_completed,
+      legos_mastered: s.legos_mastered,
+      hours7d: Math.round((s.total_practice_minutes / 60) * 10) / 10,
+      legoTotal: 60,
+      health: deriveHealth(s.seeds_completed, s.last_active_at, avg),
+      last_active_display: formatLastActive(s.last_active_at),
+      last_active_at: s.last_active_at,
+    }
   })
 })
 
-const totalStudents = computed(() => students.value.length)
-
-// Animation
-const isVisible = ref(false)
-onMounted(() => {
-  setTimeout(() => { isVisible.value = true }, 50)
-  if (selectedUser.value) {
-    fetchStudents()
-  }
+const classOptions = computed(() => {
+  const map = new Map<string, string>()
+  for (const s of enrichedStudents.value) map.set(s.class_id, s.class_name)
+  return Array.from(map, ([value, label]) => ({ value, label }))
 })
 
-watch(selectedUser, (newUser) => {
-  if (newUser) {
-    fetchStudents()
-  }
+const filtered = computed(() => {
+  return enrichedStudents.value.filter(s => {
+    if (searchQuery.value.trim()) {
+      const q = searchQuery.value.toLowerCase()
+      if (!s.name.toLowerCase().includes(q)) return false
+    }
+    if (classFilter.value !== 'all' && s.class_id !== classFilter.value) return false
+    if (beltFilter.value !== 'all' && s.belt !== beltFilter.value) return false
+    if (healthFilter.value !== 'all' && s.health !== healthFilter.value) return false
+    return true
+  })
 })
 
-// Student detail state
-const selectedStudent = ref<typeof students.value[0] | null>(null)
+const totalCount = computed(() => filtered.value.length)
+const activeThisWeek = computed(() => {
+  const wk = Date.now() - 7 * 86400000
+  return filtered.value.filter(s => s.last_active_at && new Date(s.last_active_at).getTime() >= wk).length
+})
+const needsAttention = computed(() =>
+  filtered.value.filter(s => s.health === 'needs-attention').length,
+)
 
-function viewStudentDetail(student: typeof students.value[0]) {
-  selectedStudent.value = selectedStudent.value?.id === student.id ? null : student
+const headlineSubtitle = computed(() =>
+  `${totalCount.value} students · ${activeThisWeek.value} active this week · ${needsAttention.value} need attention`,
+)
+
+function viewStudent(s: { learner_id: string }) {
+  router.push({ name: 'admin-student-progress', params: { learnerId: s.learner_id } }).catch(() => {
+    // route may not exist for teacher view — silent fallback
+  })
 }
 
-const showAddStudentInfo = ref(false)
-
-function handleExport() {
-  const rows = filteredStudents.value.map(s =>
-    [s.name, s.class, s.belt, s.phrasesLearned, s.sessionsCompleted, s.lastActive].join(',')
-  )
-  const csv = ['Name,Class,Belt,LEGOs Mastered,Sessions,Last Active', ...rows].join('\n')
+function exportCsv() {
+  const header = ['Name', 'Class', 'Belt', 'Seeds', 'LEGOs', 'Hours/wk', 'Health', 'Last active']
+  const rows = filtered.value.map(s => [
+    s.name, s.class_name, s.belt, s.seeds_completed, s.legos_mastered, s.hours7d, s.health, s.last_active_display,
+  ].join(','))
+  const csv = [header.join(','), ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `students-export-${new Date().toISOString().slice(0, 10)}.csv`
+  a.download = `students-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
 
-function handleAddStudent() {
-  showAddStudentInfo.value = true
-  setTimeout(() => { showAddStudentInfo.value = false }, 5000)
+const showInviteHint = ref(false)
+function handleInvite() {
+  showInviteHint.value = true
+  setTimeout(() => { showInviteHint.value = false }, 5000)
 }
+
+onMounted(() => {
+  if (selectedUser.value) fetchStudents()
+})
+
+watch(selectedUser, (newUser) => {
+  if (newUser) fetchStudents()
+})
 </script>
 
 <template>
-  <div class="students-view" :class="{ 'is-visible': isVisible }">
-    <!-- Info banner for Add Student -->
+  <main class="students">
+    <div class="page-head">
+      <div class="page-head-text">
+        <h1 class="arsenal page-title">Students</h1>
+        <p class="page-subtitle schools-subtle">{{ headlineSubtitle }}</p>
+      </div>
+      <div class="page-head-actions">
+        <button v-if="enrichedStudents.length > 0" type="button" class="btn-ghost" @click="exportCsv">
+          Export CSV
+        </button>
+        <button v-if="!isAdminView" type="button" class="btn-play" @click="handleInvite">
+          + Invite students
+        </button>
+      </div>
+    </div>
+
     <Transition name="fade">
-      <div v-if="showAddStudentInfo" class="info-banner">
-        Students join classes using invite codes. Share the class join code with students — they'll appear here automatically once enrolled.
+      <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
+        Students join classes using the class join code. Open a class to share its code.
       </div>
     </Transition>
 
-    <!-- Page Header -->
-    <header class="page-header animate-item" :class="{ 'show': isVisible }">
-      <div class="page-title">
-        <h1>Students</h1>
-        <div class="student-count">
-          <span class="count-value">{{ totalStudents }}</span> students enrolled
-        </div>
-      </div>
-      <div class="header-actions">
-        <Button variant="secondary" @click="handleExport">
-          <template #icon>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-          </template>
-          Export
-        </Button>
-        <Button v-if="!isAdminView" variant="primary" @click="handleAddStudent">
-          <template #icon>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </template>
-          Add Student
-        </Button>
-      </div>
-    </header>
-
-    <!-- Filters Bar -->
-    <div class="filters-bar animate-item delay-1" :class="{ 'show': isVisible }">
-      <SearchBox
+    <div class="filters-bar schools-card">
+      <input
         v-model="searchQuery"
-        placeholder="Search students by name or email..."
-        block
+        type="search"
+        class="filters-search"
+        placeholder="Search by name..."
       />
-      <FilterDropdown
-        v-model="selectedClass"
-        :options="classOptions"
-        placeholder="All Classes"
-      />
-      <FilterDropdown
-        v-model="selectedBelt"
-        :options="beltOptions"
-        placeholder="All Belts"
-      />
+      <label class="filter">
+        <span class="filter-label">Class</span>
+        <select v-model="classFilter" class="filter-select">
+          <option value="all">All classes</option>
+          <option v-for="opt in classOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        </select>
+      </label>
+      <label class="filter">
+        <span class="filter-label">Belt</span>
+        <select v-model="beltFilter" class="filter-select">
+          <option value="all">All</option>
+          <option value="white">White</option>
+          <option value="yellow">Yellow</option>
+          <option value="orange">Orange</option>
+          <option value="green">Green</option>
+          <option value="blue">Blue</option>
+          <option value="black">Black</option>
+        </select>
+      </label>
+      <label class="filter">
+        <span class="filter-label">Health</span>
+        <select v-model="healthFilter" class="filter-select">
+          <option value="all">All</option>
+          <option value="excellent">Excellent</option>
+          <option value="good">Good</option>
+          <option value="needs-attention">Needs attention</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </label>
     </div>
 
-    <!-- Students Table -->
-    <FrostCard
-      variant="panel"
-      class="students-table-container animate-item delay-2"
-      :class="{ 'show': isVisible }"
-    >
-      <table class="students-table">
+    <div v-if="filtered.length > 0" class="schools-card table-card">
+      <table class="ssi-table">
         <thead>
           <tr>
             <th>Student</th>
             <th>Class</th>
             <th>Belt</th>
-            <th>Progress</th>
-            <th>Phrases</th>
-            <th>Sessions</th>
-            <th>Last Active</th>
+            <th>Seeds</th>
+            <th>Hours/wk</th>
+            <th>Health</th>
+            <th>Last active</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="student in filteredStudents" :key="student.id">
+          <tr v-for="s in filtered" :key="s.learner_id">
             <td>
               <div class="student-cell">
-                <div class="student-avatar">{{ student.initials }}</div>
+                <div class="avatar">{{ s.initials }}</div>
                 <div class="student-info">
-                  <div class="student-name">{{ student.name }}</div>
-                  <div class="student-email">{{ student.email }}</div>
+                  <div class="student-name">{{ s.name }}</div>
+                  <div class="student-sub schools-subtle">{{ s.legos_mastered }} LEGOs mastered</div>
                 </div>
               </div>
             </td>
-            <td>{{ student.class }}</td>
+            <td><span class="schools-subtle">{{ s.class_name }}</span></td>
             <td>
-              <Badge :belt="student.belt" size="sm">
-                {{ student.belt.charAt(0).toUpperCase() + student.belt.slice(1) }}
-              </Badge>
+              <span class="belt-cell">
+                <BeltDot :belt="s.belt" :size="14" />
+                <span class="belt-name">{{ s.belt }}</span>
+              </span>
             </td>
             <td>
-              <div class="progress-cell">
-                <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: `${student.progress}%` }"></div>
+              <div class="seeds-cell">
+                <div class="seeds-bar">
+                  <div
+                    class="seeds-fill"
+                    :style="{ width: `${Math.min(100, (s.seeds_completed / s.legoTotal) * 100)}%` }"
+                  />
                 </div>
-                <span class="progress-value">{{ student.progress }}%</span>
+                <span class="seeds-text">{{ s.seeds_completed }}/{{ s.legoTotal }}</span>
               </div>
             </td>
-            <td class="text-gold">{{ student.phrasesLearned.toLocaleString() }}</td>
-            <td>{{ student.sessionsCompleted }}</td>
-            <td class="text-muted">{{ student.lastActive }}</td>
+            <td>{{ s.hours7d }}h</td>
             <td>
-              <button class="action-btn" title="View Details" @click="viewStudentDetail(student)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="1"/>
-                  <circle cx="19" cy="12" r="1"/>
-                  <circle cx="5" cy="12" r="1"/>
-                </svg>
-              </button>
+              <span class="health-cell">
+                <HealthDot :health="s.health" />
+                <span class="health-label">{{ s.health.replace('-', ' ') }}</span>
+              </span>
+            </td>
+            <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
+            <td class="cell-action">
+              <a href="#" class="cell-link" @click.prevent="viewStudent(s)">View &rarr;</a>
             </td>
           </tr>
         </tbody>
       </table>
-    </FrostCard>
+    </div>
 
-    <!-- Student Detail Panel -->
-    <Transition name="panel">
-      <FrostCard v-if="selectedStudent" variant="panel" class="student-detail-panel">
-        <div class="detail-header">
-          <h3>{{ selectedStudent.name }}</h3>
-          <button class="action-btn" @click="selectedStudent = null" title="Close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div class="detail-stats">
-          <div class="detail-stat">
-            <span class="detail-stat-value">{{ selectedStudent.phrasesLearned }}</span>
-            <span class="detail-stat-label">LEGOs Mastered</span>
-          </div>
-          <div class="detail-stat">
-            <span class="detail-stat-value">{{ selectedStudent.sessionsCompleted }}</span>
-            <span class="detail-stat-label">Sessions</span>
-          </div>
-          <div class="detail-stat">
-            <span class="detail-stat-value">{{ selectedStudent.progress }}</span>
-            <span class="detail-stat-label">Seeds Completed</span>
-          </div>
-          <div class="detail-stat">
-            <span class="detail-stat-value">{{ selectedStudent.lastActive }}</span>
-            <span class="detail-stat-label">Last Active</span>
-          </div>
-        </div>
-        <div class="detail-meta">
-          <span>Class: {{ selectedStudent.class }}</span>
-          <Badge :belt="selectedStudent.belt" size="sm">
-            {{ selectedStudent.belt.charAt(0).toUpperCase() + selectedStudent.belt.slice(1) }} Belt
-          </Badge>
-        </div>
-      </FrostCard>
-    </Transition>
+    <div v-else-if="enrichedStudents.length > 0" class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">No students match those filters</h3>
+      <p class="empty-text schools-subtle">Try widening the class, belt or health filter.</p>
+      <button
+        type="button"
+        class="btn-ghost"
+        @click="() => { searchQuery = ''; classFilter = 'all'; beltFilter = 'all'; healthFilter = 'all' }"
+      >
+        Reset filters
+      </button>
+    </div>
 
-    <!-- Empty State -->
-    <FrostCard v-if="filteredStudents.length === 0" variant="tile" class="empty-state">
-      <div class="empty-icon">students</div>
-      <h3>No students found</h3>
-      <p>Try adjusting your search or filters</p>
-    </FrostCard>
-  </div>
+    <div v-else class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">No students yet</h3>
+      <p class="empty-text schools-subtle">
+        Once students join your classes with the class code, they'll appear here.
+      </p>
+    </div>
+  </main>
 </template>
 
 <style scoped>
-.info-banner {
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: var(--space-4, 16px);
-  color: var(--text-secondary, #94a3b8);
-  font-size: 0.875rem;
-  line-height: 1.5;
+.students {
+  padding: 20px 24px 32px;
+  max-width: 1320px;
+  margin: 0 auto;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.students-view {
-  max-width: 1400px;
-}
-
-.page-header {
+.page-head {
   display: flex;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--space-8);
+  gap: 24px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
+
+.page-head-text { min-width: 280px; flex: 1; }
 
 .page-title {
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.page-head-actions {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  gap: 8px;
 }
 
-.page-title h1 {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
-  letter-spacing: -0.02em;
-  color: var(--ink-primary);
+.invite-hint {
+  margin-bottom: 12px;
+  background: #fdf6df;
+  border-color: #f0d97a;
+  color: #5a3e10;
+  font-size: 13px;
 }
 
-.student-count {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(44, 38, 34, 0.08);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  color: var(--ink-secondary);
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
-.student-count .count-value {
-  color: var(--ssi-gold);
-  font-weight: var(--font-bold);
-  font-variant-numeric: tabular-nums;
-}
-
-.header-actions {
-  display: flex;
-  gap: var(--space-3);
-}
-
-/* Filters */
 .filters-bar {
   display: flex;
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
-.filters-bar > :first-child {
+.filters-search {
   flex: 1;
+  min-width: 220px;
+  padding: 7px 10px;
+  font-size: 13px;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fafaf6;
+  font-family: var(--font-body);
+  color: var(--schools-fg);
 }
 
-/* Table — FrostCard provides the glass shell; table just lays out the data */
-.students-table-container {
-  /* FrostCard handles background/border/radius/shadow */
-  margin-bottom: var(--space-8);
+.filters-search:focus {
+  outline: none;
+  border-color: var(--schools-red);
+  background: #fff;
 }
 
-.students-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.students-table th {
-  text-align: left;
-  padding: var(--space-4) var(--space-5);
-  font-size: var(--text-xs);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ink-muted);
-  background: rgba(255, 255, 255, 0.35);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
-}
-
-.students-table td {
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
-  vertical-align: middle;
-  color: var(--ink-primary);
-}
-
-.students-table tr:last-child td {
-  border-bottom: none;
-}
-
-.students-table tr:hover {
-  background: rgba(255, 255, 255, 0.45);
-}
-
-/* Student Cell */
-.student-cell {
-  display: flex;
+.filter {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--schools-fg-2);
 }
 
-.student-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: var(--font-bold);
-  font-size: var(--text-sm);
-  color: white;
+.filter-label { font-size: 12px; }
+
+.filter-select {
+  padding: 5px 8px;
+  font-size: 12.5px;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fff;
+  font-family: var(--font-body);
+  color: var(--schools-fg);
+  cursor: pointer;
 }
 
-.student-name {
-  font-weight: var(--font-semibold);
-  color: var(--ink-primary);
+.filter-select:focus {
+  outline: none;
+  border-color: var(--schools-red);
 }
 
-.student-email {
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-}
-
-/* Progress Cell */
-.progress-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.progress-bar {
-  width: 80px;
-  height: 6px;
-  background: rgba(44, 38, 34, 0.08);
-  border-radius: var(--radius-full);
+.table-card {
   overflow: hidden;
 }
 
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--ssi-red), var(--ssi-gold));
-  border-radius: var(--radius-full);
-  transition: width 0.5s ease;
+.student-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.progress-value {
-  font-size: var(--text-sm);
-  color: var(--ink-secondary);
-  min-width: 40px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Text Colors */
-.text-gold {
-  color: var(--ssi-gold);
-  font-weight: var(--font-semibold);
-}
-
-.text-muted {
-  color: var(--ink-muted);
-}
-
-/* Action Button */
-.action-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(44, 38, 34, 0.08);
-  background: rgba(255, 255, 255, 0.6);
-  color: var(--ink-secondary);
-  cursor: pointer;
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #eee;
+  color: #555;
+  font-size: 11px;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-base);
+  flex: none;
 }
 
-.action-btn:hover {
-  background: var(--ssi-red);
-  border-color: var(--ssi-red);
-  color: white;
+.student-info { min-width: 0; line-height: 1.3; }
+
+.student-name {
+  font-weight: 600;
+  font-size: 13.5px;
 }
 
-/* Empty State — FrostCard provides the tile, view provides layout */
+.student-sub {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.belt-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.belt-name { text-transform: capitalize; }
+
+.seeds-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seeds-bar {
+  width: 80px;
+  height: 5px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 2.5px;
+  overflow: hidden;
+}
+
+.seeds-fill {
+  height: 100%;
+  background: var(--schools-red);
+}
+
+.seeds-text {
+  font-size: 12px;
+  color: var(--schools-fg-2);
+  min-width: 42px;
+}
+
+.health-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--schools-fg-2);
+}
+
+.health-label {
+  text-transform: capitalize;
+}
+
+.cell-action {
+  text-align: right;
+}
+
+.cell-link {
+  font-size: 12px;
+  color: var(--schools-red);
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cell-link:hover { color: var(--schools-red-deep); }
+
 .empty-state {
   text-align: center;
-  padding: var(--space-16) var(--space-8);
+  padding: 56px 32px;
+  max-width: 520px;
+  margin: 24px auto;
 }
 
-.empty-icon {
-  font-size: 4rem;
-  opacity: 0.25;
-  margin-bottom: var(--space-5);
-  color: var(--ink-faint);
+.empty-title {
+  font-size: 22px;
+  margin-bottom: 8px;
 }
 
-.empty-state h3 {
-  font-size: var(--text-xl);
-  margin-bottom: var(--space-2);
-  color: var(--ink-primary);
+.empty-text {
+  font-size: 14px;
+  margin-bottom: 18px;
+  line-height: 1.5;
 }
 
-.empty-state p {
-  color: var(--ink-muted);
-}
-
-/* Animations */
-.animate-item {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
-}
-
-.animate-item.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.animate-item.delay-1 { transition-delay: 0.1s; }
-.animate-item.delay-2 { transition-delay: 0.2s; }
-
-/* Responsive */
-@media (max-width: 1024px) {
-  .filters-bar {
-    flex-wrap: wrap;
-  }
-
-  .filters-bar > :first-child {
-    flex-basis: 100%;
-  }
-}
-
-@media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-4);
-  }
-
-  .students-table-container {
-    overflow-x: auto;
-  }
-
-  .students-table {
-    min-width: 800px;
-  }
-}
-
-/* Student Detail Panel — FrostCard provides the glass; view provides layout */
-.student-detail-panel {
-  padding: var(--space-6);
-  margin-top: var(--space-6);
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-5);
-}
-
-.detail-header h3 {
-  font-size: var(--text-xl);
-  font-weight: var(--font-bold);
-  font-family: var(--font-display);
-  color: var(--ink-primary);
-  letter-spacing: -0.01em;
-}
-
-.detail-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
-.detail-stat {
-  text-align: center;
-  padding: var(--space-4);
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(44, 38, 34, 0.06);
-  border-radius: var(--radius-lg);
-}
-
-.detail-stat-value {
-  display: block;
-  font-size: var(--text-2xl);
-  font-weight: var(--font-bold);
-  color: var(--ssi-gold);
-  font-variant-numeric: tabular-nums;
-}
-
-.detail-stat-label {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: var(--space-1);
-}
-
-.detail-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--ink-secondary);
-}
-
-/* Panel transition */
-.panel-enter-active, .panel-leave-active {
-  transition: all 0.3s ease;
-}
-.panel-enter-from, .panel-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
+@media (max-width: 960px) {
+  .students { padding: 16px; }
+  .filters-bar { padding: 10px; }
+  .table-card { overflow-x: auto; }
+  .ssi-table { min-width: 820px; }
 }
 </style>
