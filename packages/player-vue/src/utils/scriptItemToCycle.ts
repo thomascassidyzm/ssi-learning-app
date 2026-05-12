@@ -7,6 +7,8 @@
 
 import type { ScriptItem } from '../providers/CourseDataProvider'
 import type { Cycle, CycleType } from '../types/Cycle'
+import { computePauseDuration } from '../playback/computePauseDuration'
+import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
 
 /**
  * Map ScriptItem type to CycleType
@@ -40,21 +42,13 @@ function mapScriptItemTypeToCycleType(type: ScriptItem['type']): CycleType {
 export function scriptItemToCycle(item: ScriptItem): Cycle {
   const cycleType = mapScriptItemTypeToCycleType(item.type)
 
-  // Pause formula: bootUpTime(2000) + scaleFactor(1.5) × (voice1 + voice2), capped 22000ms
-  //
-  // Learner generates target from L1 prompt by retrieving and recombining LEGOs at
-  // beginner speed — not echoing native-speed audio. Pause has to cover think-time
-  // + per-LEGO retrieval + slow articulation. The previous 0.75 multiplier was
-  // calibrated for echo-and-repeat; for SSi's generate-from-prompt loop it was
-  // ~half the time needed for longer phrases. Bumping to 1.5 keeps short-phrase
-  // pause near current values but roughly doubles the long-phrase end.
-  // Cap at 22s to prevent runaway on outlier audio durations.
+  // Pause: single helper sourced from algorithm_config (admin-tunable). At
+  // cycle-bake time we don't have the live config in scope, so we use
+  // DEFAULT_NORMAL as the fallback — the runtime override recomputes from the
+  // live config when the cycle actually plays.
   const target1DurationMs = item.audioDurations ? item.audioDurations.target1 * 1000 : 0
   const target2DurationMs = item.audioDurations ? item.audioDurations.target2 * 1000 : 0
-  const totalTargetMs = target1DurationMs + target2DurationMs
-  const pauseDurationMs = totalTargetMs > 0
-    ? Math.min(22000, Math.round(2000 + 1.5 * totalTargetMs))
-    : 6500 // fallback when audio durations missing: roughly 2000 + 1.5 × 3000
+  const pauseDurationMs = computePauseDuration(target1DurationMs, target2DurationMs, DEFAULT_NORMAL)
 
   return {
     id: `${item.legoId}-${item.type}-${item.roundNumber}`,

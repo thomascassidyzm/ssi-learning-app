@@ -106,7 +106,7 @@ export interface AlgorithmConfigs {
 // The previous fallback (base 1500, mul 1.0, ceiling 8000) was the legacy too-tight curve;
 // values below match the formula deployed for SSi's generate-from-prompt loop, so when
 // the DB algorithm_config row is missing the fallback gives the same answer.
-const DEFAULT_NORMAL: ModeConfig = {
+export const DEFAULT_NORMAL: ModeConfig = {
   playback_speed: 1.0,
   pause_base_ms: 2000,
   pause_multiplier: 1.5,
@@ -117,7 +117,7 @@ const DEFAULT_NORMAL: ModeConfig = {
   skip_voice2: false
 }
 
-const DEFAULT_TURBO: ModeConfig = {
+export const DEFAULT_TURBO: ModeConfig = {
   playback_speed: 1.25,
   // Pause formula: clamp(min_pause_ms, max_pause_ms, pause_base_ms + (target1 + target2) × pause_multiplier).
   // Previous values (base 500, mul 0.5, max 2000) capped Turbo at 2s flat for

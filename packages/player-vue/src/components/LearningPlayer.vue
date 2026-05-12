@@ -37,8 +37,9 @@ import type { ListeningConfig as ListeningConfigType } from '../providers/genera
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
-import { toSimpleRounds, type TargetSpeedConfig, NATIVE_PAUSE_CONFIG, LEGACY_PAUSE_CONFIG } from '../providers/toSimpleRounds'
+import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
+import { computePauseDuration } from '../playback/computePauseDuration'
 import { useAuthModal } from '../composables/useAuthModal'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
@@ -2639,22 +2640,18 @@ watch(pendingPhase, (phase) => {
 
   // Start ring animation when entering pause phase.
   //
-  // Use the SAME pause-duration formula that the SimplePlayer's setTimeout
-  // uses (the runtime override, driven by normalConfig / turboConfig from
-  // algorithm_config) — NOT the baked cycle.pauseDuration. The baked value
-  // is computed in toSimpleRounds with a different formula (currently
-  // 2000 + 3.0 × target1), while the override uses
-  // 2000 + 1.5 × (target1 + target2) with floor/ceiling clamps. If we
-  // animate against the baked value, the visible countdown ends a few
-  // hundred ms (or seconds, on longer phrases) before the real timer
-  // fires, producing a "timer stops, silent gap, voice1 starts" feel.
+  // Both the visible countdown and the SimplePlayer's setTimeout go through
+  // computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
+  // affect both in lockstep. cfg is normalConfig or turboConfig — the live
+  // values from the DB, with DEFAULT_NORMAL/DEFAULT_TURBO as fallback.
   if (phase === 'pause') {
     const cycle = simplePlayer.currentCycle.value
     const cfg = turboActive.value ? turboConfig.value : normalConfig.value
-    const t1 = cycle?.target1DurationMs ?? 0
-    const t2 = cycle?.target2DurationMs ?? 0
-    const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
-    const duration = Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+    const duration = computePauseDuration(
+      cycle?.target1DurationMs ?? 0,
+      cycle?.target2DurationMs ?? 0,
+      cfg,
+    )
     startRingAnimation(duration)
   }
 })
@@ -3224,9 +3221,9 @@ function toSimpleRoundsWithComponents(items: any[]) {
     targetSpeed.globalSpeed = (targetSpeed.globalSpeed ?? 1.0) * learnerSpeed
   }
 
-  // Pick pause config based on course type
-  const pauseConfig = isNativeSpeed ? NATIVE_PAUSE_CONFIG : LEGACY_PAUSE_CONFIG
-  const rounds = toSimpleRounds(items, pauseConfig, targetSpeed)
+  // Pause comes from algorithm_config at runtime (see setRuntimeOverrides below);
+  // toSimpleRounds bakes a DEFAULT_NORMAL fallback for environments without live config.
+  const rounds = toSimpleRounds(items, targetSpeed)
   let count = 0
   for (const round of rounds) {
     for (const cycle of round.cycles) {
@@ -5157,20 +5154,20 @@ simplePlayer.setRuntimeOverrides({
     if (!cycle.pauseDuration) return cycle.pauseDuration
     if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
     // Recompute pause from raw target durations using the active mode's config.
-    // Same formula shape for both modes; the multiplier/base/floor/ceiling differ.
-    const t1 = cycle.target1DurationMs ?? 0
-    const t2 = cycle.target2DurationMs ?? 0
+    // Single source of truth — same helper drives the visible countdown.
     const cfg = turboActive.value ? turboConfig.value : normalConfig.value
-    const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
-    const clamped = Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+    const base = computePauseDuration(
+      cycle.target1DurationMs ?? 0,
+      cycle.target2DurationMs ?? 0,
+      cfg,
+    )
     // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
     // Applied last so mode floors/ceilings are still respected before
     // mastery scaling.
     const multiplier = cycle.legoId
       ? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
       : 1.0
-    const adapted = clamped * multiplier
-    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, adapted))
+    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
   getPlaybackSpeedMultiplier: (cycle) => {
     if (!turboActive.value) return 1.0
@@ -10012,16 +10009,16 @@ button.phase-segment {
 }
 
 button.phase-segment:hover:not(.is-active) {
-  background: rgba(220, 38, 38, 0.07);
-  color: #dc2626;
+  background: var(--accent-soft);
+  color: var(--ssi-red);
 }
 
 button.phase-segment:active:not(.is-active) {
-  background: rgba(220, 38, 38, 0.16);
+  background: color-mix(in srgb, var(--ssi-red) 18%, transparent);
 }
 
 .phase-segment.is-active {
-  background: #dc2626;
+  background: var(--ssi-red);
   color: #fff;
 }
 
@@ -10029,21 +10026,27 @@ button.phase-segment:active:not(.is-active) {
   opacity: 0.9;
 }
 
-/* Pause countdown — sits behind the mic icon, grows left-to-right as the
- * pause progresses. Subtle red tint when inactive (won't ever animate at
- * that point — ringProgress returns 0), dark-red gradient when active. */
+/* Pause countdown — single red. The fill IS the active-state visual:
+ * starts at 0% on a blank section, grows left-to-right to 100% as the
+ * pause progresses, painted in the SAME --ssi-red as the play button
+ * and every other active phase pill. No separate active background and
+ * no darker red. */
 .phase-segment--pause .phase-segment-fill {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(220, 38, 38, 0.16), rgba(220, 38, 38, 0.08));
+  background: var(--ssi-red);
   transition: width 0.1s linear;
   width: 0%;
   pointer-events: none;
   z-index: 0;
 }
 
-.phase-segment--pause.is-active .phase-segment-fill {
-  background: linear-gradient(90deg, rgba(120, 15, 15, 0.7), rgba(120, 15, 15, 0.4));
+/* Active pause doesn't get the solid-red background that other phases get —
+ * the growing fill IS the indicator. Keep icon dark so it stays visible
+ * across the light/red boundary as the fill sweeps under it. */
+.phase-segment--pause.is-active {
+  background: transparent;
+  color: rgba(0, 0, 0, 0.75);
 }
 
 /* ============ PHASE STRIP (legacy - kept for reference) ============ */
