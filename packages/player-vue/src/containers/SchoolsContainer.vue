@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
-import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
@@ -377,7 +376,6 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
-      <AtmosphereBackdrop />
       <SchoolsTopBar />
 
       <main class="main-content">
@@ -398,7 +396,7 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 .schools-container {
   height: 100vh;
   position: relative;
-  background: var(--bg-primary);
+  background: var(--schools-page-backdrop, #e8e5dd);
   overflow-y: auto;
 }
 
