@@ -20,6 +20,8 @@ interface GroupSummary {
   total_practice_hours: number
 }
 
+export type SchoolHealth = 'excellent' | 'good' | 'needs-attention' | 'inactive'
+
 export interface School {
   id: string
   school_name: string
@@ -33,6 +35,23 @@ export interface School {
   student_count: number
   total_practice_hours: number
   created_at: string
+  // Dashboard extras — optional so existing constructors don't break.
+  active_days_last_7?: number
+  health?: SchoolHealth
+}
+
+// Bucket a school's recent engagement into one of four bands. A school
+// counts as inactive when it has no enrolled students or zero active
+// days across all its classes in the trailing 7 days. The class-level
+// metric is "best class in the school" — one engaged class lifts the
+// school's health, since school admins are most interested in the
+// floor of engagement, not the average.
+function bucketSchoolHealth(studentCount: number, activeDays: number): SchoolHealth {
+  if (studentCount === 0) return 'inactive'
+  if (activeDays >= 5) return 'excellent'
+  if (activeDays >= 2) return 'good'
+  if (activeDays >= 1) return 'needs-attention'
+  return 'inactive'
 }
 
 const schools = ref<School[]>([])
@@ -45,6 +64,29 @@ const error = ref<string | null>(null)
 export function useSchoolData() {
   const client = getSchoolsClient()
   const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher } = useSchoolContext()
+
+  // Best-class active_days_last_7 per school. One round-trip via
+  // class_activity_stats — we take the max across the school's classes
+  // (see bucketSchoolHealth for why "max" instead of "avg").
+  async function fetchSchoolActiveDays(schoolIds: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>()
+    if (schoolIds.length === 0) return out
+    try {
+      const { data } = await client
+        .from('class_activity_stats')
+        .select('school_id, active_days_last_7')
+        .in('school_id', schoolIds)
+      data?.forEach(row => {
+        const prev = out.get(row.school_id) ?? 0
+        const v = row.active_days_last_7 ?? 0
+        if (v > prev) out.set(row.school_id, v)
+      })
+    } catch {
+      // Health is informational — fall back to 0 (will resolve to
+      // inactive/needs-attention based on student_count).
+    }
+    return out
+  }
 
   // Fetch school(s) based on user role
   async function fetchSchools(): Promise<void> {
@@ -92,20 +134,29 @@ export function useSchoolData() {
           schoolData = data || []
         }
 
-        schools.value = schoolData.map(s => ({
-          id: s.id || s.school_id,
-          school_name: s.school_name,
-          region_code: s.region_code,
-          group_id: s.group_id,
-          admin_user_id: s.admin_user_id,
-          teacher_join_code: '',
-          admin_join_code: '',
-          teacher_count: s.teacher_count,
-          class_count: s.class_count,
-          student_count: s.student_count,
-          total_practice_hours: s.total_practice_hours,
-          created_at: s.created_at,
-        }))
+        const ids = schoolData.map(s => s.id || s.school_id).filter(Boolean)
+        const activeDaysMap = await fetchSchoolActiveDays(ids)
+
+        schools.value = schoolData.map(s => {
+          const id = s.id || s.school_id
+          const activeDays = activeDaysMap.get(id) ?? 0
+          return {
+            id,
+            school_name: s.school_name,
+            region_code: s.region_code,
+            group_id: s.group_id,
+            admin_user_id: s.admin_user_id,
+            teacher_join_code: '',
+            admin_join_code: '',
+            teacher_count: s.teacher_count,
+            class_count: s.class_count,
+            student_count: s.student_count,
+            total_practice_hours: s.total_practice_hours,
+            created_at: s.created_at,
+            active_days_last_7: activeDays,
+            health: bucketSchoolHealth(s.student_count || 0, activeDays),
+          }
+        })
 
         // Fetch group summary (prefer group_summary view, fall back to region_summary)
         if (userGroupId) {
@@ -147,6 +198,7 @@ export function useSchoolData() {
         if (fetchError) throw fetchError
 
         if (data) {
+          const schoolId = data.school_id || data.id
           // Also fetch the join code from schools table
           const { data: schoolData } = await client
             .from('schools')
@@ -154,8 +206,11 @@ export function useSchoolData() {
             .eq('id', selectedUser.value.school_id)
             .single()
 
+          const activeDaysMap = await fetchSchoolActiveDays([schoolId])
+          const activeDays = activeDaysMap.get(schoolId) ?? 0
+
           currentSchool.value = {
-            id: data.school_id || data.id,
+            id: schoolId,
             school_name: data.school_name,
             region_code: data.region_code,
             group_id: data.group_id,
@@ -167,6 +222,8 @@ export function useSchoolData() {
             student_count: data.student_count,
             total_practice_hours: data.total_practice_hours,
             created_at: data.created_at,
+            active_days_last_7: activeDays,
+            health: bucketSchoolHealth(data.student_count || 0, activeDays),
           }
           schools.value = [currentSchool.value]
         }
