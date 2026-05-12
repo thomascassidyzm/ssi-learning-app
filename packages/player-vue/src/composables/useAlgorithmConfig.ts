@@ -128,7 +128,7 @@ const DEFAULT_TURBO: ModeConfig = {
 
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
-  offset: 56,
+  offset: 90,
   l1ActiveSize: 10,
   l1ActiveInterval: 3,
   l1ReserveSize: 50,

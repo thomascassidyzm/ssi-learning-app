@@ -139,7 +139,12 @@ export interface ListeningConfig {
 
 export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   enabled: true,
-  offset: 56,
+  // Graduation offset: rounds after a seed's LAST LEGO debut before it
+  // becomes eligible for L1 listening. Calibrated to N-89 spaced-rep
+  // decay — final fib review for the last LEGO is at lastRound + 89,
+  // graduation one round later means the seed enters listening only
+  // after every one of its LEGOs has fully dropped out of spaced rep.
+  offset: 90,
   l1ActiveSize: 10,
   l1ActiveInterval: 3,
   l1ReserveSize: 50,
