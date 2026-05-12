@@ -9895,76 +9895,89 @@ defineExpose({
 }
 
 /* Pause countdown bar — inside hero-glass at bottom */
-/* Phase strip — 4 sections (prompt | pause | voice1 | voice2).
- * Prompt / voice1 / voice2 are clickable jump targets; pause holds the
- * countdown line (.phase-section-fill animated by ringProgress). */
+/* Phase strip — 4 labeled pill segments. Prompt / Voice 1 / Voice 2 are
+ * clickable jump targets; Pause is wider and shows the countdown line at
+ * its bottom edge during the gap. */
 .phase-strip {
   width: 100%;
-  height: 3px;
-  margin-top: var(--space-sm);
+  margin-top: var(--space-md);
   display: flex;
-  gap: 3px;
-  background: transparent;
+  align-items: stretch;
+  gap: 4px;
 }
 
 .phase-section {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
   border: 0;
-  padding: 0;
-  height: 100%;
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
   position: relative;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  cursor: default;
 }
 
 .phase-section--prompt,
 .phase-section--voice1,
 .phase-section--voice2 {
-  flex: 0 0 12%;
+  flex: 0 0 auto;
   cursor: pointer;
 }
 
-/* Expand the click/tap target above and below the thin visual bar
- * so it's reachable on touch devices without making the bar itself thicker. */
-.phase-section--prompt::before,
-.phase-section--voice1::before,
-.phase-section--voice2::before {
-  content: '';
-  position: absolute;
-  top: -14px;
-  bottom: -14px;
-  left: -2px;
-  right: -2px;
+.phase-section--pause {
+  /* Wider middle section — fills remaining horizontal space and houses
+   * the countdown line along its bottom edge. */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.phase-section--pause {
-  flex: 1;
-  overflow: hidden;
+.phase-section--pause .phase-section-label {
+  position: relative;
+  z-index: 1;
 }
 
 .phase-section.is-active {
-  background: rgba(220, 38, 38, 0.4);
-}
-
-.phase-section--prompt.is-active,
-.phase-section--voice1.is-active,
-.phase-section--voice2.is-active {
   background: #dc2626;
-  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+  color: #fff;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.4);
 }
 
 .phase-section--prompt:hover:not(.is-active),
 .phase-section--voice1:hover:not(.is-active),
 .phase-section--voice2:hover:not(.is-active) {
-  background: rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
 }
 
-.phase-section-fill {
-  height: 100%;
-  background: #dc2626;
-  border-radius: 2px;
+.phase-section--prompt:active:not(.is-active),
+.phase-section--voice1:active:not(.is-active),
+.phase-section--voice2:active:not(.is-active) {
+  background: rgba(220, 38, 38, 0.3);
+}
+
+/* Countdown line — sits at the bottom edge inside the pause pill and grows
+ * left-to-right as the pause progresses. Visible against the active-state
+ * red pill background (white-ish line on red). Inactive pause hides it via
+ * width: 0% from the :style binding (ringProgress returns 0 outside speak). */
+.phase-section--pause .phase-section-fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px 999px 999px 999px;
   transition: width 0.1s linear;
-  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+  width: 0%;
+  pointer-events: none;
 }
 
 /* ============ PHASE STRIP (legacy - kept for reference) ============ */
