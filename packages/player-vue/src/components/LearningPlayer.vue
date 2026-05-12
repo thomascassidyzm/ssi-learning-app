@@ -1132,15 +1132,20 @@ watch([currentRoundIndex, currentItemInRound], () => {
   }
 })
 
-// Watch for approaching end of cached rounds - trigger expansion
-// This enables infinite progressive loading without hard limits
+// Watch for approaching end of loaded rounds - trigger expansion.
+// Uses simplePlayer.roundCount as the source of truth: cachedRounds
+// is only populated on the legacy path and stays empty on the modern
+// SessionController path, but simplePlayer.roundCount reflects the
+// rounds actually queued for playback in both paths. This is what
+// the user can hit with skip/advance, so it's the right cutoff.
 watch(currentRoundIndex, async (index) => {
   if (!positionInitialized.value) return
-  if (!cachedRounds.value.length) return
+  const loaded = simplePlayer.roundCount.value
+  if (loaded === 0) return
 
-  const remaining = cachedRounds.value.length - index
+  const remaining = loaded - index
   if (remaining <= EXPANSION_THRESHOLD && !isExpandingScript.value) {
-    console.log(`[LearningPlayer] Approaching end (${remaining} rounds left), expanding...`)
+    console.log(`[LearningPlayer] Approaching end (${remaining} rounds left of ${loaded}), expanding...`)
     await expandScript()
   }
 })
@@ -5482,19 +5487,24 @@ const expandScript = async (): Promise<number> => {
 
   isExpandingScript.value = true
   try {
-    const currentLength = cachedRounds.value.length
-    const neededEnd = scriptBaseOffset.value + currentLength + EXPANSION_BATCH
+    // simplePlayer.roundCount is the live truth (works on both modern
+    // SessionController and legacy paths). cachedRounds may be empty
+    // on the SessionController path even when simplePlayer has rounds
+    // queued — using its length here would lead to an under-sized
+    // neededEnd and miss the infinite-play threshold entirely.
+    const loadedCount = simplePlayer.roundCount.value
+    const neededEnd = scriptBaseOffset.value + loadedCount + EXPANSION_BATCH
     const result = await generateScript(1, neededEnd)
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
-    if (expandedRounds.length > currentLength) {
-      const newRounds = expandedRounds.slice(currentLength)
+    if (expandedRounds.length > loadedCount) {
+      const newRounds = expandedRounds.slice(loadedCount)
+      // Keep cachedRounds in sync where other consumers read from it.
       cachedRounds.value = expandedRounds as any
-      // Feed the new rounds to simplePlayer too — its internal queue is
-      // separate from cachedRounds and `addRounds` would dedupe these
-      // away (infinite-play rounds reuse existing legoIds). `appendRounds`
-      // just pushes them at the end without dedupe, which is what we want.
+      // Feed the new rounds to simplePlayer. appendRounds dedupes by
+      // roundNumber so any overlap (loadSeedIfNeeded may have already
+      // added some main-loop rounds) is handled cleanly.
       simplePlayer.appendRounds(newRounds as any)
-      console.log(`[LearningPlayer] Expanded script: ${currentLength} → ${expandedRounds.length} rounds (+${newRounds.length} appended)`)
+      console.log(`[LearningPlayer] Expanded script: ${loadedCount} → ${expandedRounds.length} rounds (+${newRounds.length} appended)`)
       return newRounds.length
     } else {
       console.warn('[LearningPlayer] Expansion produced no new rounds — generator may be out of LEGOs to revive')
