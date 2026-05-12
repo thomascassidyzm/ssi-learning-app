@@ -558,10 +558,6 @@ onMounted(() => {
       v-if="!isPlaying && !isListeningMode && !isDrivingMode && !isPronunciationMode"
       class="legal-footer-global"
     >
-      <a href="https://www.saysomethingin.com" target="_blank" rel="noopener">About SaySomethingin</a>
-      <span class="legal-sep" aria-hidden="true">·</span>
-      <a href="/premium">Premium</a>
-      <span class="legal-sep" aria-hidden="true">·</span>
       <a href="https://www.saysomethingin.com/terms" target="_blank" rel="noopener">Terms</a>
       <span class="legal-sep" aria-hidden="true">·</span>
       <a href="https://www.saysomethingin.com/privacy" target="_blank" rel="noopener">Privacy</a>
@@ -813,19 +809,17 @@ onMounted(() => {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px 8px;
-  padding: 6px 12px;
-  max-width: calc(100vw - 2rem);
+  gap: 8px;
+  padding: 4px 10px;
   font-size: 11px;
-  line-height: 1.2;
-  color: rgba(255, 255, 255, 0.6);
-  background: rgba(10, 10, 18, 0.45);
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(10, 10, 18, 0.4);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-radius: 16px;
+  border-radius: 999px;
   z-index: 2999; /* one below BottomNav (3000) so the pill stays on top */
   pointer-events: auto;
 }
