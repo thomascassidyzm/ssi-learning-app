@@ -1,46 +1,97 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
-import Card from '@/components/schools/shared/Card.vue'
-import Button from '@/components/schools/shared/Button.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 
-const isAdminView = inject<boolean>('isAdminView', false)
-const { currentUser: selectedUser } = useSchoolContext()
-const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
+type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
-// Settings state - editable refs initialized from real data
+const SECTIONS: { id: SectionId; label: string }[] = [
+  { id: 'profile', label: 'School profile' },
+  { id: 'locale', label: 'Localisation' },
+  { id: 'data', label: 'Data & privacy' },
+  { id: 'billing', label: 'Billing' },
+]
+
+const isAdminView = inject<boolean>('isAdminView', false)
+const { currentUser } = useSchoolContext()
+const { activeSchool, currentSchool, totalStudents, fetchSchools } = useSchoolData()
+
+const activeSection = ref<SectionId>('profile')
+
+// Profile state
 const schoolNameEdit = ref('')
 const schoolEmailEdit = ref('')
-const timezone = ref('Europe/London')
+const city = ref('')
+const region = ref('')
+const about = ref('')
+const profileSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+
+// Localisation state
 const language = ref('en')
-const saveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+const timezone = ref('Europe/London')
+const weekStart = ref('Monday')
+const showFlags = ref(true)
 const localizationSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+
+// Data & privacy toggles (visual placeholders — no DB column yet)
+const dataToggles = ref<{ id: string; title: string; desc: string; value: boolean }[]>([
+  {
+    id: 'analytics',
+    title: 'Share anonymised analytics with the SSi team',
+    desc: 'Helps us improve recommendations across schools.',
+    value: true,
+  },
+  {
+    id: 'messaging',
+    title: 'Allow students to message each other',
+    desc: 'Disabled by default in school accounts.',
+    value: false,
+  },
+  {
+    id: 'realnames',
+    title: 'Show student real names to other students',
+    desc: 'When off, only first name + initial is shown.',
+    value: true,
+  },
+  {
+    id: 'retention',
+    title: 'Retain inactive accounts after 12 months',
+    desc: 'Otherwise we delete them automatically.',
+    value: false,
+  },
+])
+const isExporting = ref(false)
+
+// Billing state (placeholder — no billing table yet)
+const billingEmail = ref('')
 
 function syncFromSchoolData() {
   const school = activeSchool.value || currentSchool.value
-  schoolNameEdit.value = school?.school_name || selectedUser.value?.school_name || 'Your School'
-  schoolEmailEdit.value = school
-    ? `admin@${school.school_name.toLowerCase().replace(/\s+/g, '')}.edu`
-    : 'admin@school.edu'
+  schoolNameEdit.value = school?.school_name || currentUser.value?.school_name || ''
+  region.value = school?.region_code?.toUpperCase() || currentUser.value?.region_code?.toUpperCase() || ''
+  const slug = (school?.school_name || 'school').toLowerCase().replace(/\s+/g, '')
+  schoolEmailEdit.value = `contact@${slug}.edu`
+  billingEmail.value = `finance@${slug}.edu`
 }
 
-// Fetch data on mount and sync editable fields
-watch(selectedUser, async (user) => {
-  if (user) {
+watch(currentUser, async (u) => {
+  if (u) {
     await fetchSchools()
     syncFromSchoolData()
   }
 }, { immediate: true })
 
-watch([activeSchool, currentSchool], () => {
-  syncFromSchoolData()
+watch([activeSchool, currentSchool], syncFromSchoolData)
+
+onMounted(() => {
+  language.value = localStorage.getItem('ssi-language') || 'en'
+  timezone.value = localStorage.getItem('ssi-timezone') || 'Europe/London'
 })
 
 async function saveSchoolProfile() {
   const school = activeSchool.value || currentSchool.value
   if (!school) return
-  saveStatus.value = 'saving'
+  profileSaveStatus.value = 'saving'
   try {
     const { getSchoolsClient } = await import('@/composables/schools/client')
     const client = getSchoolsClient()
@@ -48,28 +99,24 @@ async function saveSchoolProfile() {
       .from('schools')
       .update({ school_name: schoolNameEdit.value })
       .eq('id', school.id)
-    saveStatus.value = 'saved'
-    setTimeout(() => { saveStatus.value = 'idle' }, 2000)
+    profileSaveStatus.value = 'saved'
+    setTimeout(() => { profileSaveStatus.value = 'idle' }, 2000)
     await fetchSchools()
   } catch (err) {
     console.error('Failed to save school profile:', err)
-    saveStatus.value = 'idle'
+    profileSaveStatus.value = 'idle'
   }
 }
 
 function saveLocalization() {
   localizationSaveStatus.value = 'saving'
-  // Localization preferences saved locally (no DB table yet)
   localStorage.setItem('ssi-timezone', timezone.value)
   localStorage.setItem('ssi-language', language.value)
   setTimeout(() => {
     localizationSaveStatus.value = 'saved'
     setTimeout(() => { localizationSaveStatus.value = 'idle' }, 2000)
-  }, 300)
+  }, 250)
 }
-
-// Data & Privacy
-const isExporting = ref(false)
 
 async function handleExportData() {
   const school = activeSchool.value || currentSchool.value
@@ -83,8 +130,8 @@ async function handleExportData() {
       .select('*')
       .eq('school_id', school.id)
 
-    const rows = (progress || []).map(p =>
-      [p.student_name, p.class_name, p.seeds_completed, p.total_practice_seconds, p.last_active_at].join(',')
+    const rows = (progress || []).map((p: any) =>
+      [p.student_name, p.class_name, p.seeds_completed, p.total_practice_seconds, p.last_active_at].join(','),
     )
     const csv = ['Student,Class,Seeds Completed,Practice Seconds,Last Active', ...rows].join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
@@ -101,300 +148,411 @@ async function handleExportData() {
   }
 }
 
-async function handleDeleteData() {
-  const school = activeSchool.value || currentSchool.value
-  if (!school) return
-  if (!confirm(`Are you sure you want to delete ALL student progress data for "${school.school_name}"? This cannot be undone.`)) return
-  if (!confirm(`This is your final warning. All student progress, session history, and analytics will be permanently deleted. Type the school name to confirm.`)) return
-
-  try {
-    const { getSchoolsClient } = await import('@/composables/schools/client')
-    const client = getSchoolsClient()
-    const { error: deleteError } = await client
-      .from('class_student_progress')
-      .delete()
-      .eq('school_id', school.id)
-
-    if (deleteError) {
-      console.error('Delete failed:', deleteError)
-      alert('Failed to delete data. Please try again or contact support.')
-    } else {
-      alert('All student progress data has been deleted.')
-    }
-  } catch (err) {
-    console.error('Delete failed:', err)
-    alert('Failed to delete data. Please try again or contact support.')
-  }
-}
-
-// Animation
-const isVisible = ref(false)
-onMounted(() => {
-  setTimeout(() => { isVisible.value = true }, 50)
+const planSeats = computed(() => totalStudents.value || 0)
+const planLine = computed(() => {
+  const name = (activeSchool.value || currentSchool.value)?.school_name || currentUser.value?.school_name || 'Your school'
+  return planSeats.value
+    ? `${name} — ${planSeats.value} seats`
+    : `${name} — seats not configured`
 })
+
+function toggleDataItem(id: string) {
+  const item = dataToggles.value.find((t) => t.id === id)
+  if (item) item.value = !item.value
+}
 </script>
 
 <template>
-  <div class="settings-view" :class="{ 'is-visible': isVisible }">
-    <!-- Page Header -->
-    <header class="page-header animate-item" :class="{ 'show': isVisible }">
-      <div class="page-title">
-        <h1>Settings</h1>
-        <p class="page-subtitle">Manage your school and account settings</p>
+  <main class="settings-screen">
+    <h1 class="arsenal page-title">Settings</h1>
+
+    <div class="settings-layout">
+      <aside class="schools-card section-nav">
+        <button
+          v-for="s in SECTIONS"
+          :key="s.id"
+          type="button"
+          class="section-link"
+          :class="{ active: activeSection === s.id }"
+          @click="activeSection = s.id"
+        >
+          {{ s.label }}
+        </button>
+      </aside>
+
+      <div class="settings-content">
+        <section v-if="activeSection === 'profile'" class="schools-card schools-card-pad panel">
+          <h2 class="arsenal panel-title">School profile</h2>
+          <label class="field">
+            <span class="field-label">School name</span>
+            <input v-model="schoolNameEdit" class="field-input" type="text" />
+          </label>
+          <label class="field">
+            <span class="field-label">Type</span>
+            <input value="Bilingual immersion · primary + lower secondary" class="field-input" type="text" readonly />
+            <span class="field-hint">Type is set by your group administrator.</span>
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span class="field-label">City</span>
+              <input v-model="city" class="field-input" type="text" placeholder="—" />
+            </label>
+            <label class="field">
+              <span class="field-label">Region</span>
+              <input v-model="region" class="field-input" type="text" placeholder="—" />
+            </label>
+          </div>
+          <label class="field">
+            <span class="field-label">Contact email</span>
+            <input v-model="schoolEmailEdit" class="field-input" type="email" />
+          </label>
+          <label class="field">
+            <span class="field-label">About</span>
+            <textarea v-model="about" rows="3" class="field-input field-textarea" placeholder="A short description of your school." />
+          </label>
+          <div v-if="!isAdminView" class="panel-actions">
+            <button type="button" class="btn-play" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
+              {{ profileSaveStatus === 'saving' ? 'Saving…' : profileSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
+            </button>
+            <button type="button" class="btn-ghost">Cancel</button>
+          </div>
+        </section>
+
+        <section v-else-if="activeSection === 'locale'" class="schools-card schools-card-pad panel">
+          <h2 class="arsenal panel-title">Localisation</h2>
+          <label class="field">
+            <span class="field-label">Default interface language</span>
+            <select v-model="language" class="field-input">
+              <option value="en">English</option>
+              <option value="cy">Cymraeg (Welsh)</option>
+              <option value="es">Español (Spanish)</option>
+              <option value="br">Brezhoneg (Breton)</option>
+            </select>
+            <span class="field-hint">Teachers and students can override individually.</span>
+          </label>
+          <label class="field">
+            <span class="field-label">Time zone</span>
+            <select v-model="timezone" class="field-input">
+              <option value="Europe/London">Europe/London</option>
+              <option value="Europe/Paris">Europe/Paris</option>
+              <option value="Europe/Dublin">Europe/Dublin</option>
+              <option value="America/New_York">America/New York</option>
+              <option value="America/Los_Angeles">America/Los Angeles</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Week starts on</span>
+            <select v-model="weekStart" class="field-input">
+              <option value="Monday">Monday</option>
+              <option value="Sunday">Sunday</option>
+            </select>
+          </label>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-title">Show flags on courses</div>
+              <div class="toggle-desc">Display country flags next to course names.</div>
+            </div>
+            <button
+              type="button"
+              class="toggle"
+              :class="{ on: showFlags }"
+              :aria-pressed="showFlags"
+              @click="showFlags = !showFlags"
+            >
+              <span class="toggle-thumb" />
+            </button>
+          </div>
+          <div v-if="!isAdminView" class="panel-actions">
+            <button type="button" class="btn-play" :disabled="localizationSaveStatus === 'saving'" @click="saveLocalization">
+              {{ localizationSaveStatus === 'saving' ? 'Saving…' : localizationSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
+            </button>
+          </div>
+        </section>
+
+        <section v-else-if="activeSection === 'data'" class="schools-card schools-card-pad panel">
+          <h2 class="arsenal panel-title">Data &amp; privacy</h2>
+          <div
+            v-for="t in dataToggles"
+            :key="t.id"
+            class="toggle-row toggle-row-bordered"
+          >
+            <div>
+              <div class="toggle-title">{{ t.title }}</div>
+              <div class="toggle-desc">{{ t.desc }}</div>
+            </div>
+            <button
+              type="button"
+              class="toggle"
+              :class="{ on: t.value }"
+              :aria-pressed="t.value"
+              @click="toggleDataItem(t.id)"
+            >
+              <span class="toggle-thumb" />
+            </button>
+          </div>
+          <div class="panel-actions data-actions">
+            <button type="button" class="btn-ghost" :disabled="isExporting" @click="handleExportData">
+              {{ isExporting ? 'Preparing…' : 'Download all data (.csv)' }}
+            </button>
+          </div>
+        </section>
+
+        <section v-else-if="activeSection === 'billing'" class="schools-card schools-card-pad panel">
+          <h2 class="arsenal panel-title">Billing</h2>
+          <div class="plan-card">
+            <div class="schools-kicker plan-kicker">Current plan</div>
+            <div class="arsenal plan-title">{{ planLine }}</div>
+            <div class="plan-meta">Billing details available once your subscription is activated.</div>
+          </div>
+          <label class="field">
+            <span class="field-label">Billing email</span>
+            <input v-model="billingEmail" class="field-input" type="email" />
+          </label>
+          <div class="panel-actions">
+            <button type="button" class="btn-ghost">Download invoices</button>
+          </div>
+        </section>
       </div>
-    </header>
-
-    <div class="settings-grid">
-      <!-- School Profile -->
-      <Card title="School Profile" class="animate-item delay-1" :class="{ 'show': isVisible }">
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-        </template>
-        <div class="form-group">
-          <label class="form-label">School Name</label>
-          <input type="text" v-model="schoolNameEdit" class="form-input" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Contact Email</label>
-          <input type="email" v-model="schoolEmailEdit" class="form-input" />
-        </div>
-        <div v-if="!isAdminView" class="form-actions">
-          <Button variant="primary" size="sm" @click="saveSchoolProfile" :disabled="saveStatus === 'saving'">
-            {{ saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Changes' }}
-          </Button>
-        </div>
-      </Card>
-
-      <!-- Localization -->
-      <Card title="Localization" class="animate-item delay-1" :class="{ 'show': isVisible }">
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-        </template>
-        <div class="form-group">
-          <label class="form-label">Timezone</label>
-          <select v-model="timezone" class="form-select">
-            <option value="Europe/London">Europe/London (GMT)</option>
-            <option value="Europe/Dublin">Europe/Dublin (GMT)</option>
-            <option value="America/New_York">America/New York (EST)</option>
-            <option value="America/Los_Angeles">America/Los Angeles (PST)</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Dashboard Language</label>
-          <select v-model="language" class="form-select">
-            <option value="en">English</option>
-            <option value="cy">Cymraeg (Welsh)</option>
-            <option value="es">Espanol (Spanish)</option>
-          </select>
-        </div>
-        <div v-if="!isAdminView" class="form-actions">
-          <Button variant="primary" size="sm" @click="saveLocalization" :disabled="localizationSaveStatus === 'saving'">
-            {{ localizationSaveStatus === 'saving' ? 'Saving...' : localizationSaveStatus === 'saved' ? 'Saved!' : 'Save Changes' }}
-          </Button>
-        </div>
-      </Card>
-
-      <!-- Data & Privacy -->
-      <Card title="Data & Privacy" class="animate-item delay-2" :class="{ 'show': isVisible }">
-        <template #icon>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-        </template>
-        <div class="setting-row">
-          <div class="setting-info">
-            <h4>Export All Data</h4>
-            <p>Download all your school's learning data</p>
-          </div>
-          <Button variant="secondary" size="sm" @click="handleExportData" :loading="isExporting">Export</Button>
-        </div>
-        <div class="setting-row">
-          <div class="setting-info">
-            <h4>Delete All Data</h4>
-            <p>Permanently delete all student progress data</p>
-          </div>
-          <Button variant="secondary" size="sm" class="btn-danger" @click="handleDeleteData">Delete</Button>
-        </div>
-      </Card>
     </div>
-  </div>
+  </main>
 </template>
 
 <style scoped>
-.settings-view {
-  max-width: 1000px;
+.settings-screen {
+  padding: 22px 28px 32px;
+  max-width: 1080px;
+  margin: 0 auto;
 }
 
-.page-header {
-  margin-bottom: var(--space-8);
+.page-title {
+  font-size: 30px;
+  line-height: 1.05;
+  margin-bottom: 14px;
 }
 
-.page-title h1 {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
-  margin-bottom: var(--space-1);
-}
-
-.page-subtitle {
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  margin: 0;
-}
-
-/* Settings Grid */
-.settings-grid {
+.settings-layout {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-6);
+  grid-template-columns: 220px 1fr;
+  gap: 18px;
+  align-items: start;
 }
 
-/* Form Styles */
-.form-group {
-  margin-bottom: var(--space-5);
-}
-
-.form-group:last-of-type {
-  margin-bottom: var(--space-6);
-}
-
-.form-label {
-  display: block;
-  margin-bottom: var(--space-2);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  color: var(--text-secondary);
-}
-
-.form-input,
-.form-select {
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: var(--text-sm);
-  transition: all var(--transition-base);
-}
-
-.form-input:focus,
-.form-select:focus {
-  outline: none;
-  border-color: var(--ssi-red);
-  box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.2);
-}
-
-.form-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right var(--space-4) center;
-  padding-right: var(--space-12);
-  cursor: pointer;
-}
-
-.form-actions {
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-}
-
-/* Setting Row */
-.setting-row {
+.section-nav {
+  padding: 8px;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--border-subtle);
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 70px;
 }
 
-.setting-row:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.section-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--schools-fg);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease-out, color 120ms ease-out;
 }
 
-.setting-info h4 {
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  margin-bottom: var(--space-1);
+.section-link:hover {
+  background: #f6f5f1;
 }
 
-.setting-info p {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
+.section-link.active {
+  background: #f6f5f1;
+  color: var(--schools-red);
+  font-weight: 600;
+}
+
+.settings-content {
+  min-width: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.panel-title {
+  font-size: 22px;
   margin: 0;
 }
 
-/* Toggle Switch */
-.toggle-switch {
-  width: 48px;
-  height: 28px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-full);
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.field-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--schools-fg);
+}
+
+.field-hint {
+  font-size: 11.5px;
+  color: var(--schools-fg-2);
+}
+
+.field-input {
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--schools-border-strong);
+  border-radius: 8px;
+  background: #fff;
+  font-family: var(--font-body);
+  color: var(--schools-fg);
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--schools-red);
+  box-shadow: 0 0 0 3px rgba(219, 30, 23, 0.12);
+}
+
+.field-input[readonly] {
+  background: #fafaf6;
+  color: var(--schools-fg-2);
+}
+
+.field-textarea {
+  resize: vertical;
+  min-height: 76px;
+  font-family: var(--font-body);
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.data-actions {
+  padding-top: 8px;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+}
+
+.toggle-row-bordered {
+  border-top: 1px solid var(--schools-border);
+  padding: 10px 0;
+}
+
+.toggle-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--schools-fg);
+}
+
+.toggle-desc {
+  font-size: 12px;
+  color: var(--schools-fg-2);
+  margin-top: 2px;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+.toggle {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: #ccc;
   position: relative;
   cursor: pointer;
-  transition: all var(--transition-base);
+  flex: none;
+  padding: 0;
+  transition: background 160ms ease-out;
 }
 
-.toggle-switch.active {
-  background: var(--ssi-red);
-  border-color: var(--ssi-red);
+.toggle.on {
+  background: var(--schools-success);
 }
 
 .toggle-thumb {
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 2px;
+  left: 2px;
   width: 20px;
   height: 20px;
-  background: white;
-  border-radius: var(--radius-full);
-  transition: transform var(--transition-base);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: left 150ms ease-out;
 }
 
-.toggle-switch.active .toggle-thumb {
-  transform: translateX(20px);
+.toggle.on .toggle-thumb {
+  left: 20px;
 }
 
-/* Danger Button */
-.btn-danger :deep(.btn) {
-  border-color: var(--error);
-  color: var(--error);
+.plan-card {
+  padding: 14px;
+  background: #fdf6df;
+  border: 1px solid #f0d97a;
+  border-radius: 8px;
 }
 
-.btn-danger :deep(.btn:hover) {
-  background: var(--error);
-  color: white;
+.plan-kicker {
+  color: #7a5418;
 }
 
-/* Animations */
-.animate-item {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
+.plan-title {
+  font-size: 24px;
+  margin-top: 4px;
+  color: #4a3308;
 }
 
-.animate-item.show {
-  opacity: 1;
-  transform: translateY(0);
+.plan-meta {
+  font-size: 12.5px;
+  color: #5a3e10;
+  margin-top: 4px;
 }
 
-.animate-item.delay-1 { transition-delay: 0.1s; }
-.animate-item.delay-2 { transition-delay: 0.2s; }
+@media (max-width: 960px) {
+  .settings-screen {
+    padding: 20px 16px 32px;
+  }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .settings-grid {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .section-nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 4px;
+  }
+
+  .section-link {
+    flex: none;
+    padding: 8px 12px;
+  }
+
+  .field-row {
     grid-template-columns: 1fr;
   }
 }
