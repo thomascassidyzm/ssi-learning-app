@@ -564,6 +564,13 @@ const isPlaying = ref(false)
 // when the cursor is currently behind this ceiling.
 const highestCompletedRoundIndex = ref<number | null>(null)
 const highestCompletedLegoId = ref<string | null>(null)
+// Current cursor (vs ceiling). Critical for infinite-play resume:
+// in infinite-play rounds the saved lastLegoId points to a LEGO
+// reviewed via random-USE, which the legoId-based resume would map to
+// that LEGO's MAIN-LOOP debut round — not the infinite-play round the
+// learner was actually on. The round index is the only unambiguous
+// position when legoIds get reused across infinite-play rounds.
+const lastCompletedRoundIndex = ref<number | null>(null)
 // Cycle cursor within the in-progress round, persisted on every cycle
 // completion. Read once on resume so a PWA reload mid-round picks up
 // from the cycle the learner was on rather than restarting cycle 0
@@ -588,11 +595,13 @@ watch(
       if (saved) {
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
+        lastCompletedRoundIndex.value = saved.lastCompletedRoundIndex ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
       } else {
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
+        lastCompletedRoundIndex.value = null
         savedCurrentCycleIndex.value = 0
         savedLastPracticedAt.value = null
       }
@@ -5984,8 +5993,24 @@ onMounted(async () => {
               : baseListeningConfig
 
             if (isReturningUser && startingSeed > 0) {
-              const endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
-              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading seeds 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
+              // Size the initial load to cover whichever is further: the
+              // seed-derived window OR the saved round cursor. The latter
+              // is critical for learners who've entered infinite play —
+              // infinite-play rounds reuse existing legoIds, so the
+              // legoId-derived startingSeed under-counts their actual
+              // position (it points to the LEGO's main-loop debut seed,
+              // not the infinite-play round they were on).
+              //
+              // Treating endSeed as a round cap works because the
+              // generator's infinite-play while-loop runs until
+              // roundNumber reaches endSeed — so for course_round_count
+              // < savedRound + buffer the generator emits enough
+              // infinite-play rounds to cover the resume target.
+              const seedBasedEnd = startingSeed + LOOKAHEAD_CHUNK_SEEDS
+              const savedRound = lastCompletedRoundIndex.value ?? -1
+              const roundBasedEnd = savedRound >= 0 ? savedRound + EXPANSION_BATCH : 0
+              const endSeed = Math.max(seedBasedEnd, roundBasedEnd)
+              console.log(`[LearningPlayer] Returning user at seed ${startingSeed} (saved round ${savedRound}) — loading 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
               result = await generateScript(1, endSeed, 1, config)
               console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else if (eagerCourseMatches) {
@@ -6061,18 +6086,45 @@ onMounted(async () => {
                   }
                 }
 
-                if (resumeLegoId) {
+                // Round-index resume is the authoritative path. legoId
+                // navigation breaks once a learner enters infinite play:
+                // simpleRounds.findIndex(r => r.legoId === lastLegoId)
+                // returns the LEGO's MAIN-LOOP debut round (the first
+                // occurrence), not the infinite-play round where the
+                // LEGO appeared via random USE. The round index is the
+                // only position that distinguishes "you debuted this
+                // LEGO at round 42" from "you reviewed it at round 700".
+                //
+                // The ratchet falls out naturally — last_completed_round_index
+                // only ever moves forward (forward-only guard in
+                // updateEnrollmentProgress + DB-side trigger that mirrors
+                // it into highest_completed_round_index).
+                const savedRound = lastCompletedRoundIndex.value ?? -1
+                const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
+                if (savedRound >= 0 && savedRound + 1 < simpleRounds.length) {
+                  console.debug(`[eagerLoad] ${modeTag}: resuming after round ${savedRound} (next ${savedRound + 1}, cycle ${resumeCycle})`)
+                  simplePlayer.jumpToRound(savedRound + 1, resumeCycle)
+                } else if (savedRound >= 0 && savedRound < simpleRounds.length) {
+                  // Saved round IS the final loaded round (final main-loop
+                  // round before infinite-play expansion kicks in). Stay
+                  // there — the proactive-expansion watcher will pull in
+                  // infinite-play rounds shortly.
+                  console.debug(`[eagerLoad] ${modeTag}: resuming at final loaded round ${savedRound}`)
+                  simplePlayer.jumpToRound(savedRound)
+                } else if (resumeLegoId) {
+                  // No usable round index yet (legacy enrollment row, or
+                  // saved round somehow beyond what we loaded). Fall back
+                  // to the legoId-findIndex path. Works for main-loop
+                  // resumes; for infinite-play learners this will land
+                  // mid-course but the round-index branch above should
+                  // have caught them.
                   const lastIdx = simpleRounds.findIndex(r => r.legoId === resumeLegoId)
-                  const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
                   if (lastIdx >= 0 && lastIdx + 1 < simpleRounds.length) {
-                    console.debug(`[eagerLoad] ${modeTag}: resuming after ${resumeLegoId} (round ${lastIdx + 1}, cycle ${resumeCycle})`)
+                    console.debug(`[eagerLoad] ${modeTag} (legoId fallback): resuming after ${resumeLegoId} (round ${lastIdx + 1}, cycle ${resumeCycle})`)
                     simplePlayer.jumpToRound(lastIdx + 1, resumeCycle)
                   } else if (lastIdx >= 0) {
-                    // Last LEGO was the final round — stay there
                     simplePlayer.jumpToRound(lastIdx)
                   } else {
-                    // legoId not in loaded set (e.g. extension hasn't landed)
-                    // — fall back to seed-based as a last resort
                     const nextSeed = startingSeed + 1
                     const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                     if (roundIndex >= 0) {
@@ -6081,7 +6133,7 @@ onMounted(async () => {
                     }
                   }
                 } else {
-                  // No legoId on record — seed-based fallback
+                  // No legoId AND no round index — seed-based fallback
                   const nextSeed = startingSeed + 1
                   const roundIndex = simplePlayer.findRoundIndexForSeed(nextSeed)
                   if (roundIndex >= 0) {
