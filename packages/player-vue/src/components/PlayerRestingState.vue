@@ -168,6 +168,18 @@ const handleChangeCourse = () => {
         </button>
       </div>
 
+      <!-- Minimal legal footer — Paddle's domain-approval review wants
+           Terms / Privacy / Refunds reachable via navigation on the home
+           page. Kept deliberately subtle so it reads as fine-print
+           chrome, not content. -->
+      <footer class="resting-legal">
+        <a href="https://www.saysomethingin.com/terms" target="_blank" rel="noopener">Terms</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://www.saysomethingin.com/privacy" target="_blank" rel="noopener">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <a href="https://www.saysomethingin.com/refunds" target="_blank" rel="noopener">Refunds</a>
+      </footer>
+
     </div>
   </div>
 </template>
@@ -463,6 +475,31 @@ const handleChangeCourse = () => {
 
 :root[data-theme="mist"] .progress-bar-track {
   background: rgba(0, 0, 0, 0.06);
+}
+
+.resting-legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 8px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text-muted, rgba(0, 0, 0, 0.38));
+  pointer-events: auto;
+}
+
+.resting-legal a {
+  color: inherit;
+  text-decoration: none;
+  padding: 2px;
+}
+
+.resting-legal a:hover {
+  color: var(--text-primary, rgba(0, 0, 0, 0.7));
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 </style>
