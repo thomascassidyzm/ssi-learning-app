@@ -305,6 +305,10 @@ onMounted(async () => {
            review (terms / privacy / refund policy). Placed on the checkout
            page itself so a reviewer sees them next to the CTA. -->
       <footer class="legal-footer">
+        <a href="https://www.saysomethingin.com" target="_blank" rel="noopener">About SaySomethingin</a>
+        <span class="legal-sep" aria-hidden="true">·</span>
+        <a href="https://www.saysomethingin.com/contact" target="_blank" rel="noopener">Contact</a>
+        <span class="legal-sep" aria-hidden="true">·</span>
         <a href="https://www.saysomethingin.com/terms" target="_blank" rel="noopener">Terms of Service</a>
         <span class="legal-sep" aria-hidden="true">·</span>
         <a href="https://www.saysomethingin.com/privacy" target="_blank" rel="noopener">Privacy Notice</a>
