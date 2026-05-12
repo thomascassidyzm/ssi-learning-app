@@ -230,7 +230,7 @@ onMounted(async () => {
         <!-- Not signed in -->
         <div v-else-if="!isAuthenticated" class="cta">
           <p>Take it for a test drive — 7 days free, no commitment. £{{ PREMIUM_PRICE }}/month from day 8 unless you cancel. We'll email a one-time code to sign you in — no password to remember.</p>
-          <Button variant="primary" size="lg" @click="() => openAuth()">Start 7-day free trial</Button>
+          <div class="coming-soon">Premium courses launch soon — check back shortly.</div>
         </div>
 
         <!-- Loading sub -->
@@ -266,15 +266,7 @@ onMounted(async () => {
             <li>Offline-capable, sync across devices</li>
           </ul>
           <div v-if="checkoutError" class="error">{{ checkoutError }}</div>
-          <Button
-            variant="primary"
-            size="lg"
-            :loading="isOpeningCheckout"
-            :disabled="isOpeningCheckout"
-            @click="startCheckout"
-          >
-            Start 7-day free trial
-          </Button>
+          <div class="coming-soon">Premium courses launch soon — check back shortly.</div>
         </div>
       </FrostCard>
 
@@ -452,6 +444,16 @@ onMounted(async () => {
   border-radius: var(--radius-lg);
   color: var(--ssi-red);
   font-size: var(--text-sm);
+}
+
+.coming-soon {
+  padding: var(--space-4) var(--space-5);
+  background: rgba(212, 168, 83, 0.10);
+  border: 1px solid rgba(212, 168, 83, 0.35);
+  border-radius: var(--radius-lg);
+  color: var(--ink-primary);
+  font-weight: var(--font-semibold);
+  text-align: center;
 }
 
 .page-back-link-wrap {
