@@ -30,6 +30,7 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
+import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
@@ -788,6 +789,23 @@ simplePlayer.onCycleCompleted((cycle) => {
   itemsPracticed.value++
   learningHintPromptsShown.value++
   contribution.incrementLocal()
+
+  // Feed per-LEGO adaptive engine. Only when we have a real latency signal
+  // (VAD detected speech). No-op when guest, when VAD disabled, or when the
+  // cycle is a listening/intro type without a meaningful learner response.
+  const latency = lastTimingResult.value?.response_latency_ms
+  if (
+    adaptationEngine.value &&
+    cycle.legoId &&
+    typeof latency === 'number' &&
+    cycle.target?.text
+  ) {
+    adaptationEngine.value.recordCycle(
+      cycle.legoId,
+      latency,
+      cycle.target.text.length
+    )
+  }
 
   resonatingNodes.value = []
 
@@ -1819,6 +1837,21 @@ const initializeBeltProgress = async () => {
 
     console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedRounds.value)
   }
+}
+
+/**
+ * Initialize per-LEGO adaptive pause engine.
+ * Safe for guests (engine runs in memory, no Supabase reads/writes).
+ */
+const initializeAdaptationEngine = async () => {
+  if (!courseCode.value || adaptationEngine.value) return
+  const engine = useAdaptationEngine({
+    supabase: supabase.value ?? null,
+    learnerId: learnerId.value ?? null,
+    courseCode: courseCode.value,
+  })
+  await engine.initialize()
+  adaptationEngine.value = engine
 }
 
 /**
@@ -5127,7 +5160,15 @@ simplePlayer.setRuntimeOverrides({
     const t2 = cycle.target2DurationMs ?? 0
     const cfg = turboActive.value ? turboConfig.value : normalConfig.value
     const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
-    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+    const clamped = Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+    // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
+    // Applied last so mode floors/ceilings are still respected before
+    // mastery scaling.
+    const multiplier = cycle.legoId
+      ? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
+      : 1.0
+    const adapted = clamped * multiplier
+    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, adapted))
   },
   getPlaybackSpeedMultiplier: (cycle) => {
     if (!turboActive.value) return 1.0
@@ -5225,6 +5266,11 @@ const ADAPTATION_CONSENT_KEY = 'ssi-adaptation-consent'
 
 // Consent states: null (not asked), true (granted), false (declined)
 const adaptationConsent = ref(null)
+
+// Per-LEGO adaptive pause engine. Hydrates from learner_lego_metrics on mount,
+// records latency per cycle, exposes a mastery-state-driven pause multiplier
+// applied in the getPauseDuration runtime override below.
+const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
@@ -6006,6 +6052,9 @@ onMounted(async () => {
   // Initialize belt progress (loads from localStorage, merges with Supabase)
   await initializeBeltProgress()
 
+  // Initialize per-LEGO adaptive pause engine (hydrates mastery from Supabase)
+  await initializeAdaptationEngine()
+
   // Initialize offline play composable (sets up online/offline listeners)
   offlinePlayCleanup = initializeOfflinePlay()
 
@@ -6782,6 +6831,9 @@ onUnmounted(() => {
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
+
+  // Flush any pending per-LEGO metrics, remove pagehide listener
+  adaptationEngine.value?.dispose()
   if (timingAnalyzer.value) {
     timingAnalyzer.value.reset()
     timingAnalyzer.value = null
