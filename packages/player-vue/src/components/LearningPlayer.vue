@@ -9964,10 +9964,18 @@ defineExpose({
   align-items: center;
   justify-content: center;
   gap: 4px;
-  flex: 0 0 auto;
+  /* Equal-width segments — each takes 1/4 of the pill interior. Earlier
+   * design used flex:0 0 auto for fixed segments + flex:1 1 auto on pause
+   * to grow into remaining space, but the asymmetry left visible margins
+   * around the pause section on Safari. Equal widths butt up cleanly. */
+  flex: 1 1 0;
+  min-width: 0;
   padding: 0 14px;
   border: 0;
+  margin: 0;
   background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
   color: rgba(0, 0, 0, 0.55);
   font-family: inherit;
   font-size: 11px;
@@ -10003,11 +10011,6 @@ button.phase-segment {
   opacity: 0.7;
 }
 
-.phase-segment--pause {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
 /* Hover-only styles — guarded so iOS touch devices don't get stuck in
  * `:hover` after a tap (the classic "pink voice1 button" sticky state). */
 @media (hover: hover) {
@@ -10028,6 +10031,15 @@ button.phase-segment:active:not(.is-active) {
 
 .phase-segment.is-active .phase-segment-num {
   opacity: 0.9;
+}
+
+/* Active pause MUST override the red bg — otherwise the section bg and
+ * the growing fill are both --ssi-red and the countdown is invisible.
+ * Keep the section bg transparent so the fill IS the only red, and dim
+ * the icon to dark for readability over the white→red sweep. */
+.phase-segment--pause.is-active {
+  background: transparent;
+  color: rgba(0, 0, 0, 0.7);
 }
 
 /* Pause countdown — single red. The fill is the entire active-state visual:
