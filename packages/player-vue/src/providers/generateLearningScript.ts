@@ -167,48 +167,6 @@ export interface LearningScriptResult {
   hasRomanizedText: boolean
 }
 
-/**
- * Allocate a total budget across weighted tiers, respecting pool sizes.
- * Empty tiers contribute their weight to the remaining non-empty tiers
- * (proportional redistribution). If any tier is undersized for its share,
- * the leftover is topped up from other tiers with remaining room.
- *
- * Used by the infinite-play revival loop to size the recency-weighted
- * random-USE selection. Short courses with no LEGOs in the "old" tier
- * collapse gracefully (e.g. Italian's ~80 LEGOs → ~67/33/0 effective).
- */
-function allocateAcrossTiers<T>(
-  total: number,
-  tiers: { pool: T[]; weight: number }[],
-): { pool: T[]; count: number }[] {
-  const result = tiers.map(t => ({ pool: t.pool, count: 0 }))
-  const nonEmpty = tiers
-    .map((t, i) => ({ t, i }))
-    .filter(({ t }) => t.pool.length > 0)
-  if (nonEmpty.length === 0 || total <= 0) return result
-  const weightSum = nonEmpty.reduce((s, { t }) => s + t.weight, 0)
-  let allocated = 0
-  for (const { t, i } of nonEmpty) {
-    const want = Math.min(t.pool.length, Math.round(total * t.weight / weightSum))
-    result[i].count = want
-    allocated += want
-  }
-  // Top up rounding loss + capped-tier leftover from anywhere with room.
-  let leftover = total - allocated
-  while (leftover > 0) {
-    let topped = false
-    for (const r of result) {
-      if (leftover <= 0) break
-      if (r.count >= r.pool.length) continue
-      r.count++
-      leftover--
-      topped = true
-    }
-    if (!topped) break
-  }
-  return result
-}
-
 /** Sample `n` items without replacement using a partial Fisher-Yates shuffle. */
 function sampleWithoutReplacement<T>(arr: T[], n: number): T[] {
   if (n >= arr.length) return [...arr]
@@ -1378,13 +1336,11 @@ export async function generateLearningScript(
   //   - spaced-rep fills first via the same N-1, N-2, ..., N-89 fib-offset
   //     logic as the main loop, capped at MAX_SPACED_REP_PHRASES
   //   - random USE fills the remainder, with a floor of MIN_RANDOM_USE (10):
-  //     one phrase each from distinct LEGOs sampled with a recency bias —
-  //         50%  last RECENT_TIER_SIZE (55) debuted LEGOs
-  //         25%  next MID_TIER_SIZE (100) older LEGOs
-  //         25%  everything older still
-  //     Empty tiers redistribute their weight proportionally to non-empty
-  //     tiers, so short courses degrade gracefully. Random-USE selections
-  //     are deduped against this round's spaced-rep set.
+  //     one phrase each from distinct LEGOs sampled uniformly at random
+  //     across the whole debuted inventory. (Previously recency-tiered, but
+  //     in infinite play every LEGO has been debuted, so a recency bias
+  //     becomes topic clustering toward the back end of the course.)
+  //     Random-USE selections are deduped against this round's spaced-rep set.
   //
   // We do NOT mutate lastRound on random USE — the fib decay drains
   // naturally. Long-tail steady state is pure recency-biased USE.
@@ -1396,11 +1352,6 @@ export async function generateLearningScript(
 
   const TARGET_ROUND_CYCLES = 20
   const MIN_RANDOM_USE = 10
-  const RECENT_TIER_SIZE = 55
-  const MID_TIER_SIZE = 100  // positions [total-156 .. total-56]
-  const RECENT_WEIGHT = 0.5
-  const MID_WEIGHT = 0.25
-  const OLD_WEIGHT = 0.25
 
   while (roundNumber < endSeed) {
     roundNumber++
@@ -1437,29 +1388,22 @@ export async function generateLearningScript(
     }
     const randomUseCount = Math.max(MIN_RANDOM_USE, TARGET_ROUND_CYCLES - projectedSpacedRep)
 
-    // Phase 2: RANDOM USE selection — recency-tiered sampling over debut
-    // order (Map iteration preserves insertion order). Deduped against the
-    // spaced-rep set so a LEGO can't appear twice in one round.
+    // Phase 2: RANDOM USE selection — uniform random over ALL debuted LEGOs.
+    //
+    // Previous design used recency tiers (50% last 55 / 25% next 100 / 25%
+    // rest), which made sense mid-course where "recent" tracks current
+    // content. In infinite play every LEGO has been debuted, so the recency
+    // bias becomes a topic-clustering bias toward the back end of the
+    // course — for a 300-seed course that's half the round locked to ~26
+    // seeds at the top. Uniform sampling gives the learner genuine variety
+    // across the whole inventory.
+    //
+    // Deduped against the spaced-rep set so a LEGO can't appear twice in
+    // one round.
     const spacedRepKeys = new Set(dueForReview.map(d => d.key))
     const allKeys = [...legoState.keys()]
-    const total = allKeys.length
-
-    const recentStart = Math.max(0, total - RECENT_TIER_SIZE)
-    const midStart = Math.max(0, total - RECENT_TIER_SIZE - MID_TIER_SIZE)
-
-    const recentPool = allKeys.slice(recentStart).filter(k => !spacedRepKeys.has(k))
-    const midPool = allKeys.slice(midStart, recentStart).filter(k => !spacedRepKeys.has(k))
-    const oldPool = allKeys.slice(0, midStart).filter(k => !spacedRepKeys.has(k))
-
-    const tierAllocations = allocateAcrossTiers(randomUseCount, [
-      { pool: recentPool, weight: RECENT_WEIGHT },
-      { pool: midPool,    weight: MID_WEIGHT },
-      { pool: oldPool,    weight: OLD_WEIGHT },
-    ])
-    const chosenKeys: string[] = []
-    for (const { pool, count } of tierAllocations) {
-      chosenKeys.push(...sampleWithoutReplacement(pool, count))
-    }
+    const pool = allKeys.filter(k => !spacedRepKeys.has(k))
+    const chosenKeys = sampleWithoutReplacement(pool, randomUseCount)
 
     // Phase 3: emit random USE (1 phrase per LEGO, advance round-robin
     // useIndex so phrases rotate across visits).
