@@ -6111,7 +6111,12 @@ onMounted(async () => {
           // Network data is loaded lazily when the user navigates to the Progress screen
           // This avoids blocking startup for courses with many LEGOs (1000+)
 
-          // Mark data as ready
+          // Mark data + position as ready. The legacy fallback paths
+          // below set positionInitialized too — flipping it here covers
+          // the modern SessionController path so the proactive-expansion
+          // watcher actually fires (it bails on !positionInitialized,
+          // which without this flip stays false for the entire session).
+          positionInitialized.value = true
           dataReady = true
           return
         } catch (err) {
