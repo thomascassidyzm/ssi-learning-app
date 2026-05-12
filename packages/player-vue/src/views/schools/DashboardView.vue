@@ -146,7 +146,12 @@ function benchFor(report: ClassReport | undefined) {
 
 // ---------- Actions ----------
 function handlePlayClass(cls: ClassInfo) {
-  const activeClass = {
+  // Full-page navigation so PlayerContainer re-mounts with fresh course +
+  // class context — router.push leaves singleton player state from /schools
+  // mounted, so the schools top bar stays visible above the player.
+  // Matches the demo-mode pattern in useDemoController (commit 2dd346e).
+  localStorage.setItem('ssi-last-course', cls.course_code)
+  localStorage.setItem('ssi-active-class', JSON.stringify({
     id: cls.id,
     name: cls.class_name,
     course_code: cls.course_code,
@@ -154,9 +159,8 @@ function handlePlayClass(cls: ClassInfo) {
     last_lego_id: cls.last_lego_id,
     teacherUserId: currentUser.value?.user_id,
     timestamp: new Date().toISOString(),
-  }
-  localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
-  router.push({ path: '/', query: { class: cls.id } })
+  }))
+  window.location.href = `/?class=${cls.id}`
 }
 </script>
 
