@@ -9947,7 +9947,7 @@ defineExpose({
   width: 100%;
   max-width: 340px;
   margin: var(--space-md) auto 0;
-  background: rgba(255, 255, 255, 0.94);
+  background: #ffffff;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 999px;
   box-shadow:
@@ -10008,9 +10008,13 @@ button.phase-segment {
   min-width: 0;
 }
 
-button.phase-segment:hover:not(.is-active) {
-  background: var(--accent-soft);
-  color: var(--ssi-red);
+/* Hover-only styles — guarded so iOS touch devices don't get stuck in
+ * `:hover` after a tap (the classic "pink voice1 button" sticky state). */
+@media (hover: hover) {
+  button.phase-segment:hover:not(.is-active) {
+    background: var(--accent-soft);
+    color: var(--ssi-red);
+  }
 }
 
 button.phase-segment:active:not(.is-active) {
@@ -10042,10 +10046,13 @@ button.phase-segment:active:not(.is-active) {
 }
 
 /* Active pause doesn't get the solid-red background that other phases get —
- * the growing fill IS the indicator. Keep icon dark so it stays visible
- * across the light/red boundary as the fill sweeps under it. */
+ * the growing fill IS the indicator. A faint neutral wash on the section
+ * itself makes the still-empty portion clearly read as "the section
+ * currently being timed" instead of looking like a hole in the bar.
+ * Icon stays dark so it stays visible across the light/red boundary as
+ * the fill sweeps under it. */
 .phase-segment--pause.is-active {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.05);
   color: rgba(0, 0, 0, 0.75);
 }
 
