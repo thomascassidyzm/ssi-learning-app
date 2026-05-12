@@ -22,16 +22,18 @@ export interface PauseConfig {
   scaleFactor: number     // Scale factor for target audio duration (default: 0.75)
 }
 
-// Native speed courses (recorded at 1.0x): longer pauses, belt-based speed ramp
+// Native speed courses (recorded at 1.0x): longer pauses for generate-from-prompt loop
+// scaleFactor 3.0 on target1 alone ≈ scaleFactor 1.5 on (target1 + target2) in
+// scriptItemToCycle, keeping the two paths consistent on what real speakers need.
 export const NATIVE_PAUSE_CONFIG: PauseConfig = {
   bootUpTimeMs: 2000,
-  scaleFactor: 2.0
+  scaleFactor: 3.0
 }
 
-// Legacy courses (recorded at 0.8-0.9x): slightly longer pauses than before, no speed ramp
+// Legacy courses (recorded at 0.8-0.9x): slightly less pause, audio already slower
 export const LEGACY_PAUSE_CONFIG: PauseConfig = {
   bootUpTimeMs: 1500,
-  scaleFactor: 1.5
+  scaleFactor: 2.5
 }
 
 export const DEFAULT_PAUSE_CONFIG = NATIVE_PAUSE_CONFIG
@@ -59,9 +61,12 @@ function estimateDurationMs(targetText: string): number {
  * Calculate pause duration based on target audio length
  * Formula: bootUpTime + scaleFactor * target1Duration
  *
- * Cap of 16000ms covers the realistic upper end of phrase lengths (a 7s
- * target gets the full 2 + 14 = 16s pause). Audit 2026-05-05 showed only
- * ~0.5% of fleet phrases exceed 7s; the previous 10s cap was clamping 15%.
+ * Cap of 22000ms covers SSi's generate-from-prompt loop for very long phrases
+ * (a 6s target with scaleFactor 3.0 reaches 2 + 18 = 20s, leaving margin).
+ * Audit 2026-05-12: previous 16s cap with 2.0 multiplier was clamping the
+ * long-phrase end where learners need the most time to retrieve and articulate
+ * from L1 prompt; bumping to 22s with 3.0 multiplier opens the long end without
+ * affecting short phrases.
  */
 function calculatePauseDuration(
   target1DurationMs: number | undefined,
@@ -71,7 +76,7 @@ function calculatePauseDuration(
 ): number {
   const t1 = target1DurationMs || estimateDurationMs(targetText || '')
 
-  return Math.min(16000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
+  return Math.min(22000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
 }
 
 /**
