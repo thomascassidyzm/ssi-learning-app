@@ -308,6 +308,17 @@ onMounted(async () => {
           Or browse our free courses →
         </button>
       </div>
+
+      <!-- Legal links — required publicly-visible by Paddle's domain-approval
+           review (terms / privacy / refund policy). Placed on the checkout
+           page itself so a reviewer sees them next to the CTA. -->
+      <footer class="legal-footer">
+        <a href="https://www.stage.saysomethingin.com/terms" target="_blank" rel="noopener">Terms of Service</a>
+        <span class="legal-sep" aria-hidden="true">·</span>
+        <a href="https://www.stage.saysomethingin.com/privacy" target="_blank" rel="noopener">Privacy Notice</a>
+        <span class="legal-sep" aria-hidden="true">·</span>
+        <a href="https://www.stage.saysomethingin.com/refunds" target="_blank" rel="noopener">Refund Policy</a>
+      </footer>
     </main>
 
     <SignInModal @success="handleAuthSuccess" />
@@ -475,6 +486,34 @@ onMounted(async () => {
 
 .back-link:hover {
   color: var(--ink-primary);
+}
+
+.legal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.legal-footer a {
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-decoration-color: rgba(44, 38, 34, 0.18);
+  text-underline-offset: 2px;
+}
+
+.legal-footer a:hover {
+  color: var(--ink-primary);
+  text-decoration-color: currentColor;
+}
+
+.legal-sep {
+  opacity: 0.5;
 }
 
 .loading-spinner {
