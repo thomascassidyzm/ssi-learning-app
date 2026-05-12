@@ -520,35 +520,60 @@ let courseMainLoopCountCache: number | null = null
 let courseMainLoopCountCacheKey: string | null = null
 
 /**
- * True iff the learner's highest-introduced LEGO is the LAST is_new
- * LEGO in the course — i.e. they've been introduced to everything
- * and belong in infinite-play mode.
+ * True iff the learner has been introduced to every LEGO in the course
+ * — i.e. they belong in infinite-play mode.
  *
- * Uses lexicographic comparison on lego_id (format SNNNNLNN is zero-
- * padded so string > works correctly).
+ * Two paths converge here:
+ *
+ * 1. Primary, lego-id based: highest_completed_lego_id equals the
+ *    course's last is_new LEGO (lexicographic > on the zero-padded
+ *    SNNNNLNN format). Stable across script-shape changes, works for
+ *    enrollment rows where the legoId ratchet has held.
+ *
+ * 2. Fallback, round-index based: highest_completed_round_index >=
+ *    the course's main-loop round count. Catches enrollment rows
+ *    where the DB ratchet trigger overwrote highest_completed_lego_id
+ *    with a random-USE LEGO from an infinite-play round — the legoId
+ *    ceiling regresses (it tracks whatever LEGO was paired with the
+ *    new highest round_index), but the round_index ceiling itself
+ *    ratchets correctly, so crossing the main-loop boundary is a
+ *    reliable signal even when the legoId is "wrong".
  */
 const hasReachedInfinitePlay = async (
   highestLegoId: string | null,
+  highestRoundIndex: number | null,
   course: string,
 ): Promise<boolean> => {
-  if (!highestLegoId || !supabase?.value || !course) return false
-  try {
-    const { data, error } = await supabase.value
-      .from('course_legos')
-      .select('lego_id')
-      .eq('course_code', course)
-      .eq('is_new', true)
-      .gt('lego_id', highestLegoId)
-      .limit(1)
-    if (error) {
-      console.warn('[LearningPlayer] hasReachedInfinitePlay query failed:', error)
-      return false
+  if (!supabase?.value || !course) return false
+
+  // Primary: lego-id check.
+  if (highestLegoId) {
+    try {
+      const { data, error } = await supabase.value
+        .from('course_legos')
+        .select('lego_id')
+        .eq('course_code', course)
+        .eq('is_new', true)
+        .gt('lego_id', highestLegoId)
+        .limit(1)
+      if (!error && (data?.length ?? 0) === 0) {
+        return true
+      }
+    } catch (err) {
+      console.warn('[LearningPlayer] hasReachedInfinitePlay legoId check threw:', err)
     }
-    return (data?.length ?? 0) === 0
-  } catch (err) {
-    console.warn('[LearningPlayer] hasReachedInfinitePlay threw:', err)
-    return false
   }
+
+  // Fallback: round-index threshold.
+  if (typeof highestRoundIndex === 'number' && highestRoundIndex > 0) {
+    const mainLoopCount = await getCourseMainLoopRoundCount(course)
+    if (mainLoopCount > 0 && highestRoundIndex >= mainLoopCount) {
+      console.log(`[LearningPlayer] Infinite-play detected via round-index fallback (highest_round=${highestRoundIndex} >= main_loop_count=${mainLoopCount}); legoId ceiling is "${highestLegoId}" (likely overwritten by an infinite-play random-USE round)`)
+      return true
+    }
+  }
+
+  return false
 }
 
 /**
@@ -6126,11 +6151,13 @@ onMounted(async () => {
               // freshHighestLego was already read at the top of this
               // branch and mirrored into the ref. Run the infinite-play
               // detection against it.
+              const freshHighestRound = freshProgress?.highestCompletedRoundIndex ?? null
               hasReachedInfinitePlayInSession = await hasReachedInfinitePlay(
                 freshHighestLego,
+                freshHighestRound,
                 courseCode.value,
               )
-              console.log(`[LearningPlayer] Infinite-play check: highest=${freshHighestLego} → ${hasReachedInfinitePlayInSession ? 'YES, course complete' : 'no, still in main loop'}`)
+              console.log(`[LearningPlayer] Infinite-play check: highest_lego=${freshHighestLego} highest_round=${freshHighestRound} → ${hasReachedInfinitePlayInSession ? 'YES, course complete' : 'no, still in main loop'}`)
 
               let endSeed: number
               if (hasReachedInfinitePlayInSession) {
@@ -6976,7 +7003,11 @@ const jumpToFurthest = async () => {
   // script with the whole course + a fresh batch of infinite-play
   // rounds and drop the learner at the first infinite-play round.
   // This is "go to your furthest point" for a course-complete learner.
-  const infPlay = await hasReachedInfinitePlay(targetLegoId, courseCode.value)
+  const infPlay = await hasReachedInfinitePlay(
+    targetLegoId,
+    highestCompletedRoundIndex.value,
+    courseCode.value,
+  )
   if (infPlay) {
     const mainLoopCount = await getCourseMainLoopRoundCount(courseCode.value)
     const endSeed = mainLoopCount + EXPANSION_BATCH
