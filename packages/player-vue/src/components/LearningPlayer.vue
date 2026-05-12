@@ -9964,13 +9964,13 @@ defineExpose({
   align-items: center;
   justify-content: center;
   gap: 4px;
-  /* Equal-width segments — each takes 1/4 of the pill interior. Earlier
-   * design used flex:0 0 auto for fixed segments + flex:1 1 auto on pause
-   * to grow into remaining space, but the asymmetry left visible margins
-   * around the pause section on Safari. Equal widths butt up cleanly. */
-  flex: 1 1 0;
+  /* Explicit percentage widths: pause is 40% to give the countdown enough
+   * length to read as a timer; the other three are 20% each. Total = 100%
+   * of the pill interior, so segments butt up exactly with no leftover
+   * margin to leak as visible gaps. */
+  flex: 0 0 20%;
   min-width: 0;
-  padding: 0 14px;
+  padding: 0;
   border: 0;
   margin: 0;
   background: transparent;
@@ -9984,6 +9984,10 @@ defineExpose({
   line-height: 1;
   isolation: isolate;
   transition: background 0.2s ease, color 0.2s ease;
+}
+
+.phase-segment--pause {
+  flex: 0 0 40%;
 }
 
 button.phase-segment {
@@ -10031,6 +10035,14 @@ button.phase-segment:active:not(.is-active) {
 
 .phase-segment.is-active .phase-segment-num {
   opacity: 0.9;
+}
+
+/* Active pause keeps its bg transparent — otherwise the section bg and
+ * the growing fill are both --ssi-red and the countdown is invisible.
+ * The fill IS the only red; icon stays dark for readability. */
+.phase-segment--pause.is-active {
+  background: transparent;
+  color: rgba(0, 0, 0, 0.7);
 }
 
 /* Active pause MUST override the red bg — otherwise the section bg and
