@@ -1390,7 +1390,7 @@ const confirmReset = async () => {
       <section class="section">
         <h3 class="section-title">Legal</h3>
         <div class="card">
-          <a href="https://www.stage.saysomethingin.com/terms" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://www.saysomethingin.com/terms" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
               <span class="setting-label">Terms &amp; Conditions</span>
             </div>
@@ -1400,7 +1400,7 @@ const confirmReset = async () => {
               <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
           </a>
-          <a href="https://www.stage.saysomethingin.com/privacy" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://www.saysomethingin.com/privacy" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
               <span class="setting-label">Privacy Policy</span>
             </div>
@@ -1410,7 +1410,7 @@ const confirmReset = async () => {
               <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
           </a>
-          <a href="https://www.stage.saysomethingin.com/refunds" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+          <a href="https://www.saysomethingin.com/refunds" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
               <span class="setting-label">Refund Policy</span>
             </div>
