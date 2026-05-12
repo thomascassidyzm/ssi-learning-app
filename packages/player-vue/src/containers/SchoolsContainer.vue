@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
-import TopNav from '@/components/schools/shared/TopNav.vue'
+import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
@@ -378,7 +378,7 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
       <AtmosphereBackdrop />
-      <TopNav @sign-in="openAuth" @sign-up="openAuth" />
+      <SchoolsTopBar />
 
       <main class="main-content">
         <router-view v-slot="{ Component }">
