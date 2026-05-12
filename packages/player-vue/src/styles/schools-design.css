@@ -1,0 +1,190 @@
+/* ============================================================
+ * SSi Schools — 2026-05 design system (Aran)
+ *
+ * Marketing-site visual language for the schools dashboard.
+ * All rules scoped under .schools-surface so they don't leak
+ * into the learner player (Moonlit Dojo theme).
+ *
+ * Pairs with the legacy schools-tokens.css (Frostwell Courtyard)
+ * during the screen-by-screen migration. Once every view is
+ * migrated, schools-tokens.css is removed.
+ * ============================================================ */
+
+.schools-surface {
+  /* ---------- Type families (override global player fonts) ---------- */
+  --font-display: 'Arsenal', 'Georgia', 'Times New Roman', serif;
+  --font-body:    'Open Sans', 'Trebuchet MS', system-ui, Arial, sans-serif;
+
+  /* ---------- Brand palette ---------- */
+  --brandRed:      #DB1E17;
+  --darkRed:       #900600;
+  --deepRed:       #490300;
+  --pastelRed:     #F2D7D7;
+  --offWhite:      #FDF5F5;
+  --gold:          #FEC902;
+  --darkGrey:      #0F1212;
+  --grey:          #555555;
+
+  /* ---------- Schools-specific semantic tokens ---------- */
+  --schools-bg:            #f6f5f1;   /* page bg under the white card */
+  --schools-page-backdrop: #e8e5dd;   /* outer page (visible at large viewports) */
+  --schools-card:          #ffffff;
+  --schools-border:        rgba(15,18,18,.10);
+  --schools-border-strong: rgba(15,18,18,.18);
+  --schools-fg:            #0F1212;
+  --schools-fg-2:          #555555;
+  --schools-fg-3:          #888888;
+  --schools-red:           #DB1E17;
+  --schools-red-deep:      #900600;
+  --schools-pastel:        #F2D7D7;
+  --schools-gold:          #FEC902;
+  --schools-success:       #1F8A5B;
+
+  /* ---------- Belt scale ---------- */
+  --schools-belt-white:  #f4f3ef;
+  --schools-belt-yellow: #f7d24a;
+  --schools-belt-orange: #ec8a3a;
+  --schools-belt-green:  #2a8d5e;
+  --schools-belt-blue:   #3768c4;
+  --schools-belt-black:  #1c1b18;
+
+  /* ---------- Health states ---------- */
+  --schools-health-excellent:       #1F8A5B;
+  --schools-health-good:            #3768c4;
+  --schools-health-needs-attention: #c66a1c;
+  --schools-health-inactive:        #999999;
+
+  /* ---------- Role accent colours (for avatars / pills) ---------- */
+  --schools-role-teacher: #1F8A5B;
+  --schools-role-admin:   #3768c4;
+  --schools-role-govt:    #900600;
+
+  /* ---------- Shadow / radius / spacing ---------- */
+  --schools-shadow-sm: 0 1px 2px rgba(73,3,0,.06), 0 1px 1px rgba(73,3,0,.04);
+  --schools-shadow-md: 0 6px 18px rgba(73,3,0,.10), 0 2px 4px rgba(73,3,0,.06);
+  --schools-shadow-lg: 0 24px 60px rgba(73,3,0,.16), 0 8px 16px rgba(73,3,0,.08);
+
+  --schools-radius-sm:   6px;
+  --schools-radius-md:   8px;
+  --schools-radius-lg:   12px;
+  --schools-radius-pill: 999px;
+
+  /* ---------- Typography defaults inside schools ---------- */
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--schools-fg);
+}
+
+/* Inside the schools surface, neutralise legacy margins from the
+   global player styles and lean on inline spacing — matches the
+   design bundle's reset. */
+.schools-surface h1,
+.schools-surface h2,
+.schools-surface h3,
+.schools-surface h4,
+.schools-surface h5,
+.schools-surface h6,
+.schools-surface p { margin: 0; }
+
+.schools-surface *,
+.schools-surface *::before,
+.schools-surface *::after { box-sizing: border-box; }
+
+/* ---------- Display helper ---------- */
+.schools-surface .arsenal {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+
+/* ---------- Utility text styles ---------- */
+.schools-surface .schools-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--schools-fg-3);
+}
+
+.schools-surface .schools-subtle { color: var(--schools-fg-2); }
+
+/* ---------- Buttons ---------- */
+.schools-surface .btn-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px 10px;
+  border-radius: var(--schools-radius-md);
+  background: var(--schools-red);
+  color: #fff;
+  font-weight: 600;
+  font-size: 13.5px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-body);
+  transition: background 160ms ease-out;
+}
+.schools-surface .btn-play:hover { background: var(--schools-red-deep); }
+.schools-surface .btn-play:disabled { opacity: .55; cursor: not-allowed; }
+
+.schools-surface .btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 9px;
+  border-radius: var(--schools-radius-md);
+  background: transparent;
+  color: var(--schools-fg);
+  border: 1px solid var(--schools-border-strong);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-body);
+  transition: background 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out;
+}
+.schools-surface .btn-ghost:hover {
+  background: #fff;
+  border-color: var(--schools-red);
+  color: var(--schools-red);
+}
+
+.schools-surface .btn-small { padding: 6px 10px 7px; font-size: 12px; }
+
+/* ---------- Card ---------- */
+.schools-surface .schools-card {
+  background: var(--schools-card);
+  border: 1px solid var(--schools-border);
+  border-radius: var(--schools-radius-lg);
+}
+.schools-surface .schools-card-pad { padding: 18px 20px; }
+
+/* ---------- Table ---------- */
+.schools-surface table.ssi-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.schools-surface table.ssi-table thead th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--schools-fg-3);
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--schools-border);
+  background: #fafafa;
+}
+.schools-surface table.ssi-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid var(--schools-border);
+  vertical-align: middle;
+}
+.schools-surface table.ssi-table tbody tr:hover td { background: #fafaf8; }
+.schools-surface table.ssi-table tbody tr:last-child td { border-bottom: none; }
+
+/* ---------- Selection ---------- */
+.schools-surface ::selection { background: var(--schools-red); color: #fff; }

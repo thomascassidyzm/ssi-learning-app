@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
-import TopNav from '@/components/schools/shared/TopNav.vue'
+import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
+import '@/styles/schools-design.css'
 import { useAuthModal } from '@/composables/useAuthModal'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -188,6 +189,9 @@ const { open: openAuth, close: closeAuth } = useAuthModal()
 const handleAuthSuccess = () => {
   closeAuth()
 }
+
+// Email of the currently authenticated user (for no-access copy).
+const authedEmail = computed(() => auth?.user?.value?.email || '')
 </script>
 
 <template>
@@ -198,131 +202,183 @@ const handleAuthSuccess = () => {
       <p>Loading...</p>
     </div>
 
-    <!-- Login screen -->
-    <div v-else-if="showLogin" class="schools-login">
-      <div class="login-card">
-        <div class="login-header">
-          <span class="login-logo">SaySomethingin</span>
-          <span class="login-logo-accent">Schools</span>
-        </div>
-        <p class="login-subtitle">Sign in to access your school dashboard</p>
+    <!-- Login / no-access — two-pane brand + form layout -->
+    <div v-else-if="showLogin || showNoAccess" class="schools-login-page">
+      <!-- Brand pane -->
+      <aside class="schools-login-pane schools-login-pane--brand">
+        <header class="brand-logo">
+          <span class="logo-mark">S</span>
+          <span class="logo-text">
+            SaySomethingin <span class="logo-dot">·</span> <span class="logo-tail">Schools</span>
+          </span>
+        </header>
 
-        <!-- Error -->
-        <div v-if="loginError" class="login-error">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          {{ loginError }}
+        <div class="brand-body">
+          <div class="brand-kicker">Welcome back</div>
+          <h1 class="arsenal brand-headline">
+            Welcome back.<br />Your classes are waiting.
+          </h1>
+          <p class="brand-lede">
+            Sign in to see how your class is doing, play a session together, or jump into the
+            analytics for the week. We work on Chromebooks, tablets and phones — and we never
+            store student passwords.
+          </p>
         </div>
 
-        <!-- Email step -->
-        <form v-if="loginStep === 'email'" class="login-form" @submit.prevent="handleSendOtp">
-          <div class="login-field">
-            <label for="schools-email">Email</label>
-            <input
-              id="schools-email"
-              v-model="loginEmail"
-              type="email"
-              placeholder="you@school.edu"
-              autocomplete="email"
-              autofocus
-            />
-          </div>
-          <button
-            type="submit"
-            class="login-btn"
-            :disabled="!isEmailValid || isLoginLoading"
+        <footer class="brand-footer">
+          <span>v3 · Spring 2026</span>
+          <span class="brand-footer-sep">·</span>
+          <a href="https://www.saysomethingin.com" class="brand-footer-link">
+            ← Back to saysomethingin.com
+          </a>
+        </footer>
+      </aside>
+
+      <!-- Form pane -->
+      <section class="schools-login-pane schools-login-pane--form">
+        <div class="form-inner">
+          <!-- Email step -->
+          <form
+            v-if="showLogin && loginStep === 'email'"
+            class="login-form"
+            @submit.prevent="handleSendOtp"
           >
-            {{ isLoginLoading ? 'Sending...' : 'Continue' }}
-          </button>
-        </form>
+            <h2 class="arsenal form-title">Sign in</h2>
+            <p class="form-lede">
+              Enter the email address your school registered with us. We'll send a single-use code.
+            </p>
 
-        <!-- OTP step -->
-        <form v-else class="login-form" @submit.prevent="handleVerifyOtp">
-          <div class="login-otp-info">
-            <p>Check your email for a 6-digit code</p>
-            <p class="login-otp-email">{{ loginEmail }}</p>
-          </div>
-          <div class="login-field">
-            <label for="schools-otp">Verification Code</label>
-            <input
-              id="schools-otp"
-              v-model="loginOtp"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="6"
-              placeholder="000000"
-              autocomplete="one-time-code"
-              autofocus
-              class="otp-input"
-            />
-          </div>
-          <button
-            type="submit"
-            class="login-btn"
-            :disabled="loginOtp.length < 6 || isLoginLoading"
+            <div v-if="loginError" class="form-alert form-alert--error" role="alert">
+              {{ loginError }}
+            </div>
+
+            <label class="form-field">
+              <span class="form-label">School email</span>
+              <input
+                v-model="loginEmail"
+                type="email"
+                placeholder="you@school.edu"
+                autocomplete="email"
+                autofocus
+              />
+            </label>
+
+            <button
+              type="submit"
+              class="btn-play btn-play--block"
+              :disabled="!isEmailValid || isLoginLoading"
+            >
+              {{ isLoginLoading ? 'Sending…' : 'Send me a code →' }}
+            </button>
+          </form>
+
+          <!-- OTP step -->
+          <form
+            v-else-if="showLogin && loginStep === 'otp'"
+            class="login-form"
+            @submit.prevent="handleVerifyOtp"
           >
-            {{ isLoginLoading ? 'Verifying...' : 'Verify' }}
-          </button>
-          <button type="button" class="login-back" @click="handleBackToEmail">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-            Back
-          </button>
-        </form>
-      </div>
-    </div>
+            <h2 class="arsenal form-title">Check your email</h2>
+            <p class="form-lede">
+              We sent a 6-digit code to <strong>{{ loginEmail }}</strong>. It expires in 10 minutes.
+            </p>
 
-    <!-- No access screen -->
-    <div v-else-if="showNoAccess" class="schools-login">
-      <div class="login-card">
-        <div class="login-header">
-          <span class="login-logo">SaySomethingin</span>
-          <span class="login-logo-accent">Schools</span>
-        </div>
-        <p class="login-subtitle">Your account doesn't have access to the schools dashboard yet.</p>
-        <p class="login-hint">If you've been given a join code, enter it below.</p>
+            <div v-if="loginError" class="form-alert form-alert--error" role="alert">
+              {{ loginError }}
+            </div>
 
-        <div v-if="joinCodeError" class="login-error">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          {{ joinCodeError }}
-        </div>
+            <label class="form-field">
+              <span class="form-label">Verification code</span>
+              <input
+                v-model="loginOtp"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="6"
+                placeholder="000000"
+                autocomplete="one-time-code"
+                autofocus
+                class="otp-input"
+              />
+            </label>
 
-        <div v-if="joinCodeSuccess" class="login-success">
-          {{ joinCodeSuccess }}
-        </div>
+            <button
+              type="submit"
+              class="btn-play btn-play--block"
+              :disabled="loginOtp.length < 6 || isLoginLoading"
+            >
+              {{ isLoginLoading ? 'Verifying…' : 'Verify and sign in →' }}
+            </button>
 
-        <form v-if="!joinCodeSuccess" class="login-form" @submit.prevent="handleRedeemCode">
-          <div class="login-field">
-            <label for="schools-join-code">Join Code</label>
-            <input
-              id="schools-join-code"
-              v-model="joinCode"
-              type="text"
-              placeholder="e.g. ABC-123"
-              class="otp-input"
-              autofocus
-            />
-          </div>
-          <button
-            type="submit"
-            class="login-btn"
-            :disabled="!joinCode.trim() || isJoinCodeLoading"
+            <div class="form-secondary-row">
+              <button
+                type="button"
+                class="form-secondary"
+                :disabled="isLoginLoading"
+                @click="handleSendOtp"
+              >
+                Resend code
+              </button>
+              <button type="button" class="form-secondary" @click="handleBackToEmail">
+                Use a different email
+              </button>
+            </div>
+          </form>
+
+          <!-- No access -->
+          <form
+            v-else-if="showNoAccess"
+            class="login-form"
+            @submit.prevent="handleRedeemCode"
           >
-            {{ isJoinCodeLoading ? 'Checking...' : 'Join' }}
-          </button>
-        </form>
-      </div>
+            <span class="no-access-pill">● No school access yet</span>
+            <h2 class="arsenal form-title">You're signed in, but…</h2>
+            <p class="form-lede">
+              We couldn't find a school account linked to
+              <strong>{{ authedEmail || 'this address' }}</strong>. Ask your school admin for a
+              join code, or set up a new school below.
+            </p>
+
+            <div v-if="joinCodeError" class="form-alert form-alert--error" role="alert">
+              {{ joinCodeError }}
+            </div>
+            <div v-if="joinCodeSuccess" class="form-alert form-alert--success" role="status">
+              {{ joinCodeSuccess }}
+            </div>
+
+            <label v-if="!joinCodeSuccess" class="form-field">
+              <span class="form-label">Join code from your school</span>
+              <input
+                v-model="joinCode"
+                type="text"
+                placeholder="e.g. KMP-7Q3X"
+                class="join-code-input"
+                autofocus
+              />
+            </label>
+
+            <button
+              v-if="!joinCodeSuccess"
+              type="submit"
+              class="btn-play btn-play--block"
+              :disabled="!joinCode.trim() || isJoinCodeLoading"
+            >
+              {{ isJoinCodeLoading ? 'Checking…' : 'Join school →' }}
+            </button>
+
+            <div class="form-divider" />
+            <router-link to="/schools/setup" class="form-secondary form-secondary--link">
+              I'm setting up a new school →
+            </router-link>
+          </form>
+        </div>
+      </section>
     </div>
 
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
       <AtmosphereBackdrop />
-      <TopNav @sign-in="openAuth" @sign-up="openAuth" />
+      <SchoolsTopBar />
 
       <main class="main-content">
         <router-view v-slot="{ Component }">
@@ -377,194 +433,230 @@ const handleAuthSuccess = () => {
   animation: spin 0.8s linear infinite;
 }
 
-/* Login */
-.schools-login {
+/* ============================================================
+ * Login / no-access — two-pane brand + form layout (Aran 2026-05)
+ * ============================================================ */
+.schools-login-page {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  min-height: 100vh;
+  background: var(--schools-page-backdrop, #e8e5dd);
+}
+
+.schools-login-pane {
   display: flex;
+  flex-direction: column;
+  padding: 48px 56px;
+}
+
+/* Brand pane */
+.schools-login-pane--brand {
+  background: var(--deepRed, #490300);
+  color: #fff;
+  justify-content: space-between;
+  background-image:
+    radial-gradient(800px 400px at 20% 0%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
+    radial-gradient(600px 400px at 90% 100%, rgba(255, 255, 255, 0.04) 0%, transparent 60%);
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--schools-red, #DB1E17);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: 24px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: #fff;
+}
+.logo-text {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: #fff;
+}
+.logo-dot { opacity: 0.5; }
+.logo-tail { opacity: 0.85; }
+
+.brand-body { max-width: 480px; }
+.brand-kicker {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 14px;
+}
+.brand-headline {
+  font-size: clamp(36px, 4.2vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: #fff;
+  margin: 0;
+}
+.brand-lede {
+  font-size: 15.5px;
+  line-height: 1.55;
+  max-width: 430px;
+  margin-top: 18px;
+  opacity: 0.85;
 }
 
-.login-card {
-  background: var(--bg-card, #ffffff);
-  border: 1px solid var(--border-subtle, rgba(44, 38, 34, 0.06));
-  border-radius: 20px;
-  padding: 48px 40px;
-  max-width: 420px;
-  width: 100%;
-  text-align: center;
-  box-shadow: 0 4px 24px rgba(44, 38, 34, 0.08);
-}
-
-.login-header {
-  margin-bottom: 8px;
-}
-
-.login-logo {
-  font-family: var(--font-body, 'DM Sans', sans-serif);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text-primary, #2C2622);
-}
-
-.login-logo-accent {
-  font-family: var(--font-body, 'DM Sans', sans-serif);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--ssi-red, #c23a3a);
-  margin-left: 6px;
-}
-
-.login-subtitle {
-  color: var(--text-muted, #8A8078);
-  font-size: 15px;
-  margin: 0 0 28px;
-  line-height: 1.5;
-}
-
-.login-hint {
-  color: var(--text-muted, #8A8078);
-  font-size: 13px;
-  margin: 0 0 20px;
-}
-
-.login-error {
+.brand-footer {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 10px;
-  color: #dc2626;
+  gap: 12px;
   font-size: 13px;
-  text-align: left;
-  margin-bottom: 20px;
+  opacity: 0.75;
+  flex-wrap: wrap;
 }
-
-.login-success {
-  padding: 10px 14px;
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.2);
-  border-radius: 10px;
-  color: #16a34a;
-  font-size: 14px;
-  font-weight: 600;
-  text-align: center;
-  margin-bottom: 20px;
+.brand-footer-sep { opacity: 0.4; }
+.brand-footer-link {
+  color: inherit;
+  text-decoration: none;
+  opacity: 0.85;
 }
+.brand-footer-link:hover { opacity: 1; }
 
-.login-error svg {
-  flex-shrink: 0;
+/* Form pane */
+.schools-login-pane--form {
+  background: #fdf9f0;
+  justify-content: center;
+}
+.form-inner {
+  max-width: 420px;
+  width: 100%;
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
-.login-field {
+.form-title {
+  font-size: 34px;
+  line-height: 1.1;
+  margin: 0;
+}
+.form-lede {
+  font-size: 15px;
+  color: var(--schools-fg-2);
+  line-height: 1.55;
+  max-width: 380px;
+  margin: 0;
+}
+.form-lede strong { color: var(--schools-fg); }
+
+.form-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  text-align: left;
 }
-
-.login-field label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted, #8A8078);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.form-label {
+  font-size: 12.5px;
+  color: var(--schools-fg-2);
 }
-
-.login-field input {
-  padding: 14px 16px;
-  background: var(--bg-primary, #f5f0eb);
-  border: 1px solid var(--border-subtle, rgba(44, 38, 34, 0.1));
-  border-radius: 12px;
-  color: var(--text-primary, #2C2622);
+.form-field input {
+  padding: 12px 14px;
   font-size: 15px;
-  font-family: var(--font-body, 'DM Sans', sans-serif);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: var(--font-body);
+  border: 1px solid var(--schools-border-strong);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--schools-fg);
+  transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
 }
-
-.login-field input::placeholder {
-  color: var(--text-faint, #b5aea6);
-}
-
-.login-field input:focus {
+.form-field input::placeholder { color: var(--schools-fg-3); }
+.form-field input:focus {
   outline: none;
-  border-color: var(--ssi-red, #c23a3a);
-  box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.12);
+  border-color: var(--schools-red);
+  box-shadow: 0 0 0 3px rgba(219, 30, 23, 0.12);
 }
-
-.login-field input.otp-input {
+.form-field .otp-input {
   text-align: center;
-  font-size: 22px;
+  font-size: 26px;
   letter-spacing: 0.4em;
+  font-family: var(--font-display);
+  padding: 16px 14px;
+}
+.form-field .join-code-input {
   font-family: 'SF Mono', 'Fira Code', monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.login-btn {
-  padding: 14px 24px;
-  background: var(--ssi-red, #c23a3a);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  font-family: var(--font-body, 'DM Sans', sans-serif);
-  cursor: pointer;
-  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
-}
-
-.login-btn:hover:not(:disabled) {
-  background: #a83232;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(194, 58, 58, 0.3);
-}
-
-.login-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.login-back {
-  display: flex;
-  align-items: center;
+/* Block primary button — overrides default inline btn-play layout */
+.btn-play--block {
   justify-content: center;
-  gap: 6px;
+  padding: 14px 18px;
+  font-size: 15px;
+}
+
+.form-alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.form-alert--error {
+  background: rgba(219, 30, 23, 0.08);
+  border: 1px solid rgba(219, 30, 23, 0.25);
+  color: var(--schools-red-deep);
+}
+.form-alert--success {
+  background: rgba(31, 138, 91, 0.1);
+  border: 1px solid rgba(31, 138, 91, 0.3);
+  color: var(--schools-success);
+  font-weight: 600;
+}
+
+.no-access-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: #fff5e5;
+  border: 1px solid #f4d28a;
+  color: #7a5418;
+  border-radius: 30px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.form-divider {
+  height: 1px;
+  background: var(--schools-border);
+  margin: 4px 0;
+}
+
+.form-secondary {
+  font-size: 13px;
+  color: var(--schools-fg-2);
+  text-decoration: none;
   background: none;
   border: none;
-  color: var(--text-muted, #8A8078);
-  font-size: 14px;
-  font-family: var(--font-body, 'DM Sans', sans-serif);
+  padding: 0;
   cursor: pointer;
-  transition: color 0.2s;
-  padding: 4px;
+  font-family: var(--font-body);
+  text-align: left;
 }
+.form-secondary:hover:not(:disabled) { color: var(--schools-fg); }
+.form-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.form-secondary--link { display: inline-block; }
 
-.login-back:hover {
-  color: var(--text-primary, #2C2622);
-}
-
-.login-otp-info {
-  margin-bottom: 4px;
-}
-
-.login-otp-info p {
-  margin: 0;
-  color: var(--text-muted, #8A8078);
-  font-size: 14px;
-}
-
-.login-otp-email {
-  color: var(--text-primary, #2C2622) !important;
-  font-weight: 600;
-  margin-top: 4px !important;
+.form-secondary-row {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
 }
 
 /* Page transitions */
@@ -572,24 +664,31 @@ const handleAuthSuccess = () => {
 .fade-leave-active {
   transition: opacity 0.2s ease;
 }
-
 .fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
+.fade-leave-to { opacity: 0; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
+@media (max-width: 960px) {
+  .schools-login-page {
+    grid-template-columns: 1fr;
+  }
+  .schools-login-pane {
+    padding: 32px 28px;
+  }
+  .schools-login-pane--brand {
+    /* keep at top, compressed */
+    min-height: auto;
+  }
+  .brand-headline { font-size: 32px; }
+  .brand-lede { font-size: 14px; }
+}
+
 @media (max-width: 768px) {
   .main-content {
     padding: 16px;
-  }
-
-  .login-card {
-    padding: 36px 24px;
-    border-radius: 16px;
   }
 }
 </style>

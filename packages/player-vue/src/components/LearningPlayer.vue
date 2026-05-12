@@ -30,6 +30,7 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
+import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
@@ -788,6 +789,23 @@ simplePlayer.onCycleCompleted((cycle) => {
   itemsPracticed.value++
   learningHintPromptsShown.value++
   contribution.incrementLocal()
+
+  // Feed per-LEGO adaptive engine. Only when we have a real latency signal
+  // (VAD detected speech). No-op when guest, when VAD disabled, or when the
+  // cycle is a listening/intro type without a meaningful learner response.
+  const latency = lastTimingResult.value?.response_latency_ms
+  if (
+    adaptationEngine.value &&
+    cycle.legoId &&
+    typeof latency === 'number' &&
+    cycle.target?.text
+  ) {
+    adaptationEngine.value.recordCycle(
+      cycle.legoId,
+      latency,
+      cycle.target.text.length
+    )
+  }
 
   resonatingNodes.value = []
 
@@ -1819,6 +1837,21 @@ const initializeBeltProgress = async () => {
 
     console.log('[LearningPlayer] Belt progress initialized for', courseCode.value, '- seeds:', beltProgress.value.completedRounds.value)
   }
+}
+
+/**
+ * Initialize per-LEGO adaptive pause engine.
+ * Safe for guests (engine runs in memory, no Supabase reads/writes).
+ */
+const initializeAdaptationEngine = async () => {
+  if (!courseCode.value || adaptationEngine.value) return
+  const engine = useAdaptationEngine({
+    supabase: supabase.value ?? null,
+    learnerId: learnerId.value ?? null,
+    courseCode: courseCode.value,
+  })
+  await engine.initialize()
+  adaptationEngine.value = engine
 }
 
 /**
@@ -3220,6 +3253,23 @@ const isIntroPhase = computed(() => {
     : sessionItems.value[currentItemIndex.value]
   return item?.type === 'intro' || item?.type === 'component_intro'
 })
+
+// Phase strip — visible whenever the current cycle has a real pause phase.
+// pauseDuration > 0 is the definitional signal: the engine literally skips
+// the speak phase when pauseDuration === 0 (intro / listening / pod / bookend
+// / component_intro cycles, all of which are set to 0 in toSimpleRounds /
+// scriptItemToCycle). One signal, read straight off the cycle being played,
+// doesn't depend on item-lookup state.
+const showPhaseStrip = computed(() => {
+  return (simplePlayer.currentCycle.value?.pauseDuration ?? 0) > 0
+})
+
+// Click handler for the phase-strip segments. Routes to the SimplePlayer
+// engine which interrupts the current phase and starts the target one fresh.
+// Round / cycle boundaries unchanged — this is intra-cycle navigation only.
+function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
+  simplePlayer.skipToPhase(phase)
+}
 
 // Is current item intro OR debut? (for showing component breakdown tiles)
 // Component priming items should NOT show tiles (they ARE the component being primed)
@@ -5099,7 +5149,15 @@ simplePlayer.setRuntimeOverrides({
     const t2 = cycle.target2DurationMs ?? 0
     const cfg = turboActive.value ? turboConfig.value : normalConfig.value
     const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
-    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+    const clamped = Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+    // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
+    // Applied last so mode floors/ceilings are still respected before
+    // mastery scaling.
+    const multiplier = cycle.legoId
+      ? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
+      : 1.0
+    const adapted = clamped * multiplier
+    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, adapted))
   },
   getPlaybackSpeedMultiplier: (cycle) => {
     if (!turboActive.value) return 1.0
@@ -5197,6 +5255,11 @@ const ADAPTATION_CONSENT_KEY = 'ssi-adaptation-consent'
 
 // Consent states: null (not asked), true (granted), false (declined)
 const adaptationConsent = ref(null)
+
+// Per-LEGO adaptive pause engine. Hydrates from learner_lego_metrics on mount,
+// records latency per cycle, exposes a mastery-state-driven pause multiplier
+// applied in the getPauseDuration runtime override below.
+const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
@@ -5978,6 +6041,9 @@ onMounted(async () => {
   // Initialize belt progress (loads from localStorage, merges with Supabase)
   await initializeBeltProgress()
 
+  // Initialize per-LEGO adaptive pause engine (hydrates mastery from Supabase)
+  await initializeAdaptationEngine()
+
   // Initialize offline play composable (sets up online/offline listeners)
   offlinePlayCleanup = initializeOfflinePlay()
 
@@ -6754,6 +6820,9 @@ onUnmounted(() => {
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
+
+  // Flush any pending per-LEGO metrics, remove pagehide listener
+  adaptationEngine.value?.dispose()
   if (timingAnalyzer.value) {
     timingAnalyzer.value.reset()
     timingAnalyzer.value = null
@@ -7305,9 +7374,39 @@ defineExpose({
           </div>
         </template>
 
-        <!-- Pause countdown bar — inside the glass, at the bottom -->
-        <div v-if="currentPhase === 'speak' && !isIntroPhase" class="pause-timer-bar">
-          <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+        <!-- Phase strip — 4 sections (prompt | pause + countdown | voice1 | voice2).
+             Inside the glass at the bottom. Prompt/voice1/voice2 sections are
+             clickable jump targets; pause section shows the countdown line and
+             is non-interactive. Visible only on standard 4-phase cycles. -->
+        <div v-if="showPhaseStrip" class="phase-strip" role="group" aria-label="Cycle phases">
+          <button
+            type="button"
+            class="phase-section phase-section--prompt"
+            :class="{ 'is-active': currentPhase === Phase.PROMPT }"
+            aria-label="Replay prompt"
+            @click="jumpToCyclePhase('prompt')"
+          >Prompt</button>
+          <div
+            class="phase-section phase-section--pause"
+            :class="{ 'is-active': currentPhase === Phase.SPEAK }"
+          >
+            <span class="phase-section-label">Pause</span>
+            <div class="phase-section-fill" :style="{ width: ringProgress + '%' }"></div>
+          </div>
+          <button
+            type="button"
+            class="phase-section phase-section--voice1"
+            :class="{ 'is-active': currentPhase === Phase.VOICE_1 }"
+            aria-label="Skip to model voice 1"
+            @click="jumpToCyclePhase('voice1')"
+          >Voice 1</button>
+          <button
+            type="button"
+            class="phase-section phase-section--voice2"
+            :class="{ 'is-active': currentPhase === Phase.VOICE_2 }"
+            aria-label="Skip to model voice 2"
+            @click="jumpToCyclePhase('voice2')"
+          >Voice 2</button>
         </div>
       </div>
 
@@ -9796,21 +9895,89 @@ defineExpose({
 }
 
 /* Pause countdown bar — inside hero-glass at bottom */
-.pause-timer-bar {
+/* Phase strip — 4 labeled pill segments. Prompt / Voice 1 / Voice 2 are
+ * clickable jump targets; Pause is wider and shows the countdown line at
+ * its bottom edge during the gap. */
+.phase-strip {
   width: 100%;
-  height: 3px;
-  margin-top: var(--space-sm);
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
-  overflow: hidden;
+  margin-top: var(--space-md);
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
 }
 
-.pause-timer-fill {
-  height: 100%;
+.phase-section {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.5);
+  border-radius: 999px;
+  border: 0;
+  padding: 5px 10px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  cursor: default;
+}
+
+.phase-section--prompt,
+.phase-section--voice1,
+.phase-section--voice2 {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.phase-section--pause {
+  /* Wider middle section — fills remaining horizontal space and houses
+   * the countdown line along its bottom edge. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.phase-section--pause .phase-section-label {
+  position: relative;
+  z-index: 1;
+}
+
+.phase-section.is-active {
   background: #dc2626;
-  border-radius: 2px;
+  color: #fff;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.4);
+}
+
+.phase-section--prompt:hover:not(.is-active),
+.phase-section--voice1:hover:not(.is-active),
+.phase-section--voice2:hover:not(.is-active) {
+  background: rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+}
+
+.phase-section--prompt:active:not(.is-active),
+.phase-section--voice1:active:not(.is-active),
+.phase-section--voice2:active:not(.is-active) {
+  background: rgba(220, 38, 38, 0.3);
+}
+
+/* Countdown line — sits at the bottom edge inside the pause pill and grows
+ * left-to-right as the pause progresses. Visible against the active-state
+ * red pill background (white-ish line on red). Inactive pause hides it via
+ * width: 0% from the :style binding (ringProgress returns 0 outside speak). */
+.phase-section--pause .phase-section-fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px 999px 999px 999px;
   transition: width 0.1s linear;
-  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+  width: 0%;
+  pointer-events: none;
 }
 
 /* ============ PHASE STRIP (legacy - kept for reference) ============ */
