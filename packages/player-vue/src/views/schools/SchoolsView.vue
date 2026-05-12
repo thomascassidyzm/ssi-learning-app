@@ -172,8 +172,8 @@ watch(currentUser, (u) => {
             <td class="schools-subtle">{{ formatJoined(school.created_at) }}</td>
             <td>
               <span class="health-cell">
-                <HealthDot health="inactive" />
-                <span class="schools-subtle">n/a</span>
+                <HealthDot :health="school.health" />
+                <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
               </span>
             </td>
             <td class="row-action">

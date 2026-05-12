@@ -85,18 +85,11 @@ const enrichedClasses = computed(() => {
       hoursWk,
       sessions: report?.class.total_sessions ?? 0,
       active_days: report?.class.active_days_last_7 ?? 0,
-      activity: report ? buildActivitySpark(report) : [0, 0, 0, 0, 0, 0, 0],
+      activity: c.activity_last_7 ?? [0, 0, 0, 0, 0, 0, 0],
       health: deriveHealth(report, c.student_count),
     }
   })
 })
-
-function buildActivitySpark(report: ClassReport): number[] {
-  const days = report.class.active_days_last_7
-  const cyclesPerSession = report.class.avg_cycles_per_session
-  const base = Math.max(1, Math.round(cyclesPerSession / 4))
-  return Array.from({ length: 7 }, (_, i) => (i < days ? base + (i % 3) : 0))
-}
 
 const courses = computed(() => {
   const set = new Set(enrichedClasses.value.map(c => c.course_label))

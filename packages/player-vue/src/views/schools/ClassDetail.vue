@@ -124,13 +124,9 @@ const students = computed(() => {
   })
 })
 
-const beltDistribution = computed<Record<string, number>>(() => {
-  const dist: Record<string, number> = {}
-  for (const s of students.value) {
-    dist[s.belt] = (dist[s.belt] || 0) + 1
-  }
-  return dist
-})
+const beltDistribution = computed<Record<string, number>>(
+  () => classDetail.value?.belt_distribution ?? {},
+)
 
 const beltOrder: Belt[] = ['white', 'yellow', 'orange', 'green', 'blue', 'black']
 const beltDistributionOrdered = computed(() => {
@@ -139,9 +135,8 @@ const beltDistributionOrdered = computed(() => {
     .map(b => ({ belt: b, count: beltDistribution.value[b] }))
 })
 
-// Journey total not exposed by composable — placeholder fixed at 60 seeds.
-const journeyTotal = 60
-const journeyDone = computed(() => Math.min(journeyTotal, classData.value.current_seed))
+const journeyTotal = computed(() => classDetail.value?.journey_total ?? 60)
+const journeyDone = computed(() => classDetail.value?.journey_done ?? 0)
 
 const benchData = computed(() => {
   if (!classReport.value) return { class: 0, school: 0, course: 0 }

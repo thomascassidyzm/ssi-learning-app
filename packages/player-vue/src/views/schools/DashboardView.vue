@@ -413,7 +413,7 @@ function handlePlayClass(cls: ClassInfo) {
                 {{ school.teacher_count }} teachers · {{ school.class_count }} classes
               </span>
             </div>
-            <HealthDot health="good" />
+            <HealthDot :health="school.health" />
           </div>
           <div class="govt-tile-stats">
             <div>
