@@ -7385,11 +7385,12 @@ defineExpose({
             :class="{ 'is-active': currentPhase === Phase.PROMPT }"
             aria-label="Replay prompt"
             @click="jumpToCyclePhase('prompt')"
-          ></button>
+          >Prompt</button>
           <div
             class="phase-section phase-section--pause"
             :class="{ 'is-active': currentPhase === Phase.SPEAK }"
           >
+            <span class="phase-section-label">Pause</span>
             <div class="phase-section-fill" :style="{ width: ringProgress + '%' }"></div>
           </div>
           <button
@@ -7398,14 +7399,14 @@ defineExpose({
             :class="{ 'is-active': currentPhase === Phase.VOICE_1 }"
             aria-label="Skip to model voice 1"
             @click="jumpToCyclePhase('voice1')"
-          ></button>
+          >Voice 1</button>
           <button
             type="button"
             class="phase-section phase-section--voice2"
             :class="{ 'is-active': currentPhase === Phase.VOICE_2 }"
             aria-label="Skip to model voice 2"
             @click="jumpToCyclePhase('voice2')"
-          ></button>
+          >Voice 2</button>
         </div>
       </div>
 
