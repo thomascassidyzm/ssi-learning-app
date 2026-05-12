@@ -135,7 +135,7 @@ const DEFAULT_TURBO: ModeConfig = {
   skip_voice2: false,
   fibKeep: [0, 1, 2, 4, 6, 8],
   buildKeep: 3,
-  useKeep: 1,
+  useKeep: 2,
 }
 
 const DEFAULT_LISTENING: ListeningModeConfig = {
