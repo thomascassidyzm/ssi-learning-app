@@ -2,9 +2,10 @@
 /**
  * SetupView — first-time school onboarding wizard.
  *
- * Four-step admin flow that lands at /schools/setup. Ports Aran Jones's
- * 2026-05-12 design pass into the live schools surface. Renders inside
- * SchoolsContainer so it picks up schools-tokens.css + TopNav + auth.
+ * Four-step admin flow that lands at /schools/setup. Renders inside
+ * SchoolsContainer (.schools-surface) so it picks up the 2026-05
+ * design system (--schools-* tokens, .schools-card, .btn-play,
+ * Arsenal display font).
  *
  * Persistence wiring:
  *   1. School         — UPDATE schools.school_name / region_code (live)
@@ -15,7 +16,6 @@
  */
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo } from '@/composables/schools/useClassesData'
@@ -306,7 +306,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="setup-view" :class="{ 'is-visible': isVisible }">
+  <main class="setup-screen" :class="{ 'is-visible': isVisible }">
     <nav class="breadcrumb">
       <router-link to="/schools/settings">Settings</router-link>
       <span class="breadcrumb-sep">/</span>
@@ -314,15 +314,15 @@ onMounted(() => {
     </nav>
 
     <header class="setup-header">
-      <h1 class="arsenal">Let's get your school set up.</h1>
+      <h1 class="arsenal page-title">Let's get your school set up.</h1>
       <p class="setup-lede">
         Four steps. About ten minutes. You can come back and finish any time —
         we'll keep your place.
       </p>
     </header>
 
-    <div class="setup-grid">
-      <FrostCard variant="panel" class="step-rail">
+    <div class="setup-layout">
+      <aside class="schools-card step-rail">
         <button
           v-for="s in STEPS"
           :key="s.n"
@@ -345,9 +345,9 @@ onMounted(() => {
             <span class="step-rail-desc">{{ s.desc }}</span>
           </span>
         </button>
-      </FrostCard>
+      </aside>
 
-      <FrostCard variant="panel" class="step-panel">
+      <div class="schools-card schools-card-pad step-panel">
         <!-- Step 1: School profile -->
         <section v-if="step === 1" class="step-section">
           <h2 class="arsenal step-title">Your school</h2>
@@ -406,7 +406,7 @@ onMounted(() => {
           </p>
 
           <div v-if="teacherJoinCode" class="join-code-callout">
-            <div class="join-code-label">Or share your school's teacher join code</div>
+            <div class="schools-kicker">Or share your school's teacher join code</div>
             <div class="join-code-row">
               <code class="join-code">{{ teacherJoinCode }}</code>
               <span v-if="adminJoinCode" class="join-code-admin">
@@ -428,7 +428,7 @@ onMounted(() => {
                 :placeholder="i === 0 ? 'teacher@yourschool.org' : 'colleague@yourschool.org'"
                 autocomplete="off"
               />
-              <select v-model="invite.role" class="field-select">
+              <select v-model="invite.role" class="field-input field-select">
                 <option value="teacher">Teacher</option>
                 <option value="admin">Admin</option>
               </select>
@@ -444,7 +444,7 @@ onMounted(() => {
                 </svg>
               </button>
             </div>
-            <button type="button" class="ghost-btn ghost-btn-add" @click="addInviteRow">
+            <button type="button" class="btn-ghost btn-add" @click="addInviteRow">
               + Add another
             </button>
           </div>
@@ -455,7 +455,7 @@ onMounted(() => {
           </p>
 
           <div v-if="teachers.length > 0" class="existing-staff">
-            <div class="existing-staff-label">Already on the team</div>
+            <div class="schools-kicker">Already on the team</div>
             <ul class="existing-staff-list">
               <li v-for="t in teachers" :key="t.user_id">
                 <span class="existing-staff-name">{{ t.display_name }}</span>
@@ -512,7 +512,7 @@ onMounted(() => {
           </p>
 
           <div v-if="classes.length > 0" class="existing-classes">
-            <div class="existing-classes-label">Existing classes</div>
+            <div class="schools-kicker">Existing classes</div>
             <table class="ssi-table">
               <thead>
                 <tr>
@@ -549,7 +549,7 @@ onMounted(() => {
               />
               <select
                 v-model="draft.course_code"
-                class="field-select"
+                class="field-input field-select"
                 :disabled="draft.saved"
               >
                 <option value="" disabled>Choose course</option>
@@ -575,7 +575,7 @@ onMounted(() => {
                 </svg>
               </button>
             </div>
-            <button type="button" class="ghost-btn ghost-btn-add" @click="addClassRow">
+            <button type="button" class="btn-ghost btn-add" @click="addClassRow">
               + Add another class
             </button>
           </div>
@@ -587,19 +587,19 @@ onMounted(() => {
         <footer class="step-nav">
           <button
             type="button"
-            class="ghost-btn"
+            class="btn-ghost"
             :disabled="step === 1"
             @click="handleBack"
           >
             <span aria-hidden="true">&larr;</span> Back
           </button>
           <div class="step-nav-right">
-            <button type="button" class="ghost-btn" @click="handleSaveExit">
+            <button type="button" class="btn-ghost" @click="handleSaveExit">
               Save &amp; exit
             </button>
             <button
               type="button"
-              class="play-btn"
+              class="btn-play"
               :disabled="!canAdvance"
               @click="handleContinue"
             >
@@ -608,21 +608,22 @@ onMounted(() => {
             </button>
           </div>
         </footer>
-      </FrostCard>
+      </div>
     </div>
-  </div>
+  </main>
 </template>
 
 <style scoped>
-.setup-view {
+.setup-screen {
+  padding: 22px 28px 32px;
   max-width: 1080px;
   margin: 0 auto;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 320ms var(--ease-out, ease-out), transform 320ms var(--ease-out, ease-out);
+  transition: opacity 320ms ease-out, transform 320ms ease-out;
 }
 
-.setup-view.is-visible {
+.setup-screen.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
@@ -632,18 +633,18 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 12.5px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   margin-bottom: 12px;
 }
 
 .breadcrumb a {
   color: inherit;
   text-decoration: none;
-  transition: color 160ms ease;
+  transition: color 160ms ease-out;
 }
 
 .breadcrumb a:hover {
-  color: var(--ink-primary);
+  color: var(--schools-red);
 }
 
 .breadcrumb-sep {
@@ -651,44 +652,43 @@ onMounted(() => {
 }
 
 .breadcrumb-current {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: 500;
 }
 
 .setup-header {
-  margin-bottom: 22px;
+  margin-bottom: 18px;
   max-width: 640px;
 }
 
-.setup-header h1 {
-  font-family: var(--font-display);
+.page-title {
   font-size: clamp(28px, 3vw, 36px);
   line-height: 1.05;
-  letter-spacing: -0.015em;
-  color: var(--ink-primary);
   margin: 0 0 8px;
-  font-weight: 700;
 }
 
 .setup-lede {
   font-size: 14.5px;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   line-height: 1.55;
   margin: 0;
   max-width: 56ch;
 }
 
-.setup-grid {
+.setup-layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 22px;
+  grid-template-columns: 260px 1fr;
+  gap: 18px;
   align-items: start;
 }
 
 .step-rail {
-  padding: 12px 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   position: sticky;
-  top: calc(var(--nav-height, 80px) + 24px);
+  top: 70px;
 }
 
 .step-rail-item {
@@ -701,18 +701,18 @@ onMounted(() => {
   background: transparent;
   border: none;
   cursor: pointer;
-  border-radius: 10px;
-  color: inherit;
-  font-family: inherit;
-  transition: background 180ms ease;
+  border-radius: 6px;
+  color: var(--schools-fg);
+  font-family: var(--font-body);
+  transition: background 120ms ease-out, color 120ms ease-out;
 }
 
 .step-rail-item:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--schools-bg);
 }
 
 .step-rail-item.is-active {
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--schools-bg);
 }
 
 .step-rail-dot {
@@ -725,18 +725,18 @@ onMounted(() => {
   font-size: 12px;
   font-weight: 600;
   flex: none;
-  background: rgba(44, 38, 34, 0.08);
-  color: var(--ink-muted);
-  transition: background 200ms ease, color 200ms ease;
+  background: rgba(15, 18, 18, 0.08);
+  color: var(--schools-fg-3);
+  transition: background 200ms ease-out, color 200ms ease-out;
 }
 
 .step-rail-item.is-active .step-rail-dot {
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
 }
 
 .step-rail-item.is-done .step-rail-dot {
-  background: #1F8A5B;
+  background: var(--schools-success);
   color: #fff;
 }
 
@@ -750,26 +750,26 @@ onMounted(() => {
 .step-rail-title {
   font-weight: 600;
   font-size: 13.5px;
-  color: var(--ink-primary);
-  transition: color 200ms ease;
+  color: var(--schools-fg);
+  transition: color 200ms ease-out;
 }
 
 .step-rail-item.is-active .step-rail-title {
-  color: var(--ssi-red);
+  color: var(--schools-red);
 }
 
 .step-rail-desc {
   font-size: 11.5px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   line-height: 1.4;
 }
 
 .step-panel {
-  padding: 26px 28px 22px;
   max-width: 760px;
   min-height: 420px;
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
 
 .step-section {
@@ -777,17 +777,13 @@ onMounted(() => {
 }
 
 .step-title {
-  font-family: var(--font-display);
   font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--ink-primary);
   margin: 0 0 14px;
 }
 
 .step-lede {
   font-size: 13.5px;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   line-height: 1.55;
   margin: 0 0 18px;
   max-width: 52ch;
@@ -795,7 +791,7 @@ onMounted(() => {
 
 .step-hint {
   font-size: 12.5px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   margin: 12px 0 0;
 }
 
@@ -818,40 +814,35 @@ onMounted(() => {
 }
 
 .field-label {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--ink-secondary);
-  text-transform: uppercase;
+  color: var(--schools-fg);
 }
 
-.field-input,
-.field-select {
+.field-input {
   padding: 10px 12px;
   font-size: 14px;
-  border: 1px solid rgba(44, 38, 34, 0.18);
-  border-radius: 9px;
+  border: 1px solid var(--schools-border-strong);
+  border-radius: 8px;
   background: #fff;
-  color: var(--ink-primary);
-  font-family: inherit;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  color: var(--schools-fg);
+  font-family: var(--font-body);
+  transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
 }
 
 .field-input::placeholder {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
-.field-input:focus,
-.field-select:focus {
+.field-input:focus {
   outline: none;
-  border-color: var(--ssi-red);
-  box-shadow: 0 0 0 3px rgba(217, 69, 69, 0.14);
+  border-color: var(--schools-red);
+  box-shadow: 0 0 0 3px rgba(219, 30, 23, 0.12);
 }
 
-.field-input:disabled,
-.field-select:disabled {
-  background: rgba(44, 38, 34, 0.03);
-  color: var(--ink-muted);
+.field-input:disabled {
+  background: #fafaf6;
+  color: var(--schools-fg-3);
   cursor: not-allowed;
 }
 
@@ -860,23 +851,19 @@ onMounted(() => {
   min-width: 0;
 }
 
+.field-select {
+  /* Inherits .field-input — declared so chrome's default arrow stays visible. */
+  appearance: auto;
+}
+
 /* Step 2 — invites */
 
 .join-code-callout {
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(44, 38, 34, 0.08);
-  border-radius: 10px;
+  background: var(--schools-bg);
+  border: 1px solid var(--schools-border);
+  border-radius: 8px;
   margin-bottom: 16px;
-}
-
-.join-code-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  margin-bottom: 6px;
 }
 
 .join-code-row {
@@ -884,24 +871,25 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 6px;
 }
 
 .join-code {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 14px;
   font-weight: 600;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   letter-spacing: 0.05em;
 }
 
 .join-code-admin {
   font-size: 12px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 .join-code-inline {
-  font-family: var(--font-mono, monospace);
-  color: var(--ink-secondary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--schools-fg-2);
   font-weight: 600;
   letter-spacing: 0.05em;
 }
@@ -925,38 +913,35 @@ onMounted(() => {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  border: 1px solid rgba(44, 38, 34, 0.12);
+  border: 1px solid var(--schools-border-strong);
   background: transparent;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
-  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+  transition: color 160ms ease-out, border-color 160ms ease-out, background 160ms ease-out;
 }
 
 .icon-btn:hover {
-  color: var(--ssi-red);
-  border-color: rgba(217, 69, 69, 0.4);
-  background: rgba(255, 255, 255, 0.8);
+  color: var(--schools-red);
+  border-color: var(--schools-red);
+  background: #fff;
+}
+
+.btn-add {
+  align-self: flex-start;
+  margin-top: 4px;
+  border-style: dashed;
 }
 
 .existing-staff {
   margin-top: 22px;
   padding-top: 18px;
-  border-top: 1px solid rgba(44, 38, 34, 0.08);
-}
-
-.existing-staff-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  margin-bottom: 8px;
+  border-top: 1px solid var(--schools-border);
 }
 
 .existing-staff-list {
   list-style: none;
   padding: 0;
-  margin: 0;
+  margin: 6px 0 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -968,23 +953,23 @@ onMounted(() => {
   align-items: baseline;
   padding: 6px 0;
   font-size: 13.5px;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .existing-staff-meta {
   font-size: 12px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 /* Step 3 — courses */
 
 .empty-state {
   padding: 18px 20px;
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px dashed rgba(44, 38, 34, 0.18);
-  border-radius: 12px;
+  background: var(--schools-bg);
+  border: 1px dashed var(--schools-border-strong);
+  border-radius: 8px;
   font-size: 13.5px;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   line-height: 1.5;
 }
 
@@ -1000,25 +985,25 @@ onMounted(() => {
   gap: 12px;
   padding: 12px 14px;
   background: #fff;
-  border: 1px solid rgba(44, 38, 34, 0.14);
-  border-radius: 10px;
+  border: 1px solid var(--schools-border);
+  border-radius: 8px;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  transition: background 160ms ease-out, border-color 160ms ease-out, box-shadow 160ms ease-out;
 }
 
 .course-tile:hover {
-  border-color: rgba(217, 69, 69, 0.4);
+  border-color: var(--schools-red);
 }
 
 .course-tile.is-selected {
-  background: rgba(217, 69, 69, 0.06);
-  border-color: rgba(217, 69, 69, 0.55);
-  box-shadow: 0 0 0 1px rgba(217, 69, 69, 0.2);
+  background: var(--schools-pastel);
+  border-color: var(--schools-red);
+  box-shadow: 0 0 0 1px var(--schools-red);
 }
 
 .course-tile-check {
   margin-top: 2px;
-  accent-color: var(--ssi-red);
+  accent-color: var(--schools-red);
 }
 
 .course-tile-body {
@@ -1028,7 +1013,7 @@ onMounted(() => {
 .course-tile-name {
   font-weight: 600;
   font-size: 13.5px;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-bottom: 4px;
 }
 
@@ -1037,17 +1022,17 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   font-size: 11.5px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 .course-tile-code {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono, ui-monospace, monospace);
 }
 
 .course-tile-source {
   padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(44, 38, 34, 0.06);
+  border-radius: var(--schools-radius-pill);
+  background: rgba(15, 18, 18, 0.06);
   font-size: 10.5px;
   font-weight: 500;
 }
@@ -1057,54 +1042,11 @@ onMounted(() => {
 .existing-classes {
   margin-bottom: 20px;
   padding-bottom: 18px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
+  border-bottom: 1px solid var(--schools-border);
 }
 
-.existing-classes-label {
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  margin-bottom: 8px;
-}
-
-.ssi-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13.5px;
-}
-
-.ssi-table thead th {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-  padding: 8px 12px;
-  text-align: left;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.1);
-  background: rgba(255, 255, 255, 0.5);
-}
-
-.ssi-table tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
-  color: var(--ink-primary);
-}
-
-.ssi-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.ssi-table-strong {
-  font-weight: 600;
-}
-
-.ssi-table-code {
-  font-family: var(--font-mono, monospace);
-  font-size: 12.5px;
-  letter-spacing: 0.04em;
+.existing-classes .ssi-table {
+  margin-top: 6px;
 }
 
 .class-draft-list {
@@ -1119,85 +1061,21 @@ onMounted(() => {
   gap: 8px;
 }
 
-.class-draft-row.is-saved .field-input,
-.class-draft-row.is-saved .field-select {
-  background: rgba(31, 138, 91, 0.05);
-  border-color: rgba(31, 138, 91, 0.25);
+.class-draft-row.is-saved .field-input {
+  background: rgba(31, 138, 91, 0.06);
+  border-color: rgba(31, 138, 91, 0.3);
 }
 
 .class-draft-code {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.05em;
-  color: var(--ink-primary);
+  color: var(--schools-success);
   background: rgba(31, 138, 91, 0.1);
   padding: 6px 10px;
   border-radius: 6px;
   white-space: nowrap;
-}
-
-/* Buttons */
-
-.ghost-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: transparent;
-  color: var(--ink-primary);
-  border: 1px solid rgba(44, 38, 34, 0.2);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.ghost-btn:hover:not(:disabled) {
-  background: #fff;
-  border-color: var(--ssi-red);
-  color: var(--ssi-red);
-}
-
-.ghost-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.ghost-btn-add {
-  align-self: flex-start;
-  margin-top: 4px;
-  border-style: dashed;
-}
-
-.play-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 18px;
-  background: var(--ssi-red);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 13.5px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 180ms ease, transform 140ms ease, box-shadow 180ms ease;
-}
-
-.play-btn:hover:not(:disabled) {
-  background: #b32f2f;
-  box-shadow: 0 6px 18px rgba(217, 69, 69, 0.32);
-  transform: translateY(-1px);
-}
-
-.play-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 
 /* Feedback */
@@ -1205,10 +1083,10 @@ onMounted(() => {
 .setup-error {
   margin-top: 16px;
   padding: 10px 14px;
-  background: rgba(217, 69, 69, 0.08);
-  border: 1px solid rgba(217, 69, 69, 0.25);
+  background: rgba(219, 30, 23, 0.06);
+  border: 1px solid rgba(219, 30, 23, 0.25);
   border-radius: 8px;
-  color: #a02020;
+  color: var(--schools-red-deep);
   font-size: 13px;
 }
 
@@ -1218,7 +1096,7 @@ onMounted(() => {
   background: rgba(31, 138, 91, 0.1);
   border: 1px solid rgba(31, 138, 91, 0.3);
   border-radius: 8px;
-  color: #166b46;
+  color: var(--schools-success);
   font-size: 13px;
   font-weight: 600;
 }
@@ -1231,7 +1109,7 @@ onMounted(() => {
   gap: 10px;
   margin-top: 22px;
   padding-top: 16px;
-  border-top: 1px solid rgba(44, 38, 34, 0.08);
+  border-top: 1px solid var(--schools-border);
 }
 
 .step-nav-right {
@@ -1242,25 +1120,28 @@ onMounted(() => {
 /* Responsive */
 
 @media (max-width: 960px) {
-  .setup-grid {
+  .setup-screen {
+    padding: 20px 16px 32px;
+  }
+
+  .setup-layout {
     grid-template-columns: 1fr;
   }
 
   .step-rail {
     position: static;
-    padding: 8px;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 4px;
   }
 
   .step-rail-item {
+    flex: none;
     padding: 8px 10px;
   }
 
   .step-rail-desc {
     display: none;
-  }
-
-  .step-panel {
-    padding: 22px 20px 20px;
   }
 
   .course-grid {
