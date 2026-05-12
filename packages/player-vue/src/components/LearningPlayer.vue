@@ -7376,14 +7376,14 @@ defineExpose({
 
       </div>
 
-      <!-- Phase strip — sits BELOW the hero glass card (not inside it) so the
-           card's overflow + padding don't clip it. Four icon pills: ear /
-           microphone / two-speakers. Pause is the wide middle pill containing
-           the countdown line. The three non-pause pills are clickable. -->
+      <!-- Phase strip — a single pill divided into four segments. One
+           continuous shape reads as "one cycle, four stages". Sits below
+           the hero glass card. pointer-events: auto overrides the
+           .hero-text-pane parent's pointer-events: none. -->
       <div v-if="showPhaseStrip" class="phase-strip" role="group" aria-label="Cycle phases">
         <button
           type="button"
-          class="phase-pill"
+          class="phase-segment phase-segment--prompt"
           :class="{ 'is-active': currentPhase === Phase.PROMPT }"
           aria-label="Replay prompt"
           @click="jumpToCyclePhase('prompt')"
@@ -7395,20 +7395,20 @@ defineExpose({
           </svg>
         </button>
         <div
-          class="phase-pill phase-pill--pause"
+          class="phase-segment phase-segment--pause"
           :class="{ 'is-active': currentPhase === Phase.SPEAK }"
         >
+          <div class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></div>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
             <rect x="9" y="3" width="6" height="12" rx="3"/>
             <path d="M5 11v1a7 7 0 0 0 14 0v-1"/>
             <line x1="12" y1="19" x2="12" y2="22"/>
             <line x1="8" y1="22" x2="16" y2="22"/>
           </svg>
-          <div class="phase-pill-fill" :style="{ width: ringProgress + '%' }"></div>
         </div>
         <button
           type="button"
-          class="phase-pill"
+          class="phase-segment phase-segment--voice1"
           :class="{ 'is-active': currentPhase === Phase.VOICE_1 }"
           aria-label="Skip to model voice 1"
           @click="jumpToCyclePhase('voice1')"
@@ -7417,22 +7417,20 @@ defineExpose({
             <circle cx="12" cy="8" r="3.5"/>
             <path d="M5 21v-1.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5V21"/>
           </svg>
-          <span class="phase-pill-badge">1</span>
+          <span class="phase-segment-num">1</span>
         </button>
         <button
           type="button"
-          class="phase-pill"
+          class="phase-segment phase-segment--voice2"
           :class="{ 'is-active': currentPhase === Phase.VOICE_2 }"
           aria-label="Skip to model voice 2"
           @click="jumpToCyclePhase('voice2')"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <circle cx="9" cy="9" r="3"/>
-            <circle cx="17" cy="10" r="2.5"/>
-            <path d="M3 20v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1"/>
-            <path d="M15 20v-.5a3.5 3.5 0 0 1 3.5-3.5h.5a3 3 0 0 1 3 3v1"/>
+            <circle cx="12" cy="8" r="3.5"/>
+            <path d="M5 21v-1.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5V21"/>
           </svg>
-          <span class="phase-pill-badge">2</span>
+          <span class="phase-segment-num">2</span>
         </button>
       </div>
 
@@ -9920,109 +9918,119 @@ defineExpose({
   font-weight: 600;
 }
 
-/* Phase strip — sits below the hero glass card. Four icon pills:
- *   ( 🎧 )    [ 🎤  ──────── ]    ( 👤¹ )    ( 👥² )
- *   prompt      pause+countdown      voice 1     voice 2
- * Pause is the wide middle pill (flex: 1) with the countdown bar inside.
- * Prompt / Voice 1 / Voice 2 are buttons; pause is a div. */
+/* Phase strip — a single rounded pill divided into four segments, reading
+ * left-to-right as the cycle's journey. The outer pill anchors the visual
+ * "this is one cycle"; internal dividers separate stages.
+ *
+ *   ┌────┬─────────────────────┬──────┬──────┐
+ *   │ 🎧 │  🎤  ▓▓▓░░░░░░░░░  │ 👤 1 │ 👤 2 │
+ *   └────┴─────────────────────┴──────┴──────┘
+ *
+ * pointer-events: auto here overrides the parent .hero-text-pane's
+ * pointer-events: none — otherwise the buttons inherit pass-through
+ * and clicks never reach them.
+ */
 .phase-strip {
   display: flex;
   align-items: stretch;
-  gap: 8px;
+  height: 40px;
   width: 100%;
-  max-width: 380px;
+  max-width: 340px;
   margin: var(--space-md) auto 0;
-  padding: 0 var(--space-sm);
-  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 6px 20px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.phase-pill {
+.phase-segment {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
+  gap: 4px;
+  flex: 0 0 auto;
   padding: 0 14px;
-  min-width: 36px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
+  border: 0;
+  background: transparent;
   color: rgba(0, 0, 0, 0.55);
   font-family: inherit;
-  cursor: default;
-  overflow: hidden;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: background 0.2s ease,
-              color 0.2s ease,
-              border-color 0.2s ease,
-              box-shadow 0.2s ease,
-              transform 0.15s ease;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  isolation: isolate;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.phase-pill svg {
+button.phase-segment {
+  cursor: pointer;
+}
+
+.phase-segment + .phase-segment {
+  border-left: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.phase-segment svg {
   width: 18px;
   height: 18px;
+  display: block;
   position: relative;
   z-index: 1;
-  display: block;
-}
-
-.phase-pill-badge {
-  position: absolute;
-  top: 2px;
-  right: 6px;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  opacity: 0.75;
-  z-index: 1;
-}
-
-button.phase-pill {
-  cursor: pointer;
   flex: 0 0 auto;
 }
 
-.phase-pill--pause {
+.phase-segment-num {
+  position: relative;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.phase-segment--pause {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-button.phase-pill:hover:not(.is-active) {
-  background: rgba(255, 255, 255, 1);
-  border-color: rgba(220, 38, 38, 0.35);
+button.phase-segment:hover:not(.is-active) {
+  background: rgba(220, 38, 38, 0.07);
   color: #dc2626;
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(220, 38, 38, 0.15);
 }
 
-button.phase-pill:active:not(.is-active) {
-  transform: translateY(0);
-  background: rgba(220, 38, 38, 0.12);
+button.phase-segment:active:not(.is-active) {
+  background: rgba(220, 38, 38, 0.16);
 }
 
-.phase-pill.is-active {
+.phase-segment.is-active {
   background: #dc2626;
-  border-color: #dc2626;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.32);
 }
 
-/* Countdown — sits behind the icon inside the pause pill, growing
- * left-to-right with ringProgress. Slightly darker red than the active
- * background gives a subtle progress hint without competing with the icon. */
-.phase-pill-fill {
+.phase-segment.is-active .phase-segment-num {
+  opacity: 0.9;
+}
+
+/* Pause countdown — sits behind the mic icon, grows left-to-right as the
+ * pause progresses. Subtle red tint when inactive (won't ever animate at
+ * that point — ringProgress returns 0), dark-red gradient when active. */
+.phase-segment--pause .phase-segment-fill {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(120, 15, 15, 0.45), rgba(120, 15, 15, 0.25));
-  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(220, 38, 38, 0.16), rgba(220, 38, 38, 0.08));
   transition: width 0.1s linear;
   width: 0%;
   pointer-events: none;
   z-index: 0;
+}
+
+.phase-segment--pause.is-active .phase-segment-fill {
+  background: linear-gradient(90deg, rgba(120, 15, 15, 0.7), rgba(120, 15, 15, 0.4));
 }
 
 /* ============ PHASE STRIP (legacy - kept for reference) ============ */
