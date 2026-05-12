@@ -9947,12 +9947,15 @@ defineExpose({
   width: 100%;
   max-width: 340px;
   margin: var(--space-md) auto 0;
+  /* iOS-character white pill — matches .hero-glass and .component-tile
+   * mist treatment so the phase strip reads as part of the same family
+   * of white-card components on the page. */
   background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
   border-radius: 999px;
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 6px 20px rgba(0, 0, 0, 0.06);
+    0 2px 4px rgba(44, 38, 34, 0.10),
+    0 6px 16px rgba(44, 38, 34, 0.06);
   overflow: hidden;
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
@@ -9994,9 +9997,21 @@ button.phase-segment {
   cursor: pointer;
 }
 
-/* No dividers between segments — they butt up cleanly. The active red
- * (solid pill on prompt/voice1/voice2, growing fill on pause) is the
- * sole visual separator. */
+/* Thin 1px vertical dividers between phases — same visual language as the
+ * LEGO component tiles. Implemented as an absolutely-positioned ::before
+ * so it doesn't add to the segment's box-width and break the 20/40/20/20
+ * layout. Inset from top/bottom so it reads as a tick mark, not a wall. */
+.phase-segment + .phase-segment::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.12);
+  z-index: 2;
+  pointer-events: none;
+}
 
 .phase-segment svg {
   width: 18px;
