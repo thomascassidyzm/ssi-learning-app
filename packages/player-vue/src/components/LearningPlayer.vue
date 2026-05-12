@@ -9982,9 +9982,9 @@ button.phase-segment {
   cursor: pointer;
 }
 
-.phase-segment + .phase-segment {
-  border-left: 1px solid rgba(0, 0, 0, 0.06);
-}
+/* No dividers between segments — they butt up cleanly. The active red
+ * (solid pill on prompt/voice1/voice2, growing fill on pause) is the
+ * sole visual separator. */
 
 .phase-segment svg {
   width: 18px;
@@ -10030,30 +10030,24 @@ button.phase-segment:active:not(.is-active) {
   opacity: 0.9;
 }
 
-/* Pause countdown — single red. The fill IS the active-state visual:
- * starts at 0% on a blank section, grows left-to-right to 100% as the
- * pause progresses, painted in the SAME --ssi-red as the play button
- * and every other active phase pill. No separate active background and
- * no darker red. */
+/* Pause countdown — single red. The fill is the entire active-state visual:
+ * starts at 0% anchored to the section's left edge, grows to 100% as the
+ * pause progresses. Anchored explicitly with left/top/bottom (no `right`,
+ * no `inset` shorthand) so width is unambiguously a left-anchored grow.
+ * When fill = 100% the section is fully red and butts cleanly against
+ * the adjacent voice1 segment. No separate active-state background — the
+ * unfilled portion is just the pill's white bg, same as inactive
+ * segments. No darker red. */
 .phase-segment--pause .phase-segment-fill {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
   background: var(--ssi-red);
   transition: width 0.1s linear;
-  width: 0%;
   pointer-events: none;
   z-index: 0;
-}
-
-/* Active pause doesn't get the solid-red background that other phases get —
- * the growing fill IS the indicator. A faint neutral wash on the section
- * itself makes the still-empty portion clearly read as "the section
- * currently being timed" instead of looking like a hole in the bar.
- * Icon stays dark so it stays visible across the light/red boundary as
- * the fill sweeps under it. */
-.phase-segment--pause.is-active {
-  background: rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.75);
 }
 
 /* ============ PHASE STRIP (legacy - kept for reference) ============ */
