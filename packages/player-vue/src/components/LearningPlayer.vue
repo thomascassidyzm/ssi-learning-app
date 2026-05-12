@@ -6074,10 +6074,28 @@ onMounted(async () => {
               // been seen and they belong in infinite-play territory —
               // regardless of which LEGO the cursor (random USE review)
               // happens to have last touched.
+              //
+              // Fetch the enrollment row directly here. The watcher at
+              // the top of the component populates highestCompletedLegoId
+              // asynchronously and races loadAllData on a cold start; a
+              // direct read avoids that race and guarantees we have the
+              // ratchet value before generating the script.
+              const freshProgress = await loadSavedProgress()
+              const freshHighestLego = freshProgress?.highestCompletedLegoId
+                ?? highestCompletedLegoId.value
+                ?? null
+              if (freshHighestLego && !highestCompletedLegoId.value) {
+                // Keep the ref in sync so downstream consumers (journey
+                // bar markers, resting-state "skip to furthest") see the
+                // ceiling we just read, without waiting for the watcher.
+                highestCompletedLegoId.value = freshHighestLego
+                highestCompletedRoundIndex.value = freshProgress?.highestCompletedRoundIndex ?? null
+              }
               hasReachedInfinitePlayInSession = await hasReachedInfinitePlay(
-                highestCompletedLegoId.value,
+                freshHighestLego,
                 courseCode.value,
               )
+              console.log(`[LearningPlayer] Infinite-play check: highest=${freshHighestLego} → ${hasReachedInfinitePlayInSession ? 'YES, course complete' : 'no, still in main loop'}`)
 
               let endSeed: number
               if (hasReachedInfinitePlayInSession) {
