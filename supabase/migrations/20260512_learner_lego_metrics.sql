@@ -23,19 +23,19 @@ ALTER TABLE learner_lego_metrics ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own lego metrics"
   ON learner_lego_metrics FOR SELECT
-  USING (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()));
+  USING (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text));
 
 CREATE POLICY "Users can insert own lego metrics"
   ON learner_lego_metrics FOR INSERT
-  WITH CHECK (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()));
+  WITH CHECK (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text));
 
 CREATE POLICY "Users can update own lego metrics"
   ON learner_lego_metrics FOR UPDATE
-  USING (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()));
+  USING (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text));
 
 CREATE POLICY "Users can delete own lego metrics"
   ON learner_lego_metrics FOR DELETE
-  USING (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()));
+  USING (learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text));
 
 DROP TRIGGER IF EXISTS update_learner_lego_metrics_updated_at ON learner_lego_metrics;
 CREATE TRIGGER update_learner_lego_metrics_updated_at
