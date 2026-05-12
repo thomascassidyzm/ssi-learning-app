@@ -3254,25 +3254,19 @@ const isIntroPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'component_intro'
 })
 
-// Phase strip — visible only on standard 4-phase cycles (prompt + pause + voice1
-// + voice2). Listening / pod / bookend cycles have a different shape (often
-// single-audio-track) so the 4-section strip wouldn't make sense for them.
-const PHASE_STRIP_SKIP_TYPES = new Set([
-  'intro',
-  'component_intro',
-  'listening',
-  'pod',
-  'listen_intro',
-  'listen_outro',
-])
+// Phase strip — visible whenever the engine is in one of the 4 cycle phases
+// (prompt / pause / voice1 / voice2) and we're not in the intro phase. Doesn't
+// depend on item lookup so it stays robust even if currentPlayableItem hasn't
+// hydrated yet (e.g., partial-state recovery). Listening / pod cycles pass
+// through these phases too but their pauseDuration is 0 — the strip just
+// shows up briefly without harm.
 const showPhaseStrip = computed(() => {
   if (isIntroPhase.value) return false
-  const item = useRoundBasedPlayback.value
-    ? currentPlayableItem.value
-    : sessionItems.value[currentItemIndex.value]
-  const type = item?.type
-  if (!type) return false
-  return !PHASE_STRIP_SKIP_TYPES.has(type)
+  const phase = currentPhase.value
+  return phase === Phase.PROMPT
+    || phase === Phase.SPEAK
+    || phase === Phase.VOICE_1
+    || phase === Phase.VOICE_2
 })
 
 // Click handler for the phase-strip segments. Routes to the SimplePlayer
