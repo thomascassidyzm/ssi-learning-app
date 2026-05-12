@@ -482,11 +482,11 @@ const handleChangeCourse = () => {
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 4px 6px;
-  margin-top: 8px;
-  font-size: 10px;
-  line-height: 1.2;
-  color: var(--text-muted, rgba(0, 0, 0, 0.38));
+  gap: 4px 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-muted, rgba(0, 0, 0, 0.42));
   pointer-events: auto;
 }
 
