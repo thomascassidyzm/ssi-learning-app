@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Students — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css">
+<link rel="stylesheet" href="schools.css">
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+
+function StudentsScreen() {
+  const [classFilter, setClassFilter] = useState('all');
+  const [beltFilter, setBeltFilter] = useState('all');
+  const [healthFilter, setHealthFilter] = useState('all');
+  const all = window.SSI_STUDENTS;
+  const filtered = all.filter(s =>
+    (classFilter==='all' || s.classId===classFilter) &&
+    (beltFilter==='all' || s.belt===beltFilter) &&
+    (healthFilter==='all' || s.health===healthFilter));
+
+  const total = filtered.length;
+  const active = filtered.filter(s => s.streak > 0).length;
+  const needsAtt = filtered.filter(s => s.health==='needs-attention').length;
+
+  const Pill = ({ value, label, options, onChange }) => (
+    <label style={{display:'inline-flex', alignItems:'center', gap:6, fontSize:12.5, color:'var(--schools-fg-2)'}}>
+      <span>{label}</span>
+      <select value={value} onChange={e=>onChange(e.target.value)} style={{
+        padding:'5px 8px', fontSize:12.5, border:'1px solid var(--schools-border)', borderRadius:6,
+        background:'#fff', fontFamily:'var(--font-body)',
+      }}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </label>
+  );
+
+  return (
+    <ScreenShell active="Students">
+      <main style={{padding:'20px 24px 0', height:'calc(100% - 54px)', overflow:'hidden', display:'flex', flexDirection:'column'}}>
+        <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:14}}>
+          <div>
+            <h1 className="arsenal" style={{fontSize:30, lineHeight:1.1}}>Students</h1>
+            <div style={{fontSize:13, color:'var(--schools-fg-2)', marginTop:2}}>
+              {total} students · {active} active this week · {needsAtt} need attention
+            </div>
+          </div>
+          <div style={{display:'flex', gap:8}}>
+            <button className="btn-ghost">Export CSV</button>
+            <button className="btn-play">+ Invite students</button>
+          </div>
+        </div>
+
+        <div style={{display:'flex', alignItems:'center', gap:14, padding:'10px 14px', background:'#fff',
+          border:'1px solid var(--schools-border)', borderRadius:10, marginBottom:12}}>
+          <input placeholder="Search by name or email…" style={{
+            flex:1, padding:'7px 10px', fontSize:13, border:'1px solid var(--schools-border)', borderRadius:6,
+            background:'#fafaf6', fontFamily:'var(--font-body)',
+          }}/>
+          <Pill label="Class" value={classFilter} onChange={setClassFilter} options={[
+            { value:'all', label:'All classes' },
+            ...window.SSI_CLASSES.map(c => ({ value:c.id, label:c.name })),
+          ]}/>
+          <Pill label="Belt" value={beltFilter} onChange={setBeltFilter} options={[
+            { value:'all', label:'All' },
+            { value:'white', label:'White' },{ value:'yellow', label:'Yellow' },
+            { value:'orange', label:'Orange' },{ value:'green', label:'Green' },
+          ]}/>
+          <Pill label="Health" value={healthFilter} onChange={setHealthFilter} options={[
+            { value:'all', label:'All' },
+            { value:'excellent', label:'Excellent' },{ value:'good', label:'Good' },
+            { value:'needs-attention', label:'Needs attention' },
+          ]}/>
+        </div>
+
+        <div className="card" style={{overflow:'hidden', flex:1, display:'flex', flexDirection:'column'}}>
+          <div style={{overflow:'auto', flex:1}}>
+            <table className="ssi-table">
+              <thead>
+                <tr><th>Student</th><th>Class</th><th>Belt</th><th>LEGOs retired</th><th>Hours this week</th><th>Streak</th><th>Health</th><th>Last active</th><th></th></tr>
+              </thead>
+              <tbody>
+                {filtered.map(s => {
+                  const klass = window.SSI_CLASSES.find(c => c.id===s.classId);
+                  const pct = (s.legoDone/s.legoTotal)*100;
+                  return (
+                    <tr key={s.id}>
+                      <td>
+                        <div style={{display:'flex', alignItems:'center', gap:10}}>
+                          <div style={{
+                            width:28, height:28, borderRadius:'50%', background:'#eee',
+                            display:'flex', alignItems:'center', justifyContent:'center',
+                            fontSize:11, fontWeight:600, color:'#555',
+                          }}>{s.name.split(' ').map(x=>x[0]).slice(0,2).join('')}</div>
+                          <div style={{fontWeight:600, fontSize:13.5}}>{s.name}</div>
+                        </div>
+                      </td>
+                      <td style={{color:'var(--schools-fg-2)'}}>{klass?.name}</td>
+                      <td><span style={{display:'inline-flex', alignItems:'center', gap:6}}><BeltDot belt={s.belt} size={14}/>{s.belt}</span></td>
+                      <td>
+                        <div style={{display:'flex', alignItems:'center', gap:8}}>
+                          <div style={{width:80, height:5, background:'rgba(0,0,0,.05)', borderRadius:2.5, overflow:'hidden'}}>
+                            <div style={{width:`${pct}%`, height:'100%', background:'var(--schools-red)'}}/>
+                          </div>
+                          <span style={{fontSize:12, color:'var(--schools-fg-2)', minWidth:42}}>{s.legoDone}/{s.legoTotal}</span>
+                        </div>
+                      </td>
+                      <td>{s.hours7d}h</td>
+                      <td>{s.streak>0 ? `${s.streak}d` : '—'}</td>
+                      <td><span style={{display:'inline-flex', alignItems:'center', gap:6, fontSize:12.5, color:'var(--schools-fg-2)'}}>
+                        <HealthDot health={s.health}/>{s.health.replace('-',' ')}
+                      </span></td>
+                      <td style={{color:'var(--schools-fg-2)'}}>{s.lastActive}</td>
+                      <td style={{textAlign:'right'}}>
+                        <a href="student-progress.html" style={{fontSize:12, color:'var(--schools-red)', textDecoration:'none', fontWeight:600}}>View →</a>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </ScreenShell>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<StudentsScreen/>);
+</script>
+</body>
+</html>

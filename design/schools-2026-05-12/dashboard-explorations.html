@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Schools · Dashboard explorations</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css">
+<style>
+  html, body { margin:0; padding:0; background:#f0eee9; color:var(--fg-1); font-family:var(--font-body); }
+  /* Shared schools-tool tokens (proto) */
+  :root {
+    --schools-bg: #f6f5f1;
+    --schools-card: #ffffff;
+    --schools-border: rgba(15,18,18,.10);
+    --schools-border-strong: rgba(15,18,18,.18);
+    --schools-fg: #0F1212;
+    --schools-fg-2: #555555;
+    --schools-fg-3: #888888;
+    --schools-red: #DB1E17;
+    --schools-red-deep: #900600;
+    --schools-pastel: #F2D7D7;
+    --schools-gold: #FEC902;
+    --schools-success: #1F8A5B;
+    --schools-belt-white: #f4f3ef;
+    --schools-belt-yellow: #f7d24a;
+    --schools-belt-orange: #ec8a3a;
+    --schools-belt-green: #2a8d5e;
+    --schools-belt-blue: #3768c4;
+    --schools-belt-black: #1c1b18;
+  }
+  /* Reset h-margins inside artboards so our type system rules */
+  .ab h1, .ab h2, .ab h3, .ab h4, .ab p { margin:0; }
+  .ab { font-family: var(--font-body); color: var(--schools-fg); font-size:14px; line-height:1.45; }
+  .ab * { box-sizing: border-box; }
+  .ab .arsenal { font-family: var(--font-display); font-weight:400; letter-spacing:-0.005em; }
+  .ab .btn-play { display:inline-flex; align-items:center; gap:8px; padding:9px 16px 10px; border-radius:8px;
+    background:var(--schools-red); color:#fff; font-weight:600; font-size:13.5px; border:none; cursor:pointer; text-decoration:none; }
+  .ab .btn-play:hover { background:var(--schools-red-deep); }
+  .ab .btn-ghost { display:inline-flex; align-items:center; gap:6px; padding:8px 14px 9px; border-radius:8px;
+    background:transparent; color:var(--schools-fg); border:1px solid var(--schools-border-strong); font-weight:500; font-size:13px; cursor:pointer; text-decoration:none; }
+  .ab .btn-ghost:hover { background:#fff; border-color:var(--schools-red); color:var(--schools-red); }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+
+
+<script type="text/babel">
+/* ───────────────────────────────────────────────────────────
+   Demo data — Skol Diwan Kemper, Brittany.
+   Teacher: Erwan Le Bihan. Three classes.
+   ─────────────────────────────────────────────────────────── */
+
+const TEACHER = { name: 'Erwan Le Bihan', school: 'Skol Diwan Kemper', region: 'Brittany' };
+
+const CLASSES = [
+  {
+    id: 'cm1', name: 'CM1 Brezhoneg', course: 'Welsh North · Level 1',
+    courseFlag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', students: 20,
+    classBelt: 'yellow', // dominant belt
+    beltDist: { white: 3, yellow: 12, orange: 5 },
+    journey: { done: 18, total: 60 },
+    bench: { class: 62, school: 54, course: 49 }, // weekly mins/student
+    hoursWk: 6.4, sessionsWk: 38, avgMins: 18,
+    activity: [3,4,4,5,6,5,7], // last 7 days, sessions/day
+    joinCode: 'KMP-7Q3X',
+    needs: '3 new students this week',
+  },
+  {
+    id: '5eme', name: '5ème Brezhoneg', course: 'Welsh North · Level 2',
+    courseFlag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿', students: 20,
+    classBelt: 'orange',
+    beltDist: { yellow: 4, orange: 13, green: 3 },
+    journey: { done: 34, total: 60 },
+    bench: { class: 88, school: 54, course: 49 },
+    hoursWk: 11.2, sessionsWk: 51, avgMins: 24,
+    activity: [7,8,9,8,9,7,9],
+    joinCode: 'KMP-M4P2',
+    needs: 'Strong week — 9 retired LEGOs',
+  },
+  {
+    id: 'spa', name: '4ème Español', course: 'Spanish · Level 1',
+    courseFlag: '🇪🇸', students: 14,
+    classBelt: 'white',
+    beltDist: { white: 9, yellow: 5 },
+    journey: { done: 7, total: 60 },
+    bench: { class: 32, school: 54, course: 49 },
+    hoursWk: 2.8, sessionsWk: 14, avgMins: 14,
+    activity: [2,1,3,2,2,1,3],
+    joinCode: 'KMP-D9LR',
+    needs: 'Two students inactive 14+ days',
+  },
+];
+
+/* ───────────────────────────────────────────────────────────
+   Shared atoms across all three variants
+   ─────────────────────────────────────────────────────────── */
+
+function BeltDot({ belt, size = 14, ring = false }) {
+  const color = `var(--schools-belt-${belt})`;
+  return (
+    <span style={{
+      display:'inline-block', width:size, height:size, borderRadius:'50%',
+      background: color,
+      boxShadow: ring ? `inset 0 0 0 1.5px rgba(0,0,0,.15)` : 'inset 0 0 0 1px rgba(0,0,0,.1)',
+      verticalAlign:'middle',
+    }}/>
+  );
+}
+
+function BeltStrip({ dist }) {
+  const total = Object.values(dist).reduce((a,b)=>a+b, 0);
+  return (
+    <div style={{display:'flex', width:'100%', height:6, borderRadius:3, overflow:'hidden', background:'rgba(0,0,0,.05)'}}>
+      {Object.entries(dist).map(([belt, n]) => (
+        <div key={belt} style={{ width:`${(n/total)*100}%`, background:`var(--schools-belt-${belt})` }}/>
+      ))}
+    </div>
+  );
+}
+
+function Spark({ data, color='var(--schools-red)', w=88, h=24 }) {
+  const max = Math.max(...data, 1);
+  const step = w / (data.length-1);
+  const pts = data.map((v,i) => `${i*step},${h - (v/max)*h}`).join(' ');
+  const fillPts = `0,${h} ${pts} ${w},${h}`;
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{display:'block'}}>
+      <polygon points={fillPts} fill={color} opacity="0.12"/>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function Journey({ done, total, color='var(--schools-red)' }) {
+  const pct = (done/total)*100;
+  return (
+    <div style={{width:'100%'}}>
+      <div style={{display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--schools-fg-2)', marginBottom:4}}>
+        <span>Course Journey</span><span>{done}/{total}</span>
+      </div>
+      <div style={{height:6, borderRadius:3, background:'rgba(0,0,0,.05)', overflow:'hidden'}}>
+        <div style={{height:'100%', width:`${pct}%`, background: color}}/>
+      </div>
+    </div>
+  );
+}
+
+function Bench({ data }) {
+  // small horizontal bar showing class vs school vs course averages
+  const max = Math.max(data.class, data.school, data.course) * 1.1;
+  const row = (label, v, color) => (
+    <div style={{display:'flex', alignItems:'center', gap:8, fontSize:11, color:'var(--schools-fg-2)', marginBottom:3}}>
+      <span style={{width:42}}>{label}</span>
+      <div style={{flex:1, height:5, background:'rgba(0,0,0,.05)', borderRadius:2.5, overflow:'hidden'}}>
+        <div style={{height:'100%', width:`${(v/max)*100}%`, background: color}}/>
+      </div>
+      <span style={{width:28, textAlign:'right', tabularNums:true, color:'var(--schools-fg)'}}>{v}m</span>
+    </div>
+  );
+  return (
+    <div>
+      {row('Class', data.class, 'var(--schools-red)')}
+      {row('School', data.school, 'rgba(15,18,18,.35)')}
+      {row('Global', data.course, 'rgba(15,18,18,.18)')}
+    </div>
+  );
+}
+
+function Greeting({ dense=false, action }) {
+  return (
+    <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:24, marginBottom: dense ? 16 : 22}}>
+      <div style={{maxWidth: dense ? 760 : 620}}>
+        <div style={{
+          fontSize: dense ? 11 : 13, color:'var(--schools-fg-2)',
+          letterSpacing:'.08em', textTransform:'uppercase',
+          marginBottom: dense ? 4 : 6, fontWeight:600,
+        }}>
+          Wednesday · 12 May
+        </div>
+        <h1 className="arsenal" style={{
+          fontSize: dense ? 30 : 46, lineHeight:1.05, letterSpacing:'-0.01em',
+        }}>
+          Demat, Erwan.
+        </h1>
+        <p style={{
+          fontSize: dense ? 13.5 : 16,
+          color:'var(--schools-fg-2)',
+          maxWidth: dense ? 760 : 580,
+          lineHeight:1.5, marginTop: dense ? 4 : 10,
+        }}>
+          Three classes need you this week. <span style={{color:'var(--schools-fg)'}}>5ème are flying</span> – nine LEGOs retired in seven days. <span style={{color:'var(--schools-fg)'}}>4ème Español need a nudge</span> – two students haven't opened the app in a fortnight.
+        </p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function NavTabs({ active, dense=false }) {
+  const tabs = ['Dashboard', 'Classes', 'Students', 'Teachers', 'Analytics'];
+  return (
+    <nav style={{display:'flex', gap: dense ? 2 : 4, alignItems:'center'}}>
+      {tabs.map(t => {
+        const a = t === active;
+        return (
+          <a key={t} href="#" style={{
+            padding: dense ? '6px 10px' : '8px 14px',
+            fontSize: dense ? 13 : 13.5,
+            fontWeight: 500,
+            textDecoration:'none',
+            color: a ? '#fff' : 'var(--schools-fg)',
+            background: a ? 'var(--schools-red)' : 'transparent',
+            borderRadius: 6,
+          }}>{t}</a>
+        );
+      })}
+    </nav>
+  );
+}
+
+function Logo({ size=22 }) {
+  return (
+    <div style={{display:'flex', alignItems:'center', gap:8}}>
+      <div style={{
+        width:size, height:size, borderRadius:5, background:'var(--schools-red)',
+        color:'#fff', display:'flex', alignItems:'center', justifyContent:'center',
+        fontFamily:'var(--font-display)', fontWeight:400, fontSize:size*0.7, lineHeight:1,
+      }}>S</div>
+      <div style={{fontFamily:'var(--font-display)', fontSize:size*0.8, lineHeight:1}}>
+        SaySomethingin <span style={{opacity:.5}}>·</span> <span style={{color:'var(--schools-red)'}}>Schools</span>
+      </div>
+    </div>
+  );
+}
+
+function DensityToggle({ value, onChange }) {
+  const opts = [
+    { id:'compact',  label:'Compact',  icon:(
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1.5"  width="10" height="1.4" rx="0.5" fill="currentColor"/><rect x="1" y="5.3"  width="10" height="1.4" rx="0.5" fill="currentColor"/><rect x="1" y="9.1"  width="10" height="1.4" rx="0.5" fill="currentColor"/></svg>
+    )},
+    { id:'detailed', label:'Detailed', icon:(
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="1" width="4" height="4" rx="0.7" fill="currentColor"/><rect x="7" y="1" width="4" height="4" rx="0.7" fill="currentColor"/><rect x="1" y="7" width="4" height="4" rx="0.7" fill="currentColor"/><rect x="7" y="7" width="4" height="4" rx="0.7" fill="currentColor"/></svg>
+    )},
+  ];
+  return (
+    <div role="radiogroup" aria-label="Display density" style={{
+      display:'inline-flex', background:'#f3f1ec', borderRadius:7, padding:3, gap:2,
+      border:'1px solid var(--schools-border)',
+    }}>
+      {opts.map(o => {
+        const a = o.id === value;
+        return (
+          <button key={o.id} role="radio" aria-checked={a}
+            onClick={() => onChange(o.id)}
+            style={{
+              display:'inline-flex', alignItems:'center', gap:6,
+              padding:'5px 10px 6px',
+              border:'none', cursor:'pointer', borderRadius:5,
+              background: a ? '#fff' : 'transparent',
+              color: a ? 'var(--schools-fg)' : 'var(--schools-fg-2)',
+              boxShadow: a ? '0 1px 2px rgba(0,0,0,.08)' : 'none',
+              fontWeight: a ? 600 : 500, fontSize:12, fontFamily:'var(--font-body)',
+            }}
+          >
+            {o.icon}{o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function TopBar({ active='Dashboard', density, onDensityChange }) {
+  return (
+    <header style={{
+      height:54, display:'flex', alignItems:'center', justifyContent:'space-between',
+      padding:'0 24px', background:'#fff', borderBottom:'1px solid var(--schools-border)',
+    }}>
+      <div style={{display:'flex', alignItems:'center', gap:32}}>
+        <Logo/>
+        <NavTabs active={active}/>
+      </div>
+      <div style={{display:'flex', alignItems:'center', gap:14}}>
+        {density && onDensityChange && <DensityToggle value={density} onChange={onDensityChange}/>}
+        <div style={{width:1, height:24, background:'var(--schools-border)'}}/>
+        <div style={{fontSize:12.5, color:'var(--schools-fg-2)'}}>{TEACHER.school}</div>
+        <div style={{
+          width:30, height:30, borderRadius:'50%', background:'#1F8A5B', color:'#fff',
+          display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:600,
+        }}>EL</div>
+      </div>
+    </header>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────
+   VARIANT A — WORKSPACE
+   Dense, low-chrome, table-led. SSi-as-working-tool.
+   ─────────────────────────────────────────────────────────── */
+
+function VariantA({ density='compact', onDensityChange }) {
+  return (
+    <div className="ab" style={{width:1366, height:768, background:'var(--schools-bg)', overflow:'hidden'}}>
+      <TopBar density={density} onDensityChange={onDensityChange}/>
+
+      <main style={{padding:'20px 24px 0', height:'calc(100% - 54px)', overflow:'hidden'}}>
+        <Greeting dense action={
+          <button className="btn-ghost">+ Create class</button>
+        }/>
+
+        {/* Stat strip */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:16}}>
+          {[
+            ['54', 'Students'],
+            ['20.4h', 'Hours this week'],
+            ['103', 'Sessions this week'],
+            ['9', 'LEGOs retired this week'],
+          ].map(([v,l]) => (
+            <div key={l} style={{
+              background:'#fff', borderRadius:10, padding:'12px 14px', border:'1px solid var(--schools-border)',
+              display:'flex', alignItems:'baseline', justifyContent:'space-between'
+            }}>
+              <span className="arsenal" style={{fontSize:24, lineHeight:1}}>{v}</span>
+              <span style={{fontSize:12, color:'var(--schools-fg-2)'}}>{l}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Class table */}
+        <div style={{background:'#fff', borderRadius:12, border:'1px solid var(--schools-border)', overflow:'hidden'}}>
+          {/* Table head */}
+          <div style={{
+            display:'grid',
+            gridTemplateColumns:'1.5fr 1.4fr 1fr 1.4fr 1.4fr 0.8fr 110px',
+            padding:'10px 16px',
+            fontSize:11, fontWeight:600, letterSpacing:'.04em', textTransform:'uppercase',
+            color:'var(--schools-fg-3)', borderBottom:'1px solid var(--schools-border)', background:'#fafafa',
+          }}>
+            <div>Class</div>
+            <div>Course Journey</div>
+            <div>Belts</div>
+            <div>This week</div>
+            <div>Benchmarks · min/student/wk</div>
+            <div>Code</div>
+            <div></div>
+          </div>
+          {CLASSES.map((c, i) => (
+            <div key={c.id} style={{
+              display:'grid',
+              gridTemplateColumns:'1.5fr 1.4fr 1fr 1.4fr 1.4fr 0.8fr 110px',
+              alignItems:'center',
+              padding:'14px 16px', gap:14,
+              borderBottom: i < CLASSES.length-1 ? '1px solid var(--schools-border)' : 'none',
+            }}>
+              {/* Class */}
+              <div style={{display:'flex', alignItems:'center', gap:10}}>
+                <BeltDot belt={c.classBelt} size={28} ring/>
+                <div>
+                  <div style={{fontWeight:600, fontSize:14}}>{c.name}</div>
+                  <div style={{fontSize:11.5, color:'var(--schools-fg-2)'}}>{c.course} · {c.students} students</div>
+                </div>
+              </div>
+              {/* Journey */}
+              <div><Journey done={c.journey.done} total={c.journey.total}/></div>
+              {/* Belts */}
+              <div>
+                <BeltStrip dist={c.beltDist}/>
+                <div style={{fontSize:11, color:'var(--schools-fg-2)', marginTop:4, display:'flex', gap:8, flexWrap:'wrap'}}>
+                  {Object.entries(c.beltDist).map(([b,n]) => (
+                    <span key={b} style={{display:'inline-flex', alignItems:'center', gap:3}}>
+                      <BeltDot belt={b} size={8}/>{n}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {/* This week */}
+              <div style={{display:'flex', alignItems:'center', gap:10}}>
+                <Spark data={c.activity}/>
+                <div style={{fontSize:11.5, color:'var(--schools-fg-2)', lineHeight:1.4}}>
+                  <div><b style={{color:'var(--schools-fg)', fontSize:13}}>{c.hoursWk}h</b> total</div>
+                  <div>{c.sessionsWk} sessions</div>
+                </div>
+              </div>
+              {/* Benchmarks */}
+              <div><Bench data={c.bench}/></div>
+              {/* Code */}
+              <div style={{fontFamily:'monospace', fontSize:12, color:'var(--schools-fg-2)'}}>
+                {c.joinCode}
+              </div>
+              {/* CTA */}
+              <div style={{textAlign:'right'}}>
+                <button className="btn-play">▶ Play</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────
+   VARIANT B — EDITORIAL
+   Marketing-site DNA inside the tool. Big Arsenal welcome,
+   narrative kickers, generous space, image-rich panels.
+   ─────────────────────────────────────────────────────────── */
+
+function VariantB({ density='detailed', onDensityChange }) {
+  return (
+    <div className="ab" style={{width:1366, height:768, background:'var(--offWhite, #FDF5F5)', overflow:'hidden'}}>
+      <TopBar density={density} onDensityChange={onDensityChange}/>
+
+      <main style={{padding:'28px 56px 0', height:'calc(100% - 54px)', overflow:'hidden'}}>
+        <Greeting action={
+          <div style={{textAlign:'right'}}>
+            <div className="arsenal" style={{fontSize:28, color:'var(--schools-fg)', lineHeight:1}}>20.4h</div>
+            <div style={{fontSize:12, marginTop:2, color:'var(--schools-fg-2)', maxWidth:170}}>practised across your classes this week</div>
+          </div>
+        }/>
+
+        {/* Class panels */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:18}}>
+          {CLASSES.map(c => (
+            <article key={c.id} style={{
+              background:'#fff', borderRadius:14, padding:'20px 22px 22px',
+              border:'1px solid var(--schools-border)', boxShadow:'0 1px 2px rgba(73,3,0,.04)',
+              display:'flex', flexDirection:'column', gap:14,
+            }}>
+              {/* Header */}
+              <div>
+                <div style={{fontSize:11.5, color:'var(--schools-red)', letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6, fontWeight:600}}>
+                  {c.course}
+                </div>
+                <h2 className="arsenal" style={{fontSize:26, lineHeight:1.1, marginBottom:8}}>{c.name}</h2>
+                <div style={{display:'flex', alignItems:'center', gap:10, fontSize:13, color:'var(--schools-fg-2)'}}>
+                  <BeltDot belt={c.classBelt} size={14} ring/>
+                  <span>{c.students} students</span>
+                  <span style={{opacity:.3}}>·</span>
+                  <span>{c.classBelt.charAt(0).toUpperCase()+c.classBelt.slice(1)} belt</span>
+                </div>
+              </div>
+
+              {/* Narrative */}
+              <p style={{fontSize:14, color:'var(--schools-fg)', lineHeight:1.5, fontStyle:'italic',
+                fontFamily:'var(--font-display)', borderLeft:'2px solid var(--schools-red)', paddingLeft:12, marginTop:-2}}>
+                {c.needs}
+              </p>
+
+              {/* Journey */}
+              <Journey done={c.journey.done} total={c.journey.total}/>
+
+              {/* Bench */}
+              <div style={{paddingTop:8, borderTop:'1px dashed var(--schools-border)'}}>
+                <div style={{fontSize:11, color:'var(--schools-fg-2)', marginBottom:6, fontWeight:600, letterSpacing:'.04em', textTransform:'uppercase'}}>
+                  Practice min/student/week
+                </div>
+                <Bench data={c.bench}/>
+              </div>
+
+              {/* CTA row */}
+              <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'auto', paddingTop:10}}>
+                <span style={{fontFamily:'monospace', fontSize:11.5, color:'var(--schools-fg-2)'}}>{c.joinCode}</span>
+                <button className="btn-play">▶ Play as class</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────
+   VARIANT C — TABLETOP
+   Class cards as differently-coloured tactile panels on a desk.
+   Playful, classroom-y. One colour per dominant belt.
+   ─────────────────────────────────────────────────────────── */
+
+const BELT_PALETTE = {
+  white:  { bg:'#fbf8ee', ink:'#3a3322', accent:'#d6c889' },
+  yellow: { bg:'#fbeec4', ink:'#5a4516', accent:'#c69b1c' },
+  orange: { bg:'#f9d4b3', ink:'#5a2e0c', accent:'#c66a1c' },
+  green:  { bg:'#cfe6d6', ink:'#1b432d', accent:'#2a8d5e' },
+  blue:   { bg:'#cad9f0', ink:'#1c3666', accent:'#3768c4' },
+  black:  { bg:'#2a2a26', ink:'#f6f3e8', accent:'#9a8c5a' },
+};
+
+function VariantC() {
+  return (
+    <div className="ab" style={{width:1366, height:768, background:'#ede8d9', overflow:'hidden', position:'relative'}}>
+      {/* desk texture */}
+      <div style={{position:'absolute', inset:0, background:`
+        radial-gradient(1200px 600px at 30% 10%, rgba(255,255,255,.5) 0%, transparent 60%),
+        radial-gradient(900px 500px at 80% 90%, rgba(0,0,0,.06) 0%, transparent 60%)
+      `, pointerEvents:'none'}}/>
+
+      <div style={{position:'relative', zIndex:1}}>
+        <TopBar/>
+
+        <main style={{padding:'28px 48px 0', height:'calc(768px - 54px)', position:'relative'}}>
+          <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:22}}>
+            <div>
+              <h1 className="arsenal" style={{fontSize:34, lineHeight:1.05}}>On your desk today</h1>
+              <p style={{fontSize:14, color:'var(--schools-fg-2)', marginTop:4}}>
+                Three classes. Pick one up. Tap Play to start a session with them.
+              </p>
+            </div>
+            <div style={{display:'flex', gap:8}}>
+              <button className="btn-ghost">+ New class card</button>
+            </div>
+          </div>
+
+          {/* Cards laid out like paper on a desk */}
+          <div style={{display:'flex', gap:32, paddingTop:8}}>
+            {CLASSES.map((c, i) => {
+              const pal = BELT_PALETTE[c.classBelt];
+              const rotations = [-1.8, 0.6, 1.4];
+              return (
+                <div key={c.id} style={{
+                  flex:1, minWidth:0,
+                  background: pal.bg, color: pal.ink,
+                  borderRadius:6,
+                  padding:'22px 24px 24px',
+                  boxShadow:`0 1px 0 rgba(0,0,0,.04), 0 14px 30px -10px rgba(0,0,0,.18), 0 30px 60px -20px rgba(0,0,0,.12)`,
+                  transform:`rotate(${rotations[i]}deg)`,
+                  display:'flex', flexDirection:'column', gap:14,
+                  fontFamily: 'var(--font-body)',
+                  position:'relative',
+                  minHeight: 480,
+                }}>
+                  {/* paperclip / tab */}
+                  <div style={{
+                    position:'absolute', top:-8, left:24,
+                    width:42, height:14, background: pal.accent, opacity:.6, borderRadius:2,
+                  }}/>
+                  {/* Header */}
+                  <div>
+                    <div style={{fontSize:11.5, fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', opacity:.7, marginBottom:6}}>
+                      {c.course}
+                    </div>
+                    <h2 className="arsenal" style={{fontSize:30, lineHeight:1.05}}>{c.name}</h2>
+                    <div style={{display:'flex', alignItems:'center', gap:10, fontSize:13, opacity:.75, marginTop:8}}>
+                      <span style={{
+                        display:'inline-flex', alignItems:'center', gap:6,
+                        padding:'3px 10px 4px', borderRadius:999,
+                        background:'rgba(255,255,255,.45)', color: pal.ink, fontWeight:600,
+                      }}>
+                        <BeltDot belt={c.classBelt} size={10}/>
+                        {c.classBelt.charAt(0).toUpperCase()+c.classBelt.slice(1)} belt class
+                      </span>
+                      <span>{c.students} students</span>
+                    </div>
+                  </div>
+
+                  {/* Belt distribution as circles */}
+                  <div style={{
+                    background:'rgba(255,255,255,.55)', borderRadius:8, padding:'12px 14px',
+                  }}>
+                    <div style={{fontSize:10.5, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase', opacity:.7, marginBottom:8}}>
+                      The class right now
+                    </div>
+                    <div style={{display:'flex', gap:14, alignItems:'center'}}>
+                      {Object.entries(c.beltDist).map(([b,n]) => (
+                        <div key={b} style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+                          <BeltDot belt={b} size={22} ring/>
+                          <span className="arsenal" style={{fontSize:18, marginTop:4, lineHeight:1}}>{n}</span>
+                          <span style={{fontSize:10, opacity:.6, textTransform:'capitalize'}}>{b}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Journey */}
+                  <div style={{background:'rgba(255,255,255,.55)', borderRadius:8, padding:'12px 14px'}}>
+                    <Journey done={c.journey.done} total={c.journey.total} color={pal.accent}/>
+                    <div style={{fontSize:11, marginTop:8, opacity:.7, lineHeight:1.4}}>
+                      {c.hoursWk}h this week · {c.sessionsWk} sessions · avg {c.avgMins} min
+                    </div>
+                  </div>
+
+                  {/* CTA */}
+                  <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'auto', paddingTop:4}}>
+                    <span style={{fontFamily:'monospace', fontSize:11, opacity:.6}}>{c.joinCode}</span>
+                    <button style={{
+                      display:'inline-flex', alignItems:'center', gap:8, padding:'10px 18px 11px',
+                      borderRadius:999, border:'none', cursor:'pointer',
+                      background: pal.ink, color: pal.bg,
+                      fontWeight:600, fontSize:13.5,
+                    }}>▶ Play as class</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────
+   Mount
+   ─────────────────────────────────────────────────────────── */
+
+function App() {
+  // Density is the teacher's own setting, persisted locally.
+  const [density, setDensity] = React.useState(() => {
+    try { return localStorage.getItem('ssi-schools-density') || 'compact'; } catch { return 'compact'; }
+  });
+  const handleDensity = (d) => {
+    setDensity(d);
+    try { localStorage.setItem('ssi-schools-density', d); } catch {}
+  };
+
+  const stageRef = React.useRef(null);
+  const [scale, setScale] = React.useState(1);
+  React.useLayoutEffect(() => {
+    const calc = () => {
+      const el = stageRef.current; if (!el) return;
+      const padX = 48, padY = 40;
+      const availW = el.clientWidth - padX;
+      const availH = el.clientHeight - padY;
+      setScale(Math.min(availW / 1366, availH / 768, 1));
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+
+  const Active = density === 'detailed' ? VariantB : VariantA;
+
+  return (
+    <div ref={stageRef} style={{
+      minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center',
+      padding:'20px 24px', background:'#e8e5dd', overflow:'auto',
+    }}>
+      <div style={{width: 1366 * scale, height: 768 * scale, position:'relative'}}>
+        <div style={{
+          position:'absolute', top:0, left:0, width:1366, height:768,
+          transform:`scale(${scale})`, transformOrigin:'top left',
+          boxShadow:'0 24px 60px -20px rgba(0,0,0,.25), 0 8px 24px -8px rgba(0,0,0,.15)',
+          background:'#fff', borderRadius:8, overflow:'hidden',
+        }}>
+          <Active density={density} onDensityChange={handleDensity}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+</body>
+</html>

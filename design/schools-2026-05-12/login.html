@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css">
+<link rel="stylesheet" href="schools.css">
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel">
+const { useState, useLayoutEffect, useRef } = React;
+
+function StagePlain({ children }) {
+  const ref = useRef(null);
+  const [scale, setScale] = useState(1);
+  useLayoutEffect(() => {
+    const calc = () => {
+      const el = ref.current; if (!el) return;
+      const padX = 32, padY = 32;
+      setScale(Math.min((el.clientWidth-padX)/1366, (el.clientHeight-padY)/768, 1));
+    };
+    calc(); window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+  return (
+    <div ref={ref} style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:16, background:'#e8e5dd'}}>
+      <div style={{width:1366*scale, height:768*scale, position:'relative'}}>
+        <div style={{position:'absolute', top:0, left:0, width:1366, height:768,
+          transform:`scale(${scale})`, transformOrigin:'top left',
+          boxShadow:'0 24px 60px -20px rgba(0,0,0,.25), 0 8px 24px -8px rgba(0,0,0,.15)',
+          background:'#fff', borderRadius:8, overflow:'hidden'}}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+const STATES = [
+  { id:'email',    label:'1. Email' },
+  { id:'otp',      label:'2. Code'  },
+  { id:'noaccess', label:'3. No access' },
+];
+
+function LoginPanel({ state }) {
+  if (state === 'email') return (
+    <div style={{display:'flex', flexDirection:'column', gap:18}}>
+      <h2 className="arsenal" style={{fontSize:34, lineHeight:1.1}}>Sign in</h2>
+      <p style={{fontSize:15, color:'var(--schools-fg-2)', lineHeight:1.55, maxWidth:380}}>
+        Enter the email address your school registered with us. We'll send a single-use code.
+      </p>
+      <label style={{display:'flex', flexDirection:'column', gap:6, fontSize:12.5, color:'var(--schools-fg-2)'}}>
+        School email
+        <input defaultValue="erwan.lebihan@diwan-kemper.bzh" style={{
+          padding:'12px 14px', fontSize:15, fontFamily:'var(--font-body)',
+          border:'1px solid var(--schools-border-strong)', borderRadius:8, background:'#fff',
+        }}/>
+      </label>
+      <button className="btn-play" style={{justifyContent:'center', padding:'14px 18px', fontSize:15}}>
+        Send me a code →
+      </button>
+      <div style={{height:1, background:'var(--schools-border)', margin:'8px 0'}}/>
+      <a href="#" style={{fontSize:13, color:'var(--schools-fg-2)', textDecoration:'none'}}>
+        I'm a student joining with a class code →
+      </a>
+    </div>
+  );
+  if (state === 'otp') return (
+    <div style={{display:'flex', flexDirection:'column', gap:18}}>
+      <h2 className="arsenal" style={{fontSize:34, lineHeight:1.1}}>Check your email</h2>
+      <p style={{fontSize:15, color:'var(--schools-fg-2)', lineHeight:1.55, maxWidth:380}}>
+        We sent a 6-digit code to <strong style={{color:'var(--schools-fg)'}}>erwan.lebihan@diwan-kemper.bzh</strong>.
+        It expires in 10 minutes.
+      </p>
+      <div style={{display:'flex', gap:8}}>
+        {['7','3','8','2','—','—'].map((d,i) => (
+          <div key={i} style={{
+            width:48, height:56, borderRadius:8, border:'1.5px solid '+(d==='—'?'var(--schools-border)':'var(--schools-fg)'),
+            background: d==='—'?'#fff':'#fafaf6',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            fontFamily:'var(--font-display)', fontSize:26, color:'var(--schools-fg)',
+          }}>{d==='—'?'':d}</div>
+        ))}
+      </div>
+      <button className="btn-play" style={{justifyContent:'center', padding:'14px 18px', fontSize:15}}>
+        Verify and sign in →
+      </button>
+      <div style={{display:'flex', gap:16, fontSize:13}}>
+        <a href="#" style={{color:'var(--schools-fg-2)', textDecoration:'none'}}>Resend code</a>
+        <a href="#" style={{color:'var(--schools-fg-2)', textDecoration:'none'}}>Use a different email</a>
+      </div>
+    </div>
+  );
+  return (
+    <div style={{display:'flex', flexDirection:'column', gap:18}}>
+      <div style={{
+        display:'inline-flex', alignItems:'center', gap:8, padding:'5px 10px',
+        background:'#fff5e5', border:'1px solid #f4d28a', color:'#7a5418',
+        borderRadius:30, fontSize:11.5, fontWeight:600, letterSpacing:'.04em',
+        textTransform:'uppercase', alignSelf:'flex-start',
+      }}>● No school access yet</div>
+      <h2 className="arsenal" style={{fontSize:34, lineHeight:1.1}}>You're signed in, but…</h2>
+      <p style={{fontSize:15, color:'var(--schools-fg-2)', lineHeight:1.55, maxWidth:380}}>
+        We couldn't find a school account linked to <strong style={{color:'var(--schools-fg)'}}>erwan.lebihan@diwan-kemper.bzh</strong>.
+        Ask your school admin for a join code, or set up a new school below.
+      </p>
+      <label style={{display:'flex', flexDirection:'column', gap:6, fontSize:12.5, color:'var(--schools-fg-2)'}}>
+        Join code from your school
+        <input placeholder="e.g. KMP-7Q3X" style={{
+          padding:'12px 14px', fontSize:15, fontFamily:'monospace',
+          border:'1px solid var(--schools-border-strong)', borderRadius:8, background:'#fff',
+          letterSpacing:'.08em',
+        }}/>
+      </label>
+      <button className="btn-play" style={{justifyContent:'center', padding:'14px 18px', fontSize:15}}>
+        Join school →
+      </button>
+      <div style={{height:1, background:'var(--schools-border)', margin:'4px 0'}}/>
+      <a href="setup.html" style={{fontSize:13, color:'var(--schools-fg-2)', textDecoration:'none'}}>
+        I'm setting up a new school →
+      </a>
+    </div>
+  );
+}
+
+function LoginScreen() {
+  const [state, setState] = useState('email');
+  return (
+    <StagePlain>
+      <div style={{height:'100%', display:'grid', gridTemplateColumns:'1.1fr 1fr'}}>
+        {/* Left — brand panel */}
+        <div style={{
+          background:'#490300', color:'#fff', padding:'48px 52px',
+          display:'flex', flexDirection:'column', justifyContent:'space-between',
+          backgroundImage:'radial-gradient(800px 400px at 20% 0%, rgba(255,255,255,.06) 0%, transparent 60%), radial-gradient(600px 400px at 90% 100%, rgba(255,255,255,.04) 0%, transparent 60%)',
+        }}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <div style={{width:28, height:28, borderRadius:6, background:'#DB1E17', display:'flex',
+              alignItems:'center', justifyContent:'center', fontFamily:'var(--font-display)', fontSize:18, color:'#fff'}}>S</div>
+            <div style={{fontFamily:'var(--font-display)', fontSize:18, color:'#fff'}}>
+              SaySomethingin <span style={{opacity:.5}}>·</span> <span style={{opacity:.85}}>Schools</span>
+            </div>
+          </div>
+
+          <div>
+            <div style={{fontSize:12, letterSpacing:'.08em', textTransform:'uppercase', opacity:.7, marginBottom:14}}>
+              Welcome back
+            </div>
+            <h1 className="arsenal" style={{fontSize:52, lineHeight:1.05, letterSpacing:'-0.01em', color:'#fff'}}>
+              Welcome back.<br/>Your classes are waiting.
+            </h1>
+            <p style={{fontSize:15.5, lineHeight:1.55, maxWidth:430, marginTop:18, opacity:.85}}>
+              Sign in to see how your class is doing, play a session together, or jump into the analytics
+              for the week. We work on Chromebooks, tablets and phones — and we never store student
+              passwords.
+            </p>
+          </div>
+
+          <div style={{display:'flex', alignItems:'center', gap:12, fontSize:13, opacity:.75}}>
+            <span>v 3.2 · Spring 2026</span>
+            <span style={{opacity:.4}}>·</span>
+            <a href="../index.html" style={{color:'inherit', textDecoration:'none', opacity:.85}}>← Back to saysomethingin.com</a>
+          </div>
+        </div>
+
+        {/* Right — form */}
+        <div style={{
+          background:'#fdf9f0', padding:'48px 56px', display:'flex', flexDirection:'column', justifyContent:'center',
+          position:'relative',
+        }}>
+          {/* state switcher (preview chrome) */}
+          <div style={{position:'absolute', top:18, right:18, display:'flex', gap:4, padding:3,
+            background:'#fff', border:'1px solid var(--schools-border)', borderRadius:8}}>
+            {STATES.map(s => {
+              const a = s.id===state;
+              return (
+                <button key={s.id} onClick={()=>setState(s.id)} style={{
+                  padding:'4px 9px', fontSize:11, borderRadius:5, border:'none',
+                  background: a ? 'var(--schools-fg)' : 'transparent',
+                  color: a ? '#fff' : 'var(--schools-fg-2)',
+                  fontFamily:'var(--font-body)', fontWeight: a ? 600 : 500, cursor:'pointer',
+                }}>{s.label}</button>
+              );
+            })}
+          </div>
+
+          <div style={{maxWidth:420}}>
+            <LoginPanel state={state}/>
+          </div>
+        </div>
+      </div>
+    </StagePlain>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<LoginScreen/>);
+</script>
+
+</body>
+</html>

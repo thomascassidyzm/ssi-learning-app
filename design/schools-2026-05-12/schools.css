@@ -1,0 +1,52 @@
+/* SSi Schools — shared CSS tokens & utilities, sits on top of website /colors_and_type.css */
+
+:root {
+  --schools-bg: #f6f5f1;
+  --schools-card: #ffffff;
+  --schools-border: rgba(15,18,18,.10);
+  --schools-border-strong: rgba(15,18,18,.18);
+  --schools-fg: #0F1212;
+  --schools-fg-2: #555555;
+  --schools-fg-3: #888888;
+  --schools-red: #DB1E17;
+  --schools-red-deep: #900600;
+  --schools-pastel: #F2D7D7;
+  --schools-gold: #FEC902;
+  --schools-success: #1F8A5B;
+  --schools-belt-white: #f4f3ef;
+  --schools-belt-yellow: #f7d24a;
+  --schools-belt-orange: #ec8a3a;
+  --schools-belt-green: #2a8d5e;
+  --schools-belt-blue: #3768c4;
+  --schools-belt-black: #1c1b18;
+}
+
+html, body { margin:0; padding:0; background:#e8e5dd; color:var(--schools-fg);
+  font-family:var(--font-body); font-size:14px; line-height:1.45; }
+* { box-sizing: border-box; }
+
+h1, h2, h3, h4, p { margin:0; }
+.arsenal { font-family: var(--font-display); font-weight:400; letter-spacing:-0.005em; }
+
+.btn-play { display:inline-flex; align-items:center; gap:8px; padding:9px 16px 10px; border-radius:8px;
+  background:var(--schools-red); color:#fff; font-weight:600; font-size:13.5px; border:none; cursor:pointer; text-decoration:none;
+  font-family:var(--font-body); }
+.btn-play:hover { background:var(--schools-red-deep); }
+.btn-ghost { display:inline-flex; align-items:center; gap:6px; padding:8px 14px 9px; border-radius:8px;
+  background:transparent; color:var(--schools-fg); border:1px solid var(--schools-border-strong); font-weight:500; font-size:13px;
+  cursor:pointer; text-decoration:none; font-family:var(--font-body); }
+.btn-ghost:hover { background:#fff; border-color:var(--schools-red); color:var(--schools-red); }
+.btn-small { padding:6px 10px 7px; font-size:12px; }
+
+.card { background:var(--schools-card); border:1px solid var(--schools-border); border-radius:12px; }
+.card-pad { padding:18px 20px; }
+
+.subtle { color:var(--schools-fg-2); }
+.kicker { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--schools-fg-3); }
+
+table.ssi-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+table.ssi-table thead th { font-size:11px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--schools-fg-3); padding:10px 12px; text-align:left; border-bottom:1px solid var(--schools-border); background:#fafafa; }
+table.ssi-table tbody td { padding:12px; border-bottom:1px solid var(--schools-border); vertical-align:middle; }
+table.ssi-table tbody tr:hover td { background:#fafaf8; }
+table.ssi-table tbody tr:last-child td { border-bottom:none; }

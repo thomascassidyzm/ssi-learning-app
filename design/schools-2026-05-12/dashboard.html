@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dashboard — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css">
+<link rel="stylesheet" href="schools.css">
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+
+<script type="text/babel">
+
+function StatStrip({ items }) {
+  return (
+    <div style={{display:'grid', gridTemplateColumns:`repeat(${items.length},1fr)`, gap:12, marginBottom:16}}>
+      {items.map(([v,l]) => (
+        <div key={l} className="card" style={{padding:'12px 14px', display:'flex', alignItems:'baseline', justifyContent:'space-between'}}>
+          <span className="arsenal" style={{fontSize:24, lineHeight:1}}>{v}</span>
+          <span style={{fontSize:12, color:'var(--schools-fg-2)'}}>{l}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ClassRowCompact({ c, i, last }) {
+  return (
+    <div style={{
+      display:'grid',
+      gridTemplateColumns:'1.5fr 1.4fr 1fr 1.4fr 1.4fr 0.8fr 110px',
+      alignItems:'center', padding:'14px 16px', gap:14,
+      borderBottom: last ? 'none' : '1px solid var(--schools-border)',
+    }}>
+      <a href={`class-detail.html?id=${c.id}`} style={{display:'flex', alignItems:'center', gap:10, textDecoration:'none', color:'inherit'}}>
+        <BeltDot belt={c.classBelt} size={28} ring/>
+        <div>
+          <div style={{fontWeight:600, fontSize:14}}>{c.name}</div>
+          <div style={{fontSize:11.5, color:'var(--schools-fg-2)'}}>{c.course} · {c.students} students</div>
+        </div>
+      </a>
+      <div><Journey done={c.journey.done} total={c.journey.total}/></div>
+      <div>
+        <BeltStrip dist={c.beltDist}/>
+        <div style={{fontSize:11, color:'var(--schools-fg-2)', marginTop:4, display:'flex', gap:8, flexWrap:'wrap'}}>
+          {Object.entries(c.beltDist).map(([b,n]) => (
+            <span key={b} style={{display:'inline-flex', alignItems:'center', gap:3}}>
+              <BeltDot belt={b} size={8}/>{n}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div style={{display:'flex', alignItems:'center', gap:10}}>
+        <Spark data={c.activity}/>
+        <div style={{fontSize:11.5, color:'var(--schools-fg-2)', lineHeight:1.4}}>
+          <div><b style={{color:'var(--schools-fg)', fontSize:13}}>{c.hoursWk}h</b> total</div>
+          <div>{c.sessionsWk} sessions</div>
+        </div>
+      </div>
+      <div><Bench data={c.bench}/></div>
+      <div style={{fontFamily:'monospace', fontSize:12, color:'var(--schools-fg-2)'}}>{c.joinCode}</div>
+      <div style={{textAlign:'right'}}>
+        <button className="btn-play">▶ Play</button>
+      </div>
+    </div>
+  );
+}
+
+function ClassPanelDetailed({ c }) {
+  return (
+    <article className="card" style={{padding:'20px 22px 22px', display:'flex', flexDirection:'column', gap:14}}>
+      <div>
+        <div style={{fontSize:11.5, color:'var(--schools-red)', letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6, fontWeight:600}}>
+          {c.course}
+        </div>
+        <a href={`class-detail.html?id=${c.id}`} style={{textDecoration:'none', color:'inherit'}}>
+          <h2 className="arsenal" style={{fontSize:26, lineHeight:1.1, marginBottom:8}}>{c.name}</h2>
+        </a>
+        <div style={{display:'flex', alignItems:'center', gap:10, fontSize:13, color:'var(--schools-fg-2)'}}>
+          <BeltDot belt={c.classBelt} size={14} ring/>
+          <span>{c.students} students</span>
+          <span style={{opacity:.3}}>·</span>
+          <span>{c.classBelt[0].toUpperCase()+c.classBelt.slice(1)} belt</span>
+        </div>
+      </div>
+
+      <p className="arsenal" style={{fontSize:14, color:'var(--schools-fg)', lineHeight:1.5, fontStyle:'italic',
+        borderLeft:'2px solid var(--schools-red)', paddingLeft:12, marginTop:-2}}>
+        {c.needs}
+      </p>
+
+      <Journey done={c.journey.done} total={c.journey.total}/>
+
+      <div style={{paddingTop:8, borderTop:'1px dashed var(--schools-border)'}}>
+        <div className="kicker" style={{marginBottom:6}}>Practice min/student/week</div>
+        <Bench data={c.bench}/>
+      </div>
+
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'auto', paddingTop:10}}>
+        <span style={{fontFamily:'monospace', fontSize:11.5, color:'var(--schools-fg-2)'}}>{c.joinCode}</span>
+        <button className="btn-play" style={{whiteSpace:'nowrap'}}>▶ Play as class</button>
+      </div>
+    </article>
+  );
+}
+
+function TeacherDashboard({ density }) {
+  return (
+    <main style={{padding: density==='compact' ? '20px 24px 0' : '28px 48px 0', height:'calc(100% - 54px)', overflow:'hidden'}}>
+      <Greeting
+        dense={density==='compact'}
+        name="Demat, Erwan."
+        lines={<>
+          Three classes need you this week. <span style={{color:'var(--schools-fg)'}}>5ème are flying</span> – nine LEGOs retired in seven days. <span style={{color:'var(--schools-fg)'}}>4ème Español need a nudge</span> – two students haven't opened the app in a fortnight.
+        </>}
+        action={density==='compact'
+          ? <button className="btn-ghost">+ Create class</button>
+          : <div style={{textAlign:'right'}}>
+              <div className="arsenal" style={{fontSize:28, color:'var(--schools-fg)', lineHeight:1}}>20.4h</div>
+              <div style={{fontSize:12, marginTop:2, color:'var(--schools-fg-2)', maxWidth:170}}>practised across your classes this week</div>
+            </div>}
+      />
+
+      {density==='compact' ? (
+        <>
+          <StatStrip items={[
+            ['54','Students'],['20.4h','Hours this week'],['103','Sessions this week'],['9','LEGOs retired this week'],
+          ]}/>
+          <div className="card" style={{overflow:'hidden'}}>
+            <div style={{
+              display:'grid', gridTemplateColumns:'1.5fr 1.4fr 1fr 1.4fr 1.4fr 0.8fr 110px',
+              padding:'10px 16px',
+              fontSize:11, fontWeight:600, letterSpacing:'.04em', textTransform:'uppercase',
+              color:'var(--schools-fg-3)', borderBottom:'1px solid var(--schools-border)', background:'#fafafa',
+            }}>
+              <div>Class</div><div>Course Journey</div><div>Belts</div>
+              <div>This week</div><div>Benchmarks · min/student/wk</div><div>Code</div><div></div>
+            </div>
+            {window.SSI_CLASSES.map((c,i,a) => <ClassRowCompact key={c.id} c={c} i={i} last={i===a.length-1}/>)}
+          </div>
+        </>
+      ) : (
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:18}}>
+          {window.SSI_CLASSES.map(c => <ClassPanelDetailed key={c.id} c={c}/>)}
+        </div>
+      )}
+    </main>
+  );
+}
+
+function AdminDashboard({ density }) {
+  const sch = window.SSI_SCHOOL;
+  return (
+    <main style={{padding: density==='compact' ? '20px 24px 0' : '28px 48px 0', height:'calc(100% - 54px)', overflow:'auto'}}>
+      <Greeting
+        dense={density==='compact'}
+        name="Demat, Yannig."
+        lines={<>
+          {sch.name} has <span style={{color:'var(--schools-fg)'}}>{sch.active7d} active learners</span> this week ({Math.round(sch.active7d/sch.students*100)}% of {sch.students}). Two classes are flagged for attention.
+        </>}
+        action={
+          <div style={{display:'flex', gap:8}}>
+            <a href="teachers.html" className="btn-ghost">+ Invite teacher</a>
+            <a href="setup.html" className="btn-play">School setup</a>
+          </div>}
+      />
+
+      <StatStrip items={[
+        [sch.students, 'Students'],
+        [sch.teachers, 'Teachers'],
+        [sch.classes, 'Classes'],
+        [`${sch.hoursWk}h`, 'Hours this week'],
+        [sch.active7d, 'Active in 7d'],
+      ]}/>
+
+      <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:14}}>
+        <div className="card" style={{overflow:'hidden'}}>
+          <div style={{padding:'14px 18px', borderBottom:'1px solid var(--schools-border)',
+            display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <h3 className="arsenal" style={{fontSize:18}}>Classes</h3>
+            <a href="#" style={{fontSize:12, color:'var(--schools-fg-2)', textDecoration:'none'}}>View all 14 →</a>
+          </div>
+          <table className="ssi-table">
+            <thead>
+              <tr><th>Class</th><th>Teacher</th><th>Students</th><th>Hours/wk</th><th>Health</th></tr>
+            </thead>
+            <tbody>
+              {window.SSI_CLASSES.map(c => (
+                <tr key={c.id}>
+                  <td>
+                    <div style={{display:'flex', alignItems:'center', gap:8}}>
+                      <BeltDot belt={c.classBelt} size={20} ring/>
+                      <div>
+                        <div style={{fontWeight:600}}>{c.name}</div>
+                        <div style={{fontSize:11, color:'var(--schools-fg-2)'}}>{c.course}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{c.teacher}</td>
+                  <td>{c.students}</td>
+                  <td>{c.hoursWk}h</td>
+                  <td><span style={{display:'inline-flex', alignItems:'center', gap:6, fontSize:12, color:'var(--schools-fg-2)'}}>
+                    <HealthDot health={c.health}/>{c.health.replace('-',' ')}
+                  </span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card card-pad" style={{display:'flex', flexDirection:'column', gap:14}}>
+          <h3 className="arsenal" style={{fontSize:18}}>Needs your attention</h3>
+          <div style={{display:'flex', flexDirection:'column', gap:10}}>
+            {[
+              {tag:'4ème Español', body:'Two students inactive 14+ days', cta:'See class'},
+              {tag:'Padrig Le Coz', body:'Teacher invite sent 5d ago — no sign-in', cta:'Resend invite'},
+              {tag:'CM1 Brezhoneg', body:'3 new students this week — assign belts', cta:'Review'},
+            ].map((n,i) => (
+              <div key={i} style={{display:'flex', gap:10, padding:'10px 12px', background:'#fff5e5',
+                border:'1px solid #f4d28a', borderRadius:8}}>
+                <div style={{width:6, alignSelf:'stretch', background:'#c66a1c', borderRadius:3, flex:'none'}}/>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontSize:11, fontWeight:600, color:'#7a5418', letterSpacing:'.04em', textTransform:'uppercase'}}>{n.tag}</div>
+                  <div style={{fontSize:13, color:'#5a3e10', marginTop:2}}>{n.body}</div>
+                </div>
+                <button style={{background:'transparent', border:'none', cursor:'pointer', color:'#7a5418',
+                  fontSize:12, fontWeight:600, padding:0}}>{n.cta} →</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function DashboardScreen() {
+  return (
+    <ScreenShell active="Dashboard" withDensity>
+      {({ role, density }) => role==='admin' ? <AdminDashboard density={density}/> : <TeacherDashboard density={density}/>}
+    </ScreenShell>
+  );
+}
+
+// If user is govt-role, route them to schools-list (their landing page)
+const role = (function(){ try { return localStorage.getItem('ssi-schools-role'); } catch { return null; } })();
+if (role === 'govt') { location.href = 'schools-list.html'; }
+else ReactDOM.createRoot(document.getElementById('root')).render(<DashboardScreen/>);
+</script>
+</body>
+</html>

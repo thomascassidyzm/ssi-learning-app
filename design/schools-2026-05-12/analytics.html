@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Analytics — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css"><link rel="stylesheet" href="schools.css">
+</head><body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+function BarChart({ data, h=160 }) {
+  const max = Math.max(...data.map(d=>d.v));
+  return (
+    <div style={{display:'flex', alignItems:'flex-end', gap:10, height:h, paddingTop:8}}>
+      {data.map((d,i)=>{
+        const pct = (d.v/max)*100;
+        return (
+          <div key={i} style={{flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:6}}>
+            <div style={{fontSize:11, color:'var(--schools-fg-2)'}}>{d.v}</div>
+            <div style={{width:'100%', background:'rgba(0,0,0,.04)', borderRadius:4, height:h-44, position:'relative'}}>
+              <div style={{position:'absolute', bottom:0, left:0, right:0, height:`${pct}%`,
+                background:'var(--schools-red)', borderRadius:4, transition:'height .3s'}}/>
+            </div>
+            <div style={{fontSize:11, color:'var(--schools-fg-2)'}}>{d.l}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function AnalyticsScreen() {
+  const [period, setPeriod] = useState('week');
+  return (
+    <ScreenShell active="Analytics">
+      <main style={{padding:'22px 28px 0', height:'calc(100% - 54px)', overflow:'auto'}}>
+        <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:16}}>
+          <div>
+            <h1 className="arsenal" style={{fontSize:32, lineHeight:1.05}}>Analytics</h1>
+            <p style={{fontSize:13.5, color:'var(--schools-fg-2)', marginTop:4}}>
+              How {window.SSI_SCHOOL.name} is using SSi this {period === 'week' ? 'week' : period === 'month' ? 'month' : 'term'}.
+            </p>
+          </div>
+          <div style={{display:'flex', gap:4, padding:3, background:'#f3f1ec', border:'1px solid var(--schools-border)', borderRadius:8}}>
+            {['week','month','term'].map(p => (
+              <button key={p} onClick={()=>setPeriod(p)} style={{
+                padding:'6px 14px', fontSize:12.5, border:'none', borderRadius:5,
+                background: p===period?'#fff':'transparent',
+                color: p===period?'var(--schools-fg)':'var(--schools-fg-2)',
+                fontWeight: p===period?600:500, cursor:'pointer', fontFamily:'var(--font-body)',
+                boxShadow: p===period?'0 1px 2px rgba(0,0,0,.08)':'none', textTransform:'capitalize',
+              }}>{p}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:14}}>
+          {[
+            ['92.4h','Total practice','+12% vs last week'],
+            ['271','Active learners','87% of 312'],
+            ['9','LEGOs retired','across 14 classes'],
+            ['18m','Avg session','+2m vs last week'],
+          ].map(([v,l,d])=>(
+            <div key={l} className="card card-pad">
+              <span className="arsenal" style={{fontSize:30, lineHeight:1}}>{v}</span>
+              <div style={{fontSize:13, color:'var(--schools-fg)', marginTop:4}}>{l}</div>
+              <div style={{fontSize:11, color:'var(--schools-success)', marginTop:2}}>{d}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'2fr 1fr', gap:14}}>
+          <div className="card card-pad">
+            <h3 className="arsenal" style={{fontSize:18, marginBottom:6}}>Practice by day</h3>
+            <BarChart data={[
+              {l:'Mon',v:14.2},{l:'Tue',v:16.8},{l:'Wed',v:15.4},
+              {l:'Thu',v:18.1},{l:'Fri',v:12.0},{l:'Sat',v:9.6},{l:'Sun',v:6.3},
+            ]}/>
+          </div>
+          <div className="card card-pad">
+            <h3 className="arsenal" style={{fontSize:18, marginBottom:10}}>Benchmarks</h3>
+            <div style={{fontSize:12.5, color:'var(--schools-fg-2)', marginBottom:8}}>Min/student/week</div>
+            <Bench data={{ class: 68, school: 54, course: 49 }}/>
+            <div style={{fontSize:11.5, color:'var(--schools-success)', marginTop:10}}>
+              +14m above the global average — your school is in the top 18%.
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{marginTop:14, overflow:'hidden'}}>
+          <div style={{padding:'12px 16px', borderBottom:'1px solid var(--schools-border)'}}>
+            <h3 className="arsenal" style={{fontSize:17}}>Per-class breakdown</h3>
+          </div>
+          <table className="ssi-table">
+            <thead><tr><th>Class</th><th>Students</th><th>Hours/wk</th><th>Sessions/wk</th><th>Avg session</th><th>LEGOs retired</th><th>Trend</th></tr></thead>
+            <tbody>
+              {window.SSI_CLASSES.map(c => (
+                <tr key={c.id}>
+                  <td><div style={{display:'flex', alignItems:'center', gap:8}}><BeltDot belt={c.classBelt} size={16} ring/><span style={{fontWeight:600}}>{c.name}</span></div></td>
+                  <td>{c.students}</td>
+                  <td>{c.hoursWk}h</td>
+                  <td>{c.sessionsWk}</td>
+                  <td>{c.avgMins}m</td>
+                  <td>{Math.round(c.journey.done/4)}</td>
+                  <td><Spark data={c.activity} w={100} h={22}/></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </ScreenShell>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<AnalyticsScreen/>);
+</script></body></html>

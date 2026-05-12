@@ -1,0 +1,190 @@
+/* SaySomethingin Design System — Colors & Type
+   Tokens lifted directly from the live WordPress theme style-min.css (Apr 2026).
+   Source: https://www.saysomethingin.com/wp-content/themes/ssi-resolution-theme/
+*/
+
+/* ---------- Fonts ---------- */
+@font-face{
+  font-family:'Arsenal';
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+  src:url('./fonts/arsenal-v12-latin-regular.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Arsenal';
+  font-style:italic;
+  font-weight:400;
+  font-display:swap;
+  src:url('./fonts/arsenal-v12-latin-italic.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Open Sans';
+  font-style:normal;
+  font-weight:400;
+  font-display:swap;
+  src:url('./fonts/open-sans-v40-latin-regular.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Open Sans';
+  font-style:italic;
+  font-weight:400;
+  font-display:swap;
+  src:url('./fonts/open-sans-v40-latin-italic.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Open Sans';
+  font-style:normal;
+  font-weight:500;
+  font-display:swap;
+  src:url('./fonts/open-sans-v40-latin-500.woff2') format('woff2');
+}
+@font-face{
+  font-family:'Open Sans';
+  font-style:italic;
+  font-weight:500;
+  font-display:swap;
+  src:url('./fonts/open-sans-v40-latin-500italic.woff2') format('woff2');
+}
+/* NOTE: Open Sans 600/700 and Arsenal 700 are not shipped by the theme.
+   Google Fonts' Open Sans is a variable font so 600/700 render at runtime. */
+
+/* ---------- Color tokens ---------- */
+:root{
+  /* Brand (from theme --variables) */
+  --darkGrey:   #0F1212;   /* primary text */
+  --grey:       #555555;   /* secondary text */
+  --deepRed:    #490300;   /* backgrounds, deep accents, dark hero */
+  --darkRed:    #900600;   /* hover/pressed red */
+  --brandRed:   #DB1E17;   /* SSi red — primary action, hero bg */
+  --pastelRed:  #F2D7D7;   /* soft surface, tag/pill bg */
+  --offWhite:   #FDF5F5;   /* page background (warm blush) */
+  --gold:       #FEC902;   /* spark accent; sparingly */
+
+  /* Brief variant — "SSi red" documented as #B2192D in the brand brief.
+     Kept available for print + partnerships where that exact hue is used. */
+  --brandRedPrint: #B2192D;
+
+  /* Semantic */
+  --fg-1: var(--darkGrey);
+  --fg-2: var(--grey);
+  --fg-on-red: #FFFFFF;
+  --bg-1: var(--offWhite);
+  --bg-2: #FFFFFF;
+  --bg-red: var(--brandRed);
+  --bg-deep: var(--deepRed);
+  --bg-soft: var(--pastelRed);
+  --accent: var(--gold);
+  --border: rgba(15,18,18,.12);
+  --border-strong: rgba(15,18,18,.24);
+
+  /* Shadow / elevation — subtle, warm-biased */
+  --shadow-sm: 0 1px 2px rgba(73,3,0,.06), 0 1px 1px rgba(73,3,0,.04);
+  --shadow-md: 0 6px 18px rgba(73,3,0,.10), 0 2px 4px rgba(73,3,0,.06);
+  --shadow-lg: 0 24px 60px rgba(73,3,0,.16), 0 8px 16px rgba(73,3,0,.08);
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;    /* matches .btn border-radius in the theme */
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Spacing scale (8px base) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+
+  /* Type families */
+  --font-display: 'Arsenal', 'Georgia', 'Times New Roman', serif;
+  --font-body:    'Open Sans', 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+
+  /* Type scale (fluid-ish, desktop-first) */
+  --t-display: clamp(40px, 5.5vw, 72px);
+  --t-h1:      clamp(32px, 4vw, 56px);
+  --t-h2:      clamp(26px, 3vw, 40px);
+  --t-h3:      clamp(22px, 2.2vw, 28px);
+  --t-h4:      20px;
+  --t-body:    16px;
+  --t-small:   14px;
+  --t-micro:   12px;
+  --lh-tight:  1.1;
+  --lh-snug:   1.25;
+  --lh-body:   1.55;
+
+  /* Motion — calm over urgent */
+  --ease-out:  cubic-bezier(.2,.7,.2,1);
+  --dur-fast:  160ms;
+  --dur-med:   300ms;
+  --dur-slow:  600ms;
+}
+
+/* ---------- Base elements ---------- */
+html, body {
+  background: var(--bg-1);
+  color: var(--fg-1);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 400;   /* Arsenal reads best at 400 */
+  color: var(--fg-1);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.005em;
+  margin: 0 0 .4em;
+  text-wrap: balance;
+}
+h1 { font-size: var(--t-h1); }
+h2 { font-size: var(--t-h2); }
+h3 { font-size: var(--t-h3); }
+h4 { font-size: var(--t-h4); line-height: var(--lh-snug); }
+
+p { font-size: var(--t-body); line-height: var(--lh-body); max-width: 68ch; text-wrap: pretty; margin: 0 0 1em; }
+small { font-size: var(--t-small); }
+
+a {
+  color: var(--brandRed);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+a:hover { color: var(--darkRed); }
+
+::selection { background: var(--brandRed); color: #fff; }
+
+/* ---------- Button base (matches theme) ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px 12px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: .95rem;
+  line-height: 1;
+  text-decoration: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--dur-med) var(--ease-out),
+              color var(--dur-med) var(--ease-out),
+              border-color var(--dur-med) var(--ease-out);
+}
+.btn--primary { background: var(--brandRed); color: #fff; }
+.btn--primary:hover { background: var(--darkRed); color: #fff; }
+.btn--primary:active { background: var(--deepRed); color: #fff; }
+.btn--ghost { background: transparent; color: var(--fg-1); border-color: var(--border-strong); }
+.btn--ghost:hover { background: var(--pastelRed); border-color: var(--brandRed); color: var(--brandRed); }
+.btn--onDark { background: #fff; color: var(--deepRed); }
+.btn--onDark:hover { background: var(--pastelRed); }

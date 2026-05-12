@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SSi Schools — design pilot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css">
+<link rel="stylesheet" href="schools.css">
+<style>
+  body { background:#f6f4ef; color:#0F1212; font-family:var(--font-body); }
+  .wrap { max-width:1100px; margin:0 auto; padding:48px 32px 80px; }
+  .head .kicker { font-size:12px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#888; }
+  h1 { font-family:var(--font-display); font-size:48px; line-height:1.05; letter-spacing:-0.01em; margin:6px 0 10px; }
+  .lede { font-size:16px; color:#555; line-height:1.55; max-width:680px; }
+  .grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:14px; margin-top:36px; }
+  .card { background:#fff; border:1px solid rgba(0,0,0,.1); border-radius:12px; padding:18px 20px;
+    display:flex; flex-direction:column; gap:8px; text-decoration:none; color:inherit;
+    transition: border-color .15s, transform .15s; }
+  .card:hover { border-color:#DB1E17; transform: translateY(-1px); }
+  .card .role { font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#DB1E17; }
+  .card h3 { font-family:var(--font-display); font-size:22px; line-height:1.1; margin:0; }
+  .card p { font-size:13px; color:#555; line-height:1.5; margin:0; }
+  .card .meta { font-size:11.5px; color:#888; margin-top:6px; }
+  .group-title { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+    color:#888; margin:32px 0 12px; }
+  .pillbar { display:flex; gap:8px; margin-top:24px; }
+  .pillbar a { padding:8px 14px; border-radius:30px; background:#fff; border:1px solid rgba(0,0,0,.1);
+    text-decoration:none; color:#0F1212; font-size:13px; font-weight:500; white-space:nowrap; }
+  .pillbar a.active { background:#DB1E17; color:#fff; border-color:#DB1E17; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="kicker">SaySomethingin · Schools layer</div>
+    <h1>Design pilot — full surface</h1>
+    <p class="lede">Eleven screens covering three roles (Teacher · School Admin · Government) plus shared chrome.
+      Designed in the website system — Arsenal + Open Sans, the SSi red, the existing tone. Chromebook-first
+      (1366×768). Role-switching is wired through the top-right user menu and persists across screens.</p>
+
+    <div class="pillbar">
+      <a href="dashboard.html" class="active">Teacher route</a>
+      <a href="dashboard.html" onclick="localStorage.setItem('ssi-schools-role','admin')">School Admin route</a>
+      <a href="schools-list.html" onclick="localStorage.setItem('ssi-schools-role','govt')">Govt route</a>
+    </div>
+  </div>
+
+  <div class="group-title">Shared / auth</div>
+  <div class="grid">
+    <a class="card" href="login.html">
+      <span class="role">Public</span>
+      <h3>Login</h3>
+      <p>Email → OTP code → join-code or no-access branch. One screen, three states.</p>
+    </a>
+    <a class="card" href="dashboard-explorations.html">
+      <span class="role">Reference</span>
+      <h3>Dashboard explorations</h3>
+      <p>Original A / B exploration with compact/detailed toggle. Kept as design-history.</p>
+    </a>
+  </div>
+
+  <div class="group-title">Teacher</div>
+  <div class="grid">
+    <a class="card" href="dashboard.html">
+      <span class="role">Teacher</span>
+      <h3>Dashboard — my classes</h3>
+      <p>Greeting · weekly summary · per-class row or panel. Compact/Detailed density toggle in the top bar.</p>
+      <span class="meta">Skol Diwan Kemper · 3 classes · 54 students</span>
+    </a>
+    <a class="card" href="class-detail.html">
+      <span class="role">Teacher</span>
+      <h3>Class detail — 5ème Brezhoneg</h3>
+      <p>Roster, belt distribution, course journey, Play-as-Class CTA, join-code panel.</p>
+    </a>
+    <a class="card" href="students.html">
+      <span class="role">Teacher</span>
+      <h3>Students</h3>
+      <p>All 54 students across the teacher's classes. Filter by class, belt, health status.</p>
+    </a>
+    <a class="card" href="student-progress.html">
+      <span class="role">Student</span>
+      <h3>My Progress</h3>
+      <p>Self-view a student sees when they sign in to /schools. Belt, LEGOs retired, streak.</p>
+    </a>
+  </div>
+
+  <div class="group-title">School Admin</div>
+  <div class="grid">
+    <a class="card" href="teachers.html">
+      <span class="role">Admin</span>
+      <h3>Teachers</h3>
+      <p>All teachers in the school. Subject, classes, weekly hours, invite + active status.</p>
+    </a>
+    <a class="card" href="analytics.html">
+      <span class="role">Admin</span>
+      <h3>Analytics</h3>
+      <p>Period selector, volume cards, per-class breakdown, benchmarks vs region.</p>
+    </a>
+    <a class="card" href="settings.html">
+      <span class="role">Admin</span>
+      <h3>Settings</h3>
+      <p>School profile, localisation, data & privacy. Three-pane layout.</p>
+    </a>
+    <a class="card" href="setup.html">
+      <span class="role">Admin</span>
+      <h3>Admin setup</h3>
+      <p>First-time onboarding — create the school, add staff, grant courses.</p>
+    </a>
+  </div>
+
+  <div class="group-title">Government / Programme</div>
+  <div class="grid">
+    <a class="card" href="schools-list.html">
+      <span class="role">Govt</span>
+      <h3>Schools list</h3>
+      <p>All schools in the authority. Health, hours, growth, comparison.</p>
+    </a>
+  </div>
+
+</div>
+</body>
+</html>

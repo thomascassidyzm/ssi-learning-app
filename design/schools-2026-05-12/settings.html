@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Settings — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css"><link rel="stylesheet" href="schools.css">
+</head><body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+const SECTIONS = [
+  { id:'profile', label:'School profile' },
+  { id:'locale',  label:'Localisation' },
+  { id:'data',    label:'Data & privacy' },
+  { id:'billing', label:'Billing' },
+];
+function Field({ label, value, hint, type='text' }) {
+  return (
+    <label style={{display:'flex', flexDirection:'column', gap:6}}>
+      <span style={{fontSize:12.5, fontWeight:600, color:'var(--schools-fg)'}}>{label}</span>
+      {type==='text' && <input defaultValue={value} style={{padding:'10px 12px', fontSize:14,
+        border:'1px solid var(--schools-border-strong)', borderRadius:8, background:'#fff', fontFamily:'var(--font-body)'}}/>}
+      {type==='textarea' && <textarea defaultValue={value} rows={3} style={{padding:'10px 12px', fontSize:14,
+        border:'1px solid var(--schools-border-strong)', borderRadius:8, background:'#fff', fontFamily:'var(--font-body)', resize:'vertical'}}/>}
+      {hint && <span style={{fontSize:11.5, color:'var(--schools-fg-2)'}}>{hint}</span>}
+    </label>
+  );
+}
+function Toggle({ on=false }) {
+  const [v,setV] = useState(on);
+  return <button onClick={()=>setV(!v)} style={{width:42, height:24, borderRadius:12, border:'none',
+    background: v?'var(--schools-success)':'#ccc', position:'relative', cursor:'pointer', flex:'none'}}>
+    <span style={{position:'absolute', top:2, left: v?20:2, width:20, height:20, borderRadius:'50%',
+      background:'#fff', transition:'left .15s', boxShadow:'0 1px 2px rgba(0,0,0,.2)'}}/>
+  </button>;
+}
+function SettingsScreen() {
+  const [sec, setSec] = useState('profile');
+  return (
+    <ScreenShell active="Settings">
+      <main style={{padding:'22px 28px 0', height:'calc(100% - 54px)', overflow:'hidden', display:'flex', flexDirection:'column'}}>
+        <h1 className="arsenal" style={{fontSize:30, lineHeight:1.05, marginBottom:14}}>Settings</h1>
+        <div style={{display:'grid', gridTemplateColumns:'220px 1fr', gap:18, flex:1, overflow:'hidden'}}>
+          <aside className="card" style={{padding:8, height:'fit-content'}}>
+            {SECTIONS.map(s=>(
+              <button key={s.id} onClick={()=>setSec(s.id)} style={{
+                display:'block', width:'100%', textAlign:'left', padding:'10px 14px',
+                background: s.id===sec?'#f6f5f1':'transparent', border:'none', borderRadius:6,
+                color: s.id===sec?'var(--schools-red)':'var(--schools-fg)',
+                fontWeight: s.id===sec?600:500, fontSize:13.5, cursor:'pointer', fontFamily:'var(--font-body)',
+              }}>{s.label}</button>
+            ))}
+          </aside>
+          <div style={{overflow:'auto'}}>
+            {sec==='profile' && (
+              <div className="card card-pad" style={{display:'flex', flexDirection:'column', gap:16, maxWidth:640}}>
+                <h2 className="arsenal" style={{fontSize:22}}>School profile</h2>
+                <Field label="School name" value={window.SSI_SCHOOL.name}/>
+                <Field label="Type" value={window.SSI_SCHOOL.type}/>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
+                  <Field label="City" value="Quimper"/>
+                  <Field label="Region" value={window.SSI_SCHOOL.region}/>
+                </div>
+                <Field label="Contact email" value="contact@diwan-kemper.bzh"/>
+                <Field label="About" type="textarea" value="Skol Diwan Kemper is a bilingual Brezhoneg immersion school serving 312 students across primary and lower secondary."/>
+                <div style={{display:'flex', gap:8, paddingTop:8}}>
+                  <button className="btn-play">Save changes</button>
+                  <button className="btn-ghost">Cancel</button>
+                </div>
+              </div>
+            )}
+            {sec==='locale' && (
+              <div className="card card-pad" style={{display:'flex', flexDirection:'column', gap:14, maxWidth:640}}>
+                <h2 className="arsenal" style={{fontSize:22}}>Localisation</h2>
+                <Field label="Default interface language" value="Brezhoneg (br)" hint="Teachers and students can override individually."/>
+                <Field label="Time zone" value="Europe/Paris"/>
+                <Field label="Week starts on" value="Monday"/>
+                <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 0', borderTop:'1px solid var(--schools-border)'}}>
+                  <div><div style={{fontWeight:600, fontSize:13.5}}>Show flags on courses</div>
+                  <div style={{fontSize:12, color:'var(--schools-fg-2)'}}>Display country flags next to course names.</div></div>
+                  <Toggle on={true}/>
+                </div>
+              </div>
+            )}
+            {sec==='data' && (
+              <div className="card card-pad" style={{display:'flex', flexDirection:'column', gap:14, maxWidth:640}}>
+                <h2 className="arsenal" style={{fontSize:22}}>Data & privacy</h2>
+                {[
+                  ['Share anonymised analytics with the SSi team','Helps us improve recommendations across schools.', true],
+                  ['Allow students to message each other','Disabled by default in school accounts.', false],
+                  ['Show student real names to other students','When off, only first name + initial is shown.', true],
+                  ['Retain inactive accounts after 12 months','Otherwise we delete them automatically.', false],
+                ].map(([t,d,v])=>(
+                  <div key={t} style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, padding:'10px 0', borderTop:'1px solid var(--schools-border)'}}>
+                    <div><div style={{fontWeight:600, fontSize:13.5}}>{t}</div>
+                    <div style={{fontSize:12, color:'var(--schools-fg-2)', marginTop:2, maxWidth:380}}>{d}</div></div>
+                    <Toggle on={v}/>
+                  </div>
+                ))}
+                <div style={{marginTop:10}}>
+                  <button className="btn-ghost">Download all data (.zip)</button>
+                </div>
+              </div>
+            )}
+            {sec==='billing' && (
+              <div className="card card-pad" style={{display:'flex', flexDirection:'column', gap:14, maxWidth:640}}>
+                <h2 className="arsenal" style={{fontSize:22}}>Billing</h2>
+                <div style={{padding:14, background:'#fdf6df', border:'1px solid #f0d97a', borderRadius:8}}>
+                  <div style={{fontSize:12, fontWeight:600, color:'#7a5418', letterSpacing:'.06em', textTransform:'uppercase'}}>Current plan</div>
+                  <div className="arsenal" style={{fontSize:24, marginTop:4}}>Diwan programme — 312 seats</div>
+                  <div style={{fontSize:12.5, color:'#5a3e10', marginTop:4}}>Billed annually to Diwan Breizh · Next renewal Sep 2026</div>
+                </div>
+                <Field label="Billing email" value="finance@diwan.bzh"/>
+                <button className="btn-ghost" style={{alignSelf:'flex-start'}}>Download invoices</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </ScreenShell>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<SettingsScreen/>);
+</script></body></html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Classes — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css"><link rel="stylesheet" href="schools.css">
+</head><body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+function ClassesScreen() {
+  const all = window.SSI_CLASSES;
+  const [course, setCourse]   = useState('all');
+  const [teacher, setTeacher] = useState('all');
+  const [health, setHealth]   = useState('all');
+  const [sort, setSort]       = useState('name');
+
+  const courses = useMemo(() => Array.from(new Set(all.map(c => c.course.split(' · ')[0]))), [all]);
+  const teachers = useMemo(() => Array.from(new Set(all.map(c => c.teacher))), [all]);
+
+  const rows = useMemo(() => {
+    let r = all.slice();
+    if (course  !== 'all') r = r.filter(c => c.course.startsWith(course));
+    if (teacher !== 'all') r = r.filter(c => c.teacher === teacher);
+    if (health  !== 'all') r = r.filter(c => c.health === health);
+    r.sort((a,b)=>{
+      if (sort==='name')      return a.name.localeCompare(b.name);
+      if (sort==='hours')     return b.hoursWk - a.hoursWk;
+      if (sort==='students')  return b.students - a.students;
+      if (sort==='journey')   return (b.journey.done/b.journey.total) - (a.journey.done/a.journey.total);
+      return 0;
+    });
+    return r;
+  }, [all, course, teacher, health, sort]);
+
+  const totalStudents = rows.reduce((s,c)=>s+c.students, 0);
+  const totalHours    = rows.reduce((s,c)=>s+c.hoursWk, 0).toFixed(1);
+  const healthCounts  = rows.reduce((acc,c)=>{ acc[c.health] = (acc[c.health]||0)+1; return acc; }, {});
+
+  return (
+    <ScreenShell active="Classes">
+      <main style={{padding:'22px 28px 0', height:'calc(100% - 54px)', overflow:'auto'}}>
+        <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:14}}>
+          <div>
+            <h1 className="arsenal" style={{fontSize:32, lineHeight:1.05}}>Classes</h1>
+            <p style={{fontSize:13.5, color:'var(--schools-fg-2)', marginTop:4}}>
+              All {all.length} classes across {window.SSI_SCHOOL.name} · {totalStudents} students · {totalHours}h this week
+            </p>
+          </div>
+          <div style={{display:'flex', gap:8}}>
+            <button className="btn-ghost">Export CSV</button>
+            <button className="btn-play">+ New class</button>
+          </div>
+        </div>
+
+        {/* Summary strip */}
+        <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:14}}>
+          {[
+            ['Excellent',  healthCounts['excellent']||0, 'var(--schools-success)'],
+            ['Good',       healthCounts['good']||0,      '#8a8479'],
+            ['Needs eyes', healthCounts['needs-attention']||0, 'var(--schools-red)'],
+            ['Across',     `${courses.length} courses`, 'var(--schools-fg)'],
+          ].map(([l,v,c])=>(
+            <div key={l} className="card card-pad" style={{display:'flex', alignItems:'center', gap:14}}>
+              <span style={{width:10, height:10, borderRadius:'50%', background:c, flex:'none'}}/>
+              <div>
+                <div className="arsenal" style={{fontSize:24, lineHeight:1}}>{v}</div>
+                <div style={{fontSize:11.5, color:'var(--schools-fg-2)', marginTop:2}}>{l}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div className="card card-pad" style={{display:'flex', gap:14, alignItems:'center', flexWrap:'wrap', marginBottom:12}}>
+          <Filter label="Course"  value={course}  onChange={setCourse}  options={[['all','All courses'], ...courses.map(c=>[c,c])]}/>
+          <Filter label="Teacher" value={teacher} onChange={setTeacher} options={[['all','All teachers'], ...teachers.map(t=>[t,t])]}/>
+          <Filter label="Health"  value={health}  onChange={setHealth}  options={[['all','All'], ['excellent','Excellent'], ['good','Good'], ['needs-attention','Needs attention']]}/>
+          <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+            <span style={{fontSize:12, color:'var(--schools-fg-2)'}}>Sort</span>
+            <Filter value={sort} onChange={setSort} options={[['name','Name'],['hours','Hours/wk'],['students','Students'],['journey','Journey %']]}/>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="card" style={{overflow:'hidden'}}>
+          <table className="ssi-table">
+            <thead>
+              <tr>
+                <th>Class</th><th>Course</th><th>Teacher</th><th>Students</th>
+                <th>Belt</th><th>Journey</th><th>Hours/wk</th><th>Activity</th><th>Health</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(c => {
+                const pct = Math.round((c.journey.done/c.journey.total)*100);
+                return (
+                  <tr key={c.id}>
+                    <td><div style={{fontWeight:600}}>{c.name}</div>
+                        <div style={{fontSize:11, color:'var(--schools-fg-3)', fontFamily:'monospace', marginTop:2}}>{c.joinCode}</div></td>
+                    <td><span style={{color:'var(--schools-fg-2)'}}>{c.course}</span></td>
+                    <td>{c.teacher}</td>
+                    <td>{c.students}</td>
+                    <td><div style={{display:'flex', alignItems:'center', gap:8}}><BeltDot belt={c.classBelt} size={16} ring/><span style={{textTransform:'capitalize'}}>{c.classBelt}</span></div></td>
+                    <td>
+                      <div style={{display:'flex', alignItems:'center', gap:8}}>
+                        <div style={{width:90, height:5, background:'rgba(0,0,0,.06)', borderRadius:3, overflow:'hidden'}}>
+                          <div style={{width:`${pct}%`, height:'100%', background:'var(--schools-red)'}}/>
+                        </div>
+                        <span style={{fontSize:11.5, color:'var(--schools-fg-2)', minWidth:32}}>{pct}%</span>
+                      </div>
+                    </td>
+                    <td>{c.hoursWk}h</td>
+                    <td><Spark data={c.activity} w={80} h={20}/></td>
+                    <td><HealthDot health={c.health}/> <span style={{textTransform:'capitalize', fontSize:12, color:'var(--schools-fg-2)'}}>{c.health.replace('-',' ')}</span></td>
+                    <td style={{textAlign:'right'}}><a href={`class-detail.html?id=${c.id}`} style={{fontSize:12, color:'var(--schools-red)', textDecoration:'none', fontWeight:600, whiteSpace:'nowrap'}}>Open →</a></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{height:24}}/>
+      </main>
+    </ScreenShell>
+  );
+}
+
+function Filter({ label, value, onChange, options }) {
+  return (
+    <label style={{display:'inline-flex', alignItems:'center', gap:8}}>
+      {label && <span style={{fontSize:12, color:'var(--schools-fg-2)'}}>{label}</span>}
+      <select value={value} onChange={e=>onChange(e.target.value)} style={{
+        padding:'7px 10px', fontSize:12.5, border:'1px solid var(--schools-border-strong)',
+        borderRadius:6, background:'#fff', fontFamily:'var(--font-body)', cursor:'pointer',
+      }}>
+        {options.map(([v,l])=> <option key={v} value={v}>{l}</option>)}
+      </select>
+    </label>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ClassesScreen/>);
+</script>
+</body>
+</html>

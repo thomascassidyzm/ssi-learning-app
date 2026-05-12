@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Schools — SSi Schools (Govt)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css">
+<link rel="stylesheet" href="schools.css">
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+<script type="text/babel">
+// Force govt role for this page
+try { localStorage.setItem('ssi-schools-role','govt'); } catch {}
+const T = window.SSI_GOVT_TOTALS, list = window.SSI_SCHOOLS_LIST;
+
+function SchoolsListScreen() {
+  return (
+    <ScreenShell active="Schools">
+      <main style={{padding:'24px 32px 0', height:'calc(100% - 54px)', overflow:'auto'}}>
+        <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:18}}>
+          <div>
+            <div style={{fontSize:11, color:'var(--schools-red)', letterSpacing:'.08em', textTransform:'uppercase', fontWeight:600, marginBottom:6}}>
+              Brittany Education Authority
+            </div>
+            <h1 className="arsenal" style={{fontSize:36, lineHeight:1.05}}>All schools</h1>
+            <p style={{fontSize:14, color:'var(--schools-fg-2)', marginTop:6, maxWidth:560, lineHeight:1.5}}>
+              Programme view of every Diwan school on SSi. Two schools flagged for follow-up this fortnight.
+            </p>
+          </div>
+          <div style={{display:'flex', gap:8}}>
+            <button className="btn-ghost">Export</button>
+            <button className="btn-play">+ Onboard new school</button>
+          </div>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12, marginBottom:18}}>
+          {[
+            [T.schools,'Schools'],[T.students.toLocaleString(),'Students'],[T.teachers,'Teachers'],
+            [T.classes,'Classes'],[`${T.hoursWk}h`,'Hours this week'],[T.active7d.toLocaleString(),'Active in 7d'],
+          ].map(([v,l])=>(
+            <div key={l} className="card" style={{padding:'14px 14px', display:'flex', flexDirection:'column', gap:2}}>
+              <span className="arsenal" style={{fontSize:26, lineHeight:1}}>{v}</span>
+              <span style={{fontSize:11.5, color:'var(--schools-fg-2)'}}>{l}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{overflow:'hidden'}}>
+          <div style={{padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center',
+            borderBottom:'1px solid var(--schools-border)'}}>
+            <h3 className="arsenal" style={{fontSize:18}}>10 schools</h3>
+            <div style={{display:'flex', gap:8}}>
+              <input placeholder="Search…" style={{padding:'5px 10px', fontSize:12, border:'1px solid var(--schools-border)',
+                borderRadius:6, background:'#fafaf6', fontFamily:'var(--font-body)', width:200}}/>
+              <select style={{padding:'5px 8px', fontSize:12, border:'1px solid var(--schools-border)', borderRadius:6, background:'#fff'}}>
+                <option>Sort by hours/week</option><option>Sort by students</option><option>Sort by health</option>
+              </select>
+            </div>
+          </div>
+          <table className="ssi-table">
+            <thead>
+              <tr><th>School</th><th>City</th><th>Students</th><th>Teachers</th><th>Classes</th>
+                  <th>Hours/wk</th><th>Active 7d</th><th>Joined</th><th>Health</th><th></th></tr>
+            </thead>
+            <tbody>
+              {list.map(s => {
+                const pct = Math.round(s.active7d/s.students*100);
+                return (
+                  <tr key={s.id}>
+                    <td>
+                      <div style={{display:'flex', alignItems:'center', gap:10}}>
+                        <div style={{width:30, height:30, borderRadius:6, background:'var(--schools-red)', color:'#fff',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontFamily:'var(--font-display)', fontSize:14}}>{s.name.split(' ').slice(-1)[0][0]}</div>
+                        <div style={{fontWeight:600}}>{s.name}</div>
+                      </div>
+                    </td>
+                    <td style={{color:'var(--schools-fg-2)'}}>{s.city}</td>
+                    <td>{s.students}</td>
+                    <td>{s.teachers}</td>
+                    <td>{s.classes}</td>
+                    <td>{s.hoursWk}h</td>
+                    <td>
+                      <div style={{display:'flex', alignItems:'center', gap:8}}>
+                        <div style={{width:60, height:5, background:'rgba(0,0,0,.05)', borderRadius:2.5, overflow:'hidden'}}>
+                          <div style={{width:`${pct}%`, height:'100%', background: pct>75?'#1F8A5B':pct>50?'#3768c4':'#c66a1c'}}/>
+                        </div>
+                        <span style={{fontSize:12, color:'var(--schools-fg-2)'}}>{pct}%</span>
+                      </div>
+                    </td>
+                    <td style={{color:'var(--schools-fg-2)'}}>{s.joined}</td>
+                    <td><span style={{display:'inline-flex', alignItems:'center', gap:6, fontSize:12.5, color:'var(--schools-fg-2)'}}>
+                      <HealthDot health={s.health}/>{s.health.replace('-',' ')}
+                    </span></td>
+                    <td style={{textAlign:'right'}}>
+                      <a href="dashboard.html" onClick={()=>localStorage.setItem('ssi-schools-role','admin')}
+                        style={{fontSize:12, color:'var(--schools-red)', textDecoration:'none', fontWeight:600}}>Open →</a>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </ScreenShell>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<SchoolsListScreen/>);
+</script>
+</body>
+</html>

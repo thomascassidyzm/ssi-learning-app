@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>School setup — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css"><link rel="stylesheet" href="schools.css">
+</head><body><div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+const STEPS = [
+  { n:1, title:'Your school', desc:'Name, region, contact email.' },
+  { n:2, title:'Invite staff', desc:'Add teachers and admins.' },
+  { n:3, title:'Grant courses', desc:'Pick which languages students can learn.' },
+  { n:4, title:'Create classes', desc:'Group students, generate join codes.' },
+];
+function SetupScreen() {
+  const [step, setStep] = useState(2);
+  return (
+    <ScreenShell active="Settings">
+      <main style={{padding:'22px 32px 0', height:'calc(100% - 54px)', overflow:'auto'}}>
+        <div style={{fontSize:12.5, color:'var(--schools-fg-2)', marginBottom:8}}>
+          <a href="settings.html" style={{color:'inherit', textDecoration:'none'}}>Settings</a>
+          <span style={{margin:'0 8px', opacity:.4}}>/</span>
+          <span style={{color:'var(--schools-fg)'}}>First-time setup</span>
+        </div>
+        <h1 className="arsenal" style={{fontSize:32, lineHeight:1.05, marginBottom:6}}>Let's get your school set up.</h1>
+        <p style={{fontSize:14, color:'var(--schools-fg-2)', marginBottom:18, maxWidth:560, lineHeight:1.5}}>
+          Four steps. About ten minutes. You can come back and finish any time — we'll keep your place.
+        </p>
+
+        <div style={{display:'grid', gridTemplateColumns:'260px 1fr', gap:18}}>
+          <aside className="card" style={{padding:14, height:'fit-content'}}>
+            {STEPS.map(s=>{
+              const done = s.n < step, active = s.n === step;
+              return (
+                <button key={s.n} onClick={()=>setStep(s.n)} style={{
+                  display:'flex', alignItems:'flex-start', gap:12, width:'100%', textAlign:'left',
+                  padding:'10px 8px', background:'transparent', border:'none', cursor:'pointer', borderRadius:6,
+                  fontFamily:'var(--font-body)',
+                }}>
+                  <span style={{
+                    width:24, height:24, borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center',
+                    fontSize:11.5, fontWeight:600, flex:'none',
+                    background: done?'var(--schools-success)':active?'var(--schools-red)':'#eee',
+                    color: done||active?'#fff':'var(--schools-fg-2)',
+                  }}>{done?'✓':s.n}</span>
+                  <div>
+                    <div style={{fontWeight:600, fontSize:13.5, color: active?'var(--schools-red)':'var(--schools-fg)'}}>{s.title}</div>
+                    <div style={{fontSize:11.5, color:'var(--schools-fg-2)', marginTop:2}}>{s.desc}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </aside>
+
+          <div className="card card-pad" style={{maxWidth:760}}>
+            {step===1 && <>
+              <h2 className="arsenal" style={{fontSize:22, marginBottom:14}}>Your school</h2>
+              <div style={{display:'flex', flexDirection:'column', gap:14}}>
+                <label style={{display:'flex', flexDirection:'column', gap:6, fontSize:12.5, fontWeight:600}}>School name<input defaultValue="Skol Diwan Kemper" style={{padding:'10px 12px', fontSize:14, border:'1px solid var(--schools-border-strong)', borderRadius:8}}/></label>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
+                  <label style={{display:'flex', flexDirection:'column', gap:6, fontSize:12.5, fontWeight:600}}>City<input defaultValue="Quimper" style={{padding:'10px 12px', fontSize:14, border:'1px solid var(--schools-border-strong)', borderRadius:8}}/></label>
+                  <label style={{display:'flex', flexDirection:'column', gap:6, fontSize:12.5, fontWeight:600}}>Region<input defaultValue="Brittany" style={{padding:'10px 12px', fontSize:14, border:'1px solid var(--schools-border-strong)', borderRadius:8}}/></label>
+                </div>
+                <label style={{display:'flex', flexDirection:'column', gap:6, fontSize:12.5, fontWeight:600}}>Admin email<input defaultValue="yannig.pelleau@diwan-kemper.bzh" style={{padding:'10px 12px', fontSize:14, border:'1px solid var(--schools-border-strong)', borderRadius:8}}/></label>
+              </div>
+            </>}
+            {step===2 && <>
+              <h2 className="arsenal" style={{fontSize:22, marginBottom:6}}>Invite teachers</h2>
+              <p style={{fontSize:13.5, color:'var(--schools-fg-2)', marginBottom:14, lineHeight:1.55}}>Add staff by email — we'll send them a join link. You can do this now or skip and add them later.</p>
+              <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                {['erwan.lebihan@diwan-kemper.bzh', 'mona.riou@diwan-kemper.bzh', 'catell.argov@diwan-kemper.bzh'].map((e,i)=>(
+                  <div key={i} style={{display:'flex', gap:8}}>
+                    <input defaultValue={e} style={{flex:1, padding:'9px 12px', fontSize:13.5, border:'1px solid var(--schools-border)', borderRadius:8}}/>
+                    <select style={{padding:'9px 10px', fontSize:13.5, border:'1px solid var(--schools-border)', borderRadius:8, background:'#fff'}}>
+                      <option>Teacher</option><option>Admin</option>
+                    </select>
+                    <button className="btn-ghost btn-small">×</button>
+                  </div>
+                ))}
+                <button className="btn-ghost btn-small" style={{alignSelf:'flex-start', marginTop:6}}>+ Add another</button>
+              </div>
+            </>}
+            {step===3 && <>
+              <h2 className="arsenal" style={{fontSize:22, marginBottom:14}}>Grant courses</h2>
+              <p style={{fontSize:13.5, color:'var(--schools-fg-2)', marginBottom:14}}>Which languages should be available to students at this school?</p>
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
+                {window.SSI_COURSES.map((c,i)=>(
+                  <label key={c.id} style={{display:'flex', alignItems:'center', gap:10, padding:'12px 14px',
+                    border:'1px solid var(--schools-border-strong)', borderRadius:8, cursor:'pointer', background:i<3?'#fdfaf2':'#fff'}}>
+                    <input type="checkbox" defaultChecked={i<3} style={{accentColor:'var(--schools-red)'}}/>
+                    <span style={{fontSize:18}}>{c.flag}</span>
+                    <div><div style={{fontWeight:600, fontSize:13.5}}>{c.name}</div>
+                    <div style={{fontSize:11.5, color:'var(--schools-fg-2)'}}>{c.levels} levels · {c.totalLegos} LEGOs</div></div>
+                  </label>
+                ))}
+              </div>
+            </>}
+            {step===4 && <>
+              <h2 className="arsenal" style={{fontSize:22, marginBottom:14}}>Create classes</h2>
+              <p style={{fontSize:13.5, color:'var(--schools-fg-2)', marginBottom:14, lineHeight:1.55}}>Each class gets a unique join code students enter to be added. You can create more later from the dashboard.</p>
+              <div className="card" style={{overflow:'hidden'}}>
+                <table className="ssi-table">
+                  <thead><tr><th>Class name</th><th>Course</th><th>Teacher</th><th>Join code</th></tr></thead>
+                  <tbody>
+                    {[
+                      ['CM1 Brezhoneg','Welsh North · Level 1','Erwan Le Bihan','KMP-7Q3X'],
+                      ['5ème Brezhoneg','Welsh North · Level 2','Erwan Le Bihan','KMP-M4P2'],
+                      ['4ème Español','Spanish · Level 1','Erwan Le Bihan','KMP-D9LR'],
+                    ].map(([n,c,t,k])=>(
+                      <tr key={n}>
+                        <td style={{fontWeight:600}}>{n}</td><td>{c}</td><td>{t}</td>
+                        <td style={{fontFamily:'monospace'}}>{k}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button className="btn-ghost btn-small" style={{marginTop:10}}>+ Add another class</button>
+            </>}
+
+            <div style={{display:'flex', gap:8, justifyContent:'space-between', marginTop:22, paddingTop:14, borderTop:'1px solid var(--schools-border)'}}>
+              <button className="btn-ghost" onClick={()=>setStep(s=>Math.max(1, s-1))} disabled={step===1} style={{opacity:step===1?.4:1}}>← Back</button>
+              <div style={{display:'flex', gap:8}}>
+                <button className="btn-ghost">Save & exit</button>
+                {step<4 ? <button className="btn-play" onClick={()=>setStep(s=>s+1)}>Continue →</button>
+                       : <a className="btn-play" href="dashboard.html">Finish setup →</a>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </ScreenShell>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<SetupScreen/>);
+</script></body></html>

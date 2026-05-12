@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><title>Teachers — SSi Schools</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./colors_and_type.css">
+<link rel="stylesheet" href="schools.css">
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./components/schools-data.jsx"></script>
+<script type="text/babel" src="./components/schools-shared.jsx"></script>
+<script type="text/babel">
+function TeachersScreen() {
+  const ts = window.SSI_TEACHERS;
+  const active = ts.filter(t=>t.status==='active').length;
+  return (
+    <ScreenShell active="Teachers">
+      <main style={{padding:'22px 28px 0', height:'calc(100% - 54px)', overflow:'auto'}}>
+        <div style={{display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:16}}>
+          <div>
+            <h1 className="arsenal" style={{fontSize:32, lineHeight:1.05}}>Teachers</h1>
+            <div style={{fontSize:13, color:'var(--schools-fg-2)', marginTop:4}}>
+              {ts.length} staff · {active} active · 1 pending invite
+            </div>
+          </div>
+          <div style={{display:'flex', gap:8}}>
+            <button className="btn-ghost">Bulk import CSV</button>
+            <button className="btn-play">+ Invite teacher</button>
+          </div>
+        </div>
+
+        <div className="card" style={{overflow:'hidden'}}>
+          <table className="ssi-table">
+            <thead>
+              <tr><th>Teacher</th><th>Subject</th><th>Role</th><th>Classes</th><th>Students</th><th>Hours/wk</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+              {ts.map(t => (
+                <tr key={t.id}>
+                  <td>
+                    <div style={{display:'flex', alignItems:'center', gap:10}}>
+                      <div style={{width:32, height:32, borderRadius:'50%', background:'#1F8A5B', color:'#fff',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:600}}>{t.initials}</div>
+                      <div>
+                        <div style={{fontWeight:600, fontSize:13.5}}>{t.name}</div>
+                        <div style={{fontSize:11.5, color:'var(--schools-fg-2)'}}>{t.id.replace('t-','')}@diwan-kemper.bzh</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>{t.subject}</td>
+                  <td>
+                    <span style={{
+                      display:'inline-block', padding:'2px 8px', borderRadius:4, fontSize:11.5, fontWeight:600,
+                      background: t.role==='Admin' ? '#fff5e5' : '#f0f4ff',
+                      color: t.role==='Admin' ? '#7a5418' : '#1c3666',
+                    }}>{t.role}</span>
+                  </td>
+                  <td>{t.classes}</td>
+                  <td>{t.students}</td>
+                  <td>{t.hours7d}h</td>
+                  <td>
+                    <span style={{display:'inline-flex', alignItems:'center', gap:6, fontSize:12.5,
+                      color: t.status==='active' ? 'var(--schools-success)' : '#c66a1c'}}>
+                      <span style={{width:8, height:8, borderRadius:'50%', background:'currentColor', display:'inline-block'}}/>
+                      {t.status === 'active' ? 'Active' : 'Pending invite'}
+                    </span>
+                  </td>
+                  <td style={{textAlign:'right'}}>
+                    {t.status==='invited' ? (
+                      <button className="btn-ghost btn-small">Resend invite</button>
+                    ) : (
+                      <a href="#" style={{fontSize:12, color:'var(--schools-red)', textDecoration:'none', fontWeight:600}}>Manage →</a>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, marginTop:14}}>
+          <div className="card card-pad">
+            <div className="kicker" style={{marginBottom:6}}>Tip — invite codes</div>
+            <p style={{fontSize:13, color:'var(--schools-fg-2)', lineHeight:1.5}}>
+              Teachers join via a one-time link sent to their school email. Invites expire after 14 days; resending refreshes the link.
+            </p>
+          </div>
+          <div className="card card-pad">
+            <div className="kicker" style={{marginBottom:6}}>Tip — roles</div>
+            <p style={{fontSize:13, color:'var(--schools-fg-2)', lineHeight:1.5}}>
+              Admins can manage staff, classes and settings. Teachers see only their own classes. You can change role any time.
+            </p>
+          </div>
+          <div className="card card-pad" style={{background:'#fdf6df', borderColor:'#f0d97a'}}>
+            <div className="kicker" style={{color:'#7a5418', marginBottom:6}}>Pending action</div>
+            <p style={{fontSize:13, color:'#5a3e10', lineHeight:1.5}}>
+              <strong>Padrig Le Coz</strong>'s invite was sent 5 days ago and hasn't been accepted. Want to resend or revoke?
+            </p>
+          </div>
+        </div>
+      </main>
+    </ScreenShell>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<TeachersScreen/>);
+</script>
+</body>
+</html>
