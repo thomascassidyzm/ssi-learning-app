@@ -3254,19 +3254,14 @@ const isIntroPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'component_intro'
 })
 
-// Phase strip — visible whenever the engine is in one of the 4 cycle phases
-// (prompt / pause / voice1 / voice2) and we're not in the intro phase. Doesn't
-// depend on item lookup so it stays robust even if currentPlayableItem hasn't
-// hydrated yet (e.g., partial-state recovery). Listening / pod cycles pass
-// through these phases too but their pauseDuration is 0 — the strip just
-// shows up briefly without harm.
+// Phase strip — visible whenever the current cycle has a real pause phase.
+// pauseDuration > 0 is the definitional signal: the engine literally skips
+// the speak phase when pauseDuration === 0 (intro / listening / pod / bookend
+// / component_intro cycles, all of which are set to 0 in toSimpleRounds /
+// scriptItemToCycle). One signal, read straight off the cycle being played,
+// doesn't depend on item-lookup state.
 const showPhaseStrip = computed(() => {
-  if (isIntroPhase.value) return false
-  const phase = currentPhase.value
-  return phase === Phase.PROMPT
-    || phase === Phase.SPEAK
-    || phase === Phase.VOICE_1
-    || phase === Phase.VOICE_2
+  return (simplePlayer.currentCycle.value?.pauseDuration ?? 0) > 0
 })
 
 // Click handler for the phase-strip segments. Routes to the SimplePlayer
