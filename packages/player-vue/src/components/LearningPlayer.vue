@@ -3221,6 +3221,34 @@ const isIntroPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'component_intro'
 })
 
+// Phase strip — visible only on standard 4-phase cycles (prompt + pause + voice1
+// + voice2). Listening / pod / bookend cycles have a different shape (often
+// single-audio-track) so the 4-section strip wouldn't make sense for them.
+const PHASE_STRIP_SKIP_TYPES = new Set([
+  'intro',
+  'component_intro',
+  'listening',
+  'pod',
+  'listen_intro',
+  'listen_outro',
+])
+const showPhaseStrip = computed(() => {
+  if (isIntroPhase.value) return false
+  const item = useRoundBasedPlayback.value
+    ? currentPlayableItem.value
+    : sessionItems.value[currentItemIndex.value]
+  const type = item?.type
+  if (!type) return false
+  return !PHASE_STRIP_SKIP_TYPES.has(type)
+})
+
+// Click handler for the phase-strip segments. Routes to the SimplePlayer
+// engine which interrupts the current phase and starts the target one fresh.
+// Round / cycle boundaries unchanged — this is intra-cycle navigation only.
+function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
+  simplePlayer.skipToPhase(phase)
+}
+
 // Is current item intro OR debut? (for showing component breakdown tiles)
 // Component priming items should NOT show tiles (they ARE the component being primed)
 // Uses cycle ID for sync detection (currentPlayableItem is set async, causes race)
@@ -7305,9 +7333,38 @@ defineExpose({
           </div>
         </template>
 
-        <!-- Pause countdown bar — inside the glass, at the bottom -->
-        <div v-if="currentPhase === 'speak' && !isIntroPhase" class="pause-timer-bar">
-          <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+        <!-- Phase strip — 4 sections (prompt | pause + countdown | voice1 | voice2).
+             Inside the glass at the bottom. Prompt/voice1/voice2 sections are
+             clickable jump targets; pause section shows the countdown line and
+             is non-interactive. Visible only on standard 4-phase cycles. -->
+        <div v-if="showPhaseStrip" class="phase-strip" role="group" aria-label="Cycle phases">
+          <button
+            type="button"
+            class="phase-section phase-section--prompt"
+            :class="{ 'is-active': currentPhase === Phase.PROMPT }"
+            aria-label="Replay prompt"
+            @click="jumpToCyclePhase('prompt')"
+          ></button>
+          <div
+            class="phase-section phase-section--pause"
+            :class="{ 'is-active': currentPhase === Phase.SPEAK }"
+          >
+            <div class="phase-section-fill" :style="{ width: ringProgress + '%' }"></div>
+          </div>
+          <button
+            type="button"
+            class="phase-section phase-section--voice1"
+            :class="{ 'is-active': currentPhase === Phase.VOICE_1 }"
+            aria-label="Skip to model voice 1"
+            @click="jumpToCyclePhase('voice1')"
+          ></button>
+          <button
+            type="button"
+            class="phase-section phase-section--voice2"
+            :class="{ 'is-active': currentPhase === Phase.VOICE_2 }"
+            aria-label="Skip to model voice 2"
+            @click="jumpToCyclePhase('voice2')"
+          ></button>
         </div>
       </div>
 
@@ -9796,16 +9853,71 @@ defineExpose({
 }
 
 /* Pause countdown bar — inside hero-glass at bottom */
-.pause-timer-bar {
+/* Phase strip — 4 sections (prompt | pause | voice1 | voice2).
+ * Prompt / voice1 / voice2 are clickable jump targets; pause holds the
+ * countdown line (.phase-section-fill animated by ringProgress). */
+.phase-strip {
   width: 100%;
   height: 3px;
   margin-top: var(--space-sm);
+  display: flex;
+  gap: 3px;
+  background: transparent;
+}
+
+.phase-section {
   background: rgba(0, 0, 0, 0.2);
   border-radius: 2px;
+  border: 0;
+  padding: 0;
+  height: 100%;
+  position: relative;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.phase-section--prompt,
+.phase-section--voice1,
+.phase-section--voice2 {
+  flex: 0 0 12%;
+  cursor: pointer;
+}
+
+/* Expand the click/tap target above and below the thin visual bar
+ * so it's reachable on touch devices without making the bar itself thicker. */
+.phase-section--prompt::before,
+.phase-section--voice1::before,
+.phase-section--voice2::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  bottom: -14px;
+  left: -2px;
+  right: -2px;
+}
+
+.phase-section--pause {
+  flex: 1;
   overflow: hidden;
 }
 
-.pause-timer-fill {
+.phase-section.is-active {
+  background: rgba(220, 38, 38, 0.4);
+}
+
+.phase-section--prompt.is-active,
+.phase-section--voice1.is-active,
+.phase-section--voice2.is-active {
+  background: #dc2626;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+}
+
+.phase-section--prompt:hover:not(.is-active),
+.phase-section--voice1:hover:not(.is-active),
+.phase-section--voice2:hover:not(.is-active) {
+  background: rgba(220, 38, 38, 0.25);
+}
+
+.phase-section-fill {
   height: 100%;
   background: #dc2626;
   border-radius: 2px;

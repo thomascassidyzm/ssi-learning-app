@@ -38,6 +38,10 @@ export interface UseSimplePlayerReturn {
   stop: () => void
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   skipRound: () => void
+  /** Jump to a specific phase within the current cycle (prompt/pause/voice1/voice2).
+   * For the in-cycle phase strip — lets the learner skip the pause to hear the
+   * answer, or replay a specific section. Does not advance round/cycle. */
+  skipToPhase: (phase: 'prompt' | 'pause' | 'voice1' | 'voice2') => void
   jumpToRound: (index: number, cycleIndex?: number) => void
   jumpToSeed: (seedNumber: number) => void
   findRoundIndexForSeed: (seedNumber: number) => number
@@ -174,6 +178,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const stop = () => { clearAudioFailed(); player?.stop() }
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   const skipRound = () => player?.skipRound()
+  const skipToPhase = (phase: 'prompt' | 'pause' | 'voice1' | 'voice2') => player?.skipToPhase(phase)
   const jumpToRound = (index: number, cycleIndex?: number) => {
     clearAudioFailed()
     player?.jumpToRound(index, cycleIndex)
@@ -316,6 +321,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     resume,
     stop,
     skipRound,
+    skipToPhase,
     jumpToRound,
     jumpToSeed,
     findRoundIndexForSeed,

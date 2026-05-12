@@ -394,6 +394,24 @@ export class SimplePlayer {
 
   // NOTE: No skipCycle() - a ROUND is the atomic learning unit
   // Users can skip entire rounds, but not individual cycles within a round
+  //
+  // Phase-level navigation within the current cycle IS supported via
+  // skipToPhase() — lets the UI's per-cycle phase strip jump to a specific
+  // part (prompt/pause/voice1/voice2) without leaving the cycle. Round
+  // boundaries still atomic for spaced-rep integrity; this just gives the
+  // learner control inside one cycle (e.g., "skip the pause, play the
+  // answer now" or "replay the prompt").
+  skipToPhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2'): void {
+    if (!this.currentCycle) return
+    this.audio.pause()
+    this.clearPauseTimer()
+    this.clearSafetyTimer()
+    this.clearLingerTimer()
+    if (!this.state.isPlaying) {
+      this.updateState({ isPlaying: true })
+    }
+    this.startPhase(phase)
+  }
 
   skipRound(): void {
     this.clearPauseTimer()
