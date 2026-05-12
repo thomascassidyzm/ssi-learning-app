@@ -559,7 +559,7 @@ const confirmDelete = async () => {
       .delete()
       .eq('id', learnerId)
 
-    // Sign out via Clerk
+    // Sign out (Supabase Auth)
     if (auth?.signOut) {
       await auth.signOut()
     }

@@ -1,167 +1,115 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, inject } from 'vue'
-import JoinCodeBanner from '@/components/schools/JoinCodeBanner.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 
-// School context and data
+type TeacherStatus = 'active' | 'invited'
+
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser } = useSchoolContext()
 const { teachers: teachersData, fetchTeachers } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 
-// Get join code from school data
-const teacherJoinCode = computed(() => currentSchool.value?.teacher_join_code || 'N/A')
-const adminJoinCode = computed(() => currentSchool.value?.admin_join_code || '')
-
 const searchQuery = ref('')
-const selectedCourse = ref('all')
-const selectedBelt = ref('all')
-const showAddModal = ref(false)
 
-// Get initials from name
+const teacherJoinCode = computed(() => currentSchool.value?.teacher_join_code || 'N/A')
+
 function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
 }
 
-// Get belt based on practice hours
-function getBelt(practiceHours: number): string {
-  if (practiceHours >= 100) return 'black'
-  if (practiceHours >= 70) return 'brown'
-  if (practiceHours >= 40) return 'blue'
-  if (practiceHours >= 20) return 'green'
-  if (practiceHours >= 10) return 'orange'
-  if (practiceHours >= 5) return 'yellow'
-  return 'white'
-}
-
-// Transform teachers data for display
 const teachers = computed(() => {
-  return teachersData.value.map((t, idx) => ({
-    id: idx + 1,
+  return teachersData.value.map(t => ({
+    id: t.learner_id,
     user_id: t.user_id,
     name: t.display_name,
     initials: getInitials(t.display_name),
-    email: t.learner_id ? `teacher_${t.learner_id.substring(0, 8)}` : 'N/A', // No email in schema yet
-    course: t.class_count > 0 ? 'Language Course' : 'No Classes', // Courses come from classes
-    belt: getBelt(t.total_practice_hours),
-    status: 'active' as const,
-    classCount: t.class_count,
-    studentCount: t.student_count,
-    phrasesLearned: Math.round(t.total_practice_hours * 20), // Derived from practice time
-    engagementRate: t.student_count > 0 ? Math.min(100, Math.round((t.student_count / t.class_count) * 5)) : 0,
-    joinDate: t.joined_at ? new Date(t.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Unknown'
+    classes: t.class_count,
+    students: t.student_count,
+    hours7d: t.total_practice_hours,
+    role: 'Teacher' as 'Teacher' | 'Admin',
+    status: 'active' as TeacherStatus,
+    joined_at: t.joined_at,
   }))
 })
 
-// Courses would come from database - currently placeholder
-const courses = ['All Courses']
-const belts = ['white', 'yellow', 'orange', 'green', 'blue', 'brown', 'black']
-
-const beltGradients: Record<string, string> = {
-  white: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
-  yellow: 'linear-gradient(135deg, #fbbf24, #d97706)',
-  orange: 'linear-gradient(135deg, #f97316, #ea580c)',
-  green: 'linear-gradient(135deg, #22c55e, #16a34a)',
-  blue: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-  brown: 'linear-gradient(135deg, #92400e, #78350f)',
-  black: 'linear-gradient(135deg, #1f2937, #111827)'
-}
-
-const beltColors: Record<string, string> = {
-  white: '#333',
-  yellow: '#333',
-  orange: '#fff',
-  green: '#fff',
-  blue: '#fff',
-  brown: '#fff',
-  black: '#fff'
-}
-
-const filteredTeachers = computed(() => {
-  return teachers.value.filter(teacher => {
-    const matchesSearch = !searchQuery.value ||
-      teacher.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      teacher.email.toLowerCase().includes(searchQuery.value.toLowerCase())
-
-    const matchesCourse = selectedCourse.value === 'all' ||
-      teacher.course === selectedCourse.value
-
-    const matchesBelt = selectedBelt.value === 'all' ||
-      teacher.belt === selectedBelt.value
-
-    return matchesSearch && matchesCourse && matchesBelt
-  })
+const filtered = computed(() => {
+  if (!searchQuery.value.trim()) return teachers.value
+  const q = searchQuery.value.toLowerCase()
+  return teachers.value.filter(t => t.name.toLowerCase().includes(q))
 })
 
-const teacherCount = computed(() => teachers.value.length)
+const activeCount = computed(() => teachers.value.filter(t => t.status === 'active').length)
+const pendingCount = computed(() => teachers.value.filter(t => t.status === 'invited').length)
 
-function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  })
-}
+const subtitle = computed(() => {
+  const count = teachers.value.length
+  const parts = [
+    `${count} ${count === 1 ? 'teacher' : 'staff'}`,
+    `${activeCount.value} active`,
+  ]
+  if (pendingCount.value > 0) {
+    parts.push(`${pendingCount.value} pending invite${pendingCount.value === 1 ? '' : 's'}`)
+  }
+  return parts.join(' · ')
+})
 
-function handleCopyCode() {
-  if (teacherJoinCode.value && teacherJoinCode.value !== 'N/A') {
-    navigator.clipboard.writeText(teacherJoinCode.value)
+const copyState = ref(false)
+async function copyJoinCode() {
+  if (teacherJoinCode.value === 'N/A') return
+  try {
+    await navigator.clipboard.writeText(teacherJoinCode.value)
+    copyState.value = true
+    setTimeout(() => { copyState.value = false }, 2000)
+  } catch {
+    /* ignore */
   }
 }
 
-function handleRegenerateCode() {
-  console.log('Regenerating code...')
+const showImportHint = ref(false)
+function handleBulkImport() {
+  showImportHint.value = true
+  setTimeout(() => { showImportHint.value = false }, 5000)
 }
 
-// Teacher detail state
-const selectedTeacher = ref<typeof teachers.value[0] | null>(null)
-
-function viewTeacherDetail(teacher: typeof teachers.value[0]) {
-  selectedTeacher.value = selectedTeacher.value?.user_id === teacher.user_id ? null : teacher
+const showInviteHint = ref(false)
+function handleInvite() {
+  showInviteHint.value = true
+  setTimeout(() => { showInviteHint.value = false }, 5000)
 }
 
-function editTeacher(teacher: typeof teachers.value[0]) {
-  // For demo: show detail panel (full edit not implemented)
-  selectedTeacher.value = teacher
+async function handleRemoveTeacher(userId: string, name: string) {
+  if (!confirm(`Remove ${name} from this school?`)) return
+  const supabase = getSchoolsClient()
+  const { error } = await supabase
+    .from('user_tags')
+    .update({ removed_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('tag_type', 'school')
+    .eq('role_in_context', 'teacher')
+    .eq('tag_value', `SCHOOL:${currentSchool.value?.id}`)
+    .is('removed_at', null)
+  if (!error) fetchTeachers()
 }
 
-async function handleRemoveTeacher(userId: string) {
-  if (confirm('Are you sure you want to remove this teacher from your school?')) {
-    const supabase = getSchoolsClient()
-    const { error } = await supabase
-      .from('user_tags')
-      .update({ removed_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('tag_type', 'school')
-      .eq('role_in_context', 'teacher')
-      .eq('tag_value', `SCHOOL:${currentSchool.value?.id}`)
-      .is('removed_at', null)
-
-    if (error) {
-      console.error('Failed to remove teacher:', error)
-      return
-    }
-    fetchTeachers()
-  }
+function exportCsv() {
+  const header = ['Name', 'Classes', 'Students', 'Hours/wk', 'Role', 'Status', 'Joined']
+  const rows = filtered.value.map(t => [
+    t.name, t.classes, t.students, t.hours7d, t.role, t.status, t.joined_at,
+  ].join(','))
+  const csv = [header.join(','), ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `teachers-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
-function openAddModal() {
-  showAddModal.value = true
-}
-
-function closeAddModal() {
-  showAddModal.value = false
-}
-
-// Animation state
-const isVisible = ref(false)
 onMounted(() => {
-  setTimeout(() => {
-    isVisible.value = true
-  }, 50)
   if (selectedUser.value) {
     fetchTeachers()
     fetchSchools()
@@ -177,947 +125,348 @@ watch(selectedUser, (newUser) => {
 </script>
 
 <template>
-  <div class="teachers-view" :class="{ 'is-visible': isVisible }">
-    <div class="page-content">
-      <!-- Page Header -->
-      <header class="page-header animate-item" :class="{ 'show': isVisible }">
-        <div class="page-title">
-          <h1>Teachers</h1>
-          <div class="teacher-count">
-            <span class="count-value">{{ teacherCount }}</span> teachers
-          </div>
-        </div>
-        <div class="header-actions">
-          <button class="btn btn-secondary">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export
-          </button>
-          <button class="btn btn-primary" @click="openAddModal">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            Add Teacher
-          </button>
-        </div>
-      </header>
-
-      <!-- Join Code Banners -->
-      <div class="join-code-section animate-item delay-1" :class="{ 'show': isVisible }">
-        <JoinCodeBanner
-          :code="teacherJoinCode"
-          label="Teacher Join Code"
-          description="Share this code with teachers to let them join your school"
-          variant="teacher"
-          :can-regenerate="true"
-          @copy="handleCopyCode"
-          @regenerate="handleRegenerateCode"
-        />
-        <JoinCodeBanner
-          v-if="adminJoinCode"
-          :code="adminJoinCode"
-          label="Admin Join Code"
-          description="Share this code to invite someone as a school admin"
-          variant="admin"
-          :can-regenerate="false"
-          @copy="handleCopyCode"
-        />
+  <main class="teachers">
+    <div class="page-head">
+      <div class="page-head-text">
+        <h1 class="arsenal page-title">Teachers</h1>
+        <p class="page-subtitle schools-subtle">{{ subtitle }}</p>
       </div>
-
-      <!-- Filters Bar -->
-      <div class="filters-bar animate-item delay-1" :class="{ 'show': isVisible }">
-        <div class="search-box">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
-          </svg>
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="Search teachers by name or email..."
-          >
-        </div>
-
-        <div class="filter-dropdown">
-          <select v-model="selectedCourse" class="filter-select">
-            <option value="all">All Courses</option>
-            <option v-for="course in courses" :key="course" :value="course">
-              {{ course }}
-            </option>
-          </select>
-        </div>
-
-        <div class="filter-dropdown">
-          <select v-model="selectedBelt" class="filter-select">
-            <option value="all">All Belts</option>
-            <option v-for="belt in belts" :key="belt" :value="belt">
-              {{ belt.charAt(0).toUpperCase() + belt.slice(1) }} Belt
-            </option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Teachers Grid -->
-      <div class="teachers-grid animate-item delay-2" :class="{ 'show': isVisible }">
-        <div
-          v-for="teacher in filteredTeachers"
-          :key="teacher.id"
-          class="teacher-card"
-          :class="{ 'teacher-card--selected': selectedTeacher?.user_id === teacher.user_id }"
-          @click="viewTeacherDetail(teacher)"
-          style="cursor: pointer;"
-        >
-          <!-- Card Header -->
-          <div class="teacher-card-header">
-            <div class="teacher-avatar-lg"
-              :style="{
-                background: beltGradients[teacher.belt],
-                color: beltColors[teacher.belt]
-              }"
-            >
-              {{ teacher.initials }}
-              <span
-                class="status-indicator"
-                :class="teacher.status"
-              ></span>
-            </div>
-
-            <div class="teacher-card-info">
-              <div class="teacher-card-name">{{ teacher.name }}</div>
-              <div class="teacher-card-email">{{ teacher.email }}</div>
-              <div class="teacher-card-meta">
-                <span class="meta-tag course">{{ teacher.course }}</span>
-                <span class="meta-tag belt" :class="teacher.belt">
-                  {{ teacher.belt.charAt(0).toUpperCase() + teacher.belt.slice(1) }} Belt
-                </span>
-              </div>
-            </div>
-
-            <div class="teacher-card-actions">
-              <button class="action-btn" title="View Details" @click="viewTeacherDetail(teacher)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              </button>
-              <button v-if="!isAdminView" class="action-btn" title="Edit" @click="editTeacher(teacher)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </button>
-              <button
-                v-if="!isAdminView"
-                class="action-btn danger"
-                title="Remove"
-                @click="handleRemoveTeacher(teacher.user_id)"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Stats Row -->
-          <div class="teacher-card-stats">
-            <div class="stat-mini">
-              <div class="stat-mini-value">{{ teacher.classCount }}</div>
-              <div class="stat-mini-label">Classes</div>
-            </div>
-            <div class="stat-mini">
-              <div class="stat-mini-value">{{ teacher.studentCount }}</div>
-              <div class="stat-mini-label">Students</div>
-            </div>
-            <div class="stat-mini">
-              <div class="stat-mini-value">{{ teacher.phrasesLearned.toLocaleString() }}</div>
-              <div class="stat-mini-label">Phrases</div>
-            </div>
-            <div class="stat-mini">
-              <div class="stat-mini-value">{{ teacher.engagementRate }}%</div>
-              <div class="stat-mini-label">Active</div>
-            </div>
-          </div>
-
-          <!-- Progress Bar -->
-          <div class="teacher-progress">
-            <div class="progress-header">
-              <span class="progress-label">Student Engagement</span>
-              <span class="progress-value">{{ teacher.engagementRate }}%</span>
-            </div>
-            <div class="progress-track">
-              <div
-                class="progress-fill"
-                :style="{ width: `${teacher.engagementRate}%` }"
-              ></div>
-            </div>
-          </div>
-
-          <!-- Join Date -->
-          <div class="teacher-join-date">
-            Joined {{ formatDate(teacher.joinDate) }}
-          </div>
-        </div>
-      </div>
-
-      <!-- Teacher Detail Panel -->
-      <Transition name="panel">
-        <div v-if="selectedTeacher" class="teacher-detail-panel animate-item delay-2" :class="{ 'show': isVisible }">
-          <div class="detail-header">
-            <h3>{{ selectedTeacher.name }}</h3>
-            <button class="action-btn" @click="selectedTeacher = null" title="Close">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-          <div class="detail-stats">
-            <div class="detail-stat">
-              <span class="detail-stat-value">{{ selectedTeacher.classCount }}</span>
-              <span class="detail-stat-label">Classes</span>
-            </div>
-            <div class="detail-stat">
-              <span class="detail-stat-value">{{ selectedTeacher.studentCount }}</span>
-              <span class="detail-stat-label">Students</span>
-            </div>
-            <div class="detail-stat">
-              <span class="detail-stat-value">{{ selectedTeacher.phrasesLearned.toLocaleString() }}</span>
-              <span class="detail-stat-label">Phrases Taught</span>
-            </div>
-            <div class="detail-stat">
-              <span class="detail-stat-value">{{ selectedTeacher.engagementRate }}%</span>
-              <span class="detail-stat-label">Student Engagement</span>
-            </div>
-          </div>
-          <div class="detail-meta">
-            <span>Joined {{ selectedTeacher.joinDate }}</span>
-            <span class="meta-tag belt" :class="selectedTeacher.belt">
-              {{ selectedTeacher.belt.charAt(0).toUpperCase() + selectedTeacher.belt.slice(1) }} Belt
-            </span>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- Empty State -->
-      <div
-        v-if="filteredTeachers.length === 0"
-        class="empty-state animate-item delay-2"
-        :class="{ 'show': isVisible }"
-      >
-        <div class="empty-icon">teacher</div>
-        <h3>No teachers found</h3>
-        <p v-if="searchQuery || selectedCourse !== 'all' || selectedBelt !== 'all'">
-          Try adjusting your search or filters
-        </p>
-        <p v-else>
-          Share your join code to invite teachers to your school
-        </p>
+      <div class="page-head-actions">
+        <button v-if="teachers.length > 0" type="button" class="btn-ghost" @click="exportCsv">
+          Export CSV
+        </button>
+        <button v-if="!isAdminView" type="button" class="btn-ghost" @click="handleBulkImport">
+          Bulk import CSV
+        </button>
+        <button v-if="!isAdminView" type="button" class="btn-play" @click="handleInvite">
+          + Invite teacher
+        </button>
       </div>
     </div>
 
-    <!-- Add Teacher Modal -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="showAddModal" class="modal-overlay" @click.self="closeAddModal">
-          <div class="modal">
-            <div class="modal-header">
-              <h2 class="modal-title">Add New Teacher</h2>
-              <button class="modal-close" @click="closeAddModal">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
+    <Transition name="fade">
+      <div v-if="showImportHint" class="invite-hint schools-card schools-card-pad">
+        Bulk CSV import is coming soon. For now, share the teacher join code below — teachers complete a one-time sign-in to land in your school.
+      </div>
+    </Transition>
+    <Transition name="fade">
+      <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
+        Teachers join via the school join code. Copy it below and share it with the teacher's school email.
+      </div>
+    </Transition>
+
+    <div v-if="teachers.length > 0" class="schools-card table-card">
+      <table class="ssi-table">
+        <thead>
+          <tr>
+            <th>Teacher</th>
+            <th>Role</th>
+            <th>Classes</th>
+            <th>Students</th>
+            <th>Hours/wk</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="t in filtered" :key="t.user_id">
+            <td>
+              <div class="teacher-cell">
+                <div class="avatar">{{ t.initials }}</div>
+                <div class="teacher-info">
+                  <div class="teacher-name">{{ t.name }}</div>
+                  <div class="teacher-sub schools-subtle">Joined {{ t.joined_at ? new Date(t.joined_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'recently' }}</div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="role-pill" :class="{ admin: t.role === 'Admin' }">{{ t.role }}</span>
+            </td>
+            <td>{{ t.classes }}</td>
+            <td>{{ t.students }}</td>
+            <td>{{ t.hours7d }}h</td>
+            <td>
+              <span class="status-cell" :class="t.status">
+                <span class="status-dot" />
+                {{ t.status === 'active' ? 'Active' : 'Pending invite' }}
+              </span>
+            </td>
+            <td class="cell-action">
+              <button
+                v-if="t.status === 'invited'"
+                type="button"
+                class="btn-ghost btn-small"
+              >
+                Resend invite
               </button>
-            </div>
-            <div class="modal-body">
-              <div class="form-group">
-                <label class="form-label">Teacher's Name</label>
-                <input type="text" class="form-input" placeholder="e.g., Sian Morgan">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Email Address</label>
-                <input type="email" class="form-input" placeholder="e.g., sian.morgan@school.edu">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Course / Language</label>
-                <select class="form-input form-select">
-                  <option>Welsh (Northern)</option>
-                  <option>Welsh (Southern)</option>
-                  <option>Spanish (Latin American)</option>
-                  <option>Spanish (Castilian)</option>
-                  <option>Dutch</option>
-                  <option>Cornish</option>
-                  <option>Manx</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Department (Optional)</label>
-                <input type="text" class="form-input" placeholder="e.g., Languages">
-                <p class="form-hint">Help organize teachers by department</p>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-secondary" @click="closeAddModal">Cancel</button>
-              <button class="btn btn-primary">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-                Send Invitation
+              <button
+                v-else-if="!isAdminView"
+                type="button"
+                class="btn-ghost btn-small remove-btn"
+                @click="handleRemoveTeacher(t.user_id, t.name)"
+              >
+                Remove
               </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-  </div>
+            </td>
+          </tr>
+          <tr v-if="filtered.length === 0">
+            <td colspan="7" class="empty-row">
+              No teachers match "{{ searchQuery }}".
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div v-else class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">No teachers yet</h3>
+      <p class="empty-text schools-subtle">
+        Share the join code below to invite teachers to your school.
+      </p>
+    </div>
+
+    <!-- Tip cards + join code panel -->
+    <div class="tip-grid">
+      <div class="schools-card schools-card-pad tip-card">
+        <div class="schools-kicker">Tip &mdash; invite codes</div>
+        <p class="tip-body">
+          Teachers join via a one-time code from your school. The link in the invite expires after 14 days; resending refreshes it.
+        </p>
+      </div>
+      <div class="schools-card schools-card-pad tip-card">
+        <div class="schools-kicker">Tip &mdash; roles</div>
+        <p class="tip-body">
+          Admins manage staff, classes and settings. Teachers see only their own classes. Switch role any time from a teacher's row.
+        </p>
+      </div>
+      <div class="schools-card schools-card-pad join-card">
+        <div class="schools-kicker join-kicker">Teacher join code</div>
+        <div class="join-code">{{ teacherJoinCode }}</div>
+        <p class="join-body">
+          Send this code to teachers' school addresses. They'll sign in once and appear in this list.
+        </p>
+        <button
+          type="button"
+          class="btn-ghost btn-small join-copy"
+          :class="{ copied: copyState }"
+          :disabled="teacherJoinCode === 'N/A'"
+          @click="copyJoinCode"
+        >
+          {{ copyState ? 'Copied' : 'Copy code' }}
+        </button>
+      </div>
+    </div>
+  </main>
 </template>
 
 <style scoped>
-/* ========== Layout ========== */
-.teachers-view {
-  min-height: 100vh;
-  background: var(--bg-primary);
-}
-
-.page-content {
-  padding: 32px;
-  max-width: 1440px;
+.teachers {
+  padding: 22px 28px 32px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
-/* ========== Header ========== */
-.page-header {
+.page-head {
   display: flex;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.page-title h1 {
-  font-family: 'Noto Sans JP', system-ui, sans-serif;
-  font-size: 30px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.teacher-count {
-  background: var(--bg-card);
-  padding: 8px 16px;
-  border-radius: 24px;
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-
-.teacher-count .count-value {
-  color: var(--ssi-gold);
-  font-weight: 700;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-/* ========== Buttons ========== */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 13px 22px;
-  border-radius: 12px;
-  border: none;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.btn-primary {
-  background: var(--ssi-red);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: var(--ssi-red-light);
-  box-shadow: 0 0 32px rgba(194, 58, 58, 0.35);
-  transform: translateY(-2px);
-}
-
-.btn-secondary {
-  background: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid var(--border-medium);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-elevated);
-  border-color: var(--ssi-red);
-}
-
-/* ========== Join Code Section ========== */
-.join-code-section {
-  margin-bottom: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* ========== Filters ========== */
-.filters-bar {
-  display: flex;
-  gap: 16px;
-  margin-bottom: 28px;
-}
-
-.search-box {
-  flex: 1;
-  position: relative;
-}
-
-.search-box svg {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-}
-
-.search-box input {
-  width: 100%;
-  padding: 14px 16px 14px 50px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.search-box input::placeholder {
-  color: var(--text-muted);
-}
-
-.search-box input:focus {
-  outline: none;
-  border-color: var(--ssi-red);
-  box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.2);
-}
-
-.filter-dropdown {
-  position: relative;
-}
-
-.filter-select {
-  appearance: none;
-  padding: 14px 44px 14px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-}
-
-.filter-select:hover {
-  border-color: var(--border-medium);
-}
-
-.filter-select:focus {
-  outline: none;
-  border-color: var(--ssi-red);
-}
-
-/* ========== Teachers Grid ========== */
-.teachers-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
   gap: 24px;
-}
-
-/* ========== Teacher Card ========== */
-.teacher-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  padding: 24px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.teacher-card:hover {
-  transform: translateY(-6px);
-  border-color: var(--border-medium);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
-}
-
-.teacher-card-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.teacher-avatar-lg {
-  width: 68px;
-  height: 68px;
-  border-radius: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 24px;
-  position: relative;
-  flex-shrink: 0;
-}
-
-.status-indicator {
-  position: absolute;
-  bottom: -3px;
-  right: -3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 3px solid var(--bg-card);
-}
-
-.status-indicator.active { background: var(--success); }
-.status-indicator.inactive { background: var(--text-muted); }
-
-.teacher-card-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.teacher-card-name {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  color: var(--text-primary);
-}
-
-.teacher-card-email {
-  color: var(--text-secondary);
-  font-size: 13px;
-  margin-bottom: 10px;
-}
-
-.teacher-card-meta {
-  display: flex;
-  gap: 10px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
-.meta-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
+.page-head-text { min-width: 280px; flex: 1; }
+
+.page-title {
+  font-size: 32px;
+  line-height: 1.05;
 }
 
-.meta-tag.course {
-  background: rgba(194, 58, 58, 0.12);
-  color: var(--ssi-red-light);
+.page-subtitle {
+  font-size: 13px;
+  margin-top: 4px;
 }
 
-.meta-tag.belt {
-  font-weight: 600;
-}
-
-.meta-tag.belt.white { background: rgba(255,255,255,0.1); color: #f5f5f5; }
-.meta-tag.belt.yellow { background: rgba(251,191,36,0.15); color: #fbbf24; }
-.meta-tag.belt.orange { background: rgba(249,115,22,0.15); color: #f97316; }
-.meta-tag.belt.green { background: rgba(34,197,94,0.15); color: #22c55e; }
-.meta-tag.belt.blue { background: rgba(59,130,246,0.15); color: #3b82f6; }
-.meta-tag.belt.brown { background: rgba(146,64,14,0.15); color: #b45309; }
-.meta-tag.belt.black { background: rgba(31,41,55,0.5); color: #9ca3af; border: 1px solid #374151; }
-
-.teacher-card-actions {
+.page-head-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
-.action-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.action-btn:hover {
-  background: var(--ssi-red);
-  border-color: var(--ssi-red);
-  color: white;
-}
-
-.action-btn.danger:hover {
-  background: var(--error);
-  border-color: var(--error);
-}
-
-/* Stats Row */
-.teacher-card-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  padding: 20px 0;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.stat-mini {
-  text-align: center;
-}
-
-.stat-mini-value {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.stat-mini-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Progress Bar */
-.teacher-progress {
-  margin-top: 18px;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
+.invite-hint {
+  margin-bottom: 12px;
+  background: #fdf6df;
+  border-color: #f0d97a;
+  color: #5a3e10;
   font-size: 13px;
 }
 
-.progress-label { color: var(--text-secondary); }
-.progress-value { color: var(--ssi-gold); font-weight: 600; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
-.progress-track {
-  height: 8px;
-  background: var(--bg-secondary);
-  border-radius: 4px;
-  overflow: hidden;
+.table-card { overflow: hidden; }
+
+.teacher-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--ssi-red) 0%, var(--ssi-gold) 100%);
-  border-radius: 4px;
-  transition: width 0.5s ease;
-}
-
-.teacher-join-date {
-  margin-top: 14px;
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--schools-role-teacher);
+  color: #fff;
   font-size: 12px;
-  color: var(--text-muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.teacher-info { line-height: 1.3; min-width: 0; }
+.teacher-name {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+.teacher-sub {
+  font-size: 11.5px;
+  margin-top: 2px;
+}
+
+.role-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: #f0f4ff;
+  color: #1c3666;
+}
+
+.role-pill.admin {
+  background: #fff5e5;
+  color: #7a5418;
+}
+
+.status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.status-cell .status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-cell.active { color: var(--schools-success); }
+.status-cell.invited { color: var(--schools-health-needs-attention); }
+
+.cell-action {
   text-align: right;
 }
 
-/* ========== Empty State ========== */
+.remove-btn:hover {
+  color: var(--schools-red-deep);
+  border-color: var(--schools-red-deep);
+}
+
+.empty-row {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--schools-fg-2);
+}
+
 .empty-state {
   text-align: center;
-  padding: 80px 20px;
+  padding: 56px 32px;
+  max-width: 520px;
+  margin: 24px auto;
 }
 
-.empty-icon {
-  font-size: 72px;
-  margin-bottom: 20px;
-  opacity: 0.25;
+.empty-title {
+  font-size: 22px;
+  margin-bottom: 8px;
 }
 
-.empty-state h3 {
-  font-size: 20px;
-  margin-bottom: 10px;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  color: var(--text-secondary);
-}
-
-/* ========== Modal ========== */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 20px;
-}
-
-.modal {
-  background: var(--bg-card);
-  border: 1px solid var(--border-medium);
-  border-radius: 22px;
-  width: 100%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  padding: 24px;
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.modal-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.modal-close {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  border: none;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.modal-close:hover {
-  background: var(--error);
-  color: white;
-}
-
-.modal-body {
-  padding: 24px;
-}
-
-.form-group {
-  margin-bottom: 22px;
-}
-
-.form-group:last-child {
-  margin-bottom: 0;
-}
-
-.form-label {
-  display: block;
-  margin-bottom: 10px;
+.empty-text {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--text-secondary);
+  margin-bottom: 18px;
+  line-height: 1.5;
 }
 
-.form-input {
-  width: 100%;
-  padding: 14px 18px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 14px;
-  transition: all 0.2s ease;
-}
-
-.form-input::placeholder {
-  color: var(--text-muted);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--ssi-red);
-  box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.2);
-}
-
-.form-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-  padding-right: 50px;
-  cursor: pointer;
-}
-
-.form-hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.modal-footer {
-  padding: 24px;
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
+.tip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  justify-content: flex-end;
+  margin-top: 14px;
 }
 
-/* Modal Transition */
-.modal-enter-active,
-.modal-leave-active {
-  transition: all 0.3s ease;
+.tip-card,
+.join-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
+.tip-body {
+  font-size: 13px;
+  color: var(--schools-fg-2);
+  line-height: 1.5;
 }
 
-.modal-enter-from .modal,
-.modal-leave-to .modal {
-  transform: translateY(20px) scale(0.95);
+.join-card {
+  background: #fdf6df;
+  border-color: #f0d97a;
 }
 
-/* ========== Animations ========== */
-.animate-item {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+.join-kicker { color: #7a5418; }
+
+.join-code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  color: var(--schools-fg);
+  margin-top: 4px;
 }
 
-.animate-item.show {
-  opacity: 1;
-  transform: translateY(0);
+.join-body {
+  font-size: 12px;
+  color: #5a3e10;
+  margin-top: 4px;
+  line-height: 1.5;
 }
 
-.animate-item.delay-1 { transition-delay: 0.1s; }
-.animate-item.delay-2 { transition-delay: 0.2s; }
+.join-copy {
+  align-self: flex-start;
+  margin-top: 8px;
+}
 
-/* ========== Responsive ========== */
-@media (max-width: 900px) {
-  .teachers-grid {
-    grid-template-columns: 1fr;
-  }
+.join-copy.copied {
+  background: var(--schools-success);
+  border-color: var(--schools-success);
+  color: #fff;
+}
+
+.join-copy:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1100px) {
+  .tip-grid { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 768px) {
-  .page-content {
-    padding: 20px;
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 20px;
-  }
-
-  .filters-bar {
-    flex-direction: column;
-  }
-
-  .teacher-card-header {
-    flex-wrap: wrap;
-  }
-
-  .teacher-card-actions {
-    width: 100%;
-    justify-content: flex-end;
-    margin-top: 12px;
-  }
-}
-
-/* Teacher Detail Panel */
-.teacher-detail-panel {
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--ssi-red, #c23a3a);
-  border-radius: var(--radius-xl, 16px);
-  padding: var(--space-6, 24px);
-  margin-top: var(--space-4, 16px);
-  margin-bottom: var(--space-6, 24px);
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-5, 20px);
-}
-
-.detail-header h3 {
-  font-size: var(--text-xl, 1.25rem);
-  font-weight: var(--font-bold, 700);
-}
-
-.detail-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4, 16px);
-  margin-bottom: var(--space-5, 20px);
-}
-
-.detail-stat {
-  text-align: center;
-  padding: var(--space-4, 16px);
-  background: var(--bg-secondary, #1a1a1a);
-  border-radius: var(--radius-lg, 12px);
-}
-
-.detail-stat-value {
-  display: block;
-  font-size: var(--text-2xl, 1.5rem);
-  font-weight: var(--font-bold, 700);
-  color: var(--ssi-gold, #d4a853);
-}
-
-.detail-stat-label {
-  display: block;
-  font-size: var(--text-xs, 0.75rem);
-  color: var(--text-muted, #707070);
-  text-transform: uppercase;
-  margin-top: var(--space-1, 4px);
-}
-
-.detail-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4, 16px);
-  font-size: var(--text-sm, 0.875rem);
-  color: var(--text-secondary, #b0b0b0);
-}
-
-/* Panel transition */
-.panel-enter-active, .panel-leave-active {
-  transition: all 0.3s ease;
-}
-.panel-enter-from, .panel-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
+  .teachers { padding: 18px 16px 28px; }
+  .tip-grid { grid-template-columns: 1fr; }
+  .table-card { overflow-x: auto; }
+  .ssi-table { min-width: 760px; }
 }
 </style>

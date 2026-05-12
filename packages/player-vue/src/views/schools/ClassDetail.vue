@@ -4,37 +4,64 @@ import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { getSchoolsClient } from '@/composables/schools/client'
-import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
+import BeltDot from '@/components/schools/shared/BeltDot.vue'
+import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
+import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
+import Bench from '@/components/schools/shared/Bench.vue'
+import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { getLanguageName } from '@/composables/useI18n'
+
+type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
+type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
 const route = useRoute()
 
-// School context and data
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser } = useSchoolContext()
-const { classDetail, fetchClassDetail, getClassReport, getClassSessions } = useClassesData()
+const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
 
-// Report data
 const classReport = ref<ClassReport | null>(null)
-const reportLoading = ref(false)
+const copySuccess = ref(false)
+const searchQuery = ref('')
 
-// Session history
-const sessions = ref<Array<{
-  id: string
-  started_at: string
-  ended_at: string | null
-  start_lego_id: string
-  end_lego_id: string | null
-  cycles_completed: number
-  duration_seconds: number
-  date: string
-  time: string
-  durationDisplay: string
-  legoRange: string
-}>>([])
+function deriveBelt(seeds: number): Belt {
+  if (seeds >= 280) return 'black'
+  if (seeds >= 150) return 'blue'
+  if (seeds >= 80) return 'green'
+  if (seeds >= 40) return 'orange'
+  if (seeds >= 20) return 'yellow'
+  return 'white'
+}
 
-// Class data - derived from classDetail
+function getInitials(name: string): string {
+  return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
+}
+
+function formatLastActive(dateStr: string | null): string {
+  if (!dateStr) return 'Never'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  if (diffHours < 1) return 'now'
+  if (diffHours < 24) return `${diffHours}h`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays === 1) return '1d'
+  if (diffDays < 30) return `${diffDays}d`
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo`
+  return `${Math.floor(diffDays / 365)}y`
+}
+
+function deriveStudentHealth(seeds: number, lastActiveAt: string | null, classAvg: number): Health {
+  if (!lastActiveAt) return 'inactive'
+  const diffDays = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000)
+  if (diffDays > 14) return 'needs-attention'
+  if (classAvg > 0 && seeds < classAvg * 0.5) return 'needs-attention'
+  if (classAvg > 0 && seeds >= classAvg * 1.25 && diffDays <= 2) return 'excellent'
+  return 'good'
+}
+
 const classData = computed(() => {
   if (classDetail.value) {
     return {
@@ -43,170 +70,115 @@ const classData = computed(() => {
       course_code: classDetail.value.course_code,
       student_count: classDetail.value.students.length,
       current_seed: classDetail.value.current_seed || 1,
-      student_join_code: classDetail.value.student_join_code || 'N/A'
+      join_code: classDetail.value.student_join_code || 'N/A',
     }
   }
-  // Fallback to sessionStorage for backwards compatibility
   const stored = sessionStorage.getItem('ssi-class-detail')
   if (stored) {
     try {
-      return JSON.parse(stored)
-    } catch (e) {
-      return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, student_join_code: '' }
-    }
-  }
-  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, student_join_code: '' }
-})
-
-// Belt gradients for avatars
-const beltGradients: Record<string, string> = {
-  white: 'linear-gradient(135deg, #f5f5f5, #e0e0e0)',
-  yellow: 'linear-gradient(135deg, #fbbf24, #d97706)',
-  orange: 'linear-gradient(135deg, #f97316, #ea580c)',
-  green: 'linear-gradient(135deg, #22c55e, #16a34a)',
-  blue: 'linear-gradient(135deg, #3b82f6, #2563eb)',
-  brown: 'linear-gradient(135deg, #92400e, #78350f)',
-  black: 'linear-gradient(135deg, #1f2937, #111827)'
-}
-
-const beltTextColors: Record<string, string> = {
-  white: '#333',
-  yellow: '#333',
-  orange: '#fff',
-  green: '#fff',
-  blue: '#fff',
-  brown: '#fff',
-  black: '#fff'
-}
-
-// Get belt based on seeds completed
-function getBelt(seedsCompleted: number): string {
-  if (seedsCompleted >= 400) return 'black'
-  if (seedsCompleted >= 280) return 'brown'
-  if (seedsCompleted >= 150) return 'blue'
-  if (seedsCompleted >= 80) return 'green'
-  if (seedsCompleted >= 40) return 'orange'
-  if (seedsCompleted >= 20) return 'yellow'
-  return 'white'
-}
-
-// Get initials from name
-function getInitials(name: string): string {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-}
-
-// Format date for display
-function formatJoinDate(dateStr: string | null): string {
-  if (!dateStr) return 'Unknown'
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-// Class average seeds for status calculation
-const classAvgSeeds = computed(() => {
-  if (!classDetail.value?.students?.length) return 0
-  const total = classDetail.value.students.reduce((sum, s) => sum + s.seeds_completed, 0)
-  return Math.round(total / classDetail.value.students.length)
-})
-
-// Format last active as relative display
-function formatLastActive(dateStr: string | null): string {
-  if (!dateStr) return 'Never'
-  const now = new Date()
-  const date = new Date(dateStr)
-  const diffMs = now.getTime() - date.getTime()
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  return `${diffDays}d ago`
-}
-
-// Determine engagement level from last active date
-function getEngagement(dateStr: string | null): 'active' | 'recent' | 'inactive' {
-  if (!dateStr) return 'inactive'
-  const now = new Date()
-  const date = new Date(dateStr)
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
-  if (diffDays <= 1) return 'active'
-  if (diffDays <= 7) return 'recent'
-  return 'inactive'
-}
-
-// Determine status relative to class average
-function getStatus(seeds: number, avg: number): 'ahead' | 'on-track' | 'behind' {
-  if (avg === 0) return 'on-track'
-  const deviation = (seeds - avg) / avg
-  if (deviation > 0.25) return 'ahead'
-  if (deviation < -0.25) return 'behind'
-  return 'on-track'
-}
-
-// Transform students from classDetail
-const students = computed(() => {
-  if (!classDetail.value?.students) return []
-  const avg = classAvgSeeds.value
-  return classDetail.value.students
-    .map(s => {
-      const belt = getBelt(s.seeds_completed)
+      const parsed = JSON.parse(stored)
       return {
-        id: s.learner_id,
-        name: s.display_name,
-        email: `${s.user_id.replace('user_2bre_', '')}@student.edu`,
-        initials: getInitials(s.display_name),
-        avatarColor: beltGradients[belt],
-        textColor: beltTextColors[belt],
-        joined_at: s.joined_at,
-        joined_display: formatJoinDate(s.joined_at),
-        seeds_completed: s.seeds_completed,
-        total_practice_minutes: s.total_practice_minutes,
-        status: getStatus(s.seeds_completed, avg),
-        lastActiveDisplay: formatLastActive(s.last_active_at),
-        engagement: getEngagement(s.last_active_at),
+        id: parsed.id || '',
+        class_name: parsed.class_name || '',
+        course_code: parsed.course_code || '',
+        student_count: parsed.student_count || 0,
+        current_seed: parsed.current_seed || 1,
+        join_code: parsed.student_join_code || '',
       }
-    })
-    .sort((a, b) => b.seeds_completed - a.seeds_completed)
+    } catch { /* fall through */ }
+  }
+  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, join_code: '' }
 })
 
-// Status counts for summary strip
-const aheadCount = computed(() => students.value.filter(s => s.status === 'ahead').length)
-const onTrackCount = computed(() => students.value.filter(s => s.status === 'on-track').length)
-const behindCount = computed(() => students.value.filter(s => s.status === 'behind').length)
+const courseLabel = computed(() => {
+  const code = classData.value.course_code
+  const match = code?.match(/^([a-z_]+?)_for_/)
+  return match ? getLanguageName(match[1]) : code
+})
 
-// Load report data
+const classAvgSeeds = computed(() => {
+  const list = classDetail.value?.students ?? []
+  if (!list.length) return 0
+  return Math.round(list.reduce((s, x) => s + x.seeds_completed, 0) / list.length)
+})
+
+const classBelt = computed<Belt>(() => deriveBelt(classAvgSeeds.value))
+
+const students = computed(() => {
+  const list = classDetail.value?.students ?? []
+  const avg = classAvgSeeds.value
+  return list.map(s => {
+    const belt = deriveBelt(s.seeds_completed)
+    return {
+      id: s.learner_id,
+      user_id: s.user_id,
+      name: s.display_name,
+      initials: getInitials(s.display_name),
+      belt,
+      seeds_completed: s.seeds_completed,
+      legos_mastered: s.legos_mastered,
+      hours7d: Math.round((s.total_practice_minutes / 60) * 10) / 10,
+      last_active_display: formatLastActive(s.last_active_at),
+      health: deriveStudentHealth(s.seeds_completed, s.last_active_at, avg),
+    }
+  })
+})
+
+const beltDistribution = computed<Record<string, number>>(() => {
+  const dist: Record<string, number> = {}
+  for (const s of students.value) {
+    dist[s.belt] = (dist[s.belt] || 0) + 1
+  }
+  return dist
+})
+
+const beltOrder: Belt[] = ['white', 'yellow', 'orange', 'green', 'blue', 'black']
+const beltDistributionOrdered = computed(() => {
+  return beltOrder
+    .filter(b => beltDistribution.value[b])
+    .map(b => ({ belt: b, count: beltDistribution.value[b] }))
+})
+
+// Journey total not exposed by composable — placeholder fixed at 60 seeds.
+const journeyTotal = 60
+const journeyDone = computed(() => Math.min(journeyTotal, classData.value.current_seed))
+
+const benchData = computed(() => {
+  if (!classReport.value) return { class: 0, school: 0, course: 0 }
+  const totalSec = classReport.value.class.total_practice_seconds
+  const studentCount = classReport.value.class.active_students || classData.value.student_count || 1
+  const classMin = Math.round(totalSec / 60 / Math.max(1, studentCount))
+
+  const fromAvg = (avg: ClassReport['schoolAvg']): number => {
+    if (!avg) return 0
+    return Math.round(avg.avg_cycles_per_session * 0.6)
+  }
+
+  return {
+    class: classMin,
+    school: fromAvg(classReport.value.schoolAvg),
+    course: fromAvg(classReport.value.courseAvg),
+  }
+})
+
+const filteredStudents = computed(() => {
+  if (!searchQuery.value.trim()) return students.value
+  const q = searchQuery.value.toLowerCase()
+  return students.value.filter(s => s.name.toLowerCase().includes(q))
+})
+
 async function loadReport(classId: string) {
-  reportLoading.value = true
   classReport.value = await getClassReport(classId)
-  reportLoading.value = false
 }
 
-// Load session history
-async function loadSessions(classId: string) {
-  const data = await getClassSessions(classId)
-  sessions.value = data.map((s: any) => ({
-    ...s,
-    date: new Date(s.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-    time: new Date(s.started_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-    durationDisplay: s.duration_seconds > 0
-      ? `${Math.floor(s.duration_seconds / 60)}m ${s.duration_seconds % 60}s`
-      : 'In progress',
-    legoRange: s.end_lego_id
-      ? `${s.start_lego_id} \u2192 ${s.end_lego_id}`
-      : s.start_lego_id,
-  }))
-}
-
-// Load class data on mount
 onMounted(() => {
   const classId = route.params.id as string
   if (classId && selectedUser.value) {
     fetchClassDetail(classId)
     loadReport(classId)
-    loadSessions(classId)
   } else if (!classId) {
     const stored = sessionStorage.getItem('ssi-class-detail')
-    if (!stored) {
-      router.push({ name: 'classes' })
-    }
+    if (!stored) router.push({ name: 'classes' })
   }
 })
 
@@ -215,1145 +187,476 @@ watch(selectedUser, (newUser) => {
   if (newUser && classId) {
     fetchClassDetail(classId)
     loadReport(classId)
-    loadSessions(classId)
   }
 })
 
-// Copy state for join code
-const copySuccess = ref(false)
-
-// Search students
-const searchQuery = ref('')
-
-const filteredStudents = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return students.value
-  }
-  const query = searchQuery.value.toLowerCase()
-  return students.value.filter(s =>
-    s.name.toLowerCase().includes(query) ||
-    s.email.toLowerCase().includes(query)
-  )
-})
-
-// Course info — derive display name from course_code via i18n
-const courseName = computed(() => {
-  const code = classData.value.course_code as string
-  const match = code?.match(/^([a-z_]+?)_for_/)
-  if (match) return getLanguageName(match[1])
-  return code
-})
-
-// Handlers
-const handleBack = () => {
+function handleBack() {
   router.push({ name: 'classes' })
 }
 
-const handlePlay = () => {
-  // Store class context for player
+function handlePlay() {
   const activeClass = {
     id: classData.value.id,
     name: classData.value.class_name,
     course_code: classData.value.course_code,
     current_seed: classData.value.current_seed,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   }
   localStorage.setItem('ssi-active-class', JSON.stringify(activeClass))
   router.push({ path: '/', query: { class: classData.value.id } })
 }
 
-const copyJoinCode = async () => {
+async function copyJoinCode() {
   try {
-    await navigator.clipboard.writeText(classData.value.student_join_code)
+    await navigator.clipboard.writeText(classData.value.join_code)
     copySuccess.value = true
-    setTimeout(() => {
-      copySuccess.value = false
-    }, 2000)
-  } catch (err) {
-    console.error('Failed to copy:', err)
+    setTimeout(() => { copySuccess.value = false }, 2000)
+  } catch {
+    /* ignore */
   }
 }
 
-const handleRemoveStudent = async (student: { id: string; name: string }) => {
-  if (confirm(`Remove ${student.name} from this class?`)) {
-    const supabase = getSchoolsClient()
-    const { error } = await supabase
-      .from('user_tags')
-      .update({ removed_at: new Date().toISOString() })
-      .eq('user_id', student.id)
-      .eq('tag_type', 'class')
-      .eq('tag_value', `CLASS:${classData.value.id}`)
-      .is('removed_at', null)
-
-    if (error) {
-      console.error('Failed to remove student:', error)
-      return
-    }
-    fetchClassDetail(classData.value.id)
-  }
+async function handleRemoveStudent(student: { user_id: string; name: string }) {
+  if (!confirm(`Remove ${student.name} from this class?`)) return
+  const supabase = getSchoolsClient()
+  const { error } = await supabase
+    .from('user_tags')
+    .update({ removed_at: new Date().toISOString() })
+    .eq('user_id', student.user_id)
+    .eq('tag_type', 'class')
+    .eq('tag_value', `CLASS:${classData.value.id}`)
+    .is('removed_at', null)
+  if (!error) fetchClassDetail(classData.value.id)
 }
 </script>
 
 <template>
-  <div class="class-detail">
-    <!-- Background pattern -->
-    <div class="bg-pattern" aria-hidden="true">
-      <svg viewBox="0 0 400 400" class="pattern-svg">
-        <defs>
-          <pattern id="detail-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path
-              d="M 40 0 L 0 0 0 40"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="0.5"
-              opacity="0.08"
-            />
-          </pattern>
-        </defs>
-        <rect width="400" height="400" fill="url(#detail-grid)" />
-      </svg>
-    </div>
+  <main class="detail">
+    <nav class="breadcrumb">
+      <a href="#" @click.prevent="handleBack">Classes</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">{{ classData.class_name }}</span>
+    </nav>
 
-    <!-- Header -->
-    <header class="detail-header">
-      <button class="btn-back" @click="handleBack">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5"/>
-          <polyline points="12 19 5 12 12 5"/>
-        </svg>
-        <span>Back to Classes</span>
-      </button>
-
-      <div class="header-content">
-        <div class="class-info">
-          <h1 class="class-title">{{ classData.class_name }}</h1>
-          <div class="class-meta">
-            <span class="course-badge">
-              <LanguageFlag :code="classData.course_code" :size="18" />
-              {{ courseName }}
-            </span>
-            <span class="meta-divider"></span>
-            <span class="student-count">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
-              </svg>
-              {{ students.length }} students
-            </span>
-            <span class="meta-divider"></span>
-            <span class="position-info">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-              </svg>
-              Position {{ classData.current_seed || 1 }}
-            </span>
-          </div>
+    <header class="page-head">
+      <div class="page-head-text">
+        <div class="schools-kicker page-eyebrow">{{ courseLabel }}</div>
+        <h1 class="arsenal page-title">{{ classData.class_name }}</h1>
+        <div class="meta-row">
+          <span class="meta-belt">
+            <BeltDot :belt="classBelt" :size="12" ring />
+            {{ classBelt.charAt(0).toUpperCase() + classBelt.slice(1) }} belt class
+          </span>
+          <span class="meta-dot">·</span>
+          <span>{{ students.length }} students</span>
+          <span class="meta-dot">·</span>
+          <span>Position {{ classData.current_seed }}</span>
         </div>
+      </div>
 
-        <button v-if="!isAdminView" class="btn-play-main" @click="handlePlay">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="5 3 19 12 5 21 5 3"/>
-          </svg>
-          <span>Play as Class</span>
+      <div class="page-head-actions">
+        <button v-if="!isAdminView" type="button" class="btn-play btn-play-lg" @click="handlePlay">
+          <span class="play-glyph">&#9654;</span>
+          Play as class
         </button>
       </div>
     </header>
 
-    <!-- Speaking Opportunities Report -->
-    <section v-if="classReport" class="report-section">
-      <!-- Hero Card -->
-      <div class="report-hero">
-        <div class="hero-main">
-          <div class="hero-number">{{ classReport.class.total_cycles.toLocaleString() }}</div>
-          <div class="hero-label">speaking opportunities</div>
-        </div>
-        <div class="hero-meta">
-          <span class="hero-stat">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-            {{ classReport.class.avg_cycles_per_session }} per session
-          </span>
-          <span class="meta-divider"></span>
-          <span class="hero-stat">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>
-            {{ classReport.class.active_days_last_7 }} days active this week
-          </span>
-        </div>
-      </div>
-
-      <!-- Comparison Strip -->
-      <div class="comparison-strip">
-        <div class="comparison-item yours">
-          <div class="comparison-label">Your class</div>
-          <div class="comparison-value">{{ classReport.class.avg_cycles_per_session }}</div>
-          <div class="comparison-unit">/session</div>
-        </div>
-        <div v-if="classReport.schoolAvg" class="comparison-item">
-          <div class="comparison-label">School avg</div>
-          <div class="comparison-value">{{ classReport.schoolAvg.avg_cycles_per_session }}</div>
-          <div class="comparison-unit">/session</div>
-        </div>
-        <div v-if="classReport.groupAvg" class="comparison-item">
-          <div class="comparison-label">Group avg</div>
-          <div class="comparison-value">{{ classReport.groupAvg.avg_cycles_per_session }}</div>
-          <div class="comparison-unit">/session</div>
-        </div>
-        <div v-if="classReport.courseAvg" class="comparison-item">
-          <div class="comparison-label">All classes</div>
-          <div class="comparison-value">{{ classReport.courseAvg.avg_cycles_per_session }}</div>
-          <div class="comparison-unit">/session</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Join Code Section -->
-    <section class="join-code-section">
-      <div class="join-code-card">
-        <div class="join-code-header">
-          <div class="join-code-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
+    <div class="body-grid">
+      <section class="roster schools-card">
+        <header class="roster-head">
+          <h3 class="arsenal roster-title">Roster</h3>
+          <div class="roster-tools">
+            <input
+              v-model="searchQuery"
+              type="search"
+              placeholder="Search students..."
+              class="roster-search"
+            />
           </div>
-          <div class="join-code-text">
-            <h2>Student Join Code</h2>
-            <p>Share this code with students to join your class</p>
-          </div>
-        </div>
+        </header>
 
-        <div class="join-code-display">
-          <span class="join-code">{{ classData.student_join_code }}</span>
-          <button
-            class="btn-copy"
-            :class="{ copied: copySuccess }"
-            @click="copyJoinCode"
-          >
-            <svg v-if="!copySuccess" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            <span>{{ copySuccess ? 'Copied!' : 'Copy' }}</span>
-          </button>
-        </div>
-
-        <div class="join-url">
-          <span class="url-label">Or share this link:</span>
-          <code class="url-code">ssi.app/join/{{ classData.student_join_code }}</code>
-        </div>
-      </div>
-    </section>
-
-    <!-- Student Roster -->
-    <section class="roster-section">
-      <div class="roster-header">
-        <h2 class="roster-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-          Student Roster
-        </h2>
-
-        <div class="roster-search">
-          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
-          </svg>
-          <input
-            v-model="searchQuery"
-            type="text"
-            class="search-input"
-            placeholder="Search students..."
-          />
-        </div>
-      </div>
-
-      <!-- Summary strip -->
-      <div v-if="students.length > 0" class="roster-summary">
-        Class average: {{ classAvgSeeds }} seeds &mdash;
-        {{ aheadCount }} ahead &middot;
-        {{ onTrackCount }} on track &middot;
-        {{ behindCount }} need attention
-      </div>
-
-      <!-- Students Table -->
-      <div class="roster-table-wrapper" v-if="filteredStudents.length > 0">
-        <table class="roster-table">
-          <thead>
-            <tr>
-              <th class="col-student">Student</th>
-              <th class="col-seeds">Seeds</th>
-              <th class="col-status">Status</th>
-              <th class="col-active">Last Active</th>
-              <th class="col-action"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <TransitionGroup name="table-row">
-              <tr v-for="student in filteredStudents" :key="student.id">
-                <td class="col-student">
+        <div class="roster-scroll">
+          <table class="ssi-table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Belt</th>
+                <th>Seeds</th>
+                <th>Practice</th>
+                <th>Last active</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in filteredStudents" :key="s.id">
+                <td>
                   <div class="student-cell">
-                    <div
-                      class="student-avatar"
-                      :style="{
-                        background: student.avatarColor,
-                        color: student.textColor || 'white'
-                      }"
-                    >
-                      {{ student.initials }}
-                    </div>
+                    <div class="avatar">{{ s.initials }}</div>
                     <div class="student-info">
-                      <span class="student-name">{{ student.name }}</span>
-                      <span class="student-email">{{ student.email }}</span>
+                      <div class="student-name">{{ s.name }}</div>
+                      <div class="student-sub">
+                        <HealthDot :health="s.health" />
+                        <span>{{ s.health.replace('-', ' ') }}</span>
+                      </div>
                     </div>
                   </div>
                 </td>
-                <td class="col-seeds">
-                  <span class="seeds-count">{{ student.seeds_completed }}</span>
-                </td>
-                <td class="col-status">
-                  <span class="status-badge" :class="'status-' + student.status">
-                    {{ student.status === 'ahead' ? 'Ahead' : student.status === 'on-track' ? 'On track' : 'Behind' }}
+                <td>
+                  <span class="belt-cell">
+                    <BeltDot :belt="s.belt" :size="14" />
+                    {{ s.belt }}
                   </span>
                 </td>
-                <td class="col-active">
-                  <span class="last-active" :class="'engagement-' + student.engagement">
-                    {{ student.lastActiveDisplay }}
-                  </span>
-                </td>
-                <td class="col-action">
+                <td>{{ s.seeds_completed }}</td>
+                <td>{{ s.hours7d }}h</td>
+                <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
+                <td class="row-action">
                   <button
-                    class="btn-remove"
-                    @click="handleRemoveStudent(student)"
-                    title="Remove from class"
+                    v-if="!isAdminView"
+                    type="button"
+                    class="btn-ghost btn-small remove-btn"
+                    @click="handleRemoveStudent({ user_id: s.user_id, name: s.name })"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M3 6h18"/>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>
-                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
+                    Remove
                   </button>
                 </td>
               </tr>
-            </TransitionGroup>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Empty state -->
-      <div v-else class="roster-empty">
-        <div class="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <line x1="17" y1="11" x2="23" y2="11"/>
-          </svg>
+              <tr v-if="filteredStudents.length === 0">
+                <td colspan="6" class="empty-row">
+                  <span v-if="searchQuery">No students match "{{ searchQuery }}"</span>
+                  <span v-else>No students have joined this class yet.</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <p v-if="searchQuery">No students match "{{ searchQuery }}"</p>
-        <p v-else>No students have joined this class yet.<br/>Share the join code to get started.</p>
-      </div>
-    </section>
+      </section>
 
-    <!-- Session History -->
-    <section class="session-history-section" v-if="sessions.length > 0">
-      <h2 class="section-title">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-        </svg>
-        Session History
-      </h2>
-
-      <div class="sessions-list">
-        <div v-for="session in sessions" :key="session.id" class="session-card">
-          <div class="session-date">
-            <span class="date">{{ session.date }}</span>
-            <span class="time">{{ session.time }}</span>
-          </div>
-          <div class="session-details">
-            <span class="session-duration">{{ session.durationDisplay }}</span>
-            <span class="session-legos">{{ session.legoRange }}</span>
-            <span class="session-cycles" v-if="session.cycles_completed > 0">{{ session.cycles_completed }} cycles</span>
-          </div>
+      <aside class="rail">
+        <div class="schools-card schools-card-pad rail-card">
+          <div class="schools-kicker rail-kicker">Course Journey</div>
+          <JourneyBar :done="journeyDone" :total="journeyTotal" label="Course Journey" />
+          <p class="rail-note">
+            {{ classAvgSeeds }} seeds avg across the class.<br />
+            Next milestone: seed {{ Math.min(journeyTotal, journeyDone + 10) }}.
+          </p>
         </div>
-      </div>
-    </section>
-  </div>
+
+        <div class="schools-card schools-card-pad rail-card">
+          <div class="schools-kicker rail-kicker">Belt distribution</div>
+          <BeltStrip
+            v-if="students.length > 0"
+            :distribution="beltDistribution"
+            :height="8"
+          />
+          <div v-if="students.length > 0" class="belt-legend">
+            <div
+              v-for="row in beltDistributionOrdered"
+              :key="row.belt"
+              class="belt-legend-item"
+            >
+              <BeltDot :belt="row.belt" :size="20" ring />
+              <div class="arsenal belt-legend-count">{{ row.count }}</div>
+              <div class="belt-legend-label">{{ row.belt }}</div>
+            </div>
+          </div>
+          <p v-else class="rail-note schools-subtle">No students enrolled yet.</p>
+        </div>
+
+        <div class="schools-card schools-card-pad rail-card">
+          <div class="schools-kicker rail-kicker">Practice min/student/week</div>
+          <Bench v-if="classReport" :data="benchData" unit="m" />
+          <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
+        </div>
+
+        <div class="schools-card schools-card-pad rail-card join-card">
+          <div class="schools-kicker join-kicker">Join code</div>
+          <div class="join-code">{{ classData.join_code }}</div>
+          <p class="join-help">
+            Students enter this code at <strong>saysomethingin.com/join</strong> to be added to the class.
+          </p>
+          <button
+            type="button"
+            class="btn-ghost btn-small join-copy"
+            :class="{ copied: copySuccess }"
+            @click="copyJoinCode"
+          >
+            {{ copySuccess ? 'Copied' : 'Copy code' }}
+          </button>
+        </div>
+      </aside>
+    </div>
+  </main>
 </template>
 
 <style scoped>
-.class-detail {
-  min-height: calc(100vh - 64px - 64px); /* Account for nav and padding */
-  position: relative;
+.detail {
+  padding: 18px 32px 32px;
+  max-width: 1320px;
+  margin: 0 auto;
 }
 
-/* Background pattern */
-.bg-pattern {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
+.breadcrumb {
+  font-size: 12.5px;
+  color: var(--schools-fg-2);
+  margin-bottom: 10px;
+}
+.breadcrumb a {
+  color: inherit;
+  text-decoration: none;
+}
+.breadcrumb a:hover { color: var(--schools-red); }
+.crumb-sep { margin: 0 8px; opacity: 0.4; }
+.crumb-current { color: var(--schools-fg); }
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
-.pattern-svg {
-  width: 100%;
-  height: 100%;
-  color: var(--text-primary, #ffffff);
+.page-head-text { min-width: 280px; flex: 1; }
+
+.page-eyebrow {
+  color: var(--schools-red);
+  margin-bottom: 6px;
 }
 
-/* Header */
-.detail-header {
-  position: relative;
-  z-index: 1;
-  margin-bottom: 24px;
+.page-title {
+  font-size: 34px;
+  line-height: 1.05;
 }
 
-.btn-back {
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--schools-fg-2);
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.meta-belt {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+}
+
+.meta-dot { opacity: 0.3; }
+
+.page-head-actions {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 10px 16px;
-  background: transparent;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 10px;
-  color: var(--text-secondary, #b0b0b0);
-  font-family: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 20px;
 }
 
-.btn-back:hover {
-  background: var(--bg-card, #242424);
-  border-color: var(--ssi-red, #c23a3a);
-  color: var(--text-primary, #ffffff);
+.btn-play-lg {
+  padding: 12px 22px;
+  font-size: 14.5px;
 }
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.class-info {
-  flex: 1;
-  min-width: 280px;
-}
-
-.class-title {
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
-  margin: 0 0 12px 0;
-}
-
-.class-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 0.875rem;
-  color: var(--text-secondary, #b0b0b0);
-}
-
-.course-badge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  background: var(--bg-card, #242424);
-  border-radius: 8px;
-  font-weight: 500;
-}
-
-.meta-divider {
-  width: 4px;
-  height: 4px;
-  background: var(--text-muted, #707070);
-  border-radius: 50%;
-}
-
-.student-count,
-.position-info {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.student-count svg,
-.position-info svg {
-  opacity: 0.7;
-}
-
-.btn-play-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 28px;
-  background: linear-gradient(135deg, var(--ssi-red, #c23a3a), var(--ssi-red-dark, #9a2e2e));
-  color: white;
-  border: none;
-  border-radius: 14px;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 6px 20px rgba(194, 58, 58, 0.4);
-  min-height: 52px;
-}
-
-.btn-play-main:hover {
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 8px 28px rgba(194, 58, 58, 0.5);
-}
-
-.btn-play-main:active {
-  transform: translateY(0) scale(0.98);
-}
-
-.btn-play-main svg {
-  width: 22px;
-  height: 22px;
-}
-
-/* Report Section */
-.report-section {
-  position: relative;
-  z-index: 1;
-  margin-bottom: 32px;
-}
-
-.report-hero {
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 16px;
-  padding: 32px;
-  margin-bottom: 16px;
-  border-left: 4px solid var(--ssi-red, #c23a3a);
-}
-
-.hero-main {
-  margin-bottom: 16px;
-}
-
-.hero-number {
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
-  font-size: 3rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
+.play-glyph {
+  font-size: 11px;
   line-height: 1;
 }
 
-.hero-label {
-  font-size: 1.125rem;
-  color: var(--text-secondary, #b0b0b0);
-  margin-top: 4px;
-}
-
-.hero-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 0.875rem;
-  color: var(--text-secondary, #b0b0b0);
-}
-
-.hero-stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.hero-stat svg {
-  opacity: 0.7;
-}
-
-.comparison-strip {
+.body-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 14px;
 }
 
-.comparison-item {
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 12px;
-  padding: 16px;
-  text-align: center;
-}
-
-.comparison-item.yours {
-  border-color: var(--ssi-red, #c23a3a);
-  background: rgba(194, 58, 58, 0.08);
-}
-
-.comparison-label {
-  font-size: 0.75rem;
-  color: var(--text-muted, #707070);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
-}
-
-.comparison-value {
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
-  line-height: 1;
-}
-
-.comparison-unit {
-  font-size: 0.75rem;
-  color: var(--text-muted, #707070);
-  margin-top: 4px;
-}
-
-/* Join Code Section */
-.join-code-section {
-  position: relative;
-  z-index: 1;
-  margin-bottom: 32px;
-}
-
-.join-code-card {
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 16px;
-  padding: 24px;
-  max-width: 560px;
-}
-
-.join-code-header {
+.roster {
+  overflow: hidden;
   display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
+  flex-direction: column;
+  max-height: 640px;
 }
 
-.join-code-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--ssi-red, #c23a3a), var(--ssi-gold, #d4a853));
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.join-code-icon svg {
-  color: white;
-}
-
-.join-code-text h2 {
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
-  margin: 0 0 4px 0;
-}
-
-.join-code-text p {
-  font-size: 0.875rem;
-  color: var(--text-secondary, #b0b0b0);
-  margin: 0;
-}
-
-.join-code-display {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: var(--bg-secondary, #1a1a1a);
-  border: 2px dashed var(--border-medium, rgba(255,255,255,0.15));
-  border-radius: 12px;
-  margin-bottom: 16px;
-}
-
-.join-code {
-  flex: 1;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 1.75rem;
-  font-weight: 700;
-  letter-spacing: 4px;
-  color: var(--ssi-gold, #d4a853);
-}
-
-.btn-copy {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-medium, rgba(255,255,255,0.15));
-  border-radius: 8px;
-  color: var(--text-primary, #ffffff);
-  font-family: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 44px;
-}
-
-.btn-copy:hover {
-  background: var(--bg-elevated, #333333);
-  border-color: var(--ssi-red, #c23a3a);
-}
-
-.btn-copy.copied {
-  background: rgba(74, 222, 128, 0.15);
-  border-color: var(--success, #4ade80);
-  color: var(--success, #4ade80);
-}
-
-.join-url {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8125rem;
-  color: var(--text-muted, #707070);
-}
-
-.url-code {
-  padding: 4px 8px;
-  background: var(--bg-secondary, #1a1a1a);
-  border-radius: 4px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
-  color: var(--text-secondary, #b0b0b0);
-}
-
-/* Roster Section */
-.roster-section {
-  position: relative;
-  z-index: 1;
-}
-
-.roster-header {
+.roster-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--schools-border);
 }
 
-.roster-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--text-primary, #ffffff);
-  margin: 0;
-}
-
-.roster-title svg {
-  color: var(--ssi-gold, #d4a853);
-}
+.roster-title { font-size: 17px; }
 
 .roster-search {
-  position: relative;
-  width: 280px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fafaf6;
+  font-family: var(--font-body);
+  width: 200px;
+  color: var(--schools-fg);
 }
 
-.roster-search .search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted, #707070);
-  pointer-events: none;
-}
-
-.roster-search .search-input {
-  width: 100%;
-  padding: 10px 12px 10px 38px;
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 10px;
-  color: var(--text-primary, #ffffff);
-  font-family: inherit;
-  font-size: 0.875rem;
-  transition: all 0.2s ease;
-  min-height: 44px;
-}
-
-.roster-search .search-input::placeholder {
-  color: var(--text-muted, #707070);
-}
-
-.roster-search .search-input:focus {
+.roster-search:focus {
   outline: none;
-  border-color: var(--ssi-red, #c23a3a);
-  box-shadow: 0 0 0 3px rgba(194, 58, 58, 0.2);
+  border-color: var(--schools-red);
+  background: #fff;
 }
 
-/* Roster Table */
-.roster-table-wrapper {
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.roster-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.roster-table th {
-  text-align: left;
-  padding: 14px 20px;
-  background: var(--bg-secondary, #1a1a1a);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted, #707070);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-}
-
-.roster-table td {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  vertical-align: middle;
-}
-
-.roster-table tr:last-child td {
-  border-bottom: none;
-}
-
-.roster-table tr:hover td {
-  background: var(--bg-secondary, #1a1a1a);
-}
-
-.col-student {
-  width: 40%;
-}
-
-.col-seeds {
-  width: 12%;
-}
-
-.col-status {
-  width: 15%;
-}
-
-.col-active {
-  width: 18%;
-}
-
-.col-action {
-  width: 15%;
-  text-align: right;
+.roster-scroll {
+  overflow: auto;
+  flex: 1;
 }
 
 .student-cell {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
-.student-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #eee;
+  color: #555;
+  font-size: 11px;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 0.875rem;
-  flex-shrink: 0;
+  flex: none;
 }
 
 .student-info {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
+  line-height: 1.3;
 }
 
 .student-name {
   font-weight: 600;
-  font-size: 0.9375rem;
-  color: var(--text-primary, #ffffff);
+  font-size: 13.5px;
 }
 
-.student-email {
-  font-size: 0.8125rem;
-  color: var(--text-muted, #707070);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.joined-date {
-  font-size: 0.875rem;
-  color: var(--text-secondary, #b0b0b0);
-}
-
-.btn-remove {
-  width: 36px;
-  height: 36px;
+.student-sub {
+  font-size: 11px;
+  color: var(--schools-fg-2);
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 8px;
-  color: var(--text-muted, #707070);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  gap: 4px;
+  text-transform: capitalize;
 }
 
-.btn-remove:hover {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: var(--error, #ef4444);
-  color: var(--error, #ef4444);
-}
-
-/* Roster Summary */
-.roster-summary {
-  padding: 12px 20px;
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 12px;
-  margin-bottom: 12px;
-  font-size: 0.875rem;
-  color: var(--text-secondary, #b0b0b0);
-  font-weight: 500;
-}
-
-/* Seeds count */
-.seeds-count {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
-}
-
-/* Status badges */
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-}
-
-.status-ahead {
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
-}
-
-.status-on-track {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-secondary, #b0b0b0);
-}
-
-.status-behind {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
-}
-
-/* Last active engagement coloring */
-.last-active {
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.engagement-active {
-  color: #4ade80;
-}
-
-.engagement-recent {
-  color: var(--text-secondary, #b0b0b0);
-}
-
-.engagement-inactive {
-  color: #f97316;
-}
-
-/* Table row transitions */
-.table-row-enter-active,
-.table-row-leave-active {
-  transition: all 0.3s ease;
-}
-
-.table-row-enter-from,
-.table-row-leave-to {
-  opacity: 0;
-  transform: translateX(-20px);
-}
-
-/* Empty State */
-.roster-empty {
-  display: flex;
-  flex-direction: column;
+.belt-cell {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 64px 32px;
-  background: var(--bg-card, #242424);
-  border: 2px dashed var(--border-medium, rgba(255,255,255,0.15));
-  border-radius: 16px;
+  gap: 6px;
+  text-transform: capitalize;
+}
+
+.row-action { text-align: right; }
+
+.remove-btn:hover {
+  color: var(--schools-red-deep);
+  border-color: var(--schools-red-deep);
+}
+
+.empty-row {
   text-align: center;
+  padding: 40px 16px;
+  color: var(--schools-fg-2);
 }
 
-.roster-empty .empty-icon {
-  margin-bottom: 16px;
-  color: var(--text-muted, #707070);
-}
-
-.roster-empty p {
-  font-size: 0.9375rem;
-  color: var(--text-secondary, #b0b0b0);
-  line-height: 1.6;
-  margin: 0;
-}
-
-/* Session History */
-.session-history-section {
-  position: relative;
-  z-index: 1;
-  margin-top: 32px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: 'Noto Sans JP', 'DM Sans', sans-serif;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary, #ffffff);
-  margin: 0 0 16px 0;
-}
-
-.section-title svg {
-  opacity: 0.7;
-}
-
-.sessions-list {
+.rail {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
 }
 
-.session-card {
+.rail-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.rail-kicker {
+  margin-bottom: 8px;
+}
+
+.rail-note {
+  font-size: 12px;
+  color: var(--schools-fg-2);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.belt-legend {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  background: var(--bg-card, #242424);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-  border-radius: 10px;
+  margin-top: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.session-date {
+.belt-legend-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.session-date .date {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-primary, #ffffff);
-}
-
-.session-date .time {
-  font-size: 0.75rem;
-  color: var(--text-muted, #707070);
-}
-
-.session-details {
-  display: flex;
   align-items: center;
-  gap: 16px;
-  font-size: 0.8125rem;
-  color: var(--text-secondary, #b0b0b0);
+  gap: 4px;
 }
 
-.session-legos {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
-  opacity: 0.8;
+.belt-legend-count {
+  font-size: 18px;
+  line-height: 1;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .class-detail {
-    padding: 16px;
-  }
+.belt-legend-label {
+  font-size: 10.5px;
+  color: var(--schools-fg-2);
+  text-transform: capitalize;
+}
 
-  .header-content {
-    flex-direction: column;
-  }
+.join-card {
+  background: #fdf6df;
+  border-color: #f0d97a;
+}
 
-  .btn-play-main {
-    width: 100%;
-    justify-content: center;
-  }
+.join-kicker {
+  color: #7a5418;
+}
 
-  .join-code {
-    font-size: 1.25rem;
-    letter-spacing: 2px;
-  }
+.join-code {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  color: var(--schools-fg);
+  margin-top: 4px;
+}
 
-  .join-code-display {
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
-  }
+.join-help {
+  font-size: 12px;
+  color: #5a3e10;
+  margin-top: 6px;
+  line-height: 1.5;
+}
 
-  .btn-copy {
-    justify-content: center;
-  }
+.join-copy {
+  align-self: flex-start;
+  margin-top: 10px;
+}
 
-  .roster-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.join-copy.copied {
+  background: var(--schools-success);
+  border-color: var(--schools-success);
+  color: #fff;
+}
 
-  .roster-search {
-    width: 100%;
-  }
-
-  .roster-table th,
-  .roster-table td {
-    padding: 12px 16px;
-  }
-
-  .col-status,
-  .col-active {
-    display: none;
-  }
-
-  .col-student {
-    width: 50%;
-  }
-
-  .col-seeds {
-    width: 20%;
-  }
-
-  .col-action {
-    width: 30%;
-  }
+@media (max-width: 960px) {
+  .detail { padding: 16px; }
+  .body-grid { grid-template-columns: 1fr; }
+  .roster { max-height: none; }
+  .roster-scroll { overflow-x: auto; }
+  .ssi-table { min-width: 640px; }
 }
 </style>

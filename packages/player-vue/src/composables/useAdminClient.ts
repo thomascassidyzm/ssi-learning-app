@@ -3,7 +3,6 @@
  *
  * Replaces the getSchoolsClient() bridge pattern.
  * Injects the Supabase client directly from App.vue's provide('supabase').
- * Uses Supabase Auth session for tokens (not Clerk).
  */
 
 import { inject, ref } from 'vue'
