@@ -307,16 +307,22 @@ const fetchEnrolledCourses = async () => {
       // Priority: 1) URL param, 2) DB/localStorage, 3) first available
       let defaultCourse = null
 
-      // First try URL param (explicit intent — let paywall handle access)
+      // First try URL param — must pass the same entitlement gate as a
+      // click, otherwise visiting /?course=<premium_code> bypasses the
+      // paywall and the premium course just starts playing for a guest.
       if (urlCourseCode) {
-        defaultCourse = data.find(c => c.course_code === urlCourseCode)
-        if (defaultCourse) {
+        const requested = data.find(c => c.course_code === urlCourseCode)
+        if (requested && canAccessCourse(requested)) {
+          defaultCourse = requested
           try {
             localStorage.setItem(LAST_COURSE_KEY, urlCourseCode)
           } catch (e) {
             // ignore
           }
         }
+        // If the URL-requested course is locked, fall through to the other
+        // resolution paths — leave defaultCourse null here. We can't push
+        // to /premium from this async boot path without racing the router.
       }
 
       // Then try localStorage (but only if user can access it)
@@ -326,10 +332,12 @@ const fetchEnrolledCourses = async () => {
           defaultCourse = saved
         }
       }
-      // Fall back to first accessible course (and flag this as a first-run
-      // / no-preference state so HomeScreen can auto-open the picker).
+      // Fall back to the first course the user can actually access. If
+      // there isn't one (rare — would mean every course in the catalogue
+      // is gated for this user), leave defaultCourse null so no premium
+      // course gets auto-loaded; the CourseSelector picker will open.
       if (!defaultCourse) {
-        defaultCourse = data.find(c => canAccessCourse(c)) || data[0]
+        defaultCourse = data.find(c => canAccessCourse(c)) || null
         noPriorCourseSelection.value = true
       }
 
