@@ -10074,16 +10074,11 @@ button.phase-segment:active:not(.is-active) {
   z-index: 0;
 }
 
-/* ============ PHASE STRIP (legacy - kept for reference) ============ */
-/* Horizontal Phase Strip - speaker → mic → speaker → eyes */
-/* NOTE: This is now replaced by .learning-hint in the template */
-.phase-strip {
-  display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
+/* ============ PHASE STRIP (legacy section helpers — .phase-section,
+ * NOT .phase-strip; kept because some other code may still reference
+ * .phase-section). The duplicate .phase-strip rule that lived here was
+ * deleted: it was applying `gap: 6px` to the new segmented pill,
+ * forcing visible whitespace between every segment. */
 .phase-section {
   display: flex;
   align-items: center;
@@ -10203,12 +10198,9 @@ button.phase-segment:active:not(.is-active) {
    Only special cases (landscape compact mode) need media queries.
    ═══════════════════════════════════════════════════════════════ */
 
-/* Phase strip - responsive sizing using clamp() */
-.phase-strip {
-  gap: clamp(3px, 1vmin, 12px);
-  margin-bottom: clamp(6px, 1.5vmin, 16px);
-}
-
+/* Legacy responsive .phase-section sizing (NOT .phase-strip — that
+ * duplicate rule was deleted; it was overriding the new segmented pill
+ * with `gap: clamp(...)` and reintroducing visible whitespace). */
 .phase-section {
   width: clamp(28px, 6vmin, 64px);
   height: clamp(28px, 6vmin, 64px);
