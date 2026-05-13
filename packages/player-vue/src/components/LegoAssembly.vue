@@ -793,13 +793,20 @@ const sentenceScale = computed(() => {
    ═══════════════════════════════════════════════════════════════ */
 
 /* Wrapper: handles animation/positioning, contains tile + known text.
-   flex-shrink: 0 ensures tiles never compress — they wrap to the next line whole. */
+   flex-shrink: 0 ensures tiles never compress — they wrap to the next line whole.
+   border-bottom is the "phrase tie bar" — a subtle line under every tile in the
+   phrase that visually links the salient LEGO to its L/R neighbours. Adjacent
+   wrappers' borders touch (gap: 0 on the parent) so the bar reads as one
+   continuous line per row, communicating "these tiles belong together as a
+   phrase" without claiming any grammatical relationship between them. */
 .lego-block-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
   gap: 3px;
+  padding-bottom: 5px;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.18);
   transition-property: transform, opacity;
   transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1.0);
   will-change: transform, opacity;
@@ -1087,6 +1094,11 @@ const sentenceScale = computed(() => {
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.14),
               0 8px 24px rgba(44, 38, 34, 0.10);
   backdrop-filter: none;
+}
+
+/* Phrase tie bar — mist theme */
+:root[data-theme="mist"] .lego-block-wrapper {
+  border-bottom-color: rgba(44, 38, 34, 0.22);
 }
 
 :root[data-theme="mist"] .lego-block .block-text {
