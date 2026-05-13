@@ -512,9 +512,13 @@ onMounted(() => {
       @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
-    <!-- Player resting state overlay (shown when paused, hidden during playback) -->
+    <!-- Player resting state overlay (shown when paused, hidden during playback).
+         Also gated on activeCourse + isPlayerReady so a fresh launch doesn't
+         flash a "Loading… / White Belt / globe" placeholder before the user's
+         actual course and belt resolve — better to show the cultural backdrop
+         alone for ~200-400ms than misleading default state. -->
     <PlayerRestingState
-      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
+      v-if="activeCourse && isPlayerReady && currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"
