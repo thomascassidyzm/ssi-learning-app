@@ -1,29 +1,33 @@
 <script setup lang="ts">
 /**
- * BrainView.vue — "Your brain on {{ language }}" canvas + tour.
+ * BrainView v2 — "Your brain on {language}" live timelapse canvas.
  *
- * Owns the layout and tour state. Delegates all rendering / hit-testing
- * to useBrainRenderer (PIXI-backed). Side-panel content is rendered by
- * BrainSidePanel (Agent C) — this component only emits `nodeTap` with a
- * legoId; the parent decides whether to open the panel.
+ * V1 was a static distinction-network with a tour mode. V2 reframes the
+ * brain as a *living timelapse* — the learner watches their network
+ * grow over time, with synapse-strength edges thickening as LEGOs fire
+ * together. The scrubber IS the tour.
  *
- * Tour order: nodes sorted by (beltIndex asc, seedNumber asc, legoIndex asc),
- * where legoIndex is parsed off the trailing `L\d+` of the legoId. Tour
- * steps emit `nodeTap` so the parent stays in sole charge of side-panel
- * state and audio playback.
+ * This component owns chrome only:
+ *   - Header overlay ("Your brain on Italian" + counts)
+ *   - Scrubber bar (timeline + play/pause + speed)
+ *   - Close button
+ *
+ * It delegates rendering / hit-testing to useBrainRenderer (PIXI + d3-force).
+ *
+ * No tour mode controls separate from the scrubber. Play auto-advances the
+ * playhead event-by-event at the configured pace.
  */
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBrainRenderer, type UseBrainRendererHandle } from '../composables/useBrainRenderer'
-import type { BrainViewData, BrainViewStats, NetworkNode } from '../types/brainNetwork'
+import type { BrainTimelapseData } from '../types/brainTimelapse'
 
 // ============================================================================
 // PROPS & EMITS
 // ============================================================================
 
 const props = defineProps<{
-  data: BrainViewData
-  stats: BrainViewStats
+  data: BrainTimelapseData
 }>()
 
 const emit = defineEmits<{
@@ -37,93 +41,145 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const scrubberRef = ref<HTMLDivElement | null>(null)
 
 let renderer: UseBrainRendererHandle | null = null
 let resizeObserver: ResizeObserver | null = null
 
 // ============================================================================
-// TOUR STATE
+// SCRUBBER STATE
 // ============================================================================
 
-const SPEED_OPTIONS = [1, 1.2, 1.5, 2] as const
-const playbackSpeed = ref<(typeof SPEED_OPTIONS)[number]>(1.5)
+const SPEED_OPTIONS = [1, 2, 4, 8] as const
+type SpeedOption = (typeof SPEED_OPTIONS)[number]
+const playbackSpeed = ref<SpeedOption>(1)
 const isPlaying = ref(false)
-const tourIndex = ref(0)
-let tourTimer: ReturnType<typeof setTimeout> | null = null
+let playTimer: ReturnType<typeof setTimeout> | null = null
 
-/**
- * Tour walks ONLY revealed nodes — there's nothing for the learner to
- * hear yet on un-revealed nodes. Order is (beltIndex, seedNumber, legoIndex).
- */
-const tourNodes = computed<NetworkNode[]>(() => {
-  const revealed = props.data.nodes.filter((n) => n.isRevealed)
-  return revealed.slice().sort((a, b) => {
-    if (a.beltIndex !== b.beltIndex) return a.beltIndex - b.beltIndex
-    if (a.seedNumber !== b.seedNumber) return a.seedNumber - b.seedNumber
-    return legoIndexOf(a.legoId) - legoIndexOf(b.legoId)
-  })
+/** Scrubber bounds — earliest event → now (load-time snapshot). */
+const minTime = computed(() => {
+  const first = props.data.events[0]
+  if (first) return Date.parse(first.at)
+  // Fallback: earliest node introducedAt, or now if there are no nodes.
+  let min = Number.POSITIVE_INFINITY
+  for (const n of props.data.nodes) {
+    const t = Date.parse(n.introducedAt)
+    if (Number.isFinite(t) && t < min) min = t
+  }
+  return Number.isFinite(min) ? min : Date.now()
 })
 
-function legoIndexOf(legoId: string): number {
-  const match = /L(\d+)$/.exec(legoId)
-  return match ? parseInt(match[1], 10) : 0
+const maxTime = ref<number>(Date.now())
+// On mount, lock maxTime to "now" so the scrubber's right edge is stable.
+
+/** Playhead in ms (epoch). Starts at maxTime ("now"). */
+const playheadMs = ref<number>(Date.now())
+
+const playheadIso = computed(() => new Date(playheadMs.value).toISOString())
+
+const scrubberRatio = computed(() => {
+  const span = maxTime.value - minTime.value
+  if (span <= 0) return 1
+  return Math.min(1, Math.max(0, (playheadMs.value - minTime.value) / span))
+})
+
+// Push scrubber state into the renderer whenever it changes.
+watch(playheadIso, (iso) => {
+  renderer?.setVisibleAt(iso)
+})
+
+// ============================================================================
+// COUNTS — drive the subline (revealed at the current visible time).
+// ============================================================================
+
+const revealedCount = computed(() => {
+  const t = playheadMs.value
+  let n = 0
+  for (const node of props.data.nodes) {
+    if (Date.parse(node.introducedAt) <= t) n++
+  }
+  return n
+})
+
+const synapseCount = computed(() => {
+  const t = playheadMs.value
+  let n = 0
+  for (const edge of props.data.edges) {
+    if (Date.parse(edge.firstFiredAt) <= t) n++
+  }
+  return n
+})
+
+const subtitleText = computed(() => {
+  const things = revealedCount.value === 1
+    ? '1 thing you can say'
+    : `${revealedCount.value} things you can say`
+  const synapses = synapseCount.value === 1
+    ? '1 synapse'
+    : `${synapseCount.value} synapses`
+  return `${things} · ${synapses}`
+})
+
+// ============================================================================
+// PLAYBACK — event-by-event auto-advance at configurable pace.
+// ============================================================================
+
+const BASE_EVENT_INTERVAL_MS = 250
+
+function scheduleNextStep() {
+  if (playTimer) clearTimeout(playTimer)
+  const interval = BASE_EVENT_INTERVAL_MS / playbackSpeed.value
+  playTimer = setTimeout(() => {
+    if (!isPlaying.value) return
+    advanceToNextEvent()
+    if (isPlaying.value) scheduleNextStep()
+  }, interval)
 }
 
-// Step interval: ~2.4s at 1x, scaled down by playbackSpeed.
-const TOUR_BASE_INTERVAL_MS = 2400
-const tourIntervalMs = computed(() => TOUR_BASE_INTERVAL_MS / playbackSpeed.value)
+function advanceToNextEvent() {
+  const t = playheadMs.value
+  let nextT: number | null = null
+  for (const ev of props.data.events) {
+    const evT = Date.parse(ev.at)
+    if (evT > t) {
+      nextT = evT
+      break
+    }
+  }
+  if (nextT == null) {
+    // Reached the end — snap to maxTime and stop.
+    playheadMs.value = maxTime.value
+    stopPlayback()
+    return
+  }
+  playheadMs.value = Math.min(nextT, maxTime.value)
+}
 
-function stopTour() {
+function stopPlayback() {
   isPlaying.value = false
-  if (tourTimer) {
-    clearTimeout(tourTimer)
-    tourTimer = null
+  if (playTimer) {
+    clearTimeout(playTimer)
+    playTimer = null
   }
 }
 
-function scheduleNextStep() {
-  if (tourTimer) clearTimeout(tourTimer)
-  tourTimer = setTimeout(() => {
-    if (!isPlaying.value) return
-    advance(1)
-    if (isPlaying.value) scheduleNextStep()
-  }, tourIntervalMs.value)
-}
-
-function advance(delta: number) {
-  if (tourNodes.value.length === 0) return
-  const len = tourNodes.value.length
-  tourIndex.value = (tourIndex.value + delta + len) % len
-  const node = tourNodes.value[tourIndex.value]
-  if (!node) return
-  renderer?.setFocus(node.legoId)
-  emit('nodeTap', node.legoId)
-}
-
 function togglePlayback() {
-  if (tourNodes.value.length === 0) return
+  if (props.data.events.length === 0) return
   if (isPlaying.value) {
-    stopTour()
+    stopPlayback()
   } else {
-    isPlaying.value = true
-    // Emit the current step immediately so the side panel updates on press.
-    const node = tourNodes.value[tourIndex.value]
-    if (node) {
-      renderer?.setFocus(node.legoId)
-      emit('nodeTap', node.legoId)
+    // If we're at the end, restart from the beginning.
+    if (playheadMs.value >= maxTime.value) {
+      playheadMs.value = minTime.value
     }
+    isPlaying.value = true
     scheduleNextStep()
   }
 }
 
-function stepPrev() {
-  stopTour()
-  advance(-1)
-}
-
-function stepNext() {
-  stopTour()
-  advance(1)
+function jumpToStart() {
+  stopPlayback()
+  playheadMs.value = minTime.value
 }
 
 watch(playbackSpeed, () => {
@@ -131,53 +187,81 @@ watch(playbackSpeed, () => {
 })
 
 // ============================================================================
+// SCRUBBER DRAG
+// ============================================================================
+
+let isDragging = false
+
+function timeFromClientX(clientX: number): number {
+  const el = scrubberRef.value
+  if (!el) return playheadMs.value
+  const rect = el.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+  return minTime.value + (maxTime.value - minTime.value) * ratio
+}
+
+function onScrubberPointerDown(e: PointerEvent) {
+  isDragging = true
+  stopPlayback()
+  ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+  playheadMs.value = timeFromClientX(e.clientX)
+}
+
+function onScrubberPointerMove(e: PointerEvent) {
+  if (!isDragging) return
+  playheadMs.value = timeFromClientX(e.clientX)
+}
+
+function onScrubberPointerUp(e: PointerEvent) {
+  if (!isDragging) return
+  isDragging = false
+  ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+}
+
+// ============================================================================
 // HEADER STYLE
 // ============================================================================
 
 const headerStyle = computed(() => ({
-  color: props.stats.currentBelt.color,
+  color: props.data.currentBelt.color,
 }))
 
-const subtitleText = computed(() => {
-  const n = props.stats.revealedCount
-  return n === 1 ? '1 thing you can say' : `${n} things you can say`
-})
-
-const beltAccent = computed(() => props.stats.currentBelt.color)
+const beltAccent = computed(() => props.data.currentBelt.color)
 
 // ============================================================================
 // LIFECYCLE
 // ============================================================================
 
 onMounted(() => {
+  // Snapshot "now" — scrubber max stays fixed for the life of the view.
+  maxTime.value = Date.now()
+  playheadMs.value = maxTime.value
+
   if (!canvasRef.value || !containerRef.value) return
 
-  const handle = useBrainRenderer({
+  renderer = useBrainRenderer({
     canvas: canvasRef.value,
     data: props.data,
-    stats: props.stats,
+    initiallyVisibleAt: playheadIso.value,
     onNodeTap: (legoId) => {
-      // Stop the tour the moment the learner taps something themselves.
-      stopTour()
+      // Tapping a node pauses auto-play (the learner is exploring).
+      stopPlayback()
       emit('nodeTap', legoId)
     },
   })
-  renderer = handle
 
-  // Observe container size for responsive resizing.
   resizeObserver = new ResizeObserver((entries) => {
     if (!renderer || !canvasRef.value) return
     const entry = entries[0]
     if (!entry) return
     const { width, height } = entry.contentRect
-    // Sync CSS size onto the canvas backing store via the renderer.
     renderer.resize(width, height)
   })
   resizeObserver.observe(containerRef.value)
 })
 
 onBeforeUnmount(() => {
-  stopTour()
+  stopPlayback()
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
@@ -200,10 +284,22 @@ onBeforeUnmount(() => {
     </header>
 
     <!-- Close button -->
-    <button class="close-btn" type="button" aria-label="Close" @click="emit('close')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-        <line x1="18" y1="6" x2="6" y2="18"/>
-        <line x1="6" y1="6" x2="18" y2="18"/>
+    <button
+      class="close-btn"
+      type="button"
+      aria-label="Close"
+      @click="emit('close')"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        width="20"
+        height="20"
+      >
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
     </button>
 
@@ -212,51 +308,61 @@ onBeforeUnmount(() => {
       <canvas ref="canvasRef" class="brain-canvas" data-testid="brain-canvas" />
     </div>
 
-    <!-- Tour controls -->
-    <div class="tour-controls" :style="{ '--accent': beltAccent }">
+    <!-- Scrubber bar -->
+    <div class="scrubber-bar" :style="{ '--accent': beltAccent }">
       <button
         class="control-btn"
         type="button"
-        aria-label="Previous"
-        :disabled="tourNodes.length === 0"
-        @click="stepPrev"
+        aria-label="Jump to start"
+        :disabled="data.events.length === 0"
+        @click="jumpToStart"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-          <polygon points="19 20 9 12 19 4"/>
-          <line x1="5" y1="4" x2="5" y2="20" stroke="currentColor" stroke-width="2"/>
+          <polygon points="19 20 9 12 19 4" />
+          <rect x="5" y="4" width="2" height="16" />
         </svg>
       </button>
 
+      <div
+        ref="scrubberRef"
+        class="scrubber-track"
+        data-testid="brain-scrubber"
+        :data-min="minTime"
+        :data-max="maxTime"
+        :aria-valuemin="minTime"
+        :aria-valuemax="maxTime"
+        :aria-valuenow="playheadMs"
+        role="slider"
+        tabindex="0"
+        @pointerdown="onScrubberPointerDown"
+        @pointermove="onScrubberPointerMove"
+        @pointerup="onScrubberPointerUp"
+        @pointercancel="onScrubberPointerUp"
+      >
+        <div class="scrubber-fill" :style="{ width: `${scrubberRatio * 100}%` }" />
+        <div
+          class="scrubber-handle"
+          :style="{ left: `${scrubberRatio * 100}%` }"
+        />
+      </div>
+
       <button
-        class="play-btn"
+        class="control-btn play-btn"
         type="button"
-        :aria-label="isPlaying ? 'Pause tour' : 'Play tour'"
-        :disabled="tourNodes.length === 0"
+        :aria-label="isPlaying ? 'Pause' : 'Play'"
+        :disabled="data.events.length === 0"
         @click="togglePlayback"
       >
-        <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-          <rect x="6" y="4" width="4" height="16"/>
-          <rect x="14" y="4" width="4" height="16"/>
+        <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+          <rect x="6" y="4" width="4" height="16" />
+          <rect x="14" y="4" width="4" height="16" />
         </svg>
-        <svg v-else viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
-          <polygon points="5 3 19 12 5 21"/>
-        </svg>
-      </button>
-
-      <button
-        class="control-btn"
-        type="button"
-        aria-label="Next"
-        :disabled="tourNodes.length === 0"
-        @click="stepNext"
-      >
-        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-          <polygon points="5 4 15 12 5 20"/>
-          <line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" stroke-width="2"/>
+        <svg v-else viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+          <polygon points="5 3 19 12 5 21" />
         </svg>
       </button>
 
-      <div class="speed-select" role="radiogroup" aria-label="Tour speed">
+      <div class="speed-select" role="radiogroup" aria-label="Playback speed">
         <button
           v-for="speed in SPEED_OPTIONS"
           :key="speed"
@@ -266,7 +372,7 @@ onBeforeUnmount(() => {
           type="button"
           @click="playbackSpeed = speed"
         >
-          {{ speed }}x
+          {{ speed }}×
         </button>
       </div>
     </div>
@@ -284,7 +390,6 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  /* Honour iOS safe areas — tour controls sit just above the home bar. */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -313,7 +418,7 @@ onBeforeUnmount(() => {
 .brain-subtitle {
   margin: 4px 0 0;
   font-size: 0.875rem;
-  color: rgba(232, 228, 223, 0.55);
+  color: rgba(232, 228, 223, 0.6);
 }
 
 /* ---- Close button --------------------------------------------------- */
@@ -353,22 +458,22 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   display: block;
-  touch-action: none; /* let pixi-viewport handle pan/zoom */
+  touch-action: none;
 }
 
-/* ---- Tour controls -------------------------------------------------- */
+/* ---- Scrubber bar --------------------------------------------------- */
 
-.tour-controls {
+.scrubber-bar {
   position: relative;
   z-index: 2;
-  padding: 12px 16px calc(var(--safe-bottom) + 16px);
+  padding: 10px 14px calc(var(--safe-bottom) + 14px);
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 10px;
   background: linear-gradient(to top, rgba(10, 10, 15, 0.92), rgba(10, 10, 15, 0));
 }
+
+/* ---- Buttons — lifted from ListeningPodPlayer's .control-btn -------- */
 
 .control-btn {
   background: none;
@@ -379,47 +484,92 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   transition: background 0.15s, opacity 0.15s;
   opacity: 0.7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.control-btn:hover { background: rgba(255,255,255,0.06); opacity: 1; }
+.control-btn:hover { background: rgba(255, 255, 255, 0.06); opacity: 1; }
 .control-btn:disabled { opacity: 0.2; cursor: default; }
 .control-btn:disabled:hover { background: none; }
 
 .play-btn {
   background: var(--accent, #fcd34d);
-  border: none;
   color: #0a0a0f;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: filter 0.15s, transform 0.1s;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
-.play-btn:hover { filter: brightness(1.1); }
-.play-btn:active { transform: scale(0.95); }
-.play-btn:disabled { opacity: 0.35; cursor: default; }
+.play-btn:hover { background: var(--accent, #fcd34d); filter: brightness(1.1); }
+.play-btn:disabled { opacity: 0.35; }
+
+/* ---- Scrubber track — horizontal iOS-character pill ----------------- */
+
+.scrubber-track {
+  flex: 1;
+  position: relative;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 1px 3px rgba(255, 200, 120, 0.05);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.scrubber-fill {
+  position: absolute;
+  inset: 2px auto 2px 2px;
+  height: calc(100% - 4px);
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0.04),
+    color-mix(in srgb, var(--accent, #fcd34d) 35%, transparent)
+  );
+  pointer-events: none;
+  transition: width 0.06s linear;
+}
+
+.scrubber-handle {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #fcd34d);
+  border: 2px solid #0a0a0f;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: left 0.06s linear;
+}
+
+/* ---- Speed selector ------------------------------------------------- */
 
 .speed-select {
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: rgba(255, 255, 255, 0.04);
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
 }
 
 .speed-btn {
   background: transparent;
   border: none;
   color: rgba(232, 228, 223, 0.6);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  padding: 4px 10px;
+  padding: 3px 8px;
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  min-width: 28px;
 }
 .speed-btn:hover { color: #e8e4df; }
 .speed-btn.active {
@@ -427,11 +577,11 @@ onBeforeUnmount(() => {
   color: var(--accent, #fcd34d);
 }
 
-/* ---- Mobile breakpoints --------------------------------------------- */
+/* ---- Mobile ---------------------------------------------------------- */
 
 @media (max-width: 380px) {
-  .tour-controls { gap: 12px; }
-  .play-btn { width: 48px; height: 48px; }
-  .speed-btn { padding: 4px 8px; font-size: 0.7rem; }
+  .scrubber-bar { gap: 6px; padding: 8px 10px calc(var(--safe-bottom) + 12px); }
+  .speed-btn { padding: 3px 6px; font-size: 0.65rem; min-width: 24px; }
+  .play-btn { width: 36px; height: 36px; }
 }
 </style>
