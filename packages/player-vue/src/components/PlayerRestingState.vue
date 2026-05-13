@@ -53,7 +53,11 @@ const cursorBeltColorFinal = computed(() => props.cursorBeltColor ?? belt.value.
 const furthestBeltColorFinal = computed(() => props.highestBeltColor ?? props.cursorBeltColor ?? belt.value.color)
 
 const courseName = computed(() => {
-  if (!props.course) return 'Loading...'
+  // Defensive fallback for the brief window before course resolves —
+  // the parent v-if already gates the whole resting state on
+  // activeCourse, so this rarely shows, but if it does we'd rather a
+  // quiet "…" than an over-emphatic "Loading...".
+  if (!props.course) return '…'
   // Always use the target language name in the known language (via locale)
   // e.g., for eus_for_spa: "Euskera" (Basque in Spanish), not "Basque" or "Euskara"
   return getLanguageName(props.course.target_lang)
