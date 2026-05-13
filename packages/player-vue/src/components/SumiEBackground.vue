@@ -2,18 +2,25 @@
 /**
  * Cultural journey background — mist theme only.
  *
- * Two layers:
+ * Three layers, back-to-front:
  *   1. Dawn glow — radial warmth that grows with belt progression
- *   2. Journey painting — monochrome cultural landscape
+ *   2. Default journey painting — blurred, shows immediately on launch
+ *      so we never start with a Japanese landscape for a Spanish user
+ *   3. Course-specific journey painting — fades in over the default
+ *      once its asset has decoded; absent when lang isn't yet known
  */
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   lang?: string
   beltName?: string
   beltColor?: string
 }>(), {
-  lang: 'jpn',
+  // Intentionally NO default for `lang` — we want it to stay
+  // undefined during the brief window before activeCourse resolves
+  // so the course-specific layer doesn't render at all (and the
+  // blurred default carries the whole backdrop). Defaulting to any
+  // real lang code would flash that country's landscape first.
   beltName: 'white',
   beltColor: '#f5f5f5',
 })
@@ -83,7 +90,20 @@ const DAWN_GLOW: Record<string, { color: string; opacity: number }> = {
 
 const DEFAULT_JOURNEY = '/design/journey-default.webp'
 
-const imageSrc = computed(() => JOURNEY_MAP[props.lang] || DEFAULT_JOURNEY)
+// Course-specific image — only defined when we know the language and
+// the catalogue has art for it. If null, only the blurred default
+// layer is rendered.
+const courseImageSrc = computed<string | null>(() => {
+  if (!props.lang) return null
+  return JOURNEY_MAP[props.lang] ?? null
+})
+
+// Tracks whether the course image has decoded so we can crossfade it
+// in. Reset whenever the src changes so the next swap also animates.
+const courseLoaded = ref(false)
+watch(courseImageSrc, () => {
+  courseLoaded.value = false
+})
 
 const glowStyle = computed(() => {
   const glow = DAWN_GLOW[props.beltName] || DAWN_GLOW.white
@@ -98,13 +118,28 @@ const glowStyle = computed(() => {
   <div class="journey-bg" :style="glowStyle" aria-hidden="true">
     <!-- Dawn glow layer (behind the painting) -->
     <div class="dawn-glow"></div>
-    <!-- The painting -->
+    <!-- Default blurred painting — always present, never changes,
+         so the backdrop is never empty during launch and the
+         course-specific layer has something to resolve against. -->
     <img
-      :src="imageSrc"
+      :src="DEFAULT_JOURNEY"
       alt=""
-      class="journey-painting"
+      class="journey-painting journey-painting--default"
       loading="eager"
       draggable="false"
+    >
+    <!-- Course-specific painting — fades in over the default once
+         its asset has decoded. Keyed on src so the @load handler
+         fires for each new language the user switches to. -->
+    <img
+      v-if="courseImageSrc"
+      :key="courseImageSrc"
+      :src="courseImageSrc"
+      :class="['journey-painting', 'journey-painting--course', { 'is-loaded': courseLoaded }]"
+      alt=""
+      loading="eager"
+      draggable="false"
+      @load="courseLoaded = true"
     >
   </div>
 </template>
@@ -135,5 +170,24 @@ const glowStyle = computed(() => {
   object-position: center bottom;
   opacity: 0.18;
   mix-blend-mode: multiply;
+}
+
+/* Blurred ambient placeholder — same paint style, no country
+   identity. Sits underneath the course-specific layer so the page
+   never starts empty (and never starts with somebody else's
+   landscape). */
+.journey-painting--default {
+  filter: blur(14px);
+  /* Slight scale to hide the blur halo at the edges. */
+  transform: translateX(-50%) scale(1.08);
+}
+
+/* Course-specific painting fades in over the default once decoded. */
+.journey-painting--course {
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+.journey-painting--course.is-loaded {
+  opacity: 0.18;
 }
 </style>
