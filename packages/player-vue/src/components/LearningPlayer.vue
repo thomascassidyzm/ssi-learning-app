@@ -7257,7 +7257,6 @@ defineExpose({
     :is-open="showBeltModal"
     :current-belt="playingBelt"
     :session-seconds="sessionSeconds"
-    :lifetime-learning-minutes="beltProgress?.totalLearningMinutes?.value ?? 0"
     :is-skipping="isSkippingBelt"
     :available-belts="beltProgress?.availableBelts?.value ?? []"
     :current-round="currentAbsoluteRound"
@@ -7265,7 +7264,6 @@ defineExpose({
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
     @close="showBeltModal = false"
-    @viewProgress="showBeltModal = false; emit('viewProgress')"
     @skipToBelt="handleSkipToBelt"
   />
 

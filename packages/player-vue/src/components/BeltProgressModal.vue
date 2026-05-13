@@ -16,10 +16,6 @@ const props = defineProps({
     type: Number,
     default: 0
   },
-  lifetimeLearningMinutes: {
-    type: Number,
-    default: 0
-  },
   isSkipping: {
     type: Boolean,
     default: false
@@ -52,19 +48,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'viewProgress', 'skipToBelt'])
+const emit = defineEmits(['close', 'skipToBelt'])
 
 const formattedSessionTime = computed(() => {
   const mins = Math.floor(props.sessionSeconds / 60)
   const secs = props.sessionSeconds % 60
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-})
-
-const formattedLifetimeTime = computed(() => {
-  const hours = Math.floor(props.lifetimeLearningMinutes / 60)
-  const mins = props.lifetimeLearningMinutes % 60
-  if (hours === 0) return `${mins}m`
-  return `${hours}h ${mins}m`
 })
 
 // Belt indices come straight from the parent (computed from real lego
@@ -217,27 +206,7 @@ onUnmounted(() => {
 
               <p class="course-map-hint">tap a belt to jump there</p>
             </div>
-
-            <!-- Lifetime Stats -->
-            <div class="lifetime-stats">
-              <svg class="stats-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
-              </svg>
-              <span>Total learning: {{ formattedLifetimeTime }}</span>
-            </div>
           </div>
-
-          <!-- Footer with action button -->
-          <footer class="modal-footer">
-            <button class="view-progress-btn" @click="emit('viewProgress')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-              <span>View Full Progress</span>
-            </button>
-          </footer>
         </div>
       </div>
     </Transition>
@@ -488,64 +457,6 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
-/* Lifetime Stats */
-.lifetime-stats {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  font-size: 0.9375rem;
-  color: var(--text-secondary);
-}
-
-.stats-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--belt-color);
-}
-
-/* Footer */
-.modal-footer {
-  padding: 0 1.5rem 1.5rem;
-}
-
-.view-progress-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 1rem 1.5rem;
-  background: var(--belt-color);
-  border: none;
-  border-radius: 12px;
-  font-family: var(--font-body);
-  font-size: 1rem;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 20px var(--belt-glow);
-}
-
-.view-progress-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.view-progress-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 28px var(--belt-glow);
-}
-
-.view-progress-btn:active {
-  transform: translateY(0);
-}
-
 /* Modal transitions */
 .modal-enter-active {
   transition: opacity 0.3s ease;
@@ -588,14 +499,6 @@ onUnmounted(() => {
 
   .time-display {
     font-size: 2.5rem;
-  }
-
-  .modal-footer {
-    padding: 0 1.25rem 1.25rem;
-  }
-
-  .view-progress-btn {
-    min-height: 52px;
   }
 }
 
