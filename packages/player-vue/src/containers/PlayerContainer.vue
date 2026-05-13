@@ -18,6 +18,9 @@ const CourseExplorer = defineAsyncComponent(() => import('@/components/CourseExp
 const BrowseScreen = defineAsyncComponent(() => import('@/components/BrowseScreen.vue'))
 const CourseSelector = defineAsyncComponent(() => import('@/components/CourseSelector.vue'))
 const SignInModal = defineAsyncComponent(() => import('@/components/auth/SignInModal.vue'))
+// Brain screen: async so the PIXI renderer + network data only ship
+// to the bundle once the user actually opens it.
+const BrainScreen = defineAsyncComponent(() => import('@/components/BrainScreen.vue'))
 
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -140,6 +143,12 @@ const navigate = (screen, data = null) => {
     learningPlayerRef.value.unlockAudio()
   }
 
+  // Pause the player when entering the brain view — the side panel's
+  // own voice buttons would otherwise fight the running cycle.
+  if (screen === 'brain' && learningPlayerRef.value?.handlePause) {
+    learningPlayerRef.value.handlePause()
+  }
+
   if (data) {
     selectedCourse.value = data
   }
@@ -260,11 +269,33 @@ const handleToggleTurbo = () => {
   }
 }
 
-// Handle view progress from LearningPlayer (belt modal) - brain view removed, see archive/brain-views branch
+// Handle view progress from LearningPlayer (belt modal) — routes to the
+// brain view ("Your brain on Italian"). The brain screen is its own
+// pane in `currentScreen`, mounted async below.
 const handleViewProgress = () => {
-  // Brain view removed — navigate back to player for now
-  navigate('player')
+  navigate('brain')
 }
+
+// Learner id for the brain network query — must be learners.id, not the
+// auth uid (see CLAUDE memory: `feedback_ssi_learner_id_never_auth_uid`).
+// auth.learnerId is the canonical accessor LearningPlayer already uses.
+const brainLearnerId = computed(() => auth?.learnerId?.value ?? null)
+
+// Display name for the brain header, e.g. "Italian".
+const brainLanguageName = computed(() => {
+  const c = activeCourse?.value
+  if (!c) return ''
+  return c.display_name || c.target_lang || c.course_code || ''
+})
+
+// Belt object to colour the stats header. Falls back to white if the
+// shared belt progress hasn't initialised yet (fresh launch).
+const brainCurrentBelt = computed(() => {
+  const bp = beltProgress.value
+  const belt = bp?.currentBelt?.value
+  if (belt) return belt
+  return { name: 'white', color: '#ffffff', index: 0 }
+})
 
 // Handle starting at a specific seed from CourseBrowser
 const handleStartAtSeed = (seedNumber) => {
@@ -513,6 +544,20 @@ onMounted(() => {
       @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
+
+    <!-- Brain screen ("Your brain on Italian"): full-bleed pane that
+         renders the 2D distinction network + side panel. Mounted only
+         when navigated to so the PIXI bundle doesn't load on first paint. -->
+    <Transition name="slide-right" mode="out-in">
+      <BrainScreen
+        v-if="currentScreen === 'brain' && activeCourse"
+        :course-code="activeCourse.course_code"
+        :language-name="brainLanguageName"
+        :learner-id="brainLearnerId"
+        :current-belt="brainCurrentBelt"
+        @close="navigate('player')"
+      />
+    </Transition>
 
     <!-- Player resting state overlay (shown when paused, hidden during playback).
          Also gated on activeCourse + isPlayerReady so a fresh launch doesn't
