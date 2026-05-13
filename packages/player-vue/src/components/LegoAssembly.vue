@@ -994,14 +994,18 @@ const sentenceScale = computed(() => {
   transform: translateY(0);
 }
 
-/* --- SALIENT LEGO (newly introduced) --- */
+/* --- SALIENT LEGO (newly introduced) ---
+   SSi red tint + red border to make the salient unambiguously distinct
+   from solo-component (dashed) tiles. Char-count-based size scaling makes
+   the salient pop subtle on long M-LEGOs, so colour carries the signal.
+   Same red wash on the English hero highlight visually couples the two. */
 .lego-block.salient {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(194, 58, 58, 0.18);
+  border-color: rgba(194, 58, 58, 0.6);
   border-width: 2px;
   padding: calc(0.7em * var(--sentence-scale, 1)) calc(1.3em * var(--sentence-scale, 1));
   box-shadow:
-    0 0 14px 3px rgba(255, 255, 255, 0.15),
+    0 0 14px 3px rgba(194, 58, 58, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .lego-block.salient .block-text {
@@ -1095,9 +1099,9 @@ const sentenceScale = computed(() => {
 
 
 :root[data-theme="mist"] .lego-block.salient {
-  background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.35);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
+  background: rgba(194, 58, 58, 0.10);
+  border: 1.5px solid rgba(194, 58, 58, 0.55);
+  box-shadow: 0 2px 4px rgba(194, 58, 58, 0.15),
               0 8px 24px rgba(44, 38, 34, 0.08);
 }
 

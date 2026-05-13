@@ -9842,9 +9842,11 @@ defineExpose({
 }
 
 /* Inline highlight on the substring matching the current cycle's salient
-   LEGO's known text. Subtle: small bg tint + slight weight bump, no border. */
+   LEGO's known text. SSi-red wash matches the salient tile's red tint —
+   the colour couples the two so the learner sees "this English text =
+   this Italian tile" at a glance. */
 .hero-known-salient {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(194, 58, 58, 0.22);
   color: rgba(255, 255, 255, 1);
   font-weight: 500;
   border-radius: 3px;
@@ -11714,7 +11716,7 @@ button.phase-segment:active:not(.is-active) {
 }
 
 [data-theme="mist"] .player .hero-known-salient {
-  background: rgba(44, 38, 34, 0.08);
+  background: rgba(194, 58, 58, 0.14);
   color: var(--text-primary);
   font-weight: 500;
 }
