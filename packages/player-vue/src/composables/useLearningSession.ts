@@ -158,7 +158,17 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
           sessionId.value = session.id
           console.log('[useLearningSession] Session started:', session.id)
         } catch (err: any) {
-          console.warn('[useLearningSession] Session tracking unavailable:', err.message)
+          // Surface the full error (code + hint + details) — `err.message`
+          // alone hides Postgres error codes like 42501 (RLS denial) and
+          // 22P02 (UUID cast failure) that pinpoint the real cause.
+          console.error('[useLearningSession] Session start FAILED:', {
+            message: err?.message,
+            code: err?.code,
+            details: err?.details,
+            hint: err?.hint,
+            learnerId,
+            courseId,
+          })
           // Continue without session tracking
         }
       }

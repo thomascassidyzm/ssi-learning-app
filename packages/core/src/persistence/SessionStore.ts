@@ -111,8 +111,19 @@ export class SessionStore implements ISessionStore {
       .eq('id', sessionId);
 
     if (error) {
-      // Don't throw — this is fire-and-forget
-      console.warn(`Session checkpoint failed: ${error.message}`);
+      // Don't throw — this is fire-and-forget. But log the full error so
+      // RLS / type-cast / column-missing failures are visible in DevTools;
+      // without code + details we can't tell why a checkpoint silently
+      // never reaches the row.
+      console.error('[SessionStore] checkpointSession FAILED:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        sessionId,
+        itemsPracticed,
+        durationSeconds,
+      });
     }
   }
 
