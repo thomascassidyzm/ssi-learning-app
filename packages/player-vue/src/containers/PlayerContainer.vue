@@ -9,17 +9,16 @@ import SumiEBackground from '@/components/SumiEBackground.vue'
 import LearningPlayer from '@/components/LearningPlayer.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import PlayerRestingState from '@/components/PlayerRestingState.vue'
-
-// Modals / overlays — all gated behind user-triggered v-if state, so
-// none of them needs to be on the player's first-paint critical path.
-// Async-load each as its own chunk; Vue mounts them on first render.
-const SettingsScreen = defineAsyncComponent(() => import('@/components/SettingsScreen.vue'))
-const CourseExplorer = defineAsyncComponent(() => import('@/components/CourseExplorer.vue'))
-const BrowseScreen = defineAsyncComponent(() => import('@/components/BrowseScreen.vue'))
-const CourseSelector = defineAsyncComponent(() => import('@/components/CourseSelector.vue'))
-const SignInModal = defineAsyncComponent(() => import('@/components/auth/SignInModal.vue'))
+import SettingsScreen from '@/components/SettingsScreen.vue'
+import CourseExplorer from '@/components/CourseExplorer.vue'
+import BrowseScreen from '@/components/BrowseScreen.vue'
+import CourseSelector from '@/components/CourseSelector.vue'
+import { SignInModal } from '@/components/auth'
 // Brain screen: async so the PIXI renderer + network data only ship
-// to the bundle once the user actually opens it.
+// to the bundle once the user actually opens it. This one is fine
+// because BrainScreen has its own height and obvious "loading" state,
+// unlike the other modals which collapsed to 0 height while their
+// chunks were in flight.
 const BrainScreen = defineAsyncComponent(() => import('@/components/BrainScreen.vue'))
 
 // Global auth modal state (shared singleton)
