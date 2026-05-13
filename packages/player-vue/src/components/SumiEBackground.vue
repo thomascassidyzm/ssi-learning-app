@@ -118,13 +118,15 @@ const glowStyle = computed(() => {
   <div class="journey-bg" :style="glowStyle" aria-hidden="true">
     <!-- Dawn glow layer (behind the painting) -->
     <div class="dawn-glow"></div>
-    <!-- Default blurred painting — always present, never changes,
-         so the backdrop is never empty during launch and the
-         course-specific layer has something to resolve against. -->
+    <!-- Default blurred painting — shows during the brief window
+         before course-specific lands, then fades out so the final
+         backdrop is only the sharp course painting (otherwise the
+         two paintings stack at multiply blend and the result looks
+         blurry even after the real image arrives). -->
     <img
       :src="DEFAULT_JOURNEY"
+      :class="['journey-painting', 'journey-painting--default', { 'is-fading': courseLoaded }]"
       alt=""
-      class="journey-painting journey-painting--default"
       loading="eager"
       draggable="false"
     >
@@ -175,11 +177,18 @@ const glowStyle = computed(() => {
 /* Blurred ambient placeholder — same paint style, no country
    identity. Sits underneath the course-specific layer so the page
    never starts empty (and never starts with somebody else's
-   landscape). */
+   landscape). Once the course-specific image has decoded, this
+   fades out so the final backdrop is only the sharp painting —
+   otherwise both layers stay multiply-blended and the result looks
+   blurry even after the real image arrives. */
 .journey-painting--default {
-  filter: blur(14px);
+  filter: blur(8px);
   /* Slight scale to hide the blur halo at the edges. */
-  transform: translateX(-50%) scale(1.08);
+  transform: translateX(-50%) scale(1.06);
+  transition: opacity 600ms ease;
+}
+.journey-painting--default.is-fading {
+  opacity: 0;
 }
 
 /* Course-specific painting fades in over the default once decoded. */
