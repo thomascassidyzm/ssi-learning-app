@@ -182,19 +182,22 @@ const glowStyle = computed(() => {
    otherwise both layers stay multiply-blended and the result looks
    blurry even after the real image arrives. */
 .journey-painting--default {
-  filter: blur(8px);
+  filter: blur(12px);
   /* Slight scale to hide the blur halo at the edges. */
-  transform: translateX(-50%) scale(1.06);
-  transition: opacity 600ms ease;
+  transform: translateX(-50%) scale(1.08);
+  transition: opacity 1200ms ease;
 }
 .journey-painting--default.is-fading {
   opacity: 0;
 }
 
-/* Course-specific painting fades in over the default once decoded. */
+/* Course-specific painting fades in over the default once decoded.
+   Longer transition (1200ms) makes the resolve from blurred ambient
+   to sharp landscape feel like a deliberate "settling in" rather
+   than a snap. */
 .journey-painting--course {
   opacity: 0;
-  transition: opacity 600ms ease;
+  transition: opacity 1200ms ease;
 }
 .journey-painting--course.is-loaded {
   opacity: 0.18;
