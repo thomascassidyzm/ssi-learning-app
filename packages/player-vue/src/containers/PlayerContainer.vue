@@ -582,12 +582,15 @@ onMounted(() => {
     </Transition>
 
     <!-- Player resting state overlay (shown when paused, hidden during playback).
-         Also gated on activeCourse + isPlayerReady so a fresh launch doesn't
-         flash a "Loading… / White Belt / globe" placeholder before the user's
-         actual course and belt resolve — better to show the cultural backdrop
-         alone for ~200-400ms than misleading default state. -->
+         Gated on activeCourse only — the course identity (flag + name +
+         subtitle) renders as soon as the Supabase row resolves. The belt
+         badge and journey CTA inside PlayerRestingState have their own
+         isPlayerReady gate, so the "White Belt" / globe placeholder issue
+         we used to flash can't recur — the user sees the flag and language
+         name immediately, then the belt and journey populate when the
+         player has finished awakening. -->
     <PlayerRestingState
-      v-if="activeCourse && isPlayerReady && currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
+      v-if="activeCourse && currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"

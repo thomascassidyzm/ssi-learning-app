@@ -115,8 +115,13 @@ const handleChangeCourse = () => {
 
       <!-- Belt badge — purely a label of where they are right now, no
            "X% to next belt" gating. Belt is derived from current playing
-           position via beltProgress.playingBelt. -->
-      <div class="belt-badge" :style="{ '--belt-accent': belt.color }">
+           position via beltProgress.playingBelt.
+           Gated on isPlayerReady so we never flash a misleading "White
+           Belt" default for an established learner during the brief
+           window between activeCourse loading and progress data
+           computing. Course identity (flag + name) above renders
+           immediately because it depends only on the Supabase row. -->
+      <div v-if="isPlayerReady" class="belt-badge" :style="{ '--belt-accent': belt.color }">
         <div class="belt-dot"></div>
         <span class="belt-name">{{ beltDisplay }}</span>
       </div>
