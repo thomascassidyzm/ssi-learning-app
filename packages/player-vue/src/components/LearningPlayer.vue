@@ -45,7 +45,7 @@ import { computePauseDuration } from '../playback/computePauseDuration'
 import { useAuthModal } from '../composables/useAuthModal'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
-import { ensureTileCoverage, absorbGapsIntoBlocks } from '../utils/ensureTileCoverage'
+import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
@@ -1145,8 +1145,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     .filter((b: LegoBlock | null): b is LegoBlock => b !== null)
 
   const tileText = useNative ? (cycle.target?.textNative || cycle.target?.text || '') : (cycle.target?.text || '')
-  const covered = ensureTileCoverage(rawBlocks, tileText)
-  const result = absorbGapsIntoBlocks(covered)
+  // Gap-fill but DO NOT absorb. Words not covered by a declared LEGO are
+  // legitimate "grokable encounters" (any word seen inside any earlier
+  // M-LEGO becomes grokable per SSi methodology). They render as their
+  // own ghost tiles in LegoAssembly — never fused into adjacent LEGOs,
+  // which would manufacture false units like [fratello vuole].
+  const result = ensureTileCoverage(rawBlocks, tileText)
 
   // Fallback: if decomposition fails, show the full phrase as a single tile.
   // The audio still plays — the learner must see what they hear.

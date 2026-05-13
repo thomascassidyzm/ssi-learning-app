@@ -506,11 +506,20 @@ const sentenceScale = computed(() => {
               </div>
             </div>
           </template>
-          <!-- Standard mode: single tile (A-LEGO or short M-LEGO) -->
+          <!-- Standard mode: single tile (A-LEGO or short M-LEGO).
+               Ghost tiles (id starts with _gap_ or _SYN) are words not
+               declared as a LEGO on this seed but grokable from earlier
+               M-LEGO context — render with softer styling so the learner
+               sees "encountered word" without inferring a false LEGO unit. -->
           <template v-else>
             <div
               class="lego-block"
-              :class="{ salient: block.isSalient, 'has-components': !!alignedBlockComponents(block), 'solo-component': block.isSoloComponent }"
+              :class="{
+                salient: block.isSalient,
+                'has-components': !!alignedBlockComponents(block),
+                'solo-component': block.isSoloComponent,
+                'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),
+              }"
             >
               <template v-if="alignedBlockComponents(block)">
                 <span
@@ -870,6 +879,19 @@ const sentenceScale = computed(() => {
   border-right-style: dashed;
 }
 
+/* Ghost — undeclared word, grokable from prior M-LEGO context.
+   Same tile shape so the "every audible word is a tile" model holds,
+   but softer: dashed border, lower background opacity, lighter text. */
+.lego-block.ghost {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+.lego-block.ghost .block-text {
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 400;
+}
+
 /* Stubs-bright on practice M-LEGOs */
 .lego-block.has-components .comp + .comp::before,
 .lego-block.has-components .comp + .comp::after {
@@ -1087,6 +1109,18 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .lego-block.solo-component {
   border-left-style: dashed;
   border-right-style: dashed;
+}
+
+/* Ghost — mist theme */
+:root[data-theme="mist"] .lego-block.ghost {
+  border-style: dashed;
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: none;
+}
+:root[data-theme="mist"] .lego-block.ghost .block-text {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 /* M-LEGO stubs for mist theme */

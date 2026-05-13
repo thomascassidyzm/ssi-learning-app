@@ -36,3 +36,4 @@ test-results/
 
 # Claude Code
 .claude/
+.env*.local
