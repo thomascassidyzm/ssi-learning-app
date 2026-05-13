@@ -48,7 +48,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'skipToBelt'])
+const emit = defineEmits(['close', 'viewProgress', 'skipToBelt'])
 
 const formattedSessionTime = computed(() => {
   const mins = Math.floor(props.sessionSeconds / 60)
@@ -207,6 +207,17 @@ onUnmounted(() => {
               <p class="course-map-hint">tap a belt to jump there</p>
             </div>
           </div>
+
+          <!-- Footer: tap into the brain view -->
+          <footer class="modal-footer">
+            <button class="view-progress-btn" @click="emit('viewProgress')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <span>View Full Progress</span>
+            </button>
+          </footer>
         </div>
       </div>
     </Transition>
@@ -457,6 +468,44 @@ onUnmounted(() => {
   color: var(--text-muted);
 }
 
+/* Footer: View Full Progress (routes to brain view) */
+.modal-footer {
+  padding: 0 1.5rem 1.5rem;
+}
+
+.view-progress-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: var(--belt-color);
+  border: none;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px var(--belt-glow);
+}
+
+.view-progress-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.view-progress-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 28px var(--belt-glow);
+}
+
+.view-progress-btn:active {
+  transform: translateY(0);
+}
+
 /* Modal transitions */
 .modal-enter-active {
   transition: opacity 0.3s ease;
@@ -499,6 +548,14 @@ onUnmounted(() => {
 
   .time-display {
     font-size: 2.5rem;
+  }
+
+  .modal-footer {
+    padding: 0 1.25rem 1.25rem;
+  }
+
+  .view-progress-btn {
+    min-height: 52px;
   }
 }
 
