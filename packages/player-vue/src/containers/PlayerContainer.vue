@@ -513,15 +513,14 @@ onMounted(() => {
       @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
-    <!-- Launch dialogue — shows during the brief window before
-         LearningPlayer takes over. Gives the user something to watch
-         while the player is awakening, then fades out as the real
-         player's message card takes over. -->
-    <Transition name="launch-dialogue-fade">
-      <LaunchDialogue
-        v-if="(!activeCourse || !isPlayerReady) && currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode"
-      />
-    </Transition>
+    <!-- Launch dialogue — single quiet "firing up the engines"
+         message that shows briefly on first paint, then self-fades
+         out (timer-driven, ~300ms visible + 500ms fade). Independent
+         of isPlayerReady so it always behaves consistently regardless
+         of how fast the player happens to come up. -->
+    <LaunchDialogue
+      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode"
+    />
 
     <!-- Player resting state overlay (shown when paused, hidden during playback).
          Also gated on activeCourse + isPlayerReady so a fresh launch doesn't
@@ -802,18 +801,6 @@ onMounted(() => {
   }
 }
 
-/* Fade the launch dialogue out as the real player takes over. No
-   enter transition — the card should appear immediately on mount,
-   not crossfade in over the blurred backdrop. */
-.launch-dialogue-fade-leave-active {
-  transition: opacity 360ms ease, transform 360ms ease;
-}
-.launch-dialogue-fade-leave-to {
-  opacity: 0;
-  /* Slight downward drift on leave so it reads as "settling" rather
-     than just snapping out. */
-  transform: translate(-50%, -46%);
-}
 
 </style>
 

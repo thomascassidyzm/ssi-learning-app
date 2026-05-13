@@ -1,74 +1,54 @@
 <script setup lang="ts">
 /**
- * Launch dialogue — shows during the brief window between Vue mount
- * and LearningPlayer being ready (course resolved, audio warmed up).
+ * Launch dialogue — a single quiet "firing up the engines…" message
+ * that shows for a few hundred ms while the player awakens, then
+ * fades out. Independent of isPlayerReady — on fast loads the real
+ * player card lands roughly as this one finishes fading.
  *
- * Cycles through a small sequence of messages so the user has
- * something quiet to read instead of a blank backdrop. Hidden as
- * soon as the real player takes over its own message card.
- *
- * Localisation: messages run through t() so non-English locales
- * pick them up. eng is the statically-bundled fallback, so first
- * paint is always immediate English — no universal-symbol fallback
- * needed.
+ * Localisation: t() with eng fallback. eng is statically bundled,
+ * so first paint always shows immediate English; non-English locales
+ * swap in reactively once their chunk lands (typically before the
+ * fade starts).
  */
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { t } from '@/composables/useI18n'
 
-// Final "ready when you are" line removed — the real player's own
-// card now handles that exact message once it mounts, and this card
-// just fades out as the player takes over.
-const STEPS = [
-  {
-    eyebrow: () => t('launch.warming.eyebrow', 'starting up'),
-    body: () => t('launch.warming.body', 'firing up the engines…'),
-  },
-  {
-    eyebrow: () => t('launch.fetching.eyebrow', 'almost there'),
-    body: () => t('launch.fetching.body', 'fetching your course…'),
-  },
-]
+const VISIBLE_MS = 300
 
-const STEP_MS = 700
-
-const index = ref(0)
-let timer: ReturnType<typeof setInterval> | null = null
+const visible = ref(true)
+let timer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(() => {
-  timer = setInterval(() => {
-    if (index.value < STEPS.length - 1) {
-      index.value += 1
-    } else if (timer) {
-      // Park on the final "ready when you are" line — the real
-      // player should replace us before this matters anyway.
-      clearInterval(timer)
-      timer = null
-    }
-  }, STEP_MS)
+  timer = setTimeout(() => {
+    visible.value = false
+  }, VISIBLE_MS)
 })
 
 onBeforeUnmount(() => {
-  if (timer) clearInterval(timer)
+  if (timer) clearTimeout(timer)
 })
 </script>
 
 <template>
-  <div class="launch-dialogue" role="status" aria-live="polite">
-    <div class="launch-dialogue__eyebrow">{{ STEPS[index].eyebrow() }}</div>
-    <Transition name="launch-fade" mode="out-in">
-      <div :key="index" class="launch-dialogue__body">{{ STEPS[index].body() }}</div>
-    </Transition>
-  </div>
+  <Transition name="launch-fade">
+    <div v-if="visible" class="launch-dialogue" role="status" aria-live="polite">
+      <div class="launch-dialogue__eyebrow">
+        {{ t('launch.warming.eyebrow', 'starting up') }}
+      </div>
+      <div class="launch-dialogue__body">
+        {{ t('launch.warming.body', 'firing up the engines…') }}
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
 .launch-dialogue {
-  /* Sit dead-centre while the player is awakening — the real
-     LearningPlayer message card lives at the top, and the rest
-     state's course/belt content lives near the bottom, so the
-     visual middle is empty space we can occupy without competing
-     with either. The card is keeping the same frost-glass + eyebrow
-     + mono-body design language as the existing player card. */
+  /* Dead-centre — the real player card lives at the top, the rest
+     state's content sits near the bottom, so the middle is empty
+     space we can occupy without competing with either. Same
+     frost-glass + eyebrow + mono-body design language as the
+     existing player card. */
   position: absolute;
   top: 50%;
   left: 50%;
@@ -102,12 +82,15 @@ onBeforeUnmount(() => {
   letter-spacing: 0.04em;
 }
 
-.launch-fade-enter-active,
+/* No enter animation — appear immediately on first paint so the user
+   sees something straight away. Only animate the leave. */
 .launch-fade-leave-active {
-  transition: opacity 220ms ease;
+  transition: opacity 500ms ease, transform 500ms ease;
 }
-.launch-fade-enter-from,
 .launch-fade-leave-to {
   opacity: 0;
+  /* Slight downward drift on leave so it reads as "settling" rather
+     than snapping out. */
+  transform: translate(-50%, -46%);
 }
 </style>
