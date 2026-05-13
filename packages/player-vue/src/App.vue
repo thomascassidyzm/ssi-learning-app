@@ -1,5 +1,5 @@
 <script setup>
-import { ref, provide, onMounted } from 'vue'
+import { ref, provide, onMounted, defineAsyncComponent } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
@@ -15,10 +15,14 @@ import { useSharedSubscription } from './composables/useSubscription'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
-import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
-import InstallBanner from './components/InstallBanner.vue'
-import DemoOverlay from './components/demo/DemoOverlay.vue'
-import TesterFeedback from './components/TesterFeedback.vue'
+// Async-load the 4 always-mounted overlay components — none of them
+// render anything visible until some internal condition triggers
+// (PWA update available, install prompt eligible, demo route, admin
+// flag), so they don't belong on the first-paint critical path.
+const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
+const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
+const DemoOverlay = defineAsyncComponent(() => import('./components/demo/DemoOverlay.vue'))
+const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
 import { setSchoolsClient } from './composables/schools/client'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
