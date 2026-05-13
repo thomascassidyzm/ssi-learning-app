@@ -10,6 +10,7 @@ const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.v
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
+const BrainViewDemo = () => import('@/views/BrainViewDemo.vue')
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
@@ -192,6 +193,16 @@ const routes: RouteRecordRaw[] = [
     component: SimpleSessionTest,
     meta: {
       title: 'Simple Session Test',
+    },
+  },
+  // Temporary demo route for BrainView (Agent B). Remove once
+  // PlayerContainer wires the real view in.
+  {
+    path: '/test/brain-view',
+    name: 'brain-view-demo',
+    component: BrainViewDemo,
+    meta: {
+      title: 'Brain View Demo',
     },
   },
   // Admin panel
