@@ -64,16 +64,22 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .launch-dialogue {
+  /* Sit dead-centre while the player is awakening — the real
+     LearningPlayer message card lives at the top, and the rest
+     state's course/belt content lives near the bottom, so the
+     visual middle is empty space we can occupy without competing
+     with either. The card is keeping the same frost-glass + eyebrow
+     + mono-body design language as the existing player card. */
   position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 88px);
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   width: calc(100% - 2rem);
-  max-width: 560px;
-  padding: 14px 20px 18px;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 14px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+  max-width: 480px;
+  padding: 18px 24px 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.07);
   text-align: center;
   pointer-events: none;
   z-index: 40;
