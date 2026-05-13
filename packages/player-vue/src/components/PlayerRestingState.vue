@@ -206,7 +206,10 @@ const handleChangeCourse = () => {
   pointer-events: none;
   background: transparent;
   -webkit-tap-highlight-color: transparent;
-  animation: resting-fade-in 0.4s ease;
+  /* Matches the backdrop's crossfade timing so the course identity
+     settles in alongside its landscape rather than snapping in on
+     top of a still-resolving background. */
+  animation: resting-fade-in 1.2s ease;
 }
 
 @keyframes resting-fade-in {
