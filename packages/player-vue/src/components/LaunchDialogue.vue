@@ -15,6 +15,9 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { t } from '@/composables/useI18n'
 
+// Final "ready when you are" line removed — the real player's own
+// card now handles that exact message once it mounts, and this card
+// just fades out as the player takes over.
 const STEPS = [
   {
     eyebrow: () => t('launch.warming.eyebrow', 'starting up'),
@@ -23,10 +26,6 @@ const STEPS = [
   {
     eyebrow: () => t('launch.fetching.eyebrow', 'almost there'),
     body: () => t('launch.fetching.body', 'fetching your course…'),
-  },
-  {
-    eyebrow: () => t('launch.ready.eyebrow', 'get ready to speak'),
-    body: () => t('launch.ready.body', 'ready when you are'),
   },
 ]
 
