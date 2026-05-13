@@ -27,10 +27,14 @@
  */
 import { computed, defineAsyncComponent, ref, toRef } from 'vue'
 import BrainNodeChip from './BrainNodeChip.vue'
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-expect-error — Agent A's composable lands on staging; placeholder until merge.
 import { useBrainTimelapseData } from '../composables/useBrainTimelapseData'
 import type { NetworkNode } from '../types/brainNetwork'
+import type {
+  BrainTimelapseData as RendererBrainData,
+  TimelapseNode,
+  TimelapseEdge,
+  TimelapseEvent,
+} from '../types/brainTimelapse'
 
 // Async-loaded so the PIXI renderer chunk (pixi.js + pixi-viewport, ~200kb)
 // doesn't get pulled into the main player bundle — the brain screen is
@@ -68,14 +72,62 @@ const revealedCount = computed(() => {
 
 const isEmpty = computed(() => !isLoading.value && revealedCount.value === 0)
 
-// Compat stub for v1 BrainView's `stats` prop. Agent B's v2 BrainView drops
-// this prop entirely. Drop this computed when BrainView.vue's contract no
-// longer asks for it.
-const brainViewStatsCompat = computed(() => ({
-  revealedCount: revealedCount.value,
-  totalCount: brainData.value?.nodes.length ?? 0,
-  currentBelt: { name: 'white', color: '#ffffff', index: 0 },
-}))
+// ---- A→B type bridge ---------------------------------------------------------
+//
+// Agent A's data composable returns BrainTimelapseData with NetworkNode +
+// BrainPairing + BrainTimelapseEvent (from brainNetwork.ts, the existing
+// canonical type file). Agent B's renderer was built against a parallel
+// type set in brainTimelapse.ts using TimelapseNode/Edge/Event names. The
+// shapes are nearly identical; this computed maps the names so we keep
+// both type systems frozen and the renderer doesn't care.
+//
+// Cleanup pass: pick one type file, delete the other. Not today.
+const rendererData = computed<RendererBrainData | null>(() => {
+  const d = brainData.value
+  if (!d) return null
+  const nodes: TimelapseNode[] = d.nodes
+    .filter((n) => n.introducedAt !== null)
+    .map((n) => ({
+      legoId: n.legoId,
+      type: n.type,
+      text: n.text,
+      audioId: n.audioId,
+      beltIndex: n.beltIndex,
+      seedNumber: n.seedNumber,
+      position: n.position,
+      mastery: n.masteryState,
+      introducedAt: n.introducedAt as string,
+    }))
+  const edges: TimelapseEdge[] = d.pairings.map((p) => ({
+    source: p.legoA,
+    target: p.legoB,
+    fireCount: p.fireCount,
+    firstFiredAt: p.firstFiredAt,
+    lastFiredAt: p.lastFiredAt,
+  }))
+  // Map A's event shape (type + legoId / pair) to B's (kind + ref string).
+  // Skip 'pairing_strengthened' — it has no equivalent in v2; the renderer
+  // gets the latest fire_count off the edge directly when scrubber crosses.
+  const events: TimelapseEvent[] = []
+  for (const e of d.events) {
+    if (e.type === 'node_introduced' && e.legoId) {
+      events.push({ at: e.at, kind: 'node', ref: e.legoId })
+    } else if (e.type === 'pairing_first_fired' && e.pair) {
+      events.push({ at: e.at, kind: 'edge', ref: `${e.pair[0]}|${e.pair[1]}` })
+    }
+  }
+  return {
+    courseCode: d.courseCode,
+    languageName: d.languageName,
+    // Renderer uses currentBelt only for header accent colour; data nodes
+    // carry their own beltIndex. Default to white belt until we wire up
+    // useBeltProgress here. Cheap and correct enough for v2 first cut.
+    currentBelt: { name: 'white', color: '#ffffff', index: 0 },
+    nodes,
+    edges,
+    events,
+  }
+})
 
 // ---- Focused node + screen coordinates ---------------------------------------
 
@@ -142,15 +194,12 @@ const handleChipClose = () => {
       </button>
     </div>
 
-    <!-- The brain itself.
-         `stats` is a v1 BrainView prop that Agent B is dropping in v2 — passed
-         here so this file typechecks while the parallel rewrites land. Safe to
-         remove once BrainView.vue's prop list drops `stats`. -->
+    <!-- The brain itself. v2 BrainView drops the `stats` prop — passing
+         only `data`. -->
     <BrainView
-      v-else-if="brainData"
+      v-else-if="rendererData"
       class="brain-screen-canvas"
-      :data="brainData"
-      :stats="brainViewStatsCompat"
+      :data="rendererData"
       @node-tap="handleNodeTap"
       @close="emit('close')"
     />

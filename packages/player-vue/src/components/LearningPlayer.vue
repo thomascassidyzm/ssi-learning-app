@@ -32,7 +32,6 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-expect-error — Agent A's telemetry composable lands on staging; placeholder import until merge.
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
@@ -640,7 +639,9 @@ const simplePlayer = useSimplePlayer()
 // thicker synapses + mastery tier. Skipped cycles (Turbo) never fire
 // `cycle_completed`, so we automatically only count what the learner
 // heard.
-const pairingsTelemetry = usePairingsTelemetry(courseCode, learnerId)
+// Agent A's composable takes no args — pulls supabase via inject. We pass
+// learnerId + courseCode per call at the recordCyclePlay site below.
+const pairingsTelemetry = usePairingsTelemetry()
 
 // Diagnostic event log — captures play/pause/skip/stop taps + lap and
 // commentary lifecycle. Persisted in player_events; surfaced in the
@@ -814,10 +815,16 @@ simplePlayer.onCycleCompleted((cycle) => {
         if (id && id !== cycle.legoId) firedLegoIds.push(id)
       }
     }
-    void pairingsTelemetry.recordCyclePlay(firedLegoIds).catch((err: unknown) => {
-      // Telemetry must never break playback — log and move on.
-      console.warn('[LearningPlayer] pairings telemetry failed:', err)
-    })
+    void pairingsTelemetry
+      .recordCyclePlay({
+        learnerId: learnerId.value,
+        courseCode: courseCode.value,
+        legoIds: firedLegoIds,
+      })
+      .catch((err: unknown) => {
+        // Telemetry must never break playback — log and move on.
+        console.warn('[LearningPlayer] pairings telemetry failed:', err)
+      })
   }
 
   // Feed per-LEGO adaptive engine. Only when we have a real latency signal

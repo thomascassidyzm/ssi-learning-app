@@ -21,6 +21,8 @@ const makeNode = (overrides: Partial<NetworkNode> = {}): NetworkNode => ({
   seedNumber: 1,
   position: { x: 0, y: 0 },
   isRevealed: true,
+  masteryState: 'acquisition',
+  introducedAt: '2026-05-13T00:00:00.000Z',
   ...overrides,
 })
 
