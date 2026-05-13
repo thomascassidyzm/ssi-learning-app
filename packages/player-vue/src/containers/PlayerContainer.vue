@@ -281,20 +281,11 @@ const handleViewProgress = () => {
 // auth.learnerId is the canonical accessor LearningPlayer already uses.
 const brainLearnerId = computed(() => auth?.learnerId?.value ?? null)
 
-// Display name for the brain header, e.g. "Italian".
+// Display name for the brain empty/loading state copy, e.g. "Italian".
 const brainLanguageName = computed(() => {
   const c = activeCourse?.value
   if (!c) return ''
   return c.display_name || c.target_lang || c.course_code || ''
-})
-
-// Belt object to colour the stats header. Falls back to white if the
-// shared belt progress hasn't initialised yet (fresh launch).
-const brainCurrentBelt = computed(() => {
-  const bp = beltProgress.value
-  const belt = bp?.currentBelt?.value
-  if (belt) return belt
-  return { name: 'white', color: '#ffffff', index: 0 }
 })
 
 // "Your brain on X" tile in the library: switch course if needed, then
@@ -567,7 +558,6 @@ onMounted(() => {
         :course-code="activeCourse.course_code"
         :language-name="brainLanguageName"
         :learner-id="brainLearnerId"
-        :current-belt="brainCurrentBelt"
         @close="navigate('player')"
       />
     </Transition>

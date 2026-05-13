@@ -1,19 +1,36 @@
 <script setup lang="ts">
 /**
- * Brain screen wrapper. Owns the side panel + node-focus state and
- * delegates the actual 2D rendering to BrainView (Agent B) and the
- * data shape to useBrainNetwork (Agent A).
+ * BrainScreen — v2 wrapper for the brain view.
  *
- * Lives in agent-c's deliverable set so the container doesn't have to
- * import the renderer composable / view directly — keeps the brittle
- * boundary (until A and B's branches land on staging) contained to one
- * file. PlayerContainer only sees BrainScreen.
+ * Swaps the v1 side panel for a floating chip and the v1 static
+ * data composable for Agent A's timelapse composable. Owns:
+ *
+ *   - focused-node state (legoId + screen coordinates from BrainView)
+ *   - loading / empty states
+ *   - back navigation
+ *
+ * Layout is full-bleed canvas. No side panel slide-in. The brain
+ * dominates the screen; the chip is the only overlay surface.
+ *
+ * Boundary contracts:
+ *   - useBrainTimelapseData (Agent A) returns { data, isLoading, error }
+ *     with data shape `BrainTimelapseData` (extends BrainViewData with
+ *     fire_count edges + per-node mastery tier + scrubbable timeline).
+ *   - BrainView (Agent B) accepts `data: BrainTimelapseData`, emits
+ *     `nodeTap: [legoId, screenX, screenY]` with viewport coordinates.
+ *     `close` bubbles out of BrainView so the user can dismiss from
+ *     the canvas as well.
+ *
+ * These contracts haven't landed on staging yet — this file references
+ * them by their projected paths so a merge of A + B + C on staging
+ * resolves cleanly.
  */
 import { computed, defineAsyncComponent, ref, toRef } from 'vue'
-import BrainSidePanel from './BrainSidePanel.vue'
-import { useBrainNetwork } from '../composables/useBrainNetwork'
-import { BELTS } from '../composables/useBeltProgress'
-import type { NetworkNode, BrainViewStats } from '../types/brainNetwork'
+import BrainNodeChip from './BrainNodeChip.vue'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error — Agent A's composable lands on staging; placeholder until merge.
+import { useBrainTimelapseData } from '../composables/useBrainTimelapseData'
+import type { NetworkNode } from '../types/brainNetwork'
 
 // Async-loaded so the PIXI renderer chunk (pixi.js + pixi-viewport, ~200kb)
 // doesn't get pulled into the main player bundle — the brain screen is
@@ -22,136 +39,129 @@ const BrainView = defineAsyncComponent(() => import('./BrainView.vue'))
 
 const props = defineProps<{
   courseCode: string
-  /** Display name for the header — "Italian", "Spanish", etc. */
+  /** Display name for fallback empty-state copy, e.g. "Italian". */
   languageName: string
   /** Internal learner id (learners.id, not auth uid). */
   learnerId: string | null
-  /** Current belt for the stats header accent. */
-  currentBelt: { name: string; color: string; index: number }
 }>()
 
 const emit = defineEmits<{
   close: []
 }>()
 
-// Agent A's composable takes Refs and returns `{ data, isLoading, error }`.
-// We compute stats locally — the composable doesn't track them.
+// ---- Data composable ---------------------------------------------------------
+
 const courseCodeRef = toRef(props, 'courseCode')
 const learnerIdRef = toRef(props, 'learnerId')
-const network = useBrainNetwork(courseCodeRef, learnerIdRef)
-const brainData = computed(() => network.data.value)
-const isLoading = computed(() => network.isLoading.value)
+const timelapse = useBrainTimelapseData(courseCodeRef, learnerIdRef)
+const brainData = computed(() => timelapse.data.value)
+const isLoading = computed(() => timelapse.isLoading.value)
+const error = computed(() => timelapse.error?.value ?? null)
 
-const brainStats = computed<BrainViewStats | null>(() => {
+const revealedCount = computed(() => {
   const d = brainData.value
-  if (!d) return null
-  let revealed = 0
-  for (const n of d.nodes) if (n.isRevealed) revealed++
-  return {
-    revealedCount: revealed,
-    totalCount: d.nodes.length,
-    currentBelt: props.currentBelt,
-  }
+  if (!d) return 0
+  let n = 0
+  for (const node of d.nodes) if (node.isRevealed) n++
+  return n
 })
 
-// Focused node + neighbour resolution.
-const selectedNode = ref<NetworkNode | null>(null)
+const isEmpty = computed(() => !isLoading.value && revealedCount.value === 0)
 
-const handleNodeTap = (legoId: string) => {
-  const node = brainData.value?.nodes.find(n => n.legoId === legoId) ?? null
+// Compat stub for v1 BrainView's `stats` prop. Agent B's v2 BrainView drops
+// this prop entirely. Drop this computed when BrainView.vue's contract no
+// longer asks for it.
+const brainViewStatsCompat = computed(() => ({
+  revealedCount: revealedCount.value,
+  totalCount: brainData.value?.nodes.length ?? 0,
+  currentBelt: { name: 'white', color: '#ffffff', index: 0 },
+}))
+
+// ---- Focused node + screen coordinates ---------------------------------------
+
+const selectedNode = ref<NetworkNode | null>(null)
+const chipScreenX = ref(0)
+const chipScreenY = ref(0)
+
+const handleNodeTap = (legoId: string, screenX?: number, screenY?: number) => {
+  const node = brainData.value?.nodes.find((n: NetworkNode) => n.legoId === legoId) ?? null
   selectedNode.value = node
+  // Fallback when BrainView hasn't migrated to emitting screen coords yet:
+  // anchor the chip near the centre of the viewport so it's always visible.
+  if (typeof screenX === 'number' && typeof screenY === 'number') {
+    chipScreenX.value = screenX
+    chipScreenY.value = screenY
+  } else if (typeof window !== 'undefined') {
+    chipScreenX.value = window.innerWidth / 2
+    chipScreenY.value = window.innerHeight / 2
+  }
 }
 
-const handlePanelClose = () => {
+const handleChipClose = () => {
   selectedNode.value = null
 }
-
-const handleChipFocus = (legoId: string) => {
-  // Re-focus the network on the chip's word. Same code-path as a tap
-  // on the node itself, just from a different UI surface.
-  handleNodeTap(legoId)
-}
-
-// Translate beltIndex → BELTS[i].name for the side-panel "First learned
-// at" line. Falls back to "white" if the index is out of range.
-const selectedNodeBeltName = computed(() => {
-  if (!selectedNode.value) return 'white'
-  const idx = Math.max(0, Math.min(selectedNode.value.beltIndex, BELTS.length - 1))
-  return BELTS[idx]?.name ?? 'white'
-})
-
-// Neighbours: walk the edges, pull the other end of any edge where
-// this node is either source or target, then look up the node text.
-const connectedLegos = computed(() => {
-  if (!selectedNode.value || !brainData.value) return []
-  const me = selectedNode.value.legoId
-  const neighbourIds = new Set<string>()
-  for (const edge of brainData.value.edges) {
-    if (edge.source === me) neighbourIds.add(edge.target)
-    else if (edge.target === me) neighbourIds.add(edge.source)
-  }
-  const out: Array<{ legoId: string; text: string }> = []
-  for (const id of neighbourIds) {
-    const node = brainData.value.nodes.find(n => n.legoId === id)
-    if (node && node.isRevealed) {
-      out.push({ legoId: node.legoId, text: node.text })
-    }
-  }
-  // Cap chip count so a hub node doesn't blow the panel layout. The
-  // contract is "feel" — top connections by recency is Agent A's job;
-  // for now first 12 is a reasonable visual cap.
-  return out.slice(0, 12)
-})
-
-const headerTitle = computed(() => `Your brain on ${props.languageName}`)
-
-const subline = computed(() => {
-  const s = brainStats.value
-  if (!s) return ''
-  return `${s.revealedCount} of ${s.totalCount} words and phrases`
-})
 </script>
 
 <template>
   <div class="brain-screen">
-    <header class="brain-screen-header">
-      <button
-        class="brain-screen-back"
-        type="button"
-        aria-label="Back"
-        @click="emit('close')"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
-      <div class="brain-screen-titles">
-        <h1 class="brain-screen-title">{{ headerTitle }}</h1>
-        <p v-if="subline" class="brain-screen-subline">{{ subline }}</p>
-      </div>
-    </header>
+    <!-- Back button (lightweight; the brain owns the rest of the chrome) -->
+    <button
+      class="brain-screen-back"
+      type="button"
+      aria-label="Back"
+      @click="emit('close')"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+    </button>
 
-    <div v-if="isLoading && !brainData" class="brain-screen-loading">
-      …
+    <!-- Loading state -->
+    <div v-if="isLoading && !brainData" class="brain-screen-state">
+      <div class="brain-screen-spinner" aria-hidden="true" />
+      <p class="brain-screen-state-text">Building your brain…</p>
     </div>
 
+    <!-- Error state (data fetch blew up — rare; we still let the learner back out) -->
+    <div v-else-if="error && !brainData" class="brain-screen-state">
+      <p class="brain-screen-state-text">Couldn't load your brain right now.</p>
+    </div>
+
+    <!-- Empty state: no LEGOs introduced yet -->
+    <div v-else-if="isEmpty" class="brain-screen-state">
+      <p class="brain-screen-state-text">
+        Your {{ languageName }} brain is empty.<br>
+        Start a session to grow it.
+      </p>
+      <button
+        class="brain-screen-cta"
+        type="button"
+        @click="emit('close')"
+      >
+        Back to player
+      </button>
+    </div>
+
+    <!-- The brain itself.
+         `stats` is a v1 BrainView prop that Agent B is dropping in v2 — passed
+         here so this file typechecks while the parallel rewrites land. Safe to
+         remove once BrainView.vue's prop list drops `stats`. -->
     <BrainView
       v-else-if="brainData"
       class="brain-screen-canvas"
       :data="brainData"
-      :stats="brainStats"
-      :focused-lego-id="selectedNode?.legoId ?? null"
+      :stats="brainViewStatsCompat"
       @node-tap="handleNodeTap"
       @close="emit('close')"
     />
 
-    <BrainSidePanel
+    <!-- Floating chip on focused node -->
+    <BrainNodeChip
       :node="selectedNode"
-      :belt-name="selectedNodeBeltName"
-      :connected-legos="connectedLegos"
+      :screen-x="chipScreenX"
+      :screen-y="chipScreenY"
       :course-code="courseCode"
-      @close="handlePanelClose"
-      @node-focus="handleChipFocus"
+      @close="handleChipClose"
     />
   </div>
 </template>
@@ -161,46 +171,30 @@ const subline = computed(() => {
   position: relative;
   width: 100%;
   height: 100dvh;
-  background: var(--bg-primary, #f4f0eb);
+  background: #0a0a0f;
   overflow: hidden;
 }
 
-.brain-screen-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
-
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-}
-
 .brain-screen-back {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 12px;
+  z-index: 10;
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.20);
+  background: rgba(20, 20, 28, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e8e4df;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: rgba(44, 38, 34, 0.7);
-  flex-shrink: 0;
-  transition: all 0.18s ease;
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.06);
+  transition: background 0.15s;
 }
 
 .brain-screen-back:hover {
-  color: #2c2622;
-  border-color: rgba(0, 0, 0, 0.35);
+  background: rgba(40, 40, 52, 0.85);
 }
 
 .brain-screen-back svg {
@@ -208,42 +202,67 @@ const subline = computed(() => {
   height: 18px;
 }
 
-.brain-screen-titles {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.brain-screen-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #2c2622;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.brain-screen-subline {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: rgba(44, 38, 34, 0.5);
-}
-
-.brain-screen-loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  color: rgba(44, 38, 34, 0.5);
-}
-
 .brain-screen-canvas {
   position: absolute;
   inset: 0;
+}
+
+.brain-screen-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0 1.5rem;
+  color: rgba(232, 228, 223, 0.7);
+  text-align: center;
+}
+
+.brain-screen-state-text {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  max-width: 24ch;
+}
+
+.brain-screen-spinner {
+  width: 32px;
+  height: 32px;
+  border: 2px solid rgba(232, 228, 223, 0.15);
+  border-top-color: rgba(232, 228, 223, 0.6);
+  border-radius: 50%;
+  animation: brain-spinner 0.8s linear infinite;
+}
+
+@keyframes brain-spinner {
+  to { transform: rotate(360deg); }
+}
+
+.brain-screen-cta {
+  margin-top: 0.25rem;
+  padding: 0.55rem 1.1rem;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #e8e4df;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.brain-screen-cta:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brain-screen-spinner {
+    animation: none;
+  }
 }
 </style>
