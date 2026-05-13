@@ -15,10 +15,9 @@ import { useBrainNetwork } from '../composables/useBrainNetwork'
 import { BELTS } from '../composables/useBeltProgress'
 import type { NetworkNode, BrainViewStats } from '../types/brainNetwork'
 
-// BrainView.vue is owned by Agent B and may not have landed yet when
-// this branch is typechecked in isolation. Async-load it so the import
-// resolves at runtime; the ts-ignore covers the gap.
-// @ts-ignore - BrainView.vue ships from Agent B's worktree
+// Async-loaded so the PIXI renderer chunk (pixi.js + pixi-viewport, ~200kb)
+// doesn't get pulled into the main player bundle — the brain screen is
+// rarely the first thing a learner opens.
 const BrainView = defineAsyncComponent(() => import('./BrainView.vue'))
 
 const props = defineProps<{
