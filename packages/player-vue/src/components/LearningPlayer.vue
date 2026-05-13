@@ -3215,6 +3215,31 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
   }
 }, { immediate: true })
 
+// Split the displayed known text into [prefix][salient match][suffix] so the
+// hero card can highlight the substring matching the current cycle's salient
+// LEGO. Anchors the learner's attention on "the thing being practised in this
+// cycle" — works equally for current-round practice and for spaced-review
+// cycles (whose salient is a different, older LEGO). Returns null when there
+// is no salient, no known text for the salient, no substring match, or the
+// match is the whole sentence (highlighting everything is noise).
+const salientKnownParts = computed<{ prefix: string; match: string; suffix: string } | null>(() => {
+  const full = displayedKnownText.value
+  if (!full) return null
+  const legoId = (simplePlayer.currentCycle.value as any)?.legoId
+  if (!legoId) return null
+  const salientKnown = legoKnownTextMap.value.get(legoId)
+  if (!salientKnown || !salientKnown.trim()) return null
+  const idx = full.toLowerCase().indexOf(salientKnown.toLowerCase())
+  if (idx === -1) return null
+  // Whole-phrase match → highlighting everything is pointless; skip.
+  if (idx === 0 && salientKnown.trim().length >= full.trim().length) return null
+  return {
+    prefix: full.slice(0, idx),
+    match: full.slice(idx, idx + salientKnown.length),
+    suffix: full.slice(idx + salientKnown.length),
+  }
+})
+
 // Stable target text - only updates when hidden (prevents flash of new target between cycles)
 const displayedTargetText = ref('')
 watch([showTargetText, () => currentPhrase.value.target], ([showing, newTarget]) => {
@@ -7417,7 +7442,10 @@ defineExpose({
                 {{ passiveListeningHint }}
               </p>
               <p v-else class="hero-known">
-                {{ displayedKnownText }}
+                <template v-if="salientKnownParts"
+                  >{{ salientKnownParts.prefix }}<span class="hero-known-salient">{{ salientKnownParts.match }}</span>{{ salientKnownParts.suffix }}</template
+                >
+                <template v-else>{{ displayedKnownText }}</template>
               </p>
             </div>
           </div>
@@ -9813,6 +9841,16 @@ defineExpose({
   max-width: 100%;
 }
 
+/* Inline highlight on the substring matching the current cycle's salient
+   LEGO's known text. Subtle: small bg tint + slight weight bump, no border. */
+.hero-known-salient {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 1);
+  font-weight: 500;
+  border-radius: 3px;
+  padding: 0 0.18em;
+}
+
 /* Listening pedagogy — calmer, italic, slightly smaller. The learner is
  * meant to be passive here; the text is a nudge, not a prompt. */
 .hero-known.listening-pedagogy {
@@ -11673,6 +11711,12 @@ button.phase-segment:active:not(.is-active) {
 /* --- Hero text & intro — all text must be dark on white --- */
 [data-theme="mist"] .player .hero-known {
   color: var(--text-primary);
+}
+
+[data-theme="mist"] .player .hero-known-salient {
+  background: rgba(44, 38, 34, 0.08);
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 [data-theme="mist"] .player .hero-target {
