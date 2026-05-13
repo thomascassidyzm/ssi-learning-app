@@ -297,6 +297,19 @@ const brainCurrentBelt = computed(() => {
   return { name: 'white', color: '#ffffff', index: 0 }
 })
 
+// "Your brain on X" tile in the library: switch course if needed, then
+// route to the brain screen. closeLibrary first so the overlay doesn't
+// sit on top of the new screen.
+const handleOpenBrain = (course) => {
+  closeLibrary()
+  const targetCode = course?.course_code || course?.course_id
+  const isAlreadyActive = activeCourse?.value?.course_code === targetCode
+  if (!isAlreadyActive && handleCourseSelect) {
+    handleCourseSelect(course)
+  }
+  navigate('brain')
+}
+
 // Handle starting at a specific seed from CourseBrowser
 const handleStartAtSeed = (seedNumber) => {
   closeLibrary()
@@ -596,6 +609,7 @@ onMounted(() => {
             @select-course="(c) => { closeLibrary(); handleCourseSelect(c) }"
             @close="closeLibrary"
             @start-seed="handleStartAtSeed"
+            @open-brain="handleOpenBrain"
           />
         </div>
       </div>
