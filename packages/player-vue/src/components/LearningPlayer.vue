@@ -31,6 +31,9 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-expect-error — Agent A's telemetry composable lands on staging; placeholder import until merge.
+import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
@@ -631,6 +634,14 @@ const {
 // ============================================
 const simplePlayer = useSimplePlayer()
 
+// Brain-view telemetry. Feeds Agent A's pairings store: every cycle that
+// actually plays through bumps `fire_count` for its primary LEGO + any
+// constituent A-LEGOs of an M-LEGO. Drives the v2 brain timelapse:
+// thicker synapses + mastery tier. Skipped cycles (Turbo) never fire
+// `cycle_completed`, so we automatically only count what the learner
+// heard.
+const pairingsTelemetry = usePairingsTelemetry(courseCode, learnerId)
+
 // Diagnostic event log — captures play/pause/skip/stop taps + lap and
 // commentary lifecycle. Persisted in player_events; surfaced in the
 // admin user-detail page so user reports like "skip didn't work" can
@@ -790,6 +801,24 @@ simplePlayer.onCycleCompleted((cycle) => {
   itemsPracticed.value++
   learningHintPromptsShown.value++
   contribution.incrementLocal()
+
+  // Brain-view telemetry — fire-count the LEGOs that actually played.
+  // Primary LEGO + any A-LEGO constituents of an M-LEGO (pre-resolved on
+  // the cycle by RoundBuilder). Skipped cycles don't reach this handler,
+  // so we automatically respect the "only count what the learner heard"
+  // rule. Guests have a learnerId fallback the composable filters on.
+  if (cycle.legoId) {
+    const firedLegoIds = [cycle.legoId]
+    if (Array.isArray(cycle.componentLegoIds)) {
+      for (const id of cycle.componentLegoIds) {
+        if (id && id !== cycle.legoId) firedLegoIds.push(id)
+      }
+    }
+    void pairingsTelemetry.recordCyclePlay(firedLegoIds).catch((err: unknown) => {
+      // Telemetry must never break playback — log and move on.
+      console.warn('[LearningPlayer] pairings telemetry failed:', err)
+    })
+  }
 
   // Feed per-LEGO adaptive engine. Only when we have a real latency signal
   // (VAD detected speech). No-op when guest, when VAD disabled, or when the
