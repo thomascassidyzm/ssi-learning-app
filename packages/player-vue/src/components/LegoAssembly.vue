@@ -333,6 +333,27 @@ function softHyphenate(text: string): string {
 }
 
 /**
+ * For long M-LEGOs in practice phrases: split aligned components into
+ * balanced wagon groups (~2-3 per wagon) so the LEGO renders as multiple
+ * adjacent tiles rather than one shrunken-text tile. Stubs on the outer
+ * edges of each wagon (see CSS) communicate that the tiles are one LEGO
+ * being "hyphenated" across the boundary.
+ *
+ * Threshold: more than 3 components. Below that, a single tile reads fine.
+ */
+function practiceCarriageWagons(block: LegoBlock): ComponentBreakdown[][] | null {
+  const aligned = alignedBlockComponents(block)
+  if (!aligned || aligned.length <= 3) return null
+  const wagonCount = Math.ceil(aligned.length / 3)
+  const wagonSize = Math.ceil(aligned.length / wagonCount)
+  const wagons: ComponentBreakdown[][] = []
+  for (let i = 0; i < aligned.length; i += wagonSize) {
+    wagons.push(aligned.slice(i, i + wagonSize))
+  }
+  return wagons
+}
+
+/**
  * Align a practice block's components to its targetText.
  * Returns aligned components if successful, null if alignment fails
  * (caller should fall back to showing block.targetText as a single span).
@@ -437,7 +458,9 @@ const sentenceScale = computed(() => {
 
     <!-- ═══════════════════════════════════════════
          PRACTICE PHRASE BLOCKS — multiple LEGOs in a phrase
-         Each block is a tile; M-LEGOs render with stubs internally
+         Each block is a tile; M-LEGOs render with stubs internally.
+         Long M-LEGOs (>3 components) hyphenate into adjacent wagon tiles
+         with stub-style edge markings between them.
          ═══════════════════════════════════════════ -->
     <template v-else>
       <TransitionGroup :name="instantHide ? '' : 'lego-block'">
@@ -445,35 +468,68 @@ const sentenceScale = computed(() => {
           v-for="(block, index) in blocks"
           :key="block.id"
           class="lego-block-wrapper"
-          :class="[assemblyPhase]"
+          :class="[assemblyPhase, { 'is-hyphenated': !!practiceCarriageWagons(block) }]"
           :style="{
             '--stagger-delay': staggerDelay(index),
             '--char-count': block.targetText.length,
           }"
         >
-          <div
-            class="lego-block"
-            :class="{ salient: block.isSalient, 'has-components': !!alignedBlockComponents(block), 'solo-component': block.isSoloComponent }"
-          >
-            <!-- M-LEGO in practice phrase: align components to block text (golden rule) -->
-            <template v-if="alignedBlockComponents(block)">
+          <!-- Hyphenated mode: long M-LEGO split into wagon tiles -->
+          <template v-if="practiceCarriageWagons(block)">
+            <div class="hyphenated-track">
+              <div
+                v-for="(wagon, wi) in practiceCarriageWagons(block)!"
+                :key="wi"
+                class="lego-block wagon"
+                :class="{
+                  salient: block.isSalient,
+                  'has-components': wagon.length > 1,
+                  'wagon-start': wi === 0,
+                  'wagon-end': wi === practiceCarriageWagons(block)!.length - 1,
+                }"
+                :style="{ '--char-count': wagon.reduce((s, c) => s + c.target.length, 0) }"
+              >
+                <span v-for="(comp, ci) in wagon" :key="ci" class="comp block-text">{{ softHyphenate(comp.target) }}</span>
+              </div>
+            </div>
+            <div v-if="practiceCarriageWagons(block)!.some(w => w.some(c => c.known))" class="hyphenated-known-track">
+              <div
+                v-for="(wagon, wi) in practiceCarriageWagons(block)!"
+                :key="wi"
+                class="block-known-row wagon-known"
+              >
+                <span
+                  v-for="(comp, ci) in wagon"
+                  :key="ci"
+                  class="block-known-comp"
+                >{{ comp.known || '·' }}</span>
+              </div>
+            </div>
+          </template>
+          <!-- Standard mode: single tile (A-LEGO or short M-LEGO) -->
+          <template v-else>
+            <div
+              class="lego-block"
+              :class="{ salient: block.isSalient, 'has-components': !!alignedBlockComponents(block), 'solo-component': block.isSoloComponent }"
+            >
+              <template v-if="alignedBlockComponents(block)">
+                <span
+                  v-for="(comp, ci) in alignedBlockComponents(block)!"
+                  :key="ci"
+                  class="comp block-text"
+                >{{ softHyphenate(comp.target) }}</span>
+              </template>
+              <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
+            </div>
+            <div v-if="alignedBlockComponents(block)?.some(c => c.known)" class="block-known-row">
               <span
                 v-for="(comp, ci) in alignedBlockComponents(block)!"
                 :key="ci"
-                class="comp block-text"
-              >{{ softHyphenate(comp.target) }}</span>
-            </template>
-            <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
-          </div>
-          <!-- Known text: per-component for M-LEGOs, single for A-LEGOs -->
-          <div v-if="alignedBlockComponents(block)?.some(c => c.known)" class="block-known-row">
-            <span
-              v-for="(comp, ci) in alignedBlockComponents(block)!"
-              :key="ci"
-              class="block-known-comp"
-            >{{ comp.known || '·' }}</span>
-          </div>
-          <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+                class="block-known-comp"
+              >{{ comp.known || '·' }}</span>
+            </div>
+            <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+          </template>
         </div>
       </TransitionGroup>
     </template>
@@ -833,6 +889,78 @@ const sentenceScale = computed(() => {
   bottom: 0;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   HYPHENATED M-LEGO — split into adjacent wagon tiles for long phrases
+   Outer edges of wagons get stub-style markings (top + bottom partial
+   vertical bars, open middle) to communicate that the tiles are one
+   LEGO continuing across the boundary.
+   ═══════════════════════════════════════════════════════════════ */
+.hyphenated-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 6px;
+  max-width: calc(100vw - 2rem);
+}
+
+.hyphenated-known-track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6px;
+  max-width: calc(100vw - 2rem);
+  margin-top: 3px;
+}
+
+.hyphenated-known-track .wagon-known {
+  /* The known-row inside the track stretches to match its wagon above */
+  flex: 0 0 auto;
+}
+
+/* Outer edge of every wagon except the last: stub-style (no full right border) */
+.lego-block.wagon:not(.wagon-end) {
+  border-right-color: transparent;
+}
+.lego-block.wagon:not(.wagon-end)::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 1.5px;
+  height: calc(100% + 2px);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.4) 0% 27%,
+    transparent 27% 73%,
+    rgba(255, 255, 255, 0.4) 73% 100%
+  );
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Outer edge of every wagon except the first: stub-style (no full left border) */
+.lego-block.wagon:not(.wagon-start) {
+  border-left-color: transparent;
+}
+.lego-block.wagon:not(.wagon-start)::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 1.5px;
+  height: calc(100% + 2px);
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.4) 0% 27%,
+    transparent 27% 73%,
+    rgba(255, 255, 255, 0.4) 73% 100%
+  );
+  z-index: 2;
+  pointer-events: none;
+}
+
 /* --- ASSEMBLING (sequential reveal in reading order) --- */
 .lego-block-wrapper.assembling {
   animation: block-reveal 0.6s cubic-bezier(0.25, 0.1, 0.25, 1.0) var(--stagger-delay, 0s) both;
@@ -967,6 +1095,17 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::before,
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::after {
   background: rgba(44, 38, 34, 0.2);
+}
+
+/* Hyphenated wagon edge stubs for mist theme */
+:root[data-theme="mist"] .lego-block.wagon:not(.wagon-end)::after,
+:root[data-theme="mist"] .lego-block.wagon:not(.wagon-start)::before {
+  background: linear-gradient(
+    to bottom,
+    rgba(44, 38, 34, 0.25) 0% 27%,
+    transparent 27% 73%,
+    rgba(44, 38, 34, 0.25) 73% 100%
+  );
 }
 
 /* Single tile mist overrides */

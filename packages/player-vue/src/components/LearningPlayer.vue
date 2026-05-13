@@ -30,14 +30,16 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
+import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
 import { resolvePodActivationRound } from '../composables/usePodActivation'
-import { toSimpleRounds, type TargetSpeedConfig, NATIVE_PAUSE_CONFIG, LEGACY_PAUSE_CONFIG } from '../providers/toSimpleRounds'
+import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
+import { computePauseDuration } from '../playback/computePauseDuration'
 import { useAuthModal } from '../composables/useAuthModal'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
@@ -788,6 +790,23 @@ simplePlayer.onCycleCompleted((cycle) => {
   itemsPracticed.value++
   learningHintPromptsShown.value++
   contribution.incrementLocal()
+
+  // Feed per-LEGO adaptive engine. Only when we have a real latency signal
+  // (VAD detected speech). No-op when guest, when VAD disabled, or when the
+  // cycle is a listening/intro type without a meaningful learner response.
+  const latency = lastTimingResult.value?.response_latency_ms
+  if (
+    adaptationEngine.value &&
+    cycle.legoId &&
+    typeof latency === 'number' &&
+    cycle.target?.text
+  ) {
+    adaptationEngine.value.recordCycle(
+      cycle.legoId,
+      latency,
+      cycle.target.text.length
+    )
+  }
 
   resonatingNodes.value = []
 
@@ -1822,6 +1841,21 @@ const initializeBeltProgress = async () => {
 }
 
 /**
+ * Initialize per-LEGO adaptive pause engine.
+ * Safe for guests (engine runs in memory, no Supabase reads/writes).
+ */
+const initializeAdaptationEngine = async () => {
+  if (!courseCode.value || adaptationEngine.value) return
+  const engine = useAdaptationEngine({
+    supabase: supabase.value ?? null,
+    learnerId: learnerId.value ?? null,
+    courseCode: courseCode.value,
+  })
+  await engine.initialize()
+  adaptationEngine.value = engine
+}
+
+/**
  * Initialize belt loader for progressive loading
  * Call after belt progress is initialized to know starting position
  */
@@ -2604,11 +2638,20 @@ watch(pendingPhase, (phase) => {
   }
   currentPhase.value = phaseMap[phase] ?? Phase.PROMPT
 
-  // Start ring animation when entering pause phase
+  // Start ring animation when entering pause phase.
+  //
+  // Both the visible countdown and the SimplePlayer's setTimeout go through
+  // computePauseDuration(t1, t2, cfg) so admin tweaks to algorithm_config
+  // affect both in lockstep. cfg is normalConfig or turboConfig — the live
+  // values from the DB, with DEFAULT_NORMAL/DEFAULT_TURBO as fallback.
   if (phase === 'pause') {
-    // Get pause duration from current cycle
     const cycle = simplePlayer.currentCycle.value
-    const duration = cycle?.pauseDuration || 6500
+    const cfg = turboActive.value ? turboConfig.value : normalConfig.value
+    const duration = computePauseDuration(
+      cycle?.target1DurationMs ?? 0,
+      cycle?.target2DurationMs ?? 0,
+      cfg,
+    )
     startRingAnimation(duration)
   }
 })
@@ -3178,9 +3221,9 @@ function toSimpleRoundsWithComponents(items: any[]) {
     targetSpeed.globalSpeed = (targetSpeed.globalSpeed ?? 1.0) * learnerSpeed
   }
 
-  // Pick pause config based on course type
-  const pauseConfig = isNativeSpeed ? NATIVE_PAUSE_CONFIG : LEGACY_PAUSE_CONFIG
-  const rounds = toSimpleRounds(items, pauseConfig, targetSpeed)
+  // Pause comes from algorithm_config at runtime (see setRuntimeOverrides below);
+  // toSimpleRounds bakes a DEFAULT_NORMAL fallback for environments without live config.
+  const rounds = toSimpleRounds(items, targetSpeed)
   let count = 0
   for (const round of rounds) {
     for (const cycle of round.cycles) {
@@ -3220,6 +3263,23 @@ const isIntroPhase = computed(() => {
     : sessionItems.value[currentItemIndex.value]
   return item?.type === 'intro' || item?.type === 'component_intro'
 })
+
+// Phase strip — visible whenever the current cycle has a real pause phase.
+// pauseDuration > 0 is the definitional signal: the engine literally skips
+// the speak phase when pauseDuration === 0 (intro / listening / pod / bookend
+// / component_intro cycles, all of which are set to 0 in toSimpleRounds /
+// scriptItemToCycle). One signal, read straight off the cycle being played,
+// doesn't depend on item-lookup state.
+const showPhaseStrip = computed(() => {
+  return (simplePlayer.currentCycle.value?.pauseDuration ?? 0) > 0
+})
+
+// Click handler for the phase-strip segments. Routes to the SimplePlayer
+// engine which interrupts the current phase and starts the target one fresh.
+// Round / cycle boundaries unchanged — this is intra-cycle navigation only.
+function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
+  simplePlayer.skipToPhase(phase)
+}
 
 // Is current item intro OR debut? (for showing component breakdown tiles)
 // Component priming items should NOT show tiles (they ARE the component being primed)
@@ -5094,12 +5154,20 @@ simplePlayer.setRuntimeOverrides({
     if (!cycle.pauseDuration) return cycle.pauseDuration
     if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return cycle.pauseDuration
     // Recompute pause from raw target durations using the active mode's config.
-    // Same formula shape for both modes; the multiplier/base/floor/ceiling differ.
-    const t1 = cycle.target1DurationMs ?? 0
-    const t2 = cycle.target2DurationMs ?? 0
+    // Single source of truth — same helper drives the visible countdown.
     const cfg = turboActive.value ? turboConfig.value : normalConfig.value
-    const calc = cfg.pause_base_ms + (t1 + t2) * cfg.pause_multiplier
-    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, calc))
+    const base = computePauseDuration(
+      cycle.target1DurationMs ?? 0,
+      cycle.target2DurationMs ?? 0,
+      cfg,
+    )
+    // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
+    // Applied last so mode floors/ceilings are still respected before
+    // mastery scaling.
+    const multiplier = cycle.legoId
+      ? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
+      : 1.0
+    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
   getPlaybackSpeedMultiplier: (cycle) => {
     if (!turboActive.value) return 1.0
@@ -5197,6 +5265,11 @@ const ADAPTATION_CONSENT_KEY = 'ssi-adaptation-consent'
 
 // Consent states: null (not asked), true (granted), false (declined)
 const adaptationConsent = ref(null)
+
+// Per-LEGO adaptive pause engine. Hydrates from learner_lego_metrics on mount,
+// records latency per cycle, exposes a mastery-state-driven pause multiplier
+// applied in the getPauseDuration runtime override below.
+const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
@@ -5978,6 +6051,9 @@ onMounted(async () => {
   // Initialize belt progress (loads from localStorage, merges with Supabase)
   await initializeBeltProgress()
 
+  // Initialize per-LEGO adaptive pause engine (hydrates mastery from Supabase)
+  await initializeAdaptationEngine()
+
   // Initialize offline play composable (sets up online/offline listeners)
   offlinePlayCleanup = initializeOfflinePlay()
 
@@ -6754,6 +6830,9 @@ onUnmounted(() => {
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
+
+  // Flush any pending per-LEGO metrics, remove pagehide listener
+  adaptationEngine.value?.dispose()
   if (timingAnalyzer.value) {
     timingAnalyzer.value.reset()
     timingAnalyzer.value = null
@@ -7178,7 +7257,6 @@ defineExpose({
     :is-open="showBeltModal"
     :current-belt="playingBelt"
     :session-seconds="sessionSeconds"
-    :lifetime-learning-minutes="beltProgress?.totalLearningMinutes?.value ?? 0"
     :is-skipping="isSkippingBelt"
     :available-belts="beltProgress?.availableBelts?.value ?? []"
     :current-round="currentAbsoluteRound"
@@ -7186,7 +7264,6 @@ defineExpose({
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
     @close="showBeltModal = false"
-    @viewProgress="showBeltModal = false; emit('viewProgress')"
     @skipToBelt="handleSkipToBelt"
   />
 
@@ -7305,10 +7382,64 @@ defineExpose({
           </div>
         </template>
 
-        <!-- Pause countdown bar — inside the glass, at the bottom -->
-        <div v-if="currentPhase === 'speak' && !isIntroPhase" class="pause-timer-bar">
-          <div class="pause-timer-fill" :style="{ width: ringProgress + '%' }"></div>
+      </div>
+
+      <!-- Phase strip — a single pill divided into four segments. One
+           continuous shape reads as "one cycle, four stages". Sits below
+           the hero glass card. pointer-events: auto overrides the
+           .hero-text-pane parent's pointer-events: none. -->
+      <div v-if="showPhaseStrip" class="phase-strip" role="group" aria-label="Cycle phases">
+        <button
+          type="button"
+          class="phase-segment phase-segment--prompt"
+          :class="{ 'is-active': currentPhase === Phase.PROMPT }"
+          aria-label="Replay prompt"
+          @click="jumpToCyclePhase('prompt')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M3 14v-2a9 9 0 0 1 18 0v2"/>
+            <rect x="2" y="13" width="5" height="8" rx="2"/>
+            <rect x="17" y="13" width="5" height="8" rx="2"/>
+          </svg>
+        </button>
+        <div
+          class="phase-segment phase-segment--pause"
+          :class="{ 'is-active': currentPhase === Phase.SPEAK }"
+        >
+          <div class="phase-segment-fill" :style="{ width: ringProgress + '%' }"></div>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <rect x="9" y="3" width="6" height="12" rx="3"/>
+            <path d="M5 11v1a7 7 0 0 0 14 0v-1"/>
+            <line x1="12" y1="19" x2="12" y2="22"/>
+            <line x1="8" y1="22" x2="16" y2="22"/>
+          </svg>
         </div>
+        <button
+          type="button"
+          class="phase-segment phase-segment--voice1"
+          :class="{ 'is-active': currentPhase === Phase.VOICE_1 }"
+          aria-label="Skip to model voice 1"
+          @click="jumpToCyclePhase('voice1')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="8" r="3.5"/>
+            <path d="M5 21v-1.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5V21"/>
+          </svg>
+          <span class="phase-segment-num">1</span>
+        </button>
+        <button
+          type="button"
+          class="phase-segment phase-segment--voice2"
+          :class="{ 'is-active': currentPhase === Phase.VOICE_2 }"
+          aria-label="Skip to model voice 2"
+          @click="jumpToCyclePhase('voice2')"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="8" r="3.5"/>
+            <path d="M5 21v-1.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5V21"/>
+          </svg>
+          <span class="phase-segment-num">2</span>
+        </button>
       </div>
 
       <!-- Guest save progress button -->
@@ -9795,34 +9926,172 @@ defineExpose({
   font-weight: 600;
 }
 
-/* Pause countdown bar — inside hero-glass at bottom */
-.pause-timer-bar {
-  width: 100%;
-  height: 3px;
-  margin-top: var(--space-sm);
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.pause-timer-fill {
-  height: 100%;
-  background: #dc2626;
-  border-radius: 2px;
-  transition: width 0.1s linear;
-  box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
-}
-
-/* ============ PHASE STRIP (legacy - kept for reference) ============ */
-/* Horizontal Phase Strip - speaker → mic → speaker → eyes */
-/* NOTE: This is now replaced by .learning-hint in the template */
+/* Phase strip — a single rounded pill divided into four segments, reading
+ * left-to-right as the cycle's journey. The outer pill anchors the visual
+ * "this is one cycle"; internal dividers separate stages.
+ *
+ *   ┌────┬─────────────────────┬──────┬──────┐
+ *   │ 🎧 │  🎤  ▓▓▓░░░░░░░░░  │ 👤 1 │ 👤 2 │
+ *   └────┴─────────────────────┴──────┴──────┘
+ *
+ * pointer-events: auto here overrides the parent .hero-text-pane's
+ * pointer-events: none — otherwise the buttons inherit pass-through
+ * and clicks never reach them.
+ */
 .phase-strip {
   display: flex;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 10px;
+  align-items: stretch;
+  height: 40px;
+  width: 100%;
+  max-width: 340px;
+  margin: var(--space-md) auto 0;
+  /* iOS-character white pill — matches .hero-glass and .component-tile
+   * mist treatment so the phase strip reads as part of the same family
+   * of white-card components on the page. */
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  border-radius: 999px;
+  box-shadow:
+    0 2px 4px rgba(44, 38, 34, 0.10),
+    0 6px 16px rgba(44, 38, 34, 0.06);
+  overflow: hidden;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
+.phase-segment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  /* Explicit percentage widths: pause is 40% to give the countdown enough
+   * length to read as a timer; the other three are 20% each. Total = 100%
+   * of the pill interior, so segments butt up exactly with no leftover
+   * margin to leak as visible gaps. */
+  flex: 0 0 20%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  color: rgba(0, 0, 0, 0.55);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  isolation: isolate;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.phase-segment--pause {
+  flex: 0 0 40%;
+}
+
+button.phase-segment {
+  cursor: pointer;
+}
+
+/* Thin 1px vertical dividers between phases — same visual language as the
+ * LEGO component tiles. Implemented as an absolutely-positioned ::before
+ * so it doesn't add to the segment's box-width and break the 20/40/20/20
+ * layout. Inset from top/bottom so it reads as a tick mark, not a wall. */
+.phase-segment + .phase-segment::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.12);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.phase-segment svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+}
+
+.phase-segment-num {
+  position: relative;
+  z-index: 1;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+/* Hover-only styles — guarded so iOS touch devices don't get stuck in
+ * `:hover` after a tap (the classic "pink voice1 button" sticky state). */
+@media (hover: hover) {
+  button.phase-segment:hover:not(.is-active) {
+    background: var(--accent-soft);
+    color: var(--ssi-red);
+  }
+}
+
+button.phase-segment:active:not(.is-active) {
+  background: color-mix(in srgb, var(--ssi-red) 18%, transparent);
+}
+
+.phase-segment.is-active {
+  background: var(--ssi-red);
+  color: #fff;
+}
+
+.phase-segment.is-active .phase-segment-num {
+  opacity: 0.9;
+}
+
+/* Active pause keeps its bg transparent — otherwise the section bg and
+ * the growing fill are both --ssi-red and the countdown is invisible.
+ * The fill IS the only red; icon stays dark for readability. */
+.phase-segment--pause.is-active {
+  background: transparent;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+/* Active pause MUST override the red bg — otherwise the section bg and
+ * the growing fill are both --ssi-red and the countdown is invisible.
+ * Keep the section bg transparent so the fill IS the only red, and dim
+ * the icon to dark for readability over the white→red sweep. */
+.phase-segment--pause.is-active {
+  background: transparent;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+/* Pause countdown — single red. The fill is the entire active-state visual:
+ * starts at 0% anchored to the section's left edge, grows to 100% as the
+ * pause progresses. Anchored explicitly with left/top/bottom (no `right`,
+ * no `inset` shorthand) so width is unambiguously a left-anchored grow.
+ * When fill = 100% the section is fully red and butts cleanly against
+ * the adjacent voice1 segment. No separate active-state background — the
+ * unfilled portion is just the pill's white bg, same as inactive
+ * segments. No darker red. */
+.phase-segment--pause .phase-segment-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: var(--ssi-red);
+  transition: width 0.1s linear;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============ PHASE STRIP (legacy section helpers — .phase-section,
+ * NOT .phase-strip; kept because some other code may still reference
+ * .phase-section). The duplicate .phase-strip rule that lived here was
+ * deleted: it was applying `gap: 6px` to the new segmented pill,
+ * forcing visible whitespace between every segment. */
 .phase-section {
   display: flex;
   align-items: center;
@@ -9942,12 +10211,9 @@ defineExpose({
    Only special cases (landscape compact mode) need media queries.
    ═══════════════════════════════════════════════════════════════ */
 
-/* Phase strip - responsive sizing using clamp() */
-.phase-strip {
-  gap: clamp(3px, 1vmin, 12px);
-  margin-bottom: clamp(6px, 1.5vmin, 16px);
-}
-
+/* Legacy responsive .phase-section sizing (NOT .phase-strip — that
+ * duplicate rule was deleted; it was overriding the new segmented pill
+ * with `gap: clamp(...)` and reintroducing visible whitespace). */
 .phase-section {
   width: clamp(28px, 6vmin, 64px);
   height: clamp(28px, 6vmin, 64px);

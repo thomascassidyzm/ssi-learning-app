@@ -1,5 +1,5 @@
 <script setup>
-import { ref, provide, onMounted, computed, inject, watch } from 'vue'
+import { ref, provide, onMounted, computed, inject, watch, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 
 // Global backdrop
@@ -7,16 +7,17 @@ import SumiEBackground from '@/components/SumiEBackground.vue'
 
 // Screen components
 import LearningPlayer from '@/components/LearningPlayer.vue'
-import SettingsScreen from '@/components/SettingsScreen.vue'
-import CourseExplorer from '@/components/CourseExplorer.vue'
-import CourseBrowser from '@/components/CourseBrowser.vue'
-import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import PlayerRestingState from '@/components/PlayerRestingState.vue'
-import CourseSelector from '@/components/CourseSelector.vue'
 
-// Custom auth modal (unified)
-import { SignInModal } from '@/components/auth'
+// Modals / overlays — all gated behind user-triggered v-if state, so
+// none of them needs to be on the player's first-paint critical path.
+// Async-load each as its own chunk; Vue mounts them on first render.
+const SettingsScreen = defineAsyncComponent(() => import('@/components/SettingsScreen.vue'))
+const CourseExplorer = defineAsyncComponent(() => import('@/components/CourseExplorer.vue'))
+const BrowseScreen = defineAsyncComponent(() => import('@/components/BrowseScreen.vue'))
+const CourseSelector = defineAsyncComponent(() => import('@/components/CourseSelector.vue'))
+const SignInModal = defineAsyncComponent(() => import('@/components/auth/SignInModal.vue'))
 
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -512,9 +513,14 @@ onMounted(() => {
       @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
-    <!-- Player resting state overlay (shown when paused, hidden during playback) -->
+
+    <!-- Player resting state overlay (shown when paused, hidden during playback).
+         Also gated on activeCourse + isPlayerReady so a fresh launch doesn't
+         flash a "Loading… / White Belt / globe" placeholder before the user's
+         actual course and belt resolve — better to show the cultural backdrop
+         alone for ~200-400ms than misleading default state. -->
     <PlayerRestingState
-      v-if="currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
+      v-if="activeCourse && isPlayerReady && currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"

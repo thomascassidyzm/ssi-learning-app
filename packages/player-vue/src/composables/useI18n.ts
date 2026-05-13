@@ -7,64 +7,52 @@
 
 import { ref, computed, type Ref } from 'vue'
 
-// Import locale files statically for now
-// In future, could lazy-load based on known language
-// File names use ISO 639-3 codes (3-char)
+// Only `eng` is eager — it's the universal fallback (used by t() when a
+// key is missing in the current locale), so it needs to be available
+// synchronously at module load. Every other locale is lazy-loaded via
+// import() so a single-language user (which is most users) doesn't pay
+// for ~230KB of locale JSON on first paint. See setLocale() below.
+// File names use ISO 639-3 codes (3-char).
 import eng from '../locales/eng.json'
-import spa from '../locales/spa.json'
-import cym from '../locales/cym.json'
-import ara from '../locales/ara.json'
-import deu from '../locales/deu.json'
-import fra from '../locales/fra.json'
-import ita from '../locales/ita.json'
-import jpn from '../locales/jpn.json'
-import kor from '../locales/kor.json'
-import por from '../locales/por.json'
-import zho from '../locales/zho.json'
-// Indian-subcontinent + Sri Lanka
-import sin from '../locales/sin.json'
-import tam from '../locales/tam.json'
-import hin from '../locales/hin.json'
-import ben from '../locales/ben.json'
-import guj from '../locales/guj.json'
-import pan from '../locales/pan.json'
-import urd from '../locales/urd.json'
-// Other interface languages
-import aze from '../locales/aze.json'
-import lit from '../locales/lit.json'
-import yor from '../locales/yor.json'
 
-// Map ISO 639-3 codes to locale files
-// Multiple codes can map to same locale (e.g., cym_n and cym_s both use cym)
-// Use loose type — locale files may have fewer keys than eng (fallback handles missing)
-const LOCALE_MAP: Record<string, Record<string, any>> = {
-  eng: eng,
-  spa: spa,
-  cym: cym,
-  cym_n: cym,
-  cym_s: cym,
-  ara: ara,
-  deu: deu,
-  fra: fra,
-  ita: ita,
-  jpn: jpn,
-  kor: kor,
-  por: por,
-  zho: zho,
-  cmn: zho,
+type LocaleLoader = () => Promise<Record<string, any>>
+
+const unwrap = (m: any): Record<string, any> => (m && m.default) || m
+
+// Lazy loaders — each one becomes its own Vite chunk; only the locale
+// the user actually picks is fetched.
+const cymLoader: LocaleLoader = () => import('../locales/cym.json').then(unwrap)
+const LOCALE_LOADERS: Record<string, LocaleLoader> = {
+  eng: () => Promise.resolve(eng),
+  spa: () => import('../locales/spa.json').then(unwrap),
+  cym: cymLoader,
+  cym_n: cymLoader, // dialect codes share the same locale file
+  cym_s: cymLoader,
+  ara: () => import('../locales/ara.json').then(unwrap),
+  deu: () => import('../locales/deu.json').then(unwrap),
+  fra: () => import('../locales/fra.json').then(unwrap),
+  ita: () => import('../locales/ita.json').then(unwrap),
+  jpn: () => import('../locales/jpn.json').then(unwrap),
+  kor: () => import('../locales/kor.json').then(unwrap),
+  por: () => import('../locales/por.json').then(unwrap),
+  zho: () => import('../locales/zho.json').then(unwrap),
+  cmn: () => import('../locales/zho.json').then(unwrap),
   // Indian-subcontinent + Sri Lanka
-  sin: sin,
-  tam: tam,
-  hin: hin,
-  ben: ben,
-  guj: guj,
-  pan: pan,
-  urd: urd,
+  sin: () => import('../locales/sin.json').then(unwrap),
+  tam: () => import('../locales/tam.json').then(unwrap),
+  hin: () => import('../locales/hin.json').then(unwrap),
+  ben: () => import('../locales/ben.json').then(unwrap),
+  guj: () => import('../locales/guj.json').then(unwrap),
+  pan: () => import('../locales/pan.json').then(unwrap),
+  urd: () => import('../locales/urd.json').then(unwrap),
   // Other interface languages
-  aze: aze,
-  lit: lit,
-  yor: yor,
+  aze: () => import('../locales/aze.json').then(unwrap),
+  lit: () => import('../locales/lit.json').then(unwrap),
+  yor: () => import('../locales/yor.json').then(unwrap),
 }
+
+// Cache resolved locales so re-selecting one doesn't refetch.
+const loadedLocales: Record<string, Record<string, any>> = { eng }
 
 // localStorage key for persisting locale preference
 const LOCALE_STORAGE_KEY = 'ssi-locale'
@@ -78,25 +66,63 @@ const getSavedLocale = (): string => {
   }
 }
 
-// Current locale state (shared across app)
+// Current locale state (shared across app).
+// We start with English messages even if the saved locale is something
+// else — the real locale loads asynchronously below. Strings render in
+// English for the brief window before the chunk arrives, which is the
+// same fallback behaviour t() already has for any missing key.
 const savedLocale = getSavedLocale()
 const currentLocale: Ref<string> = ref(savedLocale)
-const currentMessages: Ref<Record<string, any>> = ref(LOCALE_MAP[savedLocale] || eng)
+const currentMessages: Ref<Record<string, any>> = ref(eng)
 
 /**
- * Set the current locale based on the user's known language
- * Persists to localStorage for next visit
+ * Set the current locale. Persists to localStorage and fetches the
+ * locale chunk on demand if it isn't already loaded. Async because
+ * non-English locales are dynamic imports; existing callers don't
+ * await the promise (fire-and-forget is fine — currentMessages is
+ * reactive so the UI re-renders when the chunk lands).
  */
-export const setLocale = (langCode: string) => {
-  currentLocale.value = langCode
-  currentMessages.value = LOCALE_MAP[langCode] || eng
+export const setLocale = async (langCode: string): Promise<void> => {
+  const loader = LOCALE_LOADERS[langCode]
+  if (!loader) return // unknown locale — keep current
 
-  // Persist choice
+  // Persist the choice immediately so a quick refresh keeps the
+  // preference even if the chunk download hasn't completed yet.
   try {
     localStorage.setItem(LOCALE_STORAGE_KEY, langCode)
   } catch {
     // localStorage might be unavailable
   }
+  currentLocale.value = langCode
+
+  // Use cached messages if we've already loaded this locale.
+  const cached = loadedLocales[langCode]
+  if (cached) {
+    currentMessages.value = cached
+    return
+  }
+
+  try {
+    const messages = await loader()
+    loadedLocales[langCode] = messages
+    // Guard against a race where the user switched again while this
+    // load was in flight — only apply if we're still on this locale.
+    if (currentLocale.value === langCode) {
+      currentMessages.value = messages
+    }
+  } catch (err) {
+    console.warn('[useI18n] Failed to load locale', langCode, err)
+    // Stay on English fallback — nothing else to do.
+  }
+}
+
+// Boot: if the saved locale isn't English, kick off the chunk fetch
+// without blocking module evaluation. The UI mounts in English, then
+// rerenders once the locale lands (typically within ~50-200ms).
+if (savedLocale !== 'eng' && LOCALE_LOADERS[savedLocale]) {
+  setLocale(savedLocale).catch(() => {
+    /* already logged above */
+  })
 }
 
 /**

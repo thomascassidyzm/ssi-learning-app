@@ -38,6 +38,25 @@ git pull origin staging
 
 ---
 
+## Canonical RLS / auth pattern
+
+User-id columns in this DB are mixed-type — there is no single comparison pattern that works everywhere. **The rule is column-type-dependent:**
+
+| Column type | Pattern | Examples |
+|---|---|---|
+| TEXT user_id | `column = auth.uid()::text` | `learners.user_id`, `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id` |
+| UUID user_id | `column = auth.uid()` (no cast) | `audio_plays.user_id`, `player_events.user_id` |
+
+**Why mixed:** The Clerk migration `20251219120000` changed `learners.user_id` from UUID to TEXT for Clerk's string IDs. Clerk was never shipped — auth is Supabase — but several columns were already converted by then and weren't reverted. Newer tables (`audio_plays`, `player_events`) were authored against Supabase Auth directly and use UUID. Before authoring a new policy, **check the column type** (`\d <table>` or look at the create migration).
+
+**Do not** use any of:
+- Wrong cast direction — throws `operator does not exist: uuid = text` (or vice versa) at policy creation time
+- `auth.jwt()->>'sub'` — Clerk-era artefact. Evaluates to the same value as `auth.uid()::text` under Supabase Auth today, but the two definitions could diverge under impersonation or future JWT-claims work. Migration `20260512_unify_user_id_auth_pattern.sql` converted every direct use to one of the two canonical patterns above.
+
+After any policy change, end the migration with `NOTIFY pgrst, 'reload schema';`.
+
+---
+
 ## Project Overview
 
 **SSi Learning App** is the language learning player application that delivers SSi courses to learners. It's built as a monorepo with a framework-agnostic TypeScript core and UI adapters.

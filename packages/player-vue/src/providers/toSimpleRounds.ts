@@ -5,78 +5,21 @@
  *
  * generateLearningScript() → toSimpleRounds() → SimplePlayer.initialize()
  *
- * Pause duration formula:
- *   pauseDuration = bootUpTimeMs + scaleFactor * (target1DurationMs + target2DurationMs)
- *
- * bootUpTimeMs: Cognitive boot-up time before learner starts speaking (default: 2000ms)
- * scaleFactor: How much of the target audio length to allow for response (default: 0.75)
+ * Pause duration: see computePauseDuration.ts — single helper driven by the
+ * admin-controlled ModeConfig (algorithm_config table). The baked value below
+ * uses DEFAULT_NORMAL as a fallback; LearningPlayer's runtime override
+ * recomputes from the live config so admin tweaks affect both the visible
+ * countdown and the actual setTimeout in lockstep.
  */
 
 import type { ScriptItem } from './generateLearningScript'
 import type { Round, Cycle } from '../playback/SimplePlayer'
-
-const CJK_REGEX = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
-
-export interface PauseConfig {
-  bootUpTimeMs: number    // Cognitive boot-up time (default: 2000ms)
-  scaleFactor: number     // Scale factor for target audio duration (default: 0.75)
-}
-
-// Native speed courses (recorded at 1.0x): longer pauses for generate-from-prompt loop
-// scaleFactor 3.0 on target1 alone ≈ scaleFactor 1.5 on (target1 + target2) in
-// scriptItemToCycle, keeping the two paths consistent on what real speakers need.
-export const NATIVE_PAUSE_CONFIG: PauseConfig = {
-  bootUpTimeMs: 2000,
-  scaleFactor: 3.0
-}
-
-// Legacy courses (recorded at 0.8-0.9x): slightly less pause, audio already slower
-export const LEGACY_PAUSE_CONFIG: PauseConfig = {
-  bootUpTimeMs: 1500,
-  scaleFactor: 2.5
-}
-
-export const DEFAULT_PAUSE_CONFIG = NATIVE_PAUSE_CONFIG
+import { computePauseDuration } from '../playback/computePauseDuration'
+import { DEFAULT_NORMAL } from '../composables/useAlgorithmConfig'
 
 const audioUrl = (uuid: string | undefined): string => {
   if (!uuid) return ''
   return `/api/audio/${uuid}`
-}
-
-/**
- * Estimate speech duration from text when DB duration is missing.
- * CJK: ~300ms per character. Other: ~250ms per word.
- */
-function estimateDurationMs(targetText: string): number {
-  if (!targetText) return 2000
-  if (CJK_REGEX.test(targetText)) {
-    const chars = [...targetText].filter(c => CJK_REGEX.test(c)).length
-    return Math.max(800, chars * 300)
-  }
-  const words = targetText.trim().split(/\s+/).length
-  return Math.max(800, words * 250)
-}
-
-/**
- * Calculate pause duration based on target audio length
- * Formula: bootUpTime + scaleFactor * target1Duration
- *
- * Cap of 22000ms covers SSi's generate-from-prompt loop for very long phrases
- * (a 6s target with scaleFactor 3.0 reaches 2 + 18 = 20s, leaving margin).
- * Audit 2026-05-12: previous 16s cap with 2.0 multiplier was clamping the
- * long-phrase end where learners need the most time to retrieve and articulate
- * from L1 prompt; bumping to 22s with 3.0 multiplier opens the long end without
- * affecting short phrases.
- */
-function calculatePauseDuration(
-  target1DurationMs: number | undefined,
-  target2DurationMs: number | undefined,
-  config: PauseConfig,
-  targetText?: string
-): number {
-  const t1 = target1DurationMs || estimateDurationMs(targetText || '')
-
-  return Math.min(22000, Math.round(config.bootUpTimeMs + config.scaleFactor * t1))
 }
 
 /**
@@ -166,7 +109,6 @@ function computePlaybackSpeed(
 
 export function toSimpleRounds(
   items: ScriptItem[],
-  pauseConfig: PauseConfig = DEFAULT_PAUSE_CONFIG,
   targetSpeed: TargetSpeedConfig = {}
 ): Round[] {
   // Group by roundNumber - each round is a complete learning unit
@@ -262,7 +204,7 @@ export function toSimpleRounds(
         // Other cycles: dynamic pause based on target audio lengths.
         pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)
           ? 0
-          : calculatePauseDuration(i.target1DurationMs, i.target2DurationMs, pauseConfig, i.targetText),
+          : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_NORMAL),
         // Intro/component_intro: linger after voice2 so learner can read
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.type === 'component_intro' ? { lingerMs: 1500 } : {}),

@@ -1,378 +1,411 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import SearchBox from '@/components/schools/shared/SearchBox.vue'
+import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
-import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
 
 const router = useRouter()
-const { currentUser: selectedUser } = useSchoolContext()
-const { schools, groupSummary, totalClasses, fetchSchools, selectSchoolToView } = useSchoolData()
+const { currentUser } = useSchoolContext()
+const {
+  schools,
+  groupSummary,
+  totalStudents,
+  totalTeachers,
+  totalClasses,
+  totalPracticeHours,
+  fetchSchools,
+  selectSchoolToView,
+} = useSchoolData()
 
-// Search
 const searchQuery = ref('')
+type SortKey = 'hours' | 'students' | 'name'
+const sortKey = ref<SortKey>('hours')
 
-// Filtered schools
-const filteredSchools = computed(() => {
-  if (!searchQuery.value) return schools.value
-  const query = searchQuery.value.toLowerCase()
-  return schools.value.filter(school =>
-    school.school_name.toLowerCase().includes(query)
+const filteredSchools = computed<School[]>(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  const list = q
+    ? schools.value.filter((s) => s.school_name.toLowerCase().includes(q))
+    : [...schools.value]
+
+  return list.sort((a, b) => {
+    if (sortKey.value === 'students') return b.student_count - a.student_count
+    if (sortKey.value === 'name') return a.school_name.localeCompare(b.school_name)
+    return b.total_practice_hours - a.total_practice_hours
+  })
+})
+
+const headerEyebrow = computed(() => {
+  return (
+    currentUser.value?.organization_name ||
+    groupSummary.value?.group_name ||
+    (currentUser.value?.region_code ? `${currentUser.value.region_code.toUpperCase()} Authority` : 'Programme view')
   )
 })
 
-// Handle school click - drill down
-function handleSchoolClick(school: typeof schools.value[0]) {
+const headerLede = computed(() => {
+  const n = schools.value.length
+  if (!n) return 'No schools registered in this programme yet.'
+  return `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'} active.`
+})
+
+const hoursThisWeek = computed(() => Math.round(totalPracticeHours.value))
+
+function schoolInitial(name: string): string {
+  const parts = name.split(/\s+/).filter(Boolean)
+  const last = parts[parts.length - 1] || name
+  return (last[0] || '?').toUpperCase()
+}
+
+function formatJoined(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return '—'
+    return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+  } catch {
+    return '—'
+  }
+}
+
+function handleSchoolClick(school: School) {
   selectSchoolToView(school)
   router.push('/schools')
 }
 
-// Format hours
-function formatHours(hours: number): string {
-  if (hours >= 1000) return `${(hours / 1000).toFixed(1)}k`
-  return hours.toFixed(0)
-}
-
-// Animation
-const isVisible = ref(false)
 onMounted(() => {
-  setTimeout(() => { isVisible.value = true }, 50)
-  if (selectedUser.value) {
-    fetchSchools()
-  }
+  if (currentUser.value) fetchSchools()
 })
 
-watch(selectedUser, (newUser) => {
-  if (newUser) {
-    fetchSchools()
-  }
+watch(currentUser, (u) => {
+  if (u) fetchSchools()
 })
 </script>
 
 <template>
-  <div class="schools-view" :class="{ 'is-visible': isVisible }">
-    <!-- Page Header -->
-    <header class="page-header animate-item" :class="{ 'show': isVisible }">
-      <div class="page-title">
-        <h1>Schools</h1>
-        <div class="school-count" v-if="groupSummary">
-          <span class="count-value">{{ groupSummary.school_count }}</span> schools in {{ groupSummary.group_name }}
+  <main class="schools-list-screen">
+    <div class="hero">
+      <div class="hero-text">
+        <div class="hero-eyebrow">{{ headerEyebrow }}</div>
+        <h1 class="arsenal hero-title">All schools</h1>
+        <p class="hero-lede schools-subtle">{{ headerLede }}</p>
+      </div>
+      <div class="hero-actions">
+        <button type="button" class="btn-ghost">Export</button>
+        <button type="button" class="btn-play">+ Onboard new school</button>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="schools-card kpi">
+        <span class="arsenal kpi-value">{{ schools.length }}</span>
+        <span class="kpi-label">Schools</span>
+      </div>
+      <div class="schools-card kpi">
+        <span class="arsenal kpi-value">{{ totalStudents.toLocaleString() }}</span>
+        <span class="kpi-label">Students</span>
+      </div>
+      <div class="schools-card kpi">
+        <span class="arsenal kpi-value">{{ totalTeachers }}</span>
+        <span class="kpi-label">Teachers</span>
+      </div>
+      <div class="schools-card kpi">
+        <span class="arsenal kpi-value">{{ totalClasses }}</span>
+        <span class="kpi-label">Classes</span>
+      </div>
+      <div class="schools-card kpi">
+        <span class="arsenal kpi-value">{{ hoursThisWeek }}h</span>
+        <span class="kpi-label">Practice hours</span>
+      </div>
+      <div class="schools-card kpi">
+        <span class="arsenal kpi-value">—</span>
+        <span class="kpi-label">Active in 7d</span>
+      </div>
+    </div>
+
+    <div class="schools-card list-card">
+      <div class="list-header">
+        <h3 class="arsenal list-title">{{ schools.length }} school{{ schools.length === 1 ? '' : 's' }}</h3>
+        <div class="list-controls">
+          <input
+            v-model="searchQuery"
+            class="list-search"
+            type="text"
+            placeholder="Search…"
+            aria-label="Search schools"
+          />
+          <select v-model="sortKey" class="list-sort" aria-label="Sort schools">
+            <option value="hours">Sort by hours</option>
+            <option value="students">Sort by students</option>
+            <option value="name">Sort by name</option>
+          </select>
         </div>
       </div>
-    </header>
 
-    <!-- Group Summary -->
-    <div class="group-stats animate-item delay-1" :class="{ 'show': isVisible }" v-if="groupSummary">
-      <div class="stat-card">
-        <div class="stat-value">{{ groupSummary.school_count }}</div>
-        <div class="stat-label">Schools</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ groupSummary.teacher_count }}</div>
-        <div class="stat-label">Teachers</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ totalClasses }}</div>
-        <div class="stat-label">Classes</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ groupSummary.student_count.toLocaleString() }}</div>
-        <div class="stat-label">Students</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ formatHours(groupSummary.total_practice_hours) }}</div>
-        <div class="stat-label">Hours Learned</div>
-      </div>
+      <table class="ssi-table">
+        <thead>
+          <tr>
+            <th>School</th>
+            <th>City</th>
+            <th>Students</th>
+            <th>Teachers</th>
+            <th>Classes</th>
+            <th>Hours</th>
+            <th>Joined</th>
+            <th>Health</th>
+            <th aria-label="actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="school in filteredSchools" :key="school.id">
+            <td>
+              <div class="school-cell">
+                <div class="school-mark">{{ schoolInitial(school.school_name) }}</div>
+                <div class="school-name">{{ school.school_name }}</div>
+              </div>
+            </td>
+            <td class="schools-subtle">—</td>
+            <td>{{ school.student_count }}</td>
+            <td>{{ school.teacher_count }}</td>
+            <td>{{ school.class_count }}</td>
+            <td>{{ Math.round(school.total_practice_hours) }}h</td>
+            <td class="schools-subtle">{{ formatJoined(school.created_at) }}</td>
+            <td>
+              <span class="health-cell">
+                <HealthDot :health="school.health" />
+                <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
+              </span>
+            </td>
+            <td class="row-action">
+              <button type="button" class="row-link" @click="handleSchoolClick(school)">
+                Open →
+              </button>
+            </td>
+          </tr>
+          <tr v-if="!filteredSchools.length">
+            <td colspan="9" class="empty-row schools-subtle">
+              <template v-if="searchQuery">No schools match "{{ searchQuery }}".</template>
+              <template v-else>No schools to show.</template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
-
-    <!-- Search -->
-    <div class="search-bar animate-item delay-1" :class="{ 'show': isVisible }">
-      <SearchBox
-        v-model="searchQuery"
-        placeholder="Search schools..."
-        block
-      />
-    </div>
-
-    <!-- Schools Grid -->
-    <div class="schools-grid animate-item delay-2" :class="{ 'show': isVisible }">
-      <button
-        v-for="school in filteredSchools"
-        :key="school.id"
-        class="school-card"
-        @click="handleSchoolClick(school)"
-      >
-        <div class="school-header">
-          <div class="school-avatar">
-            {{ school.school_name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() }}
-          </div>
-          <div class="school-info">
-            <h3 class="school-name">{{ school.school_name }}</h3>
-            <span class="school-group">{{ school.school_name }}</span>
-          </div>
-        </div>
-        <div class="school-stats">
-          <div class="school-stat">
-            <span class="stat-number">{{ school.teacher_count }}</span>
-            <span class="stat-label">Teachers</span>
-          </div>
-          <div class="school-stat">
-            <span class="stat-number">{{ school.class_count }}</span>
-            <span class="stat-label">Classes</span>
-          </div>
-          <div class="school-stat">
-            <span class="stat-number">{{ school.student_count }}</span>
-            <span class="stat-label">Students</span>
-          </div>
-          <div class="school-stat">
-            <span class="stat-number">{{ formatHours(school.total_practice_hours) }}</span>
-            <span class="stat-label">Hours</span>
-          </div>
-        </div>
-        <div class="school-action">
-          <span>View Dashboard</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
-        </div>
-      </button>
-    </div>
-
-    <!-- Empty State -->
-    <div v-if="filteredSchools.length === 0 && !searchQuery" class="empty-state">
-      <h3>No schools found</h3>
-      <p>No schools are registered in this group yet.</p>
-    </div>
-
-    <div v-if="filteredSchools.length === 0 && searchQuery" class="empty-state">
-      <h3>No results</h3>
-      <p>No schools match "{{ searchQuery }}"</p>
-    </div>
-  </div>
+  </main>
 </template>
 
 <style scoped>
-.schools-view {
-  max-width: 1400px;
+.schools-list-screen {
+  padding: 24px 32px 32px;
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
-.page-header {
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+.hero-text {
+  max-width: 620px;
+}
+
+.hero-eyebrow {
+  font-size: 11px;
+  color: var(--schools-red);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.hero-title {
+  font-size: 36px;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.hero-lede {
+  font-size: 14px;
+  margin-top: 6px;
+  line-height: 1.5;
+  max-width: 560px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px;
+}
+
+.kpi-value {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.kpi-label {
+  font-size: 11.5px;
+  color: var(--schools-fg-2);
+}
+
+.list-card {
+  overflow: hidden;
+}
+
+.list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-8);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--schools-border);
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.page-title {
+.list-title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.list-controls {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
+  gap: 8px;
 }
 
-.page-title h1 {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
+.list-search {
+  padding: 5px 10px;
+  font-size: 12px;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fafaf6;
+  font-family: var(--font-body);
+  width: 200px;
+  color: var(--schools-fg);
 }
 
-.school-count {
-  background: var(--bg-card);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
+.list-search:focus {
+  outline: none;
+  border-color: var(--schools-red);
+  background: #fff;
 }
 
-.school-count .count-value {
-  color: var(--ssi-gold);
-  font-weight: var(--font-bold);
-}
-
-/* Group Stats */
-.group-stats {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
-}
-
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  padding: var(--space-5);
-  text-align: center;
-}
-
-.stat-card .stat-value {
-  font-size: var(--text-2xl);
-  font-weight: var(--font-bold);
-  color: var(--ssi-gold);
-  margin-bottom: var(--space-1);
-}
-
-.stat-card .stat-label {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
-/* Search */
-.search-bar {
-  margin-bottom: var(--space-6);
-  max-width: 400px;
-}
-
-/* Schools Grid */
-.schools-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-5);
-}
-
-.school-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  padding: var(--space-5);
+.list-sort {
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fff;
+  font-family: var(--font-body);
+  color: var(--schools-fg);
   cursor: pointer;
-  transition: all var(--transition-base);
-  text-align: left;
-  width: 100%;
 }
 
-.school-card:hover {
-  border-color: var(--ssi-red);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
-}
-
-.school-header {
+.school-cell {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
+  gap: 10px;
 }
 
-.school-avatar {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
-  border-radius: var(--radius-lg);
+.school-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: var(--schools-red);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: var(--font-bold);
-  font-size: var(--text-lg);
-  color: white;
-  flex-shrink: 0;
-}
-
-.school-info {
-  flex: 1;
-  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 14px;
+  flex: none;
 }
 
 .school-name {
-  font-size: var(--text-lg);
-  font-weight: var(--font-semibold);
-  margin-bottom: var(--space-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 600;
 }
 
-.school-group {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-  text-transform: capitalize;
-}
-
-.school-stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
-  padding: var(--space-4) 0;
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.school-stat {
-  text-align: center;
-}
-
-.school-stat .stat-number {
-  display: block;
-  font-size: var(--text-lg);
-  font-weight: var(--font-bold);
-  color: var(--text-primary);
-}
-
-.school-stat .stat-label {
-  display: block;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.school-action {
-  display: flex;
+.health-cell {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: var(--space-4);
-  color: var(--ssi-red);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
+  gap: 6px;
+  font-size: 12.5px;
 }
 
-/* Empty State */
-.empty-state {
+.row-action {
+  text-align: right;
+}
+
+.row-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--schools-red);
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.row-link:hover {
+  color: var(--schools-red-deep);
+}
+
+.empty-row {
   text-align: center;
-  padding: var(--space-20);
+  padding: 32px 12px;
+  font-size: 13px;
 }
 
-.empty-state h3 {
-  font-size: var(--text-xl);
-  margin-bottom: var(--space-2);
-}
-
-.empty-state p {
-  color: var(--text-secondary);
-}
-
-/* Animations */
-.animate-item {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
-}
-
-.animate-item.show {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.animate-item.delay-1 { transition-delay: 0.1s; }
-.animate-item.delay-2 { transition-delay: 0.2s; }
-
-/* Responsive */
-@media (max-width: 1024px) {
-  .group-stats {
+@media (max-width: 1200px) {
+  .kpi-grid {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
-@media (max-width: 768px) {
-  .group-stats {
+@media (max-width: 960px) {
+  .schools-list-screen {
+    padding: 20px 16px 28px;
+  }
+
+  .hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .schools-grid {
-    grid-template-columns: 1fr;
+  .list-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
-  .school-stats {
-    grid-template-columns: repeat(2, 1fr);
+  .list-controls {
+    flex-wrap: wrap;
+  }
+
+  .list-search {
+    flex: 1;
+    min-width: 160px;
   }
 }
 </style>

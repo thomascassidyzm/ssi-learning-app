@@ -20,6 +20,7 @@ const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const StudentProgressView = () => import('@/views/schools/StudentProgressView.vue')
+const SetupView = () => import('@/views/schools/SetupView.vue')
 // Teach (private tutor) views
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
 const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
@@ -35,16 +36,20 @@ const routes: RouteRecordRaw[] = [
       title: 'Learn',
     },
   },
-  // Legacy redirect: /schools/setup → /admin/schools
-  {
-    path: '/schools/setup',
-    redirect: '/admin/schools',
-  },
   // Schools dashboard routes
   {
     path: '/schools',
     component: SchoolsContainer,
     children: [
+      {
+        path: 'setup',
+        name: 'schools-setup',
+        component: SetupView,
+        meta: {
+          title: 'School setup',
+          description: 'First-time onboarding wizard for school admins',
+        },
+      },
       {
         path: '',
         name: 'schools-dashboard',
@@ -132,6 +137,15 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Student Progress',
           description: 'Individual student progress view',
+        },
+      },
+      {
+        path: 'play',
+        name: 'schools-play',
+        component: PlayerContainer,
+        meta: {
+          title: 'Class session',
+          description: 'Run a class learning session — schools top bar stays above the player',
         },
       },
     ],

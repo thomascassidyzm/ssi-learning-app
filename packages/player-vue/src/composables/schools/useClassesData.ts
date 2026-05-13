@@ -12,6 +12,8 @@ import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
 import { assertScope } from './rlsGuard'
 
+export type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
+
 export interface ClassInfo {
   id: string
   class_name: string
@@ -26,6 +28,34 @@ export interface ClassInfo {
   avg_seeds_completed: number
   avg_practice_minutes: number
   created_at: string
+  // Dashboard extras — optional so creators (createClass, demo mode)
+  // don't have to populate them. Wired by fetchClasses / fetchClassDetail.
+  belt_distribution?: Record<Belt, number>
+  activity_last_7?: number[]
+  journey_done?: number
+  journey_total?: number
+}
+
+// Belt buckets keyed off seeds_completed — mirrors deriveBelt() used in views.
+function bucketBelt(seeds: number): Belt {
+  if (seeds >= 280) return 'black'
+  if (seeds >= 150) return 'blue'
+  if (seeds >= 80) return 'green'
+  if (seeds >= 40) return 'orange'
+  if (seeds >= 20) return 'yellow'
+  return 'white'
+}
+
+// Last 7 days as ISO date strings, oldest first. Index 0 = 6 days ago, 6 = today.
+function last7Days(): string[] {
+  const out: string[] = []
+  const today = new Date()
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(d.getDate() - i)
+    out.push(d.toISOString().split('T')[0])
+  }
+  return out
 }
 
 export interface ClassReport {
@@ -82,6 +112,26 @@ export function useClassesData() {
   const activeSchoolId = computed(() =>
     viewingSchool.value?.id || selectedUser.value?.school_id
   )
+
+  // Total LEGOs per course (for JourneyBar). PostgREST count via head request —
+  // one round-trip per course is fine for the small handful of courses a
+  // school runs. Result map is keyed by course_code, value = total LEGO count.
+  async function fetchCourseLegoTotals(codes: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>()
+    if (codes.length === 0) return out
+    await Promise.all(codes.map(async code => {
+      try {
+        const { count } = await client
+          .from('course_legos')
+          .select('*', { count: 'exact', head: true })
+          .eq('course_code', code)
+        out.set(code, count ?? 0)
+      } catch {
+        out.set(code, 0)
+      }
+    }))
+    return out
+  }
 
   // Fetch classes for current user
   async function fetchClasses(): Promise<void> {
@@ -171,19 +221,60 @@ export function useClassesData() {
           .select('class_id, seeds_completed, total_practice_seconds')
           .in('class_id', classIds)
 
-        // Aggregate stats per class
-        const statsMap = new Map<string, { count: number; totalSeeds: number; totalMinutes: number }>()
+        // Aggregate stats per class + belt distribution
+        type ClassStats = {
+          count: number
+          totalSeeds: number
+          totalMinutes: number
+          belts: Record<Belt, number>
+        }
+        const emptyBelts = (): Record<Belt, number> =>
+          ({ white: 0, yellow: 0, orange: 0, green: 0, blue: 0, black: 0 })
+        const statsMap = new Map<string, ClassStats>()
 
         progressData?.forEach(p => {
-          const existing = statsMap.get(p.class_id) || { count: 0, totalSeeds: 0, totalMinutes: 0 }
+          const existing = statsMap.get(p.class_id) || {
+            count: 0, totalSeeds: 0, totalMinutes: 0, belts: emptyBelts(),
+          }
           existing.count++
           existing.totalSeeds += p.seeds_completed
           existing.totalMinutes += (p.total_practice_seconds || 0) / 60
+          existing.belts[bucketBelt(p.seeds_completed || 0)]++
           statsMap.set(p.class_id, existing)
         })
 
+        // 7-day activity sparkline: sum cycles_completed by day from class_sessions.
+        const sevenDaysAgo = new Date()
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+        sevenDaysAgo.setHours(0, 0, 0, 0)
+        const { data: sessionRows } = await client
+          .from('class_sessions')
+          .select('class_id, started_at, cycles_completed')
+          .in('class_id', classIds)
+          .gte('started_at', sevenDaysAgo.toISOString())
+
+        const days = last7Days()
+        const dayIndex = new Map(days.map((d, i) => [d, i]))
+        const sparkMap = new Map<string, number[]>()
+        sessionRows?.forEach(s => {
+          const key = (s.started_at || '').split('T')[0]
+          const idx = dayIndex.get(key)
+          if (idx === undefined) return
+          const arr = sparkMap.get(s.class_id) || Array(7).fill(0)
+          arr[idx] += s.cycles_completed || 0
+          sparkMap.set(s.class_id, arr)
+        })
+
+        // Journey total: count of LEGOs per course_code. Fetch once per unique
+        // course, then map back. Done per class = current_seed (its seed position).
+        const courseCodes = Array.from(new Set(safeData.map(c => c.course_code).filter(Boolean)))
+        const courseLegoTotals = await fetchCourseLegoTotals(courseCodes)
+
         classes.value = safeData.map(c => {
-          const stats = statsMap.get(c.id) || { count: 0, totalSeeds: 0, totalMinutes: 0 }
+          const stats = statsMap.get(c.id) || {
+            count: 0, totalSeeds: 0, totalMinutes: 0, belts: emptyBelts(),
+          }
+          const total = courseLegoTotals.get(c.course_code) ?? 0
           return {
             id: c.id,
             class_name: c.class_name,
@@ -198,6 +289,10 @@ export function useClassesData() {
             avg_seeds_completed: stats.count > 0 ? Math.round(stats.totalSeeds / stats.count) : 0,
             avg_practice_minutes: stats.count > 0 ? Math.round(stats.totalMinutes / stats.count) : 0,
             created_at: c.created_at,
+            belt_distribution: stats.belts,
+            activity_last_7: sparkMap.get(c.id) || Array(7).fill(0),
+            journey_done: total > 0 ? Math.min(total, c.current_seed || 0) : (c.current_seed || 0),
+            journey_total: total,
           }
         })
       } else {
@@ -275,6 +370,33 @@ export function useClassesData() {
       const totalSeeds = students.reduce((sum, s) => sum + s.seeds_completed, 0)
       const totalMinutes = students.reduce((sum, s) => sum + s.total_practice_minutes, 0)
 
+      // Belt distribution from student seeds_completed
+      const belts: Record<Belt, number> = { white: 0, yellow: 0, orange: 0, green: 0, blue: 0, black: 0 }
+      students.forEach(s => { belts[bucketBelt(s.seeds_completed || 0)]++ })
+
+      // 7-day sparkline from class_sessions for this class
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
+      sevenDaysAgo.setHours(0, 0, 0, 0)
+      const { data: sessionRows } = await client
+        .from('class_sessions')
+        .select('started_at, cycles_completed')
+        .eq('class_id', classId)
+        .gte('started_at', sevenDaysAgo.toISOString())
+
+      const days = last7Days()
+      const dayIndex = new Map(days.map((d, i) => [d, i]))
+      const spark = Array(7).fill(0)
+      sessionRows?.forEach(s => {
+        const key = (s.started_at || '').split('T')[0]
+        const idx = dayIndex.get(key)
+        if (idx !== undefined) spark[idx] += s.cycles_completed || 0
+      })
+
+      // Journey total: count LEGOs for this course
+      const courseTotals = await fetchCourseLegoTotals([classData.course_code].filter(Boolean))
+      const journeyTotal = courseTotals.get(classData.course_code) ?? 0
+
       currentClass.value = {
         id: classData.id,
         class_name: classData.class_name,
@@ -289,6 +411,12 @@ export function useClassesData() {
         avg_seeds_completed: students.length > 0 ? Math.round(totalSeeds / students.length) : 0,
         avg_practice_minutes: students.length > 0 ? Math.round(totalMinutes / students.length) : 0,
         created_at: classData.created_at,
+        belt_distribution: belts,
+        activity_last_7: spark,
+        journey_done: journeyTotal > 0
+          ? Math.min(journeyTotal, classData.current_seed || 0)
+          : (classData.current_seed || 0),
+        journey_total: journeyTotal,
       }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch class detail'
@@ -316,6 +444,10 @@ export function useClassesData() {
       current_seed: currentClass.value.current_seed,
       is_active: currentClass.value.is_active,
       created_at: currentClass.value.created_at,
+      belt_distribution: currentClass.value.belt_distribution,
+      activity_last_7: currentClass.value.activity_last_7,
+      journey_done: currentClass.value.journey_done,
+      journey_total: currentClass.value.journey_total,
       students: classStudents.value.map(s => ({
         learner_id: s.learner_id,
         user_id: s.student_user_id,

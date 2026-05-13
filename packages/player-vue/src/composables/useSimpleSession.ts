@@ -8,20 +8,16 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateLearningScript, type ScriptItem } from '../providers/generateLearningScript'
-import { toSimpleRounds, DEFAULT_PAUSE_CONFIG, type PauseConfig } from '../providers/toSimpleRounds'
+import { toSimpleRounds } from '../providers/toSimpleRounds'
 import type { Round } from '../playback/SimplePlayer'
-
-// Re-export for convenience
-export { DEFAULT_PAUSE_CONFIG, type PauseConfig } from '../providers/toSimpleRounds'
 
 export interface UseSimpleSessionOptions {
   supabase: SupabaseClient
   courseCode: string
-  pauseConfig?: PauseConfig
 }
 
 export function useSimpleSession(options: UseSimpleSessionOptions) {
-  const { supabase, courseCode, pauseConfig = DEFAULT_PAUSE_CONFIG } = options
+  const { supabase, courseCode } = options
 
   // State
   const isLoading = ref(false)
@@ -87,7 +83,7 @@ export function useSimpleSession(options: UseSimpleSessionOptions) {
 
       const result = await generateLearningScript(supabase, courseCode, startSeed, endSeed)
       scriptItems.value = result.items
-      rounds.value = toSimpleRounds(result.items, pauseConfig)
+      rounds.value = toSimpleRounds(result.items)
 
       console.log(`[useSimpleSession] Loaded ${rounds.value.length} rounds, ${result.items.length} items (${itemsWithAudio.value} with audio)`)
 
@@ -120,7 +116,7 @@ export function useSimpleSession(options: UseSimpleSessionOptions) {
 
       // Merge new items (avoid duplicates by roundNumber)
       const existingRoundNumbers = new Set(rounds.value.map(r => r.roundNumber))
-      const newRounds = toSimpleRounds(result.items, pauseConfig).filter(r => !existingRoundNumbers.has(r.roundNumber))
+      const newRounds = toSimpleRounds(result.items).filter(r => !existingRoundNumbers.has(r.roundNumber))
 
       if (newRounds.length > 0) {
         rounds.value = [...rounds.value, ...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
