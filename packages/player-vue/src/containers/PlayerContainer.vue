@@ -9,16 +9,20 @@ import SumiEBackground from '@/components/SumiEBackground.vue'
 import LearningPlayer from '@/components/LearningPlayer.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import PlayerRestingState from '@/components/PlayerRestingState.vue'
-import SettingsScreen from '@/components/SettingsScreen.vue'
-import CourseExplorer from '@/components/CourseExplorer.vue'
-import BrowseScreen from '@/components/BrowseScreen.vue'
+// CourseSelector stays static — it's the first modal most users
+// open (course pick on first visit), so paying its weight up front
+// is fine and removes a launch-path roundtrip.
 import CourseSelector from '@/components/CourseSelector.vue'
-import { SignInModal } from '@/components/auth'
-// Brain screen: async so the PIXI renderer + network data only ship
-// to the bundle once the user actually opens it. This one is fine
-// because BrainScreen has its own height and obvious "loading" state,
-// unlike the other modals which collapsed to 0 height while their
-// chunks were in flight.
+
+// Modals async — pre-warmed in onMounted (see below) so chunks are
+// usually already loaded by the time the user clicks. Combined with
+// the min-height on .settings-panel, the panel-collapse issue from
+// the previous attempt can't recur even if a user clicks before
+// pre-warm completes.
+const SettingsScreen = defineAsyncComponent(() => import('@/components/SettingsScreen.vue'))
+const CourseExplorer = defineAsyncComponent(() => import('@/components/CourseExplorer.vue'))
+const BrowseScreen = defineAsyncComponent(() => import('@/components/BrowseScreen.vue'))
+const SignInModal = defineAsyncComponent(() => import('@/components/auth/SignInModal.vue'))
 const BrainScreen = defineAsyncComponent(() => import('@/components/BrainScreen.vue'))
 
 // Global auth modal state (shared singleton)
@@ -477,6 +481,22 @@ const loadModeVisibility = () => {
 onMounted(() => {
   loadModeVisibility()
 
+  // Pre-warm async modal chunks. Fired on idle so the player's first
+  // paint isn't competing for bandwidth, but kicks in well before a
+  // user is likely to tap any modal-opening icon. Best-effort —
+  // failures just mean the chunk loads on click instead.
+  const prewarm = () => {
+    void import('@/components/SettingsScreen.vue').catch(() => {})
+    void import('@/components/BrowseScreen.vue').catch(() => {})
+    void import('@/components/CourseExplorer.vue').catch(() => {})
+    void import('@/components/auth/SignInModal.vue').catch(() => {})
+  }
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    window.requestIdleCallback(prewarm, { timeout: 2000 })
+  } else {
+    setTimeout(prewarm, 1500)
+  }
+
   // Listen for settings changes (from SettingsScreen toggle)
   window.addEventListener('ssi-setting-changed', (e) => {
     const { key } = e.detail || {}
@@ -821,6 +841,13 @@ onMounted(() => {
 .settings-panel {
   width: 100%;
   max-width: 500px;
+  /* Safety net: with the async modals (Settings, Library, Explorer,
+     SignIn), the panel content is briefly empty while the chunk is
+     in flight. Without a min-height the panel collapses to 0 and
+     the user sees only the scrim — confusing. Pre-warm normally
+     beats them to it, but this guarantees a visible panel even on
+     a cold click. */
+  min-height: 50vh;
   max-height: 85dvh;
   overflow-y: auto;
   background: var(--bg-primary);
