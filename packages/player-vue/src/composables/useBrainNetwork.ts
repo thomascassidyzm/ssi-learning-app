@@ -117,12 +117,19 @@ export function useBrainNetwork(
         positionByLegoId.set(row.lego_id, { x: row.x, y: row.y })
       }
 
-      // ---- 3. revealed set (learner-scoped) ----
+      // ---- 3. revealed set + mastery state (learner-scoped) ----
+      // v2 also reads mastery_state + last_seen_at for the 4-tier brightness
+      // ladder and the introducedAt timestamp. The v1 brain view ignores both
+      // but the shared NetworkNode contract now requires them.
       const revealedSet = new Set<string>()
+      const masteryByLegoId = new Map<string, {
+        state: 'acquisition' | 'consolidating' | 'confident' | 'mastered'
+        lastSeenAt: string
+      }>()
       if (learner && !learner.startsWith('guest-')) {
         const { data: metricRows, error: metricErr } = await supabase
           .from('learner_lego_metrics')
-          .select('lego_id')
+          .select('lego_id, mastery_state, last_seen_at')
           .eq('learner_id', learner)
           .eq('course_code', course)
 
@@ -132,7 +139,15 @@ export function useBrainNetwork(
         } else if (myFetch !== activeFetch) {
           return
         } else {
-          for (const row of metricRows || []) revealedSet.add(row.lego_id)
+          for (const row of metricRows || []) {
+            revealedSet.add(row.lego_id)
+            const state = (row.mastery_state || 'acquisition') as
+              'acquisition' | 'consolidating' | 'confident' | 'mastered'
+            masteryByLegoId.set(row.lego_id, {
+              state,
+              lastSeenAt: row.last_seen_at,
+            })
+          }
         }
       }
 
@@ -182,6 +197,7 @@ export function useBrainNetwork(
         const seedNumber = row.seed_number as number
         const targetText = row.target_text || ''
         const pos = positionByLegoId.get(row.lego_id) || { x: 0, y: 0 }
+        const mastery = masteryByLegoId.get(row.lego_id)
         return {
           legoId: row.lego_id,
           type: classifyType(row.type, targetText),
@@ -192,6 +208,8 @@ export function useBrainNetwork(
           seedNumber,
           position: pos,
           isRevealed: revealedSet.has(row.lego_id),
+          masteryState: mastery?.state ?? 'acquisition',
+          introducedAt: mastery?.lastSeenAt ?? null,
         }
       })
 

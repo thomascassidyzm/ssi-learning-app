@@ -124,6 +124,9 @@ export const brainNetworkFixture: BrainViewData = (() => {
         seedNumber: cluster.seedNumber,
         position: positions[i],
         isRevealed: w.isRevealed,
+        // v2 defaults — fixture predates the timelapse view.
+        masteryState: 'acquisition',
+        introducedAt: w.isRevealed ? new Date().toISOString() : null,
       })
     })
   }
