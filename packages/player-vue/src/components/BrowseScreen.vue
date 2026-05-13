@@ -86,7 +86,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['open-belts', 'select-course', 'close', 'start-seed'])
+const emit = defineEmits(['open-belts', 'select-course', 'close', 'start-seed', 'open-brain'])
 
 // Inline belt browser toggle
 const showBeltBrowser = ref(false)
@@ -270,6 +270,38 @@ const getFullDisplayName = (course) => {
   return `${target} ${forSpeakers}`
 }
 
+// Brain-view tile per enrolled course. Renders only for enrolled courses
+// (i.e. things the learner has actually started) — the catalogue cards
+// further down handle "anything else they could pick up". Tap routes to
+// `brain` via the parent, switching active course first if needed.
+const brainTiles = computed(() => {
+  const enrolled = props.enrolledCourses ?? []
+  return enrolled.map((course) => {
+    const code = course.course_code || course.course_id
+    const isActive = props.activeCourse?.course_code === code
+    // Belt for tile accent: the active course gets the live shared belt,
+    // other enrolled courses fall back to their stored progress, then to
+    // white. We avoid hitting Supabase here — this is just a launcher.
+    const beltName = isActive
+      ? props.currentBeltName
+      : (course.current_belt || course.belt_name || 'white')
+    const belt = BELTS.find(b => b.name === beltName) || BELTS[0]
+    const languageName = getLanguageName(course.target_lang) || course.display_name || code
+    return {
+      courseCode: code,
+      languageName,
+      target_lang: course.target_lang,
+      belt,
+      isActive,
+      course,
+    }
+  })
+})
+
+const handleBrainTileClick = (tile) => {
+  emit('open-brain', tile.course)
+}
+
 // Get enrollment progress
 const getProgress = (courseCode) => {
   const enrollment = props.enrolledCourses.find(e => e.course_code === courseCode || e.course_id === courseCode)
@@ -421,6 +453,48 @@ onMounted(() => {
             <div class="stat-value">{{ totalPhrasesSpoken }}</div>
             <div class="stat-label">Phrases</div>
           </div>
+        </div>
+      </section>
+
+      <!-- ── Your brain on {{ language }} ──
+           One featured tile per enrolled course. Belt colour becomes
+           the card accent so the learner sees their current belt and
+           the language at a glance. -->
+      <section v-if="brainTiles.length > 0" class="section">
+        <h3 class="section-label">Your Brain</h3>
+        <div class="brain-tile-grid">
+          <button
+            v-for="tile in brainTiles"
+            :key="tile.courseCode"
+            class="brain-tile"
+            :class="{ active: tile.isActive }"
+            :style="{ '--tile-belt-color': tile.belt.color }"
+            type="button"
+            @click="handleBrainTileClick(tile)"
+          >
+            <div class="brain-tile-glow" aria-hidden="true" />
+            <div class="brain-tile-icon" aria-hidden="true">
+              <!-- A simple node-graph glyph: hub + three orbits. -->
+              <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="16" cy="16" r="3" fill="currentColor" />
+                <circle cx="5" cy="9" r="2" />
+                <circle cx="27" cy="11" r="2" />
+                <circle cx="20" cy="26" r="2" />
+                <line x1="7" y1="10" x2="14" y2="15" />
+                <line x1="25" y1="12" x2="18" y2="15" />
+                <line x1="19" y1="24" x2="17" y2="19" />
+              </svg>
+            </div>
+            <div class="brain-tile-text">
+              <span class="brain-tile-title">Your brain on {{ tile.languageName }}</span>
+              <span class="brain-tile-subtitle">
+                Words and phrases you've met
+              </span>
+            </div>
+            <svg class="brain-tile-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
         </div>
       </section>
 
@@ -953,6 +1027,112 @@ onMounted(() => {
   padding: 1.5rem;
   color: var(--text-muted);
   font-size: 0.875rem;
+}
+
+/* ── Brain tile ── */
+.brain-tile-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.brain-tile {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--tile-belt-color, var(--accent, #c23a3a));
+  border-radius: 14px;
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.brain-tile:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-medium);
+  transform: translateY(-1px);
+}
+
+.brain-tile:active {
+  transform: translateY(0);
+}
+
+.brain-tile.active {
+  box-shadow: 0 0 0 1px var(--tile-belt-color, var(--accent));
+}
+
+/* Soft belt-coloured glow sitting behind the icon */
+.brain-tile-glow {
+  position: absolute;
+  top: 50%;
+  left: -10px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--tile-belt-color, var(--accent));
+  opacity: 0.10;
+  transform: translateY(-50%);
+  pointer-events: none;
+  filter: blur(18px);
+}
+
+.brain-tile-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--tile-belt-color, var(--accent)) 14%, transparent);
+  color: var(--tile-belt-color, var(--accent));
+}
+
+.brain-tile-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.brain-tile-text {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.brain-tile-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brain-tile-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.brain-tile-arrow {
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
 }
 
 /* ── Inline Belt Browser ── */
