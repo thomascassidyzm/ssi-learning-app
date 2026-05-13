@@ -29,4 +29,5 @@ export * from './audio';
 // Pricing (Big 10 languages, access control)
 export * from './pricing';
 
-// Network engine removed — see archive/brain-views branch
+// Network engine (brain view) — structural + context edge builder
+export * from './network';
