@@ -793,20 +793,13 @@ const sentenceScale = computed(() => {
    ═══════════════════════════════════════════════════════════════ */
 
 /* Wrapper: handles animation/positioning, contains tile + known text.
-   flex-shrink: 0 ensures tiles never compress — they wrap to the next line whole.
-   border-bottom is the "phrase tie bar" — a subtle line under every tile in the
-   phrase that visually links the salient LEGO to its L/R neighbours. Adjacent
-   wrappers' borders touch (gap: 0 on the parent) so the bar reads as one
-   continuous line per row, communicating "these tiles belong together as a
-   phrase" without claiming any grammatical relationship between them. */
+   flex-shrink: 0 ensures tiles never compress — they wrap to the next line whole. */
 .lego-block-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
   gap: 3px;
-  padding-bottom: 5px;
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.18);
   transition-property: transform, opacity;
   transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1.0);
   will-change: transform, opacity;
@@ -887,15 +880,15 @@ const sentenceScale = computed(() => {
 }
 
 /* Ghost — undeclared word, grokable from prior M-LEGO context.
-   Same tile shape so the "every audible word is a tile" model holds,
-   but softer: dashed border, lower background opacity, lighter text. */
+   Same tile shape so the "every audible word is a tile" model holds.
+   Subtly less pronounced — dashed border + small text-weight shift —
+   not faint enough to read as "greyed out / disabled". */
 .lego-block.ghost {
   border-style: dashed;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.15);
 }
 .lego-block.ghost .block-text {
-  color: rgba(255, 255, 255, 0.72);
   font-weight: 400;
 }
 
@@ -1096,11 +1089,6 @@ const sentenceScale = computed(() => {
   backdrop-filter: none;
 }
 
-/* Phrase tie bar — mist theme */
-:root[data-theme="mist"] .lego-block-wrapper {
-  border-bottom-color: rgba(44, 38, 34, 0.22);
-}
-
 :root[data-theme="mist"] .lego-block .block-text {
   color: var(--text-primary);
 }
@@ -1123,15 +1111,12 @@ const sentenceScale = computed(() => {
   border-right-style: dashed;
 }
 
-/* Ghost — mist theme */
+/* Ghost — mist theme. Same subtle treatment: dashed border + lighter weight. */
 :root[data-theme="mist"] .lego-block.ghost {
   border-style: dashed;
-  border-color: rgba(0, 0, 0, 0.22);
-  background: rgba(255, 255, 255, 0.55);
-  box-shadow: none;
+  border-color: rgba(0, 0, 0, 0.28);
 }
 :root[data-theme="mist"] .lego-block.ghost .block-text {
-  color: var(--text-muted);
   font-weight: 400;
 }
 
