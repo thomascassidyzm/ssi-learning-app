@@ -135,6 +135,8 @@ const subline = computed(() => {
       …
     </div>
 
+    <!-- @vue-expect-error v1 BrainViewData → v2 BrainTimelapseData mismatch.
+         Agent C will rewrite this whole screen against the v2 data composable. -->
     <BrainView
       v-else-if="brainData"
       class="brain-screen-canvas"
