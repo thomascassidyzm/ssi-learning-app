@@ -55,9 +55,8 @@ import { getLanguageName, t } from '../composables/useI18n'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
-import BeltProgressModal from './BeltProgressModal.vue'
 import ContributionCounter from './learner/ContributionCounter.vue'
-import ContributionExpanded from './learner/ContributionExpanded.vue'
+import ProgressModal from './ProgressModal.vue'
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -240,7 +239,12 @@ const eagerScript = inject<any>('eagerScript', null)
 
 // Contribution counter - "Part of the Solution"
 const contribution = useContribution(supabase as any)
-const showContributionExpanded = ref(false)
+
+// Unified progress modal — replaces the old split of
+// showContributionExpanded (time/community stats) + showBeltModal
+// (belt strip). Single ref, opened by either the contribution
+// counter tap or the belt-pill tap.
+const showProgressModal = ref(false)
 
 // Algorithm config - admin-tweakable parameters (Turbo Boost, Normal mode pause, etc.)
 const {
@@ -5143,14 +5147,14 @@ const handleGoBackBelt = async () => {
   }
 }
 
-// Belt pill tap — open belt progress modal
+// Belt pill tap — open the unified progress modal
 const handleBeltPillTap = () => {
-  showBeltModal.value = true
+  showProgressModal.value = true
 }
 
-// Jump to any belt (from BeltProgressModal)
+// Jump to any belt (from ProgressModal)
 const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) => {
-  showBeltModal.value = false
+  showProgressModal.value = false
   const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
 
   isSkippingBelt.value = true
@@ -5292,9 +5296,8 @@ const drivingModeCycleCount = computed(() => {
 // Mode explanation popups
 const showTurboPopup = ref(false)
 
-// Belt skip feedback state
+// Belt skip feedback state (showBeltModal merged into showProgressModal above)
 const isSkippingBelt = ref(false)
-const showBeltModal = ref(false)
 
 // ============================================
 // ADAPTATION CONSENT & TIMING
@@ -7274,14 +7277,7 @@ defineExpose({
     :global-minutes="contribution.todayMinutes.value"
     :user-phrases="contribution.userTodayPhrases.value"
     :is-playing="simplePlayer.isPlaying.value"
-    @expand="showContributionExpanded = true"
-  />
-
-  <!-- Contribution Expanded Overlay -->
-  <ContributionExpanded
-    v-if="showContributionExpanded && contribution.data.value"
-    :data="contribution.data.value"
-    @close="showContributionExpanded = false"
+    @expand="showProgressModal = true"
   />
 
   <!-- Belt Skip Loading Overlay -->
@@ -7292,19 +7288,23 @@ defineExpose({
     </div>
   </Transition>
 
-  <!-- Belt Progress Modal -->
-  <BeltProgressModal
-    :is-open="showBeltModal"
+  <!-- Unified Progress modal — opens from the contribution counter
+       tap OR the belt-pill tap. Replaces the old split of
+       ContributionExpanded + BeltProgressModal. -->
+  <ProgressModal
+    v-if="contribution.data.value"
+    :is-open="showProgressModal"
+    :data="contribution.data.value"
+    :known-lang="props.course?.known_lang"
     :current-belt="playingBelt"
-    :session-seconds="sessionSeconds"
     :is-skipping="isSkippingBelt"
     :available-belts="beltProgress?.availableBelts?.value ?? []"
     :current-round="currentAbsoluteRound"
     :highest-round="highestAbsoluteRound"
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
-    @close="showBeltModal = false"
-    @viewProgress="showBeltModal = false; emit('viewProgress')"
+    @close="showProgressModal = false"
+    @viewProgress="showProgressModal = false; emit('viewProgress')"
     @skipToBelt="handleSkipToBelt"
   />
 
