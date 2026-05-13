@@ -3,15 +3,28 @@
  * timelapse*. Loads everything the renderer needs to play back the learner's
  * brain growing from empty (t=0) to its current state.
  *
+ * "Introduced" gate (the key design call):
+ *
+ *   course_enrollments.highest_completed_lego_id is the authoritative
+ *   signal for *what the learner has met*. It's quietly maintained for
+ *   every learner regardless of which telemetry pipelines are or aren't
+ *   running, and it answers the question this composable needs: which
+ *   words/phrases should appear in the brain?
+ *
+ *   learner_lego_metrics is the *adaptation engine's* mastery ladder
+ *   (acquisition → consolidating → confident → mastered). It is event-
+ *   driven and may be sparse or empty depending on how telemetry has
+ *   been running. We treat it as optional refinement: if a row exists,
+ *   it brightens the node beyond the default 'acquisition'; if not, the
+ *   node still shows at base brightness.
+ *
  * Composition:
+ *   - course_enrollments         → introduced-up-to-seed gate + time window
  *   - course_legos               → node identity, text, type, belt, audio
  *   - course_lego_positions      → x/y for each node
- *   - learner_lego_metrics       → mastery_state + last_seen_at (introducedAt)
+ *   - learner_lego_metrics       → optional mastery_state refinement
  *   - learner_lego_pairings      → fire_count + first_fired_at + last_fired_at
  *   - courses                    → display_name for the header
- *
- * Filter: only nodes with `introducedAt != null` make it in. No ghost
- * nodes — empty at t=0, dense at brown belt is the whole point.
  *
  * Events: one `node_introduced` per node, one `pairing_first_fired` per
  * pairing row. Sorted chronologically — the scrubber position is a
@@ -19,9 +32,8 @@
  *
  * `pairing_strengthened` is reserved for a future iteration. v2 has no
  * per-fire timestamps, so re-firings show up as a higher `fire_count` on
- * the existing pairing row rather than as additional events; the renderer
- * derives synapse thickness from log(fire_count + 1) at the *current*
- * scrubber position (cumulative). Decay is deferred.
+ * the existing pairing row; the renderer derives synapse thickness from
+ * log(fire_count + 1) at the current scrubber position. Decay deferred.
  *
  * Vocabulary rule (carried over from v1): never expose "lego/seed/round"
  * to the user. This composable returns the shared `BrainTimelapseData`
@@ -43,7 +55,7 @@ import { BELTS } from './useBeltProgress'
 // HELPERS
 // ============================================================================
 
-/** Belt index (0-7) from seed_number. Same algorithm as useBrainNetwork. */
+/** Belt index (0-7) from seed_number. */
 function beltIndexForSeed(seedNumber: number): number {
   for (let i = BELTS.length - 1; i >= 0; i--) {
     if (seedNumber >= BELTS[i].seedsRequired) return i
@@ -55,7 +67,6 @@ function beltIndexForSeed(seedNumber: number): number {
 function classifyType(legoType: unknown, targetText: string): 'atom' | 'molecule' {
   if (legoType === 'M') return 'molecule'
   if (legoType === 'A') return 'atom'
-  // Fallback by word count (mirrors v1 useBrainNetwork).
   const words = (targetText || '').trim().split(/\s+/).filter(Boolean)
   return words.length <= 1 ? 'atom' : 'molecule'
 }
@@ -69,6 +80,28 @@ function normaliseMasteryState(raw: unknown): MasteryState {
     default:
       return 'acquisition'
   }
+}
+
+/** Extract the seed number from a lego id like "S0300L02" → 300. */
+function seedFromLegoId(legoId: string): number | null {
+  const m = /^S(\d{4})L\d+$/.exec(legoId)
+  if (!m) return null
+  const n = parseInt(m[1], 10)
+  return Number.isFinite(n) ? n : null
+}
+
+/**
+ * Linearly distribute synthesised introducedAt across the enrollment
+ * window. Index `i` of `total` falls at `t0 + (i / (total - 1)) * (t1 - t0)`.
+ * Returns ISO timestamp. Falls back to t1 if t0 is missing or the window
+ * has zero width.
+ */
+function synthesizeIntroducedAt(i: number, total: number, t0: number, t1: number): string {
+  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 <= t0 || total <= 1) {
+    return new Date(t1).toISOString()
+  }
+  const frac = i / (total - 1)
+  return new Date(t0 + frac * (t1 - t0)).toISOString()
 }
 
 // ============================================================================
@@ -94,6 +127,10 @@ export function useBrainTimelapseData(
   // Sentinel so we ignore the result of any superseded fetch.
   let activeFetch = 0
 
+  function emptyResult(course: string, languageName: string): BrainTimelapseData {
+    return { courseCode: course, languageName, nodes: [], pairings: [], events: [] }
+  }
+
   async function fetchData(course: string, learner: string | null): Promise<void> {
     const supabase = supabaseRef?.value
     if (!supabase) {
@@ -101,17 +138,11 @@ export function useBrainTimelapseData(
       return
     }
 
-    // Guests / anonymous flows: there's nothing learner-scoped to load.
-    // Return an empty timelapse rather than erroring — the screen can
-    // render an "intro yourself first" empty state.
+    // Guests / anonymous flows: nothing learner-scoped to load. Render an
+    // empty timelapse — the screen shows an "introduce yourself first"
+    // empty state.
     if (!learner || learner.startsWith('guest-')) {
-      data.value = {
-        courseCode: course,
-        languageName: course,
-        nodes: [],
-        pairings: [],
-        events: [],
-      }
+      data.value = emptyResult(course, course)
       return
     }
 
@@ -120,30 +151,20 @@ export function useBrainTimelapseData(
     error.value = null
 
     try {
-      // ---- 1. metrics (introducedAt + mastery_state). This is the gate ----
-      // No row here = node not introduced = doesn't appear. So load first
-      // and use the result to scope every later query to only the LEGOs
-      // we'll actually show.
-      const { data: metricRows, error: metricErr } = await supabase
-        .from('learner_lego_metrics')
-        .select('lego_id, mastery_state, last_seen_at')
+      // ---- 1. enrollment gate ----
+      // course_enrollments.highest_completed_lego_id is the authoritative
+      // signal for what the learner has met. No enrollment → empty.
+      const { data: enrollmentRow, error: enrollErr } = await supabase
+        .from('course_enrollments')
+        .select('highest_completed_lego_id, enrolled_at, last_practiced_at')
         .eq('learner_id', learner)
-        .eq('course_code', course)
+        .eq('course_id', course)
+        .maybeSingle()
 
-      if (metricErr) throw new Error(`learner_lego_metrics: ${metricErr.message}`)
+      if (enrollErr) throw new Error(`course_enrollments: ${enrollErr.message}`)
       if (myFetch !== activeFetch) return
 
-      const masteryByLegoId = new Map<string, { state: MasteryState; introducedAt: string }>()
-      const introducedLegoIds: string[] = []
-      for (const row of metricRows || []) {
-        masteryByLegoId.set(row.lego_id, {
-          state: normaliseMasteryState(row.mastery_state),
-          introducedAt: row.last_seen_at,
-        })
-        introducedLegoIds.push(row.lego_id)
-      }
-
-      // ---- 2. course display name (cheap, fetch in parallel-shaped block) ----
+      // ---- 2. course display name (in parallel with anything else heavy) ----
       const { data: courseRow, error: courseErr } = await supabase
         .from('courses')
         .select('display_name')
@@ -155,78 +176,93 @@ export function useBrainTimelapseData(
       if (myFetch !== activeFetch) return
       const languageName = courseRow?.display_name || course
 
-      // Short-circuit: nothing introduced yet — empty timelapse.
-      if (introducedLegoIds.length === 0) {
-        data.value = {
-          courseCode: course,
-          languageName,
-          nodes: [],
-          pairings: [],
-          events: [],
-        }
+      const highestLegoId = enrollmentRow?.highest_completed_lego_id as string | null
+      const maxSeed = highestLegoId ? seedFromLegoId(highestLegoId) : null
+
+      // No enrollment or no recorded progress → empty brain.
+      if (!enrollmentRow || !highestLegoId || maxSeed === null) {
+        data.value = emptyResult(course, languageName)
         return
       }
 
-      // ---- 3. LEGOs (only the introduced ones — scope by lego_id) ----
-      // Supabase's .in() caps at ~1000 elements per call which is well
-      // above any realistic per-learner introduced count (~400 at black
-      // belt). One call is fine.
-      const { data: legoRows, error: legoErr } = await supabase
-        .from('course_legos')
-        .select('lego_id, seed_number, lego_index, type, target_text, known_text, target1_audio_id, components')
-        .eq('course_code', course)
-        .in('lego_id', introducedLegoIds)
+      const enrolledAt = enrollmentRow.enrolled_at
+        ? Date.parse(enrollmentRow.enrolled_at)
+        : Date.now()
+      const lastPractisedAt = enrollmentRow.last_practiced_at
+        ? Date.parse(enrollmentRow.last_practiced_at)
+        : enrolledAt
 
-      if (legoErr) throw new Error(`course_legos: ${legoErr.message}`)
+      // ---- 3. fetch the introduced LEGOs, positions, optional metrics, pairings in parallel ----
+      const [legoResult, posResult, metricsResult, pairingsResult] = await Promise.all([
+        supabase
+          .from('course_legos')
+          .select('lego_id, seed_number, lego_index, type, target_text, known_text, target1_audio_id')
+          .eq('course_code', course)
+          .lte('seed_number', maxSeed)
+          .order('seed_number', { ascending: true })
+          .order('lego_index', { ascending: true }),
+        supabase
+          .from('course_lego_positions')
+          .select('lego_id, x, y')
+          .eq('course_code', course),
+        supabase
+          .from('learner_lego_metrics')
+          .select('lego_id, mastery_state, last_seen_at')
+          .eq('learner_id', learner)
+          .eq('course_code', course),
+        supabase
+          .from('learner_lego_pairings')
+          .select('lego_a, lego_b, fire_count, first_fired_at, last_fired_at')
+          .eq('learner_id', learner)
+          .eq('course_code', course),
+      ])
+
+      if (legoResult.error) throw new Error(`course_legos: ${legoResult.error.message}`)
       if (myFetch !== activeFetch) return
 
-      // ---- 4. positions (same scope) ----
-      const { data: posRows, error: posErr } = await supabase
-        .from('course_lego_positions')
-        .select('lego_id, x, y')
-        .eq('course_code', course)
-        .in('lego_id', introducedLegoIds)
-      if (posErr) {
-        console.warn('[useBrainTimelapseData] course_lego_positions fetch failed:', posErr.message)
+      const legoRows = legoResult.data || []
+      if (posResult.error) {
+        console.warn('[useBrainTimelapseData] course_lego_positions fetch failed:', posResult.error.message)
       }
-      if (myFetch !== activeFetch) return
+      if (metricsResult.error) {
+        console.warn('[useBrainTimelapseData] learner_lego_metrics fetch failed:', metricsResult.error.message)
+      }
+      if (pairingsResult.error) {
+        console.warn('[useBrainTimelapseData] learner_lego_pairings fetch failed:', pairingsResult.error.message)
+      }
 
+      // Position + metrics lookup tables.
       const positionByLegoId = new Map<string, { x: number; y: number }>()
-      for (const row of posRows || []) {
+      for (const row of posResult.data || []) {
         positionByLegoId.set(row.lego_id, { x: row.x, y: row.y })
       }
-
-      // ---- 5. pairings (forward-only co-firing rows) ----
-      const { data: pairingRows, error: pairingErr } = await supabase
-        .from('learner_lego_pairings')
-        .select('lego_a, lego_b, fire_count, first_fired_at, last_fired_at')
-        .eq('learner_id', learner)
-        .eq('course_code', course)
-
-      if (pairingErr) {
-        console.warn('[useBrainTimelapseData] learner_lego_pairings fetch failed:', pairingErr.message)
-      }
-      if (myFetch !== activeFetch) return
-
-      // ---- 6. assemble nodes ----
-      // We iterate metrics so the order is stable (in metricRows order from
-      // the DB), and skip any introduced lego_id that no longer has a row
-      // in course_legos (deleted content, defensive).
-      const legoRowById = new Map<string, any>()
-      for (const row of legoRows || []) {
-        legoRowById.set(row.lego_id, row)
+      const metricsByLegoId = new Map<string, { state: MasteryState; lastSeenAt: string | null }>()
+      for (const row of metricsResult.data || []) {
+        metricsByLegoId.set(row.lego_id, {
+          state: normaliseMasteryState(row.mastery_state),
+          lastSeenAt: row.last_seen_at || null,
+        })
       }
 
+      // ---- 4. assemble nodes ----
+      // Every lego with seed_number ≤ maxSeed is "introduced". Mastery
+      // comes from metrics if a row exists, defaults to 'acquisition'
+      // otherwise. introducedAt comes from metrics.last_seen_at if
+      // present, otherwise synthesised across the enrolment window so
+      // the scrubber has a meaningful growth curve.
+      const total = legoRows.length
       const nodes: NetworkNode[] = []
-      for (const legoId of introducedLegoIds) {
-        const row = legoRowById.get(legoId)
-        if (!row) continue
-        const mastery = masteryByLegoId.get(legoId)!
-        const seedNumber = row.seed_number as number
+      for (let i = 0; i < total; i++) {
+        const row = legoRows[i]
         const targetText = row.target_text || ''
-        const pos = positionByLegoId.get(legoId) || { x: 0, y: 0 }
+        const seedNumber = row.seed_number as number
+        const pos = positionByLegoId.get(row.lego_id) || { x: 0, y: 0 }
+        const metric = metricsByLegoId.get(row.lego_id)
+        const introducedAt =
+          metric?.lastSeenAt ||
+          synthesizeIntroducedAt(i, total, enrolledAt, lastPractisedAt)
         nodes.push({
-          legoId,
+          legoId: row.lego_id,
           type: classifyType(row.type, targetText),
           text: targetText,
           knownText: row.known_text || '',
@@ -234,19 +270,16 @@ export function useBrainTimelapseData(
           beltIndex: beltIndexForSeed(seedNumber),
           seedNumber,
           position: pos,
-          isRevealed: true, // by definition — we filtered on introducedAt
-          masteryState: mastery.state,
-          introducedAt: mastery.introducedAt,
+          isRevealed: true,
+          masteryState: metric?.state || 'acquisition',
+          introducedAt,
         })
       }
 
-      // ---- 7. assemble pairings (scoped to introduced legos) ----
-      // The pairings table can in theory contain rows for legos that don't
-      // appear in our `nodes` set (e.g. content edits, partial restores).
-      // Filter defensively so the renderer never gets dangling refs.
+      // ---- 5. assemble pairings (scoped to introduced legos) ----
       const nodeIdSet = new Set(nodes.map((n) => n.legoId))
       const pairings: BrainPairing[] = []
-      for (const row of pairingRows || []) {
+      for (const row of pairingsResult.data || []) {
         if (!nodeIdSet.has(row.lego_a) || !nodeIdSet.has(row.lego_b)) continue
         pairings.push({
           legoA: row.lego_a,
@@ -257,36 +290,19 @@ export function useBrainTimelapseData(
         })
       }
 
-      // ---- 8. build chronological event stream ----
-      // node_introduced: one per node, at introducedAt.
-      // pairing_first_fired: one per pairing, at firstFiredAt.
-      // (pairing_strengthened reserved for future — no per-fire ts in v2.)
+      // ---- 6. build chronological event stream ----
       const events: BrainTimelapseEvent[] = []
       for (const n of nodes) {
         if (!n.introducedAt) continue
-        events.push({
-          type: 'node_introduced',
-          at: n.introducedAt,
-          legoId: n.legoId,
-        })
+        events.push({ type: 'node_introduced', at: n.introducedAt, legoId: n.legoId })
       }
       for (const p of pairings) {
-        events.push({
-          type: 'pairing_first_fired',
-          at: p.firstFiredAt,
-          pair: [p.legoA, p.legoB],
-        })
+        events.push({ type: 'pairing_first_fired', at: p.firstFiredAt, pair: [p.legoA, p.legoB] })
       }
       events.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
 
       if (myFetch !== activeFetch) return
-      data.value = {
-        courseCode: course,
-        languageName,
-        nodes,
-        pairings,
-        events,
-      }
+      data.value = { courseCode: course, languageName, nodes, pairings, events }
     } catch (err) {
       if (myFetch !== activeFetch) return
       const msg = err instanceof Error ? err.message : String(err)
