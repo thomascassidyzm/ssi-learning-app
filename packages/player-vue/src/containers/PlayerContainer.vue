@@ -13,6 +13,7 @@ import CourseBrowser from '@/components/CourseBrowser.vue'
 import BrowseScreen from '@/components/BrowseScreen.vue'
 import BottomNav from '@/components/BottomNav.vue'
 import PlayerRestingState from '@/components/PlayerRestingState.vue'
+import LaunchDialogue from '@/components/LaunchDialogue.vue'
 import CourseSelector from '@/components/CourseSelector.vue'
 
 // Custom auth modal (unified)
@@ -510,6 +511,14 @@ onMounted(() => {
       @listeningModeChanged="handleListeningModeChanged"
       @drivingModeChanged="handleDrivingModeChanged"
       @pronunciationModeChanged="handlePronunciationModeChanged"
+    />
+
+    <!-- Launch dialogue — shows during the brief window before
+         LearningPlayer takes over. Gives the user something to watch
+         while the player is awakening, then yields to the real
+         player's message card. -->
+    <LaunchDialogue
+      v-if="(!activeCourse || !isPlayerReady) && currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode"
     />
 
     <!-- Player resting state overlay (shown when paused, hidden during playback).
