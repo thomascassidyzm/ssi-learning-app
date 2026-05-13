@@ -46,19 +46,17 @@ onBeforeUnmount(() => {
 .launch-dialogue {
   /* Dead-centre — the real player card lives at the top, the rest
      state's content sits near the bottom, so the middle is empty
-     space we can occupy without competing with either. Same
-     frost-glass + eyebrow + mono-body design language as the
-     existing player card. */
+     space we can occupy. Deliberately no card backing: on fast
+     loads (PWA cache) the eye should be drawn to the real player
+     card the moment it lands, not held by a competing frost panel
+     here. The bare text still communicates on slow loads but
+     yields visual hierarchy immediately when the player resolves. */
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
   width: calc(100% - 2rem);
   max-width: 480px;
-  padding: 18px 24px 20px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 16px;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.07);
   text-align: center;
   pointer-events: none;
   z-index: 40;
