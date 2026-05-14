@@ -3,6 +3,7 @@ import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from '
 import { useOfflineCache } from '../composables/useOfflineCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
+import { BELTS } from '../composables/useBeltProgress'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -141,7 +142,7 @@ const audioController = ref(null)
 
 // Pagination
 const BATCH_SIZE = 50
-const VISIBLE_WINDOW = 9
+const VISIBLE_WINDOW = 7
 const PRELOAD_THRESHOLD = 10
 const loadedCount = ref(0)
 const totalCount = ref(0)
@@ -159,6 +160,60 @@ const audioMap = ref(new Map())
 useAudioSessionKeepalive(isPlaying)
 
 let playbackId = 0
+
+// ============================================================================
+// LEGO ordinal lookup — maps (seedNumber, legoIndex) → 1-based ordinal in
+// the course's introduction order. Fetched once when the overlay opens.
+// Used to render "#N" tags on each phrase and group phrases by belt.
+// ============================================================================
+const legoOrdinalByKey = ref(new Map())
+
+const beltIndexForSeed = (seedNumber) => {
+  for (let i = BELTS.length - 1; i >= 0; i--) {
+    if (seedNumber >= BELTS[i].seedsRequired) return i
+  }
+  return 0
+}
+
+/**
+ * Whether to render a belt-section header before visiblePhrases[i].
+ * True if i===0 (first visible row) OR the previous visible row is in
+ * a different belt. Only consulted in ordered mode.
+ */
+const shouldShowBeltHeader = (i) => {
+  const phrase = visiblePhrases.value[i]
+  if (!phrase) return false
+  if (i === 0) return true
+  const prev = visiblePhrases.value[i - 1]
+  return prev && prev.beltIndex !== phrase.beltIndex
+}
+
+const loadLegoOrdinals = async () => {
+  if (!supabase?.value || !props.courseCode) return
+  try {
+    let q = supabase.value
+      .from('course_legos')
+      .select('seed_number, lego_index')
+      .eq('course_code', props.courseCode)
+      .order('seed_number', { ascending: true })
+      .order('lego_index', { ascending: true })
+      .limit(2000)
+    if (props.upToSeed) q = q.lt('seed_number', props.upToSeed)
+    const { data, error: ordErr } = await q
+    if (ordErr) {
+      console.warn('[ListeningOverlay] LEGO ordinal fetch failed:', ordErr.message)
+      return
+    }
+    const map = new Map()
+    ;(data || []).forEach((row, i) => {
+      const key = `${row.seed_number}.${row.lego_index}`
+      map.set(key, i + 1)
+    })
+    legoOrdinalByKey.value = map
+  } catch (e) {
+    console.warn('[ListeningOverlay] LEGO ordinal fetch threw:', e)
+  }
+}
 
 // ============================================================================
 // Progress Filtering - Filter phrases by current playing position
@@ -242,17 +297,25 @@ const loadPhrases = async (offset = 0) => {
     if (data && data.length > 0) {
       console.log('[ListeningOverlay] Loaded', data.length, 'phrases, first:', data[0])
 
-      const newPhrases = data.map((p, i) => ({
-        id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
-        seedNumber: p.seed_number,
-        legoIndex: p.lego_index,
-        legoId: `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
-        knownText: p.known_text,
-        targetText: p.target_text,
-        position: p.position,
-        target1AudioId: p.target1_audio_id,
-        target2AudioId: p.target2_audio_id
-      }))
+      const newPhrases = data.map((p, i) => {
+        const key = `${p.seed_number}.${p.lego_index}`
+        const beltIndex = beltIndexForSeed(p.seed_number)
+        return {
+          id: `${p.seed_number}-${p.lego_index}-${p.position || i}`,
+          seedNumber: p.seed_number,
+          legoIndex: p.lego_index,
+          legoId: `S${String(p.seed_number).padStart(4, '0')}L${String(p.lego_index).padStart(2, '0')}`,
+          legoOrdinal: legoOrdinalByKey.value.get(key) || null,
+          beltIndex,
+          beltName: BELTS[beltIndex]?.name || '',
+          beltColor: BELTS[beltIndex]?.color || '#ffffff',
+          knownText: p.known_text,
+          targetText: p.target_text,
+          position: p.position,
+          target1AudioId: p.target1_audio_id,
+          target2AudioId: p.target2_audio_id
+        }
+      })
 
       if (offset === 0) {
         allPhrases.value = newPhrases
@@ -726,8 +789,11 @@ const downloadListeningPack = async () => {
 // Lifecycle
 // ============================================================================
 
-onMounted(() => {
+onMounted(async () => {
   audioController.value = new ListeningAudioController()
+  // Pre-build the LEGO-ordinal lookup so the first phrase batch can use it.
+  // If it fails, phrases just render without ordinals — non-fatal.
+  await loadLegoOrdinals()
   loadPhrases()
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -784,40 +850,25 @@ watch(playbackSpeed, (newSpeed) => {
       <span v-else class="download-pct">{{ packPercent }}%</span>
     </button>
 
-    <!-- Controls bar: mode toggle + transport + speed -->
+    <!-- Controls bar: shuffle toggle + transport + speed -->
     <div class="controls-bar" @click.stop>
-      <!-- Mode Toggle -->
-      <div class="mode-toggle">
-        <button
-          class="mode-btn"
-          :class="{ active: mode === 'ordered' }"
-          @click="setMode('ordered')"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="8" y1="6" x2="21" y2="6"/>
-            <line x1="8" y1="12" x2="21" y2="12"/>
-            <line x1="8" y1="18" x2="21" y2="18"/>
-            <line x1="3" y1="6" x2="3.01" y2="6"/>
-            <line x1="3" y1="12" x2="3.01" y2="12"/>
-            <line x1="3" y1="18" x2="3.01" y2="18"/>
-          </svg>
-          Ordered
-        </button>
-        <button
-          class="mode-btn"
-          :class="{ active: mode === 'shuffled' }"
-          @click="setMode('shuffled')"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="16 3 21 3 21 8"/>
-            <line x1="4" y1="20" x2="21" y2="3"/>
-            <polyline points="21 16 21 21 16 21"/>
-            <line x1="15" y1="15" x2="21" y2="21"/>
-            <line x1="4" y1="4" x2="9" y2="9"/>
-          </svg>
-          Shuffled
-        </button>
-      </div>
+      <!-- Spotify-style shuffle toggle. One button; tap to toggle between
+           ordered (default) and shuffled. Active state = currently shuffled. -->
+      <button
+        class="shuffle-toggle"
+        :class="{ active: mode === 'shuffled' }"
+        :aria-pressed="mode === 'shuffled'"
+        :title="mode === 'shuffled' ? 'Shuffled — tap to return to order' : 'Shuffle'"
+        @click="setMode(mode === 'shuffled' ? 'ordered' : 'shuffled')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 3 21 3 21 8"/>
+          <line x1="4" y1="20" x2="21" y2="3"/>
+          <polyline points="21 16 21 21 16 21"/>
+          <line x1="15" y1="15" x2="21" y2="21"/>
+          <line x1="4" y1="4" x2="9" y2="9"/>
+        </svg>
+      </button>
 
       <!-- Transport: play/stop + progress bar -->
       <div class="transport-bar">
@@ -867,20 +918,39 @@ watch(playbackSpeed, (newSpeed) => {
     <!-- Teleprompter -->
     <div v-else class="teleprompter">
       <div class="phrase-list">
-        <div
-          v-for="phrase in visiblePhrases"
-          :key="phrase.id"
-          class="phrase-row"
-          :class="{
-            current: phrase.isCurrent,
-            past: phrase.isPast,
-            future: !phrase.isCurrent && !phrase.isPast
-          }"
-          @click.stop="handlePhraseClick(phrase.displayIndex)"
-        >
-          <div class="phrase-target">{{ phrase.targetText }}</div>
-          <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
-        </div>
+        <template v-for="(phrase, i) in visiblePhrases" :key="phrase.id">
+          <!-- Belt boundary marker: rendered between phrases whose beltIndex
+               differs from the previous visible phrase. Only meaningful in
+               ordered mode — shuffled would put a header between almost
+               every row, which is noise. -->
+          <div
+            v-if="mode === 'ordered' && shouldShowBeltHeader(i)"
+            class="belt-header"
+          >
+            <span class="belt-pip" :style="{ background: phrase.beltColor }"></span>
+            <span class="belt-name">{{ phrase.beltName }}</span>
+          </div>
+
+          <div
+            class="phrase-row"
+            :class="{
+              current: phrase.isCurrent,
+              past: phrase.isPast,
+              future: !phrase.isCurrent && !phrase.isPast
+            }"
+            @click.stop="handlePhraseClick(phrase.displayIndex)"
+          >
+            <!-- Small ordinal + belt pip header, anchored top of the row.
+                 Tiny, subtle — supplies the "where am I in the course"
+                 signal without competing with the phrase text. -->
+            <div v-if="phrase.legoOrdinal" class="phrase-meta">
+              <span class="phrase-belt-pip" :style="{ background: phrase.beltColor }"></span>
+              <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
+            </div>
+            <div class="phrase-target">{{ phrase.targetText }}</div>
+            <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+          </div>
+        </template>
       </div>
 
       <!-- Play/Pause indicator -->
@@ -997,48 +1067,37 @@ watch(playbackSpeed, (newSpeed) => {
   cursor: default;
 }
 
-/* Mode Toggle */
-.mode-toggle {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.mode-btn {
+/* Shuffle toggle — Spotify-style single button.
+ * Inactive: outlined, neutral. Active (shuffled): filled with the belt
+ * colour, easy to spot at a glance. */
+.shuffle-toggle {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   background: transparent;
   border: 1px solid var(--border-medium);
-  border-radius: 20px;
+  border-radius: 50%;
   color: var(--text-muted);
-  font-size: 0.8125rem;
-  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.mode-btn:hover:not(.active) {
+.shuffle-toggle:hover {
   background: var(--pill-bg-hover);
   color: var(--text-secondary);
 }
 
-/* Active = inverted pill — solid filled with the belt accent so the
- * current mode is unmissable at a glance. Was previously near-identical
- * to the inactive state (same background, only subtle border/text shifts)
- * which made it impossible to tell on phone screens. */
-.mode-btn.active {
+.shuffle-toggle.active {
   background: var(--belt-color, var(--text-primary));
   border-color: var(--belt-color, var(--text-primary));
   color: white;
-  font-weight: 600;
-}
-.mode-btn.active svg {
-  color: white;
 }
 
-.mode-btn svg {
+.shuffle-toggle svg {
   width: 16px;
   height: 16px;
 }
@@ -1194,7 +1253,7 @@ watch(playbackSpeed, (newSpeed) => {
 }
 
 .phrase-target {
-  font-size: 1.0625rem;
+  font-size: 1.25rem;
   font-weight: 500;
   color: var(--text-primary);
   text-align: center;
@@ -1206,17 +1265,77 @@ watch(playbackSpeed, (newSpeed) => {
     text-shadow 0.4s ease;
 }
 
+/* The current row dominates — significantly bigger than its neighbours
+ * so the eye lands on it as the focal point. */
 .phrase-row.current .phrase-target {
-  font-size: clamp(1.25rem, 3vmin, 1.5rem);
+  font-size: clamp(1.75rem, 5vmin, 2.25rem);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .phrase-known {
-  font-size: 0.875rem;
+  font-size: 1rem;
   color: var(--text-secondary);
-  margin-top: 0.375rem;
+  margin-top: 0.5rem;
   font-style: italic;
+}
+
+/* Per-row meta header (ordinal + belt pip). Subtle, tiny, sits above the
+ * phrase target. Doesn't compete with the phrase text. */
+.phrase-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  opacity: 0.65;
+}
+
+.phrase-row.current .phrase-meta {
+  opacity: 0.85;
+}
+
+.phrase-belt-pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.phrase-ordinal {
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* Belt section divider — appears within the visible window when a belt
+ * boundary falls between two phrases (ordered mode only). */
+.belt-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.25rem;
+  padding: 0.4rem 0.85rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.belt-header .belt-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
 }
 
 /* Playback hint */
