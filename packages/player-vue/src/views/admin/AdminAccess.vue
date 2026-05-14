@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuth } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 type Mode = 'invite' | 'direct'
 
@@ -429,16 +428,16 @@ onMounted(() => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Access Codes</h1>
+        <h1 class="arsenal">Access Codes</h1>
         <div class="metrics">
           <span class="metric">
-            <span class="metric-value frost-mono-nums">{{ totalCount }}</span>
+            <span class="metric-value mono-nums">{{ totalCount }}</span>
             codes
           </span>
           <template v-if="totalCount > 0">
             <span class="metric-sep">·</span>
             <span class="metric metric-active">
-              <span class="metric-value frost-mono-nums">{{ activeCount }}</span>
+              <span class="metric-value mono-nums">{{ activeCount }}</span>
               active
             </span>
           </template>
@@ -467,10 +466,10 @@ onMounted(() => {
       </div>
     </Transition>
 
-    <!-- Create form — FrostCard panel -->
-    <FrostCard variant="panel" class="create-panel">
+    <!-- Create form — schools card panel -->
+    <div class="schools-card create-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">Create new code</span>
+        <span class="schools-kicker">Create new code</span>
         <div class="mode-toggle" role="tablist">
           <button
             type="button"
@@ -499,7 +498,7 @@ onMounted(() => {
         <!-- ───── INVITE MODE ───── -->
         <template v-if="mode === 'invite'">
           <div class="field">
-            <label class="frost-eyebrow">Role</label>
+            <label class="schools-kicker">Role</label>
             <select v-model="inviteCodeType" class="frost-select">
               <option v-if="isSsiAdmin" value="ssi_admin">SSi Admin</option>
               <option v-if="isSsiAdmin" value="govt_admin">Govt Admin</option>
@@ -509,7 +508,7 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label class="frost-eyebrow">Group <span class="optional">(optional)</span></label>
+            <label class="schools-kicker">Group <span class="optional">(optional)</span></label>
             <select v-model="inviteGroup" class="frost-select">
               <option value="">— No group —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
@@ -517,7 +516,7 @@ onMounted(() => {
           </div>
 
           <div class="field field-wide">
-            <label class="frost-eyebrow">Organisation name <span class="required">*</span></label>
+            <label class="schools-kicker">Organisation name <span class="required">*</span></label>
             <input
               v-model="inviteOrgName"
               type="text"
@@ -530,7 +529,7 @@ onMounted(() => {
         <!-- ───── DIRECT MODE ───── -->
         <template v-else>
           <div class="field field-wide">
-            <label class="frost-eyebrow">Label <span class="required">*</span></label>
+            <label class="schools-kicker">Label <span class="required">*</span></label>
             <input
               v-model="directLabel"
               type="text"
@@ -540,7 +539,7 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label class="frost-eyebrow">Access</label>
+            <label class="schools-kicker">Access</label>
             <select v-model="directAccessType" class="frost-select">
               <option value="full">Full access (all courses)</option>
               <option value="courses">Specific courses</option>
@@ -548,7 +547,7 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label class="frost-eyebrow">Duration</label>
+            <label class="schools-kicker">Duration</label>
             <select v-model="directDurationType" class="frost-select">
               <option value="lifetime">Lifetime</option>
               <option value="time_limited">Time-limited</option>
@@ -556,7 +555,7 @@ onMounted(() => {
           </div>
 
           <div v-if="directDurationType === 'time_limited'" class="field">
-            <label class="frost-eyebrow">Duration (days)</label>
+            <label class="schools-kicker">Duration (days)</label>
             <input
               v-model="directDurationDays"
               type="number" min="1"
@@ -566,7 +565,7 @@ onMounted(() => {
           </div>
 
           <div v-if="directAccessType === 'courses'" class="field field-wide">
-            <label class="frost-eyebrow">Courses</label>
+            <label class="schools-kicker">Courses</label>
             <div class="course-picker">
               <div v-if="directSelectedCourses.size > 0" class="selected-tags">
                 <span
@@ -624,12 +623,12 @@ onMounted(() => {
 
         <!-- ───── SHARED FIELDS ───── -->
         <div class="field">
-          <label class="frost-eyebrow">Expires <span class="optional">(optional)</span></label>
+          <label class="schools-kicker">Expires <span class="optional">(optional)</span></label>
           <input v-model="formExpiresAt" type="date" class="frost-input" />
         </div>
 
         <div class="field">
-          <label class="frost-eyebrow">Max uses <span class="optional">(blank = unlimited)</span></label>
+          <label class="schools-kicker">Max uses <span class="optional">(blank = unlimited)</span></label>
           <input
             v-model="formMaxUses"
             type="number" min="1"
@@ -653,13 +652,12 @@ onMounted(() => {
           </button>
         </div>
       </form>
-    </FrostCard>
+    </div>
 
     <!-- Codes list — table inside panel canon §5.3 -->
-    <FrostCard
+    <div
       v-if="allRows.length > 0"
-      variant="panel"
-      class="codes-panel"
+      class="schools-card codes-panel"
     >
       <table class="codes-table">
         <thead>
@@ -688,7 +686,7 @@ onMounted(() => {
                 :title="copiedCode === r.row.code ? 'Copied!' : 'Click to copy'"
                 @click="copyCode(r.row.code)"
               >
-                <span class="code-value frost-mono-nums">{{ r.row.code }}</span>
+                <span class="code-value mono-nums">{{ r.row.code }}</span>
                 <svg v-if="copiedCode !== r.row.code" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -723,8 +721,8 @@ onMounted(() => {
             <td class="cell-muted">
               {{ r.kind === 'invite' ? groupName(r.row.grants_group_id) : '—' }}
             </td>
-            <td class="cell-muted frost-mono-nums">{{ formatUses(r.row) }}</td>
-            <td class="cell-muted frost-mono-nums">{{ formatDate(r.row.expires_at) }}</td>
+            <td class="cell-muted mono-nums">{{ formatUses(r.row) }}</td>
+            <td class="cell-muted mono-nums">{{ formatDate(r.row.expires_at) }}</td>
             <td>
               <button
                 class="status-pill"
@@ -753,20 +751,19 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
-    </FrostCard>
+    </div>
 
     <!-- Empty state -->
-    <FrostCard
+    <div
       v-else-if="!isLoading"
-      variant="tile"
-      class="empty"
+      class="schools-card empty"
     >
       <div class="empty-ghost">codes</div>
       <div class="empty-copy">
         <strong>No access codes yet</strong>
         <p>Create one above and share it to invite admins, teachers, or grant direct access.</p>
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Loading -->
     <div v-if="isLoading && allRows.length === 0" class="loading">
@@ -782,6 +779,11 @@ onMounted(() => {
   gap: var(--space-6);
 }
 
+.mono-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Page header */
 .page-header {
   display: flex;
@@ -795,7 +797,7 @@ onMounted(() => {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.015em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin: 0 0 var(--space-2);
 }
 
@@ -803,17 +805,17 @@ onMounted(() => {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
 
-.metric-sep { color: var(--ink-faint); }
+.metric-sep { color: var(--schools-fg-3); }
 .metric-active .metric-value { color: rgb(var(--tone-green)); }
 
 /* Banners */
@@ -872,15 +874,15 @@ onMounted(() => {
   border: none;
   background: transparent;
   border-radius: var(--radius-full);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.mode-btn:hover { color: var(--ink-primary); }
+.mode-btn:hover { color: var(--schools-fg); }
 
 .mode-btn.is-active {
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(194, 58, 58, 0.20);
 }
@@ -922,7 +924,7 @@ onMounted(() => {
 }
 
 .optional {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   font-weight: var(--font-normal);
   text-transform: none;
   letter-spacing: 0;
@@ -933,14 +935,14 @@ onMounted(() => {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-lg);
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
-.frost-input::placeholder { color: var(--ink-faint); }
+.frost-input::placeholder { color: var(--schools-fg-3); }
 
 .frost-input:focus,
 .frost-select:focus {
@@ -1054,12 +1056,12 @@ onMounted(() => {
 }
 
 .course-option-name {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-size: var(--text-sm);
 }
 
 .course-option-code {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   font-family: var(--font-mono);
   font-size: 11px;
 }
@@ -1067,7 +1069,7 @@ onMounted(() => {
 .course-option-empty {
   padding: 16px;
   text-align: center;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -1079,7 +1081,7 @@ onMounted(() => {
   font-weight: var(--font-medium);
   background: rgba(44, 38, 34, 0.06);
   border: 1px solid rgba(44, 38, 34, 0.10);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   border-radius: var(--radius-md);
   cursor: pointer;
 }
@@ -1097,7 +1099,7 @@ onMounted(() => {
   font-weight: var(--font-semibold);
   border-radius: var(--radius-full);
   border: 1px solid transparent;
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
   cursor: pointer;
   transition: all var(--transition-base);
@@ -1105,7 +1107,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--ssi-red-light);
+  background: var(--schools-red-deep);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
 }
 
@@ -1143,7 +1145,7 @@ onMounted(() => {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   text-align: left;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
   background: rgba(255, 255, 255, 0.35);
@@ -1162,30 +1164,30 @@ onMounted(() => {
   padding: 12px 18px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.05);
   vertical-align: middle;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   font-size: var(--text-sm);
 }
 
 .codes-table tbody tr:last-child td { border-bottom: none; }
 
 .cell-org {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-medium);
 }
 
 .cell-muted {
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   white-space: nowrap;
 }
 
 .cell-detail {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-size: var(--text-sm);
 }
 
 .cell-detail-sep {
   margin: 0 6px;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
 /* Code chip */
@@ -1200,13 +1202,13 @@ onMounted(() => {
   font: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
 }
 
 .code-chip:hover {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(44, 38, 34, 0.16);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .code-chip.is-copied {
@@ -1316,7 +1318,7 @@ onMounted(() => {
 }
 
 .status-pill.is-disabled {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   background: rgba(44, 38, 34, 0.04);
   border-color: rgba(44, 38, 34, 0.10);
 }
@@ -1341,7 +1343,7 @@ onMounted(() => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   opacity: 0;
   transform: translateX(4px);
@@ -1355,7 +1357,7 @@ onMounted(() => {
 }
 
 .row-action:hover {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(44, 38, 34, 0.1);
 }
@@ -1375,7 +1377,7 @@ onMounted(() => {
   font-size: 88px;
   font-weight: var(--font-bold);
   letter-spacing: -0.03em;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   opacity: 0.35;
   line-height: 0.9;
   user-select: none;
@@ -1385,20 +1387,20 @@ onMounted(() => {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-bottom: 4px;
 }
 
 .empty-copy p {
   margin: 0;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .loading {
   text-align: center;
   padding: var(--space-12);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
