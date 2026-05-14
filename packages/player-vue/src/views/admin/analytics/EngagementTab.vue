@@ -2,7 +2,6 @@
 import { onMounted, computed } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAnalyticsEngagement } from '@/composables/admin/useAnalyticsEngagement'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import BarChart from '@/components/admin/charts/BarChart.vue'
 import { parseCourseCode, formatDuration } from '@/composables/admin/adminUtils'
 
@@ -58,20 +57,20 @@ function formatCourseLabel(code: string): string {
 }
 
 const beltColorMap: Record<string, string> = {
-  white: 'rgb(180, 175, 165)',
-  yellow: 'rgb(220, 180, 70)',
-  orange: 'rgb(220, 130, 60)',
-  green: 'rgb(74, 180, 110)',
-  blue: 'rgb(96, 145, 220)',
-  purple: 'rgb(150, 110, 200)',
-  brown: 'rgb(150, 100, 60)',
-  black: 'rgb(40, 36, 32)',
+  white: '#f4f3ef',
+  yellow: '#f7d24a',
+  orange: '#ec8a3a',
+  green: '#2a8d5e',
+  blue: '#3768c4',
+  purple: '#7e5bbd',
+  brown: '#8b5a2b',
+  black: '#1c1b18',
 }
 
 function beltStyle(belt: string): Record<string, string> {
-  const c = beltColorMap[belt.toLowerCase()] || 'rgb(120, 110, 100)'
+  const c = beltColorMap[belt.toLowerCase()] || 'var(--schools-fg-3)'
   return {
-    background: 'rgba(44, 38, 34, 0.04)',
+    background: '#fafaf8',
     borderColor: c,
     color: c,
   }
@@ -84,87 +83,77 @@ onMounted(() => {
 
 <template>
   <div class="tab-content">
-    <!-- Loading -->
-    <div v-if="engagement.isLoading.value" class="loading">Loading engagement metrics…</div>
+    <!-- Loading / error -->
+    <div v-if="engagement.isLoading.value" class="loading schools-subtle">Loading engagement metrics…</div>
     <div v-if="engagement.error.value" class="error-banner">{{ engagement.error.value }}</div>
 
-    <!-- KPI stones -->
-    <div v-if="engagement.data.value" class="kpi-strip">
-      <FrostCard variant="stone" tone="green">
-        <div class="stone-content">
-          <span class="stone-label">Daily active</span>
-          <span class="stone-value frost-mono-nums">{{ engagement.data.value.dau }}</span>
-        </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="blue">
-        <div class="stone-content">
-          <span class="stone-label">Weekly active</span>
-          <span class="stone-value frost-mono-nums">{{ engagement.data.value.wau }}</span>
-        </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="gold">
-        <div class="stone-content">
-          <span class="stone-label">Monthly active</span>
-          <span class="stone-value frost-mono-nums">{{ engagement.data.value.mau }}</span>
-        </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="red">
-        <div class="stone-content">
-          <span class="stone-label">Avg session</span>
-          <span class="stone-value frost-mono-nums">{{ avgDurationFormatted }}</span>
-        </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="gold">
-        <div class="stone-content">
-          <span class="stone-label">Sessions / user / wk</span>
-          <span class="stone-value frost-mono-nums">{{ avgSessionsFormatted }}</span>
-        </div>
-      </FrostCard>
+    <!-- KPI cards -->
+    <div v-if="engagement.data.value" class="kpi-grid">
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Daily active</span>
+        <span class="arsenal kpi-value">{{ engagement.data.value.dau }}</span>
+      </div>
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Weekly active</span>
+        <span class="arsenal kpi-value">{{ engagement.data.value.wau }}</span>
+      </div>
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Monthly active</span>
+        <span class="arsenal kpi-value">{{ engagement.data.value.mau }}</span>
+      </div>
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Avg session</span>
+        <span class="arsenal kpi-value">{{ avgDurationFormatted }}</span>
+      </div>
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Sessions / user / wk</span>
+        <span class="arsenal kpi-value">{{ avgSessionsFormatted }}</span>
+      </div>
     </div>
 
     <!-- Session frequency distribution -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">Session frequency · sessions / user / week</span>
+        <span class="schools-kicker">Session frequency · sessions / user / week</span>
       </div>
       <div class="panel-body">
         <BarChart
           :data="frequencyChartData"
           x-key="bucket"
           y-key="count"
-          color="rgb(var(--tone-blue))"
+          color="var(--schools-fg)"
           :height="220"
           :format-x="(v: any) => `${v}/wk`"
           :format-y="(v: number) => `${v} users`"
         />
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Session duration distribution -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">Session duration · how long learners practise</span>
+        <span class="schools-kicker">Session duration · how long learners practise</span>
       </div>
       <div class="panel-body">
         <BarChart
           :data="durationChartData"
           x-key="bucket"
           y-key="count"
-          color="rgb(var(--tone-green))"
+          color="var(--schools-fg)"
           :height="220"
           :format-x="(v: any) => String(v)"
           :format-y="(v: number) => `${v} sessions`"
         />
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Average belt per course -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">Average belt per course</span>
+        <span class="schools-kicker">Average belt per course</span>
       </div>
       <div class="panel-body">
-        <div v-if="beltChartData.length === 0" class="empty-inline">
+        <div v-if="beltChartData.length === 0" class="empty-inline schools-subtle">
           No belt data available yet.
         </div>
         <div v-else class="belt-list">
@@ -178,7 +167,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
-    </FrostCard>
+    </div>
   </div>
 </template>
 
@@ -186,91 +175,74 @@ onMounted(() => {
 .tab-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: 18px;
 }
 
-/* KPI stones */
-.kpi-strip {
+/* KPI cards */
+.kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-4);
+  gap: 14px;
 }
 
-.stone-content {
+.kpi {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  height: 100%;
-  padding: var(--space-5) var(--space-6);
-  min-height: 140px;
+  gap: 10px;
+  min-height: 120px;
 }
 
-.stone-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
+.kpi-label { letter-spacing: 0.10em; }
 
-.stone-value {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
-  letter-spacing: -0.025em;
-  color: var(--ink-primary);
-  margin-top: var(--space-3);
+.kpi-value {
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: var(--schools-fg);
 }
 
 /* Panels */
-.chart-panel {
-  padding: 0;
-  overflow: hidden;
-}
+.chart-panel { padding: 0; overflow: hidden; }
 
 .panel-head {
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--schools-border);
 }
 
-.panel-body {
-  padding: var(--space-5) var(--space-6);
-}
+.panel-body { padding: 16px 20px 20px; }
 
 /* Belt list */
 .belt-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 8px;
 }
 
 .belt-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.45);
-  border-radius: var(--radius-lg);
-  font-size: var(--text-sm);
-  transition: background var(--transition-fast);
+  padding: 10px 14px;
+  background: #fafaf8;
+  border: 1px solid var(--schools-border);
+  border-radius: var(--schools-radius-md);
+  font-size: 13.5px;
+  transition: background 160ms ease-out;
 }
 
-.belt-row:hover {
-  background: rgba(255, 255, 255, 0.72);
-}
+.belt-row:hover { background: #fff; }
 
 .belt-course {
-  color: var(--ink-primary);
-  font-weight: var(--font-medium);
+  color: var(--schools-fg);
+  font-weight: 500;
 }
 
 .belt-pill {
   display: inline-block;
   padding: 3px 12px;
-  border-radius: var(--radius-full);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-medium);
+  border-radius: var(--schools-radius-pill);
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   border: 1px solid transparent;
@@ -279,32 +251,30 @@ onMounted(() => {
 /* Status */
 .loading {
   text-align: center;
-  padding: var(--space-12);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
+  padding: 40px 20px;
+  font-size: 13px;
 }
 
 .error-banner {
-  padding: var(--space-3) var(--space-4);
-  background: rgba(var(--tone-red), 0.08);
-  border: 1px solid rgba(var(--tone-red), 0.25);
-  border-radius: var(--radius-lg);
-  color: rgb(var(--tone-red));
-  font-size: var(--text-sm);
+  padding: 10px 14px;
+  background: rgba(219, 30, 23, 0.06);
+  border: 1px solid rgba(219, 30, 23, 0.25);
+  border-radius: var(--schools-radius-md);
+  color: var(--schools-red-deep);
+  font-size: 13px;
 }
 
 .empty-inline {
   text-align: center;
-  padding: var(--space-6) var(--space-4);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
+  padding: 22px 16px;
+  font-size: 13px;
 }
 
 @media (max-width: 1200px) {
-  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 768px) {
-  .kpi-strip { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: 1fr; }
 }
 </style>

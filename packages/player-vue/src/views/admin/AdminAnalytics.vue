@@ -20,26 +20,26 @@ const activeTab = ref<TabId>('overview')
 
 <template>
   <div class="admin-analytics">
-    <!-- Page header — canon §5.1 -->
-    <header class="page-header">
+    <!-- Page header -->
+    <header class="page-head">
       <div class="title-block">
-        <h1 class="frost-display">Platform Analytics</h1>
-        <div class="metrics">
-          <span class="metric">User growth, engagement, retention &amp; friction</span>
-        </div>
+        <h1 class="arsenal page-title">Platform Analytics</h1>
+        <p class="page-sub schools-subtle">
+          User growth, engagement, retention &amp; friction
+        </p>
       </div>
     </header>
 
-    <!-- Tab nav — segmented pill (canon: see AdminCourses' Sort toggle) -->
-    <div class="filters-bar">
-      <span class="frost-eyebrow">View</span>
-      <div class="tab-toggle" role="tablist">
+    <!-- View pill row -->
+    <div class="view-row">
+      <span class="schools-kicker view-label">View</span>
+      <div class="view-pills" role="tablist">
         <button
           v-for="tab in tabs"
           :key="tab.id"
           type="button"
           role="tab"
-          class="tab-btn"
+          class="view-pill"
           :class="{ 'is-active': activeTab === tab.id }"
           :aria-selected="activeTab === tab.id"
           @click="activeTab = tab.id"
@@ -59,81 +59,82 @@ const activeTab = ref<TabId>('overview')
 
 <style scoped>
 .admin-analytics {
+  max-width: 1280px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: 18px;
 }
 
-/* Page header — canon §5.1 */
-.page-header {
+.page-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: 24px;
+  flex-wrap: wrap;
 }
 
-.title-block h1 {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
-  letter-spacing: -0.015em;
-  color: var(--ink-primary);
-  margin: 0 0 var(--space-2);
+.title-block { display: flex; flex-direction: column; gap: 4px; }
+
+.page-title {
+  font-size: 32px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
 }
 
-.metrics {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
+.page-sub {
+  font-size: 13.5px;
+  margin-top: 2px;
 }
 
-/* Tab toggle — segmented pill, canon filters-bar §5.2 */
-.filters-bar {
+/* View pill row */
+.view-row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 12px;
   flex-wrap: wrap;
 }
 
-.tab-toggle {
+.view-label { letter-spacing: 0.10em; }
+
+.view-pills {
   display: inline-flex;
-  background: rgba(44, 38, 34, 0.05);
-  border: 1px solid rgba(44, 38, 34, 0.08);
-  border-radius: var(--radius-full);
+  gap: 4px;
   padding: 3px;
-  gap: 2px;
+  background: #f3f1ec;
+  border: 1px solid var(--schools-border);
+  border-radius: var(--schools-radius-pill);
   flex-wrap: wrap;
 }
 
-.tab-btn {
-  font: inherit;
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  padding: 6px 14px;
+.view-pill {
+  padding: 7px 16px 8px;
+  font-size: 12.5px;
+  font-weight: 500;
   border: none;
+  border-radius: var(--schools-radius-pill);
   background: transparent;
-  border-radius: var(--radius-full);
-  color: var(--ink-muted);
+  color: var(--schools-fg-2);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  font-family: var(--font-body);
+  transition: background 160ms ease-out, color 160ms ease-out, box-shadow 160ms ease-out;
 }
 
-.tab-btn:hover { color: var(--ink-primary); }
+.view-pill:hover { color: var(--schools-fg); }
 
-.tab-btn.is-active {
-  background: var(--ssi-red);
+.view-pill.is-active {
+  background: var(--schools-red);
   color: #fff;
-  box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(194, 58, 58, 0.20);
+  font-weight: 600;
+  box-shadow: var(--schools-shadow-sm);
 }
 
 @media (max-width: 768px) {
-  .page-header {
+  .page-head {
     flex-direction: column;
     align-items: flex-start;
   }
-  .filters-bar {
+  .view-row {
     align-items: flex-start;
     flex-direction: column;
   }

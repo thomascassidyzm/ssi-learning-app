@@ -3,7 +3,6 @@ import { onMounted, computed } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAnalyticsOverview } from '@/composables/admin/useAnalyticsOverview'
 import { useAnalyticsGrowth } from '@/composables/admin/useAnalyticsGrowth'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import BarChart from '@/components/admin/charts/BarChart.vue'
 
 const { getClient } = useAdminClient()
@@ -43,61 +42,53 @@ onMounted(() => {
 
 <template>
   <div class="tab-content">
-    <!-- Loading -->
-    <div v-if="overview.isLoading.value" class="loading">Loading overview…</div>
+    <!-- Loading / error -->
+    <div v-if="overview.isLoading.value" class="loading schools-subtle">Loading overview…</div>
     <div v-if="overview.error.value" class="error-banner">{{ overview.error.value }}</div>
 
-    <!-- KPI stones -->
-    <div v-if="overview.data.value" class="kpi-strip">
-      <FrostCard variant="stone" tone="blue">
-        <div class="stone-content">
-          <span class="stone-label">Total learners</span>
-          <span class="stone-value frost-mono-nums">{{ overview.data.value.total_learners }}</span>
-          <span
-            v-if="overview.data.value.delta_vs_30d_ago > 0"
-            class="stone-trend"
-          >+{{ overview.data.value.delta_vs_30d_ago }} (30d)</span>
-        </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="green">
-        <div class="stone-content">
-          <span class="stone-label">Monthly active</span>
-          <span class="stone-value frost-mono-nums">{{ overview.data.value.mau }}</span>
-        </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="gold">
-        <div class="stone-content">
-          <span class="stone-label">DAU / MAU stickiness</span>
-          <span class="stone-value frost-mono-nums">{{ stickinessPct }}%</span>
-        </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="red">
-        <div class="stone-content">
-          <span class="stone-label">Practice hours</span>
-          <span class="stone-value frost-mono-nums">{{ practiceHoursFormatted }}</span>
-        </div>
-      </FrostCard>
+    <!-- KPI cards -->
+    <div v-if="overview.data.value" class="kpi-grid">
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Total learners</span>
+        <span class="arsenal kpi-value">{{ overview.data.value.total_learners }}</span>
+        <span
+          v-if="overview.data.value.delta_vs_30d_ago > 0"
+          class="kpi-detail schools-subtle"
+        >+{{ overview.data.value.delta_vs_30d_ago }} (30d)</span>
+      </div>
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Monthly active</span>
+        <span class="arsenal kpi-value">{{ overview.data.value.mau }}</span>
+      </div>
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">DAU / MAU stickiness</span>
+        <span class="arsenal kpi-value">{{ stickinessPct }}%</span>
+      </div>
+      <div class="schools-card schools-card-pad kpi">
+        <span class="schools-kicker kpi-label">Practice hours</span>
+        <span class="arsenal kpi-value">{{ practiceHoursFormatted }}</span>
+      </div>
     </div>
 
     <!-- New users / week -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">New users · last 12 weeks</span>
+        <span class="schools-kicker">New users · last 12 weeks</span>
       </div>
       <div class="panel-body">
-        <div v-if="growth.isLoading.value" class="loading">Loading…</div>
+        <div v-if="growth.isLoading.value" class="loading schools-subtle">Loading…</div>
         <BarChart
           v-else
           :data="weeklyChartData"
           x-key="week"
           y-key="count"
-          color="rgb(var(--tone-blue))"
+          color="var(--schools-fg)"
           :height="250"
           :format-x="(v: any) => String(v)"
           :format-y="(v: number) => String(v)"
         />
       </div>
-    </FrostCard>
+    </div>
   </div>
 </template>
 
@@ -105,87 +96,65 @@ onMounted(() => {
 .tab-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: 18px;
 }
 
-/* KPI stones */
-.kpi-strip {
+/* KPI cards */
+.kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
+  gap: 14px;
 }
 
-.stone-content {
+.kpi {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  height: 100%;
-  padding: var(--space-5) var(--space-6);
-  min-height: 140px;
+  gap: 10px;
+  min-height: 130px;
 }
 
-.stone-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
+.kpi-label { letter-spacing: 0.10em; }
+
+.kpi-value {
+  font-size: 36px;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: var(--schools-fg);
 }
 
-.stone-value {
-  font-family: var(--font-display);
-  font-size: var(--text-4xl);
-  font-weight: var(--font-bold);
-  letter-spacing: -0.025em;
-  color: var(--ink-primary);
-  margin-top: var(--space-3);
-}
-
-.stone-trend {
-  margin-top: var(--space-2);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-  color: rgb(var(--tone-green));
-}
+.kpi-detail { font-size: 12px; }
 
 /* Panel */
-.chart-panel {
-  padding: 0;
-  overflow: hidden;
-}
+.chart-panel { padding: 0; overflow: hidden; }
 
 .panel-head {
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--schools-border);
 }
 
-.panel-body {
-  padding: var(--space-5) var(--space-6);
-}
+.panel-body { padding: 16px 20px 20px; }
 
 /* Status */
 .loading {
   text-align: center;
-  padding: var(--space-12);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
+  padding: 40px 20px;
+  font-size: 13px;
 }
 
 .error-banner {
-  padding: var(--space-3) var(--space-4);
-  background: rgba(var(--tone-red), 0.08);
-  border: 1px solid rgba(var(--tone-red), 0.25);
-  border-radius: var(--radius-lg);
-  color: rgb(var(--tone-red));
-  font-size: var(--text-sm);
+  padding: 10px 14px;
+  background: rgba(219, 30, 23, 0.06);
+  border: 1px solid rgba(219, 30, 23, 0.25);
+  border-radius: var(--schools-radius-md);
+  color: var(--schools-red-deep);
+  font-size: 13px;
 }
 
 @media (max-width: 1024px) {
-  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 640px) {
-  .kpi-strip { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: 1fr; }
 }
 </style>
