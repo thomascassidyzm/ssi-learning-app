@@ -58,12 +58,33 @@ export interface PlayerEvent {
   device_type: string | null
 }
 
+/** One row from learner_l1_state — per-seed L1 fire counter. */
+export interface L1StateRow {
+  course_code: string
+  lego_id: string        // seed's completing LEGO
+  fire_count: number
+  last_fired_at: string | null
+}
+
+/** One row from learner_lego_metrics — per-LEGO adaptive pause mastery state. */
+export interface LegoMetricsRow {
+  course_code: string
+  lego_id: string
+  mastery_state: 'acquisition' | 'consolidating' | 'confident' | 'mastered'
+  consecutive_smooth: number
+  consecutive_fast: number
+  n_samples: number
+  last_seen_at: string
+}
+
 const profile = ref<UserProfile | null>(null)
 const enrollments = ref<DetailEnrollment[]>([])
 const sessions = ref<DetailSession[]>([])
 const userEntitlements = ref<UserEntitlement[]>([])
 const courseProgress = ref<Map<string, CourseProgress>>(new Map())
 const playerEvents = ref<PlayerEvent[]>([])
+const l1State = ref<L1StateRow[]>([])
+const legoMetrics = ref<LegoMetricsRow[]>([])
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -338,6 +359,8 @@ export function useAdminUserDetail(client: SupabaseClient) {
     userEntitlements,
     courseProgress,
     playerEvents,
+    l1State,
+    legoMetrics,
     isLoading,
     error,
     roleUpdateStatus,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
@@ -16,6 +16,8 @@ const {
   sessions,
   userEntitlements,
   playerEvents,
+  l1State,
+  legoMetrics,
   isLoading,
   error,
   roleUpdateStatus,
@@ -25,6 +27,83 @@ const {
   revokeEntitlement,
   getCourseProgress,
 } = useAdminUserDetail(getClient())
+
+// ─── Diagnostic helpers (recent telemetry digest) ──────────────────
+// All derived from the already-loaded playerEvents / l1State / legoMetrics
+// so no extra fetches. Visualisation is intentionally minimal — the
+// schools-aesthetic redesign agent will re-skin once their pass lands;
+// this layer just makes the data legible.
+
+function l1StageFor(fc: number): 1 | 2 | 3 | 4 {
+  if (fc <= 3) return 1
+  if (fc <= 6) return 2
+  if (fc <= 9) return 3
+  return 4
+}
+
+const l1StateByCourse = computed(() => {
+  const m = new Map<string, typeof l1State.value>()
+  for (const row of l1State.value) {
+    const arr = m.get(row.course_code) || []
+    arr.push(row)
+    m.set(row.course_code, arr)
+  }
+  return m
+})
+
+const l1StageDistribution = computed(() => {
+  const dist: Record<string, { 1: number; 2: number; 3: number; 4: number; total: number }> = {}
+  for (const row of l1State.value) {
+    const d = dist[row.course_code] ||= { 1: 0, 2: 0, 3: 0, 4: 0, total: 0 }
+    d[l1StageFor(row.fire_count)]++
+    d.total++
+  }
+  return dist
+})
+
+const eventCountsByType = computed(() => {
+  const c = new Map<string, number>()
+  for (const ev of playerEvents.value) {
+    c.set(ev.event_type, (c.get(ev.event_type) ?? 0) + 1)
+  }
+  return [...c.entries()]
+    .map(([type, n]) => ({ type, n }))
+    .sort((a, b) => b.n - a.n)
+})
+
+// Audio plays grouped by cycleType — see what they actually heard.
+const audioPlaysByCycleType = computed(() => {
+  const c = new Map<string, number>()
+  for (const ev of playerEvents.value) {
+    if (ev.event_type !== 'audio_play') continue
+    const p = ev.payload as Record<string, unknown> | null
+    const ct = (p && typeof p.cycleType === 'string') ? p.cycleType : '(unknown)'
+    c.set(ct, (c.get(ct) ?? 0) + 1)
+  }
+  return [...c.entries()]
+    .map(([type, n]) => ({ type, n }))
+    .sort((a, b) => b.n - a.n)
+})
+
+// L1 cluster fires — most recent first. Round comes from the cycle id
+// pattern (script-absolute, not chunk-local).
+const l1ClusterFires = computed(() => {
+  return playerEvents.value
+    .filter(ev => ev.event_type === 'l1_cluster_start')
+    .map(ev => ({
+      id: ev.id,
+      at: ev.occurred_at,
+      course: ev.course_code,
+      round: (ev.payload as any)?.round ?? null,
+      cycleId: (ev.payload as any)?.cycleId ?? '',
+    }))
+})
+
+const legoMetricsByMastery = computed(() => {
+  const c: Record<string, number> = { acquisition: 0, consolidating: 0, confident: 0, mastered: 0 }
+  for (const row of legoMetrics.value) c[row.mastery_state] = (c[row.mastery_state] ?? 0) + 1
+  return c
+})
 
 const expandedEventId = ref<number | null>(null)
 function toggleEvent(id: number) {
@@ -504,6 +583,138 @@ async function handleRevoke(entitlementId: string) {
         </FrostCard>
         <FrostCard v-else variant="tile" class="ent-empty">
           <span>No player events recorded.</span>
+        </FrostCard>
+      </section>
+
+      <!-- ─── Event type digest ─────────────────────────────────── -->
+      <section class="section">
+        <h3 class="section-title frost-display">
+          Event types (last {{ playerEvents.length }})
+        </h3>
+        <FrostCard v-if="eventCountsByType.length > 0" variant="panel" class="list-panel">
+          <table class="list-table">
+            <thead>
+              <tr><th>Event type</th><th class="num-col">Count</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in eventCountsByType" :key="row.type">
+                <td><span class="event-type-pill">{{ row.type }}</span></td>
+                <td class="cell-muted frost-mono-nums num-col">{{ row.n }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </FrostCard>
+        <FrostCard v-else variant="tile" class="ent-empty">
+          <span>No events to summarise.</span>
+        </FrostCard>
+      </section>
+
+      <!-- ─── Audio plays by cycle type ────────────────────────── -->
+      <section v-if="audioPlaysByCycleType.length > 0" class="section">
+        <h3 class="section-title frost-display">
+          Audio plays · by cycle type
+          <span class="title-count frost-mono-nums">
+            {{ audioPlaysByCycleType.reduce((s, r) => s + r.n, 0) }}
+          </span>
+        </h3>
+        <FrostCard variant="panel" class="list-panel">
+          <table class="list-table">
+            <thead>
+              <tr><th>Cycle type</th><th class="num-col">Plays</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in audioPlaysByCycleType" :key="row.type">
+                <td><span class="event-type-pill">{{ row.type }}</span></td>
+                <td class="cell-muted frost-mono-nums num-col">{{ row.n }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </FrostCard>
+      </section>
+
+      <!-- ─── L1 cluster fire timeline ─────────────────────────── -->
+      <section v-if="l1ClusterFires.length > 0" class="section">
+        <h3 class="section-title frost-display">
+          L1 cluster fires
+          <span class="title-count frost-mono-nums">{{ l1ClusterFires.length }}</span>
+        </h3>
+        <FrostCard variant="panel" class="list-panel">
+          <table class="list-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Course</th>
+                <th class="num-col">Script round</th>
+                <th>Cycle ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="fire in l1ClusterFires" :key="fire.id">
+                <td class="cell-muted frost-mono-nums">{{ eventTime(fire.at) }}</td>
+                <td class="cell-muted frost-mono-nums">{{ fire.course || '—' }}</td>
+                <td class="cell-muted frost-mono-nums num-col">{{ fire.round ?? '—' }}</td>
+                <td class="cell-muted frost-mono-nums">{{ fire.cycleId }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </FrostCard>
+      </section>
+
+      <!-- ─── L1 listening state ───────────────────────────────── -->
+      <section v-if="l1State.length > 0" class="section">
+        <h3 class="section-title frost-display">
+          L1 listening state
+          <span class="title-count frost-mono-nums">{{ l1State.length }} seeds</span>
+        </h3>
+        <template v-for="[courseCode, rows] in l1StateByCourse" :key="courseCode">
+          <FrostCard variant="panel" class="list-panel l1-course-panel">
+            <div class="l1-course-head">
+              <span class="course-tag">{{ courseCode }}</span>
+              <span class="cell-muted frost-mono-nums">
+                Stages —
+                1: {{ l1StageDistribution[courseCode]?.[1] ?? 0 }} ·
+                2: {{ l1StageDistribution[courseCode]?.[2] ?? 0 }} ·
+                3: {{ l1StageDistribution[courseCode]?.[3] ?? 0 }} ·
+                4: {{ l1StageDistribution[courseCode]?.[4] ?? 0 }}
+              </span>
+            </div>
+            <table class="list-table">
+              <thead>
+                <tr>
+                  <th>Lego ID</th>
+                  <th class="num-col">Fires</th>
+                  <th class="num-col">Stage</th>
+                  <th>Last fired</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in rows" :key="row.lego_id">
+                  <td class="cell-muted frost-mono-nums">{{ row.lego_id }}</td>
+                  <td class="cell-muted frost-mono-nums num-col">{{ row.fire_count }}</td>
+                  <td class="cell-muted frost-mono-nums num-col">{{ l1StageFor(row.fire_count) }}</td>
+                  <td class="cell-muted frost-mono-nums">
+                    {{ row.last_fired_at ? eventTime(row.last_fired_at) : '—' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </FrostCard>
+        </template>
+      </section>
+
+      <!-- ─── Adaptive pause mastery (per-LEGO) ────────────────── -->
+      <section v-if="legoMetrics.length > 0" class="section">
+        <h3 class="section-title frost-display">
+          Adaptive pause mastery
+          <span class="title-count frost-mono-nums">{{ legoMetrics.length }} LEGOs</span>
+        </h3>
+        <FrostCard variant="tile" class="ent-empty mastery-summary">
+          <span>
+            Acquisition: {{ legoMetricsByMastery.acquisition }} ·
+            Consolidating: {{ legoMetricsByMastery.consolidating }} ·
+            Confident: {{ legoMetricsByMastery.confident }} ·
+            Mastered: {{ legoMetricsByMastery.mastered }}
+          </span>
         </FrostCard>
       </section>
     </template>
