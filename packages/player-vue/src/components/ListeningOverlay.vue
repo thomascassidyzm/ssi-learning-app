@@ -4,6 +4,7 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
+import { useListeningPods } from '../composables/useListeningPods'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -133,12 +134,22 @@ const isLoading = ref(true)
 const error = ref(null)
 const mode = ref('shuffled') // Start shuffled for variety
 
+// Top-level view toggle: 'phrases' = USE-phrase teleprompter (default),
+// 'pods' = Listening Pod scene list (Layer 2).
+const view = ref('phrases')
+
 // Phrase data
 const allPhrases = ref([])
 const visiblePhrases = ref([])
 const currentIndex = ref(-1)
 const isPlaying = ref(false)
 const audioController = ref(null)
+
+// Pods state: list of scenes from useListeningPods, plus the currently
+// selected scene (null = scene list visible, set = teleprompter mode).
+const courseCodeRef = computed(() => props.courseCode)
+const pods = useListeningPods(courseCodeRef)
+const selectedScene = ref(null)
 
 // Pagination
 const BATCH_SIZE = 50
@@ -178,14 +189,86 @@ const beltIndexForSeed = (seedNumber) => {
 /**
  * Whether to render a belt-section header before visiblePhrases[i].
  * True if i===0 (first visible row) OR the previous visible row is in
- * a different belt. Only consulted in ordered mode.
+ * a different belt. Only consulted in ordered phrases mode (pod
+ * sentences have no belt info).
  */
 const shouldShowBeltHeader = (i) => {
+  if (view.value !== 'phrases' || mode.value !== 'ordered') return false
   const phrase = visiblePhrases.value[i]
-  if (!phrase) return false
+  if (!phrase || phrase.beltIndex === undefined) return false
   if (i === 0) return true
   const prev = visiblePhrases.value[i - 1]
   return prev && prev.beltIndex !== phrase.beltIndex
+}
+
+/**
+ * Open a scene: swap the teleprompter's data source to the scene's
+ * sentences (shape-compatible with the phrase row template). Reset
+ * playback position. Keeps the same teleprompter UI — pod sentences
+ * just don't carry seedNumber/legoOrdinal/belt info so those bits of
+ * row chrome stay hidden.
+ */
+const openScene = (scene) => {
+  stopPlayback()
+  selectedScene.value = scene
+  // Map pod sentences to the same shape allPhrases expects.
+  const phrases = scene.sentences.map((s, i) => ({
+    id: s.id,
+    seedNumber: undefined,
+    legoIndex: undefined,
+    legoId: '',
+    legoOrdinal: null,
+    beltIndex: undefined,
+    beltName: '',
+    beltColor: '',
+    knownText: s.knownText,
+    targetText: s.targetText,
+    speaker: s.speaker,
+    position: s.globalOrder,
+    target1AudioId: s.targetAudioId,
+    target2AudioId: s.targetAudioId, // Pods only have one audio version
+  }))
+  allPhrases.value = phrases
+  loadedCount.value = phrases.length
+  totalCount.value = phrases.length
+  hasMore.value = false
+  currentIndex.value = 0
+  // Honor the current shuffle toggle when entering a scene.
+  if (mode.value === 'shuffled') shufflePhrases()
+  updateVisibleWindow()
+}
+
+/** Back from scene-teleprompter to the scene list. */
+const exitScene = () => {
+  stopPlayback()
+  selectedScene.value = null
+  // Restore the phrase-mode data — only needed if user originally arrived
+  // in phrases mode and switched. If we never had phrases, no-op is fine.
+  if (view.value === 'phrases') {
+    // Already populated; nothing to do.
+  }
+}
+
+/** Switch top-level view. Resets transient state. */
+const setView = (v) => {
+  if (view.value === v) return
+  stopPlayback()
+  selectedScene.value = null
+  view.value = v
+  // When entering pods view: clear phrases so we don't show stale rows
+  // behind the scene list. When returning to phrases: reload them.
+  if (v === 'phrases') {
+    allPhrases.value = []
+    loadedCount.value = 0
+    totalCount.value = 0
+    hasMore.value = true
+    currentIndex.value = -1
+    loadPhrases()
+  } else {
+    // pods: empty teleprompter state until a scene is picked
+    allPhrases.value = []
+    currentIndex.value = -1
+  }
 }
 
 const loadLegoOrdinals = async () => {
@@ -850,8 +933,78 @@ watch(playbackSpeed, (newSpeed) => {
       <span v-else class="download-pct">{{ packPercent }}%</span>
     </button>
 
-    <!-- Controls bar: shuffle toggle + transport + speed -->
-    <div class="controls-bar" @click.stop>
+    <!-- Top-level view tabs: Phrases / Pods.
+         Phrases = every USE phrase the learner has met (default).
+         Pods    = Layer 2 dialogue scenes for the course. -->
+    <div class="view-tabs" @click.stop>
+      <button
+        class="view-tab"
+        :class="{ active: view === 'phrases' }"
+        @click="setView('phrases')"
+      >Phrases</button>
+      <button
+        class="view-tab"
+        :class="{ active: view === 'pods' }"
+        @click="setView('pods')"
+      >Pods</button>
+    </div>
+
+    <!-- Pods scene-list view (shown when in pods view + no scene selected) -->
+    <div
+      v-if="view === 'pods' && !selectedScene"
+      class="scene-list-wrap"
+      @click.stop
+    >
+      <div v-if="pods.isLoading.value" class="loading">
+        <div class="loading-spinner"></div>
+        <p>Loading pods...</p>
+      </div>
+      <div v-else-if="pods.error.value" class="error">
+        <p>{{ pods.error.value }}</p>
+      </div>
+      <div v-else-if="pods.scenes.value.length === 0" class="scene-empty">
+        <p>No pods for this course yet.</p>
+      </div>
+      <div v-else class="scene-list">
+        <button
+          v-for="scene in pods.scenes.value"
+          :key="scene.sceneNumber"
+          class="scene-card"
+          type="button"
+          @click="openScene(scene)"
+        >
+          <div class="scene-card-num">{{ scene.sceneNumber }}</div>
+          <div class="scene-card-body">
+            <div class="scene-card-title">{{ scene.title }}</div>
+            <div class="scene-card-meta">{{ scene.sentenceCount }} sentences</div>
+          </div>
+          <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Back-to-scenes button (only in pods view + scene selected) -->
+    <button
+      v-if="view === 'pods' && selectedScene"
+      class="scene-back-btn"
+      type="button"
+      @click.stop="exitScene"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      {{ selectedScene.title }}
+    </button>
+
+    <!-- Controls bar: shuffle toggle + transport + speed.
+         Hidden in pods scene-list state — no data to drive them yet. -->
+    <div
+      v-if="view === 'phrases' || (view === 'pods' && selectedScene)"
+      class="controls-bar"
+      @click.stop
+    >
       <!-- Spotify-style shuffle toggle. One button; tap to toggle between
            ordered (default) and shuffled. Active state = currently shuffled. -->
       <button
@@ -903,20 +1056,23 @@ watch(playbackSpeed, (newSpeed) => {
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="loading">
+    <!-- Loading State (phrases view only — pods has its own loading) -->
+    <div v-if="(view === 'phrases' || selectedScene) && isLoading" class="loading">
       <div class="loading-spinner"></div>
       <p>Loading phrases...</p>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="error" @click.stop>
+    <div v-else-if="(view === 'phrases' || selectedScene) && error" class="error" @click.stop>
       <p>{{ error }}</p>
       <button @click="loadPhrases()">Retry</button>
     </div>
 
-    <!-- Teleprompter -->
-    <div v-else class="teleprompter">
+    <!-- Teleprompter (phrases view, or pods view with a scene selected) -->
+    <div
+      v-else-if="view === 'phrases' || (view === 'pods' && selectedScene)"
+      class="teleprompter"
+    >
       <div class="phrase-list">
         <template v-for="(phrase, i) in visiblePhrases" :key="phrase.id">
           <!-- Belt boundary marker: rendered between phrases whose beltIndex
@@ -1410,5 +1566,175 @@ watch(playbackSpeed, (newSpeed) => {
   font-size: 0.6875rem;
   color: var(--text-muted);
   min-width: 36px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * VIEW TABS — Phrases / Pods
+ * ═══════════════════════════════════════════════════════════════ */
+.view-tabs {
+  position: absolute;
+  top: 0.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.view-tab {
+  padding: 0.35rem 1rem;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.view-tab:hover:not(.active) {
+  color: var(--text-secondary);
+}
+
+.view-tab.active {
+  background: var(--text-primary);
+  color: var(--bg-primary, #ffffff);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * SCENE LIST (Pods view, no scene selected)
+ * ═══════════════════════════════════════════════════════════════ */
+.scene-list-wrap {
+  width: 100%;
+  max-width: 600px;
+  margin: 4.5rem auto 1.5rem;
+  padding: 0 1rem;
+}
+
+.scene-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.scene-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-muted);
+}
+
+.scene-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem 1.1rem;
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 0, 0, 0.18);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.06);
+}
+
+.scene-card:hover {
+  background: var(--bg-card-hover, #ffffff);
+  border-color: rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(44, 38, 34, 0.08);
+}
+
+.scene-card:active {
+  transform: translateY(0);
+}
+
+.scene-card-num {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--belt-color, var(--text-primary));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.scene-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scene-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scene-card-meta {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.scene-card-arrow {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+}
+
+/* "Back to scenes" button (shown when in pods view + a scene is open). */
+.scene-back-btn {
+  position: absolute;
+  top: 3.2rem;
+  left: 1rem;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(44, 38, 34, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.scene-back-btn:hover {
+  background: #ffffff;
+}
+
+.scene-back-btn svg {
+  width: 14px;
+  height: 14px;
 }
 </style>
