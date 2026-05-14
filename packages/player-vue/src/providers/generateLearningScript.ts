@@ -221,7 +221,7 @@ export async function generateLearningScript(
   }
 
   // Query tables directly - audio IDs stored on each row, no joins needed
-  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult] = await Promise.all([
+  const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult] = await Promise.all([
     supabase
       .from('course_legos')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
@@ -274,6 +274,23 @@ export async function generateLearningScript(
           .select('global_order, target_text, known_text, target_audio_id, known_audio_id')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true })
+      : Promise.resolve({ data: [], error: null }),
+    // Course-wide LEGO catalogue (just seed_number + lego_index, unfiltered
+    // by startSeed/endSeed). Used to assign every LEGO an absolute ordinal
+    // position in the course — needed for L1 graduation tracking that is
+    // independent of script chunking. Without this, a chunk generation
+    // starting at startSeed > 1 has no knowledge of how many LEGOs the
+    // learner has already passed, so seedLastRound is forever incomplete
+    // and graduation never fires for earlier seeds (the original bug —
+    // L1 listening silently failed under belt-skip / partial-chunk loads).
+    listeningConfig.enabled
+      ? supabase
+          .from('course_legos')
+          .select('seed_number, lego_index')
+          .eq('course_code', courseCode)
+          .order('seed_number', { ascending: true })
+          .order('lego_index', { ascending: true })
+          .limit(10000)
       : Promise.resolve({ data: [], error: null })
   ])
 
@@ -760,8 +777,30 @@ export async function generateLearningScript(
   let cycleNum = 0
   let roundNumber = 0
 
-  // Listening phase state
-  const seedLastRound = new Map<number, number>()  // seedNum → last LEGO round
+  // Listening phase state.
+  // Graduation is anchored to absolute LEGO position in the course
+  // catalogue, NOT chunk-local roundNumber. The chunk's roundNumber
+  // resets to 0 every script generation, so the old `seedLastRound`
+  // map was incomplete whenever a chunk didn't start at seed 1 (belt
+  // skip, partial loads) — earlier seeds never entered the map and
+  // never graduated, so L1 silently never fired. Catalogue ordinals
+  // are stable: pos(S0001L01) = 1, pos(S0001L02) = 2, ... regardless
+  // of which chunk is being generated.
+  const seedLastLegoOrdinal = new Map<number, number>()  // seedNum → ordinal of its highest-index LEGO
+  const legoOrdinalMap = new Map<string, number>()       // legoKey → ordinal
+  {
+    const catalogue = (catalogueResult.data || []) as Array<{ seed_number: number; lego_index: number }>
+    let ord = 0
+    for (const row of catalogue) {
+      ord++
+      const k = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+      legoOrdinalMap.set(k, ord)
+      // Final write for each seed wins → that's the seed's last-LEGO ordinal
+      // because the query is ordered by (seed_number, lego_index).
+      seedLastLegoOrdinal.set(row.seed_number, ord)
+    }
+  }
+  let currentLegoOrdinal = 0  // updated as each LEGO is introduced in the walk
   const graduatedSeeds = new Set<number>()         // idempotency check
   const graduatedQueue: number[] = []              // graduation order; L1 windows are slices
   // Per-seed L1 fire counter — bumped on each emit in emitL1Cluster.
@@ -1181,8 +1220,10 @@ export async function generateLearningScript(
         seedNum, legoIndex: lego.lego_index, lego
       })
 
-      // Track seed's last LEGO round for listening graduation
-      seedLastRound.set(seedNum, roundNumber)
+      // Update absolute LEGO ordinal for graduation tracking. Catalogue
+      // lookup, NOT chunk-local roundNumber — see seedLastLegoOrdinal
+      // comment for why.
+      currentLegoOrdinal = legoOrdinalMap.get(legoKey) ?? currentLegoOrdinal
 
       // Phase 4: SPACED REP
       const dueForReview: { key: string; state: LegoState; fibPosition: number; phraseCount: number }[] = []
@@ -1290,9 +1331,14 @@ export async function generateLearningScript(
       // reserve plays every 13 rounds. When both fire (every 39 rounds) we
       // emit one combined cluster, reserve first then active.
       if (listeningConfig.enabled) {
-        for (const [sNum, lastRound] of seedLastRound) {
+        // Graduate any seed whose last LEGO is at least `offset` LEGOs
+        // behind the learner's current LEGO. Catalogue-anchored — works
+        // identically whether this is a fresh full-course generation or
+        // a belt-skip chunk dropping in mid-course.
+        for (const [sNum, lastOrd] of seedLastLegoOrdinal) {
           if (graduatedSeeds.has(sNum)) continue
-          if (roundNumber - lastRound < listeningConfig.offset) continue
+          if (currentLegoOrdinal === 0) continue  // no LEGO seen yet in this walk
+          if (currentLegoOrdinal - lastOrd < listeningConfig.offset) continue
           graduatedSeeds.add(sNum)
           graduatedQueue.push(sNum)
         }
