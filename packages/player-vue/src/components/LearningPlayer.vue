@@ -799,6 +799,50 @@ simplePlayer.onPhaseChanged((phase) => {
     isTransitioningItem.value = false
     clearPreparingState()
   }
+
+  // ── Comprehensive audio + L1 cluster telemetry ──
+  // SimplePlayer reuses one Audio element so at most one audio plays at
+  // a time; logging on phase transitions captures every audio start
+  // regardless of cache vs network. Batches via usePlayerLog (5s + 10-
+  // event flush + pagehide beacon) — complete, not continuous.
+  const cycle = simplePlayer.currentCycle.value as any
+  if (!cycle) return
+
+  // L1 cluster boundary — fires once per cluster, on the prompt phase
+  // of an L1 listen_intro (cycle id `listen_intro_R{n}_*`). Layer 2 pod
+  // listen_intros are `listen_intro_pod_R{n}_*` and already have their
+  // own pod_lap_start event, so explicitly skip those.
+  if (phase === 'prompt' && cycle.type === 'listen_intro' && typeof cycle.id === 'string') {
+    if (cycle.id.startsWith('listen_intro_R') && !cycle.id.startsWith('listen_intro_pod_')) {
+      const m = cycle.id.match(/^listen_intro_R(\d+)_/)
+      const round = m ? parseInt(m[1], 10) : null
+      logEvent('l1_cluster_start', {
+        cycleId: cycle.id,
+        round,
+        legoId: cycle.legoId ?? null,
+      })
+    }
+  }
+
+  // Audio play — log the URL + role for any phase that actually plays
+  // a file. Skips silent phases (pause, or listening cycles with
+  // missing prompt/voice2). audio_id is recoverable from the URL.
+  let audioUrl: string | undefined
+  let role: 'known' | 'target1' | 'target2' | null = null
+  if (phase === 'prompt') { audioUrl = cycle.known?.audioUrl; role = 'known' }
+  else if (phase === 'voice1') { audioUrl = cycle.target?.voice1Url; role = 'target1' }
+  else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2' }
+  if (audioUrl && role) {
+    logEvent('audio_play', {
+      url: audioUrl,
+      role,
+      cycleId: cycle.id,
+      cycleType: cycle.type ?? null,
+      legoId: cycle.legoId ?? null,
+      seedId: cycle.seedId ?? null,
+      playbackSpeed: cycle.playbackSpeed ?? 1.0,
+    })
+  }
 })
 
 // Cycle completed - update counters and animations
