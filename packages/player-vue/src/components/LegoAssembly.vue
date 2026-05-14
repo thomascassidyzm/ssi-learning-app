@@ -998,9 +998,12 @@ const sentenceScale = computed(() => {
    SSi red tint + red border to make the salient unambiguously distinct
    from solo-component (dashed) tiles. Char-count-based size scaling makes
    the salient pop subtle on long M-LEGOs, so colour carries the signal.
-   Same red wash on the English hero highlight visually couples the two. */
+   Same red wash on the English hero highlight visually couples the two.
+   Layered backgrounds (red gradient over white base) keep the tile opaque
+   so landscape detail doesn't bleed through. */
 .lego-block.salient {
-  background: rgba(194, 58, 58, 0.18);
+  background-color: rgba(255, 255, 255, 0.85);
+  background-image: linear-gradient(rgba(194, 58, 58, 0.25), rgba(194, 58, 58, 0.25));
   border-color: rgba(194, 58, 58, 0.6);
   border-width: 2px;
   padding: calc(0.7em * var(--sentence-scale, 1)) calc(1.3em * var(--sentence-scale, 1));
@@ -1099,7 +1102,8 @@ const sentenceScale = computed(() => {
 
 
 :root[data-theme="mist"] .lego-block.salient {
-  background: rgba(194, 58, 58, 0.10);
+  background-color: #ffffff;
+  background-image: linear-gradient(rgba(194, 58, 58, 0.14), rgba(194, 58, 58, 0.14));
   border: 1.5px solid rgba(194, 58, 58, 0.55);
   box-shadow: 0 2px 4px rgba(194, 58, 58, 0.15),
               0 8px 24px rgba(44, 38, 34, 0.08);
