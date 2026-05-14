@@ -43,7 +43,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  viewProgress: []
   skipToBelt: [belt: Belt]
 }>()
 
@@ -292,17 +291,6 @@ onUnmounted(() => {
 
             <p class="belt-strip-hint">tap a belt to jump there</p>
           </section>
-
-          <!-- View Full Progress → brain view -->
-          <footer class="modal-footer">
-            <button class="view-progress-btn" @click="emit('viewProgress')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-              <span>{{ t('progress.viewFull', 'View Full Progress') }}</span>
-            </button>
-          </footer>
         </div>
       </div>
     </Transition>
@@ -624,44 +612,6 @@ onUnmounted(() => {
 .map-marker--furthest .map-marker-label::before {
   content: '▽ ';
   color: #A09A94;
-}
-
-/* Footer */
-.modal-footer {
-  margin-top: 0.25rem;
-}
-
-.view-progress-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.6rem;
-  padding: 0.95rem 1.25rem;
-  background: var(--belt-color);
-  border: none;
-  border-radius: 12px;
-  font-family: var(--font-body);
-  font-size: 1rem;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
-  box-shadow: 0 4px 18px var(--belt-glow);
-}
-
-.view-progress-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.view-progress-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 24px var(--belt-glow);
-}
-
-.view-progress-btn:active {
-  transform: translateY(0);
 }
 
 /* Transitions */

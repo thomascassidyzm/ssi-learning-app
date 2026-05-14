@@ -23,7 +23,6 @@ const SettingsScreen = defineAsyncComponent(() => import('@/components/SettingsS
 const CourseExplorer = defineAsyncComponent(() => import('@/components/CourseExplorer.vue'))
 const BrowseScreen = defineAsyncComponent(() => import('@/components/BrowseScreen.vue'))
 const SignInModal = defineAsyncComponent(() => import('@/components/auth/SignInModal.vue'))
-const BrainScreen = defineAsyncComponent(() => import('@/components/BrainScreen.vue'))
 
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -146,12 +145,6 @@ const navigate = (screen, data = null) => {
     learningPlayerRef.value.unlockAudio()
   }
 
-  // Pause the player when entering the brain view — the side panel's
-  // own voice buttons would otherwise fight the running cycle.
-  if (screen === 'brain' && learningPlayerRef.value?.handlePause) {
-    learningPlayerRef.value.handlePause()
-  }
-
   if (data) {
     selectedCourse.value = data
   }
@@ -270,38 +263,6 @@ const handleToggleTurbo = () => {
   if (learningPlayerRef.value?.toggleTurbo) {
     learningPlayerRef.value.toggleTurbo()
   }
-}
-
-// Handle view progress from LearningPlayer (belt modal) — routes to the
-// brain view ("Your brain on Italian"). The brain screen is its own
-// pane in `currentScreen`, mounted async below.
-const handleViewProgress = () => {
-  navigate('brain')
-}
-
-// Learner id for the brain network query — must be learners.id, not the
-// auth uid (see CLAUDE memory: `feedback_ssi_learner_id_never_auth_uid`).
-// auth.learnerId is the canonical accessor LearningPlayer already uses.
-const brainLearnerId = computed(() => auth?.learnerId?.value ?? null)
-
-// Display name for the brain empty/loading state copy, e.g. "Italian".
-const brainLanguageName = computed(() => {
-  const c = activeCourse?.value
-  if (!c) return ''
-  return c.display_name || c.target_lang || c.course_code || ''
-})
-
-// "Your brain on X" tile in the library: switch course if needed, then
-// route to the brain screen. closeLibrary first so the overlay doesn't
-// sit on top of the new screen.
-const handleOpenBrain = (course) => {
-  closeLibrary()
-  const targetCode = course?.course_code || course?.course_id
-  const isAlreadyActive = activeCourse?.value?.course_code === targetCode
-  if (!isAlreadyActive && handleCourseSelect) {
-    handleCourseSelect(course)
-  }
-  navigate('brain')
 }
 
 // Handle starting at a specific seed from CourseBrowser
@@ -561,25 +522,10 @@ onMounted(() => {
       :isVisible="currentScreen === 'player'"
       @close="handleGoHome"
       @playStateChanged="handlePlayStateChanged"
-      @viewProgress="handleViewProgress"
       @listeningModeChanged="handleListeningModeChanged"
       @drivingModeChanged="handleDrivingModeChanged"
       @pronunciationModeChanged="handlePronunciationModeChanged"
     />
-
-
-    <!-- Brain screen ("Your brain on Italian"): full-bleed pane that
-         renders the 2D distinction network + side panel. Mounted only
-         when navigated to so the PIXI bundle doesn't load on first paint. -->
-    <Transition name="slide-right" mode="out-in">
-      <BrainScreen
-        v-if="currentScreen === 'brain' && activeCourse"
-        :course-code="activeCourse.course_code"
-        :language-name="brainLanguageName"
-        :learner-id="brainLearnerId"
-        @close="navigate('player')"
-      />
-    </Transition>
 
     <!-- Player resting state overlay (shown when paused, hidden during playback).
          Gated on activeCourse only — the course identity (flag + name +
@@ -621,7 +567,6 @@ onMounted(() => {
             @select-course="(c) => { closeLibrary(); handleCourseSelect(c) }"
             @close="closeLibrary"
             @start-seed="handleStartAtSeed"
-            @open-brain="handleOpenBrain"
           />
         </div>
       </div>

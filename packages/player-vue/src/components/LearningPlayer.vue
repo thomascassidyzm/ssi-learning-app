@@ -7476,7 +7476,6 @@ defineExpose({
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
     @close="showProgressModal = false"
-    @viewProgress="showProgressModal = false; emit('viewProgress')"
     @skipToBelt="handleSkipToBelt"
   />
 
