@@ -127,6 +127,42 @@ export class SessionStore implements ISessionStore {
     }
   }
 
+  /**
+   * Bump the per-learner-per-course-per-UTC-day speaking opportunities
+   * counter. Called per cycle (oppsDelta=1) and periodically with
+   * accumulated play time delta. Fire-and-forget — must never block
+   * playback. Errors are logged with full Postgres detail for diagnosis.
+   *
+   * Replaces the old sessions.items_practiced / duration_seconds path,
+   * which silently failed when sessionStore was null at init.
+   */
+  async bumpSpeakingOpportunities(
+    learnerId: string,
+    courseCode: string,
+    oppsDelta: number,
+    secondsDelta: number
+  ): Promise<void> {
+    if (oppsDelta <= 0 && secondsDelta <= 0) return; // nothing to bump
+    const { error } = await this.client.rpc('bump_speaking_opportunities', {
+      p_learner_id: learnerId,
+      p_course_code: courseCode,
+      p_opps_delta: oppsDelta,
+      p_seconds_delta: secondsDelta,
+    });
+    if (error) {
+      console.error('[SessionStore] bumpSpeakingOpportunities FAILED:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        learnerId,
+        courseCode,
+        oppsDelta,
+        secondsDelta,
+      });
+    }
+  }
+
   async getSession(sessionId: string): Promise<SessionRecord | null> {
     const { data, error } = await this.client
       .schema(this.schema)

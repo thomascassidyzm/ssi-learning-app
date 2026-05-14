@@ -220,6 +220,9 @@ export interface ISessionStore {
   startSession(learnerId: string, courseId: string): Promise<SessionRecord>;
   endSession(sessionId: string, metrics: SessionMetrics): Promise<SessionRecord>;
   checkpointSession(sessionId: string, itemsPracticed: number, durationSeconds: number): Promise<void>;
+  // Per-cycle / per-play-segment counter — bypasses the session row entirely
+  // so it works even when the session lifecycle has problems.
+  bumpSpeakingOpportunities(learnerId: string, courseCode: string, oppsDelta: number, secondsDelta: number): Promise<void>;
   getSession(sessionId: string): Promise<SessionRecord | null>;
   getRecentSessions(learnerId: string, limit?: number): Promise<SessionRecord[]>;
 
