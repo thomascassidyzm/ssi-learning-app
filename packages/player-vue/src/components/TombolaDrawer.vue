@@ -120,28 +120,44 @@ watch(() => props.lego, (lego) => {
 </script>
 
 <template>
-  <Transition name="drawer">
-    <div v-if="lego" class="tombola-backdrop" @click.self="emit('close')">
-      <div class="tombola-card" role="dialog" aria-modal="true">
-        <button class="tombola-close" type="button" aria-label="Close" @click="emit('close')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
+  <!-- Modal on mobile (<900px), side-panel on desktop (>=900px).
+       Switch is CSS-only — same DOM, different layout. -->
+  <div
+    class="tombola-backdrop"
+    :class="{ 'is-empty': !lego }"
+    @click.self="emit('close')"
+  >
+    <div class="tombola-card" role="dialog" aria-modal="true">
+      <button
+        v-if="lego"
+        class="tombola-close"
+        type="button"
+        aria-label="Close"
+        @click="emit('close')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
 
-        <!-- Header: known text under the LEGO so the learner has the
-             anchor's meaning if they tap a word they only half-remember -->
+      <!-- Side-panel placeholder (only renders on desktop when no LEGO is
+           focused; on mobile the whole wrapper is display:none in that
+           state, so this never shows). -->
+      <div v-if="!lego" class="tombola-placeholder">
+        Tap a word on the left to see what it plugs into.
+      </div>
+
+      <template v-else>
         <header class="tombola-header">
           <div class="tombola-known">{{ lego.knownText }}</div>
         </header>
 
-        <!-- The three slots. Empty slots simply don't render — the
-             missing one signals "phrase begins / ends here". -->
+        <!-- Three slots; empty slots simply don't render. -->
         <div class="tombola-slots" :class="`slide-${slideDir}`">
           <div
             v-if="currentContext?.left"
-            class="slot slot-left"
             :key="`L-${currentContext?.id}`"
+            class="slot slot-left"
           >
             {{ currentContext.left }}
           </div>
@@ -152,16 +168,13 @@ watch(() => props.lego, (lego) => {
 
           <div
             v-if="currentContext?.right"
-            class="slot slot-right"
             :key="`R-${currentContext?.id}`"
+            class="slot slot-right"
           >
             {{ currentContext.right }}
           </div>
         </div>
 
-        <!-- Loading / empty states. Empty = the LEGO has no USE phrases
-             with non-trivial left/right context (rare; LEGO appears only
-             as a phrase standalone). -->
         <div v-if="isLoading && !hasContexts" class="tombola-state">
           Loading…
         </div>
@@ -169,7 +182,6 @@ watch(() => props.lego, (lego) => {
           You haven't seen this one with anything else yet.
         </div>
 
-        <!-- Controls -->
         <div class="tombola-controls">
           <button
             class="ctrl-btn play"
@@ -203,13 +215,13 @@ watch(() => props.lego, (lego) => {
         <div v-if="hasContexts" class="tombola-count">
           {{ currentIndex + 1 }} / {{ contexts.length }}
         </div>
-      </div>
+      </template>
     </div>
-  </Transition>
+  </div>
 </template>
 
 <style scoped>
-/* Backdrop sits over the inventory; close on click-outside. */
+/* Mobile (<900px): fixed modal overlay. Hidden when no LEGO is focused. */
 .tombola-backdrop {
   position: fixed;
   inset: 0;
@@ -224,12 +236,22 @@ watch(() => props.lego, (lego) => {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
   z-index: 250;
   font-family: var(--font-body, system-ui);
+  animation: tombola-fade-in 0.22s ease;
+}
+
+.tombola-backdrop.is-empty {
+  display: none;
+}
+
+@keyframes tombola-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .tombola-card {
   position: relative;
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
   background: #ffffff;
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   border-radius: 18px;
@@ -237,8 +259,48 @@ watch(() => props.lego, (lego) => {
     0 2px 4px rgba(44, 38, 34, 0.12),
     0 8px 24px rgba(44, 38, 34, 0.10),
     0 20px 48px rgba(44, 38, 34, 0.06);
-  padding: 1.75rem 1.25rem 1rem;
+  padding: 1.75rem 1.5rem 1.25rem;
   -webkit-font-smoothing: antialiased;
+  animation: tombola-card-in 0.28s cubic-bezier(0.34, 1.4, 0.6, 1);
+}
+
+@keyframes tombola-card-in {
+  from { transform: translateY(16px) scale(0.97); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+
+/* Desktop (>=900px): in-flow side-panel docked beside the inventory.
+   Same card, no backdrop, sticky-pinned so it stays in view while the
+   inventory scrolls. The empty-state placeholder shows when no LEGO is
+   focused — invites the learner to pick one. */
+@media (min-width: 900px) {
+  .tombola-backdrop {
+    position: sticky;
+    top: 5.5rem;
+    inset: auto;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0 1rem;
+    z-index: 1;
+    animation: none;
+    align-self: start;
+  }
+  .tombola-backdrop.is-empty {
+    display: flex;
+  }
+  .tombola-card {
+    max-width: 100%;
+    animation: none;
+  }
+}
+
+.tombola-placeholder {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  font-size: 0.95rem;
+  color: rgba(44, 38, 34, 0.5);
+  line-height: 1.5;
 }
 
 .tombola-close {
@@ -399,22 +461,4 @@ watch(() => props.lego, (lego) => {
   font-variant-numeric: tabular-nums;
 }
 
-/* Drawer enter/exit. */
-.drawer-enter-active,
-.drawer-leave-active {
-  transition: opacity 0.25s ease;
-}
-.drawer-enter-active .tombola-card,
-.drawer-leave-active .tombola-card {
-  transition: transform 0.28s cubic-bezier(0.34, 1.4, 0.6, 1), opacity 0.25s ease;
-}
-.drawer-enter-from,
-.drawer-leave-to {
-  opacity: 0;
-}
-.drawer-enter-from .tombola-card,
-.drawer-leave-to .tombola-card {
-  transform: translateY(16px) scale(0.97);
-  opacity: 0;
-}
 </style>

@@ -42,7 +42,14 @@ export interface BrainInventoryData {
   courseCode: string
   languageName: string
   sections: InventoryBeltSection[]
-  totalCount: number
+  /** Number of introduced LEGOs (words/phrases the learner has met). */
+  totalLegoCount: number
+  /**
+   * Total USE phrases across all introduced LEGOs. This is the headline
+   * "things you can say" number — every USE phrase is a real combination
+   * the methodology has graduated for spaced rep, not just a word.
+   */
+  totalSayableCount: number
   /** Max fireCount across all legos — for normalising brightness. */
   maxFireCount: number
 }
@@ -91,7 +98,8 @@ export function useBrainInventory(
       courseCode: course,
       languageName,
       sections: [],
-      totalCount: 0,
+      totalLegoCount: 0,
+      totalSayableCount: 0,
       maxFireCount: 0,
     }
   }
@@ -142,7 +150,7 @@ export function useBrainInventory(
         return
       }
 
-      const [legoResult, pairingsResult] = await Promise.all([
+      const [legoResult, pairingsResult, useCountResult] = await Promise.all([
         supabase
           .from('course_legos')
           .select('lego_id, seed_number, lego_index, type, target_text, known_text, target1_audio_id')
@@ -155,6 +163,16 @@ export function useBrainInventory(
           .select('lego_a, lego_b, fire_count')
           .eq('learner_id', learner)
           .eq('course_code', course),
+        // Count USE phrases attached to any introduced LEGO — this is
+        // the headline "things you can say" number. By methodology
+        // construction every USE phrase tied to an introduced LEGO is a
+        // real, sayable combination.
+        supabase
+          .from('course_practice_phrases')
+          .select('id', { count: 'exact', head: true })
+          .eq('course_code', course)
+          .eq('phrase_role', 'use')
+          .lte('seed_number', maxSeed),
       ])
 
       if (legoResult.error) throw new Error(`course_legos: ${legoResult.error.message}`)
@@ -162,6 +180,9 @@ export function useBrainInventory(
 
       if (pairingsResult.error) {
         console.warn('[useBrainInventory] learner_lego_pairings fetch failed:', pairingsResult.error.message)
+      }
+      if (useCountResult.error) {
+        console.warn('[useBrainInventory] course_practice_phrases count failed:', useCountResult.error.message)
       }
 
       // Sum fire_count per lego (a LEGO can appear as lego_a or lego_b).
@@ -213,7 +234,8 @@ export function useBrainInventory(
         courseCode: course,
         languageName,
         sections,
-        totalCount: allLegos.length,
+        totalLegoCount: allLegos.length,
+        totalSayableCount: useCountResult.count ?? 0,
         maxFireCount,
       }
     } catch (err) {

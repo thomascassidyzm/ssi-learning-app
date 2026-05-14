@@ -64,7 +64,7 @@ function handleTombolaClose() {
       <div class="brain-title-block">
         <h1 class="brain-title">Your brain on {{ data?.languageName || languageName }}</h1>
         <p v-if="data" class="brain-subtitle">
-          {{ data.totalCount }} things you can say
+          {{ data.totalSayableCount.toLocaleString() }} things you can say · {{ data.totalLegoCount }} words
         </p>
       </div>
     </header>
@@ -81,7 +81,7 @@ function handleTombolaClose() {
     </div>
 
     <!-- Empty -->
-    <div v-else-if="data && data.totalCount === 0" class="brain-state">
+    <div v-else-if="data && data.totalLegoCount === 0" class="brain-state">
       <p class="brain-state-text">
         Your {{ data.languageName }} brain is empty.<br>
         Start a session to grow it.
@@ -116,14 +116,29 @@ function handleTombolaClose() {
 .brain-screen {
   position: relative;
   width: 100%;
-  min-height: 100vh;
-  min-height: 100dvh;
   background: #f0ece7;
-  /* Scroll container for the inventory list */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem);
   font-family: var(--font-body, system-ui);
+  /* No overflow / height constraint here — let the natural page scroll
+   * handle it. The sticky header stays pinned via position:sticky on
+   * .brain-header below, and belt-section headers do the same locally. */
+}
+
+/* Desktop: split into inventory column + side-panel for the tombola.
+ * The tombola component handles its own layout switch via class — we
+ * just give it room. */
+@media (min-width: 900px) {
+  .brain-screen {
+    display: grid;
+    grid-template-columns: minmax(380px, 1fr) minmax(380px, 520px);
+    gap: 1.5rem;
+    align-items: start;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .brain-screen > .brain-header {
+    grid-column: 1 / -1;
+  }
 }
 
 .brain-header {
