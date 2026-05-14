@@ -69,6 +69,10 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   // Wall-clock duration is useless (idle tabs, backgrounded apps, etc.)
   let playSegmentStart: number | null = null
   const accumulatedPlaySeconds = ref(0)
+  // Watermark for incremental persistence into learner_speaking_opportunities.
+  // We write deltas (current_total - last_persisted) so we never double-count
+  // and never need to know the row's existing value before writing.
+  let lastPersistedPlaySeconds = 0
 
   /** Call when playback starts or resumes */
   const markPlayStart = () => {
@@ -81,6 +85,8 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       accumulatedPlaySeconds.value += Math.floor((Date.now() - playSegmentStart) / 1000)
       playSegmentStart = null
     }
+    // Persist the delta to the speaking-opportunities counter. Fire-and-forget.
+    persistPlayTimeDelta()
   }
 
   /** Get current accumulated play seconds (including any in-flight segment) */
@@ -90,6 +96,24 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       total += Math.floor((Date.now() - playSegmentStart) / 1000)
     }
     return total
+  }
+
+  /**
+   * Write any unpersisted play-second delta to the per-day counter. Safe to
+   * call repeatedly — only writes when there's a positive delta and always
+   * advances the watermark by exactly what was sent. Guest learners and
+   * un-wired stores are skipped quietly.
+   */
+  const persistPlayTimeDelta = () => {
+    const total = getPlaySeconds()
+    const delta = total - lastPersistedPlaySeconds
+    if (delta <= 0) return
+    const sessionStore = getSessionStore()
+    const learnerId = getLearnerId()
+    const courseId = getCourseId()
+    if (!sessionStore || !learnerId || !courseId || isGuestLearner(learnerId)) return
+    lastPersistedPlaySeconds = total
+    void sessionStore.bumpSpeakingOpportunities(learnerId, courseId, 0, delta)
   }
 
   // TripleHelixEngine for ROUND-based learning
@@ -361,7 +385,23 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const recordCycleComplete = async (item: LearningItem, wasSuccessful: boolean = true, wasSpike: boolean = false) => {
     itemsPracticed.value++
 
-    // Checkpoint to DB on every cycle — lightweight UPDATE, ensures no data loss
+    // Direct per-cycle counter — one row per (learner, course, UTC day) in
+    // learner_speaking_opportunities, bumped by 1 each cycle. Bypasses the
+    // sessions row entirely so it works regardless of whether startSession
+    // ever succeeded. Fire-and-forget.
+    {
+      const sessionStore = getSessionStore()
+      const learnerId = getLearnerId()
+      const courseId = getCourseId()
+      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
+        void sessionStore.bumpSpeakingOpportunities(learnerId, courseId, 1, 0)
+      }
+    }
+
+    // Legacy sessions.items_practiced path — kept so existing dashboards
+    // that read from sessions still get checkpoint data. The
+    // speaking-opportunities counter above is the new source of truth
+    // for the user-facing modal.
     if (sessionId.value) {
       checkpointSession()
     }
@@ -468,6 +508,10 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   }
 
   const handleBeforeUnload = () => {
+    // markPlayStop both ends the in-flight segment and triggers a delta
+    // write to the speaking-opportunities counter, so tab-close doesn't
+    // lose the trailing play time.
+    markPlayStop()
     checkpointSession()
   }
 
