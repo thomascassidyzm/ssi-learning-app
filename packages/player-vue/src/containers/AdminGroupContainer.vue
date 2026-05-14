@@ -7,11 +7,11 @@
  */
 import { inject, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import TopNav from '@/components/schools/shared/TopNav.vue'
-import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
+import AdminTopBar from '@/components/admin/AdminTopBar.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import '@/styles/schools-tokens.css'
+import '@/styles/schools-design.css'
 
 const route = useRoute()
 const supabase = inject<any>('supabase', ref(null))
@@ -53,6 +53,7 @@ watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
 
 <template>
   <div class="schools-container schools-surface">
+    <AdminTopBar />
     <div v-if="isLoading" class="schools-loading">
       <div class="loading-spinner"></div>
       <p>Loading group…</p>
@@ -60,17 +61,13 @@ watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
     <div v-else-if="loadError" class="schools-loading">
       <p>{{ loadError }}</p>
     </div>
-    <template v-else>
-      <AtmosphereBackdrop />
-      <TopNav />
-      <main class="main-content">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
-      </main>
-    </template>
+    <main v-else class="main-content">
+      <router-view v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
+    </main>
   </div>
 </template>
 
@@ -79,6 +76,8 @@ watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background: var(--schools-bg, #f6f5f1);
+  color: var(--schools-fg, #0F1212);
 }
 .schools-loading {
   display: flex;
@@ -87,18 +86,31 @@ watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
   justify-content: center;
   min-height: 60vh;
   gap: 16px;
-  color: var(--color-text-muted, #888);
+  color: var(--schools-fg-2, #555);
 }
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--color-border, #2a2a4a);
-  border-top-color: var(--color-accent, #4a90d9);
+  border: 3px solid var(--schools-border, rgba(15,18,18,.10));
+  border-top-color: var(--schools-red, #DB1E17);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.main-content { flex: 1; }
+.main-content {
+  flex: 1;
+  padding: 28px 32px 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+@media (max-width: 1024px) {
+  .main-content { padding: 24px 20px; }
+}
+@media (max-width: 768px) {
+  .main-content { padding: 20px 16px; }
+}
 </style>
