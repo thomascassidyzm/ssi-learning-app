@@ -1,6 +1,10 @@
 /**
  * LegoListeningStore — per-learner per-seed Layer 1 listening fire counts.
  *
+ * Keyed by lego_id (the seed's completing LEGO — highest lego_index for
+ * that seed_number), per the codebase convention "always use LEGO number
+ * which encrypts seed number within it".
+ *
  * Drives the Stage 1 → Stage 4 playlist progression in generateLearningScript.
  * Without persistence the in-script seedL1FireCount Map resets every
  * generation, so every seed perpetually plays the Stage 1 slow-then-fast
@@ -15,7 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export interface LegoListeningRow {
   learner_id: string;
   course_code: string;
-  seed_num: number;
+  lego_id: string;          // e.g. 'S0001L03' — seed's completing LEGO
   fire_count: number;
   last_fired_at: Date | null;
 }
@@ -40,14 +44,13 @@ export class LegoListeningStore {
 
   /**
    * Load all per-seed fire counts for this learner + course.
-   * Returns a Map keyed by seed_num for direct ingestion into the
-   * script generator's seedL1FireCount.
+   * Returns a Map keyed by lego_id (the seed's completing LEGO).
    */
-  async loadAll(learnerId: string, courseCode: string): Promise<Map<number, number>> {
+  async loadAll(learnerId: string, courseCode: string): Promise<Map<string, number>> {
     const { data, error } = await this.client
       .schema(this.schema)
       .from('learner_l1_state')
-      .select('seed_num, fire_count')
+      .select('lego_id, fire_count')
       .eq('learner_id', learnerId)
       .eq('course_code', courseCode);
 
@@ -55,22 +58,22 @@ export class LegoListeningStore {
       throw new Error(`Failed to load l1 state: ${error.message}`);
     }
 
-    const map = new Map<number, number>();
+    const map = new Map<string, number>();
     for (const row of (data ?? [])) {
-      if (typeof row.seed_num === 'number' && typeof row.fire_count === 'number') {
-        map.set(row.seed_num, row.fire_count);
+      if (typeof row.lego_id === 'string' && typeof row.fire_count === 'number') {
+        map.set(row.lego_id, row.fire_count);
       }
     }
     return map;
   }
 
-  /** Upsert a batch of (learner, course, seed) → fire_count rows. */
+  /** Upsert a batch of (learner, course, lego_id) → fire_count rows. */
   async upsertMany(rows: LegoListeningUpsert[]): Promise<void> {
     if (rows.length === 0) return;
     const payload = rows.map((r) => ({
       learner_id: r.learner_id,
       course_code: r.course_code,
-      seed_num: r.seed_num,
+      lego_id: r.lego_id,
       fire_count: r.fire_count,
       last_fired_at: r.last_fired_at ? r.last_fired_at.toISOString() : null,
     }));
@@ -78,7 +81,7 @@ export class LegoListeningStore {
     const { error } = await this.client
       .schema(this.schema)
       .from('learner_l1_state')
-      .upsert(payload, { onConflict: 'learner_id,course_code,seed_num' });
+      .upsert(payload, { onConflict: 'learner_id,course_code,lego_id' });
 
     if (error) {
       throw new Error(`Failed to upsert l1 state: ${error.message}`);

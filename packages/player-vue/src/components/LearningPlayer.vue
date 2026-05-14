@@ -835,14 +835,18 @@ simplePlayer.onPhaseChanged((phase) => {
 
   // L1 listening cycle — bump persisted fire_count for this cluster's seed.
   // Pod (Layer 2) cycles have type='pod' so they're filtered out cleanly.
+  // Seed number is parsed from cycle.id (`listening_S0001_ps_N` → 1) because
+  // the script item's listeningSeedNumber custom field doesn't propagate
+  // through the ScriptItem → SimplePlayer.Cycle transformation.
   if (
     phase === 'prompt' &&
     cycle.type === 'listening' &&
-    typeof cycle.listeningSeedNumber === 'number' &&
+    typeof cycle.id === 'string' &&
     listeningProgress.value
   ) {
-    const sNum = cycle.listeningSeedNumber
-    if (l1ClusterSeedsBumped && !l1ClusterSeedsBumped.has(sNum)) {
+    const m = cycle.id.match(/^listening_S(\d+)_/)
+    const sNum = m ? parseInt(m[1], 10) : null
+    if (sNum !== null && l1ClusterSeedsBumped && !l1ClusterSeedsBumped.has(sNum)) {
       l1ClusterSeedsBumped.add(sNum)
       listeningProgress.value.recordClusterFire([sNum])
     }

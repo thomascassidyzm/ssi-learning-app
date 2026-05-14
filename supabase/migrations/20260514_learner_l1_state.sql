@@ -10,19 +10,24 @@
 --      never happened.
 --
 -- This table persists the per-seed fire count so progression survives
--- session boundaries. Hydrated on player mount, mirrored into the script
--- generator's seedL1FireCount, flushed back after each L1 cluster fires.
+-- session boundaries. Keyed by lego_id (the seed's completing LEGO —
+-- highest lego_index for that seed_number) per the codebase convention
+-- "always use LEGO number which encrypts seed number within it" — not
+-- by bare seed_num.
 --
 -- Per CLAUDE.md: learners.user_id is TEXT, so RLS uses auth.uid()::text.
 
-CREATE TABLE IF NOT EXISTS learner_l1_state (
+-- Drop the previous shape (seed_num-keyed) — 0 rows in production, safe.
+DROP TABLE IF EXISTS learner_l1_state;
+
+CREATE TABLE learner_l1_state (
   learner_id     UUID        NOT NULL REFERENCES learners(id) ON DELETE CASCADE,
   course_code    TEXT        NOT NULL,
-  seed_num       INTEGER     NOT NULL,
+  lego_id        TEXT        NOT NULL,  -- e.g. 'S0001L03' — the seed's completing LEGO
   fire_count     INTEGER     NOT NULL DEFAULT 0,
   last_fired_at  TIMESTAMPTZ,
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (learner_id, course_code, seed_num)
+  PRIMARY KEY (learner_id, course_code, lego_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_learner_l1_state_learner_course
@@ -51,7 +56,8 @@ CREATE TRIGGER update_learner_l1_state_updated_at
   BEFORE UPDATE ON learner_l1_state
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-COMMENT ON TABLE learner_l1_state IS 'Per-learner per-seed Layer 1 listening fire count, used by generateLearningScript to compound the Stage 1→4 playlist progression across sessions.';
+COMMENT ON TABLE learner_l1_state IS 'Per-learner per-seed Layer 1 listening fire count, keyed by the seed''s completing lego_id. Used by generateLearningScript to compound the Stage 1→4 playlist progression across sessions.';
+COMMENT ON COLUMN learner_l1_state.lego_id IS 'Completing LEGO of the seed (highest lego_index). Encodes seed identity per the codebase "always use LEGO number" convention.';
 COMMENT ON COLUMN learner_l1_state.fire_count IS 'Total L1 fires for this seed across all sessions. Drives layer1StageFor(fireCount) → stage 1..4.';
 
 NOTIFY pgrst, 'reload schema';

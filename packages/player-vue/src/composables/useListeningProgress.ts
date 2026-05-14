@@ -1,21 +1,25 @@
 /**
  * useListeningProgress — per-learner per-seed Layer 1 fire-count persistence.
  *
- * Without this, the script generator's `seedL1FireCount` resets every script
- * generation, so the Stage 1 → 4 playlist progression never compounds across
- * sessions. Every L1 listening cluster perpetually plays the slow-first
- * Stage 1 playlist and the methodology's decay to a single 2× rep never
- * happens.
+ * The DB row is keyed by lego_id (the seed's completing LEGO — highest
+ * lego_index for that seed_number) per the codebase convention "always
+ * use LEGO number which encrypts seed number within it". The script
+ * generator internally uses seed_num (cheap integer map ops) so this
+ * composable bridges the two: catalogue lookup builds a seedNum ↔
+ * lastLegoId map on init, conversion happens at hydrate + flush.
+ *
+ * Without this persistence the script generator's `seedL1FireCount`
+ * resets every script generation, so the Stage 1 → 4 playlist
+ * progression never compounds across sessions. Every L1 listening
+ * cluster perpetually plays the slow-first Stage 1 playlist and the
+ * methodology's decay to a single 2× rep never happens.
  *
  * Lifecycle:
- *   - initialize()       — load persisted fire counts from learner_l1_state
- *   - getFireCounts()    — current Map, fed into generateLearningScript
+ *   - initialize()       — load catalogue + persisted fire counts
+ *   - getFireCounts()    — seedNum-keyed Map, fed into generateLearningScript
  *   - recordClusterFire(seedNumbers[]) — bump each seed's count by 1
- *   - flush()            — upsert dirty rows to Supabase
+ *   - flush()            — upsert dirty rows to Supabase (lego_id-keyed)
  *   - dispose()          — pagehide flush + cleanup
- *
- * "Complete, not continuous" — batched flush every N bumps + on pagehide,
- * matching the per-LEGO adaptive pause persistence pattern.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -33,25 +37,30 @@ export interface UseListeningProgressConfig {
 }
 
 export interface UseListeningProgressReturn {
-  /** Load persisted counts. Safe with no client / guest — becomes a no-op. */
   initialize(): Promise<void>
-  /** Current per-seed fire counts, suitable for `generateLearningScript`'s
-   *  `initialL1FireCounts` parameter. */
+  /** seedNum-keyed map for `generateLearningScript`'s `initialL1FireCounts`. */
   getFireCounts(): Map<number, number>
-  /** Bump fire_count by 1 for each seed in an L1 cluster that just played.
-   *  Updates the in-memory map immediately; flushes when dirty buffer hits
-   *  threshold or on pagehide. */
   recordClusterFire(seedNumbers: number[]): void
-  /** Write dirty rows to Supabase. Silent on failure. */
   flush(): Promise<void>
-  /** pagehide cleanup + final flush. */
   dispose(): void
+}
+
+function legoKey(seedNum: number, legoIndex: number): string {
+  return `S${String(seedNum).padStart(4, '0')}L${String(legoIndex).padStart(2, '0')}`
+}
+
+function parseSeedNum(legoId: string): number | null {
+  const m = legoId.match(/^S(\d+)L\d+$/)
+  return m ? parseInt(m[1], 10) : null
 }
 
 export function useListeningProgress(
   config: UseListeningProgressConfig,
 ): UseListeningProgressReturn {
+  // Internal state: keyed by seed_num for fast script-gen integration.
   const fireCounts = new Map<number, number>()
+  // Conversion map built from the course catalogue on initialize().
+  const seedToLastLegoId = new Map<number, string>()
   const dirty = new Set<number>()
   let bumpsSinceFlush = 0
   let initialized = false
@@ -75,6 +84,31 @@ export function useListeningProgress(
     window.addEventListener('pagehide', pageHideHandler)
   }
 
+  /**
+   * Load the course catalogue to build seedNum → lastLegoId map.
+   * One small query (seed_number + lego_index for all LEGOs in the course).
+   */
+  async function loadCatalogue(): Promise<void> {
+    const client = config.supabase
+    if (!client) return
+    const { data, error } = await client
+      .from('course_legos')
+      .select('seed_number, lego_index')
+      .eq('course_code', config.courseCode)
+      .order('seed_number', { ascending: true })
+      .order('lego_index', { ascending: true })
+      .limit(10000)
+    if (error) {
+      console.warn('[useListeningProgress] Catalogue load failed:', error.message)
+      return
+    }
+    for (const row of (data || []) as Array<{ seed_number: number; lego_index: number }>) {
+      // Iteration order is seed_number asc, lego_index asc → final write per
+      // seed wins, giving us the highest-index (= completing) LEGO id.
+      seedToLastLegoId.set(row.seed_number, legoKey(row.seed_number, row.lego_index))
+    }
+  }
+
   const initialize = async (): Promise<void> => {
     if (initialized) return
     initialized = true
@@ -86,10 +120,15 @@ export function useListeningProgress(
     }
 
     try {
+      await loadCatalogue()
       const loaded = await s.loadAll(config.learnerId, config.courseCode)
-      for (const [seedNum, fireCount] of loaded) fireCounts.set(seedNum, fireCount)
+      // Translate lego_id → seedNum on the way in.
+      for (const [legoId, fireCount] of loaded) {
+        const sNum = parseSeedNum(legoId)
+        if (sNum !== null) fireCounts.set(sNum, fireCount)
+      }
       console.log(
-        `[useListeningProgress] Hydrated ${loaded.size} L1 fire counts for course ${config.courseCode}`,
+        `[useListeningProgress] Hydrated ${fireCounts.size} L1 fire counts (${seedToLastLegoId.size} seeds in catalogue) for ${config.courseCode}`,
       )
     } catch (err) {
       console.warn('[useListeningProgress] Hydration failed:', err)
@@ -124,14 +163,27 @@ export function useListeningProgress(
 
     const now = new Date()
     const rows: LegoListeningUpsert[] = []
+    const skipped: number[] = []
     for (const sNum of dirty) {
+      const legoId = seedToLastLegoId.get(sNum)
+      if (!legoId) {
+        // Catalogue didn't have this seed — shouldn't happen for L1 graduated
+        // seeds (graduation is derived from the same catalogue), but be
+        // defensive: skip rather than write an orphan row.
+        skipped.push(sNum)
+        continue
+      }
       rows.push({
         learner_id: config.learnerId,
         course_code: config.courseCode,
-        seed_num: sNum,
+        lego_id: legoId,
         fire_count: fireCounts.get(sNum) ?? 0,
         last_fired_at: now,
       })
+    }
+
+    if (skipped.length > 0) {
+      console.warn('[useListeningProgress] Skipped unmapped seeds:', skipped)
     }
 
     dirty.clear()
@@ -141,8 +193,12 @@ export function useListeningProgress(
       await s.upsertMany(rows)
     } catch (err) {
       console.warn('[useListeningProgress] Flush failed:', err)
-      // Re-mark as dirty so next flush retries
-      for (const r of rows) dirty.add(r.seed_num)
+      // Re-mark as dirty so next flush retries (only the ones we actually
+      // had a lego_id for — the orphans stay logged but not retried).
+      for (const r of rows) {
+        const sNum = parseSeedNum(r.lego_id)
+        if (sNum !== null) dirty.add(sNum)
+      }
     }
   }
 
