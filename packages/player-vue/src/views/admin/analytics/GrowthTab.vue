@@ -2,7 +2,6 @@
 import { onMounted, computed, ref } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAnalyticsGrowth } from '@/composables/admin/useAnalyticsGrowth'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import BarChart from '@/components/admin/charts/BarChart.vue'
 import HorizontalBarChart from '@/components/admin/charts/HorizontalBarChart.vue'
 import { parseCourseCode } from '@/composables/admin/adminUtils'
@@ -83,70 +82,70 @@ onMounted(() => {
 <template>
   <div class="tab-content">
     <!-- Weekly new users -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">New users per week · last 12 weeks</span>
+        <span class="schools-kicker">New users per week · last 12 weeks</span>
       </div>
       <div class="panel-body">
-        <div v-if="weeklyGrowth.isLoading.value" class="loading">Loading…</div>
+        <div v-if="weeklyGrowth.isLoading.value" class="loading schools-subtle">Loading…</div>
         <BarChart
           v-else
           :data="weeklyChartData"
           x-key="week"
           y-key="count"
-          color="rgb(var(--tone-blue))"
+          color="var(--schools-fg)"
           :height="250"
           :format-x="(v: any) => String(v)"
           :format-y="(v: number) => String(v)"
         />
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Monthly new users -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">New users per month · last 6 months</span>
+        <span class="schools-kicker">New users per month · last 6 months</span>
       </div>
       <div class="panel-body">
-        <div v-if="monthlyGrowth.isLoading.value" class="loading">Loading…</div>
+        <div v-if="monthlyGrowth.isLoading.value" class="loading schools-subtle">Loading…</div>
         <BarChart
           v-else
           :data="monthlyChartData"
           x-key="month"
           y-key="count"
-          color="rgb(var(--tone-gold))"
+          color="var(--schools-fg)"
           :height="250"
           :format-x="(v: any) => String(v)"
           :format-y="(v: number) => String(v)"
         />
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Enrollments by course -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">Enrolments by course</span>
+        <span class="schools-kicker">Enrolments by course</span>
       </div>
       <div class="panel-body">
         <HorizontalBarChart
           :data="enrollmentData"
           label-key="course"
           value-key="count"
-          color="rgb(var(--tone-blue))"
+          color="var(--schools-fg)"
           :format-label="formatCourseLabel"
           :format-value="(v: number) => String(v)"
         />
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Entitlement funnel -->
-    <FrostCard variant="panel" class="chart-panel">
+    <div class="schools-card chart-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">Entitlement funnel · signup to paid</span>
+        <span class="schools-kicker">Entitlement funnel · signup to paid</span>
       </div>
       <div class="panel-body">
-        <div v-if="funnelLoading" class="loading">Loading…</div>
-        <div v-else-if="funnelData.length === 0" class="empty-inline">
+        <div v-if="funnelLoading" class="loading schools-subtle">Loading…</div>
+        <div v-else-if="funnelData.length === 0" class="empty-inline schools-subtle">
           No funnel data available yet.
         </div>
         <div v-else class="funnel">
@@ -166,12 +165,12 @@ onMounted(() => {
             </div>
             <div class="funnel-label">
               <span class="funnel-stage">{{ step.stage }}</span>
-              <span class="funnel-count frost-mono-nums">{{ step.count.toLocaleString() }}</span>
+              <span class="funnel-count">{{ step.count.toLocaleString() }}</span>
             </div>
           </div>
         </div>
       </div>
-    </FrostCard>
+    </div>
   </div>
 </template>
 
@@ -179,64 +178,57 @@ onMounted(() => {
 .tab-content {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: 18px;
 }
 
 /* Panels */
-.chart-panel {
-  padding: 0;
-  overflow: hidden;
-}
+.chart-panel { padding: 0; overflow: hidden; }
 
 .panel-head {
-  padding: var(--space-4) var(--space-6) var(--space-3);
-  border-bottom: 1px solid rgba(44, 38, 34, 0.06);
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--schools-border);
 }
 
-.panel-body {
-  padding: var(--space-5) var(--space-6);
-}
+.panel-body { padding: 16px 20px 20px; }
 
 .loading {
   text-align: center;
-  padding: var(--space-8) var(--space-5);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
+  padding: 28px 20px;
+  font-size: 13px;
 }
 
 .empty-inline {
   text-align: center;
-  padding: var(--space-6) var(--space-4);
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
+  padding: 22px 16px;
+  font-size: 13px;
 }
 
 /* Funnel */
 .funnel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 12px;
 }
 
 .funnel-step {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .funnel-bar-track {
   width: 100%;
   height: 28px;
-  background: rgba(44, 38, 34, 0.05);
-  border: 1px solid rgba(44, 38, 34, 0.08);
-  border-radius: var(--radius-md);
+  background: #f3f1ec;
+  border: 1px solid var(--schools-border);
+  border-radius: var(--schools-radius-md);
   overflow: hidden;
 }
 
 .funnel-bar-fill {
   height: 100%;
-  background: rgb(var(--tone-green));
-  border-radius: var(--radius-md);
+  background: var(--schools-fg);
+  border-radius: var(--schools-radius-md);
   transition: width 0.4s ease;
   min-width: 4px;
 }
@@ -248,14 +240,14 @@ onMounted(() => {
 }
 
 .funnel-stage {
-  font-size: var(--text-sm);
-  color: var(--ink-secondary);
+  font-size: 13.5px;
+  color: var(--schools-fg-2);
   text-transform: capitalize;
 }
 
 .funnel-count {
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  color: var(--ink-primary);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--schools-fg);
 }
 </style>
