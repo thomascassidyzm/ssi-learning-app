@@ -186,7 +186,14 @@ export async function generateLearningScript(
   emitFromRound: number = 1,  // Only emit ScriptItems from this round onward
   listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG,
   scriptShape: ScriptShape = DEFAULT_SCRIPT_SHAPE,
-  turboCull: TurboCullConfig = {}
+  turboCull: TurboCullConfig = {},
+  /**
+   * Per-seed L1 fire counts from persisted state (learner_l1_state table).
+   * Hydrates seedL1FireCount so the Stage 1 → Stage 4 playlist progression
+   * compounds across sessions. Pass null/undefined for cold start (every
+   * seed at fire_count=0, Stage 1).
+   */
+  initialL1FireCounts: Map<number, number> | null = null,
 ): Promise<LearningScriptResult> {
   // Per-round shape — DB-tweakable via algorithm_config.script_shape.
   const SPACED_REP_OFFSETS = scriptShape.spacedRepOffsets
@@ -806,7 +813,10 @@ export async function generateLearningScript(
   // Per-seed L1 fire counter — bumped on each emit in emitL1Cluster.
   // Drives stage progression: stage = floor((fireCount-1) / layer1StageDuration) + 1
   // capped at the highest key in layer1StagePlaylist (eternal hold).
-  const seedL1FireCount = new Map<number, number>()
+  // Hydrated from persisted learner_l1_state so progression compounds
+  // across sessions; null/undefined initialL1FireCounts → cold start
+  // (every seed at 0, Stage 1).
+  const seedL1FireCount = new Map<number, number>(initialL1FireCounts ?? undefined)
 
   // Cached sorted stage keys + eternal stage. layer1StagePlaylist may be
   // empty (legacy config) — caller falls back to flat layer1Playlist.

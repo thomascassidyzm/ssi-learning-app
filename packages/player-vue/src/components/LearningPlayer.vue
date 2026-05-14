@@ -31,6 +31,7 @@ import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
+import { useListeningProgress, type UseListeningProgressReturn } from '../composables/useListeningProgress'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
@@ -283,6 +284,10 @@ const generateScript = (
     listeningOverride || listeningConfig.value,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
+    // Persisted per-seed L1 fire counts — null on first session / pre-init
+    // → cold start, every seed at Stage 1. After hydration this compounds
+    // the Stage 1→4 progression across sessions.
+    listeningProgress.value?.getFireCounts() ?? null,
   )
 }
 
@@ -821,6 +826,25 @@ simplePlayer.onPhaseChanged((phase) => {
         round,
         legoId: cycle.legoId ?? null,
       })
+      // Reset the cluster dedup set — bump fire_count once per distinct
+      // seed within this cluster (regardless of playlist length, which
+      // varies 1-3 cycles per seed by stage).
+      l1ClusterSeedsBumped = new Set<number>()
+    }
+  }
+
+  // L1 listening cycle — bump persisted fire_count for this cluster's seed.
+  // Pod (Layer 2) cycles have type='pod' so they're filtered out cleanly.
+  if (
+    phase === 'prompt' &&
+    cycle.type === 'listening' &&
+    typeof cycle.listeningSeedNumber === 'number' &&
+    listeningProgress.value
+  ) {
+    const sNum = cycle.listeningSeedNumber
+    if (l1ClusterSeedsBumped && !l1ClusterSeedsBumped.has(sNum)) {
+      l1ClusterSeedsBumped.add(sNum)
+      listeningProgress.value.recordClusterFire([sNum])
     }
   }
 
@@ -1975,6 +1999,21 @@ const initializeAdaptationEngine = async () => {
   })
   await engine.initialize()
   adaptationEngine.value = engine
+}
+
+/**
+ * Initialize per-seed L1 fire-count persistence so the Stage 1→4
+ * playlist progression compounds across sessions.
+ */
+const initializeListeningProgress = async () => {
+  if (!courseCode.value || listeningProgress.value) return
+  const progress = useListeningProgress({
+    supabase: supabase.value ?? null,
+    learnerId: learnerId.value ?? null,
+    courseCode: courseCode.value,
+  })
+  await progress.initialize()
+  listeningProgress.value = progress
 }
 
 /**
@@ -5419,6 +5458,20 @@ const adaptationConsent = ref(null)
 // applied in the getPauseDuration runtime override below.
 const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 
+// Per-seed Layer 1 fire-count persistence. Hydrates from learner_l1_state on
+// mount, feeds initialL1FireCounts into generateLearningScript so Stage 1→4
+// progression compounds across sessions. Bumped each time an L1 cluster
+// actually plays (detected in onPhaseChanged below) — not when the script
+// emits one (the generator can plan future fires beyond the learner's
+// current position).
+const listeningProgress = shallowRef<UseListeningProgressReturn | null>(null)
+
+// Dedup set: seeds whose fire_count has already been bumped within the
+// currently-playing L1 cluster. Reset every listen_intro start so each
+// cluster contributes one bump per seed regardless of how many listening
+// cycles play for that seed (stage-1 plays 3, stage-4 plays 1, etc.).
+let l1ClusterSeedsBumped: Set<number> | null = null
+
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
 const timingAnalyzer = shallowRef(null)
@@ -6201,6 +6254,9 @@ onMounted(async () => {
 
   // Initialize per-LEGO adaptive pause engine (hydrates mastery from Supabase)
   await initializeAdaptationEngine()
+
+  // Initialize Layer 1 fire-count persistence (hydrates from learner_l1_state)
+  await initializeListeningProgress()
 
   // Load course-wide LEGO known_text lookup (powers the hero highlight in
   // cases where the salient LEGO's round isn't in loadedRounds, especially
@@ -6986,6 +7042,8 @@ onUnmounted(() => {
 
   // Flush any pending per-LEGO metrics, remove pagehide listener
   adaptationEngine.value?.dispose()
+  // Flush any pending L1 fire-count bumps
+  listeningProgress.value?.dispose()
   if (timingAnalyzer.value) {
     timingAnalyzer.value.reset()
     timingAnalyzer.value = null
