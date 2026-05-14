@@ -7,7 +7,6 @@ import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/ad
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient } = useAdminClient()
 const router = useRouter()
@@ -70,15 +69,15 @@ onMounted(async () => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Users</h1>
+        <h1 class="arsenal">Users</h1>
         <div class="metrics">
           <span class="metric">
-            <span class="metric-value frost-mono-nums">{{ totalUsers }}</span>
+            <span class="metric-value mono-nums">{{ totalUsers }}</span>
             users
           </span>
           <span v-if="newThisWeek > 0" class="metric-sep">·</span>
           <span v-if="newThisWeek > 0" class="metric metric-fresh">
-            <span class="metric-value frost-mono-nums">{{ newThisWeek }}</span>
+            <span class="metric-value mono-nums">{{ newThisWeek }}</span>
             new this week
           </span>
         </div>
@@ -111,7 +110,7 @@ onMounted(async () => {
     <div v-if="isLoading" class="loading">Loading users…</div>
 
     <!-- List panel (canon §5.3 table-inside-panel) -->
-    <FrostCard v-else-if="users.length > 0" variant="panel" class="list-panel">
+    <div v-else-if="users.length > 0" class="schools-card list-panel">
       <table class="users-table">
         <thead>
           <tr>
@@ -161,7 +160,7 @@ onMounted(async () => {
               </template>
               <span v-else class="cell-faint">—</span>
             </td>
-            <td class="cell-muted frost-mono-nums">
+            <td class="cell-muted mono-nums">
               {{ new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) }}
             </td>
             <td>
@@ -181,7 +180,7 @@ onMounted(async () => {
             <td class="cell-muted">
               {{ getLastActive(user.id) ? timeAgo(getLastActive(user.id)!) : '—' }}
             </td>
-            <td class="cell-muted frost-mono-nums">
+            <td class="cell-muted mono-nums">
               {{ getTotalPracticeMinutes(user.id) > 0 ? formatDuration(getTotalPracticeMinutes(user.id)) : '—' }}
             </td>
             <td class="cell-actions">
@@ -209,7 +208,7 @@ onMounted(async () => {
         >
           Prev
         </button>
-        <span class="page-info frost-mono-nums">
+        <span class="page-info mono-nums">
           Page {{ currentPage }} of {{ totalPages }}
         </span>
         <button
@@ -220,17 +219,17 @@ onMounted(async () => {
           Next
         </button>
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Empty state — canon §5.5 -->
-    <FrostCard v-else variant="tile" class="empty">
+    <div v-else class="schools-card empty">
       <div class="empty-ghost">users</div>
       <div class="empty-copy">
         <strong>No users {{ searchInput || courseFilter ? 'match these filters' : 'yet' }}</strong>
         <p v-if="searchInput || courseFilter">Try clearing the search or filter.</p>
         <p v-else>Once people sign up, they'll appear here.</p>
       </div>
-    </FrostCard>
+    </div>
   </div>
 </template>
 
@@ -239,6 +238,11 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+}
+
+.mono-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Page header — canon §5.1 */
@@ -254,7 +258,7 @@ onMounted(async () => {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.015em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin: 0 0 var(--space-2);
 }
 
@@ -262,18 +266,18 @@ onMounted(async () => {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
 
 .metric-sep {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
 .metric-fresh .metric-value {
@@ -305,7 +309,7 @@ onMounted(async () => {
 .loading {
   text-align: center;
   padding: var(--space-10);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -327,7 +331,7 @@ onMounted(async () => {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   text-align: left;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
   background: rgba(255, 255, 255, 0.35);
@@ -352,7 +356,7 @@ onMounted(async () => {
   padding: 14px 18px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.05);
   vertical-align: middle;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   font-size: var(--text-sm);
 }
 
@@ -370,17 +374,17 @@ onMounted(async () => {
 .name-text {
   font-size: var(--text-base);
   font-weight: var(--font-medium);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   letter-spacing: -0.005em;
 }
 
 .cell-muted {
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   white-space: nowrap;
 }
 
 .cell-faint {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
 .cell-email {
@@ -393,7 +397,7 @@ onMounted(async () => {
 .email-text {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -435,7 +439,7 @@ onMounted(async () => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   opacity: 0;
   transform: translateX(4px);
@@ -449,7 +453,7 @@ onMounted(async () => {
 }
 
 .row-action:hover {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(44, 38, 34, 0.1);
 }
@@ -469,7 +473,7 @@ onMounted(async () => {
   border-radius: var(--radius-full);
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(44, 38, 34, 0.1);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   font: inherit;
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
@@ -480,7 +484,7 @@ onMounted(async () => {
 .page-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(44, 38, 34, 0.18);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .page-btn:disabled {
@@ -490,7 +494,7 @@ onMounted(async () => {
 
 .page-info {
   font-size: var(--text-sm);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 /* Empty state — canon §5.5 */
@@ -508,7 +512,7 @@ onMounted(async () => {
   font-size: 88px;
   font-weight: var(--font-bold);
   letter-spacing: -0.03em;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   opacity: 0.35;
   line-height: 0.9;
   user-select: none;
@@ -518,13 +522,13 @@ onMounted(async () => {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-bottom: 4px;
 }
 
 .empty-copy p {
   margin: 0;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
