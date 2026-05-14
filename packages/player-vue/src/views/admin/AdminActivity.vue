@@ -4,7 +4,6 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminActivity } from '@/composables/admin/useAdminActivity'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient } = useAdminClient()
 
@@ -37,7 +36,7 @@ onUnmounted(() => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Activity</h1>
+        <h1 class="arsenal">Activity</h1>
         <div class="metrics">
           <span class="metric live-metric">
             <span class="live-dot"></span>
@@ -59,34 +58,33 @@ onUnmounted(() => {
     <!-- KPI strip (canon §5.1: stones are rare, but a real-time activity
          dashboard is one of the cases where a metric is the whole point) -->
     <div class="kpi-strip">
-      <FrostCard variant="stone" tone="blue">
+      <div class="schools-card">
         <div class="stone-content">
           <span class="stone-label">Sessions today</span>
           <span class="stone-value frost-mono-nums">{{ sessionsToday }}</span>
         </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="green">
+      </div>
+      <div class="schools-card">
         <div class="stone-content">
           <span class="stone-label">Learners today</span>
           <span class="stone-value frost-mono-nums">{{ learnersToday }}</span>
         </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="gold">
+      </div>
+      <div class="schools-card">
         <div class="stone-content">
           <span class="stone-label">Minutes practised</span>
           <span class="stone-value frost-mono-nums">{{ formatDuration(minutesToday) }}</span>
         </div>
-      </FrostCard>
+      </div>
     </div>
 
     <!-- Live now (only when something's happening) -->
-    <FrostCard
+    <div
       v-if="liveSessions.length > 0"
-      variant="panel"
-      class="live-panel"
+      class="schools-card live-panel"
     >
       <div class="panel-head">
-        <span class="frost-eyebrow">
+        <span class="schools-kicker">
           <span class="live-dot"></span>
           Live now · <span class="frost-mono-nums">{{ liveSessions.length }}</span>
         </span>
@@ -104,7 +102,7 @@ onUnmounted(() => {
           <span class="live-time frost-mono-nums">{{ timeAgo(session.started_at) }}</span>
         </li>
       </ul>
-    </FrostCard>
+    </div>
 
     <!-- Error -->
     <div v-if="error" class="error-banner">{{ error }}</div>
@@ -113,13 +111,12 @@ onUnmounted(() => {
     <div v-if="isLoading" class="loading">Loading activity…</div>
 
     <!-- Activity timeline -->
-    <FrostCard
+    <div
       v-else-if="sessionsByHour.length > 0"
-      variant="panel"
-      class="timeline-panel"
+      class="schools-card timeline-panel"
     >
       <div class="panel-head">
-        <span class="frost-eyebrow">Today by the hour</span>
+        <span class="schools-kicker">Today by the hour</span>
       </div>
       <div class="timeline">
         <div
@@ -155,20 +152,19 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Empty state — canon §5.5 -->
-    <FrostCard
+    <div
       v-else-if="!isLoading"
-      variant="tile"
-      class="empty"
+      class="schools-card empty"
     >
       <div class="empty-ghost">activity</div>
       <div class="empty-copy">
         <strong>No activity in the last 24 hours</strong>
         <p>Sessions will show up here as learners practise.</p>
       </div>
-    </FrostCard>
+    </div>
   </div>
 </template>
 
@@ -192,7 +188,7 @@ onUnmounted(() => {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.015em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin: 0 0 var(--space-2);
 }
 
@@ -200,7 +196,7 @@ onUnmounted(() => {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
   flex-wrap: wrap;
 }
@@ -212,16 +208,16 @@ onUnmounted(() => {
 }
 
 .metric.live-metric {
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
 }
 
 .metric-value {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-semibold);
 }
 
 .metric-sep {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
 .metric-pill {
@@ -230,7 +226,7 @@ onUnmounted(() => {
   background: rgba(var(--tone-gold), 0.18);
   border: 1px solid rgba(var(--tone-gold), 0.35);
   border-radius: var(--radius-full);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-size: var(--text-xs);
   font-weight: var(--font-medium);
   letter-spacing: 0.01em;
@@ -241,7 +237,7 @@ onUnmounted(() => {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   padding-bottom: 4px;
 }
 
@@ -266,7 +262,7 @@ onUnmounted(() => {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 .stone-value {
@@ -274,7 +270,7 @@ onUnmounted(() => {
   font-size: var(--text-4xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.025em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-top: var(--space-3);
 }
 
@@ -325,7 +321,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.45);
   border-radius: var(--radius-lg);
   font-size: var(--text-sm);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   transition: background var(--transition-fast);
 }
 
@@ -335,12 +331,12 @@ onUnmounted(() => {
 
 .live-name {
   font-weight: var(--font-medium);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .live-time {
   margin-left: auto;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-xs);
 }
 
@@ -367,7 +363,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   padding-top: var(--space-3);
 }
 
@@ -388,7 +384,7 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.45);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   transition: background var(--transition-fast);
 }
 
@@ -398,11 +394,11 @@ onUnmounted(() => {
 
 .item-name {
   font-weight: var(--font-medium);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .item-meta {
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-xs);
 }
 
@@ -419,7 +415,7 @@ onUnmounted(() => {
 .loading {
   text-align: center;
   padding: var(--space-12);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -438,7 +434,7 @@ onUnmounted(() => {
   font-size: 88px;
   font-weight: var(--font-bold);
   letter-spacing: -0.03em;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   opacity: 0.35;
   line-height: 0.9;
   user-select: none;
@@ -448,13 +444,13 @@ onUnmounted(() => {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-bottom: 4px;
 }
 
 .empty-copy p {
   margin: 0;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 

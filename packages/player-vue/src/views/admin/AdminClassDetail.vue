@@ -9,7 +9,6 @@
 import { inject, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
-import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import ClassDetail from '@/views/schools/ClassDetail.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -72,7 +71,7 @@ watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
       <p>{{ loadError }}</p>
     </div>
     <template v-else>
-      <AtmosphereBackdrop />
+      
       <TopNav />
       <main class="main-content">
         <ClassDetail />

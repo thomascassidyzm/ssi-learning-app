@@ -3,7 +3,6 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const router = useRouter()
 
@@ -911,7 +910,7 @@ onMounted(() => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Setup</h1>
+        <h1 class="arsenal">Setup</h1>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ schools.length }}</span>
@@ -954,7 +953,7 @@ onMounted(() => {
 
     <!-- Tab nav as segmented control — canon §5.2 (own row) -->
     <div class="filters-bar">
-      <span class="frost-eyebrow">Section</span>
+      <span class="schools-kicker">Section</span>
       <div class="tab-toggle" role="tablist">
         <button
           v-for="tab in tabs"
@@ -974,14 +973,14 @@ onMounted(() => {
     <!-- ───── GROUPS TAB ───── -->
     <template v-if="activeTab === 'groups'">
       <!-- Create group form panel -->
-      <FrostCard variant="panel" class="form-panel">
+      <div class="schools-card form-panel">
         <div class="panel-head">
-          <span class="frost-eyebrow">Create group</span>
+          <span class="schools-kicker">Create group</span>
           <span class="panel-hint">A bucket for schools that share entitlements.</span>
         </div>
         <form class="form-grid" @submit.prevent="createGroup">
           <div class="field field-wide">
-            <label class="frost-eyebrow">Group name <span class="required">*</span></label>
+            <label class="schools-kicker">Group name <span class="required">*</span></label>
             <input
               v-model="newGroupName"
               type="text"
@@ -992,7 +991,7 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label class="frost-eyebrow">Type</label>
+            <label class="schools-kicker">Type</label>
             <select v-model="newGroupType" class="frost-select">
               <option value="nation">Nation</option>
               <option value="group">Group</option>
@@ -1003,7 +1002,7 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label class="frost-eyebrow">Parent group <span class="optional">(optional)</span></label>
+            <label class="schools-kicker">Parent group <span class="optional">(optional)</span></label>
             <select v-model="newGroupParent" class="frost-select">
               <option value="">— None (top level) —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
@@ -1027,12 +1026,12 @@ onMounted(() => {
             </button>
           </div>
         </form>
-      </FrostCard>
+      </div>
 
       <!-- Groups tree panel -->
-      <FrostCard v-if="groups.length > 0" variant="panel" class="tree-panel">
+      <div class="schools-card"> 0" variant="panel" class="tree-panel">
         <div class="panel-head">
-          <span class="frost-eyebrow">All groups</span>
+          <span class="schools-kicker">All groups</span>
           <span class="panel-hint">Click a name to rename — hover for actions.</span>
         </div>
         <div class="groups-tree">
@@ -1128,34 +1127,34 @@ onMounted(() => {
             </template>
           </template>
         </div>
-      </FrostCard>
+      </div>
 
       <!-- Empty state for groups -->
-      <FrostCard v-else-if="!isLoadingGroups" variant="tile" class="empty">
+      <div class="schools-card empty">
         <div class="empty-ghost">groups</div>
         <div class="empty-copy">
           <strong>No groups yet</strong>
           <p>Create one above to organise schools that share entitlements.</p>
         </div>
-      </FrostCard>
+      </div>
 
       <!-- Add Govt Admin -->
-      <FrostCard variant="panel" class="form-panel">
+      <div class="schools-card form-panel">
         <div class="panel-head">
-          <span class="frost-eyebrow">Add govt admin</span>
+          <span class="schools-kicker">Add govt admin</span>
           <span class="panel-hint">Invite someone to oversee all schools within a group.</span>
         </div>
         <form class="form-grid" @submit.prevent="createGovtAdmin">
           <div class="field">
-            <label class="frost-eyebrow">Name <span class="required">*</span></label>
+            <label class="schools-kicker">Name <span class="required">*</span></label>
             <input v-model="newGovtName" type="text" class="frost-input" placeholder="e.g. Gwilym Thomas" />
           </div>
           <div class="field">
-            <label class="frost-eyebrow">Email <span class="required">*</span></label>
+            <label class="schools-kicker">Email <span class="required">*</span></label>
             <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
           </div>
           <div class="field">
-            <label class="frost-eyebrow">Group <span class="required">*</span></label>
+            <label class="schools-kicker">Group <span class="required">*</span></label>
             <select v-model="newGovtGroup" class="frost-select">
               <option value="">— Select group —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
@@ -1164,12 +1163,12 @@ onMounted(() => {
             </select>
           </div>
           <div class="field">
-            <label class="frost-eyebrow">Organisation <span class="required">*</span></label>
+            <label class="schools-kicker">Organisation <span class="required">*</span></label>
             <input v-model="newGovtOrg" type="text" class="frost-input" placeholder="e.g. Welsh Government Language Office" />
           </div>
 
           <div v-if="govtAdminCode" class="field field-wide invite-result">
-            <span class="frost-eyebrow">Invite code</span>
+            <span class="schools-kicker">Invite code</span>
             <button
               type="button"
               class="code-chip is-large"
@@ -1203,20 +1202,20 @@ onMounted(() => {
             </button>
           </div>
         </form>
-      </FrostCard>
+      </div>
     </template>
 
     <!-- ───── SCHOOLS TAB ───── -->
     <template v-if="activeTab === 'schools'">
       <!-- Add School form panel -->
-      <FrostCard variant="panel" class="form-panel">
+      <div class="schools-card form-panel">
         <div class="panel-head">
-          <span class="frost-eyebrow">Add school</span>
+          <span class="schools-kicker">Add school</span>
           <span class="panel-hint">Create a new school — optionally assign it to a group.</span>
         </div>
         <form class="form-grid" @submit.prevent="createSchool">
           <div class="field field-wide">
-            <label class="frost-eyebrow">School name <span class="required">*</span></label>
+            <label class="schools-kicker">School name <span class="required">*</span></label>
             <input
               v-model="newSchoolName"
               type="text"
@@ -1226,7 +1225,7 @@ onMounted(() => {
             />
           </div>
           <div class="field field-wide">
-            <label class="frost-eyebrow">Group <span class="optional">(optional)</span></label>
+            <label class="schools-kicker">Group <span class="optional">(optional)</span></label>
             <select v-model="newSchoolGroup" class="frost-select">
               <option value="">— None —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
@@ -1250,10 +1249,10 @@ onMounted(() => {
             </button>
           </div>
         </form>
-      </FrostCard>
+      </div>
 
       <!-- Schools list panel -->
-      <FrostCard v-if="schools.length > 0" variant="panel" class="list-panel">
+      <div class="schools-card"> 0" variant="panel" class="list-panel">
         <table class="list-table">
           <thead>
             <tr>
@@ -1351,23 +1350,23 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
-      </FrostCard>
+      </div>
 
-      <FrostCard v-else-if="!isLoadingSchools" variant="tile" class="empty">
+      <div class="schools-card empty">
         <div class="empty-ghost">schools</div>
         <div class="empty-copy">
           <strong>No schools yet</strong>
           <p>Add one above — they'll appear here with their join codes.</p>
         </div>
-      </FrostCard>
+      </div>
     </template>
 
     <!-- ───── STAFF TAB ───── -->
     <template v-if="activeTab === 'staff'">
       <!-- Add Staff -->
-      <FrostCard variant="panel" class="form-panel">
+      <div class="schools-card form-panel">
         <div class="panel-head">
-          <span class="frost-eyebrow">Add staff</span>
+          <span class="schools-kicker">Add staff</span>
           <span class="panel-hint">Invite a teacher or school admin to a specific school.</span>
         </div>
 
@@ -1378,15 +1377,15 @@ onMounted(() => {
 
         <form v-else class="form-grid" @submit.prevent="createStaff">
           <div class="field">
-            <label class="frost-eyebrow">Name <span class="required">*</span></label>
+            <label class="schools-kicker">Name <span class="required">*</span></label>
             <input v-model="newStaffName" type="text" class="frost-input" placeholder="e.g. Rhian Griffiths" />
           </div>
           <div class="field">
-            <label class="frost-eyebrow">Email <span class="required">*</span></label>
+            <label class="schools-kicker">Email <span class="required">*</span></label>
             <input v-model="newStaffEmail" type="email" class="frost-input" placeholder="e.g. rhian@school.edu" />
           </div>
           <div class="field">
-            <label class="frost-eyebrow">School <span class="required">*</span></label>
+            <label class="schools-kicker">School <span class="required">*</span></label>
             <select v-model="newStaffSchool" class="frost-select">
               <option value="">— Select school —</option>
               <option v-for="s in schools" :key="s.id" :value="s.id">
@@ -1395,7 +1394,7 @@ onMounted(() => {
             </select>
           </div>
           <div class="field">
-            <label class="frost-eyebrow">Role</label>
+            <label class="schools-kicker">Role</label>
             <select v-model="newStaffRole" class="frost-select">
               <option value="teacher">Teacher</option>
               <option value="admin">School Admin</option>
@@ -1417,10 +1416,10 @@ onMounted(() => {
             </button>
           </div>
         </form>
-      </FrostCard>
+      </div>
 
       <!-- Staff list panel -->
-      <FrostCard v-if="staffMembers.length > 0" variant="panel" class="list-panel">
+      <div class="schools-card"> 0" variant="panel" class="list-panel">
         <table class="list-table">
           <thead>
             <tr>
@@ -1446,28 +1445,28 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
-      </FrostCard>
+      </div>
 
-      <FrostCard v-else-if="!isLoadingStaff" variant="tile" class="empty">
+      <div class="schools-card empty">
         <div class="empty-ghost">staff</div>
         <div class="empty-copy">
           <strong>No staff yet</strong>
           <p>Add teachers and school admins above — they'll show up here once invited.</p>
         </div>
-      </FrostCard>
+      </div>
     </template>
 
     <!-- ───── ENTITLEMENTS TAB ───── -->
     <template v-if="activeTab === 'entitlements'">
-      <FrostCard variant="panel" class="form-panel">
+      <div class="schools-card form-panel">
         <div class="panel-head">
-          <span class="frost-eyebrow">Course entitlements</span>
+          <span class="schools-kicker">Course entitlements</span>
           <span class="panel-hint">Grant courses directly to a school. Groups cascade to their schools automatically.</span>
         </div>
 
         <div class="form-grid">
           <div class="field">
-            <label class="frost-eyebrow">Grant to</label>
+            <label class="schools-kicker">Grant to</label>
             <select v-model="grantTargetType" class="frost-select">
               <option value="group">Group</option>
               <option value="school">School</option>
@@ -1475,7 +1474,7 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label class="frost-eyebrow">
+            <label class="schools-kicker">
               {{ grantTargetType === 'group' ? 'Select group' : 'Select school' }}
               <span class="required">*</span>
             </label>
@@ -1508,7 +1507,7 @@ onMounted(() => {
           </div>
 
           <div class="picker-header">
-            <span class="frost-eyebrow">
+            <span class="schools-kicker">
               Courses
               <span class="picker-count">({{ grantCourses.length }} selected)</span>
             </span>
@@ -1558,7 +1557,7 @@ onMounted(() => {
             </button>
           </div>
         </div>
-      </FrostCard>
+      </div>
     </template>
   </div>
 </template>
@@ -1583,7 +1582,7 @@ onMounted(() => {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.015em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin: 0 0 var(--space-2);
 }
 
@@ -1591,17 +1590,17 @@ onMounted(() => {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
 
-.metric-sep { color: var(--ink-faint); }
+.metric-sep { color: var(--schools-fg-3); }
 
 /* Banners */
 .banner {
@@ -1650,16 +1649,16 @@ onMounted(() => {
   border: none;
   background: transparent;
   border-radius: var(--radius-full);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
-.tab-btn:hover { color: var(--ink-primary); }
+.tab-btn:hover { color: var(--schools-fg); }
 
 .tab-btn.is-active {
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(194, 58, 58, 0.20);
 }
@@ -1684,7 +1683,7 @@ onMounted(() => {
 
 .panel-hint {
   font-size: var(--text-xs);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 /* Form grid (frost) */
@@ -1701,7 +1700,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -1740,7 +1739,7 @@ onMounted(() => {
 }
 
 .optional {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   font-weight: var(--font-normal);
   text-transform: none;
   letter-spacing: 0;
@@ -1751,14 +1750,14 @@ onMounted(() => {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-lg);
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
-.frost-input::placeholder { color: var(--ink-faint); }
+.frost-input::placeholder { color: var(--schools-fg-3); }
 
 .frost-input:focus,
 .frost-select:focus {
@@ -1787,7 +1786,7 @@ onMounted(() => {
   font-weight: var(--font-semibold);
   border-radius: var(--radius-full);
   border: 1px solid transparent;
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
   cursor: pointer;
   transition: all var(--transition-base);
@@ -1795,7 +1794,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--ssi-red-light);
+  background: var(--schools-red-light);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
 }
 
@@ -1815,7 +1814,7 @@ onMounted(() => {
   border-radius: var(--radius-full);
   border: 1px solid rgba(44, 38, 34, 0.12);
   background: rgba(255, 255, 255, 0.55);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -1843,7 +1842,7 @@ onMounted(() => {
 
 .invite-hint {
   font-size: var(--text-xs);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   margin-top: 4px;
 }
 
@@ -1859,13 +1858,13 @@ onMounted(() => {
   font: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
 }
 
 .code-chip:hover {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(44, 38, 34, 0.16);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .code-chip.is-copied {
@@ -1902,7 +1901,7 @@ onMounted(() => {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   text-align: left;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
   background: rgba(255, 255, 255, 0.35);
@@ -1920,19 +1919,19 @@ onMounted(() => {
   padding: 12px 18px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.05);
   vertical-align: middle;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   font-size: var(--text-sm);
 }
 
 .list-table tbody tr:last-child td { border-bottom: none; }
 
 .cell-name {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-medium);
 }
 
 .cell-muted {
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   white-space: nowrap;
 }
 
@@ -1944,7 +1943,7 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(44, 38, 34, 0.10);
   border-radius: var(--radius-md);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   cursor: pointer;
   appearance: none;
   background-image:
@@ -1977,7 +1976,7 @@ onMounted(() => {
 }
 
 .entitlement-label {
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-weight: var(--font-normal);
 }
 
@@ -2049,13 +2048,13 @@ onMounted(() => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .row-action:hover {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(44, 38, 34, 0.10);
 }
@@ -2078,7 +2077,7 @@ onMounted(() => {
   padding: var(--space-2) var(--space-4);
   font-size: var(--text-sm);
   border-radius: var(--radius-md);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
 }
 
 .group-row:hover { background: rgba(255, 255, 255, 0.48); }
@@ -2091,7 +2090,7 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   transition: background var(--transition-fast);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-semibold);
 }
 
@@ -2112,7 +2111,7 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(var(--tone-red), 0.55);
   border-radius: var(--radius-sm);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   width: 220px;
 }
 
@@ -2123,7 +2122,7 @@ onMounted(() => {
 
 .group-meta {
   margin-left: auto;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-xs);
 }
 
@@ -2165,7 +2164,7 @@ onMounted(() => {
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.05em;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   text-transform: none;
   margin-left: 4px;
 }
@@ -2188,14 +2187,14 @@ onMounted(() => {
   font-weight: var(--font-medium);
   background: none;
   border: none;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   padding: 4px 6px;
   border-radius: var(--radius-sm);
   transition: color var(--transition-fast);
 }
 
-.link-btn:hover { color: var(--ink-primary); }
+.link-btn:hover { color: var(--schools-fg); }
 
 .course-group {
   display: flex;
@@ -2209,7 +2208,7 @@ onMounted(() => {
   font-weight: var(--font-medium);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   padding: 4px 0 2px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
 }
@@ -2228,7 +2227,7 @@ onMounted(() => {
   border-radius: var(--radius-full);
   border: 1px solid rgba(44, 38, 34, 0.12);
   background: rgba(255, 255, 255, 0.55);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -2236,7 +2235,7 @@ onMounted(() => {
 .course-chip:hover {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(44, 38, 34, 0.20);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .course-chip.is-selected {
@@ -2249,7 +2248,7 @@ onMounted(() => {
 .course-no-results {
   padding: 16px;
   text-align: center;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -2268,7 +2267,7 @@ onMounted(() => {
   font-size: 88px;
   font-weight: var(--font-bold);
   letter-spacing: -0.03em;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   opacity: 0.35;
   line-height: 0.9;
   user-select: none;
@@ -2278,13 +2277,13 @@ onMounted(() => {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-bottom: 4px;
 }
 
 .empty-copy p {
   margin: 0;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 

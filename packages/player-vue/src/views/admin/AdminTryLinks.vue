@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 interface TryLink {
   id: string
@@ -174,7 +173,7 @@ onMounted(() => {
     <!-- Page header -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Try Links</h1>
+        <h1 class="arsenal">Try Links</h1>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ links.length }}</span>
@@ -214,13 +213,13 @@ onMounted(() => {
     </Transition>
 
     <!-- Create form — FrostCard panel -->
-    <FrostCard variant="panel" class="create-panel">
+    <div class="schools-card create-panel">
       <div class="panel-head">
-        <span class="frost-eyebrow">Create new try link</span>
+        <span class="schools-kicker">Create new try link</span>
       </div>
       <form class="create-form" @submit.prevent="createLink">
         <div class="field field-wide">
-          <label class="frost-eyebrow">Label <span class="required">*</span></label>
+          <label class="schools-kicker">Label <span class="required">*</span></label>
           <input
             v-model="formLabel"
             type="text"
@@ -229,7 +228,7 @@ onMounted(() => {
           />
         </div>
         <div class="field">
-          <label class="frost-eyebrow">Expires after <span class="optional">(days)</span></label>
+          <label class="schools-kicker">Expires after <span class="optional">(days)</span></label>
           <input
             v-model.number="formTtlDays"
             type="number"
@@ -254,13 +253,12 @@ onMounted(() => {
           </button>
         </div>
       </form>
-    </FrostCard>
+    </div>
 
     <!-- Links list -->
-    <FrostCard
+    <div
       v-if="links.length > 0"
-      variant="panel"
-      class="links-panel"
+      class="schools-card links-panel"
     >
       <table class="links-table">
         <thead>
@@ -324,20 +322,19 @@ onMounted(() => {
           </tr>
         </tbody>
       </table>
-    </FrostCard>
+    </div>
 
     <!-- Empty state -->
-    <FrostCard
+    <div
       v-else-if="!isLoading"
-      variant="tile"
-      class="empty"
+      class="schools-card empty"
     >
       <div class="empty-ghost">try</div>
       <div class="empty-copy">
         <strong>No try links yet</strong>
         <p>Create one above and share it with partners or affiliates.</p>
       </div>
-    </FrostCard>
+    </div>
 
     <!-- Loading -->
     <div v-if="isLoading && links.length === 0" class="loading">
@@ -366,7 +363,7 @@ onMounted(() => {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.015em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin: 0 0 var(--space-2);
 }
 
@@ -374,22 +371,22 @@ onMounted(() => {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
 
-.metric-sep { color: var(--ink-faint); }
+.metric-sep { color: var(--schools-fg-3); }
 .metric-active .metric-value { color: rgb(var(--tone-green)); }
 
 .page-subtitle {
   margin: var(--space-2) 0 0;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -468,7 +465,7 @@ onMounted(() => {
 }
 
 .optional {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   font-weight: var(--font-normal);
   text-transform: none;
   letter-spacing: 0;
@@ -478,14 +475,14 @@ onMounted(() => {
   font: inherit;
   font-size: var(--text-base);
   padding: 10px 14px;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-lg);
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
-.frost-input::placeholder { color: var(--ink-faint); }
+.frost-input::placeholder { color: var(--schools-fg-3); }
 
 .frost-input:focus {
   outline: none;
@@ -504,7 +501,7 @@ onMounted(() => {
   font-weight: var(--font-semibold);
   border-radius: var(--radius-full);
   border: 1px solid transparent;
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
   cursor: pointer;
   transition: all var(--transition-base);
@@ -512,7 +509,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--ssi-red-light);
+  background: var(--schools-red-light);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
 }
 
@@ -550,7 +547,7 @@ onMounted(() => {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   text-align: left;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
   background: rgba(255, 255, 255, 0.35);
@@ -569,19 +566,19 @@ onMounted(() => {
   padding: 12px 18px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.05);
   vertical-align: middle;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   font-size: var(--text-sm);
 }
 
 .links-table tbody tr:last-child td { border-bottom: none; }
 
 .cell-label {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-medium);
 }
 
 .cell-muted {
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   white-space: nowrap;
 }
 
@@ -597,13 +594,13 @@ onMounted(() => {
   font: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
 }
 
 .code-chip:hover {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(44, 38, 34, 0.16);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .code-chip.is-copied {
@@ -649,7 +646,7 @@ onMounted(() => {
 }
 
 .status-pill.tone-muted {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   background: rgba(44, 38, 34, 0.04);
   border-color: rgba(44, 38, 34, 0.10);
 }
@@ -668,7 +665,7 @@ onMounted(() => {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   opacity: 0;
   transform: translateX(4px);
@@ -682,7 +679,7 @@ onMounted(() => {
 }
 
 .row-action:hover {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(44, 38, 34, 0.1);
 }
@@ -708,7 +705,7 @@ onMounted(() => {
   font-size: 88px;
   font-weight: var(--font-bold);
   letter-spacing: -0.03em;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   opacity: 0.35;
   line-height: 0.9;
   user-select: none;
@@ -718,20 +715,20 @@ onMounted(() => {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-bottom: 4px;
 }
 
 .empty-copy p {
   margin: 0;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .loading {
   text-align: center;
   padding: var(--space-12);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 

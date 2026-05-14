@@ -3,7 +3,6 @@ import { onMounted } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminCourses } from '@/composables/admin/useAdminCourses'
 import { parseCourseCode, formatDuration } from '@/composables/admin/adminUtils'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient } = useAdminClient()
 
@@ -65,7 +64,7 @@ onMounted(() => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
-        <h1 class="frost-display">Courses</h1>
+        <h1 class="arsenal">Courses</h1>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ totalCourses }}</span>
@@ -89,29 +88,29 @@ onMounted(() => {
 
     <!-- KPI stones -->
     <div class="kpi-strip">
-      <FrostCard variant="stone" tone="blue">
+      <div class="schools-card">
         <div class="stone-content">
           <span class="stone-label">Total courses</span>
           <span class="stone-value frost-mono-nums">{{ totalCourses }}</span>
         </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="gold">
+      </div>
+      <div class="schools-card">
         <div class="stone-content">
           <span class="stone-label">Total enrolments</span>
           <span class="stone-value frost-mono-nums">{{ totalEnrollments }}</span>
         </div>
-      </FrostCard>
-      <FrostCard variant="stone" tone="green">
+      </div>
+      <div class="schools-card">
         <div class="stone-content">
           <span class="stone-label">Active (30d)</span>
           <span class="stone-value frost-mono-nums">{{ totalActive30d }}</span>
         </div>
-      </FrostCard>
+      </div>
     </div>
 
     <!-- Sort controls — own row, segmented pill -->
     <div class="filters-bar">
-      <span class="frost-eyebrow">Sort by</span>
+      <span class="schools-kicker">Sort by</span>
       <div class="sort-toggle" role="tablist">
         <button
           type="button"
@@ -145,11 +144,10 @@ onMounted(() => {
 
     <!-- Course tiles -->
     <div v-else-if="courses.length > 0" class="course-grid">
-      <FrostCard
+      <div
         v-for="course in courses"
         :key="course.course_code"
-        variant="tile"
-        class="course-card"
+        class="schools-card course-card"
         :class="`tier-${tierFor(course)}`"
       >
         <div class="course-content">
@@ -177,21 +175,20 @@ onMounted(() => {
             </div>
           </div>
         </div>
-      </FrostCard>
+      </div>
     </div>
 
     <!-- Empty state — canon §5.5 -->
-    <FrostCard
+    <div
       v-else-if="!isLoading"
-      variant="tile"
-      class="empty"
+      class="schools-card empty"
     >
       <div class="empty-ghost">courses</div>
       <div class="empty-copy">
         <strong>No courses yet</strong>
         <p>Once Popty publishes a course, it'll appear here.</p>
       </div>
-    </FrostCard>
+    </div>
   </div>
 </template>
 
@@ -215,7 +212,7 @@ onMounted(() => {
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.015em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin: 0 0 var(--space-2);
 }
 
@@ -223,12 +220,12 @@ onMounted(() => {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
@@ -270,7 +267,7 @@ onMounted(() => {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 .stone-value {
@@ -278,7 +275,7 @@ onMounted(() => {
   font-size: var(--text-4xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.025em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-top: var(--space-3);
 }
 
@@ -306,15 +303,15 @@ onMounted(() => {
   border: none;
   background: transparent;
   border-radius: var(--radius-full);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.sort-btn:hover { color: var(--ink-primary); }
+.sort-btn:hover { color: var(--schools-fg); }
 
 .sort-btn.is-active {
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10), 0 4px 12px rgba(194, 58, 58, 0.20);
 }
@@ -351,7 +348,7 @@ onMounted(() => {
   font-size: var(--text-lg);
   font-weight: var(--font-semibold);
   letter-spacing: -0.01em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 /* Tier pill — outlined, tier-coloured, mono uppercase */
@@ -387,7 +384,7 @@ onMounted(() => {
 .cm-value {
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .cm-label {
@@ -395,7 +392,7 @@ onMounted(() => {
   font-size: 9px;
   letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
 /* Empty state */
@@ -413,7 +410,7 @@ onMounted(() => {
   font-size: 88px;
   font-weight: var(--font-bold);
   letter-spacing: -0.03em;
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   opacity: 0.35;
   line-height: 0.9;
   user-select: none;
@@ -423,20 +420,20 @@ onMounted(() => {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   margin-bottom: 4px;
 }
 
 .empty-copy p {
   margin: 0;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .loading {
   text-align: center;
   padding: var(--space-12);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 

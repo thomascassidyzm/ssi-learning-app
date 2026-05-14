@@ -5,7 +5,6 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 
 const { getClient, getAuthToken } = useAdminClient()
 const route = useRoute()
@@ -242,7 +241,7 @@ async function handleRevoke(entitlementId: string) {
 
     <template v-else-if="profile">
       <!-- Profile panel -->
-      <FrostCard variant="panel" class="profile-panel">
+      <div class="schools-card profile-panel">
         <div class="profile-layout">
           <div class="profile-avatar">
             {{ getUserInitials(profile.display_name) }}
@@ -285,7 +284,7 @@ async function handleRevoke(entitlementId: string) {
             <!-- Role editor -->
             <div class="role-editor">
               <div class="role-field">
-                <label class="frost-eyebrow">Platform role</label>
+                <label class="schools-kicker">Platform role</label>
                 <select
                   class="frost-select"
                   :value="profile.platform_role || ''"
@@ -296,7 +295,7 @@ async function handleRevoke(entitlementId: string) {
                 </select>
               </div>
               <div class="role-field">
-                <label class="frost-eyebrow">Educational role</label>
+                <label class="schools-kicker">Educational role</label>
                 <select
                   class="frost-select"
                   :value="profile.educational_role || ''"
@@ -321,7 +320,7 @@ async function handleRevoke(entitlementId: string) {
             </div>
           </div>
         </div>
-      </FrostCard>
+      </div>
 
       <!-- Entitlements section -->
       <section class="section">
@@ -337,28 +336,28 @@ async function handleRevoke(entitlementId: string) {
 
         <!-- Grant form (inline FrostCard panel) -->
         <Transition name="reveal">
-          <FrostCard v-if="showGrantForm" variant="panel" class="grant-panel">
+          <div class="schools-card grant-panel">
             <div class="panel-head">
-              <span class="frost-eyebrow">Grant entitlement</span>
+              <span class="schools-kicker">Grant entitlement</span>
             </div>
             <div class="grant-form">
               <div class="grant-row">
                 <div class="grant-field">
-                  <label class="frost-eyebrow">Access</label>
+                  <label class="schools-kicker">Access</label>
                   <select v-model="grantAccessType" class="frost-select">
                     <option value="full">Full · all courses</option>
                     <option value="courses">Specific courses</option>
                   </select>
                 </div>
                 <div class="grant-field">
-                  <label class="frost-eyebrow">Duration</label>
+                  <label class="schools-kicker">Duration</label>
                   <select v-model="grantDurationType" class="frost-select">
                     <option value="lifetime">Lifetime</option>
                     <option value="time_limited">Time limited</option>
                   </select>
                 </div>
                 <div v-if="grantDurationType === 'time_limited'" class="grant-field grant-field-narrow">
-                  <label class="frost-eyebrow">Days</label>
+                  <label class="schools-kicker">Days</label>
                   <input
                     v-model.number="grantDurationDays"
                     type="number"
@@ -368,7 +367,7 @@ async function handleRevoke(entitlementId: string) {
                 </div>
               </div>
               <div v-if="grantAccessType === 'courses'" class="grant-field">
-                <label class="frost-eyebrow">Course codes <span class="optional">(comma-separated)</span></label>
+                <label class="schools-kicker">Course codes <span class="optional">(comma-separated)</span></label>
                 <input
                   class="frost-input"
                   placeholder="e.g. spa_for_eng, fra_for_eng"
@@ -381,14 +380,13 @@ async function handleRevoke(entitlementId: string) {
                 </button>
               </div>
             </div>
-          </FrostCard>
+          </div>
         </Transition>
 
         <!-- Entitlements list -->
-        <FrostCard
+        <div
           v-if="userEntitlements.length > 0"
-          variant="panel"
-          class="list-panel"
+          class="schools-card list-panel"
         >
           <table class="list-table">
             <thead>
@@ -430,10 +428,10 @@ async function handleRevoke(entitlementId: string) {
               </tr>
             </tbody>
           </table>
-        </FrostCard>
-        <FrostCard v-else variant="tile" class="ent-empty">
+        </div>
+        <div class="schools-card ent-empty">
           <span>No active entitlements.</span>
-        </FrostCard>
+        </div>
       </section>
 
       <!-- Course progress -->
@@ -443,13 +441,10 @@ async function handleRevoke(entitlementId: string) {
           <span class="title-count frost-mono-nums">{{ enrollments.length }}</span>
         </h3>
         <div class="course-grid">
-          <FrostCard
+          <div
             v-for="enrollment in enrollments"
             :key="enrollment.course_id"
-            variant="tile"
-            :tone="beltTone(getBeltForSeeds(getCourseProgress(enrollment.course_id).seeds_introduced).name)"
-            :hoverable="true"
-            class="course-tile"
+            class="schools-card course-tile"
           >
             <div class="course-inner">
               <div class="course-header">
@@ -487,7 +482,7 @@ async function handleRevoke(entitlementId: string) {
                 </span>
               </div>
             </div>
-          </FrostCard>
+          </div>
         </div>
       </section>
 
@@ -497,10 +492,9 @@ async function handleRevoke(entitlementId: string) {
           Recent sessions
           <span class="title-count frost-mono-nums">{{ sessions.length }}</span>
         </h3>
-        <FrostCard
+        <div
           v-if="sessions.length > 0"
-          variant="panel"
-          class="list-panel"
+          class="schools-card list-panel"
         >
           <table class="list-table">
             <thead>
@@ -528,10 +522,10 @@ async function handleRevoke(entitlementId: string) {
               </tr>
             </tbody>
           </table>
-        </FrostCard>
-        <FrostCard v-else variant="tile" class="ent-empty">
+        </div>
+        <div class="schools-card ent-empty">
           <span>No sessions recorded.</span>
-        </FrostCard>
+        </div>
       </section>
 
       <!-- Recent player events — diagnostics for "skip didn't work" etc. -->
@@ -540,10 +534,9 @@ async function handleRevoke(entitlementId: string) {
           Recent player events
           <span class="title-count frost-mono-nums">{{ playerEvents.length }}</span>
         </h3>
-        <FrostCard
+        <div
           v-if="playerEvents.length > 0"
-          variant="panel"
-          class="list-panel"
+          class="schools-card list-panel"
         >
           <table class="list-table events-table">
             <thead>
@@ -580,10 +573,10 @@ async function handleRevoke(entitlementId: string) {
               </template>
             </tbody>
           </table>
-        </FrostCard>
-        <FrostCard v-else variant="tile" class="ent-empty">
+        </div>
+        <div class="schools-card ent-empty">
           <span>No player events recorded.</span>
-        </FrostCard>
+        </div>
       </section>
 
       <!-- ─── Event type digest ─────────────────────────────────── -->
@@ -591,7 +584,7 @@ async function handleRevoke(entitlementId: string) {
         <h3 class="section-title frost-display">
           Event types (last {{ playerEvents.length }})
         </h3>
-        <FrostCard v-if="eventCountsByType.length > 0" variant="panel" class="list-panel">
+        <div class="schools-card"> 0" variant="panel" class="list-panel">
           <table class="list-table">
             <thead>
               <tr><th>Event type</th><th class="num-col">Count</th></tr>
@@ -603,10 +596,10 @@ async function handleRevoke(entitlementId: string) {
               </tr>
             </tbody>
           </table>
-        </FrostCard>
-        <FrostCard v-else variant="tile" class="ent-empty">
+        </div>
+        <div class="schools-card ent-empty">
           <span>No events to summarise.</span>
-        </FrostCard>
+        </div>
       </section>
 
       <!-- ─── Audio plays by cycle type ────────────────────────── -->
@@ -617,7 +610,7 @@ async function handleRevoke(entitlementId: string) {
             {{ audioPlaysByCycleType.reduce((s, r) => s + r.n, 0) }}
           </span>
         </h3>
-        <FrostCard variant="panel" class="list-panel">
+        <div class="schools-card list-panel">
           <table class="list-table">
             <thead>
               <tr><th>Cycle type</th><th class="num-col">Plays</th></tr>
@@ -629,7 +622,7 @@ async function handleRevoke(entitlementId: string) {
               </tr>
             </tbody>
           </table>
-        </FrostCard>
+        </div>
       </section>
 
       <!-- ─── L1 cluster fire timeline ─────────────────────────── -->
@@ -638,7 +631,7 @@ async function handleRevoke(entitlementId: string) {
           L1 cluster fires
           <span class="title-count frost-mono-nums">{{ l1ClusterFires.length }}</span>
         </h3>
-        <FrostCard variant="panel" class="list-panel">
+        <div class="schools-card list-panel">
           <table class="list-table">
             <thead>
               <tr>
@@ -657,7 +650,7 @@ async function handleRevoke(entitlementId: string) {
               </tr>
             </tbody>
           </table>
-        </FrostCard>
+        </div>
       </section>
 
       <!-- ─── L1 listening state ───────────────────────────────── -->
@@ -667,7 +660,7 @@ async function handleRevoke(entitlementId: string) {
           <span class="title-count frost-mono-nums">{{ l1State.length }} seeds</span>
         </h3>
         <template v-for="[courseCode, rows] in l1StateByCourse" :key="courseCode">
-          <FrostCard variant="panel" class="list-panel l1-course-panel">
+          <div class="schools-card list-panel l1-course-panel">
             <div class="l1-course-head">
               <span class="course-tag">{{ courseCode }}</span>
               <span class="cell-muted frost-mono-nums">
@@ -698,7 +691,7 @@ async function handleRevoke(entitlementId: string) {
                 </tr>
               </tbody>
             </table>
-          </FrostCard>
+          </div>
         </template>
       </section>
 
@@ -708,14 +701,14 @@ async function handleRevoke(entitlementId: string) {
           Adaptive pause mastery
           <span class="title-count frost-mono-nums">{{ legoMetrics.length }} LEGOs</span>
         </h3>
-        <FrostCard variant="tile" class="ent-empty mastery-summary">
+        <div class="schools-card ent-empty mastery-summary">
           <span>
             Acquisition: {{ legoMetricsByMastery.acquisition }} ·
             Consolidating: {{ legoMetricsByMastery.consolidating }} ·
             Confident: {{ legoMetricsByMastery.confident }} ·
             Mastered: {{ legoMetricsByMastery.mastered }}
           </span>
-        </FrostCard>
+        </div>
       </section>
     </template>
   </div>
@@ -742,7 +735,7 @@ async function handleRevoke(entitlementId: string) {
   gap: var(--space-1);
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(44, 38, 34, 0.1);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-sm);
@@ -754,15 +747,15 @@ async function handleRevoke(entitlementId: string) {
 .breadcrumb-link:hover {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(44, 38, 34, 0.18);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .breadcrumb-sep {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
 .breadcrumb-current {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-medium);
 }
 
@@ -775,7 +768,7 @@ async function handleRevoke(entitlementId: string) {
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(44, 38, 34, 0.1);
   border-radius: var(--radius-full);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-sm);
@@ -807,7 +800,7 @@ async function handleRevoke(entitlementId: string) {
 .loading {
   text-align: center;
   padding: var(--space-12);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -828,7 +821,7 @@ async function handleRevoke(entitlementId: string) {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--ssi-red), var(--ssi-gold));
+  background: linear-gradient(135deg, var(--schools-red), var(--ssi-gold));
   border-radius: var(--radius-lg);
   color: #fff;
   font-family: var(--font-display);
@@ -853,7 +846,7 @@ async function handleRevoke(entitlementId: string) {
   font-size: var(--text-2xl);
   margin: 0 0 4px;
   letter-spacing: -0.015em;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 .profile-emails {
@@ -872,7 +865,7 @@ async function handleRevoke(entitlementId: string) {
 
 .profile-email-text {
   font-size: var(--text-sm);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   word-break: break-all;
 }
 
@@ -891,7 +884,7 @@ async function handleRevoke(entitlementId: string) {
 
 .profile-meta {
   font-size: var(--text-sm);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -902,7 +895,7 @@ async function handleRevoke(entitlementId: string) {
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: var(--ink-faint);
+  background: var(--schools-fg-3);
 }
 
 .profile-uid {
@@ -967,7 +960,7 @@ async function handleRevoke(entitlementId: string) {
   font-size: var(--text-xl);
   font-weight: var(--font-semibold);
   margin: 0;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
@@ -976,7 +969,7 @@ async function handleRevoke(entitlementId: string) {
 .title-count {
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
 }
 
 /* ---------- Form controls (shared) ---------- */
@@ -985,7 +978,7 @@ async function handleRevoke(entitlementId: string) {
   font: inherit;
   font-size: var(--text-base);
   padding: 9px 14px;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-lg);
@@ -993,7 +986,7 @@ async function handleRevoke(entitlementId: string) {
 }
 
 .frost-input::placeholder {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
 }
 
 .frost-input:focus,
@@ -1013,7 +1006,7 @@ async function handleRevoke(entitlementId: string) {
 }
 
 .optional {
-  color: var(--ink-faint);
+  color: var(--schools-fg-3);
   font-weight: var(--font-normal);
   text-transform: none;
   letter-spacing: 0;
@@ -1036,13 +1029,13 @@ async function handleRevoke(entitlementId: string) {
 }
 
 .btn-primary {
-  background: var(--ssi-red);
+  background: var(--schools-red);
   color: #fff;
   box-shadow: 0 1px 2px rgba(44, 38, 34, 0.08), 0 4px 14px rgba(194, 58, 58, 0.22);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--ssi-red-light);
+  background: var(--schools-red-light);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
 }
 
@@ -1053,14 +1046,14 @@ async function handleRevoke(entitlementId: string) {
 
 .btn-ghost {
   background: rgba(255, 255, 255, 0.55);
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   border-color: rgba(44, 38, 34, 0.1);
 }
 
 .btn-ghost:hover {
   background: rgba(255, 255, 255, 0.82);
   border-color: rgba(44, 38, 34, 0.18);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 /* ---------- Grant panel ---------- */
@@ -1142,7 +1135,7 @@ async function handleRevoke(entitlementId: string) {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   text-align: left;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
   background: rgba(255, 255, 255, 0.35);
@@ -1164,7 +1157,7 @@ async function handleRevoke(entitlementId: string) {
   padding: 12px 18px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.05);
   vertical-align: middle;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   font-size: var(--text-sm);
 }
 
@@ -1173,12 +1166,12 @@ async function handleRevoke(entitlementId: string) {
 }
 
 .cell-strong {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-weight: var(--font-medium);
 }
 
 .cell-muted {
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   white-space: nowrap;
 }
 
@@ -1194,7 +1187,7 @@ async function handleRevoke(entitlementId: string) {
   padding: 2px 10px;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.06);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   font-family: var(--font-mono, ui-monospace, Menlo, monospace);
   font-size: 0.75rem;
   font-weight: var(--font-medium);
@@ -1215,7 +1208,7 @@ async function handleRevoke(entitlementId: string) {
   font-family: var(--font-mono, ui-monospace, Menlo, monospace);
   font-size: 0.75rem;
   line-height: 1.5;
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 300px;
@@ -1259,7 +1252,7 @@ async function handleRevoke(entitlementId: string) {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   cursor: pointer;
   opacity: 0;
   transform: translateX(4px);
@@ -1273,7 +1266,7 @@ async function handleRevoke(entitlementId: string) {
 }
 
 .row-action:hover {
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(44, 38, 34, 0.1);
 }
@@ -1288,7 +1281,7 @@ async function handleRevoke(entitlementId: string) {
 .ent-empty {
   padding: var(--space-6) var(--space-8);
   text-align: center;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
@@ -1321,7 +1314,7 @@ async function handleRevoke(entitlementId: string) {
   font-family: var(--font-display);
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   letter-spacing: -0.005em;
 }
 
@@ -1345,7 +1338,7 @@ async function handleRevoke(entitlementId: string) {
   font-family: var(--font-display);
   font-size: var(--text-xl);
   font-weight: var(--font-bold);
-  color: var(--ink-primary);
+  color: var(--schools-fg);
   line-height: 1;
   letter-spacing: -0.025em;
 }
@@ -1353,21 +1346,21 @@ async function handleRevoke(entitlementId: string) {
 .stat-label {
   font-family: var(--font-mono);
   font-size: 9px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
 
 .course-foot {
   font-size: var(--text-xs);
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
 
 .course-active-time {
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
   font-weight: var(--font-medium);
 }
 

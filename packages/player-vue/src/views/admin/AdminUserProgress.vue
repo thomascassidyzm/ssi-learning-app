@@ -10,8 +10,6 @@
 import { inject, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
-import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
-import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import StudentProgressView from '@/views/schools/StudentProgressView.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -55,32 +53,32 @@ watch(() => route.params.learnerId, (id) => { if (id) loadContext(id as string) 
 
 <template>
   <div class="schools-container schools-surface">
-    <AtmosphereBackdrop />
+    
     <TopNav />
     <main class="main-content">
       <template v-if="isLoading">
         <header class="page-header">
           <div class="title-block">
-            <span class="frost-eyebrow">Learner progress</span>
-            <h1 class="frost-display">Loading learner…</h1>
+            <span class="schools-kicker">Learner progress</span>
+            <h1 class="arsenal">Loading learner…</h1>
           </div>
         </header>
-        <FrostCard variant="panel" class="status-panel">
+        <div class="schools-card status-panel">
           <div class="status-inner">
             <span class="loading-spinner" aria-hidden="true"></span>
             <span class="status-copy">Resolving learner context…</span>
           </div>
-        </FrostCard>
+        </div>
       </template>
 
       <template v-else-if="loadError">
         <header class="page-header">
           <div class="title-block">
-            <span class="frost-eyebrow">Learner progress</span>
-            <h1 class="frost-display">Couldn't load this learner</h1>
+            <span class="schools-kicker">Learner progress</span>
+            <h1 class="arsenal">Couldn't load this learner</h1>
           </div>
         </header>
-        <FrostCard variant="panel" class="status-panel">
+        <div class="schools-card status-panel">
           <div class="banner banner-error">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10" />
@@ -89,7 +87,7 @@ watch(() => route.params.learnerId, (id) => { if (id) loadContext(id as string) 
             </svg>
             {{ loadError }}
           </div>
-        </FrostCard>
+        </div>
       </template>
 
       <StudentProgressView v-else />
@@ -130,7 +128,7 @@ watch(() => route.params.learnerId, (id) => { if (id) loadContext(id as string) 
   font-size: var(--text-3xl);
   letter-spacing: -0.015em;
   margin: 0;
-  color: var(--ink-primary);
+  color: var(--schools-fg);
 }
 
 /* ---------- Status panels (loading / error) ---------- */
@@ -145,12 +143,12 @@ watch(() => route.params.learnerId, (id) => { if (id) loadContext(id as string) 
   justify-content: center;
   gap: var(--space-3);
   min-height: 160px;
-  color: var(--ink-muted);
+  color: var(--schools-fg-3);
   font-size: var(--text-sm);
 }
 
 .status-copy {
-  color: var(--ink-secondary);
+  color: var(--schools-fg-2);
 }
 
 .loading-spinner {
