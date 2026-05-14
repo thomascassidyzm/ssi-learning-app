@@ -194,16 +194,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Simple Session Test',
     },
   },
-  // Test route for v2 brain timelapse — fixture-driven dev playground.
-  // Agent C will remove this when real integration lands.
-  {
-    path: '/test/brain-view-v2',
-    name: 'brain-view-v2-test',
-    component: () => import('@/views/BrainViewV2Test.vue'),
-    meta: {
-      title: 'Brain View v2 (test)',
-    },
-  },
   // Admin panel
   {
     path: '/admin',

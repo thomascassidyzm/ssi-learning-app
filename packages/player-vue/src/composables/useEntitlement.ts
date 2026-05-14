@@ -45,6 +45,7 @@ export interface EntitlementStatus {
 export interface CourseInfo {
   course_code: string
   target_lang?: string
+  known_lang?: string
   pricing_tier?: CoursePricingTier
   is_community?: boolean
 }

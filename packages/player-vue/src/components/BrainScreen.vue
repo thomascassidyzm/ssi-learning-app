@@ -1,49 +1,29 @@
 <script setup lang="ts">
 /**
- * BrainScreen — v2 wrapper for the brain view.
+ * BrainScreen — "Your brain on {language}".
  *
- * Swaps the v1 side panel for a floating chip and the v1 static
- * data composable for Agent A's timelapse composable. Owns:
+ * Vertical-passage inventory of every word/phrase the learner has
+ * reached, belt-grouped, script-like. Tap a line to open the tombola
+ * for that LEGO — staggered vertical [left | LEGO | right] derived
+ * from the LEGO's USE phrases, shuffle to roll to a new combination
+ * and auto-play the phrase audio.
  *
- *   - focused-node state (legoId + screen coordinates from BrainView)
- *   - loading / empty states
- *   - back navigation
+ * No PIXI, no force-sim, no canvas — the v2 "growing brain map" was
+ * the wow without the meaningful. The vertical passage is meaningful
+ * and the tombola is the wow, kept on its own surface.
  *
- * Layout is full-bleed canvas. No side panel slide-in. The brain
- * dominates the screen; the chip is the only overlay surface.
- *
- * Boundary contracts:
- *   - useBrainTimelapseData (Agent A) returns { data, isLoading, error }
- *     with data shape `BrainTimelapseData` (extends BrainViewData with
- *     fire_count edges + per-node mastery tier + scrubbable timeline).
- *   - BrainView (Agent B) accepts `data: BrainTimelapseData`, emits
- *     `nodeTap: [legoId, screenX, screenY]` with viewport coordinates.
- *     `close` bubbles out of BrainView so the user can dismiss from
- *     the canvas as well.
- *
- * These contracts haven't landed on staging yet — this file references
- * them by their projected paths so a merge of A + B + C on staging
- * resolves cleanly.
+ * Entry points (unchanged): the ProgressModal "View Full Progress"
+ * button and the "Your brain on X" library tile both route through
+ * PlayerContainer.navigate('brain').
  */
-import { computed, defineAsyncComponent, ref, toRef } from 'vue'
-import BrainNodeChip from './BrainNodeChip.vue'
-import { useBrainTimelapseData } from '../composables/useBrainTimelapseData'
-import type { NetworkNode } from '../types/brainNetwork'
-import type {
-  BrainTimelapseData as RendererBrainData,
-  TimelapseNode,
-  TimelapseEdge,
-  TimelapseEvent,
-} from '../types/brainTimelapse'
-
-// Async-loaded so the PIXI renderer chunk (pixi.js + pixi-viewport, ~200kb)
-// doesn't get pulled into the main player bundle — the brain screen is
-// rarely the first thing a learner opens.
-const BrainView = defineAsyncComponent(() => import('./BrainView.vue'))
+import { ref, toRef } from 'vue'
+import BrainInventory from './BrainInventory.vue'
+import TombolaDrawer from './TombolaDrawer.vue'
+import { useBrainInventory, type InventoryLego } from '../composables/useBrainInventory'
 
 const props = defineProps<{
   courseCode: string
-  /** Display name for fallback empty-state copy, e.g. "Italian". */
+  /** Display name for the header — e.g. "Italian". */
   languageName: string
   /** Internal learner id (learners.id, not auth uid). */
   learnerId: string | null
@@ -53,164 +33,81 @@ const emit = defineEmits<{
   close: []
 }>()
 
-// ---- Data composable ---------------------------------------------------------
-
 const courseCodeRef = toRef(props, 'courseCode')
 const learnerIdRef = toRef(props, 'learnerId')
-const timelapse = useBrainTimelapseData(courseCodeRef, learnerIdRef)
-const brainData = computed(() => timelapse.data.value)
-const isLoading = computed(() => timelapse.isLoading.value)
-const error = computed(() => timelapse.error?.value ?? null)
+const { data, isLoading, error } = useBrainInventory(courseCodeRef, learnerIdRef)
 
-const revealedCount = computed(() => {
-  const d = brainData.value
-  if (!d) return 0
-  let n = 0
-  for (const node of d.nodes) if (node.isRevealed) n++
-  return n
-})
+const focusedLego = ref<InventoryLego | null>(null)
 
-const isEmpty = computed(() => !isLoading.value && revealedCount.value === 0)
-
-// ---- A→B type bridge ---------------------------------------------------------
-//
-// Agent A's data composable returns BrainTimelapseData with NetworkNode +
-// BrainPairing + BrainTimelapseEvent (from brainNetwork.ts, the existing
-// canonical type file). Agent B's renderer was built against a parallel
-// type set in brainTimelapse.ts using TimelapseNode/Edge/Event names. The
-// shapes are nearly identical; this computed maps the names so we keep
-// both type systems frozen and the renderer doesn't care.
-//
-// Cleanup pass: pick one type file, delete the other. Not today.
-const rendererData = computed<RendererBrainData | null>(() => {
-  const d = brainData.value
-  if (!d) return null
-  const nodes: TimelapseNode[] = d.nodes
-    .filter((n) => n.introducedAt !== null)
-    .map((n) => ({
-      legoId: n.legoId,
-      type: n.type,
-      text: n.text,
-      audioId: n.audioId,
-      beltIndex: n.beltIndex,
-      seedNumber: n.seedNumber,
-      position: n.position,
-      mastery: n.masteryState,
-      introducedAt: n.introducedAt as string,
-    }))
-  const edges: TimelapseEdge[] = d.pairings.map((p) => ({
-    source: p.legoA,
-    target: p.legoB,
-    fireCount: p.fireCount,
-    firstFiredAt: p.firstFiredAt,
-    lastFiredAt: p.lastFiredAt,
-  }))
-  // Map A's event shape (type + legoId / pair) to B's (kind + ref string).
-  // Skip 'pairing_strengthened' — it has no equivalent in v2; the renderer
-  // gets the latest fire_count off the edge directly when scrubber crosses.
-  const events: TimelapseEvent[] = []
-  for (const e of d.events) {
-    if (e.type === 'node_introduced' && e.legoId) {
-      events.push({ at: e.at, kind: 'node', ref: e.legoId })
-    } else if (e.type === 'pairing_first_fired' && e.pair) {
-      events.push({ at: e.at, kind: 'edge', ref: `${e.pair[0]}|${e.pair[1]}` })
-    }
-  }
-  return {
-    courseCode: d.courseCode,
-    languageName: d.languageName,
-    // Renderer uses currentBelt only for header accent colour; data nodes
-    // carry their own beltIndex. Default to white belt until we wire up
-    // useBeltProgress here. Cheap and correct enough for v2 first cut.
-    currentBelt: { name: 'white', color: '#ffffff', index: 0 },
-    nodes,
-    edges,
-    events,
-  }
-})
-
-// ---- Focused node + screen coordinates ---------------------------------------
-
-const selectedNode = ref<NetworkNode | null>(null)
-const chipScreenX = ref(0)
-const chipScreenY = ref(0)
-
-const handleNodeTap = (legoId: string, screenX?: number, screenY?: number) => {
-  const node = brainData.value?.nodes.find((n: NetworkNode) => n.legoId === legoId) ?? null
-  selectedNode.value = node
-  // Fallback when BrainView hasn't migrated to emitting screen coords yet:
-  // anchor the chip near the centre of the viewport so it's always visible.
-  if (typeof screenX === 'number' && typeof screenY === 'number') {
-    chipScreenX.value = screenX
-    chipScreenY.value = screenY
-  } else if (typeof window !== 'undefined') {
-    chipScreenX.value = window.innerWidth / 2
-    chipScreenY.value = window.innerHeight / 2
-  }
+function handleSelect(lego: InventoryLego) {
+  focusedLego.value = lego
 }
 
-const handleChipClose = () => {
-  selectedNode.value = null
+function handleTombolaClose() {
+  focusedLego.value = null
 }
 </script>
 
 <template>
   <div class="brain-screen">
-    <!-- Back button (lightweight; the brain owns the rest of the chrome) -->
-    <button
-      class="brain-screen-back"
-      type="button"
-      aria-label="Back"
-      @click="emit('close')"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="15 18 9 12 15 6" />
-      </svg>
-    </button>
+    <header class="brain-header">
+      <button
+        type="button"
+        class="brain-back"
+        aria-label="Back"
+        @click="emit('close')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6" />
+        </svg>
+      </button>
+      <div class="brain-title-block">
+        <h1 class="brain-title">Your brain on {{ data?.languageName || languageName }}</h1>
+        <p v-if="data" class="brain-subtitle">
+          {{ data.totalCount }} things you can say
+        </p>
+      </div>
+    </header>
 
     <!-- Loading state -->
-    <div v-if="isLoading && !brainData" class="brain-screen-state">
-      <div class="brain-screen-spinner" aria-hidden="true" />
-      <p class="brain-screen-state-text">Building your brain…</p>
+    <div v-if="isLoading && !data" class="brain-state">
+      <div class="brain-spinner" aria-hidden="true" />
+      <p class="brain-state-text">Building your brain…</p>
     </div>
 
-    <!-- Error state (data fetch blew up — rare; we still let the learner back out) -->
-    <div v-else-if="error && !brainData" class="brain-screen-state">
-      <p class="brain-screen-state-text">Couldn't load your brain right now.</p>
+    <!-- Error -->
+    <div v-else-if="error && !data" class="brain-state">
+      <p class="brain-state-text">Couldn't load your brain right now.</p>
     </div>
 
-    <!-- Empty state: no LEGOs introduced yet -->
-    <div v-else-if="isEmpty" class="brain-screen-state">
-      <p class="brain-screen-state-text">
-        Your {{ languageName }} brain is empty.<br>
+    <!-- Empty -->
+    <div v-else-if="data && data.totalCount === 0" class="brain-state">
+      <p class="brain-state-text">
+        Your {{ data.languageName }} brain is empty.<br>
         Start a session to grow it.
       </p>
       <button
-        class="brain-screen-cta"
         type="button"
+        class="brain-cta"
         @click="emit('close')"
       >
         Back to player
       </button>
     </div>
 
-    <!-- The brain itself. v2 BrainView drops the `stats` prop — passing
-         only `data`. -->
-    <BrainView
-      v-else-if="rendererData"
-      class="brain-screen-canvas"
-      :data="rendererData"
-      @node-tap="handleNodeTap"
-      @close="emit('close')"
+    <!-- The inventory -->
+    <BrainInventory
+      v-else-if="data"
+      :data="data"
+      :focused-lego-id="focusedLego?.legoId ?? null"
+      @select="handleSelect"
     />
 
-    <!-- Floating chip on focused node -->
-    <BrainNodeChip
-      :node="selectedNode"
-      :screen-x="chipScreenX"
-      :screen-y="chipScreenY"
+    <!-- Tombola drill-in (modal-style overlay) -->
+    <TombolaDrawer
       :course-code="courseCode"
-      @close="handleChipClose"
+      :lego="focusedLego"
+      @close="handleTombolaClose"
     />
   </div>
 </template>
@@ -219,99 +116,118 @@ const handleChipClose = () => {
 .brain-screen {
   position: relative;
   width: 100%;
-  height: 100dvh;
-  background: #0a0a0f;
-  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: #f0ece7;
+  /* Scroll container for the inventory list */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem);
+  font-family: var(--font-body, system-ui);
 }
 
-.brain-screen-back {
-  position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  left: 12px;
+.brain-header {
+  position: sticky;
+  top: 0;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) 1rem 0.75rem;
+  background: linear-gradient(to bottom,
+    rgba(240, 236, 231, 1) 0%,
+    rgba(240, 236, 231, 1) 80%,
+    rgba(240, 236, 231, 0) 100%
+  );
+}
+
+.brain-back {
+  flex-shrink: 0;
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(20, 20, 28, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #e8e4df;
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  color: rgba(44, 38, 34, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s;
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.brain-screen-back:hover {
-  background: rgba(40, 40, 52, 0.85);
+.brain-back:hover {
+  background: rgba(255, 255, 255, 0.85);
 }
 
-.brain-screen-back svg {
+.brain-back svg {
   width: 18px;
   height: 18px;
 }
 
-.brain-screen-canvas {
-  position: absolute;
-  inset: 0;
+.brain-title-block {
+  flex: 1;
+  min-width: 0;
 }
 
-.brain-screen-state {
-  position: absolute;
-  inset: 0;
+.brain-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: rgba(44, 38, 34, 0.95);
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brain-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.85rem;
+  color: rgba(44, 38, 34, 0.55);
+}
+
+.brain-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  padding: 0 1.5rem;
-  color: rgba(232, 228, 223, 0.7);
+  padding: 4rem 1.5rem;
+  color: rgba(44, 38, 34, 0.65);
   text-align: center;
 }
 
-.brain-screen-state-text {
+.brain-state-text {
   margin: 0;
   font-size: 1rem;
   line-height: 1.5;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  max-width: 24ch;
+  max-width: 26ch;
 }
 
-.brain-screen-spinner {
-  width: 32px;
-  height: 32px;
-  border: 2px solid rgba(232, 228, 223, 0.15);
-  border-top-color: rgba(232, 228, 223, 0.6);
+.brain-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(44, 38, 34, 0.15);
+  border-top-color: rgba(44, 38, 34, 0.55);
   border-radius: 50%;
   animation: brain-spinner 0.8s linear infinite;
 }
 
+.brain-cta {
+  padding: 0.7rem 1.25rem;
+  border-radius: 999px;
+  background: var(--ssi-red, #c23a3a);
+  color: #ffffff;
+  border: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(194, 58, 58, 0.25);
+}
+
 @keyframes brain-spinner {
   to { transform: rotate(360deg); }
-}
-
-.brain-screen-cta {
-  margin-top: 0.25rem;
-  padding: 0.55rem 1.1rem;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #e8e4df;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.brain-screen-cta:hover {
-  background: rgba(255, 255, 255, 0.10);
-  border-color: rgba(255, 255, 255, 0.20);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .brain-screen-spinner {
-    animation: none;
-  }
 }
 </style>
