@@ -1059,6 +1059,40 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
   return map
 })
 
+// Course-wide lookup: LEGO ID → known text, loaded once per course mount.
+// The round-derived map above only contains LEGOs whose rounds are in
+// loadedRounds — in infinite-play mode (where cycles surface random USE
+// phrases referencing LEGOs from anywhere in the course) that map is
+// incomplete, so the hero-card highlight silently disappears for any
+// salient LEGO whose round isn't loaded. This map fills the gap with one
+// cheap query (~300 rows per course) and serves as the primary source
+// for the highlight lookup.
+const globalLegoKnownTextMap = ref<Map<string, string>>(new Map())
+
+async function loadGlobalLegoKnownTexts() {
+  const client = supabase.value
+  const code = courseCode.value
+  if (!client || !code) return
+  try {
+    const { data, error } = await client
+      .from('course_legos')
+      .select('lego_id, known_text')
+      .eq('course_code', code)
+    if (error) {
+      console.warn('[LearningPlayer] Failed to load global lego known texts:', error.message)
+      return
+    }
+    const map = new Map<string, string>()
+    for (const row of (data || [])) {
+      if (row.lego_id && row.known_text) map.set(row.lego_id, row.known_text)
+    }
+    globalLegoKnownTextMap.value = map
+    console.log('[LearningPlayer] Loaded', map.size, 'global lego known texts for', code)
+  } catch (err) {
+    console.warn('[LearningPlayer] Global lego known text load errored:', err)
+  }
+}
+
 // Solo component detection: A-LEGOs whose target text appears as a component
 // inside any M-LEGO. These get dashed edges to show "extracted from something bigger."
 const soloComponentIds = computed<Set<string>>(() => {
@@ -3227,7 +3261,9 @@ const salientKnownParts = computed<{ prefix: string; match: string; suffix: stri
   if (!full) return null
   const legoId = (simplePlayer.currentCycle.value as any)?.legoId
   if (!legoId) return null
-  const salientKnown = legoKnownTextMap.value.get(legoId)
+  // Prefer the course-wide map (authoritative LEGO known_text from DB);
+  // fall back to round-derived map if the global load hasn't completed.
+  const salientKnown = globalLegoKnownTextMap.value.get(legoId) || legoKnownTextMap.value.get(legoId)
   if (!salientKnown || !salientKnown.trim()) return null
   const idx = full.toLowerCase().indexOf(salientKnown.toLowerCase())
   if (idx === -1) return null
@@ -6121,6 +6157,11 @@ onMounted(async () => {
 
   // Initialize per-LEGO adaptive pause engine (hydrates mastery from Supabase)
   await initializeAdaptationEngine()
+
+  // Load course-wide LEGO known_text lookup (powers the hero highlight in
+  // cases where the salient LEGO's round isn't in loadedRounds, especially
+  // infinite-play mode). Cheap one-shot query; fire-and-forget.
+  void loadGlobalLegoKnownTexts()
 
   // Initialize offline play composable (sets up online/offline listeners)
   offlinePlayCleanup = initializeOfflinePlay()
