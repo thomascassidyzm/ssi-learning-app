@@ -152,6 +152,15 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       // Start session tracking only for real learners — Supabase rejects
       // guest IDs (the `guest-` prefix breaks the uuid column constraint),
       // and the failed round-trip costs ~200ms on every cold start.
+      // Diagnostic — pinpoints which guard short-circuits when sessions
+      // never get written (no error is thrown so the catch below is no
+      // help on its own).
+      console.log('[useLearningSession] Session guard check:', {
+        sessionStore: !!sessionStore,
+        learnerId,
+        courseId,
+        isGuest: learnerId ? isGuestLearner(learnerId) : 'n/a',
+      })
       if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
         try {
           const session = await sessionStore.startSession(learnerId, courseId)
