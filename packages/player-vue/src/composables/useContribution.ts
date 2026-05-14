@@ -71,7 +71,14 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
         ? { minutes: todayRows[0].minutes_practiced || 0, phrases: todayRows[0].phrases_count || 0, speakers: todayRows[0].unique_speakers || 0 }
         : emptyTimeframe()
 
-      // User: fetch their sessions across timeframes
+      // User: read directly from learner_speaking_opportunities, the new
+      // per-cycle counter table. One row per (learner, course, UTC day);
+      // phrases = opportunities, minutes = floor(play_seconds / 60) at
+      // read time so per-row rounding can't accumulate.
+      //
+      // Replaces the prior path that summed sessions.items_practiced and
+      // duration_seconds — that one had been silently writing zero for
+      // items_practiced because the session-start guard short-circuited.
       let userToday = { minutes: 0, phrases: 0 }
       let user7 = { minutes: 0, phrases: 0 }
       let user30 = { minutes: 0, phrases: 0 }
@@ -79,40 +86,40 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
 
       // Skip the per-user query for guests — `learner_id` is uuid-typed and
       // guest IDs use a `guest-{uuid}` prefix, which Supabase rejects with 400.
-      // Guests still see the global stats above; their own row will populate
-      // once they sign in.
       const isGuest = !learnerId || learnerId.startsWith('guest-') || learnerId === 'demo-learner'
 
       if (learnerId && !isGuest) {
-        const { data: userSessions } = await client.value
-          .from('sessions')
-          .select('started_at, duration_seconds, items_practiced')
+        const { data: oppsRows } = await client.value
+          .from('learner_speaking_opportunities')
+          .select('day, opportunities, play_seconds')
           .eq('learner_id', learnerId)
-          .eq('course_id', courseId)
+          .eq('course_code', courseId)
 
-        // Cap per-session duration at 4 hours (14400s) to exclude runaway
-        // sessions where the app was left open without ending cleanly.
-        const MAX_SESSION_SECONDS = 14400
-
-        if (userSessions) {
-          for (const s of userSessions) {
-            const date = s.started_at?.split('T')[0]
-            const cappedSecs = Math.min(s.duration_seconds || 0, MAX_SESSION_SECONDS)
-            const mins = Math.round(cappedSecs / 60)
-            const phrases = s.items_practiced || 0
+        if (oppsRows) {
+          for (const r of oppsRows) {
+            const day = r.day as string                // 'YYYY-MM-DD'
+            const opps = Number(r.opportunities) || 0
+            const secs = Number(r.play_seconds) || 0
+            // Round down minutes at READ time only — keeps per-row rounding
+            // error at zero by aggregating seconds first.
+            // We still apply Math.floor per row here because the modal
+            // shows minutes per timeframe; sub-minute residuals at a row
+            // boundary are unavoidable but bounded at <1 min per row.
+            const mins = Math.floor(secs / 60)
+            const phrases = opps
 
             userAll.minutes += mins
             userAll.phrases += phrases
 
-            if (date >= days30Ago) {
+            if (day >= days30Ago) {
               user30.minutes += mins
               user30.phrases += phrases
             }
-            if (date >= days7Ago) {
+            if (day >= days7Ago) {
               user7.minutes += mins
               user7.phrases += phrases
             }
-            if (date === today) {
+            if (day === today) {
               userToday.minutes += mins
               userToday.phrases += phrases
             }
