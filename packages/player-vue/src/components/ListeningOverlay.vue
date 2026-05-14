@@ -1127,8 +1127,14 @@ watch(playbackSpeed, (newSpeed) => {
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--bg-primary) 55%, transparent);
-  backdrop-filter: blur(8px);
+  /* Near-solid base so the player chrome behind doesn't bleed through.
+   * Was 55% — that let the logo, transport bar and bottom nav read
+   * straight through, especially in Pods view. Bumped to 98% with a
+   * heavier blur so it still feels soft against the journey background
+   * but the overlay reads as its own surface. */
+  background: color-mix(in srgb, var(--bg-primary) 98%, transparent);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
   font-family: var(--font-body);
   padding: env(safe-area-inset-top, 20px) 0 calc(env(safe-area-inset-bottom, 20px) + 100px) 0;
   cursor: pointer;
