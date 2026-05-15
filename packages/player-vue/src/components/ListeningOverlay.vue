@@ -574,10 +574,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
 
   if (myPlaybackId !== playbackId) return
 
-  // Play each audio clip in sequence with a tight 200ms gap between
-  // clips that belong to the same turn — they're one speaker speaking,
-  // so the natural prosody continues. The longer 800ms inter-phrase
-  // gap below (between turns) is where a speaker change happens.
+  // Play each audio clip in sequence. Within a turn (same speaker
+  // continuing) the gap is as tight as possible — 50ms — so two
+  // sentences from one speaker run together as natural continuous
+  // speech rather than feeling like two separate utterances. The
+  // longer 800ms inter-phrase gap below (between turns) carries the
+  // speaker-change pause.
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
     const audioUrl = getAudioUrl(playQueue[i])
@@ -588,7 +590,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
     if (i < playQueue.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      await new Promise((resolve) => setTimeout(resolve, 50))
     }
   }
 
