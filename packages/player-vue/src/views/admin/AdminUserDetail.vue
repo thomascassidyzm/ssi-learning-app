@@ -202,7 +202,9 @@ const activeEnrollments = computed<Enrollment[]>(() => {
   const cutoff = Date.now() - ACTIVE_RECENT_DAYS * 86400 * 1000
   return enrollments.value
     .filter((e: any) => {
-      // Real learning telemetry — has the engine ever fired anything?
+      // Canonical signal: has the learner ever completed a LEGO here?
+      if (e.highest_completed_lego_id) return true
+      // Telemetry fallback for courses without enrollment ratchet writes yet.
       const prog = getCourseProgress(e.course_id)
       if (prog.legos_seen > 0 || prog.total_l1_fires > 0) return true
       // Or recent practice time on the enrollment row.

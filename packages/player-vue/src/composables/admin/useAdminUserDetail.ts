@@ -21,6 +21,10 @@ export interface DetailEnrollment {
   last_practiced_at: string | null
   total_practice_minutes: number
   highest_completed_seed: number | null
+  /** Ratcheted ceiling — only ever increases. The canonical "highest LEGO". */
+  highest_completed_lego_id: string | null
+  /** Most recently completed LEGO (may go down with re-plays). */
+  last_completed_lego_id: string | null
 }
 
 /**
@@ -124,7 +128,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
           .single(),
         client
           .from('course_enrollments')
-          .select('course_id, last_practiced_at, total_practice_minutes, highest_completed_seed')
+          .select('course_id, last_practiced_at, total_practice_minutes, highest_completed_seed, highest_completed_lego_id, last_completed_lego_id')
           .eq('learner_id', learnerId),
         client
           .from('learner_speaking_opportunities')
@@ -253,21 +257,35 @@ export function useAdminUserDetail(client: SupabaseClient) {
       for (const r of l1State.value) touchedCourses.add(r.course_code)
       for (const r of legoMetrics.value) touchedCourses.add(r.course_code)
 
+      // Index enrollments by course for fast lookup of the canonical cursor.
+      const enrollmentByCourse = new Map<string, DetailEnrollment>()
+      for (const e of enrollments.value) enrollmentByCourse.set(e.course_id, e)
+
       for (const courseId of touchedCourses) {
         const l1Rows = l1State.value.filter(r => r.course_code === courseId)
         const metricRows = legoMetrics.value.filter(r => r.course_code === courseId)
+        const enrollment = enrollmentByCourse.get(courseId)
 
-        let highestLegoId: string | null = null
-        for (const r of l1Rows) {
-          if (!highestLegoId || r.lego_id > highestLegoId) highestLegoId = r.lego_id
-        }
-        for (const r of metricRows) {
-          if (!highestLegoId || r.lego_id > highestLegoId) highestLegoId = r.lego_id
+        // Canonical position: course_enrollments.highest_completed_lego_id is
+        // the ratcheted ceiling (only ever increases — see migration
+        // 20260504_highest_completed_round_index). Fall back to last_completed
+        // and finally to whatever max we can scrape from telemetry tables for
+        // courses that have no enrollment row but do have engine fires.
+        let highestLegoId: string | null = enrollment?.highest_completed_lego_id ?? null
+        if (!highestLegoId) highestLegoId = enrollment?.last_completed_lego_id ?? null
+        if (!highestLegoId) {
+          for (const r of l1Rows) {
+            if (!highestLegoId || r.lego_id > highestLegoId) highestLegoId = r.lego_id
+          }
+          for (const r of metricRows) {
+            if (!highestLegoId || r.lego_id > highestLegoId) highestLegoId = r.lego_id
+          }
         }
 
-        // Parse seed number from 'S0024L03' → 24
-        let highestSeed = 0
-        if (highestLegoId) {
+        // Seed number — prefer the dedicated column on the enrollment, else
+        // parse from the lego id ('S0024L03' → 24).
+        let highestSeed = enrollment?.highest_completed_seed ?? 0
+        if (!highestSeed && highestLegoId) {
           const m = highestLegoId.match(/^S(\d+)/)
           if (m) highestSeed = parseInt(m[1], 10)
         }
