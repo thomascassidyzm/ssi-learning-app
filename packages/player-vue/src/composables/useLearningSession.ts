@@ -117,6 +117,13 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   // and never need to know the row's existing value before writing.
   let lastPersistedPlaySeconds = 0
 
+  // Per-cycle opportunities accumulator. We deliberately do NOT bump the
+  // server on every cycle (that was a write per ~11s, all noise). Cycles
+  // accumulate locally and flush on the same boundaries as the play-second
+  // delta: markPlayStop (pause / stop), visibility-hidden, beforeunload,
+  // session end.
+  let pendingOppsDelta = 0
+
   /** Call when playback starts or resumes */
   const markPlayStart = () => {
     if (!playSegmentStart) playSegmentStart = Date.now()
@@ -128,8 +135,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       accumulatedPlaySeconds.value += Math.floor((Date.now() - playSegmentStart) / 1000)
       playSegmentStart = null
     }
-    // Persist the delta to the speaking-opportunities counter. Fire-and-forget.
-    persistPlayTimeDelta()
+    // Flush the accumulated telemetry delta (opportunities + seconds).
+    // Fire-and-forget — must be fast (called from visibilitychange/unload).
+    flushTelemetryDelta()
   }
 
   /** Get current accumulated play seconds (including any in-flight segment) */
@@ -142,18 +150,19 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   }
 
   /**
-   * Write any unpersisted play-second delta to the per-day counter. Safe to
-   * call repeatedly — only writes when there's a positive delta and always
-   * advances the watermark by exactly what was sent. Goes through the
-   * direct supabase.rpc path (bumpOpportunities) so it doesn't depend on
-   * sessionStore being populated.
+   * Flush both deltas (opportunities counted locally per cycle + the
+   * play-seconds delta since last flush) as one RPC. Safe to call
+   * repeatedly — zero deltas no-op, the watermark always advances by
+   * exactly what was sent, never double-counts.
    */
-  const persistPlayTimeDelta = () => {
-    const total = getPlaySeconds()
-    const delta = total - lastPersistedPlaySeconds
-    if (delta <= 0) return
-    lastPersistedPlaySeconds = total
-    bumpOpportunities(0, delta)
+  const flushTelemetryDelta = () => {
+    const totalSeconds = getPlaySeconds()
+    const secondsDelta = totalSeconds - lastPersistedPlaySeconds
+    const oppsDelta = pendingOppsDelta
+    if (oppsDelta <= 0 && secondsDelta <= 0) return
+    lastPersistedPlaySeconds = totalSeconds
+    pendingOppsDelta = 0
+    bumpOpportunities(oppsDelta, secondsDelta)
   }
 
   // TripleHelixEngine for ROUND-based learning
@@ -425,11 +434,10 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   const recordCycleComplete = async (item: LearningItem, wasSuccessful: boolean = true, wasSpike: boolean = false) => {
     itemsPracticed.value++
 
-    // Direct per-cycle counter — one row per (learner, course, UTC day) in
-    // learner_speaking_opportunities, bumped by 1 each cycle. Routed through
-    // bumpOpportunities → supabase.rpc directly, NOT through sessionStore
-    // (which has been chronically null at the relevant moment).
-    bumpOpportunities(1, 0)
+    // Accumulate locally — the RPC fires once on the next natural session
+    // boundary (markPlayStop / visibility-hidden / beforeunload / endSession)
+    // so we don't write per ~11s cycle. Flush logic in flushTelemetryDelta.
+    pendingOppsDelta++
 
     // Legacy sessions.items_practiced path — kept so existing dashboards
     // that read from sessions still get checkpoint data. The
