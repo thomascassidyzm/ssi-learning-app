@@ -451,7 +451,7 @@ const sentenceScale = computed(() => {
           v-for="(comp, i) in mLegoComponents"
           :key="i"
           class="tile-known-comp"
-        >{{ comp.known || '·' }}</span>
+        >{{ comp.known || '' }}</span>
       </div>
       <div v-else-if="knownText" class="tile-known">{{ knownText }}</div>
     </div>
@@ -502,7 +502,7 @@ const sentenceScale = computed(() => {
                   v-for="(comp, ci) in wagon"
                   :key="ci"
                   class="block-known-comp"
-                >{{ comp.known || '·' }}</span>
+                >{{ comp.known || '' }}</span>
               </div>
             </div>
           </template>
@@ -535,7 +535,7 @@ const sentenceScale = computed(() => {
                 v-for="(comp, ci) in alignedBlockComponents(block)!"
                 :key="ci"
                 class="block-known-comp"
-              >{{ comp.known || '·' }}</span>
+              >{{ comp.known || '' }}</span>
             </div>
             <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
           </template>
@@ -554,7 +554,7 @@ const sentenceScale = computed(() => {
   inset: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   align-content: center;
   justify-content: center;
   gap: 0;

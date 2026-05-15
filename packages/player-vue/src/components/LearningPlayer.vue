@@ -1228,11 +1228,10 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const texts: string[] = (useNative ? cycle.componentLegoTextsNative : null) || cycle.componentLegoTexts || []
   const textMap = useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value
   const textMapFallback = legoTargetTextMap.value
-  // Show known text during intro/debut and BUILD phrases — reinforcement is still
-  // useful while the LEGO is fresh. USE phrases (eternal spaced rep) elicit production
-  // without scaffolding.
+  // Show known text only during intro/debut — the introduction. BUILD/USE phrases
+  // are production practice and clutter up with the English underneath.
   const cycleId = cycle.id || ''
-  const showKnown = cycleId.includes('_intro_') || cycleId.includes('_debut_') || cycleId.includes('_build_')
+  const showKnown = cycleId.includes('_intro_') || cycleId.includes('_debut_')
   const knownMap = showKnown ? legoKnownTextMap.value : null
   const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
