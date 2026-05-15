@@ -660,9 +660,9 @@ const sentenceScale = computed(() => {
 /* Known text underneath (single A-LEGO) */
 .tile-known {
   font-family: var(--font-body, system-ui);
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
 }
 
@@ -676,9 +676,9 @@ const sentenceScale = computed(() => {
 }
 .tile-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   text-align: center;
   flex: 1;
@@ -768,9 +768,9 @@ const sentenceScale = computed(() => {
 }
 .carriage-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   text-align: center;
   flex: 1;
@@ -826,9 +826,9 @@ const sentenceScale = computed(() => {
 /* Known text under each practice block (A-LEGO) */
 .block-known {
   font-family: var(--font-body, system-ui);
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   text-align: center;
   max-width: calc(100vw - 3rem);
@@ -846,9 +846,9 @@ const sentenceScale = computed(() => {
 }
 .block-known-comp {
   font-family: var(--font-body, system-ui);
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   text-align: center;
   flex: 1;
