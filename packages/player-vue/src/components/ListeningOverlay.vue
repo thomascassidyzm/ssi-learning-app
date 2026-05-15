@@ -988,29 +988,18 @@ watch(playbackSpeed, (newSpeed) => {
       </div>
     </div>
 
-    <!-- Back-to-scenes button (only in pods view + scene selected) -->
-    <button
-      v-if="view === 'pods' && selectedScene"
-      class="scene-back-btn"
-      type="button"
-      @click.stop="exitScene"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="15 18 9 12 15 6"/>
-      </svg>
-      {{ selectedScene.title }}
-    </button>
-
-    <!-- Controls bar: shuffle toggle + transport + speed.
+    <!-- Controls bar: shuffle toggle (Phrases only) OR back-to-scenes
+         (Pods + scene open) + transport + speed.
          Hidden in pods scene-list state — no data to drive them yet. -->
     <div
       v-if="view === 'phrases' || (view === 'pods' && selectedScene)"
       class="controls-bar"
       @click.stop
     >
-      <!-- Spotify-style shuffle toggle (Phrases view only).
-           Pods are dialogues — they tell a story, so shuffling is never
-           an option there. -->
+      <!-- Leftmost control:
+           - Phrases view: Spotify-style shuffle toggle.
+           - Pods view + scene open: scene back-button (returns to scene list).
+           Same slot in the bar — no layout shift between views. -->
       <button
         v-if="view === 'phrases'"
         class="shuffle-toggle"
@@ -1025,6 +1014,17 @@ watch(playbackSpeed, (newSpeed) => {
           <polyline points="21 16 21 21 16 21"/>
           <line x1="15" y1="15" x2="21" y2="21"/>
           <line x1="4" y1="4" x2="9" y2="9"/>
+        </svg>
+      </button>
+      <button
+        v-else-if="view === 'pods' && selectedScene"
+        class="scene-back-btn"
+        type="button"
+        :title="`Back to scenes — ${selectedScene.title}`"
+        @click="exitScene"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
 
@@ -1716,36 +1716,32 @@ watch(playbackSpeed, (newSpeed) => {
   color: var(--text-muted);
 }
 
-/* "Back to scenes" button (shown when in pods view + a scene is open). */
+/* "Back to scenes" button — occupies the same controls-bar slot as the
+ * shuffle toggle does in Phrases view. Same shape/size so the row
+ * doesn't reflow between views. */
 .scene-back-btn {
-  position: absolute;
-  top: 3.2rem;
-  left: 1rem;
-  z-index: 6;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.85rem;
-  background: rgba(255, 255, 255, 0.85);
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
   border: 1px solid var(--border-medium);
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-primary);
+  border-radius: 50%;
+  color: var(--text-muted);
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(44, 38, 34, 0.08);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .scene-back-btn:hover {
-  background: #ffffff;
+  background: var(--pill-bg-hover);
+  color: var(--text-secondary);
 }
 
 .scene-back-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 </style>
