@@ -1047,97 +1047,29 @@ export async function generateLearningScript(
       const legoComponents = componentsByLego.get(phraseKey)
       const legoComponentsNative = componentsByLegoNative.get(phraseKey)
 
-      // Phase 1: INTRO or COMPONENT PRIMING
-      // M-LEGOs with components: introduce each component solo first (in target
-      //   language order), then show the assembled M-LEGO so the learner sees
-      //   the pieces snap together before the debut asks them to produce it.
-      // A-LEGOs / Welsh: standard intro with presentation audio.
-      const isWelsh = courseCode.startsWith('cym_')
-      const compPhrases = isWelsh ? undefined : componentPhrasesByLego.get(phraseKey)
-      if (compPhrases && compPhrases.length > 0) {
-        const practiceReps = 2
-        for (const comp of compPhrases) {
-          // Component intro: presentation audio ("The X for 'word', as in 'phrase', is:") → target audio
-          cycleNum++
-          emitItem({
-            uuid: `${legoKey}_cmp_intro_${cycleNum}`,
-            cycleNum, roundNumber, seedId, legoKey,
-            seedCode: seedId, legoCode: legoNum,
-            type: 'component_intro',
-            knownText: comp.known_text,
-            targetText: comp.target_text_roman || comp.target_text,
-            ...nativeFields(comp),
-            presentationAudioId: comp.presentation_audio_id,
-            target1Id: comp.target1_audio_id,
-            target2Id: comp.target2_audio_id,
-            target1DurationMs: comp.target1_duration_ms,
-            target2DurationMs: comp.target2_duration_ms,
-            isNew: true,
-          })
-
-          // Component practice: standard 4-phase cycle (tapered by seed)
-          for (let cp = 0; cp < practiceReps; cp++) {
-            cycleNum++
-            emitItem({
-              uuid: `${legoKey}_cmp_practice_${cycleNum}`,
-              cycleNum, roundNumber, seedId, legoKey,
-              seedCode: seedId, legoCode: legoNum,
-              type: 'component_practice',
-              knownText: comp.known_text,
-              targetText: comp.target_text_roman || comp.target_text,
-              ...nativeFields(comp),
-              knownAudioId: comp.known_audio_id,
-              target1Id: comp.target1_audio_id,
-              target2Id: comp.target2_audio_id,
-              target1DurationMs: comp.target1_duration_ms,
-              target2DurationMs: comp.target2_duration_ms,
-              isNew: true,
-            })
-          }
-        }
-
-        // M-LEGO intro: after all components are primed, show the assembled
-        // M-LEGO tile with internal stubs so the learner sees how the pieces
-        // they just learned snap together as a single unit.
-        cycleNum++
-        emitItem({
-          uuid: `${legoKey}_intro_${cycleNum}`,
-          cycleNum, roundNumber, seedId, legoKey,
-          seedCode: seedId, legoCode: legoNum,
-          type: 'intro',
-          knownText: lego.known_text,
-          targetText: lego.target_text_roman || lego.target_text,
-          ...nativeFields(lego),
-          presentationAudioId: introAudioId,
-          target1Id: lego.target1_audio_id,
-          target2Id: lego.target2_audio_id,
-          target1DurationMs: lego.target1_duration_ms,
-          target2DurationMs: lego.target2_duration_ms,
-          isNew: true,
-          ...(legoComponents ? { components: legoComponents } : {}),
-          ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
-        })
-      } else {
-        // A-LEGO or Welsh: standard intro with presentation audio
-        cycleNum++
-        emitItem({
-          uuid: `${legoKey}_intro_${cycleNum}`,
-          cycleNum, roundNumber, seedId, legoKey,
-          seedCode: seedId, legoCode: legoNum,
-          type: 'intro',
-          knownText: lego.known_text,
-          targetText: lego.target_text_roman || lego.target_text,
-          ...nativeFields(lego),
-          presentationAudioId: introAudioId,
-          target1Id: lego.target1_audio_id,
-          target2Id: lego.target2_audio_id,
-          target1DurationMs: lego.target1_duration_ms,
-          target2DurationMs: lego.target2_duration_ms,
-          isNew: true,
-          ...(legoComponents ? { components: legoComponents } : {}),
-          ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
-        })
-      }
+      // Phase 1: INTRO
+      // The M-LEGO is the cognitive unit. For M-LEGOs the per-component breakdown
+      // is rendered as ghost text under each target word (visual scaffolding) — we
+      // do NOT pre-introduce components with their own audio cycles. A-LEGOs just
+      // get a standard intro.
+      cycleNum++
+      emitItem({
+        uuid: `${legoKey}_intro_${cycleNum}`,
+        cycleNum, roundNumber, seedId, legoKey,
+        seedCode: seedId, legoCode: legoNum,
+        type: 'intro',
+        knownText: lego.known_text,
+        targetText: lego.target_text_roman || lego.target_text,
+        ...nativeFields(lego),
+        presentationAudioId: introAudioId,
+        target1Id: lego.target1_audio_id,
+        target2Id: lego.target2_audio_id,
+        target1DurationMs: lego.target1_duration_ms,
+        target2DurationMs: lego.target2_duration_ms,
+        isNew: true,
+        ...(legoComponents ? { components: legoComponents } : {}),
+        ...(legoComponentsNative ? { componentsNative: legoComponentsNative } : {}),
+      })
 
       // Phase 2: DEBUT
       cycleNum++
