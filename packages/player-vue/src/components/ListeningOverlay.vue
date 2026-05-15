@@ -202,6 +202,53 @@ const shouldShowBeltHeader = (i) => {
 }
 
 /**
+ * Belt-jump strip — for each belt that has at least one phrase in the
+ * loaded inventory, return { belt info + first phrase index }. Drives
+ * the row of belt pips above the teleprompter (Phrases + ordered only).
+ */
+const beltJumpPoints = computed(() => {
+  if (view.value !== 'phrases') return []
+  const points = []
+  const seen = new Set()
+  // Walk allPhrases in order; first occurrence of each beltIndex is the
+  // jump target.
+  allPhrases.value.forEach((phrase, idx) => {
+    if (phrase.beltIndex === undefined || seen.has(phrase.beltIndex)) return
+    seen.add(phrase.beltIndex)
+    points.push({
+      beltIndex: phrase.beltIndex,
+      beltName: phrase.beltName,
+      beltColor: phrase.beltColor,
+      phraseIndex: idx,
+    })
+  })
+  return points.sort((a, b) => a.beltIndex - b.beltIndex)
+})
+
+/** Current belt of the focal phrase — for active-state on the jump pip. */
+const currentBeltIndex = computed(() => {
+  const list = availablePhrases.value
+  if (currentIndex.value < 0 || currentIndex.value >= list.length) return -1
+  return list[currentIndex.value]?.beltIndex ?? -1
+})
+
+const jumpToBelt = (point) => {
+  if (view.value !== 'phrases') return
+  // In shuffled mode, allPhrases has been reordered — find the first
+  // phrase matching the target beltIndex in the shuffled list instead.
+  const list = availablePhrases.value
+  let idx = point.phraseIndex
+  if (mode.value === 'shuffled') {
+    idx = list.findIndex((p) => p.beltIndex === point.beltIndex)
+    if (idx === -1) return
+  }
+  stopPlayback()
+  currentIndex.value = idx
+  updateVisibleWindow()
+  scrollCurrentIntoView()
+}
+
+/**
  * Open a scene: swap the teleprompter's data source to the scene's
  * sentences (shape-compatible with the phrase row template). Reset
  * playback position. Keeps the same teleprompter UI — pod sentences
@@ -1073,9 +1120,34 @@ watch(playbackSpeed, (newSpeed) => {
       <button @click="loadPhrases()">Retry</button>
     </div>
 
-    <!-- Teleprompter (phrases view, or pods view with a scene selected) -->
+    <!-- Belt-jump strip — Phrases view only. One pip per belt that has at
+         least one phrase in the inventory. Tap to jump to that belt's
+         first phrase. The active pip is filled; others are outlined. -->
     <div
-      v-else-if="view === 'phrases' || (view === 'pods' && selectedScene)"
+      v-if="view === 'phrases' && beltJumpPoints.length > 1"
+      class="belt-jump-strip"
+      @click.stop
+    >
+      <button
+        v-for="point in beltJumpPoints"
+        :key="point.beltIndex"
+        class="belt-jump-pip"
+        :class="{ active: point.beltIndex === currentBeltIndex }"
+        :style="{ '--pip-color': point.beltColor }"
+        :title="`Jump to ${point.beltName} belt`"
+        :aria-label="`Jump to ${point.beltName} belt`"
+        @click="jumpToBelt(point)"
+      >
+        <span class="belt-jump-pip-dot"></span>
+        <span class="belt-jump-pip-label">{{ point.beltName }}</span>
+      </button>
+    </div>
+
+    <!-- Teleprompter (phrases view, or pods view with a scene selected).
+         Standalone v-if so the belt-jump strip above doesn't break the
+         chain that loading/error states form. -->
+    <div
+      v-if="!isLoading && !error && (view === 'phrases' || (view === 'pods' && selectedScene))"
       class="teleprompter"
     >
       <div class="phrase-list">
@@ -1714,6 +1786,73 @@ watch(playbackSpeed, (newSpeed) => {
   width: 18px;
   height: 18px;
   color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * BELT JUMP STRIP — Phrases view, lets you jump to any belt's first
+ * phrase. Sits between the controls bar and the teleprompter, scrolls
+ * horizontally on narrow screens.
+ * ═══════════════════════════════════════════════════════════════ */
+.belt-jump-strip {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.belt-jump-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.belt-jump-pip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.belt-jump-pip:hover {
+  border-color: var(--pip-color);
+  color: var(--text-secondary);
+}
+
+.belt-jump-pip.active {
+  background: var(--pip-color);
+  border-color: var(--pip-color);
+  color: white;
+  font-weight: 600;
+}
+
+.belt-jump-pip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pip-color);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+
+.belt-jump-pip.active .belt-jump-pip-dot {
+  background: white;
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.belt-jump-pip-label {
+  text-transform: capitalize;
 }
 
 /* "Back to scenes" button — occupies the same controls-bar slot as the
