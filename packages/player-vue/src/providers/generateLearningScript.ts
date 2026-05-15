@@ -249,15 +249,19 @@ export async function generateLearningScript(
       .order('position', { ascending: true })
       .limit(10000),
     // Fetch seed sentences for listening phase (whole-sentence replay after graduation).
-    // No upper-N cap any more — graduation is event-driven and any seed in [startSeed, endSeed]
-    // can land in the L1 active/reserve window over the course's lifetime.
+    // Course-wide — NOT filtered by [startSeed, endSeed]. L1 plays
+    // *graduated* seeds, which by definition sit before the chunk start
+    // (graduation requires offset=90+ LEGOs since the seed's last debut).
+    // A chunked script generation (belt-skip's narrow chunk, generateScriptChunk
+    // mid-course load) with startSeed > 1 would otherwise have an empty
+    // seedMap for every graduated seed, making emitL1Cluster's validSeeds
+    // list collapse to zero and L1 listening silently never fire — which
+    // is what happened to Tom on Chinese.
     listeningConfig.enabled
       ? supabase
           .from('course_seeds')
           .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
           .eq('course_code', courseCode)
-          .gte('seed_number', startSeed)
-          .lte('seed_number', endSeed)
           .order('seed_number', { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     // Pre-fetch the two LISTEN-block bookend audio rows for this course.
