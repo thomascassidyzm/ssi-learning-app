@@ -5,6 +5,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
+import Sparkline from '@/components/schools/shared/Sparkline.vue'
 
 const { getClient, getAuthToken } = useAdminClient()
 const route = useRoute()
@@ -119,6 +120,104 @@ function eventSessionTag(sessionId: string | null): string {
   if (!sessionId) return ''
   return sessionId.slice(0, 6) // short hash for visual grouping
 }
+
+// ─── Activity stats (derived from learner_speaking_opportunities rows
+// already loaded into `sessions`). Sessions are per-day rollups, so we
+// bucket-sum + check the day key directly rather than parsing wall-clock
+// timestamps for each cycle. ────────────────────────────────────────────
+
+function dayKey(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+const lifetimePracticeSeconds = computed(() =>
+  sessions.value.reduce((sum, s) => sum + (s.duration_seconds || 0), 0),
+)
+
+const last7dPracticeSeconds = computed(() => {
+  const cutoff = Date.now() - 7 * 86400 * 1000
+  return sessions.value
+    .filter(s => new Date(s.started_at).getTime() >= cutoff)
+    .reduce((sum, s) => sum + (s.duration_seconds || 0), 0)
+})
+
+const todayPracticeSeconds = computed(() => {
+  const today = dayKey(new Date())
+  return sessions.value
+    .filter(s => s.started_at.slice(0, 10) === today)
+    .reduce((sum, s) => sum + (s.duration_seconds || 0), 0)
+})
+
+const sparkline30d = computed(() => {
+  const buckets: number[] = new Array(30).fill(0)
+  const now = Date.now()
+  for (const s of sessions.value) {
+    const t = new Date(s.started_at).getTime()
+    const daysAgo = Math.floor((now - t) / 86400000)
+    if (daysAgo >= 0 && daysAgo < 30) {
+      // Stack minutes; cap visual outliers by sqrt so single big sessions
+      // don't flatten the rest of the chart.
+      buckets[29 - daysAgo] += (s.duration_seconds || 0) / 60
+    }
+  }
+  return buckets
+})
+
+const currentStreak = computed(() => {
+  const days = new Set(sessions.value.map(s => s.started_at.slice(0, 10)))
+  if (days.size === 0) return 0
+  let streak = 0
+  const cursor = new Date()
+  // Grace: if today has no row yet, start counting from yesterday so a
+  // 9 AM check doesn't reset an actually-active streak.
+  if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1)
+  while (days.has(dayKey(cursor))) {
+    streak++
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+})
+
+const lastActiveAt = computed(() => sessions.value[0]?.started_at ?? null)
+
+function formatMinutes(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  if (mins < 1) return seconds > 0 ? '<1m' : '0m'
+  if (mins < 60) return `${mins}m`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+// ─── Courses split: active (recent or non-trivial practice) vs dormant
+// (opened but never really practised). 30 courses showing "0 / 0 / 0 / <1m
+// / never" is pure noise — collapse them into a single line. ────────────
+
+type Enrollment = (typeof enrollments.value)[number]
+
+const ACTIVE_PRACTICE_FLOOR_MIN = 1
+const ACTIVE_RECENT_DAYS = 30
+
+const activeEnrollments = computed<Enrollment[]>(() => {
+  const cutoff = Date.now() - ACTIVE_RECENT_DAYS * 86400 * 1000
+  return enrollments.value
+    .filter((e: any) => {
+      if ((e.total_practice_minutes || 0) >= ACTIVE_PRACTICE_FLOOR_MIN) return true
+      if (e.last_practiced_at && new Date(e.last_practiced_at).getTime() >= cutoff) return true
+      return false
+    })
+    .sort((a: any, b: any) => {
+      const tA = a.last_practiced_at ? new Date(a.last_practiced_at).getTime() : 0
+      const tB = b.last_practiced_at ? new Date(b.last_practiced_at).getTime() : 0
+      return tB - tA
+    })
+})
+
+const dormantEnrollments = computed<Enrollment[]>(() =>
+  enrollments.value.filter((e: any) => !activeEnrollments.value.includes(e)),
+)
+
+const showDormant = ref(false)
 
 const showGrantForm = ref(false)
 const grantAccessType = ref('full')
@@ -322,6 +421,54 @@ async function handleRevoke(entitlementId: string) {
         </div>
       </div>
 
+      <!-- ─── Activity hero ──────────────────────────────────────────
+           At-a-glance: is this user actually using the app?
+           Lifetime / 7-day / today / streak + a 30-day sparkline.
+           Reads from `sessions` (per-day rollup from
+           learner_speaking_opportunities — the canonical telemetry). -->
+      <section class="section">
+        <div class="schools-card schools-card-pad activity-hero">
+          <div class="activity-stats">
+            <div class="activity-stat">
+              <div class="schools-kicker">Lifetime</div>
+              <div class="arsenal activity-value">{{ formatMinutes(lifetimePracticeSeconds) }}</div>
+            </div>
+            <div class="activity-stat">
+              <div class="schools-kicker">Last 7 days</div>
+              <div class="arsenal activity-value">{{ formatMinutes(last7dPracticeSeconds) }}</div>
+            </div>
+            <div class="activity-stat">
+              <div class="schools-kicker">Today</div>
+              <div class="arsenal activity-value">{{ formatMinutes(todayPracticeSeconds) }}</div>
+            </div>
+            <div class="activity-stat">
+              <div class="schools-kicker">Streak</div>
+              <div class="arsenal activity-value">
+                {{ currentStreak === 0 ? '—' : `${currentStreak}d` }}
+              </div>
+            </div>
+            <div class="activity-stat activity-stat-wide">
+              <div class="schools-kicker">Last active</div>
+              <div class="activity-last-active">
+                {{ lastActiveAt ? timeAgo(lastActiveAt) : 'never' }}
+              </div>
+            </div>
+          </div>
+          <div v-if="lifetimePracticeSeconds > 0" class="activity-chart">
+            <div class="schools-kicker activity-chart-label">Practice · last 30 days</div>
+            <Sparkline
+              :data="sparkline30d"
+              :width="800"
+              :height="48"
+              color="var(--schools-red)"
+            />
+          </div>
+          <div v-else class="activity-empty">
+            <span class="schools-subtle">No practice recorded yet.</span>
+          </div>
+        </div>
+      </section>
+
       <!-- Entitlements section -->
       <section class="section">
         <div class="section-head">
@@ -334,9 +481,9 @@ async function handleRevoke(entitlementId: string) {
           </button>
         </div>
 
-        <!-- Grant form (inline FrostCard panel) -->
+        <!-- Grant form (collapsed by default; toggled via section-head button) -->
         <Transition name="reveal">
-          <div class="schools-card grant-panel">
+          <div v-if="showGrantForm" class="schools-card grant-panel">
             <div class="panel-head">
               <span class="schools-kicker">Grant entitlement</span>
             </div>
@@ -429,20 +576,32 @@ async function handleRevoke(entitlementId: string) {
             </tbody>
           </table>
         </div>
-        <div class="schools-card ent-empty">
+        <div v-else class="schools-card ent-empty">
           <span>No active entitlements.</span>
         </div>
       </section>
 
-      <!-- Course progress -->
+      <!-- Course progress — split into "active" (anything with real
+           practice or activity in the last 30 days) and "dormant"
+           (opened but never played). Most learners have 30+ dormant
+           rows so we collapse them behind a toggle. -->
       <section v-if="enrollments.length > 0" class="section">
-        <h3 class="section-title frost-display">
-          Courses
-          <span class="title-count frost-mono-nums">{{ enrollments.length }}</span>
-        </h3>
-        <div class="course-grid">
+        <div class="section-head">
+          <h3 class="section-title frost-display">
+            Active courses
+            <span class="title-count frost-mono-nums">{{ activeEnrollments.length }}</span>
+          </h3>
+          <button
+            v-if="dormantEnrollments.length > 0"
+            class="btn-ghost"
+            @click="showDormant = !showDormant"
+          >
+            {{ showDormant ? 'Hide' : 'Show' }} {{ dormantEnrollments.length }} dormant
+          </button>
+        </div>
+        <div v-if="activeEnrollments.length > 0" class="course-grid">
           <div
-            v-for="enrollment in enrollments"
+            v-for="enrollment in activeEnrollments"
             :key="enrollment.course_id"
             class="schools-card course-tile"
           >
@@ -484,6 +643,23 @@ async function handleRevoke(entitlementId: string) {
             </div>
           </div>
         </div>
+        <div v-else class="schools-card ent-empty">
+          <span>No active courses yet.</span>
+        </div>
+
+        <div v-if="showDormant && dormantEnrollments.length > 0" class="schools-card list-panel dormant-panel">
+          <div class="panel-head">
+            <span class="schools-kicker">Dormant — opened, never practised</span>
+          </div>
+          <ul class="dormant-list">
+            <li v-for="e in dormantEnrollments" :key="e.course_id" class="dormant-row">
+              <span class="dormant-name">{{ parseCourseCode(e.course_id).label }}</span>
+              <span class="dormant-meta frost-mono-nums">
+                {{ e.last_practiced_at ? timeAgo(e.last_practiced_at) : 'never' }}
+              </span>
+            </li>
+          </ul>
+        </div>
       </section>
 
       <!-- Recent activity (per-day rollup from learner_speaking_opportunities) -->
@@ -523,13 +699,15 @@ async function handleRevoke(entitlementId: string) {
             </tbody>
           </table>
         </div>
-        <div class="schools-card ent-empty">
+        <div v-else class="schools-card ent-empty">
           <span>No activity recorded.</span>
         </div>
       </section>
 
-      <!-- Recent player events — diagnostics for "skip didn't work" etc. -->
-      <section class="section">
+      <!-- Recent player events — diagnostics for "skip didn't work" etc.
+           Hidden entirely when there are no events; this is a debug panel,
+           not headline content. -->
+      <section v-if="playerEvents.length > 0" class="section">
         <h3 class="section-title frost-display">
           Recent player events
           <span class="title-count frost-mono-nums">{{ playerEvents.length }}</span>
@@ -579,12 +757,13 @@ async function handleRevoke(entitlementId: string) {
         </div>
       </section>
 
-      <!-- ─── Event type digest ─────────────────────────────────── -->
-      <section class="section">
+      <!-- ─── Event type digest ───────────────────────────────────
+           Only renders if there are events — pure debug summary. -->
+      <section v-if="eventCountsByType.length > 0" class="section">
         <h3 class="section-title frost-display">
           Event types (last {{ playerEvents.length }})
         </h3>
-        <div class="schools-card"> 0" variant="panel" class="list-panel">
+        <div class="schools-card list-panel">
           <table class="list-table">
             <thead>
               <tr><th>Event type</th><th class="num-col">Count</th></tr>
@@ -596,9 +775,6 @@ async function handleRevoke(entitlementId: string) {
               </tr>
             </tbody>
           </table>
-        </div>
-        <div class="schools-card ent-empty">
-          <span>No events to summarise.</span>
         </div>
       </section>
 
@@ -1393,6 +1569,106 @@ async function handleRevoke(entitlementId: string) {
   }
   .breadcrumb-action {
     margin-left: 0;
+  }
+}
+
+/* ─── Activity hero ─────────────────────────────────────────────── */
+
+.activity-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.activity-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) 1.4fr;
+  gap: 18px;
+  align-items: flex-end;
+}
+
+.activity-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.activity-stat-wide {
+  border-left: 1px solid var(--schools-border);
+  padding-left: 18px;
+}
+
+.activity-value {
+  font-size: 30px;
+  line-height: 1;
+  color: var(--schools-fg);
+  font-feature-settings: "tnum";
+}
+
+.activity-last-active {
+  font-size: 15px;
+  color: var(--schools-fg);
+  line-height: 1.2;
+}
+
+.activity-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.activity-chart-label {
+  color: var(--schools-fg-3);
+}
+
+.activity-empty {
+  padding: 12px 0;
+}
+
+/* ─── Dormant courses list ──────────────────────────────────────── */
+
+.dormant-panel {
+  margin-top: 14px;
+}
+
+.dormant-list {
+  margin: 0;
+  padding: 0 18px 18px;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 4px 24px;
+}
+
+.dormant-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.dormant-name {
+  color: var(--schools-fg-2);
+}
+
+.dormant-meta {
+  color: var(--schools-fg-3);
+  font-size: 11.5px;
+}
+
+@media (max-width: 880px) {
+  .activity-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .activity-stat-wide {
+    grid-column: 1 / -1;
+    border-left: none;
+    border-top: 1px solid var(--schools-border);
+    padding-left: 0;
+    padding-top: 14px;
   }
 }
 </style>
