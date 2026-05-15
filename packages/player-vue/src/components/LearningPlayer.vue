@@ -1228,10 +1228,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const texts: string[] = (useNative ? cycle.componentLegoTextsNative : null) || cycle.componentLegoTexts || []
   const textMap = useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value
   const textMapFallback = legoTargetTextMap.value
-  // Show known text only during intro/debut — the introduction. BUILD/USE phrases
-  // are production practice and clutter up with the English underneath.
-  const cycleId = cycle.id || ''
-  const showKnown = cycleId.includes('_intro_') || cycleId.includes('_debut_')
+  // Show known text whenever the M-LEGO appears on its own (intro, debut, or any
+  // standalone replay). Once it's embedded inside a longer BUILD/USE sentence,
+  // the per-component known mapping is clutter.
+  const salientLegoTargetText = (legoTargetTextMap.value.get(salientLegoId) || '').trim()
+  const cycleTargetText = (cycle.target?.text || '').trim()
+  const showKnown = !!salientLegoTargetText && cycleTargetText === salientLegoTargetText
   const knownMap = showKnown ? legoKnownTextMap.value : null
   const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
