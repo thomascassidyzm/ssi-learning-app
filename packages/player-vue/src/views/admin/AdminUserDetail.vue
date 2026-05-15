@@ -627,6 +627,7 @@ async function handleRevoke(entitlementId: string) {
             v-for="enrollment in activeEnrollments"
             :key="enrollment.course_id"
             class="schools-card course-tile"
+            :style="{ '--belt-color': `var(--schools-belt-${getBeltForSeeds(getCourseProgress(enrollment.course_id).highest_seed).name})` }"
           >
             <div class="course-inner">
               <div class="course-header">
@@ -1666,6 +1667,12 @@ async function handleRevoke(entitlementId: string) {
 }
 
 /* ─── Course tile: position + stats layout ──────────────────────── */
+
+/* Left edge takes the belt colour — at-a-glance scan of where the
+   learner is on each course across the grid. White belt stays subtle. */
+.course-tile {
+  border-left: 4px solid var(--belt-color, var(--schools-border));
+}
 
 .course-position {
   display: flex;
