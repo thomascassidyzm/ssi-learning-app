@@ -486,10 +486,10 @@ async function handleRevoke(entitlementId: string) {
         </div>
       </section>
 
-      <!-- Sessions -->
+      <!-- Recent activity (per-day rollup from learner_speaking_opportunities) -->
       <section class="section">
         <h3 class="section-title frost-display">
-          Recent sessions
+          Recent activity
           <span class="title-count frost-mono-nums">{{ sessions.length }}</span>
         </h3>
         <div
@@ -499,16 +499,16 @@ async function handleRevoke(entitlementId: string) {
           <table class="list-table">
             <thead>
               <tr>
-                <th>Date</th>
+                <th>Day</th>
                 <th>Course</th>
-                <th>Duration</th>
-                <th>Items</th>
+                <th>Practice</th>
+                <th>Opportunities</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="session in sessions" :key="session.id">
                 <td class="cell-muted frost-mono-nums">
-                  {{ new Date(session.started_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}
+                  {{ new Date(session.started_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }}
                 </td>
                 <td>
                   <Badge variant="default" size="sm" pill>
@@ -524,7 +524,7 @@ async function handleRevoke(entitlementId: string) {
           </table>
         </div>
         <div class="schools-card ent-empty">
-          <span>No sessions recorded.</span>
+          <span>No activity recorded.</span>
         </div>
       </section>
 

@@ -23,13 +23,20 @@ export interface DetailEnrollment {
   highest_completed_seed: number | null
 }
 
+/**
+ * One row per (learner, course, day) from learner_speaking_opportunities —
+ * the canonical telemetry table written by `bump_speaking_opportunities`
+ * on every cycle. The legacy `sessions` table is stale (the SessionStore
+ * injection chain that wrote to it is chronically unreliable) so we read
+ * this instead.
+ */
 export interface DetailSession {
-  id: string
-  course_id: string
-  started_at: string
-  ended_at: string | null
-  duration_seconds: number | null
-  items_practiced: number | null
+  id: string                       // synthesised from (course_code, day)
+  course_id: string                // course_code
+  started_at: string               // day boundary (midnight UTC)
+  ended_at: string | null          // null — per-day rollup, no end
+  duration_seconds: number | null  // play_seconds
+  items_practiced: number | null   // opportunities
 }
 
 export interface UserEntitlement {
@@ -109,10 +116,10 @@ export function useAdminUserDetail(client: SupabaseClient) {
           .select('course_id, last_practiced_at, total_practice_minutes, highest_completed_seed')
           .eq('learner_id', learnerId),
         client
-          .from('sessions')
-          .select('id, course_id, started_at, ended_at, duration_seconds, items_practiced')
+          .from('learner_speaking_opportunities')
+          .select('course_code, day, opportunities, play_seconds, updated_at')
           .eq('learner_id', learnerId)
-          .order('started_at', { ascending: false })
+          .order('day', { ascending: false })
           .limit(50),
         client
           .from('user_entitlements')
@@ -130,7 +137,17 @@ export function useAdminUserDetail(client: SupabaseClient) {
 
       profile.value = { ...profileResult.data, primary_email: null, emails: [] }
       enrollments.value = enrollResult.data || []
-      sessions.value = sessResult.data || []
+      // Shape learner_speaking_opportunities rows to the DetailSession contract
+      // the view already renders. id is synthesised; started_at is the day
+      // boundary; ended_at stays null (per-day rollup, not a closed session).
+      sessions.value = (sessResult.data || []).map((row: any) => ({
+        id: `${row.course_code}:${row.day}`,
+        course_id: row.course_code,
+        started_at: `${row.day}T00:00:00Z`,
+        ended_at: null,
+        duration_seconds: row.play_seconds,
+        items_practiced: row.opportunities,
+      }))
 
       // Recent player_events for this user — used to diagnose taps and
       // listening/commentary lifecycle when a user reports an issue
