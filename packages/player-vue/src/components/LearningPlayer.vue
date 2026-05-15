@@ -1618,6 +1618,9 @@ const roundProgress = computed(() => {
 const learningSession = useLearningSession({
   progressStore: progressStore,
   sessionStore: sessionStore,
+  // Direct supabase ref for the speaking-opportunities RPC — bypasses
+  // sessionStore which has had chronic null-at-runtime issues.
+  supabase: supabase,
   courseDataProvider: courseDataProvider,
   learnerId: learnerId,
   courseId: courseCode,

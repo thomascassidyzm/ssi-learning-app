@@ -9,6 +9,7 @@
  */
 
 import { ref, computed, onMounted, onUnmounted, shallowRef, isRef, type Ref } from 'vue'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ProgressStore, SessionStore, ClassifiedBasket } from '@ssi/core'
 import {
   createTripleHelixEngine,
@@ -26,6 +27,13 @@ function unref<T>(val: MaybeRef<T>): T {
 export interface UseLearningSessionOptions {
   progressStore?: MaybeRef<ProgressStore | null | undefined>
   sessionStore?: MaybeRef<SessionStore | null | undefined>
+  /**
+   * Direct supabase client — used for the speaking-opportunities counter
+   * RPC because the sessionStore injection chain has been chronically
+   * unreliable (the ref can read null at runtime even when populated at
+   * setup). Same pattern as usePairingsTelemetry which writes successfully.
+   */
+  supabase?: MaybeRef<SupabaseClient | null | undefined>
   courseDataProvider?: MaybeRef<CourseDataProvider | null | undefined>
   learnerId?: MaybeRef<string | null | undefined>
   courseId?: MaybeRef<string | null | undefined>
@@ -53,9 +61,44 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   // Lazy accessors — these read refs at call time, not setup time
   const getProgressStore = () => unref(options.progressStore) ?? undefined
   const getSessionStore = () => unref(options.sessionStore) ?? undefined
+  const getSupabase = () => unref(options.supabase) ?? undefined
   const getCourseDataProvider = () => unref(options.courseDataProvider) ?? undefined
   const getLearnerId = () => unref(options.learnerId) || 'demo-learner'
   const getCourseId = () => unref(options.courseId) || 'demo'
+
+  /**
+   * Bump the speaking-opportunities counter directly via supabase.rpc.
+   * Goes around sessionStore because that injection chain has been
+   * unreliable (the ref reads null at runtime in some cases). Same
+   * direct-supabase pattern as usePairingsTelemetry, which writes
+   * successfully on every cycle for the same flow.
+   */
+  const bumpOpportunities = (oppsDelta: number, secondsDelta: number) => {
+    if (oppsDelta <= 0 && secondsDelta <= 0) return
+    const supabase = getSupabase()
+    const learnerId = getLearnerId()
+    const courseId = getCourseId()
+    if (!supabase || !learnerId || !courseId || isGuestLearner(learnerId)) return
+    void supabase.rpc('bump_speaking_opportunities', {
+      p_learner_id: learnerId,
+      p_course_code: courseId,
+      p_opps_delta: oppsDelta,
+      p_seconds_delta: secondsDelta,
+    }).then(({ error }: { error: any }) => {
+      if (error) {
+        console.error('[useLearningSession] bump_speaking_opportunities FAILED:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          learnerId,
+          courseId,
+          oppsDelta,
+          secondsDelta,
+        })
+      }
+    })
+  }
 
   // State
   const sessionId = ref<string | null>(null)
@@ -101,19 +144,16 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   /**
    * Write any unpersisted play-second delta to the per-day counter. Safe to
    * call repeatedly — only writes when there's a positive delta and always
-   * advances the watermark by exactly what was sent. Guest learners and
-   * un-wired stores are skipped quietly.
+   * advances the watermark by exactly what was sent. Goes through the
+   * direct supabase.rpc path (bumpOpportunities) so it doesn't depend on
+   * sessionStore being populated.
    */
   const persistPlayTimeDelta = () => {
     const total = getPlaySeconds()
     const delta = total - lastPersistedPlaySeconds
     if (delta <= 0) return
-    const sessionStore = getSessionStore()
-    const learnerId = getLearnerId()
-    const courseId = getCourseId()
-    if (!sessionStore || !learnerId || !courseId || isGuestLearner(learnerId)) return
     lastPersistedPlaySeconds = total
-    void sessionStore.bumpSpeakingOpportunities(learnerId, courseId, 0, delta)
+    bumpOpportunities(0, delta)
   }
 
   // TripleHelixEngine for ROUND-based learning
@@ -386,17 +426,10 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     itemsPracticed.value++
 
     // Direct per-cycle counter — one row per (learner, course, UTC day) in
-    // learner_speaking_opportunities, bumped by 1 each cycle. Bypasses the
-    // sessions row entirely so it works regardless of whether startSession
-    // ever succeeded. Fire-and-forget.
-    {
-      const sessionStore = getSessionStore()
-      const learnerId = getLearnerId()
-      const courseId = getCourseId()
-      if (sessionStore && learnerId && courseId && !isGuestLearner(learnerId)) {
-        void sessionStore.bumpSpeakingOpportunities(learnerId, courseId, 1, 0)
-      }
-    }
+    // learner_speaking_opportunities, bumped by 1 each cycle. Routed through
+    // bumpOpportunities → supabase.rpc directly, NOT through sessionStore
+    // (which has been chronically null at the relevant moment).
+    bumpOpportunities(1, 0)
 
     // Legacy sessions.items_practiced path — kept so existing dashboards
     // that read from sessions still get checkpoint data. The
