@@ -230,18 +230,15 @@ const grantDurationDays = ref(365)
 const grantCourses = ref<string[]>([])
 const grantLoading = ref(false)
 
-// Auto-refresh: re-fetch every 20s while the page is visible, and on
-// focus/visibility-change so flipping back from the player tab shows
-// up-to-date telemetry without a manual reload.
-let refreshTimer: ReturnType<typeof setInterval> | null = null
-const lastRefreshAt = ref<number | null>(null)
-const REFRESH_INTERVAL_MS = 20_000
-
+// Auto-refresh: re-fetch when the page becomes visible / refocused so
+// flipping back from the player tab shows up-to-date telemetry without
+// a manual reload. No periodic polling — the player only writes on
+// natural session boundaries (stop / pause / tab hidden), so by the
+// time the admin tab gains focus the latest flush has already landed.
 function refreshDetail() {
   const learnerId = route.params.learnerId as string
   if (!learnerId) return
   fetchUserDetail(learnerId)
-  lastRefreshAt.value = Date.now()
 }
 
 function onVisibilityChange() {
@@ -250,15 +247,11 @@ function onVisibilityChange() {
 
 onMounted(() => {
   refreshDetail()
-  refreshTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') refreshDetail()
-  }, REFRESH_INTERVAL_MS)
   document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('focus', refreshDetail)
 })
 
 onBeforeUnmount(() => {
-  if (refreshTimer) clearInterval(refreshTimer)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('focus', refreshDetail)
 })
