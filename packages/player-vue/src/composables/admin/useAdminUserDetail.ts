@@ -268,9 +268,11 @@ export function useAdminUserDetail(client: SupabaseClient) {
 
         // Canonical position: course_enrollments.highest_completed_lego_id is
         // the ratcheted ceiling (only ever increases — see migration
-        // 20260504_highest_completed_round_index). Fall back to last_completed
-        // and finally to whatever max we can scrape from telemetry tables for
-        // courses that have no enrollment row but do have engine fires.
+        // 20260504_highest_completed_round_index). The LEGO id alone derives
+        // both seed and belt — no need to read highest_completed_seed
+        // separately (that column can lag the ratchet). Fall back to
+        // last_completed_lego_id, then telemetry-table max for courses that
+        // have engine fires but no enrollment ratchet write yet.
         let highestLegoId: string | null = enrollment?.highest_completed_lego_id ?? null
         if (!highestLegoId) highestLegoId = enrollment?.last_completed_lego_id ?? null
         if (!highestLegoId) {
@@ -282,10 +284,10 @@ export function useAdminUserDetail(client: SupabaseClient) {
           }
         }
 
-        // Seed number — prefer the dedicated column on the enrollment, else
-        // parse from the lego id ('S0024L03' → 24).
-        let highestSeed = enrollment?.highest_completed_seed ?? 0
-        if (!highestSeed && highestLegoId) {
+        // Seed number derives from the lego id ('S0024L03' → 24). The belt
+        // then derives from the seed via getBeltForSeeds in the view.
+        let highestSeed = 0
+        if (highestLegoId) {
           const m = highestLegoId.match(/^S(\d+)/)
           if (m) highestSeed = parseInt(m[1], 10)
         }

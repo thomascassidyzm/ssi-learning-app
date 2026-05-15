@@ -643,11 +643,11 @@ async function handleRevoke(entitlementId: string) {
                 </Badge>
               </div>
 
-              <!-- Position: highest LEGO + seed reached. The unit of learning. -->
+              <!-- Position: highest LEGO id reached. The unit of learning —
+                   seed and belt both derive from it. -->
               <div v-if="getCourseProgress(enrollment.course_id).highest_lego_id" class="course-position">
                 <span class="schools-kicker">Position</span>
                 <span class="position-lego frost-mono-nums">{{ getCourseProgress(enrollment.course_id).highest_lego_id }}</span>
-                <span class="schools-subtle">· seed {{ getCourseProgress(enrollment.course_id).highest_seed }}</span>
               </div>
               <div v-else class="course-position">
                 <span class="schools-subtle">No learning engine fires yet</span>
