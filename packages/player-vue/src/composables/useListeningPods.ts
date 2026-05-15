@@ -24,14 +24,35 @@ export interface PodSentence {
   globalOrder: number
 }
 
+/**
+ * A turn is one or more consecutive same-speaker sentences merged into a
+ * single visual + audio unit. This is what the teleprompter renders as a
+ * row — without merging, two-sentence turns ("Hi! How are you?") become
+ * two rows with an unnatural inter-phrase pause between them, which
+ * reads as if a different speaker is interjecting.
+ */
+export interface PodTurn {
+  id: string
+  speaker: string
+  /** Concatenated target text of all sentences in this turn (space-joined). */
+  targetText: string
+  /** Concatenated translation. */
+  knownText: string
+  /** Audio IDs to play in sequence (one per sentence). */
+  audioIds: string[]
+  /** First sentence's global_order — used for ordering. */
+  globalOrder: number
+}
+
 export interface PodScene {
   /** Local scene number within the pod (1, 2, 3, ...). */
   sceneNumber: number
   /** Display title for the scene — derived from first sentence's speaker. */
   title: string
-  /** Sentences in this scene, ordered by sentence_number then global_order. */
-  sentences: PodSentence[]
-  /** Total seconds estimate (rough — used for the scene-card subline). */
+  /** Speaker-grouped turns. Each turn = one or more consecutive
+   *  same-speaker sentences rendered as a single row. */
+  turns: PodTurn[]
+  /** Total sentence count across all turns (used for the scene-card subline). */
   sentenceCount: number
 }
 
@@ -92,6 +113,40 @@ export function useListeningPods(
         buckets.set(row.scene_number, list)
       }
 
+      // Speaker tags sometimes vary subtly between rows ("Vicino (08:00)"
+      // vs "Vicino" — time annotation only on first speaker entrance).
+      // Strip the time annotation for grouping so consecutive same-named
+      // speakers merge even when only one row carries the time tag.
+      const speakerKey = (s: string) => s.replace(/\s*\([^)]*\)\s*/g, '').trim().toLowerCase()
+
+      /**
+       * Merge consecutive same-speaker sentences into turns. The first
+       * sentence's globalOrder becomes the turn's order. The turn's id is
+       * derived from the first sentence's id + sentence count so it stays
+       * stable on re-render.
+       */
+      const mergeTurns = (sentences: PodSentence[]): PodTurn[] => {
+        const turns: PodTurn[] = []
+        for (const s of sentences) {
+          const last = turns[turns.length - 1]
+          if (last && speakerKey(last.speaker) === speakerKey(s.speaker)) {
+            last.targetText = `${last.targetText} ${s.targetText}`.trim()
+            last.knownText = `${last.knownText} ${s.knownText}`.trim()
+            if (s.targetAudioId) last.audioIds.push(s.targetAudioId)
+          } else {
+            turns.push({
+              id: `${s.id}-turn`,
+              speaker: s.speaker,
+              targetText: s.targetText,
+              knownText: s.knownText,
+              audioIds: s.targetAudioId ? [s.targetAudioId] : [],
+              globalOrder: s.globalOrder,
+            })
+          }
+        }
+        return turns
+      }
+
       // Build the ordered scene list. Each scene's title comes from the
       // first sentence's speaker tag (often includes a time/place hint
       // like "Vicino (08:00)"), with a "Scene N · " prefix.
@@ -109,7 +164,7 @@ export function useListeningPods(
         sceneList.push({
           sceneNumber,
           title,
-          sentences,
+          turns: mergeTurns(sentences),
           sentenceCount: sentences.length,
         })
       }

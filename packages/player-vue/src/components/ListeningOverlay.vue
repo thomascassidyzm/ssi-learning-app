@@ -258,9 +258,12 @@ const jumpToBelt = (point) => {
 const openScene = (scene) => {
   stopPlayback()
   selectedScene.value = scene
-  // Map pod sentences to the same shape allPhrases expects.
-  const phrases = scene.sentences.map((s, i) => ({
-    id: s.id,
+  // Map pod turns (consecutive same-speaker sentences merged) to the
+  // same shape allPhrases expects. The teleprompter renders each turn
+  // as one row; the audio path plays the turn's audioIds sequentially
+  // with a tight inter-clip gap (see playPhrase).
+  const phrases = scene.turns.map((t) => ({
+    id: t.id,
     seedNumber: undefined,
     legoIndex: undefined,
     legoId: '',
@@ -268,12 +271,14 @@ const openScene = (scene) => {
     beltIndex: undefined,
     beltName: '',
     beltColor: '',
-    knownText: s.knownText,
-    targetText: s.targetText,
-    speaker: s.speaker,
-    position: s.globalOrder,
-    target1AudioId: s.targetAudioId,
-    target2AudioId: s.targetAudioId, // Pods only have one audio version
+    knownText: t.knownText,
+    targetText: t.targetText,
+    speaker: t.speaker,
+    position: t.globalOrder,
+    target1AudioId: t.audioIds[0] || '',
+    target2AudioId: t.audioIds[0] || '',
+    /** Full audio sequence — playPhrase chains these in order. */
+    audioIds: t.audioIds,
   }))
   allPhrases.value = phrases
   loadedCount.value = phrases.length
@@ -549,30 +554,46 @@ const playCurrentPhrase = async (myPlaybackId) => {
     return
   }
 
-  // Pick random voice (target1 or target2)
-  const useVoice1 = Math.random() < 0.5
-  const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
-  const audioUrl = getAudioUrl(audioId)
+  // Pod turns carry an audioIds[] sequence (merged consecutive
+  // same-speaker sentences). Phrase rows carry one audio per voice in
+  // target1AudioId / target2AudioId. Build the play queue accordingly.
+  let playQueue = []
+  if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
+    playQueue = phrase.audioIds.filter(Boolean)
+  } else {
+    const useVoice1 = Math.random() < 0.5
+    const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
+    if (audioId) playQueue = [audioId]
+  }
 
   console.log('[ListeningOverlay] Playing phrase:', {
     index: currentIndex.value,
     text: phrase.targetText,
-    voice: useVoice1 ? 'target1' : 'target2',
-    audioId,
-    hasUrl: !!audioUrl
+    clips: playQueue.length,
   })
 
   if (myPlaybackId !== playbackId) return
 
-  if (audioUrl) {
+  // Play each audio clip in sequence with a tight 200ms gap between
+  // clips that belong to the same turn — they're one speaker speaking,
+  // so the natural prosody continues. The longer 800ms inter-phrase
+  // gap below (between turns) is where a speaker change happens.
+  for (let i = 0; i < playQueue.length; i++) {
+    if (myPlaybackId !== playbackId) return
+    const audioUrl = getAudioUrl(playQueue[i])
+    if (!audioUrl) continue
     try {
-      console.log('[ListeningOverlay] Playing audio:', audioUrl)
       await audioController.value.play(audioUrl)
     } catch (err) {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
-  } else {
-    console.warn('[ListeningOverlay] No audio ID for phrase, skipping:', phrase.targetText)
+    if (i < playQueue.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+  }
+
+  if (playQueue.length === 0) {
+    console.warn('[ListeningOverlay] No audio for phrase, skipping:', phrase.targetText)
   }
 
   if (myPlaybackId !== playbackId) return
