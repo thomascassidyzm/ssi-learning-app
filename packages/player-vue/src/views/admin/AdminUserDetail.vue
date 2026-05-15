@@ -202,6 +202,10 @@ const activeEnrollments = computed<Enrollment[]>(() => {
   const cutoff = Date.now() - ACTIVE_RECENT_DAYS * 86400 * 1000
   return enrollments.value
     .filter((e: any) => {
+      // Real learning telemetry — has the engine ever fired anything?
+      const prog = getCourseProgress(e.course_id)
+      if (prog.legos_seen > 0 || prog.total_l1_fires > 0) return true
+      // Or recent practice time on the enrollment row.
       if ((e.total_practice_minutes || 0) >= ACTIVE_PRACTICE_FLOOR_MIN) return true
       if (e.last_practiced_at && new Date(e.last_practiced_at).getTime() >= cutoff) return true
       return false
@@ -609,35 +613,51 @@ async function handleRevoke(entitlementId: string) {
               <div class="course-header">
                 <span class="course-name">{{ parseCourseCode(enrollment.course_id).label }}</span>
                 <Badge
-                  :belt="getBeltForSeeds(getCourseProgress(enrollment.course_id).seeds_introduced).name as any"
+                  :belt="getBeltForSeeds(getCourseProgress(enrollment.course_id).highest_seed).name as any"
                   size="sm"
                   pill
                 >
-                  {{ getBeltForSeeds(getCourseProgress(enrollment.course_id).seeds_introduced).name }}
+                  {{ getBeltForSeeds(getCourseProgress(enrollment.course_id).highest_seed).name }}
                 </Badge>
               </div>
+
+              <!-- Position: highest LEGO + seed reached. The unit of learning. -->
+              <div v-if="getCourseProgress(enrollment.course_id).highest_lego_id" class="course-position">
+                <span class="schools-kicker">Position</span>
+                <span class="position-lego frost-mono-nums">{{ getCourseProgress(enrollment.course_id).highest_lego_id }}</span>
+                <span class="schools-subtle">· seed {{ getCourseProgress(enrollment.course_id).highest_seed }}</span>
+              </div>
+              <div v-else class="course-position">
+                <span class="schools-subtle">No learning engine fires yet</span>
+              </div>
+
               <div class="course-stats">
                 <div class="course-stat">
                   <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).seeds_introduced }}</span>
-                  <span class="stat-label">Seeds</span>
+                  <span class="stat-label">Seeds touched</span>
                 </div>
                 <div class="course-stat">
                   <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).legos_seen }}</span>
-                  <span class="stat-label">LEGOs</span>
+                  <span class="stat-label">LEGOs seen</span>
                 </div>
                 <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).legos_retired }}</span>
-                  <span class="stat-label">Retired</span>
+                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).legos_mastered }}</span>
+                  <span class="stat-label">Mastered</span>
                 </div>
                 <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
-                  <span class="stat-label">Practice</span>
+                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).total_l1_fires }}</span>
+                  <span class="stat-label">L1 fires</span>
                 </div>
               </div>
+
               <div class="course-foot">
-                Last active
-                <span class="course-active-time frost-mono-nums">
-                  {{ enrollment.last_practiced_at ? timeAgo(enrollment.last_practiced_at) : 'never' }}
+                <span>
+                  <span class="schools-subtle">Practice ·</span>
+                  <span class="course-foot-value frost-mono-nums">{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
+                </span>
+                <span>
+                  <span class="schools-subtle">Last ·</span>
+                  <span class="course-foot-value frost-mono-nums">{{ enrollment.last_practiced_at ? timeAgo(enrollment.last_practiced_at) : 'never' }}</span>
                 </span>
               </div>
             </div>
@@ -1624,6 +1644,32 @@ async function handleRevoke(entitlementId: string) {
 
 .activity-empty {
   padding: 12px 0;
+}
+
+/* ─── Course tile: position + stats layout ──────────────────────── */
+
+.course-position {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--schools-border);
+}
+
+.position-lego {
+  font-size: 17px;
+  color: var(--schools-fg);
+  letter-spacing: 0.02em;
+}
+
+.course-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.course-foot-value {
+  color: var(--schools-fg);
 }
 
 /* ─── Dormant courses list ──────────────────────────────────────── */

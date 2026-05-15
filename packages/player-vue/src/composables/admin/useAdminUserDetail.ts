@@ -50,9 +50,20 @@ export interface UserEntitlement {
 
 export interface CourseProgress {
   course_id: string
+  /** Distinct seeds touched (= rows in learner_l1_state). */
   seeds_introduced: number
+  /** Distinct LEGOs the adaptive engine has seen at least once. */
   legos_seen: number
-  legos_retired: number
+  /** LEGOs that have graduated to "mastered" — eternal rotation. */
+  legos_mastered: number
+  /** LEGOs currently consolidating (intermediate state). */
+  legos_consolidating: number
+  /** Total L1 fires across all seeds in this course (≈ cycles practised). */
+  total_l1_fires: number
+  /** Highest LEGO id reached, e.g. 'S0024L03'. Natural sort. */
+  highest_lego_id: string | null
+  /** Highest seed number reached (parsed from highest_lego_id). */
+  highest_seed: number
 }
 
 export interface PlayerEvent {
@@ -214,49 +225,66 @@ export function useAdminUserDetail(client: SupabaseClient) {
         label: e.entitlement_code_id ? (codeLabels.get(e.entitlement_code_id) || 'Code') : 'Direct grant',
       }))
 
-      // Fetch progress per course
+      // Fetch the real per-learner telemetry: L1 seed state + LEGO mastery.
+      // Old code queried seed_progress / lego_progress — those tables are
+      // legacy (SessionStore-era) and no longer written to. The active
+      // path writes to learner_l1_state and learner_lego_metrics.
       const courseIds = enrollments.value.map(e => e.course_id)
-      if (courseIds.length > 0) {
-        const progressMap = new Map<string, CourseProgress>()
+      const [l1Result, metricsResult] = await Promise.all([
+        client
+          .from('learner_l1_state')
+          .select('course_code, lego_id, fire_count, last_fired_at')
+          .eq('learner_id', learnerId),
+        client
+          .from('learner_lego_metrics')
+          .select('course_code, lego_id, mastery_state, consecutive_smooth, consecutive_fast, n_samples, last_seen_at')
+          .eq('learner_id', learnerId),
+      ])
 
-        const [seedResult, legoResult] = await Promise.all([
-          client
-            .from('seed_progress')
-            .select('course_id')
-            .eq('learner_id', learnerId)
-            .eq('is_introduced', true),
-          client
-            .from('lego_progress')
-            .select('course_id, is_retired')
-            .eq('learner_id', learnerId),
-        ])
+      l1State.value = (l1Result.data || []) as L1StateRow[]
+      legoMetrics.value = (metricsResult.data || []) as LegoMetricsRow[]
 
-        // Count seeds introduced per course
-        const seedCounts = new Map<string, number>()
-        seedResult.data?.forEach(s => {
-          seedCounts.set(s.course_id, (seedCounts.get(s.course_id) || 0) + 1)
+      // Build per-course progress from the real tables. Iterate over the
+      // union of (enrolled courses + courses with any telemetry) so a
+      // learner who's played a course without a formal enrollment row
+      // still gets accurate numbers.
+      const progressMap = new Map<string, CourseProgress>()
+      const touchedCourses = new Set<string>(courseIds)
+      for (const r of l1State.value) touchedCourses.add(r.course_code)
+      for (const r of legoMetrics.value) touchedCourses.add(r.course_code)
+
+      for (const courseId of touchedCourses) {
+        const l1Rows = l1State.value.filter(r => r.course_code === courseId)
+        const metricRows = legoMetrics.value.filter(r => r.course_code === courseId)
+
+        let highestLegoId: string | null = null
+        for (const r of l1Rows) {
+          if (!highestLegoId || r.lego_id > highestLegoId) highestLegoId = r.lego_id
+        }
+        for (const r of metricRows) {
+          if (!highestLegoId || r.lego_id > highestLegoId) highestLegoId = r.lego_id
+        }
+
+        // Parse seed number from 'S0024L03' → 24
+        let highestSeed = 0
+        if (highestLegoId) {
+          const m = highestLegoId.match(/^S(\d+)/)
+          if (m) highestSeed = parseInt(m[1], 10)
+        }
+
+        progressMap.set(courseId, {
+          course_id: courseId,
+          seeds_introduced: l1Rows.length,
+          legos_seen: metricRows.length,
+          legos_mastered: metricRows.filter(r => r.mastery_state === 'mastered').length,
+          legos_consolidating: metricRows.filter(r => r.mastery_state === 'consolidating' || r.mastery_state === 'confident').length,
+          total_l1_fires: l1Rows.reduce((s, r) => s + (r.fire_count || 0), 0),
+          highest_lego_id: highestLegoId,
+          highest_seed: highestSeed,
         })
-
-        // Count legos seen/retired per course
-        const legoCounts = new Map<string, { seen: number; retired: number }>()
-        legoResult.data?.forEach(l => {
-          const entry = legoCounts.get(l.course_id) || { seen: 0, retired: 0 }
-          entry.seen++
-          if (l.is_retired) entry.retired++
-          legoCounts.set(l.course_id, entry)
-        })
-
-        courseIds.forEach(courseId => {
-          progressMap.set(courseId, {
-            course_id: courseId,
-            seeds_introduced: seedCounts.get(courseId) || 0,
-            legos_seen: legoCounts.get(courseId)?.seen || 0,
-            legos_retired: legoCounts.get(courseId)?.retired || 0,
-          })
-        })
-
-        courseProgress.value = progressMap
       }
+
+      courseProgress.value = progressMap
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch user detail'
       console.error('[AdminUserDetail] fetch error:', err)
@@ -365,7 +393,11 @@ export function useAdminUserDetail(client: SupabaseClient) {
       course_id: courseId,
       seeds_introduced: 0,
       legos_seen: 0,
-      legos_retired: 0,
+      legos_mastered: 0,
+      legos_consolidating: 0,
+      total_l1_fires: 0,
+      highest_lego_id: null,
+      highest_seed: 0,
     }
   }
 
