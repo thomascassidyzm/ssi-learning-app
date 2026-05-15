@@ -69,11 +69,11 @@ export function useEagerScriptPreload(): EagerScriptPreload {
     courseCode.value = code
 
     const start = Date.now()
-    console.log(`[eagerScriptPreload] Loading initial ${INITIAL_PRELOAD_SEEDS} seeds for ${code}...`)
+    console.log(`[eagerScriptPreload] Loading full course script for ${code}...`)
 
     const promise = checkContentVersion(supabase, code)
       .catch(() => {}) // non-blocking: offline is fine
-      .then(() => generateLearningScript(supabase, code, 1, INITIAL_PRELOAD_SEEDS, 1))
+      .then(() => generateLearningScript(supabase, code))
       .then(result => {
         console.log(`[eagerScriptPreload] Done: ${result.items.length} items, ${result.roundCount} rounds in ${Date.now() - start}ms`)
         if (courseCode.value !== code) return result // course switched mid-load

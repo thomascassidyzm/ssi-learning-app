@@ -181,9 +181,12 @@ function sampleWithoutReplacement<T>(arr: T[], n: number): T[] {
 export async function generateLearningScript(
   supabase: SupabaseClient,
   courseCode: string,
-  startSeed: number,
-  endSeed: number,
-  emitFromRound: number = 1,  // Only emit ScriptItems from this round onward
+  /**
+   * Number of revival (infinite-play) rounds to emit AFTER the main loop
+   * exhausts every is_new LEGO. The main-loop walk is always full-course;
+   * this only controls how far the post-main tail extends. Default 50.
+   */
+  infinitePlayLookahead: number = 50,
   listeningConfig: ListeningConfig = DEFAULT_LISTENING_CONFIG,
   scriptShape: ScriptShape = DEFAULT_SCRIPT_SHAPE,
   turboCull: TurboCullConfig = {},
@@ -227,14 +230,18 @@ export async function generateLearningScript(
     return vowelClusters ? vowelClusters.length : 1
   }
 
-  // Query tables directly - audio IDs stored on each row, no joins needed
+  // Query tables directly - audio IDs stored on each row, no joins needed.
+  // ALL course-content queries are course-wide — no startSeed/endSeed
+  // filtering. The script generator always walks the full course. Chunking
+  // by seed range was the original cause of the L1-listening silent-fail
+  // bug: any course-wide derivation (graduated seeds, anchor ordinals,
+  // cross-LEGO references) needs the whole inventory in scope, not just
+  // the current chunk's window.
   const [legosResult, phrasesResult, seedsResult, bookendsResult, podsResult, catalogueResult] = await Promise.all([
     supabase
       .from('course_legos')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, type, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms')
       .eq('course_code', courseCode)
-      .gte('seed_number', startSeed)
-      .lte('seed_number', endSeed)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .limit(5000),
@@ -242,21 +249,11 @@ export async function generateLearningScript(
       .from('course_practice_phrases')
       .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce')
       .eq('course_code', courseCode)
-      .gte('seed_number', startSeed)
-      .lte('seed_number', endSeed)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .order('position', { ascending: true })
       .limit(10000),
-    // Fetch seed sentences for listening phase (whole-sentence replay after graduation).
-    // Course-wide — NOT filtered by [startSeed, endSeed]. L1 plays
-    // *graduated* seeds, which by definition sit before the chunk start
-    // (graduation requires offset=90+ LEGOs since the seed's last debut).
-    // A chunked script generation (belt-skip's narrow chunk, generateScriptChunk
-    // mid-course load) with startSeed > 1 would otherwise have an empty
-    // seedMap for every graduated seed, making emitL1Cluster's validSeeds
-    // list collapse to zero and L1 listening silently never fire — which
-    // is what happened to Tom on Chinese.
+    // Seed sentences for L1 listening (whole-sentence replay after graduation).
     listeningConfig.enabled
       ? supabase
           .from('course_seeds')
@@ -286,14 +283,12 @@ export async function generateLearningScript(
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true })
       : Promise.resolve({ data: [], error: null }),
-    // Course-wide LEGO catalogue (just seed_number + lego_index, unfiltered
-    // by startSeed/endSeed). Used to assign every LEGO an absolute ordinal
-    // position in the course — needed for L1 graduation tracking that is
-    // independent of script chunking. Without this, a chunk generation
-    // starting at startSeed > 1 has no knowledge of how many LEGOs the
-    // learner has already passed, so seedLastRound is forever incomplete
-    // and graduation never fires for earlier seeds (the original bug —
-    // L1 listening silently failed under belt-skip / partial-chunk loads).
+    // Course-wide LEGO catalogue (just seed_number + lego_index). Used to
+    // assign every LEGO an absolute ordinal position in the course — drives
+    // L1 graduation tracking. Now redundant with the legos query above (same
+    // course-wide scope), but kept as a separate fetch with only the two
+    // columns needed for ordinal mapping — slightly cheaper than re-iterating
+    // legosResult.
     listeningConfig.enabled
       ? supabase
           .from('course_legos')
@@ -767,7 +762,7 @@ export async function generateLearningScript(
 
   // Diagnostic: report what was loaded and what was skipped for missing audio.
   if (allLegosRaw.length === 0) {
-    console.warn(`[generateLearningScript] No LEGOs found for course "${courseCode}" seeds ${startSeed}-${endSeed}`)
+    console.warn(`[generateLearningScript] No LEGOs found for course "${courseCode}"`)
   } else if (allLegos.length === 0) {
     console.warn(`[generateLearningScript] ALL ${allLegosRaw.length} LEGOs for "${courseCode}" are missing audio IDs — skipped, course will not play`)
   } else if (legosSkippedForAudio > 0) {
@@ -985,11 +980,13 @@ export async function generateLearningScript(
   // Track intros missing presentation audio (logged as summary at end, not per-item)
   const introsMissingAudio: string[] = []
 
-  // Helper: only emit items from emitFromRound onward
-  // Earlier rounds are still fully processed (legoState, spaced rep) but not emitted
-  const shouldEmit = () => roundNumber >= emitFromRound
+  // Always-true emit gate. The full-course refactor drops emit windowing —
+  // the script generator is now one-shot whole-course. The player handles
+  // resume-from-position via cursor jumps, not by skipping early items in
+  // the script. Helper retained as a no-op for now so the in-loop call
+  // sites below don't need editing in this pass.
+  const shouldEmit = () => true
   const emitItem = (item: ScriptItem) => {
-    if (!shouldEmit()) return
     if (item.type === 'intro' || item.type === 'component_intro') {
       // Intros ALWAYS pass — they define the round structure.
       // Missing presentation audio is handled by SimplePlayer (skips empty prompt phase).
@@ -1337,15 +1334,18 @@ export async function generateLearningScript(
   // We do NOT mutate lastRound on random USE — the fib decay drains
   // naturally. Long-tail steady state is pure recency-biased USE.
   //
-  // How many infinite-play rounds we generate is driven by endSeed: the
-  // caller effectively says "give me this many rounds of content." The
-  // player's expansion logic bumps endSeed as the learner approaches the
-  // tail, so play is unbounded in practice.
+  // How many infinite-play rounds we generate is `infinitePlayLookahead`
+  // rounds beyond the main loop's last round. After the full-course
+  // refactor this is always the same number (default 50) regardless of
+  // where the learner is — the script is one-shot whole-course; the
+  // player consumes from wherever its cursor lands.
 
   const TARGET_ROUND_CYCLES = 20
   const MIN_RANDOM_USE = 10
+  const mainLoopLastRound = roundNumber
+  const revivalCap = mainLoopLastRound + infinitePlayLookahead
 
-  while (roundNumber < endSeed) {
+  while (roundNumber < revivalCap) {
     roundNumber++
     const usedPhrasesThisRound = new Set<string>()
     let cycleNum = 0
@@ -1595,11 +1595,10 @@ export async function generateLearningScript(
 
   // Recount rounds from playable items
   const playableRoundCount = new Set(playableItems.map(i => i.roundNumber)).size
-  const skippedRounds = emitFromRound > 1 ? emitFromRound - 1 : 0
   const listeningItemCount = playableItems.filter(i => i.type === 'listening').length
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
     : ''
-  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode} S${startSeed}-${endSeed}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteByAudio.size > 0 ? `, ${incompleteByAudio.size} no-audio rounds` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${skippedRounds > 0 ? `, from R${emitFromRound}` : ''}${listeningStats}`)
+  console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteByAudio.size > 0 ? `, ${incompleteByAudio.size} no-audio rounds` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
   return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, hasRomanizedText: courseHasRomanized }
 }

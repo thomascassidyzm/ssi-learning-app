@@ -129,7 +129,7 @@ export function useFullCourseScript() {
     try {
       progress.value = { stage: 'loading', current: 0, total: 0, message: 'Generating full course script...' }
 
-      const result = await generateLearningScript(supabase, courseCode, 1, 9999, 1)
+      const result = await generateLearningScript(supabase, courseCode)
 
       progress.value = { stage: 'building', current: 0, total: result.items.length, message: 'Grouping rounds...' }
 

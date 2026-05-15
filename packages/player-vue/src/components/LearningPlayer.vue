@@ -266,21 +266,19 @@ const {
  * activation pin merged on top.
  */
 const generateScript = (
-  startSeed: number,
-  endSeed: number,
-  emitFromRound: number = 1,
   listeningOverride?: ListeningConfigType,
 ) => {
   if (!supabase?.value) {
     return Promise.reject(new Error('No supabase client'))
   }
   const tc = turboConfig.value
+  // Full-course one-shot generation. The script generator walks the
+  // whole inventory; the player consumes from wherever its cursor is
+  // (resume-by-lego-id). No seed-range chunking; no emit windowing.
   return generateSimpleScript(
     supabase.value,
     courseCode.value,
-    startSeed,
-    endSeed,
-    emitFromRound,
+    50,  // infinitePlayLookahead — revival rounds after the main loop
     listeningOverride || listeningConfig.value,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
@@ -2035,17 +2033,21 @@ const initializeBeltLoader = async () => {
 
   console.log('[LearningPlayer] Initializing belt loader...')
 
-  // Script chunk generator (uses real generateLearningScript + toSimpleRounds)
-  const generateScriptChunk = async (startSeed: number, count: number) => {
-    if (!supabase?.value) return { rounds: [] as any[], nextSeed: startSeed, hasMore: false }
-    const endSeed = startSeed + count
-    const result = await generateScript(startSeed, endSeed)
+  // Script chunk generator — preserved as a wrapper for useBeltLoader's
+  // interface, but now always returns the full course. The chunk-by-seed
+  // pattern is gone (it was the cause of the L1-listening silent-fail bug).
+  // beltLoader receives the same rounds every call; no incremental loading
+  // happens here any more. Eventually useBeltLoader should be simplified
+  // to a single load — until then this preserves the contract.
+  const generateScriptChunk = async (_startSeed: number, _count: number) => {
+    if (!supabase?.value) return { rounds: [] as any[], nextSeed: 1, hasMore: false }
+    const result = await generateScript()
     if (result.hasRomanizedText) hasRomanizedText.value = true
     const rounds = toSimpleRoundsWithComponents(result.items)
     return {
       rounds: rounds as any[],
-      nextSeed: endSeed + 1,
-      hasMore: endSeed < 668,
+      nextSeed: 9999,
+      hasMore: false,
     }
   }
 
@@ -5182,11 +5184,13 @@ const handleSkipToNextBelt = async () => {
     const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
 
     if (existingRoundIndex < 0 && supabase?.value) {
-      // Target seed not loaded - load it via generateSimpleScript (blocking)
-      // Always emit from round 1 to ensure correct round building (including intros)
-      console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-      const skipResult = await generateScript(targetSeed, targetSeed + 5)
-
+      // Target seed not in the current script. The script is course-wide
+      // by construction (post-refactor) — this branch should be rare. If
+      // it does fire (course content changed, first-ever load incomplete),
+      // regenerate the FULL script rather than a chunk; the chunk path
+      // was the source of L1 silent failures.
+      console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, regenerating full script...`)
+      const skipResult = await generateScript()
       if (skipResult.items.length > 0) {
         const newRounds = toSimpleRoundsWithComponents(skipResult.items)
         simplePlayer.addRounds(newRounds as any)
@@ -5220,9 +5224,10 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
 
   if (!supabase?.value) return
 
-  // Always emit from round 1 to ensure correct round building (including intros)
-  console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, loading now...`)
-  const skipResult = await generateScript(targetSeed, targetSeed + 5)
+  // Course-wide script is the standard now. If the target seed isn't in
+  // the current load, regenerate the whole thing — narrow chunks are gone.
+  console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, regenerating full script...`)
+  const skipResult = await generateScript()
 
   if (skipResult.items.length > 0) {
     const newRounds = toSimpleRoundsWithComponents(skipResult.items)
@@ -5902,7 +5907,7 @@ const expandScript = async (): Promise<number> => {
     // neededEnd and miss the infinite-play threshold entirely.
     const loadedCount = simplePlayer.roundCount.value
     const neededEnd = scriptBaseOffset.value + loadedCount + EXPANSION_BATCH
-    const result = await generateScript(1, neededEnd)
+    const result = await generateScript()
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
     if (expandedRounds.length > loadedCount) {
       const newRounds = expandedRounds.slice(loadedCount)
@@ -6474,7 +6479,7 @@ onMounted(async () => {
                 endSeed = startingSeed + LOOKAHEAD_CHUNK_SEEDS
                 console.log(`[LearningPlayer] Returning user at seed ${startingSeed} — loading 1..${endSeed}${podActivationOverride !== null ? ' (custom pod pin)' : ''}`)
               }
-              result = await generateScript(1, endSeed, 1, config)
+              result = await generateScript(config)
               console.log(`[LearningPlayer] Returning-user load ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else if (eagerCourseMatches) {
               console.log('[LearningPlayer] Awaiting eager script preload...')
@@ -6482,7 +6487,7 @@ onMounted(async () => {
               console.log(`[LearningPlayer] Eager preload ready: ${result.items.length} items, ${result.roundCount} rounds`)
             } else {
               console.log('[LearningPlayer] No eager preload available, loading directly...')
-              result = await generateScript(1, INITIAL_PRELOAD_SEEDS, 1, config)
+              result = await generateScript(config)
               console.log(`[LearningPlayer] Direct load: ${result.items.length} items, ${result.roundCount} rounds`)
             }
 
@@ -6825,7 +6830,7 @@ onMounted(async () => {
 
           // Use real generateLearningScript + toSimpleRounds for legacy fallback
           const endSeed = startOffset + INITIAL_ROUNDS
-          const result = await generateScript(1, endSeed)
+          const result = await generateScript()
           const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
           if (simpleRounds.length > 0) {
@@ -6930,7 +6935,7 @@ onMounted(async () => {
       if (targetIndex >= absoluteEnd && supabase?.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
         const neededEnd = absoluteEnd + (targetIndex - absoluteEnd) + 10
-        const expandResult = await generateScript(1, neededEnd)
+        const expandResult = await generateScript()
         const expandedRounds = toSimpleRoundsWithComponents(expandResult.items)
         if (expandedRounds.length > cachedRounds.value.length) {
           cachedRounds.value = expandedRounds as any
@@ -7213,7 +7218,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
       console.log('[LearningPlayer] No eager preload, generating full script for', newCourseCode)
       const tc = turboConfig.value
       freshResult = await generateSimpleScript(
-        supabase.value, newCourseCode, 1, 668, 1,
+        supabase.value, newCourseCode, 50,
         listeningConfig.value,
         scriptShapeConfig.value,
         { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
@@ -7315,7 +7320,7 @@ const jumpToFurthest = async () => {
     const endSeed = mainLoopCount + EXPANSION_BATCH
     console.log(`[LearningPlayer] jumpToFurthest: course complete — loading full course + ${EXPANSION_BATCH} infinite-play rounds (endSeed=${endSeed})`)
     try {
-      const result = await generateScript(1, endSeed)
+      const result = await generateScript()
       const newRounds = toSimpleRoundsWithComponents(result.items) as any[]
       if (newRounds.length > 0) {
         cachedRounds.value = newRounds

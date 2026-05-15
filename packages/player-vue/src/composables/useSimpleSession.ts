@@ -79,9 +79,9 @@ export function useSimpleSession(options: UseSimpleSessionOptions) {
     error.value = null
 
     try {
-      console.log(`[useSimpleSession] Loading ${courseCode} seeds ${startSeed}-${endSeed}`)
+      console.log(`[useSimpleSession] Loading full course script for ${courseCode}`)
 
-      const result = await generateLearningScript(supabase, courseCode, startSeed, endSeed)
+      const result = await generateLearningScript(supabase, courseCode)
       scriptItems.value = result.items
       rounds.value = toSimpleRounds(result.items)
 
@@ -108,11 +108,15 @@ export function useSimpleSession(options: UseSimpleSessionOptions) {
   }
 
   /**
-   * Load more rounds (for lazy loading)
+   * Load more rounds — preserved for caller-interface compatibility.
+   * Post-refactor the script generator returns the full course on every
+   * call, so this just re-runs and dedupes (no-op for an already-loaded
+   * script). Callers should be migrated away from this; it's a wrapper
+   * that no longer has a meaningful job.
    */
-  async function loadMore(startSeed: number, endSeed: number): Promise<void> {
+  async function loadMore(_startSeed: number, _endSeed: number): Promise<void> {
     try {
-      const result = await generateLearningScript(supabase, courseCode, startSeed, endSeed)
+      const result = await generateLearningScript(supabase, courseCode)
 
       // Merge new items (avoid duplicates by roundNumber)
       const existingRoundNumbers = new Set(rounds.value.map(r => r.roundNumber))
