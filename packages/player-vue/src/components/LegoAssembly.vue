@@ -482,7 +482,6 @@ const sentenceScale = computed(() => {
                 :key="wi"
                 class="lego-block wagon"
                 :class="{
-                  salient: block.isSalient,
                   'has-components': wagon.length > 1,
                   'wagon-start': wi === 0,
                   'wagon-end': wi === practiceCarriageWagons(block)!.length - 1,
@@ -515,7 +514,6 @@ const sentenceScale = computed(() => {
             <div
               class="lego-block"
               :class="{
-                salient: block.isSalient,
                 'has-components': !!alignedBlockComponents(block),
                 'solo-component': block.isSoloComponent,
                 'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),

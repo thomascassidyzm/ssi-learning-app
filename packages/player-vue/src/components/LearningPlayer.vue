@@ -7593,12 +7593,7 @@ defineExpose({
               <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <p v-else class="hero-known">
-                <template v-if="salientKnownParts"
-                  >{{ salientKnownParts.prefix }}<span class="hero-known-salient">{{ salientKnownParts.match }}</span>{{ salientKnownParts.suffix }}</template
-                >
-                <template v-else>{{ displayedKnownText }}</template>
-              </p>
+              <p v-else class="hero-known">{{ displayedKnownText }}</p>
             </div>
           </div>
         </template>
