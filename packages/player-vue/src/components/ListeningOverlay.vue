@@ -233,8 +233,11 @@ const openScene = (scene) => {
   totalCount.value = phrases.length
   hasMore.value = false
   currentIndex.value = 0
-  // Honor the current shuffle toggle when entering a scene.
-  if (mode.value === 'shuffled') shufflePhrases()
+  // Pods are dialogues — they tell a story. Force ordered playback;
+  // shuffling would scramble the conversation. The shuffle toggle is
+  // also hidden in the Pods view (see template) so the user can't
+  // accidentally re-enable it from this surface.
+  mode.value = 'ordered'
   updateVisibleWindow()
 }
 
@@ -1005,9 +1008,11 @@ watch(playbackSpeed, (newSpeed) => {
       class="controls-bar"
       @click.stop
     >
-      <!-- Spotify-style shuffle toggle. One button; tap to toggle between
-           ordered (default) and shuffled. Active state = currently shuffled. -->
+      <!-- Spotify-style shuffle toggle (Phrases view only).
+           Pods are dialogues — they tell a story, so shuffling is never
+           an option there. -->
       <button
+        v-if="view === 'phrases'"
         class="shuffle-toggle"
         :class="{ active: mode === 'shuffled' }"
         :aria-pressed="mode === 'shuffled'"
