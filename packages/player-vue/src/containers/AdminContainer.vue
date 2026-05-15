@@ -76,7 +76,8 @@ onMounted(() => {
  * ================================================================ */
 
 .admin-container {
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   background: var(--schools-bg, #f6f5f1);
