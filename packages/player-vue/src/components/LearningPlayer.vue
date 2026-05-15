@@ -1228,10 +1228,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const texts: string[] = (useNative ? cycle.componentLegoTextsNative : null) || cycle.componentLegoTexts || []
   const textMap = useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value
   const textMapFallback = legoTargetTextMap.value
-  // Show known text only during intro/debut (first encounter with the LEGO)
+  // Show known text during intro/debut and BUILD phrases — reinforcement is still
+  // useful while the LEGO is fresh. USE phrases (eternal spaced rep) elicit production
+  // without scaffolding.
   const cycleId = cycle.id || ''
-  const isIntro = cycleId.includes('_intro_') || cycleId.includes('_debut_')
-  const knownMap = isIntro ? legoKnownTextMap.value : null
+  const showKnown = cycleId.includes('_intro_') || cycleId.includes('_debut_') || cycleId.includes('_build_')
+  const knownMap = showKnown ? legoKnownTextMap.value : null
   const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
       const targetText = texts[idx] || textMap.get(id) || textMapFallback.get(id) || ''
@@ -1240,9 +1242,9 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       const rawComps = useNative
         ? (_componentsByLegoIdNative.get(id) || _componentsByLegoId.get(id))
         : _componentsByLegoId.get(id)
-      // Strip known text from components outside intro/debut — stubs still render
+      // Strip known text from components when not in a "show known" cycle — stubs still render
       const comps = rawComps
-        ? (isIntro ? rawComps : rawComps.map(c => ({ known: '', target: c.target })))
+        ? (showKnown ? rawComps : rawComps.map(c => ({ known: '', target: c.target })))
         : undefined
       const knownText = (knownMap && id === salientLegoId) ? knownMap.get(id) : undefined
       return {

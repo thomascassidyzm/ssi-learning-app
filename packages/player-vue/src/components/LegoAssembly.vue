@@ -1162,7 +1162,7 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .tile-known-comp,
 :root[data-theme="mist"] .block-known,
 :root[data-theme="mist"] .block-known-comp {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
   border-color: rgba(0, 0, 0, 0.35);
@@ -1184,7 +1184,7 @@ const sentenceScale = computed(() => {
   background: rgba(44, 38, 34, 0.2);
 }
 :root[data-theme="mist"] .carriage-known-comp {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 :root[data-theme="mist"] .lego-tile.salient .carriage-cell {
   border-color: rgba(0, 0, 0, 0.35);
