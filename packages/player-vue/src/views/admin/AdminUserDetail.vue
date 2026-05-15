@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
@@ -230,11 +230,37 @@ const grantDurationDays = ref(365)
 const grantCourses = ref<string[]>([])
 const grantLoading = ref(false)
 
-onMounted(() => {
+// Auto-refresh: re-fetch every 20s while the page is visible, and on
+// focus/visibility-change so flipping back from the player tab shows
+// up-to-date telemetry without a manual reload.
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+const lastRefreshAt = ref<number | null>(null)
+const REFRESH_INTERVAL_MS = 20_000
+
+function refreshDetail() {
   const learnerId = route.params.learnerId as string
-  if (learnerId) {
-    fetchUserDetail(learnerId)
-  }
+  if (!learnerId) return
+  fetchUserDetail(learnerId)
+  lastRefreshAt.value = Date.now()
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') refreshDetail()
+}
+
+onMounted(() => {
+  refreshDetail()
+  refreshTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') refreshDetail()
+  }, REFRESH_INTERVAL_MS)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('focus', refreshDetail)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) clearInterval(refreshTimer)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('focus', refreshDetail)
 })
 
 function goBack() {
