@@ -35,7 +35,16 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // Pod stage logic — mirrors what was in generateLearningScript.ts
 // ============================================================================
 
-export type PodPlayRole = 'ps' | 'trans' | 'ps2x'
+export type PodPlayRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
+
+/** Role → runtime playback rate. Single source of truth. */
+const ROLE_SPEED: Record<string, number> = {
+  ps08x: 0.8,
+  ps: 1.0,
+  ps15x: 1.5,
+  ps2x: 2.0,
+  trans: 1.0,
+}
 
 /**
  * Default stage playlists — mirrored to the `pods` row in algorithm_config.
@@ -126,11 +135,11 @@ export interface PodPlay {
   playRole: PodPlayRole
   /** UUID of audio to play. For 'trans' = sentence.known_audio_id; otherwise sentence.target_audio_id. */
   audioId: string
-  /** Display text (target for ps/ps2x, known for trans). May be empty. */
+  /** Display text (target for ps*; known for trans). May be empty. */
   text: string
   /** Native script variant when target uses romanization (not currently populated; future use). */
   textNative?: string
-  /** 1.0 for ps/trans, 2.0 for ps2x. */
+  /** Runtime playback rate per ROLE_SPEED — 0.8 / 1.0 / 1.5 / 2.0. */
   playbackSpeed: number
   /** True iff this play's source sentence has glue_to_next set AND this is
    *  the LAST play in the source sentence's playlist. Tells the runtime
@@ -318,7 +327,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
           playRole,
           audioId,
           text: isTrans ? sentence.known_text : sentence.target_text,
-          playbackSpeed: playRole === 'ps2x' ? 2.0 : 1.0,
+          playbackSpeed: ROLE_SPEED[playRole] ?? 1.0,
           glueToNextChunk: isLastPlayInSentence && !!sentence.glue_to_next,
         })
       }

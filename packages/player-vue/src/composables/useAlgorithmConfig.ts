@@ -32,9 +32,15 @@ export interface ModeConfig {
   useKeep?: number
 }
 
+/**
+ * Listening slot roles — full set including runtime playback rates.
+ *   ps08x = 0.8×, ps = 1×, ps15x = 1.5×, ps2x = 2×, trans = known audio at 1×
+ */
+export type ListeningSlotRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
+
 /** Layer 2 (Listening Pod) scheduler — gap matrix + stage progression. */
 export interface PodsConfig {
-  stagePlaylist: Record<string, ('ps' | 'ps2x' | 'trans')[]>  // keyed by stage number as string
+  stagePlaylist: Record<string, ListeningSlotRole[]>  // keyed by stage number as string
   stageDuration: number       // pod-rounds per transitional stage; highest key = eternal
   gapSuperTightMs: number     // known→target, target→target
   gapTightMs: number          // target→known
@@ -78,13 +84,13 @@ export interface ListeningModeConfig {
   l1ReserveSize: number       // older graduated seeds beyond active
   l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
   /** Legacy / fallback flat playlist — used when layer1StagePlaylist is empty. */
-  layer1Playlist: ('ps' | 'ps2x' | 'trans')[]
+  layer1Playlist: ListeningSlotRole[]
   /** Staged Layer 1 playlist — keys are stage numbers, values are the
    * playlist for that stage. Per-seed fire counter advances each L1
    * emission; stage = floor((fireCount-1)/layer1StageDuration)+1, capped
    * at the highest key (eternal hold). Aran 2026-05-07 spec: seeds
    * decay to a single 2× rep over time. */
-  layer1StagePlaylist: Record<string, ('ps' | 'ps2x' | 'trans')[]>
+  layer1StagePlaylist: Record<string, ListeningSlotRole[]>
   /** L1 fires spent in each transitional stage before promoting. */
   layer1StageDuration: number
   podActivationRound: number  // global default; per-learner pin still wins

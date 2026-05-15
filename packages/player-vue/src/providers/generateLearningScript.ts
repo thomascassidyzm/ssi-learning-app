@@ -99,13 +99,26 @@ export interface TurboCullConfig {
 
 /**
  * Layer 1 per-seed play roles — mirrors usePodLapScheduler's PodPlayRole.
- *   ps   = target audio at 1.0× (slow listen for clarity)
- *   ps2x = target audio at 2.0× (fast rep for retention)
- *   trans= known-language audio at 1.0× (translation cue, off by default
- *          since graduated seeds have dropped out of spaced rep — learner
- *          should already know the meaning)
+ *   ps08x = target audio at 0.8× (extra-slow for first exposure)
+ *   ps    = target audio at 1.0× (slow listen for clarity)
+ *   ps15x = target audio at 1.5× (gentle stretch on the way up)
+ *   ps2x  = target audio at 2.0× (fast rep for retention)
+ *   trans = known-language audio at 1.0× (translation cue, off by default
+ *           since graduated seeds have dropped out of spaced rep — learner
+ *           should already know the meaning)
  */
-export type Layer1PlayRole = 'ps' | 'ps2x' | 'trans'
+export type Layer1PlayRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
+
+// Single source of truth for role → runtime playback rate. All audio
+// (target or known) plays back at the role's speed; 'trans' is always 1.0×
+// because the known-language clip is reference material.
+const ROLE_SPEED: Record<string, number> = {
+  ps08x: 0.8,
+  ps: 1.0,
+  ps15x: 1.5,
+  ps2x: 2.0,
+  trans: 1.0,
+}
 
 // Per Aran's listening-layers spec (canonical visualiser at popty.app/listening-playground.html).
 // Graduation is event-driven (1 LEGO == 1 round; a seed graduates once all its
@@ -346,7 +359,7 @@ export async function generateLearningScript(
   // L1 + L2 bookends may both fire in the same round — Aran approved.
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound
-  type PodPlayRole = 'ps' | 'trans' | 'ps2x'
+  type PodPlayRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
   // Stage playlists per Aran's road-test 2026-05-05. PS = pod sentence at
   // 1.0×, PS×2 at 2.0×, trans = English translation. Stage 1 stays all 1.0×;
   // 2× kicks in from stage 2. Stages 1–6 each last 5 pod-rounds (was 3);
@@ -443,7 +456,7 @@ export async function generateLearningScript(
         // the whole seed — a missing translation shouldn't silence retries.
         if (isTrans && !seedData.known_audio_id) continue
         cycleCounter.v++
-        const speed = role === 'ps2x' ? 2.0 : 1.0
+        const speed = ROLE_SPEED[role] ?? 1.0
         emitItem({
           uuid: `listening_${seedIdStr}_${role}_${cycleCounter.v}`,
           cycleNum: cycleCounter.v, roundNumber: mainRoundNumber,
@@ -525,9 +538,7 @@ export async function generateLearningScript(
     for (const { i, sentence, playRole } of plays) {
       cycleCounter.v++
       const cyc = cycleCounter.v
-      // Aran spec: only 1.0× and 2.0× exist for listening. PS and trans both
-      // play at natural speed; PS×2 plays at 2×.
-      const speed = playRole === 'ps2x' ? 2.0 : 1.0
+      const speed = ROLE_SPEED[playRole] ?? 1.0
       const isTrans = playRole === 'trans'
       emitItem({
         uuid: `pod_R${String(mainRoundNumber).padStart(4, '0')}_S${String(i).padStart(3, '0')}_${playRole}_${cyc}`,
