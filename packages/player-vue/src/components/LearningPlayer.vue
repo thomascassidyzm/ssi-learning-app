@@ -62,6 +62,22 @@ import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
+import { useInstantPlayback } from '../composables/useInstantPlayback'
+
+/**
+ * Instant-playback feature flag — courses listed here use the new
+ * `useInstantPlayback` composable (round-map + one-cycle cold start,
+ * tier 1/2/3 prefetches during playback) instead of the legacy
+ * upfront full-course load.
+ *
+ * Hard-coded Set rather than a remote config — the hard-gate rule
+ * says simpler. Tom flips courses on by editing this list; we delete
+ * the legacy path entirely once every course has been on the flag
+ * for a release cycle.
+ */
+const INSTANT_PLAYBACK_COURSES = new Set<string>([
+  // 'hrv_for_eng',   // ← flip courses on by uncommenting them
+])
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'pronunciationModeChanged', 'cycle-started'])
 
@@ -310,6 +326,28 @@ const courseCode = computed(() => props.course?.course_code || '')
 
 // Alias for ReportIssueButton
 const activeCourseCode = courseCode
+
+// Instant-playback composable (flag-gated, see INSTANT_PLAYBACK_COURSES).
+// Wires `last_completed_lego_id` from the enrollment row as the resume
+// anchor — matches the resolution path used by the legacy eager-script
+// load, so flipping the flag on a course doesn't change where the
+// learner lands on resume. Kicked off in `loadAllData` only when the
+// course is in the flag set; the cold path skips the full course load
+// and renders the first cycle from the new endpoints.
+const instantPlayback = useInstantPlayback(courseCode, {
+  resolveStartLegoId: async () => {
+    if (!progressStore?.value || !learnerId.value || !courseCode.value) return null
+    try {
+      const enrollment = await progressStore.value.getEnrollment(
+        learnerId.value,
+        courseCode.value,
+      )
+      return enrollment?.last_completed_lego_id ?? null
+    } catch {
+      return null
+    }
+  },
+})
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
@@ -6309,6 +6347,37 @@ onMounted(async () => {
       })
 
       // ============================================
+      // Instant-playback fast path (feature-flagged)
+      // ============================================
+      // When the course is in INSTANT_PLAYBACK_COURSES, fire the new
+      // critical path in parallel with the legacy load. The new path
+      // hits two indexed endpoints (round-map + one cycle), so it
+      // resolves in hundreds of ms even on weak connections — the
+      // legacy load still runs underneath until the cutover commit
+      // wires the player to consume cycles from the buffer directly.
+      // Errors are logged-and-swallowed so the legacy path is always
+      // the safety net.
+      if (INSTANT_PLAYBACK_COURSES.has(courseCode.value)) {
+        void instantPlayback.bootstrap()
+          .then((result) => {
+            console.log(
+              '[LearningPlayer] Instant playback bootstrapped:',
+              `firstCycle=${result.firstCycle.id}`,
+              `mapVersion=${result.mapVersion}`,
+            )
+            // Kick tier 1/2/3 in the background so by the time the
+            // legacy path finishes (or the cutover lands), the rest
+            // of the round + listening audio is already warm.
+            void instantPlayback.prefetchTier1()
+              .then(() => instantPlayback.prefetchTier2())
+              .then(() => instantPlayback.prefetchTier3())
+          })
+          .catch((err) => {
+            console.warn('[LearningPlayer] Instant playback bootstrap failed:', err)
+          })
+      }
+
+      // ============================================
       // SessionController initialization path
       // ============================================
       // Wait for courseDataProvider to be set (App.vue sets it in onMounted, which runs after children mount)
@@ -7033,6 +7102,10 @@ onMounted(() => {
 onUnmounted(() => {
   heroResizeObserver?.disconnect()
   heroResizeObserver = null
+
+  // Abort any in-flight instant-playback fetches so we don't keep
+  // pulling data the user just navigated away from.
+  instantPlayback.cancel()
 
   // End class session if active
   if (classSessionId.value) {
