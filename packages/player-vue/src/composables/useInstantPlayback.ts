@@ -121,6 +121,7 @@ export interface UseInstantPlaybackOptions {
 // ============================================================================
 
 const ROUND_MAP_STORAGE_PREFIX = 'ssi-instant-playback-roundmap-'
+const CYCLES_STORAGE_PREFIX = 'ssi-instant-playback-cycles-'
 
 /**
  * Bootstrap fetches the whole first round in one shot (limit≈15) so
@@ -171,6 +172,72 @@ function writeCachedRoundMap(courseCode: string, map: RoundMap): void {
     )
   } catch (err) {
     console.warn('[InstantPlayback] Failed to write round-map cache:', err)
+  }
+}
+
+// ============================================================================
+// CYCLES CACHE (localStorage, version-stamped)
+// ============================================================================
+//
+// Caches the cycles response keyed by {course, fromLegoId}. Stamped with the
+// course version observed at write time — readers compare against the current
+// round-map's version and evict on mismatch, so a content edit that bumps
+// courses.version invalidates all cached cycle responses for that course on
+// the next fetch.
+//
+// Why we do this: legacy's useScriptCache made returning visitors feel
+// instant because the script lived in localStorage. The new instant-playback
+// path caches the round-map but, without this cache, paid the full cycles
+// network round-trip every visit. Caching the cycles too makes "open a
+// course I was just learning" a zero-network operation until content changes.
+
+interface CachedCycles {
+  response: CyclesResponse
+  cachedAt: number
+}
+
+function cyclesCacheKey(courseCode: string, fromLegoId: string): string {
+  return CYCLES_STORAGE_PREFIX + courseCode + '-' + fromLegoId
+}
+
+function readCachedCycles(
+  courseCode: string,
+  fromLegoId: string,
+  expectedVersion: number,
+): CyclesResponse | null {
+  try {
+    const raw = localStorage.getItem(cyclesCacheKey(courseCode, fromLegoId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as CachedCycles
+    if (
+      parsed?.response?.course_code === courseCode &&
+      Array.isArray(parsed.response.cycles) &&
+      parsed.response.version === expectedVersion
+    ) {
+      return parsed.response
+    }
+    return null
+  } catch (err) {
+    console.warn('[InstantPlayback] Failed to read cycles cache:', err)
+    return null
+  }
+}
+
+function writeCachedCycles(
+  courseCode: string,
+  fromLegoId: string,
+  response: CyclesResponse,
+): void {
+  try {
+    const payload: CachedCycles = { response, cachedAt: Date.now() }
+    localStorage.setItem(
+      cyclesCacheKey(courseCode, fromLegoId),
+      JSON.stringify(payload),
+    )
+  } catch (err) {
+    // localStorage may be full (rare — ~5MB budget, our payloads are ~5-10KB).
+    // Swallow — cache miss next time is fine; no functional impact.
+    console.warn('[InstantPlayback] Failed to write cycles cache:', err)
   }
 }
 
@@ -293,9 +360,26 @@ export function useInstantPlayback(
     fromLegoId: string,
     limit: number,
     signal?: AbortSignal,
+    expectedVersion?: number,
   ): Promise<CyclesResponse> {
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
+
+    // Cache-first: if we know the expected version (i.e. the caller already
+    // has the round-map and can validate), serve the cached cycles response
+    // when it matches. Skip network entirely. This is the "zero-network
+    // resume" path for returning visitors to a previously-fetched position.
+    if (typeof expectedVersion === 'number') {
+      const cached = readCachedCycles(code, fromLegoId, expectedVersion)
+      if (cached) {
+        // Only return cache if it covers >= the requested limit — a tiny
+        // cached response (e.g. an old limit=1 entry) shouldn't satisfy a
+        // limit=15 request.
+        if (cached.cycles.length >= limit || cached.next_lego_id === null) {
+          return cached
+        }
+      }
+    }
 
     const url =
       `${apiBase}/${encodeURIComponent(code)}/cycles` +
@@ -307,7 +391,11 @@ export function useInstantPlayback(
         `[InstantPlayback] cycles fetch failed: ${res.status} ${res.statusText}`,
       )
     }
-    return (await res.json()) as CyclesResponse
+    const response = (await res.json()) as CyclesResponse
+    // Write-through cache. Stamp is the version the server returned, which
+    // gets compared against the current round-map version on read.
+    writeCachedCycles(code, fromLegoId, response)
+    return response
   }
 
   function bufferCycles(cycles: BackendCycle[]): void {
@@ -358,6 +446,13 @@ export function useInstantPlayback(
     //    one case where we're stuck serial — but it's rare (first ever
     //    visit, no progress) and even so it's only two roundtrips, the
     //    same as before.
+    // Optimistic cache-hit path: if we have BOTH a known startLegoId AND a
+    // cached round-map, the cycles cache can be checked with the expected
+    // version before any network call fires. When both caches hit, this is
+    // a zero-network resume.
+    const cachedMap = startLegoId ? readCachedRoundMap(courseCode.value) : null
+    const expectedVersion = cachedMap?.version
+
     const ctrl = makeAbort()
     let map: RoundMap
     let response: CyclesResponse
@@ -365,7 +460,7 @@ export function useInstantPlayback(
       if (startLegoId) {
         const [m, r] = await Promise.all([
           fetchRoundMap(),
-          fetchCycles(startLegoId, BOOTSTRAP_LIMIT, ctrl.signal),
+          fetchCycles(startLegoId, BOOTSTRAP_LIMIT, ctrl.signal, expectedVersion),
         ])
         map = m
         response = r
@@ -376,7 +471,12 @@ export function useInstantPlayback(
           throw new Error('[InstantPlayback] round-map has no rounds')
         }
         startLegoId = first.legoId
-        response = await fetchCycles(startLegoId, BOOTSTRAP_LIMIT, ctrl.signal)
+        response = await fetchCycles(
+          startLegoId,
+          BOOTSTRAP_LIMIT,
+          ctrl.signal,
+          map.version,
+        )
       }
     } finally {
       releaseAbort(ctrl)
@@ -420,7 +520,12 @@ export function useInstantPlayback(
     if (!lego) return
     const ctrl = makeAbort()
     try {
-      const response = await fetchCycles(lego, TIER_1_LIMIT, ctrl.signal)
+      const response = await fetchCycles(
+        lego,
+        TIER_1_LIMIT,
+        ctrl.signal,
+        roundMap.value?.version,
+      )
       bufferCycles(response.cycles)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {
@@ -501,7 +606,12 @@ export function useInstantPlayback(
 
     const ctrl = makeAbort()
     try {
-      const response = await fetchCycles(next.legoId, TIER_3_LIMIT, ctrl.signal)
+      const response = await fetchCycles(
+        next.legoId,
+        TIER_3_LIMIT,
+        ctrl.signal,
+        map.version,
+      )
       bufferCycles(response.cycles)
 
       // Tier 3 also covers listening for round N+1. Mirror the
