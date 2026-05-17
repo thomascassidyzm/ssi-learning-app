@@ -122,7 +122,18 @@ export interface UseInstantPlaybackOptions {
 
 const ROUND_MAP_STORAGE_PREFIX = 'ssi-instant-playback-roundmap-'
 
-/** Tier 1: rest of the current round. The spec settles on limit=15. */
+/**
+ * Bootstrap fetches the whole first round in one shot (limit≈15) so
+ * SimplePlayer can be initialised with a complete round structure and
+ * audio can start playing immediately. The spec originally proposed
+ * limit=1 + tier-1-during-playback, but appending cycles to an
+ * already-running round adds engine complexity for ~zero latency win
+ * (the cycles endpoint costs roughly the same for limit=1 vs limit=15
+ * once the Lambda is warm — the payload is tiny either way). Cheaper
+ * × simpler to grab the full round at bootstrap.
+ */
+const BOOTSTRAP_LIMIT = 15
+/** Tier 1: rest of the current round. Kept for backwards compatibility but bootstrap now covers it. */
 const TIER_1_LIMIT = 15
 /** Tier 3: next round. Same limit as tier 1. */
 const TIER_3_LIMIT = 15
@@ -323,38 +334,55 @@ export function useInstantPlayback(
   async function bootstrap(legoId?: string): Promise<BootstrapResult> {
     isReady.value = false
 
-    // 1. Resolve starting legoId
+    // 1. Resolve starting legoId from the caller / position store. This
+    //    is a LOCAL lookup (in-memory or one quick supabase row read
+    //    that happens in the parent before this composable is called),
+    //    so it doesn't add network roundtrips to the critical path.
     let startLegoId: string | null = legoId ?? null
     if (!startLegoId && resolveStartLegoId) {
       const resolved = await resolveStartLegoId()
       startLegoId = resolved ?? null
     }
 
-    // 2. Fetch round-map (cached → instant; cold → ~one indexed query)
-    const map = await fetchRoundMap()
-    roundMap.value = map
-
-    // 3. Pick a starting legoId if the caller / resolver didn't supply
-    //    one — fresh learner starts at round 1.
-    if (!startLegoId) {
-      const first = map.rounds[0]
-      if (!first) {
-        throw new Error('[InstantPlayback] round-map has no rounds')
-      }
-      startLegoId = first.legoId
-    }
-
-    // 4. Fetch ONE cycle — this is the minimum to render the first
-    //    frame. The caller hands the audio refs to the existing
-    //    audio controller, which streams the first audio file in
-    //    parallel with the rest of UI hydration.
+    // 2. The bootstrap critical path: round-map fetch + first-round
+    //    cycles fetch. These are INDEPENDENT when we already have a
+    //    startLegoId — the cycles URL doesn't need the round-map to
+    //    construct, just the LEGO. Run them in parallel via Promise.all
+    //    so total wall time = max(map, cycles) instead of map+cycles.
+    //    For a returning learner with cached round-map this is one
+    //    cycles roundtrip and we're done.
+    //
+    //    If we DON'T have a startLegoId yet (fresh learner, empty
+    //    position store), we have to wait for the round-map to find
+    //    R1's legoId before the cycles fetch can fire. This is the
+    //    one case where we're stuck serial — but it's rare (first ever
+    //    visit, no progress) and even so it's only two roundtrips, the
+    //    same as before.
     const ctrl = makeAbort()
+    let map: RoundMap
     let response: CyclesResponse
     try {
-      response = await fetchCycles(startLegoId, 1, ctrl.signal)
+      if (startLegoId) {
+        const [m, r] = await Promise.all([
+          fetchRoundMap(),
+          fetchCycles(startLegoId, BOOTSTRAP_LIMIT, ctrl.signal),
+        ])
+        map = m
+        response = r
+      } else {
+        map = await fetchRoundMap()
+        const first = map.rounds[0]
+        if (!first) {
+          throw new Error('[InstantPlayback] round-map has no rounds')
+        }
+        startLegoId = first.legoId
+        response = await fetchCycles(startLegoId, BOOTSTRAP_LIMIT, ctrl.signal)
+      }
     } finally {
       releaseAbort(ctrl)
     }
+
+    roundMap.value = map
 
     const firstCycle = response.cycles[0]
     if (!firstCycle) {
@@ -363,6 +391,12 @@ export function useInstantPlayback(
       )
     }
 
+    // Bootstrap returns the whole first round in `response.cycles`. The
+    // buffer now holds intro+debut+builds+uses for the start LEGO, and
+    // potentially the first cycles of the next LEGO too (if the round
+    // had <BOOTSTRAP_LIMIT cycles). SimplePlayer can be initialised
+    // with a complete round structure from this — no tier-1 await
+    // needed before play.
     bufferCycles(response.cycles)
     currentLegoId.value = firstCycle.lego_id
     isReady.value = true

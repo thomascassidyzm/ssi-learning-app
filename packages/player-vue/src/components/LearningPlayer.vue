@@ -6433,11 +6433,12 @@ onMounted(async () => {
             `mapVersion=${bootstrapResult.mapVersion}`,
           )
 
-          // 2. Tier 1 — rest of current round. Await this so the
-          //    initial `Round[]` we feed SimplePlayer has the full
-          //    round (intro+debut+builds+uses) rather than just the
-          //    bootstrap's one cycle. ~one indexed query.
-          await instantPlayback.prefetchTier1()
+          // 2. (Removed) Tier 1 used to be a separate awaited fetch
+          //    here. Bootstrap now grabs the whole first round in one
+          //    parallel call alongside the round-map, so the buffer is
+          //    already complete by the time we get here — no second
+          //    network roundtrip before player init. This was the
+          //    "playback is the loading mask" fix per the spec.
 
           // 3. Build the player's Round[] from the composable's
           //    buffer, walking the round-map in script order. The
