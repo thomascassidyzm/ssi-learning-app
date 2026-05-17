@@ -63,6 +63,7 @@ import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback } from '../composables/useInstantPlayback'
+import { backendCyclesToRounds } from '../providers/backendCyclesToRounds'
 
 /**
  * Instant-playback feature flag — courses listed here use the new
@@ -70,14 +71,22 @@ import { useInstantPlayback } from '../composables/useInstantPlayback'
  * tier 1/2/3 prefetches during playback) instead of the legacy
  * upfront full-course load.
  *
- * Hard-coded Set rather than a remote config — the hard-gate rule
- * says simpler. Tom flips courses on by editing this list; we delete
- * the legacy path entirely once every course has been on the flag
- * for a release cycle.
+ * Add a course code here to route it through the instant-playback
+ * path. Empty by default — opt in per course after verifying on
+ * staging. Hard-coded Set rather than a remote config because the
+ * hard-gate rule says simpler; once every course has been on the
+ * flag for a release cycle, the legacy path can be deleted.
  */
-const INSTANT_PLAYBACK_COURSES = new Set<string>([
-  // 'hrv_for_eng',   // ← flip courses on by uncommenting them
-])
+const INSTANT_PLAYBACK_COURSES = new Set<string>([])
+
+/**
+ * Near-edge top-up threshold for the instant-playback path: when the
+ * learner's current round is within this many rounds of the loaded
+ * edge, fire tier-3 prefetch so the next batch lands before they hit
+ * the end. Mirrors the legacy `LOOKAHEAD_TRIGGER_ROUNDS` knob but
+ * applied to the round-map-driven loader instead of seed-range loads.
+ */
+const INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS = 3
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'pronunciationModeChanged', 'cycle-started'])
 
@@ -779,13 +788,49 @@ watch(
 // Sync state with simplePlayer
 watch(() => simplePlayer.roundIndex.value, (idx) => {
   currentRoundIndex.value = idx
-  // Near-edge trigger: when within LOOKAHEAD_TRIGGER_ROUNDS of the loaded
-  // edge, fetch the next chunk. The threshold is in rounds (the unit users
-  // experience); seeds are just the script generator's query unit. The
-  // chunk size is small — the player only ever needs a short lookahead,
-  // never the whole course.
+  // Keep the instant-playback composable's cursor in lockstep with the
+  // engine — tier-3 prefetch anchors on currentLegoId, and the
+  // round-map-derived `currentRound` computed reads off it too. No-op
+  // on legacy courses (composable is initialised but unused).
+  const currentLegoIdNow = simplePlayer.currentRound?.value?.legoId
+  if (currentLegoIdNow && INSTANT_PLAYBACK_COURSES.has(courseCode.value)) {
+    instantPlayback.setCurrentLegoId(currentLegoIdNow)
+  }
+  // Near-edge trigger.
+  //
+  // Instant-playback path: fire tier-3 to pull the next round's cycles
+  // into the buffer, then fold them into SimplePlayer via appendRounds.
+  // The composable's `prefetchTier3` is idempotent (dedupes by cycle id
+  // in the buffer), so this is safe to call from inside the watcher.
+  //
+  // Legacy path: kick `loadSeedIfNeeded` for the next seed range as
+  // before. The unit changes (rounds vs seeds) but the trigger is the
+  // same: "we're within N rounds of the loaded edge — fetch more".
   const totalLoaded = simplePlayer.roundCount?.value ?? 0
-  if (totalLoaded > 0 && idx >= totalLoaded - LOOKAHEAD_TRIGGER_ROUNDS) {
+  if (totalLoaded === 0) return
+
+  if (INSTANT_PLAYBACK_COURSES.has(courseCode.value)) {
+    if (idx >= totalLoaded - INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS) {
+      void instantPlayback.prefetchTier3().then(() => {
+        const map = instantPlayback.roundMap.value
+        if (!map) return
+        const refreshed = backendCyclesToRounds(
+          instantPlayback.getBufferedCyclesForLego,
+          map,
+        )
+        // Diff against what SimplePlayer already has and append only
+        // the new tail. appendRounds dedupes by roundNumber so even a
+        // full-list pass is safe — but slicing keeps it cheap.
+        if (refreshed.length > totalLoaded) {
+          simplePlayer.appendRounds(refreshed.slice(totalLoaded) as any)
+          loadedRounds.value = refreshed as any
+        }
+      })
+    }
+    return
+  }
+
+  if (idx >= totalLoaded - LOOKAHEAD_TRIGGER_ROUNDS) {
     const currentLegoId = simplePlayer.currentRound?.value?.legoId
     const currentSeed = currentLegoId ? getSeedFromLegoId(currentLegoId) : null
     if (currentSeed != null && currentSeed > 0) {
@@ -6349,34 +6394,139 @@ onMounted(async () => {
       })
 
       // ============================================
-      // Instant-playback fast path (feature-flagged)
+      // Instant-playback cutover path (feature-flagged)
       // ============================================
-      // When the course is in INSTANT_PLAYBACK_COURSES, fire the new
-      // critical path in parallel with the legacy load. The new path
-      // hits two indexed endpoints (round-map + one cycle), so it
-      // resolves in hundreds of ms even on weak connections — the
-      // legacy load still runs underneath until the cutover commit
-      // wires the player to consume cycles from the buffer directly.
-      // Errors are logged-and-swallowed so the legacy path is always
-      // the safety net.
+      // When the course is in INSTANT_PLAYBACK_COURSES the player is
+      // wired straight to the new endpoints: round-map + cycles, with
+      // tier-1 prefetch immediately after bootstrap so the first round
+      // is fully queued before the user hits play. Legacy path is
+      // skipped entirely on this branch (early return below); flipping
+      // a course off the flag set restores the legacy load with zero
+      // code change.
+      //
+      // What we hand SimplePlayer: a `Round[]` produced by
+      // `backendCyclesToRounds` from the composable's buffer. That
+      // mirrors the legacy `toSimpleRounds(scriptItems)` output shape
+      // exactly — so listening orchestration, pod scheduler, belt
+      // progress, paywalls, all the downstream consumers stay
+      // unchanged. The only difference is WHERE the data came from.
       if (INSTANT_PLAYBACK_COURSES.has(courseCode.value)) {
-        void instantPlayback.bootstrap()
-          .then((result) => {
-            console.log(
-              '[LearningPlayer] Instant playback bootstrapped:',
-              `firstCycle=${result.firstCycle.id}`,
-              `mapVersion=${result.mapVersion}`,
-            )
-            // Kick tier 1/2/3 in the background so by the time the
-            // legacy path finishes (or the cutover lands), the rest
-            // of the round + listening audio is already warm.
-            void instantPlayback.prefetchTier1()
-              .then(() => instantPlayback.prefetchTier2())
-              .then(() => instantPlayback.prefetchTier3())
-          })
-          .catch((err) => {
-            console.warn('[LearningPlayer] Instant playback bootstrap failed:', err)
-          })
+        try {
+          // 1. Bootstrap — round-map + first cycle. This is the
+          //    minimum to know "what round is the learner on" and to
+          //    have audio ready to roll. Cold-path budget here is
+          //    one indexed query + one tiny cycles fetch.
+          const bootstrapResult = await instantPlayback.bootstrap()
+          console.log(
+            '[InstantPlayback] Bootstrap ready:',
+            `firstCycle=${bootstrapResult.firstCycle.id}`,
+            `mapVersion=${bootstrapResult.mapVersion}`,
+          )
+
+          // 2. Tier 1 — rest of current round. Await this so the
+          //    initial `Round[]` we feed SimplePlayer has the full
+          //    round (intro+debut+builds+uses) rather than just the
+          //    bootstrap's one cycle. ~one indexed query.
+          await instantPlayback.prefetchTier1()
+
+          // 3. Build the player's Round[] from the composable's
+          //    buffer, walking the round-map in script order. The
+          //    adapter skips legoIds the buffer hasn't seen yet —
+          //    they fill in as tier 3 / near-edge top-up land.
+          const map = instantPlayback.roundMap.value
+          if (!map) {
+            // Bootstrap promises this is non-null on success, but
+            // defensively bail to the legacy path if it ever isn't.
+            throw new Error('Instant playback bootstrap left roundMap empty')
+          }
+          const initialRounds = backendCyclesToRounds(
+            instantPlayback.getBufferedCyclesForLego,
+            map,
+          )
+          if (initialRounds.length === 0) {
+            throw new Error('Instant playback produced 0 rounds from buffer')
+          }
+          console.log(`[InstantPlayback] Built ${initialRounds.length} round(s) for SimplePlayer`)
+
+          simplePlayer.initialize(initialRounds as any)
+          loadedRounds.value = initialRounds as any
+
+          // 4. Resume position. The composable bootstraps AT
+          //    `last_completed_lego_id`; the legacy player resumes at
+          //    that LEGO + 1 (so the learner doesn't redo the LEGO
+          //    they just finished). Mirror that behaviour here.
+          //    Fresh learners (bootstrap legoId === first round) stay
+          //    at round 0.
+          const startedAtLegoId = bootstrapResult.firstCycle.lego_id
+          const firstRoundLegoId = map.rounds[0]?.legoId
+          if (startedAtLegoId && startedAtLegoId !== firstRoundLegoId) {
+            const lastIdx = initialRounds.findIndex(r => r.legoId === startedAtLegoId)
+            if (lastIdx >= 0 && lastIdx + 1 < initialRounds.length) {
+              console.log(`[InstantPlayback] Resuming after ${startedAtLegoId} (round ${lastIdx + 1})`)
+              simplePlayer.jumpToRound(lastIdx + 1)
+              // Keep the composable's cursor in sync with what
+              // the player will actually play next — tier 3 uses
+              // currentLegoId to anchor the N+1 lookup.
+              const nextRound = initialRounds[lastIdx + 1]
+              if (nextRound?.legoId) {
+                instantPlayback.setCurrentLegoId(nextRound.legoId)
+              }
+            } else if (lastIdx >= 0) {
+              console.log(`[InstantPlayback] Resuming at final loaded round (${startedAtLegoId})`)
+              simplePlayer.jumpToRound(lastIdx)
+            }
+            // If the lego isn't in the buffer yet, we stay at round 0
+            // and the round-map advance will land naturally as the
+            // user plays — degraded-but-correct.
+          }
+
+          // Mirror the same belt-position update the legacy path does
+          // so the belt label / journey bar reflect where the user is
+          // before the first cycle starts.
+          if (startedAtLegoId && beltProgress.value?.setLastLegoId) {
+            beltProgress.value.setLastLegoId(startedAtLegoId)
+          }
+          if (startedAtLegoId && beltProgress.value?.setPlayingPosition) {
+            const seed = getSeedFromLegoId(startedAtLegoId)
+            if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+          }
+
+          // 5. Background tier 2 + 3 — listening audio + next round's
+          //    cycles. Never blocking; errors swallowed inside the
+          //    composable. Per the spec, the user has the whole
+          //    current round (~5 mins) to download these.
+          void instantPlayback.prefetchTier2()
+            .then(() => instantPlayback.prefetchTier3())
+            .then(() => {
+              // Tier 3 may have brought in the N+1 round's cycles —
+              // fold them into SimplePlayer so the engine can walk
+              // past the initial loaded edge without stalling.
+              const refreshedMap = instantPlayback.roundMap.value
+              if (!refreshedMap) return
+              const refreshedRounds = backendCyclesToRounds(
+                instantPlayback.getBufferedCyclesForLego,
+                refreshedMap,
+              )
+              // appendRounds dedupes by roundNumber, so this is a
+              // safe no-op when nothing new arrived.
+              if (refreshedRounds.length > initialRounds.length) {
+                simplePlayer.appendRounds(refreshedRounds.slice(initialRounds.length) as any)
+                loadedRounds.value = refreshedRounds as any
+              }
+            })
+
+          // Mark position + data ready and skip the legacy load
+          // entirely. The flag-on branch is now the only source of
+          // truth for the player's round list.
+          positionInitialized.value = true
+          dataReady = true
+          return
+        } catch (err) {
+          // Instant-playback failed for some reason (backend 500,
+          // round map not refreshed, etc.). Fall through to the
+          // legacy load — that's our safety net, exactly as designed.
+          console.warn('[InstantPlayback] Cutover path failed, falling back to legacy:', err)
+        }
       }
 
       // ============================================
