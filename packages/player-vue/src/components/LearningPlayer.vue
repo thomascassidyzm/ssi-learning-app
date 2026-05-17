@@ -297,6 +297,16 @@ const generateScript = (
     return Promise.reject(new Error('No supabase client'))
   }
   const tc = turboConfig.value
+  // Pod activation default lives on PodsConfig (admin UI is in L2 section).
+  // Merge it into the listening shape the generator consumes. Precedence:
+  //   1. listeningOverride.podActivationRound (per-learner pin path)
+  //   2. listeningConfig.value.podActivationRound (legacy `listening` row)
+  //   3. podsConfig.value.podActivationRound (new primary home)
+  //   4. hardcoded 6 (matches DEFAULT_POD_ACTIVATION elsewhere)
+  const baseListening = listeningOverride || listeningConfig.value
+  const podActivationRound =
+    baseListening.podActivationRound ?? podsConfig.value.podActivationRound ?? 6
+  const listening = { ...baseListening, podActivationRound }
   // Full-course one-shot generation. The script generator walks the
   // whole inventory; the player consumes from wherever its cursor is
   // (resume-by-lego-id). No seed-range chunking; no emit windowing.
@@ -304,7 +314,7 @@ const generateScript = (
     supabase.value,
     courseCode.value,
     50,  // infinitePlayLookahead — revival rounds after the main loop
-    listeningOverride || listeningConfig.value,
+    listening,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
     // Persisted per-seed L1 fire counts — null on first session / pre-init
@@ -6640,6 +6650,11 @@ onMounted(async () => {
             // without redeploying. Falls back to DEFAULT_LISTENING_CONFIG if
             // the load hasn't completed yet.
             const baseListeningConfig = listeningConfig.value || DEFAULT_LISTENING_CONFIG
+            // Admin default for pod activation now lives on PodsConfig.
+            // Legacy `listening` rows still carry it; prefer that (it's the
+            // row that's been around longest), fall back to pods, then 6.
+            const adminPodActivationDefault =
+              baseListeningConfig.podActivationRound ?? podsConfig.value.podActivationRound ?? 6
             let podActivationOverride: number | null = null
             if (isReturningUser && startingSeed > 0) {
               const resolved = await resolvePodActivationRound(
@@ -6647,7 +6662,7 @@ onMounted(async () => {
                 learnerId.value,
                 courseCode.value
               )
-              if (resolved !== baseListeningConfig.podActivationRound) {
+              if (resolved !== adminPodActivationDefault) {
                 podActivationOverride = resolved
                 console.log(`[LearningPlayer] Pod activation pinned at round ${resolved} for returning user`)
               }

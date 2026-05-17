@@ -51,6 +51,11 @@ export interface PodsConfig {
    *  proportionally because the pod-round ratchet only ticks on actual
    *  fires — not session rounds. */
   roundInterval: number
+  /** Main-round at which Layer 2 pods START FIRING for new learners.
+   *  Returning learners get their own pin on `course_enrollments.pod_activation_round`
+   *  which always wins over this default. Moved here from ListeningModeConfig
+   *  so the admin "pod activation" knob lives next to the other pod controls. */
+  podActivationRound: number
 }
 
 /**
@@ -98,7 +103,10 @@ export interface ListeningModeConfig {
   layer1StagePlaylist: Record<string, ListeningSlotRole[]>
   /** L1 fires spent in each transitional stage before promoting. */
   layer1StageDuration: number
-  podActivationRound: number  // global default; per-learner pin still wins
+  /** @deprecated Moved to PodsConfig.podActivationRound (2026-05-17).
+   *  Optional/read-only here for legacy rows whose `pods` config hasn't
+   *  been re-saved yet. The dashboard backfills on next load. */
+  podActivationRound?: number
 }
 
 export interface AlgorithmConfigs {
@@ -164,7 +172,6 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
     '4': ['ps2x'],
   },
   layer1StageDuration: 3,
-  podActivationRound: 6,
 }
 
 const DEFAULT_PODS: PodsConfig = {
@@ -187,6 +194,7 @@ const DEFAULT_PODS: PodsConfig = {
   gapGluedMs: 300,
   gapBetweenMs: 1000,
   roundInterval: 1,
+  podActivationRound: 6,
 }
 
 const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {

@@ -147,7 +147,11 @@ export interface ListeningConfig {
    * highest-numbered stage in layer1StagePlaylist is eternal regardless. */
   layer1StageDuration: number
   // Layer 2 — Pod 0
-  podActivationRound: number  // first pod lap fires at end of this main round (start of seed 2)
+  /** First pod lap fires at end of this main round (start of seed 2).
+   *  Optional now that the field's primary home is PodsConfig — callers
+   *  that pass the listening config without merging it in still work;
+   *  the generator falls back to 6 (matches DEFAULT_POD_ACTIVATION). */
+  podActivationRound?: number
 }
 
 export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
@@ -365,7 +369,7 @@ export async function generateLearningScript(
   //
   // L1 + L2 bookends may both fire in the same round — Aran approved.
   // -------------------------------------------------------------------------
-  const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound
+  const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound ?? 6
   const POD_ROUND_INTERVAL = Math.max(1, Math.floor(podRoundInterval))
   type PodPlayRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
   // Stage playlists per Aran's road-test 2026-05-05. PS = pod sentence at
