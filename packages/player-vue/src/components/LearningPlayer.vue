@@ -302,6 +302,9 @@ const generateScript = (
     // → cold start, every seed at Stage 1. After hydration this compounds
     // the Stage 1→4 progression across sessions.
     listeningProgress.value?.getFireCounts() ?? null,
+    // Pod-lap firing cadence from the pods config — keeps the generator's
+    // L1-outro merge decision in sync with the runtime scheduler.
+    podsConfig.value.roundInterval ?? 1,
   )
 }
 
@@ -1699,10 +1702,9 @@ const podScheduler = supabase?.value
       // Live from algorithm_config.pods — admin tweaks land on next lap.
       stagePlaylist: computed(() => podsConfig.value.stagePlaylist),
       stageDuration: computed(() => podsConfig.value.stageDuration),
-      // podRoundInterval lives on the listening config (alongside
-      // podActivationRound) — both control pod cadence at the main-round
-      // level. The `pods` config stays focused on per-lap shape.
-      roundInterval: computed(() => listeningConfig.value.podRoundInterval ?? 1),
+      // Pod-lap cadence — lives alongside the stage playlist + gap matrix
+      // on the pods config (semantically all "how pods behave" lives here).
+      roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
     })
   : null
 const playingPodLapAudio = ref(false)

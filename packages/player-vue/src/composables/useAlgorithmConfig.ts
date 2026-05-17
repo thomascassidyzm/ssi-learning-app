@@ -46,6 +46,11 @@ export interface PodsConfig {
   gapTightMs: number          // target→known
   gapGluedMs: number          // chunk → glued chunk (early stages)
   gapBetweenMs: number        // chunk → non-glued, intro→first, last→outro
+  /** Fire a pod-lap every N main rounds from podActivationRound onward.
+   *  Default 1 (every round, legacy behaviour). Stretches every pod stage
+   *  proportionally because the pod-round ratchet only ticks on actual
+   *  fires — not session rounds. */
+  roundInterval: number
 }
 
 /**
@@ -94,11 +99,6 @@ export interface ListeningModeConfig {
   /** L1 fires spent in each transitional stage before promoting. */
   layer1StageDuration: number
   podActivationRound: number  // global default; per-learner pin still wins
-  /** Fire a pod-lap every N main rounds from activation onward. Default 1
-   * (every round, legacy behaviour). 2 = every other round, 3 = every
-   * third, etc. Stretches every pod stage proportionally because pod-rounds
-   * (the stage-promotion unit) only tick on actual fires. */
-  podRoundInterval: number
 }
 
 export interface AlgorithmConfigs {
@@ -165,7 +165,6 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
   },
   layer1StageDuration: 3,
   podActivationRound: 6,
-  podRoundInterval: 1,
 }
 
 const DEFAULT_PODS: PodsConfig = {
@@ -187,6 +186,7 @@ const DEFAULT_PODS: PodsConfig = {
   gapTightMs: 200,
   gapGluedMs: 300,
   gapBetweenMs: 1000,
+  roundInterval: 1,
 }
 
 const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {

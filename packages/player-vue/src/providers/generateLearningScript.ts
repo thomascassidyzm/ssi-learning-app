@@ -148,11 +148,6 @@ export interface ListeningConfig {
   layer1StageDuration: number
   // Layer 2 — Pod 0
   podActivationRound: number  // first pod lap fires at end of this main round (start of seed 2)
-  /** Fire a pod-lap every N main rounds from activation onward. Default 1
-   *  (every round). Mirrored from useAlgorithmConfig.ListeningModeConfig
-   *  so the generator's L1-outro-merging decision stays in sync with the
-   *  runtime scheduler's actual cadence. */
-  podRoundInterval: number
 }
 
 export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
@@ -176,7 +171,6 @@ export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   },
   layer1StageDuration: 3,
   podActivationRound: 6,
-  podRoundInterval: 1,
 }
 
 export interface LearningScriptResult {
@@ -216,6 +210,13 @@ export async function generateLearningScript(
    * seed at fire_count=0, Stage 1).
    */
   initialL1FireCounts: Map<number, number> | null = null,
+  /**
+   * Fire a pod-lap every N main rounds from podActivationRound onward.
+   * Mirrors PodsConfig.roundInterval — passed in so the generator's
+   * L1-outro merge decision stays in sync with the runtime scheduler.
+   * Default 1 (every round, legacy behaviour).
+   */
+  podRoundInterval: number = 1,
 ): Promise<LearningScriptResult> {
   // Per-round shape — DB-tweakable via algorithm_config.script_shape.
   const SPACED_REP_OFFSETS = scriptShape.spacedRepOffsets
@@ -365,7 +366,7 @@ export async function generateLearningScript(
   // L1 + L2 bookends may both fire in the same round — Aran approved.
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound
-  const POD_ROUND_INTERVAL = Math.max(1, Math.floor(listeningConfig.podRoundInterval ?? 1))
+  const POD_ROUND_INTERVAL = Math.max(1, Math.floor(podRoundInterval))
   type PodPlayRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
   // Stage playlists per Aran's road-test 2026-05-05. PS = pod sentence at
   // 1.0×, PS×2 at 2.0×, trans = English translation. Stage 1 stays all 1.0×;
