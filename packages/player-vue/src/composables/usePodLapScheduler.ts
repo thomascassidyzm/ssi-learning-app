@@ -172,6 +172,10 @@ export interface UsePodLapSchedulerOptions {
   stagePlaylist?: Ref<Record<string, PodPlayRole[]>> | Record<string, PodPlayRole[]>
   /** Pod-rounds per stage 1-6. Defaults to DEFAULT_STAGE_DURATION. */
   stageDuration?: Ref<number> | number
+  /** Fire a pod-lap every N main rounds from activation onward. Default 1
+   *  (every round). Stretches every stage proportionally because the
+   *  pod-round ratchet only ticks on actual fires. */
+  roundInterval?: Ref<number> | number
 }
 
 const isGuestLearner = (id: string | null | undefined): boolean => {
@@ -277,7 +281,9 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const shouldFireLapAt = (mainRound: number): boolean => {
     if (!isInitialized.value) return false
     if (podSentences.value.length === 0) return false
-    return mainRound >= podActivationRound.value
+    if (mainRound < podActivationRound.value) return false
+    const interval = Math.max(1, Math.floor(unwrap(options.roundInterval) ?? 1))
+    return (mainRound - podActivationRound.value) % interval === 0
   }
 
   /**

@@ -94,6 +94,11 @@ export interface ListeningModeConfig {
   /** L1 fires spent in each transitional stage before promoting. */
   layer1StageDuration: number
   podActivationRound: number  // global default; per-learner pin still wins
+  /** Fire a pod-lap every N main rounds from activation onward. Default 1
+   * (every round, legacy behaviour). 2 = every other round, 3 = every
+   * third, etc. Stretches every pod stage proportionally because pod-rounds
+   * (the stage-promotion unit) only tick on actual fires. */
+  podRoundInterval: number
 }
 
 export interface AlgorithmConfigs {
@@ -160,6 +165,7 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
   },
   layer1StageDuration: 3,
   podActivationRound: 6,
+  podRoundInterval: 1,
 }
 
 const DEFAULT_PODS: PodsConfig = {

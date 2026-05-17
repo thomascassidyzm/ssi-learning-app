@@ -148,6 +148,11 @@ export interface ListeningConfig {
   layer1StageDuration: number
   // Layer 2 — Pod 0
   podActivationRound: number  // first pod lap fires at end of this main round (start of seed 2)
+  /** Fire a pod-lap every N main rounds from activation onward. Default 1
+   *  (every round). Mirrored from useAlgorithmConfig.ListeningModeConfig
+   *  so the generator's L1-outro-merging decision stays in sync with the
+   *  runtime scheduler's actual cadence. */
+  podRoundInterval: number
 }
 
 export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
@@ -171,6 +176,7 @@ export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   },
   layer1StageDuration: 3,
   podActivationRound: 6,
+  podRoundInterval: 1,
 }
 
 export interface LearningScriptResult {
@@ -359,6 +365,7 @@ export async function generateLearningScript(
   // L1 + L2 bookends may both fire in the same round — Aran approved.
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound
+  const POD_ROUND_INTERVAL = Math.max(1, Math.floor(listeningConfig.podRoundInterval ?? 1))
   type PodPlayRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
   // Stage playlists per Aran's road-test 2026-05-05. PS = pod sentence at
   // 1.0×, PS×2 at 2.0×, trans = English translation. Stage 1 stays all 1.0×;
@@ -395,13 +402,19 @@ export async function generateLearningScript(
   const podSentences = (podsResult.data || []) as PodSentenceRow[]
   const hasPods = podSentences.length > 0
 
-  // Pod-round = main-round - activation + 1, 1:1 from the activation round onwards.
+  // Pod-round counts actual fires, not player rounds. With interval N, a
+  // pod-lap only fires on rounds where (mainRound - activation) % N === 0;
+  // the pod-round increments by 1 per fire (so stage clocks still measure
+  // laps, not session-rounds). Non-firing rounds map to 0.
   function podRoundForMainRound(mainRound: number): number {
     if (mainRound < POD_ACTIVATION_ROUND) return 0
-    return mainRound - POD_ACTIVATION_ROUND + 1
+    const offset = mainRound - POD_ACTIVATION_ROUND
+    if (offset % POD_ROUND_INTERVAL !== 0) return 0
+    return Math.floor(offset / POD_ROUND_INTERVAL) + 1
   }
   function l2FiresAt(round: number): boolean {
-    return hasPods && round >= POD_ACTIVATION_ROUND
+    if (!hasPods || round < POD_ACTIVATION_ROUND) return false
+    return (round - POD_ACTIVATION_ROUND) % POD_ROUND_INTERVAL === 0
   }
 
   // Emit Layer 1 LISTEN cluster — bookend-wrapped block of graduated seeds.
