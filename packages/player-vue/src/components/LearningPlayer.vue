@@ -77,7 +77,7 @@ import { backendCyclesToRounds } from '../providers/backendCyclesToRounds'
  * hard-gate rule says simpler; once every course has been on the
  * flag for a release cycle, the legacy path can be deleted.
  */
-const INSTANT_PLAYBACK_COURSES = new Set<string>([])
+const INSTANT_PLAYBACK_COURSES = new Set<string>(['spa_for_eng'])
 
 /**
  * Near-edge top-up threshold for the instant-playback path: when the
