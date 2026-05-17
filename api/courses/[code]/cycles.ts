@@ -8,25 +8,28 @@
  * Frontend calls this with limit=1 on Start (for instant first cycle),
  * then limit=15 once audio is playing.
  *
+ * Performance — ONE Supabase round-trip:
+ *   The previous implementation made four sequential Supabase calls
+ *   (courses → round_index start → round_index window → legos+phrases
+ *   parallel). Each Vercel→Supabase round-trip is ~100-150ms of physics,
+ *   so the endpoint floored at ~700ms. The data is small (one course's
+ *   window) and Postgres can do all four joins internally for free, so
+ *   we collapsed everything into `get_course_cycles_window(...)` (see
+ *   migration 20260518_course_cycles_window_fn.sql in the dashboard
+ *   repo). Result: ~150-250ms typical.
+ *
+ *   The Node side here is now a thin pass-through: call the RPC,
+ *   group the rows by LEGO, assemble cycles. No SQL knowledge needed —
+ *   the function returns ready-to-iterate jsonb.
+ *
  * Notes:
- *  - LEGO walk is driven by course_round_index (cheap indexed lookup).
- *  - We fetch course_legos + course_practice_phrases in two batched queries,
- *    not a join, because that's still one round-trip per table and keeps
- *    each query trivially indexed. With both tables filtered by
- *    (course_code, seed_number, lego_index) ranges, Postgres uses the
- *    natural index.
+ *  - LEGO walk is driven by course_round_index inside the rpc.
  *  - Audio IDs are returned, not bytes. Frontend uses /api/audio/[audioId].
  *  - decomposition is included only when course_practice_phrases.decomposition
  *    is non-null (column added by 20260518_course_practice_phrases_decomposition.sql).
- *  - We do NOT include cross-LEGO spaced-rep here; the frontend constructs
+ *  - Cross-LEGO spaced-rep is NOT included here; the frontend constructs
  *    those from the round-map and re-fetches the same per-LEGO data
  *    (cheap, cached). Keeping cycles per-LEGO is the simpler/cheaper split.
- *
- * Performance: this is the cold-start query, so:
- *   - One indexed lookup against course_round_index
- *   - Two batched queries (course_legos, course_practice_phrases) keyed on
- *     a small (seed_number, lego_index) tuple set
- *   - No N+1, no joins, projected columns only
  *
  * Cache-Control: private, max-age=60 — frontend may re-fetch cheaply,
  * other learners aren't sharing this (per-session walk).
@@ -196,122 +199,46 @@ export default async function handler(
         (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
     )
 
-    // 1. Course version. We surface this alongside the cycles so the frontend
-    //    can detect course-version drift between its cached round-map and
-    //    the cycles it just received.
-    const { data: courseRow, error: courseErr } = await supabase
-      .from('courses')
-      .select('course_code, version')
-      .eq('course_code', code)
-      .maybeSingle()
+    // Single Postgres call: everything we need (course version, round window,
+    // legos for that window, phrases for that window's seeds) in one network
+    // round-trip. See migration 20260518_course_cycles_window_fn.sql for the
+    // function definition.
+    const ROUND_FETCH = Math.min(limit + 2, MAX_LIMIT + 2)
+    const { data, error } = await supabase.rpc('get_course_cycles_window', {
+      p_course_code: code,
+      p_from_lego_id: from,
+      p_round_limit: ROUND_FETCH,
+    })
 
-    if (courseErr) {
-      console.error('[Cycles] courses query error:', courseErr.message)
+    if (error) {
+      console.error('[Cycles] rpc error:', error.message)
       res.setHeader('Cache-Control', 'no-store')
-      res.status(500).json({ error: 'Failed to load course metadata' })
+      res.status(500).json({ error: 'Failed to load cycles window' })
       return
     }
-    if (!courseRow) {
+
+    const payload = (data || {}) as {
+      course: { course_code: string; version: number } | null
+      rounds: RoundMapRow[] | null
+      legos: CourseLegoRow[] | null
+      phrases: CoursePhraseRow[] | null
+    }
+
+    if (!payload.course) {
       res.setHeader('Cache-Control', 'no-store')
       res.status(404).json({ error: 'Course not found' })
       return
     }
-    const version = (courseRow as { version: number }).version
-
-    // 2. Locate the starting LEGO in the round map. We need its round_index
-    //    so the walk forward picks up subsequent rounds in script order.
-    const { data: startRow, error: startErr } = await supabase
-      .from('course_round_index')
-      .select('round_index, lego_id, seed_number, lego_index')
-      .eq('course_code', code)
-      .eq('lego_id', from)
-      .maybeSingle()
-
-    if (startErr) {
-      console.error('[Cycles] start lookup error:', startErr.message)
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(500).json({ error: 'Failed to resolve starting LEGO' })
-      return
-    }
-    if (!startRow) {
+    if (!payload.rounds || payload.rounds.length === 0) {
       res.setHeader('Cache-Control', 'no-store')
       res.status(404).json({ error: `LEGO ${from} not in round map for course ${code}` })
       return
     }
-    const startRound = (startRow as RoundMapRow).round_index
 
-    // 3. Pull the LEGO window from the round map. We over-fetch by a few
-    //    rounds because limit is in CYCLES, not LEGOs — a LEGO yields
-    //    intro + debut + builds + uses (~8-15 cycles). For limit=1 we still
-    //    only need the first LEGO; for limit=50 we may need ~6 LEGOs. The
-    //    upper bound below is intentionally generous; the materialised view
-    //    is tiny so over-fetching it is free.
-    const ROUND_FETCH = Math.min(limit + 2, MAX_LIMIT + 2)
-    const { data: roundRows, error: roundsErr } = await supabase
-      .from('course_round_index')
-      .select('round_index, lego_id, seed_number, lego_index')
-      .eq('course_code', code)
-      .gte('round_index', startRound)
-      .order('round_index', { ascending: true })
-      .limit(ROUND_FETCH)
-
-    if (roundsErr) {
-      console.error('[Cycles] round window query error:', roundsErr.message)
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(500).json({ error: 'Failed to load round window' })
-      return
-    }
-    const rounds = (roundRows || []) as RoundMapRow[]
-    if (rounds.length === 0) {
-      // We already confirmed startRow exists, so an empty window here means
-      // a race between our two reads. Surface a clean error.
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(503).json({ error: 'Round map empty after start row resolved (race?)' })
-      return
-    }
-
-    // 4. Batch-fetch the LEGO rows for the window. We filter by lego_id IN (...)
-    //    rather than seed_number/lego_index tuples because course_legos has
-    //    lego_id indexed and the LEGO ids are already known from the round map.
-    //    Same pattern works for course_practice_phrases — except that table
-    //    has no lego_id column, so we build a (seed_number, lego_index) match
-    //    set there.
-    const legoIds = rounds.map((r) => r.lego_id)
-    const seedNumbers = Array.from(new Set(rounds.map((r) => r.seed_number)))
-
-    const [legoResult, phraseResult] = await Promise.all([
-      supabase
-        .from('course_legos')
-        .select(
-          'seed_number, lego_index, lego_id, type, known_text, target_text, target_text_roman, components, is_new, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms'
-        )
-        .eq('course_code', code)
-        .in('lego_id', legoIds),
-      supabase
-        .from('course_practice_phrases')
-        .select(
-          'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, decomposition, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms'
-        )
-        .eq('course_code', code)
-        .in('seed_number', seedNumbers)
-        .order('position', { ascending: true, nullsFirst: false }),
-    ])
-
-    if (legoResult.error) {
-      console.error('[Cycles] course_legos query error:', legoResult.error.message)
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(500).json({ error: 'Failed to load LEGO data' })
-      return
-    }
-    if (phraseResult.error) {
-      console.error('[Cycles] course_practice_phrases query error:', phraseResult.error.message)
-      res.setHeader('Cache-Control', 'no-store')
-      res.status(500).json({ error: 'Failed to load practice phrases' })
-      return
-    }
-
-    const legoRows = (legoResult.data || []) as CourseLegoRow[]
-    const phraseRows = (phraseResult.data || []) as CoursePhraseRow[]
+    const version = payload.course.version
+    const rounds = payload.rounds
+    const legoRows = payload.legos || []
+    const phraseRows = payload.phrases || []
 
     // Index for O(1) lookup during the per-LEGO walk.
     const legoByKey = new Map<string, CourseLegoRow>()
