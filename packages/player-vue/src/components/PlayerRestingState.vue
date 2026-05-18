@@ -1,8 +1,22 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName, t } from '@/composables/useI18n'
 import LanguageFlag from '@/components/schools/shared/LanguageFlag.vue'
+
+// Course-specific loading copy, rotated randomly per course-open so the
+// modal-close → player-ready window feels purposeful rather than blank.
+// {lang} gets interpolated to the localised target-language name.
+// Resolves to "Ready when you are" once the player is actually loaded.
+const LOADING_TEMPLATES = [
+  'Getting your {lang} course ready...',
+  'Fetching {lang} for you now...',
+  'Firing up the engines — {lang} loading...',
+  'Settling into your {lang} session...',
+  'Pulling your {lang} together...',
+  'Warming up your {lang}...',
+  'Lining up your {lang} session...',
+]
 
 const props = defineProps({
   course: { type: Object, default: null },
@@ -84,8 +98,28 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((props.completedSeeds / props.totalSeeds) * 100))
 })
 
+// Pick a loading template once per course-load. Re-rolls whenever the
+// course identity changes (target_lang switch == different course == new
+// roll) but stays stable while the player loads, so the greeting doesn't
+// flicker between variants on reactive updates.
+const loadingTemplate = ref(LOADING_TEMPLATES[Math.floor(Math.random() * LOADING_TEMPLATES.length)])
+watch(
+  () => props.course?.target_lang,
+  () => {
+    loadingTemplate.value = LOADING_TEMPLATES[Math.floor(Math.random() * LOADING_TEMPLATES.length)]
+  },
+)
+
 const greeting = computed(() => {
-  if (!props.isPlayerReady) return t('resting.loading', 'Loading...')
+  if (!props.isPlayerReady) {
+    // Course-specific loading copy. courseName is the localised target
+    // language ("Italian", "Greek", "Croatian"...). Falls back to a
+    // generic line if courseName hasn't resolved yet (rare — the parent
+    // gates on activeCourse).
+    const lang = courseName.value
+    if (!lang || lang === '…') return t('resting.loading', 'Loading...')
+    return loadingTemplate.value.replace('{lang}', lang)
+  }
   if (props.completedSeeds === 0) return t('resting.readyWhenYouAre', 'Ready when you are')
   if (props.completedSeeds < 10) return t('resting.greatStart', 'Great start — keep going')
   if (props.completedSeeds < 50) return t('resting.buildingMomentum', 'Building momentum')
