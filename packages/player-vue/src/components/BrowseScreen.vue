@@ -292,14 +292,17 @@ const getBeltColor = (courseCode) => {
 
 const getProgress = (courseCode) => {
   const enrollment = props.enrolledCourses.find(e => e.course_code === courseCode || e.course_id === courseCode)
-  const seed = getSeedFromLegoId(enrollment?.highest_completed_lego_id ?? null)
+  const legoId = enrollment?.highest_completed_lego_id ?? null
+  const seed = getSeedFromLegoId(legoId)
   if (seed === null) return null
   const course = allCourses.value.find(c => c.course_code === courseCode)
-  // Prefer LEGO-based fraction (apples to apples for "how far through the
-  // course content"). Approximate legos-completed as seed × avg-legos-per-
-  // seed because per-seed lego counts aren't carried on the enrollment.
   if (course?.lego_count && course?.seed_count) {
-    const legosDone = Math.min(course.lego_count, Math.round(seed * course.lego_count / course.seed_count))
+    // Approximate legos-done: legos in completed seeds (1..seed-1) at the
+    // course's average density, plus the L-index inside the current seed
+    // (parsed from the lego_id).
+    const legoIdx = parseInt(legoId.match(/L(\d+)$/)?.[1] ?? '0', 10)
+    const avgPerSeed = course.lego_count / course.seed_count
+    const legosDone = Math.min(course.lego_count, Math.round((seed - 1) * avgPerSeed + legoIdx))
     return `${legosDone} / ${course.lego_count}`
   }
   const total = course?.seed_count
