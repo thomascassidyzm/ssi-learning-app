@@ -5339,8 +5339,16 @@ const handleSkipToNextBelt = async () => {
   isSkippingBelt.value = true
   try {
     haltAllPlayback()
-    const targetSeed = nextBeltThreshold
-    console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}`)
+    // Clamp to what's actually published. The BELT_THRESHOLDS array is
+    // course-agnostic, but most courses don't have 668 seeds — e.g.
+    // zho_for_eng tops out at seed 350, so a brown→black skip targets
+    // seed 400 and 404s. Cap at the course max so the final jump lands
+    // on the last reachable seed; natural play from there reaches the
+    // end and triggers infinite play.
+    const courseMaxSeed = beltProgress.value?.courseSeedCount.value ?? nextBeltThreshold
+    const targetSeed = Math.min(nextBeltThreshold, courseMaxSeed)
+    const clampedSuffix = targetSeed < nextBeltThreshold ? ' (clamped to course max)' : ''
+    console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}${clampedSuffix}`)
 
     // Check if target seed is already loaded
     const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
