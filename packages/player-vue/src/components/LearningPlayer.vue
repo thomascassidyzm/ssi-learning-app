@@ -1343,12 +1343,15 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const texts: string[] = (useNative ? cycle.componentLegoTextsNative : null) || cycle.componentLegoTexts || []
   const textMap = useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value
   const textMapFallback = legoTargetTextMap.value
-  // Show known text whenever the M-LEGO appears on its own (intro, debut, or any
-  // standalone replay). Once it's embedded inside a longer BUILD/USE sentence,
-  // the per-component known mapping is clutter.
-  const salientLegoTargetText = (legoTargetTextMap.value.get(salientLegoId) || '').trim()
-  const cycleTargetText = (cycle.target?.text || '').trim()
-  const showKnown = !!salientLegoTargetText && cycleTargetText === salientLegoTargetText
+  // Show known text only during intro and debut — the M-LEGO's first
+  // appearance as a standalone unit. BUILDs and USEs (including the rare
+  // case where a USE happens to have target text identical to the parent
+  // LEGO's target — e.g. a single-word LEGO with a one-word USE) are
+  // production practice; the per-component known mapping there is clutter.
+  // In infinite play this rule naturally suppresses known entirely because
+  // there are no intro/debut cycles — only USEs and spaced_reps.
+  const cycleType = (cycle.type || '') as string
+  const showKnown = cycleType === 'intro' || cycleType === 'debut'
   const knownMap = showKnown ? legoKnownTextMap.value : null
   const rawBlocks = cycle.componentLegoIds
     .map((id: string, idx: number) => {
