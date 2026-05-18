@@ -150,14 +150,18 @@ const fetchCourses = async () => {
   }
 
   try {
-    const { data, error } = await client
-      .from('courses')
-      .select('*')
-      .in('new_app_status', ['live', 'beta'])
-      .order('display_name')
+    const [coursesRes, statsRes] = await Promise.all([
+      client
+        .from('courses')
+        .select('*')
+        .in('new_app_status', ['live', 'beta'])
+        .order('display_name'),
+      client.from('course_stats').select('course_code, lego_count'),
+    ])
 
-    if (error) throw error
-    allCourses.value = data || []
+    if (coursesRes.error) throw coursesRes.error
+    const legoCounts = new Map((statsRes.data || []).map(r => [r.course_code, r.lego_count]))
+    allCourses.value = (coursesRes.data || []).map(c => ({ ...c, lego_count: legoCounts.get(c.course_code) ?? null }))
   } catch (e) {
     console.error('[BrowseScreen] Failed to fetch courses:', e)
   } finally {
@@ -291,6 +295,13 @@ const getProgress = (courseCode) => {
   const seed = getSeedFromLegoId(enrollment?.highest_completed_lego_id ?? null)
   if (seed === null) return null
   const course = allCourses.value.find(c => c.course_code === courseCode)
+  // Prefer LEGO-based fraction (apples to apples for "how far through the
+  // course content"). Approximate legos-completed as seed × avg-legos-per-
+  // seed because per-seed lego counts aren't carried on the enrollment.
+  if (course?.lego_count && course?.seed_count) {
+    const legosDone = Math.min(course.lego_count, Math.round(seed * course.lego_count / course.seed_count))
+    return `${legosDone} / ${course.lego_count}`
+  }
   const total = course?.seed_count
   return total ? `${seed} / ${total}` : `${seed}`
 }
