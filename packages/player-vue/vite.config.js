@@ -29,6 +29,7 @@ export default defineConfig(({ mode }) => ({
         // paths we want to bypass the SW so the rewrite to the marketing
         // site actually runs. /api/* must also stay on the network.
         navigateFallbackDenylist: [
+          /^\/paddle-review$/,
           /^\/terms$/,
           /^\/privacy$/,
           /^\/refunds$/,
