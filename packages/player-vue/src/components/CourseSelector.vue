@@ -19,6 +19,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useUserRole } from '../composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
+import { BELTS, getSeedFromLegoId, getBeltIndexForSeed } from '../composables/useBeltProgress'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -276,15 +277,26 @@ const getEnrollment = (courseCode) => {
   return props.enrolledCourses.find(e => e.course_code === courseCode || e.course_id === courseCode)
 }
 
-// Get progress for a course. Canonical position is highest_completed_lego_id
-// (e.g. "S0001L04"); parse the SNNNN prefix as the learner's current seed.
+// Tile status: belt-coloured dot + position label. Canonical position is
+// highest_completed_lego_id; belt is derived from the seed prefix.
+// Position label is "N / total" using the course's seed_count for a sense
+// of overall journey progress without surfacing the word "seed" to the
+// learner. When per-course total LEGO counts get published by the
+// dashboard, swap the denominator to LEGOs.
+const getBeltColor = (courseCode) => {
+  const enrollment = getEnrollment(courseCode)
+  const seed = getSeedFromLegoId(enrollment?.highest_completed_lego_id ?? null)
+  if (seed === null) return null
+  return BELTS[getBeltIndexForSeed(seed)].color
+}
+
 const getProgress = (courseCode) => {
   const enrollment = getEnrollment(courseCode)
-  if (!enrollment?.highest_completed_lego_id) return 0
-  const m = enrollment.highest_completed_lego_id.match(/^S(\d{4})L/)
-  if (!m) return 0
-  const seedNum = parseInt(m[1], 10)
-  return Math.min(100, Math.round(seedNum / (enrollment.total_seeds || 668) * 100))
+  const seed = getSeedFromLegoId(enrollment?.highest_completed_lego_id ?? null)
+  if (seed === null) return null
+  const course = allCourses.value.find(c => c.course_code === courseCode)
+  const total = course?.seed_count
+  return total ? `${seed} / ${total}` : `${seed}`
 }
 
 // Check if course is currently active
@@ -475,7 +487,8 @@ onMounted(() => {
                         </svg>
                       </template>
                       <template v-else-if="group.courses.some(c => isEnrolled(c.course_code))">
-                        {{ getProgress(group.courses[0].course_code) }}%
+                        <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
+                        {{ getProgress(group.courses[0].course_code) }}
                       </template>
                       <template v-else-if="isLocked(group.courses[0])">
                         <span class="try-free">Try free →</span>
@@ -494,7 +507,7 @@ onMounted(() => {
                       <span class="variant-indent" />
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
-                        <template v-if="isEnrolled(course.course_code)">{{ getProgress(course.course_code) }}%</template>
+                        <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
                         <template v-else-if="isLocked(course)"><span class="try-free">Try free →</span></template>
                       </span>
                     </button>
@@ -536,7 +549,8 @@ onMounted(() => {
                         </svg>
                       </template>
                       <template v-else-if="group.courses.some(c => isEnrolled(c.course_code))">
-                        {{ getProgress(group.courses[0].course_code) }}%
+                        <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
+                        {{ getProgress(group.courses[0].course_code) }}
                       </template>
                       <template v-else-if="isBetaCourse(group.courses[0])">
                         <span class="row-beta">β</span>
@@ -554,7 +568,7 @@ onMounted(() => {
                       <span class="variant-indent" />
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
-                        <template v-if="isEnrolled(course.course_code)">{{ getProgress(course.course_code) }}%</template>
+                        <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
                       </span>
                     </button>
                   </li>
@@ -1276,6 +1290,15 @@ onMounted(() => {
   align-items: center;
   gap: 0.25rem;
   margin-left: auto;
+}
+
+.row-status .belt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
 .course-row.enrolled .row-status {
