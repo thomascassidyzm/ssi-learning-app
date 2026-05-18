@@ -8255,8 +8255,8 @@ defineExpose({
 
           <button
             class="belt-timer-unified"
-            :title="!nextBelt ? 'Black belt achieved!' : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
-            :aria-label="!nextBelt ? 'Black belt achieved' : `${Math.round(beltProgressPercent)} percent to ${nextBelt.name} belt. Session time ${formattedSessionTime}`"
+            :title="!nextBelt ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved!` : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
+            :aria-label="!nextBelt ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved` : `${Math.round(beltProgressPercent)} percent to ${nextBelt.name} belt. Session time ${formattedSessionTime}`"
             @click="handleBeltPillTap"
           >
             <div class="belt-bar-track" aria-hidden="true">
