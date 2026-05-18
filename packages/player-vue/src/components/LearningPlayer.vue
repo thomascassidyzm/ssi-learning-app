@@ -374,6 +374,12 @@ const activeCourseCode = courseCode
 const instantPlayback = useInstantPlayback(courseCode, {
   resolveStartLegoId: async () => {
     if (!progressStore?.value || !learnerId.value || !courseCode.value) return null
+    // Guest learner IDs have a `guest-` prefix that doesn't pass the UUID
+    // column constraint on course_enrollments — Supabase returns 400 on
+    // the lookup. Guests have no enrollment row to read anyway, so skip
+    // the query entirely and let bootstrap default to round 1 (fresh
+    // learner). Mirrors the canSync() guard in useBeltProgress.
+    if (learnerId.value.startsWith('guest-')) return null
     try {
       const enrollment = await progressStore.value.getEnrollment(
         learnerId.value,
