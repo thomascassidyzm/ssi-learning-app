@@ -74,6 +74,14 @@ const JOURNEY_MAP: Record<string, string> = {
   lav: '/design/journey-lav.webp',
   lit: '/design/journey-lit.webp',
   nep: '/design/journey-nep.webp',
+  swa: '/design/journey-swa.webp',
+  hun: '/design/journey-hun.webp',
+  afr: '/design/journey-afr.webp',
+  ces: '/design/journey-ces.webp',
+  mkd: '/design/journey-mkd.webp',
+  mlt: '/design/journey-mlt.webp',
+  rus: '/design/journey-rus.webp',
+  srp: '/design/journey-srp.webp',
 }
 
 // Dawn glow per belt: colour warms and intensifies as learner progresses
@@ -91,12 +99,20 @@ const DAWN_GLOW: Record<string, { color: string; opacity: number }> = {
 const DEFAULT_JOURNEY = '/design/journey-default.webp'
 
 // Course-specific image — only defined when we know the language and
-// the catalogue has art for it. If null, only the blurred default
-// layer is rendered.
+// the catalogue has art for it. If null, only the default layer is
+// rendered (blurred while lang is still resolving, sharp once we know
+// the lang has no specific art).
 const courseImageSrc = computed<string | null>(() => {
   if (!props.lang) return null
   return JOURNEY_MAP[props.lang] ?? null
 })
+
+// Lang is resolved but has no specific journey — promote the default
+// from "loading shimmer" to "final backdrop" so the learner doesn't
+// stare at a permanently blurred image.
+const isResolvedFallback = computed(() =>
+  !!props.lang && !JOURNEY_MAP[props.lang]
+)
 
 // Tracks whether the course image has decoded so we can crossfade it
 // in. Reset whenever the src changes so the next swap also animates.
@@ -125,7 +141,7 @@ const glowStyle = computed(() => {
          blurry even after the real image arrives). -->
     <img
       :src="DEFAULT_JOURNEY"
-      :class="['journey-painting', 'journey-painting--default', { 'is-fading': courseLoaded }]"
+      :class="['journey-painting', 'journey-painting--default', { 'is-fading': courseLoaded, 'is-fallback': isResolvedFallback }]"
       alt=""
       loading="eager"
       draggable="false"
@@ -189,6 +205,14 @@ const glowStyle = computed(() => {
 }
 .journey-painting--default.is-fading {
   opacity: 0;
+}
+/* No course-specific art for this lang — drop the blur + scale so the
+   default reads as the resolved backdrop rather than a loading state.
+   Transitioned so the unblur feels like a settle, not a snap. */
+.journey-painting--default.is-fallback {
+  filter: none;
+  transform: translateX(-50%);
+  transition: filter 1200ms ease, transform 1200ms ease, opacity 1200ms ease;
 }
 
 /* Course-specific painting fades in over the default once decoded.
