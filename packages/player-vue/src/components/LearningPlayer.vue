@@ -3158,7 +3158,8 @@ const isAwakening = computed(() => loadingStage.value !== 'ready')
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
-// Varied awakening messages - randomly selected each session
+// Generic awakening messages (i18n) — fallback when we don't yet know the
+// course's target language.
 const AWAKENING_MESSAGES = computed(() => [
   t('loading.tuning'),
   t('loading.warmingNeurons'),
@@ -3174,11 +3175,35 @@ const AWAKENING_MESSAGES = computed(() => [
   t('loading.pickingThread'),
 ])
 
+// Course-specific templates with {lang} interpolation. Preferred when the
+// target language has resolved, so the awakening typewriter feels personal
+// to the course you just chose ("Getting your Greek course ready...") rather
+// than a generic "Tuning your station". Falls back to AWAKENING_MESSAGES if
+// the language name isn't available yet (cold mount before activeCourse).
+const COURSE_AWAKENING_TEMPLATES = [
+  'Getting your {lang} course ready...',
+  'Fetching {lang} for you now...',
+  'Firing up the engines — {lang} loading...',
+  'Settling into your {lang} session...',
+  'Pulling your {lang} together...',
+  'Warming up your {lang}...',
+  'Lining up your {lang} session...',
+]
+
 const getRandomAwakeningMessage = () => {
+  // Prefer course-specific copy when we have the target language name
+  // (resolves the moment the active course is set, which happens at
+  // route-mount well before loading completes).
+  const langName = getLanguageName(courseTargetLang.value)
+  if (langName && langName !== courseTargetLang.value) {
+    const tmpl = COURSE_AWAKENING_TEMPLATES[
+      Math.floor(Math.random() * COURSE_AWAKENING_TEMPLATES.length)
+    ]
+    return tmpl.replace('{lang}', langName)
+  }
+  // Fallback: generic i18n awakening pool
   const messages = AWAKENING_MESSAGES.value
-  const pick = messages[Math.floor(Math.random() * messages.length)]
-  console.log(`[Awakening] locale test: t('loading.tuning') = "${t('loading.tuning')}", picked: "${pick}"`)
-  return pick
+  return messages[Math.floor(Math.random() * messages.length)]
 }
 
 // Transition to next loading stage
