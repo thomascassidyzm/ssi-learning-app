@@ -71,18 +71,28 @@ import { backendCyclesToRounds } from '../providers/backendCyclesToRounds'
  * tier 1/2/3 prefetches during playback) instead of the legacy
  * upfront full-course load.
  *
- * Add a course code here to route it through the instant-playback
- * path. Empty by default — opt in per course after verifying on
- * staging. Hard-coded Set rather than a remote config because the
- * hard-gate rule says simpler; once every course has been on the
- * flag for a release cycle, the legacy path can be deleted.
+ * Two routing controls:
+ *   - INSTANT_PLAYBACK_ALL: wildcard — when true, every course uses the
+ *     instant-playback path. Set to true on staging while we're soaking
+ *     the new path across the whole catalogue.
+ *   - INSTANT_PLAYBACK_COURSES: explicit allow-list, consulted only when
+ *     INSTANT_PLAYBACK_ALL is false. Use this once we flip ALL back to
+ *     false (e.g. for a cautious main-branch rollout one course at a time).
+ *
+ * Safety net: if the new path errors for any reason (round-map missing,
+ * backend 500, etc.), LearningPlayer falls through to the legacy load —
+ * see the try/catch around the bootstrap call in loadAllData. So flipping
+ * INSTANT_PLAYBACK_ALL on doesn't risk breaking any course that lacks the
+ * required round-map data; those just degrade silently to legacy.
  */
+const INSTANT_PLAYBACK_ALL = true
 const INSTANT_PLAYBACK_COURSES = new Set<string>([
-  'spa_for_eng',  // paywalled Big 10 — verified endpoint, Tom testing with new account
-  'ell_for_eng',  // Greek (free) — 873 rounds populated
-  'dan_for_eng',  // Danish (free) — 557 rounds populated
-  'gle_for_eng',  // Irish (free) — 788 rounds populated
+  // Used only when INSTANT_PLAYBACK_ALL is false. Examples:
+  //   'spa_for_eng', 'ell_for_eng', 'dan_for_eng', 'gle_for_eng',
 ])
+function isInstantPlaybackCourse(courseCode: string): boolean {
+  return INSTANT_PLAYBACK_ALL || INSTANT_PLAYBACK_COURSES.has(courseCode)
+}
 
 /**
  * Near-edge top-up threshold for the instant-playback path: when the
@@ -808,7 +818,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
   // round-map-derived `currentRound` computed reads off it too. No-op
   // on legacy courses (composable is initialised but unused).
   const currentLegoIdNow = simplePlayer.currentRound?.value?.legoId
-  if (currentLegoIdNow && INSTANT_PLAYBACK_COURSES.has(courseCode.value)) {
+  if (currentLegoIdNow && isInstantPlaybackCourse(courseCode.value)) {
     instantPlayback.setCurrentLegoId(currentLegoIdNow)
   }
   // Near-edge trigger.
@@ -824,7 +834,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
   const totalLoaded = simplePlayer.roundCount?.value ?? 0
   if (totalLoaded === 0) return
 
-  if (INSTANT_PLAYBACK_COURSES.has(courseCode.value)) {
+  if (isInstantPlaybackCourse(courseCode.value)) {
     if (idx >= totalLoaded - INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS) {
       void instantPlayback.prefetchTier3().then(() => {
         const map = instantPlayback.roundMap.value
@@ -6425,7 +6435,7 @@ onMounted(async () => {
       // exactly — so listening orchestration, pod scheduler, belt
       // progress, paywalls, all the downstream consumers stay
       // unchanged. The only difference is WHERE the data came from.
-      if (INSTANT_PLAYBACK_COURSES.has(courseCode.value)) {
+      if (isInstantPlaybackCourse(courseCode.value)) {
         try {
           // 1. Bootstrap — round-map + first cycle. This is the
           //    minimum to know "what round is the learner on" and to
