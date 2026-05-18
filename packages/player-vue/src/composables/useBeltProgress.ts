@@ -188,7 +188,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     try {
       const { data, error } = await supabase
         .from('course_enrollments')
-        .select('highest_completed_seed, last_completed_lego_id')
+        .select('highest_completed_lego_id, last_completed_lego_id')
         .eq('learner_id', learnerId)
         .eq('course_id', courseCode)
         .maybeSingle()
@@ -198,11 +198,18 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         return null
       }
 
-      // Convert seed to belt index
-      const remoteSeed = data?.highest_completed_seed ?? null
-      if (remoteSeed === null) return null
+      // Belt is derived from the highest LEGO the learner has reached.
+      // We deliberately do NOT read `highest_completed_seed` — that column
+      // is dead code and gets stale because nothing in the sync path
+      // writes to it (the upsert in syncToRemote only touches
+      // last_completed_lego_id + last_practiced_at). The lego_id is the
+      // canonical position per the existing memory rule, and the seed
+      // number is encoded inside it (S0044L03 → 44).
+      const highestLegoId = data?.highest_completed_lego_id ?? null
+      const highestSeed = highestLegoId ? getSeedFromLegoId(highestLegoId) : null
+      if (highestSeed === null) return null
       return {
-        beltIndex: getBeltIndexForSeed(remoteSeed),
+        beltIndex: getBeltIndexForSeed(highestSeed),
         lastLegoId: data?.last_completed_lego_id ?? null,
       }
     } catch (err) {
