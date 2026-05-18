@@ -1,0 +1,143 @@
+/*
+ * Shared styling for the static compliance + legal pages:
+ *   /paddle-review, /terms, /privacy, /refunds
+ *
+ * Pure HTML + CSS (no JS, no framework) so the pages survive the
+ * service worker / SPA layer and a Paddle reviewer can scan them
+ * uniformly. The SSi-branded header + brand-red accents match
+ * saysomethingin.com chrome so the pages read as a coherent product
+ * rather than a bare compliance dump.
+ */
+
+:root {
+  --ssi-red: #DB1E17;
+  --ssi-ink: #1a1a1a;
+  --ssi-ink-soft: #4a4a4a;
+  --ssi-rule: rgba(0, 0, 0, 0.08);
+  --ssi-bg: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  color: var(--ssi-ink);
+  background: var(--ssi-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ───── Header ─────────────────────────────────────────────────────── */
+
+.ssi-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  background: var(--ssi-bg);
+  border-bottom: 1px solid var(--ssi-rule);
+}
+
+.ssi-logo-link {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.ssi-logo {
+  height: 28px;
+  width: auto;
+}
+
+.ssi-cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 20px;
+  background: var(--ssi-red);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 999px;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.ssi-cta:hover { filter: brightness(1.08); }
+.ssi-cta:active { transform: translateY(1px); }
+
+/* ───── Body ───────────────────────────────────────────────────────── */
+
+main.ssi-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+main.ssi-main h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+
+main.ssi-main h2 {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 32px 0 10px;
+  line-height: 1.35;
+}
+
+main.ssi-main p,
+main.ssi-main li { margin: 0 0 12px; }
+
+main.ssi-main ul { padding-left: 22px; }
+
+main.ssi-main a {
+  color: var(--ssi-red);
+  text-decoration: none;
+}
+main.ssi-main a:hover { text-decoration: underline; }
+
+main.ssi-main strong { font-weight: 600; }
+
+/* ───── Paddle-review summary page extras ──────────────────────────── */
+
+.pricing-headline {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 16px 0 4px;
+  color: var(--ssi-ink);
+}
+
+.pricing-sub {
+  color: var(--ssi-ink-soft);
+  margin: 0 0 8px;
+}
+
+hr.ssi-rule {
+  border: 0;
+  border-top: 1px solid var(--ssi-rule);
+  margin: 32px 0 24px;
+}
+
+footer.ssi-fine {
+  color: var(--ssi-ink-soft);
+  font-size: 14px;
+}
+
+/* ───── Footer-nav within legal pages ──────────────────────────────── */
+
+.ssi-pagenav {
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ssi-rule);
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
