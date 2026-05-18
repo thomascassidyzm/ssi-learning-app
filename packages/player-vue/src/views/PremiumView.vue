@@ -343,11 +343,11 @@ onMounted(async () => {
         <span class="legal-sep" aria-hidden="true">·</span>
         <a href="https://www.saysomethingin.com/contact" target="_blank" rel="noopener">Contact</a>
         <span class="legal-sep" aria-hidden="true">·</span>
-        <a href="https://www.saysomethingin.com/terms" target="_blank" rel="noopener">Terms of Service</a>
+        <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
         <span class="legal-sep" aria-hidden="true">·</span>
-        <a href="https://www.saysomethingin.com/privacy" target="_blank" rel="noopener">Privacy Notice</a>
+        <a href="/privacy" target="_blank" rel="noopener">Privacy Notice</a>
         <span class="legal-sep" aria-hidden="true">·</span>
-        <a href="https://www.saysomethingin.com/refunds" target="_blank" rel="noopener">Refund Policy</a>
+        <a href="/refunds" target="_blank" rel="noopener">Refund Policy</a>
       </footer>
     </main>
 

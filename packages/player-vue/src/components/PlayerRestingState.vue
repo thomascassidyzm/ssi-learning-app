@@ -216,11 +216,11 @@ const handleChangeCourse = () => {
            page. Kept deliberately subtle so it reads as fine-print
            chrome, not content. -->
       <footer class="resting-legal">
-        <a href="https://www.saysomethingin.com/terms" target="_blank" rel="noopener">Terms</a>
+        <a href="/terms" target="_blank" rel="noopener">Terms</a>
         <span aria-hidden="true">·</span>
-        <a href="https://www.saysomethingin.com/privacy" target="_blank" rel="noopener">Privacy</a>
+        <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
         <span aria-hidden="true">·</span>
-        <a href="https://www.saysomethingin.com/refunds" target="_blank" rel="noopener">Refunds</a>
+        <a href="/refunds" target="_blank" rel="noopener">Refunds</a>
       </footer>
 
     </div>

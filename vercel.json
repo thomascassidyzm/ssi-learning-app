@@ -19,6 +19,10 @@
   "rewrites": [
     { "source": "/schools", "destination": "/schools/index.html" },
     { "source": "/schools/(.*)", "destination": "/schools/index.html" },
+    { "source": "/paddle-review", "destination": "/paddle-review/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
+    { "source": "/refunds", "destination": "/refunds/index.html" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
