@@ -11,7 +11,7 @@
  * - Shows pricing_tier indicator for premium courses
  * - Localized UI based on selected known language
  */
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n, setLocale, getLanguageName, getLanguageEndonym } from '../composables/useI18n'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
@@ -126,10 +126,12 @@ const emit = defineEmits(['close', 'selectCourse'])
 
 // State
 const allCourses = ref([])
-// Map<`${course_code}|${lego_id}`, round_index> — looked up from
-// course_round_index for the learner's highest_completed_lego_id on
-// each enrolled course. Lets the tile show the exact LEGO ordinal
-// instead of approximating from seed × avg-legos-per-seed.
+// Map<course_code, course_enrollments row> — the actual per-learner
+// progress. props.enrolledCourses is the catalogue (misnamed), so it
+// doesn't carry highest_completed_lego_id. Provided by App.vue.
+const learnerEnrollments = inject('learnerEnrollments', ref(new Map()))
+// Map<`${course_code}|${lego_id}`, round_index> — exact LEGO ordinal
+// looked up from course_round_index per the learner's current position.
 const roundIndexes = ref(new Map())
 const isLoading = ref(false)
 const error = ref(null)
@@ -289,14 +291,14 @@ const getEnrollment = (courseCode) => {
 // learner. When per-course total LEGO counts get published by the
 // dashboard, swap the denominator to LEGOs.
 const getBeltColor = (courseCode) => {
-  const enrollment = getEnrollment(courseCode)
+  const enrollment = learnerEnrollments.value.get(courseCode)
   const seed = getSeedFromLegoId(enrollment?.highest_completed_lego_id ?? null)
   if (seed === null) return null
   return BELTS[getBeltIndexForSeed(seed)].color
 }
 
 const getProgress = (courseCode) => {
-  const enrollment = getEnrollment(courseCode)
+  const enrollment = learnerEnrollments.value.get(courseCode)
   const legoId = enrollment?.highest_completed_lego_id ?? null
   const seed = getSeedFromLegoId(legoId)
   if (seed === null) return null
@@ -322,8 +324,8 @@ const isActive = (courseCode) => {
 // highest_completed_lego_id. One batched Supabase query.
 const fetchRoundIndexes = async () => {
   if (!props.supabase) return
-  const pairs = (props.enrolledCourses || [])
-    .map(e => ({ course_code: e.course_code || e.course_id, lego_id: e.highest_completed_lego_id }))
+  const pairs = [...learnerEnrollments.value.values()]
+    .map(e => ({ course_code: e.course_id, lego_id: e.highest_completed_lego_id }))
     .filter(p => p.course_code && p.lego_id)
   if (pairs.length === 0) {
     roundIndexes.value = new Map()
@@ -345,7 +347,7 @@ const fetchRoundIndexes = async () => {
   roundIndexes.value = m
 }
 
-watch(() => props.enrolledCourses, fetchRoundIndexes, { immediate: true, deep: true })
+watch(() => learnerEnrollments.value, fetchRoundIndexes, { immediate: true, deep: true })
 
 // Fetch courses from Supabase (dashboard schema is SSoT)
 const fetchCourses = async () => {

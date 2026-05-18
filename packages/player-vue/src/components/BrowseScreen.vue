@@ -139,8 +139,12 @@ const formattedTime = computed(() => {
 
 // ── Course catalog ──
 const allCourses = ref([])
-// Map<`${course_code}|${lego_id}`, round_index> — exact LEGO ordinal for
-// each enrolled course, looked up from course_round_index.
+// Map<course_code, course_enrollments row> — the actual per-learner
+// progress. props.enrolledCourses is the catalogue (misnamed), so it
+// doesn't carry highest_completed_lego_id. Provided by App.vue.
+const learnerEnrollments = inject('learnerEnrollments', ref(new Map()))
+// Map<`${course_code}|${lego_id}`, round_index> — exact LEGO ordinal
+// for the learner's current position in each enrolled course.
 const roundIndexes = ref(new Map())
 const isLoadingCourses = ref(true)
 
@@ -149,8 +153,8 @@ const isLoadingCourses = ref(true)
 const fetchRoundIndexes = async () => {
   const client = supabaseRef.value
   if (!client) return
-  const pairs = (props.enrolledCourses || [])
-    .map(e => ({ course_code: e.course_code || e.course_id, lego_id: e.highest_completed_lego_id }))
+  const pairs = [...learnerEnrollments.value.values()]
+    .map(e => ({ course_code: e.course_id, lego_id: e.highest_completed_lego_id }))
     .filter(p => p.course_code && p.lego_id)
   if (pairs.length === 0) {
     roundIndexes.value = new Map()
@@ -172,7 +176,7 @@ const fetchRoundIndexes = async () => {
   roundIndexes.value = m
 }
 
-watch(() => props.enrolledCourses, fetchRoundIndexes, { immediate: true, deep: true })
+watch(() => learnerEnrollments.value, fetchRoundIndexes, { immediate: true, deep: true })
 
 const fetchCourses = async () => {
   isLoadingCourses.value = true
@@ -317,14 +321,14 @@ const getFullDisplayName = (course) => {
 // length, not a hardcoded 668. When per-course total LEGO counts get
 // published, swap the denominator to LEGOs.
 const getBeltColor = (courseCode) => {
-  const enrollment = props.enrolledCourses.find(e => e.course_code === courseCode || e.course_id === courseCode)
+  const enrollment = learnerEnrollments.value.get(courseCode)
   const seed = getSeedFromLegoId(enrollment?.highest_completed_lego_id ?? null)
   if (seed === null) return null
   return BELTS[getBeltIndexForSeed(seed)].color
 }
 
 const getProgress = (courseCode) => {
-  const enrollment = props.enrolledCourses.find(e => e.course_code === courseCode || e.course_id === courseCode)
+  const enrollment = learnerEnrollments.value.get(courseCode)
   const legoId = enrollment?.highest_completed_lego_id ?? null
   const seed = getSeedFromLegoId(legoId)
   if (seed === null) return null

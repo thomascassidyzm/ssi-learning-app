@@ -1,5 +1,5 @@
 <script setup>
-import { ref, provide, onMounted, defineAsyncComponent } from 'vue'
+import { ref, provide, onMounted, defineAsyncComponent, watch } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
@@ -186,6 +186,35 @@ window.addEventListener('beforeinstallprompt', (e) => {
 // Active course and enrolled courses state
 const activeCourse = ref(null)
 const enrolledCourses = ref([])
+// Per-learner enrollment rows (course_enrollments) keyed by course_code.
+// This is the real per-learner progress source — distinct from
+// `enrolledCourses` above, which is actually the course catalogue (the
+// name is historical).
+const learnerEnrollments = ref(new Map())
+
+const fetchLearnerEnrollments = async () => {
+  if (!supabaseClient.value || !auth.learner.value?.id) {
+    learnerEnrollments.value = new Map()
+    return
+  }
+  try {
+    const { data, error } = await supabaseClient.value
+      .from('course_enrollments')
+      .select('course_id, highest_completed_lego_id, last_completed_lego_id, last_practiced_at, total_practice_minutes, current_cycle_index')
+      .eq('learner_id', auth.learner.value.id)
+    if (error) {
+      console.warn('[App] fetchLearnerEnrollments failed:', error.message)
+      return
+    }
+    const m = new Map()
+    for (const r of data || []) m.set(r.course_id, r)
+    learnerEnrollments.value = m
+  } catch (err) {
+    console.warn('[App] fetchLearnerEnrollments failed:', err)
+  }
+}
+
+watch(() => auth.learner.value?.id, fetchLearnerEnrollments, { immediate: true })
 // True only when both URL and stored preference were absent — drives the
 // auto-open of the Choose Course modal on first run.
 const noPriorCourseSelection = ref(false)
@@ -385,6 +414,8 @@ provide('supabase', supabaseClient)
 provide('config', config)
 provide('activeCourse', activeCourse)
 provide('enrolledCourses', enrolledCourses)
+provide('learnerEnrollments', learnerEnrollments)
+provide('fetchLearnerEnrollments', fetchLearnerEnrollments)
 provide('noPriorCourseSelection', noPriorCourseSelection)
 provide('handleCourseSelect', handleCourseSelect)
 provide('theme', { theme, toggleTheme, setTheme })
