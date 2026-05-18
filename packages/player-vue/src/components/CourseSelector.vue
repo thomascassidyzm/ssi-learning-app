@@ -276,11 +276,15 @@ const getEnrollment = (courseCode) => {
   return props.enrolledCourses.find(e => e.course_code === courseCode || e.course_id === courseCode)
 }
 
-// Get progress for a course
+// Get progress for a course. Canonical position is highest_completed_lego_id
+// (e.g. "S0001L04"); parse the SNNNN prefix as the learner's current seed.
 const getProgress = (courseCode) => {
   const enrollment = getEnrollment(courseCode)
-  if (!enrollment) return 0
-  return enrollment.progress || Math.round((enrollment.completed_seeds || 0) / (enrollment.total_seeds || 668) * 100)
+  if (!enrollment?.highest_completed_lego_id) return 0
+  const m = enrollment.highest_completed_lego_id.match(/^S(\d{4})L/)
+  if (!m) return 0
+  const seedNum = parseInt(m[1], 10)
+  return Math.min(100, Math.round(seedNum / (enrollment.total_seeds || 668) * 100))
 }
 
 // Check if course is currently active
