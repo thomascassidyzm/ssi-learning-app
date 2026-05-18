@@ -24,6 +24,7 @@ const hasFullAccess = (course) => {
   const devPaid = (() => {
     try {
       if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
+      if (import.meta.env.PROD) return false
       const tier = localStorage.getItem('ssi-dev-tier')
       if (tier === 'paid') return true
       return localStorage.getItem('ssi-dev-paid-user') === 'true'

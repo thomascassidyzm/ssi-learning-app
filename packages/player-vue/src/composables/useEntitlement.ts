@@ -142,9 +142,13 @@ export function useEntitlement(): UseEntitlementReturn {
    */
   function checkDevPaidStatus(): boolean {
     try {
-      // Check demo session flag first (sessionStorage auto-clears on tab close)
+      // Demo flow (TryLinkGateway / DemoLauncher) sets ssi-demo-tier in
+      // sessionStorage — honoured everywhere, dev and prod.
       if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
-      // Legacy localStorage flags for dev testing
+      // The localStorage flags below are dev convenience only; in a prod
+      // build they'd be a client-side paywall bypass (anyone could set
+      // them from devtools), so we hard-deny.
+      if (import.meta.env.PROD) return false
       const tier = localStorage.getItem('ssi-dev-tier')
       if (tier === 'paid') return true
       return localStorage.getItem('ssi-dev-paid-user') === 'true'
