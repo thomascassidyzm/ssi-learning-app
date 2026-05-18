@@ -424,8 +424,15 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   })
 
   const setPlayingPosition = (seedNumber: number) => {
-    playingBeltIndex.value = getBeltIndexForSeed(seedNumber)
-    playingSeedNumber.value = seedNumber
+    // Cap at the course's published max. Some callers (the manual
+    // belt-skip button before the 2026-05-18 clamp) used to pass the
+    // next belt's threshold verbatim, which for short courses (e.g.
+    // zho_for_eng tops out at seed 350) would set the visual belt to
+    // Black even though the course can't reach black. Cap here so any
+    // future caller is safe by default.
+    const cappedSeed = Math.min(Math.max(seedNumber, 0), courseSeedCount.value)
+    playingBeltIndex.value = getBeltIndexForSeed(cappedSeed)
+    playingSeedNumber.value = cappedSeed
   }
 
   // ============================================================================
