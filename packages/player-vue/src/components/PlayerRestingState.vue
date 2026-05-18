@@ -191,18 +191,6 @@ const handleChangeCourse = () => {
         Try Premium — 7-day free trial
       </a>
 
-      <!-- Minimal legal footer — Paddle's domain-approval review wants
-           Terms / Privacy / Refunds reachable via navigation on the home
-           page. Kept deliberately subtle so it reads as fine-print
-           chrome, not content. -->
-      <footer class="resting-legal">
-        <a href="/terms" target="_blank" rel="noopener">Terms</a>
-        <span aria-hidden="true">·</span>
-        <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
-        <span aria-hidden="true">·</span>
-        <a href="/refunds" target="_blank" rel="noopener">Refunds</a>
-      </footer>
-
     </div>
   </div>
 </template>
@@ -535,31 +523,6 @@ const handleChangeCourse = () => {
 :root[data-theme="mist"] .resting-premium-cta {
   background: #ffffff;
   border-color: rgba(0, 0, 0, 0.25);
-}
-
-.resting-legal {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px 8px;
-  margin-top: 10px;
-  font-size: 12px;
-  line-height: 1.3;
-  color: var(--text-muted, rgba(0, 0, 0, 0.42));
-  pointer-events: auto;
-}
-
-.resting-legal a {
-  color: inherit;
-  text-decoration: none;
-  padding: 2px;
-}
-
-.resting-legal a:hover {
-  color: var(--text-primary, rgba(0, 0, 0, 0.7));
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 </style>
