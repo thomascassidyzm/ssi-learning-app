@@ -554,7 +554,7 @@ const persistCursorAtCurrentRound = async () => {
   }
 }
 
-const saveRoundProgress = async (legoId, roundIndex) => {
+const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
   if (isGuestLearner.value || !progressStore?.value) {
     console.log('[LearningPlayer] Skipping progress save (guest mode)')
     return
@@ -568,21 +568,19 @@ const saveRoundProgress = async (legoId, roundIndex) => {
   // highest_completed_lego_id independently, the CURSOR (last_lego_id)
   // should keep pointing at the boundary of what the learner has been
   // introduced to, not at whatever random review LEGO came up first.
+  //
+  // Use the round object passed by the caller, falling back to
+  // cachedRounds for the legacy path. cachedRounds is empty on the
+  // instant-playback path — the bug that froze the ceiling at the
+  // last pre-instant-playback LEGO. See onRoundCompleted handler for
+  // the source of `round` and lastMainLoopLegoId maintenance.
   let legoIdToSave = legoId
-  const round = cachedRounds.value[roundIndex]
-  const isInfPlayRound = !!round?.cycles?.length && !round.cycles.some((c: any) =>
+  const r = round ?? cachedRounds.value[roundIndex]
+  const isInfPlayRound = !!r?.cycles?.length && !r.cycles.some((c: any) =>
     c.type === 'intro' || c.type === 'debut' || c.type === 'build'
   )
-  if (isInfPlayRound) {
-    for (let i = roundIndex - 1; i >= 0; i--) {
-      const r = cachedRounds.value[i]
-      if (r?.cycles?.some((c: any) =>
-        c.type === 'intro' || c.type === 'debut' || c.type === 'build'
-      )) {
-        legoIdToSave = r.legoId
-        break
-      }
-    }
+  if (isInfPlayRound && lastMainLoopLegoId.value) {
+    legoIdToSave = lastMainLoopLegoId.value
   }
 
   try {
@@ -757,6 +755,16 @@ const envLabel = computed<string | null>(() => {
 // Rounds storage (loaded from database, adapted for SimplePlayer)
 // Using any[] to allow mixed format: SimpleRound (cycles) + legacy ScriptItem (items)
 const loadedRounds = ref<any[]>([])
+// Tracks the highest main-loop LEGO whose round has been completed this
+// session (or seeded from the DB ceiling on resume). Used by
+// saveRoundProgress to substitute the cursor on infinite-play rounds —
+// see comment there for why. Maintained by the onRoundCompleted handler.
+// Compares lexicographically (matches SNNNNLNN ordering).
+const lastMainLoopLegoId = ref<string | null>(null)
+const isMainLoopRound = (round: any): boolean =>
+  !!round?.cycles?.length && round.cycles.some((c: any) =>
+    c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+  )
 
 // Expose reactive state for UI - writable refs that sync with simplePlayer
 // We need writable refs because legacy code assigns to these directly
@@ -1117,8 +1125,14 @@ simplePlayer.onRoundCompleted((round) => {
         } catch {}
       }
     } else {
+      // Maintain the main-loop high-water for the cursor substitution
+      // in saveRoundProgress. Lex compare (SNNNNLNN format).
+      if (isMainLoopRound(round) && round.legoId &&
+          (!lastMainLoopLegoId.value || round.legoId > lastMainLoopLegoId.value)) {
+        lastMainLoopLegoId.value = round.legoId
+      }
       // Individual mode: existing behavior
-      saveRoundProgress(round.legoId, completedRoundIndex)
+      saveRoundProgress(round.legoId, completedRoundIndex, round)
       handleRoundBoundary(completedRoundIndex, round.legoId, round)
       if (beltProgress.value?.setCurrentLegoId) {
         beltProgress.value.setCurrentLegoId(round.legoId)
@@ -4226,8 +4240,14 @@ const handleCycleEvent = async (event) => {
           const completedRoundIndex = currentRoundIndex.value
           console.log('[LearningPlayer] Round', completedRoundIndex, 'complete! LEGO:', completedLegoId)
 
+          // Maintain the main-loop high-water for cursor substitution in
+          // saveRoundProgress (same logic as the simplePlayer handler).
+          if (isMainLoopRound(currentRound.value) && completedLegoId &&
+              (!lastMainLoopLegoId.value || completedLegoId > lastMainLoopLegoId.value)) {
+            lastMainLoopLegoId.value = completedLegoId
+          }
           // Persist progress (async, fire-and-forget)
-          saveRoundProgress(completedLegoId, completedRoundIndex)
+          saveRoundProgress(completedLegoId, completedRoundIndex, currentRound.value)
 
           // Notify global listeners (e.g. install banner triggers after first round)
           window.dispatchEvent(new CustomEvent('ssi-round-complete', { detail: { roundIndex: completedRoundIndex } }))
@@ -6668,6 +6688,15 @@ onMounted(async () => {
             const freshProgress = !isGuestLearner.value ? await loadSavedProgress() : null
             const freshLastLego = freshProgress?.lastCompletedLegoId ?? null
             const freshHighestLego = freshProgress?.highestCompletedLegoId ?? null
+
+            // Seed the main-loop high-water from the DB ceiling so that
+            // infinite-play rounds completed early in the session — before
+            // any main-loop round has fired in this session — still
+            // substitute to a useful cursor (at minimum the existing
+            // ceiling, never regressing).
+            if (freshHighestLego) {
+              lastMainLoopLegoId.value = freshHighestLego
+            }
 
             // Mirror into the refs immediately so the belt label, journey
             // bar, and welcome-skip guard see the ceiling without waiting
