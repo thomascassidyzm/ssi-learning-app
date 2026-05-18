@@ -21,7 +21,24 @@ const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
 
 const { open: openAuth, close: closeAuth } = useAuthModal()
-const handleAuthSuccess = () => closeAuth()
+
+// When a signed-out visitor clicks "Start free trial", we open the sign-in
+// modal and (on success) chain straight into Paddle checkout — saves them
+// a second click and matches the obvious "Sign up → pay" mental model.
+const pendingCheckout = ref(false)
+const handleAuthSuccess = () => {
+  closeAuth()
+  if (pendingCheckout.value) {
+    pendingCheckout.value = false
+    // fetchSubscription runs in the onMounted block; trigger checkout
+    // directly here since the modal close beats the auth state refresh.
+    startCheckout()
+  }
+}
+function handleSignedOutCta() {
+  pendingCheckout.value = true
+  openAuth()
+}
 
 interface Subscription {
   id: string
@@ -259,7 +276,12 @@ onMounted(async () => {
         <!-- Not signed in -->
         <div v-else-if="!isAuthenticated" class="cta">
           <p>Take it for a test drive — 7 days free, no commitment. £{{ PREMIUM_PRICE }}/month from day 8 unless you cancel. We'll email a one-time code to sign you in — no password to remember.</p>
-          <div class="coming-soon">Premium courses launch soon — check back shortly.</div>
+          <ul class="benefit-list">
+            <li>All paid SSi courses, every language pair</li>
+            <li>Teacher tools — run your own classes at no extra cost</li>
+            <li>Offline-capable, sync across devices</li>
+          </ul>
+          <Button variant="primary" size="lg" @click="handleSignedOutCta">Start free trial</Button>
         </div>
 
         <!-- Loading sub -->
@@ -291,11 +313,11 @@ onMounted(async () => {
         <div v-else class="cta">
           <ul class="benefit-list">
             <li>All paid SSi courses, every language pair</li>
-            <li>Run your own classes as a teacher (optional, no extra charge)</li>
+            <li>Teacher tools — run your own classes at no extra cost</li>
             <li>Offline-capable, sync across devices</li>
           </ul>
           <div v-if="checkoutError" class="error">{{ checkoutError }}</div>
-          <div class="coming-soon">Premium courses launch soon — check back shortly.</div>
+          <Button variant="primary" size="lg" :loading="isOpeningCheckout" @click="startCheckout">Start free trial</Button>
         </div>
       </FrostCard>
 
