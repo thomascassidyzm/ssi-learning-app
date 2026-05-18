@@ -16,10 +16,14 @@
 -- CREATE OR REPLACE: the previous migration created the view; this one
 -- replaces its body. Idempotent.
 
+-- Cast to bigint so the column type matches the previous definition
+-- (COUNT(*) is bigint, MAX(integer) is integer). CREATE OR REPLACE VIEW
+-- refuses to change a column's data type, so without the cast this
+-- migration errors with 42P16 against the existing view.
 CREATE OR REPLACE VIEW course_stats AS
 SELECT
   course_code,
-  MAX(round_index) AS lego_count
+  MAX(round_index)::bigint AS lego_count
 FROM course_round_index
 GROUP BY course_code;
 
