@@ -126,6 +126,11 @@ const emit = defineEmits(['close', 'selectCourse'])
 
 // State
 const allCourses = ref([])
+// Map<`${course_code}|${lego_id}`, round_index> — looked up from
+// course_round_index for the learner's highest_completed_lego_id on
+// each enrolled course. Lets the tile show the exact LEGO ordinal
+// instead of approximating from seed × avg-legos-per-seed.
+const roundIndexes = ref(new Map())
 const isLoading = ref(false)
 const error = ref(null)
 const searchQuery = ref('')
@@ -296,16 +301,14 @@ const getProgress = (courseCode) => {
   const seed = getSeedFromLegoId(legoId)
   if (seed === null) return null
   const course = allCourses.value.find(c => c.course_code === courseCode)
-  if (course?.lego_count && course?.seed_count) {
-    // Approximate legos-done: legos in completed seeds (1..seed-1) at the
-    // course's average density, plus the L-index inside the current seed
-    // (parsed from the lego_id). Without per-seed lego counts on the
-    // enrollment this is the closest we can get without an extra query.
-    const legoIdx = parseInt(legoId.match(/L(\d+)$/)?.[1] ?? '0', 10)
-    const avgPerSeed = course.lego_count / course.seed_count
-    const legosDone = Math.min(course.lego_count, Math.round((seed - 1) * avgPerSeed + legoIdx))
-    return `${legosDone} / ${course.lego_count}`
+  // Exact LEGO ordinal from course_round_index (one round = one LEGO).
+  const ordinal = roundIndexes.value.get(`${courseCode}|${legoId}`)
+  if (ordinal != null && course?.lego_count) {
+    return `${ordinal} / ${course.lego_count}`
   }
+  // Fallback while the round-index lookup hasn't returned yet, or for
+  // courses where the lego isn't in the round_index (e.g. content not in
+  // the learner pipeline). Seed fraction is the cheapest honest stand-in.
   const total = course?.seed_count
   return total ? `${seed} / ${total}` : `${seed}`
 }
@@ -314,6 +317,35 @@ const getProgress = (courseCode) => {
 const isActive = (courseCode) => {
   return props.activeCourseId === courseCode
 }
+
+// Look up the exact LEGO ordinal (round_index) for each enrolled course's
+// highest_completed_lego_id. One batched Supabase query.
+const fetchRoundIndexes = async () => {
+  if (!props.supabase) return
+  const pairs = (props.enrolledCourses || [])
+    .map(e => ({ course_code: e.course_code || e.course_id, lego_id: e.highest_completed_lego_id }))
+    .filter(p => p.course_code && p.lego_id)
+  if (pairs.length === 0) {
+    roundIndexes.value = new Map()
+    return
+  }
+  const orFilter = pairs
+    .map(p => `and(course_code.eq.${p.course_code},lego_id.eq.${p.lego_id})`)
+    .join(',')
+  const { data, error } = await props.supabase
+    .from('course_round_index')
+    .select('course_code, lego_id, round_index')
+    .or(orFilter)
+  if (error) {
+    console.warn('[CourseSelector] round-index lookup failed:', error.message)
+    return
+  }
+  const m = new Map()
+  for (const r of data || []) m.set(`${r.course_code}|${r.lego_id}`, r.round_index)
+  roundIndexes.value = m
+}
+
+watch(() => props.enrolledCourses, fetchRoundIndexes, { immediate: true, deep: true })
 
 // Fetch courses from Supabase (dashboard schema is SSoT)
 const fetchCourses = async () => {
