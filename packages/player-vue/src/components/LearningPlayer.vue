@@ -3600,9 +3600,25 @@ function toSimpleRoundsWithComponents(items: any[]) {
   // Pause comes from algorithm_config at runtime (see setRuntimeOverrides below);
   // toSimpleRounds bakes a DEFAULT_NORMAL fallback for environments without live config.
   const rounds = toSimpleRounds(items, targetSpeed)
+  extractComponentsToMaps(rounds, '[Components] toSimpleRoundsWithComponents')
+  return rounds
+}
+
+// Walk any Round[] and populate the four component lookup maps. Callable
+// from BOTH the legacy converter (toSimpleRoundsWithComponents above) and
+// the instant-playback bootstrap converter (backendCyclesToRounds), so
+// the M-LEGO breakdown tiles render correctly from the very first cycle
+// regardless of which path produced the rounds.
+//
+// Before this helper existed the maps were only populated by the legacy
+// wrapper — the bootstrap path's first round or two rendered M-LEGOs
+// without their known-text breakdown (single-tile fallback), until the
+// full-script handoff fired the legacy converter and backfilled the
+// maps. Now the bootstrap path populates them up front.
+function extractComponentsToMaps(rounds: any[], logPrefix = '[Components]') {
   let count = 0
   for (const round of rounds) {
-    for (const cycle of round.cycles) {
+    for (const cycle of round.cycles ?? []) {
       if ((cycle as any).components) {
         _componentsByCycleId.set(cycle.id, (cycle as any).components)
         if (cycle.legoId) {
@@ -3618,8 +3634,7 @@ function toSimpleRoundsWithComponents(items: any[]) {
       }
     }
   }
-  if (count > 0) console.log(`[Components] Extracted ${count} cycles with components (map size: ${_componentsByCycleId.size}, lego map: ${_componentsByLegoId.size})`)
-  return rounds
+  if (count > 0) console.log(`${logPrefix}: extracted ${count} cycles with components (map size: ${_componentsByCycleId.size}, lego map: ${_componentsByLegoId.size})`)
 }
 
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
@@ -6552,6 +6567,13 @@ onMounted(async () => {
 
           simplePlayer.initialize(initialRounds as any)
           loadedRounds.value = initialRounds as any
+          // Populate the M-LEGO component lookup maps from the bootstrap
+          // rounds — backendCyclesToRounds emits `cycle.components` for
+          // every cycle whose parent LEGO has components, the maps just
+          // need extracting. Without this, the first round's M-LEGOs
+          // render without their known-text breakdown until the full-
+          // script handoff fires and backfills.
+          extractComponentsToMaps(initialRounds, '[Components] bootstrap')
 
           // 4. Resume position. The composable bootstraps AT
           //    `last_completed_lego_id`; the legacy player resumes at
@@ -6612,8 +6634,10 @@ onMounted(async () => {
               // appendRounds dedupes by roundNumber, so this is a
               // safe no-op when nothing new arrived.
               if (refreshedRounds.length > initialRounds.length) {
-                simplePlayer.appendRounds(refreshedRounds.slice(initialRounds.length) as any)
+                const newRounds = refreshedRounds.slice(initialRounds.length) as any
+                simplePlayer.appendRounds(newRounds)
                 loadedRounds.value = refreshedRounds as any
+                extractComponentsToMaps(newRounds, '[Components] tier-3 refresh')
               }
             })
 
