@@ -2705,22 +2705,11 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // Timing is CYCLE-based (consistent ~11s), but plays at round boundaries
   // ============================================
   if (metaCommentary && !beltJustEarned.value) {
-    // Get cycle count from the completed round
-    const cyclesInRound = currentRound.value?.items?.length || 0
-
-    // Build performance metrics from current session data
-    const performance = {
-      averageResponseTime: 1500, // TODO: Wire up from actual timing data
-      correctStreak: roundsThisSession.value, // Approximate for now
-      strugglingItems: 0, // TODO: Wire up from adaptation engine
-    }
-
-    // Check if commentary should play this round (based on cycle accumulation)
-    const commentary = metaCommentary.onRoundComplete(
-      completedRoundIndex + 1, // 1-based round number
-      cyclesInRound,           // Number of cycles in this round
-      performance
-    )
+    // Round-cadence gating lives in MetaCommentaryService (every Nth round).
+    // No more cycle counting or performance heuristics from the player side —
+    // the previous version had hardcoded perf inputs that pushed the cadence
+    // multiplier toward "doing well" and effectively silenced commentary.
+    const commentary = metaCommentary.onRoundComplete(completedRoundIndex + 1)
 
     if (commentary) {
       console.log('[LearningPlayer] Playing', commentary.type, 'commentary')

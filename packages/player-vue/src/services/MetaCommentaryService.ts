@@ -1,23 +1,24 @@
 /**
  * MetaCommentaryService - Manages welcome, instructions, and encouragements
  *
- * Timing Logic (v13.1):
- * - Welcome: Once at course start, can be skipped
- * - Instructions: Played in sequence, between rounds, every 5-10 mins
- * - Encouragements: Random pool after instructions complete, between rounds
+ * Round-based cadence (2026-05-19):
+ *   • Welcome  — once at course start (handled separately by the player)
+ *   • Instructions — ordered, played one per commentary slot, never repeat once
+ *                    advanced. PER-LEARNER (not per-course), so a learner who
+ *                    finishes the instruction sequence on Spanish doesn't hear
+ *                    them again starting French.
+ *   • Encouragements — random pull from the pool, repeats fine. Kick in after
+ *                    instructions are complete.
  *
- * Key Principles:
- * - NEVER interrupt a round - atomic unit of learning
- * - Instructions are meta-cognitive, in fixed sequence for all courses
- * - Encouragements are motivational, randomly selected
- * - Adaptation: if learner doing well, less frequent commentary
+ * Gating: every Nth round (default N=2 → every other round). Simple,
+ * predictable, and easy to tune. Replaces the previous cycle-counting
+ * approach (27–55 cycles + a "doing well" multiplier whose performance
+ * inputs were hardcoded, making commentary fire roughly never).
  *
- * Timing Math (CYCLE-based, not round-based):
- * - A CYCLE is consistent: ~11 seconds (prompt + pause + voice1 + voice2)
- * - A ROUND varies wildly (3-15+ cycles depending on LEGO type)
- * - 5 minutes = ~27 cycles, 10 minutes = ~55 cycles
- * - Base interval: 27-55 cycles between commentary (randomized)
- * - Commentary only plays at ROUND boundaries (between rounds, not mid-round)
+ * Skip semantics: when commentary IS returned for a round, the instruction
+ * index advances and global state saves immediately. If the learner stops
+ * during playback, the instruction is still considered consumed — matches
+ * Tom's intent that "you CAN skip them and they don't come back".
  */
 
 import type { AudioRef } from '@ssi/core'
@@ -29,53 +30,32 @@ export interface MetaCommentaryAudio extends AudioRef {
   position?: number // For instructions: position in sequence
 }
 
-/**
- * Global state - shared across ALL courses for this user
- * Instructions are meta-cognitive about learning, not course-specific
- */
+/** Per-learner state, persists across courses (instruction progress is global). */
 export interface GlobalCommentaryState {
   instructionsComplete: boolean // Once true, never play instructions again
-  instructionIndex: number // How far through instructions (if not complete)
-  encouragementUrn: string[] // IDs not yet played this cycle (URN = pick without replacement)
-  encouragementUrnCycle: number // How many times we've emptied the urn
+  instructionIndex: number      // How far through instructions (if not complete)
 }
+
+// Storage key — per-user, across all courses.
+// Old keys may still contain unused fields (encouragementUrn, etc.) from
+// the previous URN-based design; we ignore them via spread default below.
+const GLOBAL_STORAGE_KEY = 'ssi_commentary_global_'
 
 /**
- * Session state - tracks timing within current session
+ * Cadence — fire commentary on every Nth completed round. Tunable in one
+ * place; 2 means "every other round" (commentary after rounds 2, 4, 6, …).
+ * Round 1 stays uninterrupted so a fresh learner gets one warm-up.
  */
-export interface SessionCommentaryState {
-  lastCommentaryCycle: number // Cycle count when last commentary played
-  totalCyclesCompleted: number // Cycles this session
-  totalRoundsCompleted: number // Rounds this session
-  sessionStartTime: number
-}
-
-export interface PerformanceMetrics {
-  averageResponseTime: number // ms - how fast learner responds
-  correctStreak: number // consecutive correct responses
-  strugglingItems: number // items with repeated errors
-}
-
-// Storage key prefixes
-const GLOBAL_STORAGE_KEY = 'ssi_commentary_global_' // Per-user, across all courses
-const SESSION_STORAGE_KEY = 'ssi_commentary_session_' // Per-session timing
-
-// Timing constants (CYCLE-based, not round-based)
-// A cycle is ~11 seconds (consistent), a round varies wildly
-const MIN_CYCLES_BETWEEN_COMMENTARY = 27 // ~5 minutes (27 * 11s = 297s)
-const MAX_CYCLES_BETWEEN_COMMENTARY = 55 // ~10 minutes (55 * 11s = 605s)
-const PERFORMANCE_MULTIPLIER_GOOD = 1.5 // If doing well, 50% longer intervals
+const COMMENTARY_EVERY_N_ROUNDS = 2
 
 export class MetaCommentaryService {
   private provider: CourseDataProvider
   private courseId: string
   private learnerId: string
   private globalState: GlobalCommentaryState
-  private sessionState: SessionCommentaryState
   private instructions: Array<AudioRef & { text: string; position: number }> = []
   private encouragements: Array<AudioRef & { text: string }> = []
   private welcomeAudio: AudioRef | null = null
-  private nextCommentaryCycle: number = 0 // Cycle count threshold for next commentary
   private initialized = false
 
   constructor(provider: CourseDataProvider, learnerId: string) {
@@ -83,24 +63,12 @@ export class MetaCommentaryService {
     this.courseId = provider.getCourseId()
     this.learnerId = learnerId
     this.globalState = this.getDefaultGlobalState()
-    this.sessionState = this.getDefaultSessionState()
   }
 
   private getDefaultGlobalState(): GlobalCommentaryState {
     return {
       instructionsComplete: false,
       instructionIndex: 0,
-      encouragementUrn: [], // Will be populated with all encouragement IDs
-      encouragementUrnCycle: 0,
-    }
-  }
-
-  private getDefaultSessionState(): SessionCommentaryState {
-    return {
-      lastCommentaryCycle: 0,
-      totalCyclesCompleted: 0,
-      totalRoundsCompleted: 0,
-      sessionStartTime: Date.now(),
     }
   }
 
@@ -110,7 +78,7 @@ export class MetaCommentaryService {
   async initialize(): Promise<void> {
     if (this.initialized) return
 
-    // Load saved state (global is per-user, session is fresh each time)
+    // Load saved state (per-user, persists across courses).
     this.loadGlobalState()
 
     // Prefetch all meta-commentary audio
@@ -124,39 +92,9 @@ export class MetaCommentaryService {
     this.encouragements = encouragements
     this.welcomeAudio = welcome
 
-    // Initialize encouragement URN if empty (first time or new encouragements added)
-    if (this.globalState.encouragementUrn.length === 0 && encouragements.length > 0) {
-      this.refillEncouragementUrn()
-    }
-
-    // Calculate when next commentary should play (based on cycles)
-    this.calculateNextCommentaryCycle()
-
     this.initialized = true
 
-    console.debug(`[MetaCommentary] ${instructions.length} instructions, ${encouragements.length} encouragements${welcome ? ', welcome' : ''}`)
-  }
-
-  /**
-   * Refill the encouragement URN with all available encouragement IDs
-   * Called when URN is empty (start of new cycle)
-   */
-  private refillEncouragementUrn(): void {
-    this.globalState.encouragementUrn = this.encouragements.map(e => e.id)
-    // Shuffle the urn for random order
-    this.shuffleArray(this.globalState.encouragementUrn)
-    this.globalState.encouragementUrnCycle++
-    // Encouragement URN refilled
-  }
-
-  /**
-   * Fisher-Yates shuffle
-   */
-  private shuffleArray(array: string[]): void {
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[array[i], array[j]] = [array[j], array[i]]
-    }
+    console.debug(`[MetaCommentary] ${instructions.length} instructions, ${encouragements.length} encouragements${welcome ? ', welcome' : ''}, learner at index ${this.globalState.instructionIndex}/${instructions.length}`)
   }
 
   /**
@@ -182,174 +120,54 @@ export class MetaCommentaryService {
   }
 
   /**
-   * Mark welcome as played (or skipped)
-   * Note: Welcome is typically per-course and tracked by CourseDataProvider
-   * This method is here for completeness but may not be needed
+   * Called after each round completes. Returns commentary if the round-count
+   * cadence says it's time, otherwise null. No cycle accounting, no
+   * performance heuristics — just the simple rule.
    */
-  markWelcomePlayed(): void {
-    // Welcome state is per-course, handled by CourseDataProvider
-    // No need to track in global user state
-  }
+  onRoundComplete(roundNumber: number): MetaCommentaryAudio | null {
+    if (roundNumber <= 0) return null
+    if (roundNumber % COMMENTARY_EVERY_N_ROUNDS !== 0) return null
 
-  /**
-   * Called after each cycle completes (for tracking)
-   * Call this on every cycle to accumulate the count
-   */
-  onCycleComplete(): void {
-    this.sessionState.totalCyclesCompleted++
-    // Don't save on every cycle - too frequent. Save on round complete.
-  }
-
-  /**
-   * Called after each round completes
-   * Returns commentary audio if it's time to play one, null otherwise
-   *
-   * Commentary only plays at round boundaries (never mid-round),
-   * but timing is based on cycle count (consistent ~11s units)
-   *
-   * @param roundNumber - The round that just completed
-   * @param cyclesInRound - How many cycles were in this round
-   * @param performance - Optional performance metrics for adaptation
-   */
-  onRoundComplete(
-    roundNumber: number,
-    cyclesInRound: number = 0,
-    performance?: PerformanceMetrics
-  ): MetaCommentaryAudio | null {
-    // Update cycle count if provided (alternative to calling onCycleComplete for each)
-    if (cyclesInRound > 0) {
-      this.sessionState.totalCyclesCompleted += cyclesInRound
-    }
-    this.sessionState.totalRoundsCompleted = roundNumber
-
-    // Check if it's time for commentary (based on CYCLES, not rounds)
-    if (this.sessionState.totalCyclesCompleted < this.nextCommentaryCycle) {
-      return null
-    }
-
-    // Get the next commentary (instruction or encouragement)
     const commentary = this.getNextCommentary()
+    if (!commentary) return null
 
-    if (commentary) {
-      // Update session timing state
-      this.sessionState.lastCommentaryCycle = this.sessionState.totalCyclesCompleted
-
-      // Update global state based on what was played
-      if (commentary.type === 'instruction') {
-        this.globalState.instructionIndex++
-        // Check if all instructions are now complete
-        if (this.globalState.instructionIndex >= this.instructions.length) {
-          this.globalState.instructionsComplete = true
-          console.debug('[MetaCommentary] Instructions complete, switching to encouragements')
-        }
+    if (commentary.type === 'instruction') {
+      this.globalState.instructionIndex++
+      if (this.globalState.instructionIndex >= this.instructions.length) {
+        this.globalState.instructionsComplete = true
+        console.debug('[MetaCommentary] Instructions complete, switching to encouragements')
       }
-      // Note: encouragement URN is already updated in getNextCommentary()
-
-      // Save global state (persists across sessions/courses)
       this.saveGlobalState()
-
-      // Calculate next commentary time, adjusted for performance
-      this.calculateNextCommentaryCycle(performance)
     }
 
     return commentary
   }
 
   /**
-   * Get the next commentary audio
-   * - If instructions not complete: next instruction in sequence
-   * - If instructions complete: URN-based random encouragement (no repeats until all played)
-   *
-   * Global state tracks this ACROSS ALL COURSES for the user
+   * Pick the next commentary to play.
+   *  - Instructions phase (per-learner global): next item in the fixed
+   *    sequence. Always advances on play; skipping doesn't re-queue.
+   *  - Encouragements phase: random pick with replacement. The pool is
+   *    small enough that repetition feels fine and the URN bookkeeping
+   *    the previous design used was pure ceremony.
    */
   private getNextCommentary(): MetaCommentaryAudio | null {
-    // Instructions not yet complete? Play next instruction in sequence
     if (!this.globalState.instructionsComplete && this.globalState.instructionIndex < this.instructions.length) {
       const instruction = this.instructions[this.globalState.instructionIndex]
-      return {
-        ...instruction,
-        type: 'instruction',
-      }
+      return { ...instruction, type: 'instruction' }
     }
 
-    // Instructions complete - use URN-based encouragement selection
-    if (this.encouragements.length === 0) {
-      return null
-    }
-
-    // If URN is empty, refill it (start new cycle)
-    if (this.globalState.encouragementUrn.length === 0) {
-      this.refillEncouragementUrn()
-    }
-
-    // Pop from the URN (draw without replacement)
-    const encouragementId = this.globalState.encouragementUrn.pop()!
-
-    // Find the encouragement by ID
-    const encouragement = this.encouragements.find(e => e.id === encouragementId)
-    if (!encouragement) {
-      console.warn('[MetaCommentaryService] Encouragement not found:', encouragementId)
-      return null
-    }
-
-    // Encouragement selected from URN
-
-    return {
-      ...encouragement,
-      type: 'encouragement',
-    }
+    if (this.encouragements.length === 0) return null
+    const idx = Math.floor(Math.random() * this.encouragements.length)
+    const encouragement = this.encouragements[idx]
+    return { ...encouragement, type: 'encouragement' }
   }
 
-  /**
-   * Calculate when the next commentary should play (based on CYCLES)
-   * Adapts based on performance - if doing well, less frequent
-   */
-  private calculateNextCommentaryCycle(performance?: PerformanceMetrics): void {
-    // Base interval: random between MIN and MAX cycles (~5-10 minutes)
-    let interval =
-      MIN_CYCLES_BETWEEN_COMMENTARY +
-      Math.floor(Math.random() * (MAX_CYCLES_BETWEEN_COMMENTARY - MIN_CYCLES_BETWEEN_COMMENTARY))
-
-    // Adaptation: if doing well, increase interval
-    if (performance) {
-      const isDoingWell = this.assessPerformance(performance)
-      if (isDoingWell) {
-        interval = Math.floor(interval * PERFORMANCE_MULTIPLIER_GOOD)
-        // Good performance - increasing commentary interval
-      }
-    }
-
-    this.nextCommentaryCycle = this.sessionState.totalCyclesCompleted + interval
-
-    // Next commentary scheduled
-  }
-
-  /**
-   * Assess if learner is doing well based on performance metrics
-   * Returns true if commentary frequency should be reduced
-   */
-  private assessPerformance(metrics: PerformanceMetrics): boolean {
-    // "Doing well" criteria:
-    // - Response time under 2 seconds average (prompt → response)
-    // - Correct streak of 10+ items
-    // - No struggling items in current session
-    const fastResponses = metrics.averageResponseTime < 2000
-    const onAStreak = metrics.correctStreak >= 10
-    const notStruggling = metrics.strugglingItems === 0
-
-    // Need at least 2 of 3 indicators to be "doing well"
-    const score = (fastResponses ? 1 : 0) + (onAStreak ? 1 : 0) + (notStruggling ? 1 : 0)
-    return score >= 2
-  }
-
-  /**
-   * Get current state (for debugging/display)
-   */
-  getState(): { global: Readonly<GlobalCommentaryState>; session: Readonly<SessionCommentaryState> } {
-    return {
-      global: { ...this.globalState },
-      session: { ...this.sessionState },
-    }
+  /** Caller compatibility — invoked by the player after playback finishes. */
+  finishCommentaryPlayback(): void {
+    // State already advanced in onRoundComplete (intentional, so skipping
+    // mid-playback doesn't replay the same instruction next round). Nothing
+    // else to do here.
   }
 
   /**
@@ -363,20 +181,17 @@ export class MetaCommentaryService {
     }
   }
 
-  /**
-   * Force play next commentary (for testing/debugging)
-   */
+  /** Debug hook — force the next commentary regardless of cadence. */
   forceNextCommentary(): MetaCommentaryAudio | null {
-    this.nextCommentaryCycle = 0
-    return this.onRoundComplete(this.sessionState.totalRoundsCompleted, 0)
-  }
-
-  /**
-   * Reset session state (for new session)
-   */
-  resetSession(): void {
-    this.sessionState = this.getDefaultSessionState()
-    this.calculateNextCommentaryCycle()
+    const commentary = this.getNextCommentary()
+    if (commentary?.type === 'instruction') {
+      this.globalState.instructionIndex++
+      if (this.globalState.instructionIndex >= this.instructions.length) {
+        this.globalState.instructionsComplete = true
+      }
+      this.saveGlobalState()
+    }
+    return commentary
   }
 
   /**
@@ -385,9 +200,6 @@ export class MetaCommentaryService {
    */
   resetAll(): void {
     this.globalState = this.getDefaultGlobalState()
-    this.sessionState = this.getDefaultSessionState()
-    this.refillEncouragementUrn()
-    this.calculateNextCommentaryCycle()
     this.saveGlobalState()
   }
 
@@ -407,8 +219,10 @@ export class MetaCommentaryService {
       const saved = localStorage.getItem(key)
       if (saved) {
         const parsed = JSON.parse(saved)
+        // Spread default first so any old/extra fields (encouragementUrn,
+        // encouragementUrnCycle from the previous design) are dropped on
+        // first save.
         this.globalState = { ...this.getDefaultGlobalState(), ...parsed }
-        // Global commentary state loaded
       }
     } catch (err) {
       console.warn('[MetaCommentaryService] Failed to load global state:', err)

@@ -12,13 +12,12 @@
  * - Use playCommentary() to play the audio with your audio system
  */
 
-import { ref, shallowRef, computed, onMounted } from 'vue'
+import { ref, shallowRef, computed } from 'vue'
 import type { CourseDataProvider } from '../providers/CourseDataProvider'
 import {
   MetaCommentaryService,
   createMetaCommentaryService,
   type MetaCommentaryAudio,
-  type PerformanceMetrics,
 } from '../services/MetaCommentaryService'
 
 export interface UseMetaCommentaryOptions {
@@ -79,41 +78,19 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
   }
 
   /**
-   * Mark welcome as played (or skipped)
-   */
-  const markWelcomePlayed = () => {
-    if (!service.value) return
-    service.value.markWelcomePlayed()
-  }
-
-  /**
-   * Call after each cycle completes (for tracking)
-   * This accumulates the cycle count for timing decisions
-   */
-  const onCycleComplete = (): void => {
-    if (!service.value) return
-    service.value.onCycleComplete()
-  }
-
-  /**
-   * Call after each round completes
-   * Returns commentary audio if it's time to play one, null otherwise
+   * Call after each round completes. Returns commentary audio if the
+   * round-cadence rule says it's time, otherwise null.
    *
-   * Commentary timing is based on CYCLES (consistent ~11s), but only
-   * plays at ROUND boundaries (never interrupts mid-round)
+   * Gating lives in MetaCommentaryService (every Nth round). No cycle
+   * accumulation, no performance heuristics — the previous design used
+   * those and they were either ignored or perma-stuck.
    *
    * @param roundNumber - The round that just completed (1-based)
-   * @param cyclesInRound - Number of cycles in the completed round
-   * @param performance - Optional performance metrics for adaptation
    */
-  const onRoundComplete = (
-    roundNumber: number,
-    cyclesInRound: number = 0,
-    performance?: PerformanceMetrics
-  ): MetaCommentaryAudio | null => {
+  const onRoundComplete = (roundNumber: number): MetaCommentaryAudio | null => {
     if (!service.value) return null
 
-    const commentary = service.value.onRoundComplete(roundNumber, cyclesInRound, performance)
+    const commentary = service.value.onRoundComplete(roundNumber)
 
     if (commentary) {
       pendingCommentary.value = commentary
@@ -156,18 +133,6 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
   }
 
   /**
-   * Reset session state (for new learning session)
-   */
-  const resetSession = () => {
-    if (service.value) {
-      service.value.resetSession()
-    }
-    pendingCommentary.value = null
-    currentCommentary.value = null
-    isPlayingCommentary.value = false
-  }
-
-  /**
    * Reset ALL state including global (use with caution!)
    * This resets instruction progress across all courses
    */
@@ -192,13 +157,10 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
     initialize,
     shouldPlayWelcome,
     getWelcomeAudio,
-    markWelcomePlayed,
-    onCycleComplete,
     onRoundComplete,
     startCommentaryPlayback,
     finishCommentaryPlayback,
     forceNextCommentary,
-    resetSession,
     resetAll,
   }
 }
