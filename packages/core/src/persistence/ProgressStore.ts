@@ -234,42 +234,35 @@ export class ProgressStore implements IProgressStore {
    * lower the ceiling either (it ratchets only up).
    */
   /**
-   * Switch playback mode. Setting 'infplay' starts the INF round counter
-   * at 1 — but only if not already in infplay (idempotent re-entry).
-   * Setting 'main' resets infplay_round_index to 0 so a future entry
-   * starts fresh from 1.
+   * Switch playback mode. infplay_round_index is a LIFETIME counter —
+   * once it crosses 0 it never goes back. Semantics:
+   *   - First-ever 'infplay': counter initialised to 1
+   *   - Re-entering 'infplay' after a 'main' detour: counter unchanged
+   *     (carries over)
+   *   - 'main': counter NOT reset — preserves "has this learner ever
+   *     been in INF PLAY" so jumpToFurthest and the purple pill can
+   *     keep showing the count after a back-belt-skip out.
    */
   async setMode(
     learnerId: string,
     courseId: string,
     mode: 'main' | 'infplay'
   ): Promise<void> {
-    const update: Record<string, unknown> = {
-      current_mode: mode,
-      last_practiced_at: new Date().toISOString(),
-    };
-    if (mode === 'main') {
-      // Leaving INF PLAY — counter goes back to 0 so next entry starts
-      // the visible "INF round N" display from 1.
-      update.infplay_round_index = 0;
-    }
     const { error } = await this.client
       .schema(this.schema)
       .from('course_enrollments')
-      .update(update)
+      .update({
+        current_mode: mode,
+        last_practiced_at: new Date().toISOString(),
+      })
       .eq('learner_id', learnerId)
-      .eq('course_id', courseId)
-      // For mode='infplay', only initialise the counter if we're NOT
-      // already in infplay. Re-tapping while already in INF PLAY is a
-      // no-op rather than a counter reset. Achieved by an additional
-      // conditional update below.
-      ;
+      .eq('course_id', courseId);
     if (error) {
       throw new Error(`Failed to set mode: ${error.message}`);
     }
 
-    // For initial entry into INF PLAY, set counter to 1. Guarded so
-    // re-entry (already in infplay) doesn't reset progress.
+    // First-ever INF PLAY entry: bump counter from 0/null to 1.
+    // .or filter ensures we don't overwrite a non-zero lifetime count.
     if (mode === 'infplay') {
       const { error: initErr } = await this.client
         .schema(this.schema)

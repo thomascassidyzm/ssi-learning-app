@@ -2314,6 +2314,14 @@ const wouldEnterInfplay = computed(() => {
   return false
 })
 
+// Lifetime "has been in INF PLAY at least once" — counter is never
+// reset on back-belt-skip out, so this is the persistent signal.
+// Drives jumpToFurthest semantics and lets the pill show the count
+// ("INF PLAY · 47") even when learner is currently in main mode.
+const hasEverEnteredInfplay = computed(() =>
+  currentMode.value === 'infplay' || infplayRoundIndex.value > 0
+)
+
 const playingPrevBelt = computed(() => {
   const idx = playingBelt.value.index - 1
   if (idx < 0) return null
@@ -5769,7 +5777,10 @@ const handleGoBackBelt = async () => {
         try {
           await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
           currentMode.value = 'main'
-          infplayRoundIndex.value = 0
+          // NOTE: infplayRoundIndex is lifetime — leave it alone on
+          // exit. Once they've been in INF PLAY, the counter stays as
+          // a "have they ever been" signal for jumpToFurthest and the
+          // pill's lifetime display.
         } catch (modeErr) {
           console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
         }
@@ -8039,26 +8050,42 @@ const highestBeltColor = computed(() => BELTS[Math.max(0, highestBeltIndex.value
 // that backing out (closing the app) doesn't strand them at the new spot.
 const jumpToFurthest = async () => {
   const targetLegoId = highestCompletedLegoId.value
-  if (!targetLegoId && currentMode.value !== 'infplay') {
-    console.warn('[LearningPlayer] jumpToFurthest: no ceiling stored')
+  // "Have you EVER been in INF PLAY?" — lifetime signal. Once true it
+  // never goes back: per Tom (2026-05-20) "once they get to INF PLAY,
+  // that's ALWAYS their furthest point." So even after a back-belt-
+  // skip out, "go to furthest" still takes them to INF PLAY.
+  const hasEverEnteredInfplay = infplayRoundIndex.value > 0 || currentMode.value === 'infplay'
+
+  if (!targetLegoId && !hasEverEnteredInfplay) {
+    console.warn('[LearningPlayer] jumpToFurthest: no ceiling stored and never in INF PLAY')
     return
   }
 
   haltAllPlayback()
 
-  // Infinite-play branch: if the learner is in INF PLAY mode OR the
-  // ceiling IS the course's final LEGO, "furthest reached" means INF
-  // PLAY. Generate a script with the whole course + a fresh batch of
-  // infinite-play rounds and drop the learner at the first infinite-
-  // play round.
-  //
-  // The currentMode check covers the "belt-skipped forward into INF
-  // PLAY without completing every LEGO" case — without it, jumping
-  // here would fall through to "go to highest LEGO" and yank the
-  // learner OUT of INF PLAY into an earlier LEGO with its intro.
-  // (Tom's bug report 2026-05-20.)
-  const infPlay = currentMode.value === 'infplay'
+  // Infinite-play branch: covers three cases now:
+  //   1. Currently in INF PLAY (mode='infplay') — keep them there
+  //   2. Have ever been in INF PLAY (infplayRoundIndex > 0) — their
+  //      furthest point is INF PLAY even if they back-belt-skipped out
+  //   3. Ceiling IS the course's final LEGO — natural "completed
+  //      everything via main loop" path
+  const infPlay = hasEverEnteredInfplay
     || (targetLegoId ? await hasReachedInfinitePlay(targetLegoId, courseCode.value) : false)
+
+  // If we're navigating INTO INF PLAY but not currently in mode, flip
+  // the mode flag so back-belt-skip + visible state are consistent
+  // with where we just landed. Idempotent if already mode='infplay'.
+  if (infPlay && currentMode.value !== 'infplay'
+      && !isGuestLearner.value && progressStore?.value
+      && learnerId.value && courseCode.value) {
+    try {
+      await progressStore.value.setMode(learnerId.value, courseCode.value, 'infplay')
+      currentMode.value = 'infplay'
+      if (infplayRoundIndex.value === 0) infplayRoundIndex.value = 1
+    } catch (modeErr) {
+      console.warn('[LearningPlayer] jumpToFurthest: setMode(infplay) failed:', modeErr)
+    }
+  }
   if (infPlay) {
     const mainLoopCount = await getCourseMainLoopRoundCount(courseCode.value)
     const endSeed = mainLoopCount + EXPANSION_BATCH
@@ -8708,7 +8735,7 @@ defineExpose({
                    aria-hidden="true" focusable="false" class="infplay-glyph">
                 <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
               </svg>
-              <span class="infplay-label">{{ currentMode === 'infplay' ? `INF PLAY · ${infplayRoundIndex}` : 'INF PLAY' }}</span>
+              <span class="infplay-label">{{ infplayRoundIndex > 0 ? `INF PLAY · ${infplayRoundIndex}` : 'INF PLAY' }}</span>
             </template>
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
