@@ -1002,21 +1002,13 @@ const sentenceScale = computed(() => {
   transform: translateY(0);
 }
 
-/* --- NON-SALIENT DIMMING ---
-   The salient LEGO is the only one being practised right now; background
-   LEGOs (context, previously-introduced) should recede so the eye locks
-   on the salient. Dim via opacity on the wrapper so the chrome dims too,
-   not just the text. */
-.lego-block-wrapper:has(.lego-block:not(.salient):not(.ghost)) {
-  opacity: 0.55;
-}
-
 /* --- SALIENT LEGO (newly introduced) ---
-   Salient gets full opacity + red wash + chunky red glow so it pops
-   against the dimmed background tiles. Same red wash visually couples
-   it to the English hero highlight. Layered backgrounds (red gradient
-   over white base) keep the tile opaque so landscape detail doesn't
-   bleed through. */
+   Scale the whole tile 20% bigger — true size pop, includes the
+   padding, border, shadow and text proportionally. transform:scale
+   doesn't push the layout (the wrapper still reserves the unscaled
+   slot) so neighbouring tiles stay put while the salient lifts above
+   them via z-index. SSi red wash + red border + chunky red glow
+   carry the colour cue alongside the size. */
 .lego-block.salient {
   background-color: rgba(255, 255, 255, 0.92);
   background-image: linear-gradient(rgba(194, 58, 58, 0.28), rgba(194, 58, 58, 0.28));
@@ -1024,17 +1016,20 @@ const sentenceScale = computed(() => {
   border-width: 2px;
   padding: calc(0.7em * var(--sentence-scale, 1)) calc(1.3em * var(--sentence-scale, 1));
   box-shadow:
-    0 0 28px 8px rgba(194, 58, 58, 0.35),
-    0 4px 14px rgba(0, 0, 0, 0.18),
+    0 0 18px 5px rgba(194, 58, 58, 0.3),
+    0 3px 10px rgba(0, 0, 0, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
-}
-.lego-block-wrapper:has(.lego-block.salient) {
-  opacity: 1;
+  transform: scale(1.2);
+  transform-origin: center;
+  z-index: 1;
+  position: relative;
 }
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
-  font-size: calc(2.15rem * var(--sentence-scale, 1));
+  /* Match non-salient font — the tile's transform:scale already gives
+   * us the 20% bump on the text too. No need to compound. */
+  font-size: calc(1.8rem * var(--sentence-scale, 1));
 }
 
 /* --- HIDDEN --- */
@@ -1090,7 +1085,8 @@ const sentenceScale = computed(() => {
     padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   }
   .lego-block.salient .block-text {
-    font-size: calc(1.85rem * var(--sentence-scale, 1));
+    /* Same as non-salient — transform:scale on the tile handles the bump */
+    font-size: calc(1.55rem * var(--sentence-scale, 1));
   }
 
   .tile-target .comp {
