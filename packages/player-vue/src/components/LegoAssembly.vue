@@ -627,9 +627,9 @@ const sentenceScale = computed(() => {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   /* Fixed size — char-count-based scaling actively inverted prominence
    * (short LEGOs grew, salient long LEGOs shrank). Salience now comes
-   * from tile chrome (border/colour), not font size. Long words wrap
-   * within the tile via overflow-wrap below. */
-  font-size: 1.5rem;
+   * from tile chrome (border/colour/shadow + non-salient dimming),
+   * not font size. Long words wrap within the tile via overflow-wrap. */
+  font-size: 1.8rem;
   overflow-wrap: break-word;
   hyphens: auto;
   font-weight: 600;
@@ -735,7 +735,7 @@ const sentenceScale = computed(() => {
 
 .carriage-cell .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 1.4rem;
+  font-size: 1.7rem;
   overflow-wrap: break-word;
   hyphens: auto;
   font-weight: 600;
@@ -863,7 +863,7 @@ const sentenceScale = computed(() => {
 
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: calc(1.5rem * var(--sentence-scale, 1));
+  font-size: calc(1.8rem * var(--sentence-scale, 1));
   overflow-wrap: break-word;
   hyphens: auto;
   font-weight: 500;
@@ -1002,27 +1002,39 @@ const sentenceScale = computed(() => {
   transform: translateY(0);
 }
 
+/* --- NON-SALIENT DIMMING ---
+   The salient LEGO is the only one being practised right now; background
+   LEGOs (context, previously-introduced) should recede so the eye locks
+   on the salient. Dim via opacity on the wrapper so the chrome dims too,
+   not just the text. */
+.lego-block-wrapper:has(.lego-block:not(.salient):not(.ghost)) {
+  opacity: 0.55;
+}
+
 /* --- SALIENT LEGO (newly introduced) ---
-   SSi red tint + red border to make the salient unambiguously distinct
-   from solo-component (dashed) tiles. Char-count-based size scaling makes
-   the salient pop subtle on long M-LEGOs, so colour carries the signal.
-   Same red wash on the English hero highlight visually couples the two.
-   Layered backgrounds (red gradient over white base) keep the tile opaque
-   so landscape detail doesn't bleed through. */
+   Salient gets full opacity + red wash + chunky red glow so it pops
+   against the dimmed background tiles. Same red wash visually couples
+   it to the English hero highlight. Layered backgrounds (red gradient
+   over white base) keep the tile opaque so landscape detail doesn't
+   bleed through. */
 .lego-block.salient {
-  background-color: rgba(255, 255, 255, 0.85);
-  background-image: linear-gradient(rgba(194, 58, 58, 0.25), rgba(194, 58, 58, 0.25));
-  border-color: rgba(194, 58, 58, 0.6);
+  background-color: rgba(255, 255, 255, 0.92);
+  background-image: linear-gradient(rgba(194, 58, 58, 0.28), rgba(194, 58, 58, 0.28));
+  border-color: rgba(194, 58, 58, 0.7);
   border-width: 2px;
   padding: calc(0.7em * var(--sentence-scale, 1)) calc(1.3em * var(--sentence-scale, 1));
   box-shadow:
-    0 0 14px 3px rgba(194, 58, 58, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    0 0 28px 8px rgba(194, 58, 58, 0.35),
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.lego-block-wrapper:has(.lego-block.salient) {
+  opacity: 1;
 }
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
-  font-size: calc(1.75rem * var(--sentence-scale, 1));
+  font-size: calc(2.15rem * var(--sentence-scale, 1));
 }
 
 /* --- HIDDEN --- */
@@ -1069,7 +1081,7 @@ const sentenceScale = computed(() => {
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
   .lego-block .block-text {
-    font-size: calc(1.3rem * var(--sentence-scale, 1));
+    font-size: calc(1.55rem * var(--sentence-scale, 1));
   }
   .lego-block {
     padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
@@ -1078,18 +1090,18 @@ const sentenceScale = computed(() => {
     padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   }
   .lego-block.salient .block-text {
-    font-size: calc(1.5rem * var(--sentence-scale, 1));
+    font-size: calc(1.85rem * var(--sentence-scale, 1));
   }
 
   .tile-target .comp {
-    font-size: 1.3rem;
+    font-size: 1.55rem;
   }
 
   .carriage-cell {
     padding: 0.45em 0.7em;
   }
   .carriage-cell .comp {
-    font-size: 1.2rem;
+    font-size: 1.45rem;
   }
 }
 </style>
