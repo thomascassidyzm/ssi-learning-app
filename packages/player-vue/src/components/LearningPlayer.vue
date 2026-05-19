@@ -1243,6 +1243,28 @@ watch(
   }
 )
 
+// Round-ENTRY audio prefetch — pull the WHOLE round's audio (and a
+// couple ahead) into the service-worker cache as soon as a round
+// becomes current. Without this, only the *next* round was preloaded
+// (after the current round completed), so a session-start round or
+// any jump-to-round had to fetch its cycles' audio mid-play. On
+// patchy 4G that read as 20s mid-cycle stalls (Aran's report).
+//
+// loadedRounds is the canonical reactive ref of the player's queue;
+// preloadSimpleRoundAudio dedupes via audioPreloadedRounds so repeat
+// triggers (or overlapping prefetch-on-complete) are no-ops.
+watch(
+  () => [simplePlayer.roundIndex.value, loadedRounds.value?.length],
+  ([roundIndex, totalLoaded]) => {
+    if (typeof roundIndex !== 'number' || !totalLoaded) return
+    if (!loadedRounds.value || roundIndex >= loadedRounds.value.length) return
+    // Current round + next 2 — covers ~3-4 minutes of audio ahead so
+    // even a fully cold cache catches up before the buffer drains.
+    void preloadSimpleRoundAudio(loadedRounds.value, 3, roundIndex)
+  },
+  { immediate: true },
+)
+
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
 // This watcher runs after currentCycle ref is defined (around line 1240)
 watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
