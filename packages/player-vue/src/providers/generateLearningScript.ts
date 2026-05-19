@@ -130,8 +130,15 @@ export interface ListeningConfig {
   // Layer 1 — graduated seed sentences
   l1ActiveSize: number        // sliding window of N most recent graduated seeds
   l1ActiveInterval: number    // active fires every N rounds
-  l1ReserveSize: number       // older seeds beyond active, capped (overflow → Choice Pods later)
-  l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
+  l1ReserveSize: number       // older seeds beyond active, fixed-size window
+  l1ReserveInterval: number   // reserve fires every N rounds
+  /** Retired bucket — graduated seeds older than ACTIVE+RESERVE windows.
+   * No size cap; everything past the reserve tail. Fires least often, on
+   * URN-sampled pulls. */
+  l1RetiredInterval: number
+  /** Sentences pulled per fire for REVIEW and RETIRED buckets via URN
+   * sampling (no-replacement draw, refill when bucket exhausted). */
+  l1UrnPullCount: number
   /** Legacy / fallback flat playlist. Used when layer1StagePlaylist is
    * empty — every L1 fire of every seed plays this same sequence, no
    * decay. Kept for back-compat with the pre-staged-decay model. */
@@ -163,9 +170,11 @@ export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   // after every one of its LEGOs has fully dropped out of spaced rep.
   offset: 90,
   l1ActiveSize: 10,
-  l1ActiveInterval: 3,
+  l1ActiveInterval: 7,
   l1ReserveSize: 50,
   l1ReserveInterval: 13,
+  l1RetiredInterval: 23,
+  l1UrnPullCount: 10,
   layer1Playlist: ['ps', 'ps2x', 'ps2x'],
   layer1StagePlaylist: {
     '1': ['ps', 'ps2x', 'ps2x'],
@@ -220,7 +229,7 @@ export async function generateLearningScript(
    * L1-outro merge decision stays in sync with the runtime scheduler.
    * Default 1 (every round, legacy behaviour).
    */
-  podRoundInterval: number = 6,
+  podRoundInterval: number = 5,
 ): Promise<LearningScriptResult> {
   // Per-round shape — DB-tweakable via algorithm_config.script_shape.
   const SPACED_REP_OFFSETS = scriptShape.spacedRepOffsets
@@ -879,7 +888,12 @@ export async function generateLearningScript(
       || []
   }
 
-  // L1 windowing helpers
+  // L1 windowing helpers — three buckets, all derived from the
+  // chronologically-ordered graduatedQueue (oldest first).
+  //
+  // ACTIVE = last N (most recent graduates) → played in full each fire.
+  // RESERVE = next M older → URN-sampled.
+  // RETIRED = everything older still → URN-sampled.
   function l1ActiveSeedsList(): number[] {
     return graduatedQueue.slice(-listeningConfig.l1ActiveSize)
   }
@@ -888,6 +902,11 @@ export async function generateLearningScript(
     const reserveEnd = graduatedQueue.length - listeningConfig.l1ActiveSize
     const reserveStart = Math.max(0, reserveEnd - listeningConfig.l1ReserveSize)
     return graduatedQueue.slice(reserveStart, reserveEnd)
+  }
+  function l1RetiredSeedsList(): number[] {
+    const tail = listeningConfig.l1ActiveSize + listeningConfig.l1ReserveSize
+    if (graduatedQueue.length <= tail) return []
+    return graduatedQueue.slice(0, graduatedQueue.length - tail)
   }
   function l1ActiveFiresAt(round: number): boolean {
     return round > 0
@@ -899,6 +918,41 @@ export async function generateLearningScript(
       && round % listeningConfig.l1ReserveInterval === 0
       && graduatedQueue.length > listeningConfig.l1ActiveSize
   }
+  function l1RetiredFiresAt(round: number): boolean {
+    const tail = listeningConfig.l1ActiveSize + listeningConfig.l1ReserveSize
+    const interval = listeningConfig.l1RetiredInterval ?? 23
+    return round > 0
+      && round % interval === 0
+      && graduatedQueue.length > tail
+  }
+
+  // URN sampler — draws `pullSize` items from a pool without replacement,
+  // refills (re-shuffles the current pool) when exhausted. State persists
+  // across calls within a single script-gen, so successive draws don't
+  // repeat until the bucket is fully consumed. The pool can grow between
+  // calls (new seeds graduating into RESERVE/RETIRED) — the next refill
+  // picks them up. Fresh per script-gen call; the bucket isn't huge so
+  // a full cycle covers all sentences within a few fires.
+  function createUrnSampler(pullSize: number) {
+    let remaining: number[] = []
+    return function draw(currentPool: number[]): number[] {
+      const result: number[] = []
+      while (result.length < pullSize) {
+        if (remaining.length === 0) {
+          if (currentPool.length === 0) break
+          remaining = [...currentPool]
+          for (let i = remaining.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1))
+            ;[remaining[i], remaining[j]] = [remaining[j], remaining[i]]
+          }
+        }
+        result.push(remaining.shift()!)
+      }
+      return result
+    }
+  }
+  const reserveUrn = createUrnSampler(listeningConfig.l1UrnPullCount ?? 10)
+  const retiredUrn = createUrnSampler(listeningConfig.l1UrnPullCount ?? 10)
 
   // Build LEGO text map for phrase decomposition (normalised target text → LEGO key)
   // Uses ALL LEGOs (not just is_new) since reused LEGOs are still valid vocabulary
@@ -1297,11 +1351,19 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 6: Layer 1 (graduated seeds) — graduation tracking + dual-rotation emission.
-      // Graduation is event-driven: a seed graduates once `offset` rounds have
-      // elapsed since its last LEGO. The active-10 plays every 3 rounds; the
-      // reserve plays every 13 rounds. When both fire (every 39 rounds) we
-      // emit one combined cluster, reserve first then active.
+      // Phase 6: Layer 1 (graduated seeds) — three buckets (ACTIVE / RESERVE
+      // / RETIRED), each with its own cadence. MUTEX rule: only one listening
+      // activity fires per round. Priority (highest → lowest):
+      //
+      //   L2 (pod) > L1 RETIRED > L1 RESERVE > L1 ACTIVE
+      //
+      // L2 wins always — pod laps are runtime-scheduled and pre-empt L1.
+      // Among L1s, the rarest cadence wins so the spec'd frequency of the
+      // slower buckets is actually honoured (otherwise ACTIVE always wins
+      // on collisions and RESERVE/RETIRED fire vanishingly rarely).
+      //
+      // RESERVE and RETIRED draw via URN sampling — 10 seeds without
+      // replacement per fire, bucket refills on exhaustion.
       if (listeningConfig.enabled) {
         // Graduate any seed whose last LEGO is at least `offset` LEGOs
         // behind the learner's current LEGO. Catalogue-anchored — works
@@ -1315,18 +1377,25 @@ export async function generateLearningScript(
           graduatedQueue.push(sNum)
         }
 
-        const fireActive = l1ActiveFiresAt(roundNumber)
-        const fireReserve = l1ReserveFiresAt(roundNumber)
-        if (fireActive || fireReserve) {
-          const seeds: number[] = []
-          if (fireReserve) seeds.push(...l1ReserveSeedsList())
-          if (fireActive) seeds.push(...l1ActiveSeedsList())
-          const listenCounter = { v: cycleNum }
-          // When L2 will fire on the same round, drop the L1 outro — the
-          // runtime pod lap will also drop its intro so the two clusters
-          // play as one continuous listening section.
-          emitL1Cluster(seeds, roundNumber, listenCounter, l2FiresAt(roundNumber))
-          cycleNum = listenCounter.v
+        // L2 wins → skip L1 entirely on pod rounds.
+        if (!l2FiresAt(roundNumber)) {
+          let seeds: number[] | null = null
+          if (l1RetiredFiresAt(roundNumber)) {
+            const drawn = retiredUrn(l1RetiredSeedsList())
+            if (drawn.length > 0) seeds = drawn
+          } else if (l1ReserveFiresAt(roundNumber)) {
+            const drawn = reserveUrn(l1ReserveSeedsList())
+            if (drawn.length > 0) seeds = drawn
+          } else if (l1ActiveFiresAt(roundNumber)) {
+            seeds = l1ActiveSeedsList()
+          }
+          if (seeds && seeds.length > 0) {
+            const listenCounter = { v: cycleNum }
+            // omitOutro stays false — mutex guarantees no L2 collision when
+            // we reach this branch.
+            emitL1Cluster(seeds, roundNumber, listenCounter, false)
+            cycleNum = listenCounter.v
+          }
         }
       }
 

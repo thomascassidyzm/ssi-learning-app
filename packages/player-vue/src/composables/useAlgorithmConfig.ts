@@ -91,8 +91,13 @@ export interface ListeningModeConfig {
   offset: number              // rounds after last LEGO before seed graduates
   l1ActiveSize: number        // sliding window size of recent graduated seeds
   l1ActiveInterval: number    // active fires every N rounds
-  l1ReserveSize: number       // older graduated seeds beyond active
-  l1ReserveInterval: number   // reserve fires every N rounds (coprime with active)
+  l1ReserveSize: number       // older graduated seeds beyond active (fixed window)
+  l1ReserveInterval: number   // reserve fires every N rounds
+  /** Retired bucket — everything older than ACTIVE+RESERVE. No size cap.
+   * Fires least often, URN-sampled. */
+  l1RetiredInterval: number
+  /** Sentences pulled per URN draw for RESERVE and RETIRED. */
+  l1UrnPullCount: number
   /** Legacy / fallback flat playlist — used when layer1StagePlaylist is empty. */
   layer1Playlist: ListeningSlotRole[]
   /** Staged Layer 1 playlist — keys are stage numbers, values are the
@@ -161,9 +166,11 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
   offset: 90,
   l1ActiveSize: 10,
-  l1ActiveInterval: 3,
+  l1ActiveInterval: 7,
   l1ReserveSize: 50,
   l1ReserveInterval: 13,
+  l1RetiredInterval: 23,
+  l1UrnPullCount: 10,
   layer1Playlist: ['ps', 'ps2x', 'ps2x'],
   layer1StagePlaylist: {
     '1': ['ps', 'ps2x', 'ps2x'],
@@ -193,10 +200,10 @@ const DEFAULT_PODS: PodsConfig = {
   gapTightMs: 200,
   gapGluedMs: 300,
   gapBetweenMs: 1000,
-  /* L2 pod-lap fires every 6 main rounds from activation onward. Was 1
-   * (every round, legacy behaviour); per spec it should match the L1
-   * active cadence so listening exercises cluster predictably. */
-  roundInterval: 6,
+  /* L2 pod-lap fires every 5 main rounds from activation onward. Per
+   * 2026-05-19 spec: coprime cadences (L2:5, L1 active:7, reserve:13,
+   * retired:23) minimise collisions; mutex priority resolves the rest. */
+  roundInterval: 5,
   podActivationRound: 6,
 }
 
