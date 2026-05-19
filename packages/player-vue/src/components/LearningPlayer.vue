@@ -4656,6 +4656,7 @@ const handlePause = () => {
       : playingCommentaryAudio.value ? 'commentary'
       : 'cycle',
     roundIndex: simplePlayer.roundIndex.value,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
   })
 
@@ -4685,6 +4686,7 @@ const handleResume = async () => {
   logEvent('tap_play', {
     firstPlay: !hasEverStarted.value,
     roundIndex: simplePlayer.roundIndex.value,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
   })
 
@@ -5397,6 +5399,7 @@ const handleSkip = async () => {
         || simplePlayer.currentCycle.value?.type === 'listen_outro') ? 'l1_cluster'
       : 'cycle',
     roundIndex: simplePlayer.roundIndex.value,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     cycleIndex: simplePlayer.cycleIndex.value,
     cycleType: simplePlayer.currentCycle.value?.type ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
