@@ -134,8 +134,11 @@ const isLoading = ref(true)
 const error = ref(null)
 const mode = ref('shuffled') // Start shuffled for variety
 
-// Top-level view toggle: 'phrases' = USE-phrase teleprompter (default),
-// 'pods' = Listening Pod scene list (Layer 2).
+// Top-level view toggle. Code keys stay snake-y; display labels in the
+// template are All / Core / Dialogues.
+//   'phrases' (All)       = every USE phrase in the course
+//   'seeds'   (Core)      = every seed sentence (whole-sentence listen)
+//   'pods'    (Dialogues) = Listening Pod scene list (Layer 2)
 const view = ref('phrases')
 
 // Phrase data
@@ -193,7 +196,7 @@ const beltIndexForSeed = (seedNumber) => {
  * sentences have no belt info).
  */
 const shouldShowBeltHeader = (i) => {
-  if (view.value !== 'phrases' || mode.value !== 'ordered') return false
+  if ((view.value !== 'phrases' && view.value !== 'seeds') || mode.value !== 'ordered') return false
   const phrase = visiblePhrases.value[i]
   if (!phrase || phrase.beltIndex === undefined) return false
   if (i === 0) return true
@@ -207,7 +210,7 @@ const shouldShowBeltHeader = (i) => {
  * the row of belt pips above the teleprompter (Phrases + ordered only).
  */
 const beltJumpPoints = computed(() => {
-  if (view.value !== 'phrases') return []
+  if (view.value !== 'phrases' && view.value !== 'seeds') return []
   const points = []
   const seen = new Set()
   // Walk allPhrases in order; first occurrence of each beltIndex is the
@@ -233,7 +236,7 @@ const currentBeltIndex = computed(() => {
 })
 
 const jumpToBelt = (point) => {
-  if (view.value !== 'phrases') return
+  if (view.value !== 'phrases' && view.value !== 'seeds') return
   // In shuffled mode, allPhrases has been reordered — find the first
   // phrase matching the target beltIndex in the shuffled list instead.
   const list = availablePhrases.value
@@ -310,19 +313,19 @@ const setView = (v) => {
   stopPlayback()
   selectedScene.value = null
   view.value = v
-  // When entering pods view: clear phrases so we don't show stale rows
-  // behind the scene list. When returning to phrases: reload them.
+  allPhrases.value = []
+  loadedCount.value = 0
+  totalCount.value = 0
+  currentIndex.value = -1
   if (v === 'phrases') {
-    allPhrases.value = []
-    loadedCount.value = 0
-    totalCount.value = 0
     hasMore.value = true
-    currentIndex.value = -1
     loadPhrases()
+  } else if (v === 'seeds') {
+    hasMore.value = false
+    loadSeeds()
   } else {
-    // pods: empty teleprompter state until a scene is picked
-    allPhrases.value = []
-    currentIndex.value = -1
+    // pods: scene list visible until a scene is picked
+    hasMore.value = false
   }
 }
 
@@ -486,6 +489,68 @@ const loadMoreIfNeeded = async () => {
   const remaining = allPhrases.value.length - currentIndex.value - 1
   if (remaining < PRELOAD_THRESHOLD) {
     await loadPhrases(loadedCount.value)
+  }
+}
+
+/**
+ * Core view loader — every seed in the course, regardless of whether
+ * the learner has reached it yet. Seeds typically number 100–400 per
+ * course, so we load them all in one shot (no pagination).
+ *
+ * Maps each seed to the same row shape the teleprompter expects for
+ * phrases. legoIndex / legoOrdinal stay null (seeds aren't LEGOs);
+ * belt-jump + ordered/shuffled toggle work unchanged because they
+ * derive purely from seed_number.
+ */
+const loadSeeds = async () => {
+  if (!supabase?.value || !props.courseCode) {
+    error.value = 'Database not configured'
+    isLoading.value = false
+    return
+  }
+  try {
+    isLoading.value = true
+    error.value = null
+
+    const { data, error: fetchError } = await supabase.value
+      .from('course_seeds')
+      .select('seed_number, known_text, target_text, target1_audio_id, target2_audio_id')
+      .eq('course_code', props.courseCode)
+      .order('seed_number', { ascending: true })
+
+    if (fetchError) throw fetchError
+
+    const rows = (data || []).map((s) => {
+      const beltIndex = beltIndexForSeed(s.seed_number)
+      return {
+        id: `seed-${s.seed_number}`,
+        seedNumber: s.seed_number,
+        legoIndex: undefined,
+        legoId: `S${String(s.seed_number).padStart(4, '0')}`,
+        legoOrdinal: null,
+        beltIndex,
+        beltName: BELTS[beltIndex]?.name || '',
+        beltColor: BELTS[beltIndex]?.color || '#ffffff',
+        knownText: s.known_text,
+        targetText: s.target_text,
+        position: s.seed_number,
+        target1AudioId: s.target1_audio_id,
+        target2AudioId: s.target2_audio_id || s.target1_audio_id,
+      }
+    })
+
+    allPhrases.value = rows
+    loadedCount.value = rows.length
+    totalCount.value = rows.length
+    hasMore.value = false
+    currentIndex.value = rows.length > 0 ? 0 : -1
+    if (mode.value === 'shuffled') shufflePhrases()
+    updateVisibleWindow()
+  } catch (err) {
+    console.error('[ListeningOverlay] loadSeeds error:', err)
+    error.value = 'Failed to load seeds'
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -1006,20 +1071,26 @@ watch(playbackSpeed, (newSpeed) => {
       <span v-else class="download-pct">{{ packPercent }}%</span>
     </button>
 
-    <!-- Top-level view tabs: Phrases / Pods.
-         Phrases = every USE phrase the learner has met (default).
-         Pods    = Layer 2 dialogue scenes for the course. -->
+    <!-- Top-level view tabs: All / Core / Dialogues.
+         All       = every USE phrase the learner has met (default).
+         Core      = every seed sentence in the course.
+         Dialogues = Layer 2 pod scenes for the course. -->
     <div class="view-tabs" @click.stop>
       <button
         class="view-tab"
         :class="{ active: view === 'phrases' }"
         @click="setView('phrases')"
-      >Phrases</button>
+      >All</button>
+      <button
+        class="view-tab"
+        :class="{ active: view === 'seeds' }"
+        @click="setView('seeds')"
+      >Core</button>
       <button
         class="view-tab"
         :class="{ active: view === 'pods' }"
         @click="setView('pods')"
-      >Pods</button>
+      >Dialogues</button>
     </div>
 
     <!-- Pods scene-list view (shown when in pods view + no scene selected) -->
@@ -1058,20 +1129,20 @@ watch(playbackSpeed, (newSpeed) => {
       </div>
     </div>
 
-    <!-- Controls bar: shuffle toggle (Phrases only) OR back-to-scenes
-         (Pods + scene open) + transport + speed.
-         Hidden in pods scene-list state — no data to drive them yet. -->
+    <!-- Controls bar: shuffle toggle (All + Core) OR back-to-scenes
+         (Dialogues + scene open) + transport + speed.
+         Hidden in dialogue scene-list state — no data to drive them yet. -->
     <div
-      v-if="view === 'phrases' || (view === 'pods' && selectedScene)"
+      v-if="view === 'phrases' || view === 'seeds' || (view === 'pods' && selectedScene)"
       class="controls-bar"
       @click.stop
     >
       <!-- Leftmost control:
-           - Phrases view: Spotify-style shuffle toggle.
-           - Pods view + scene open: scene back-button (returns to scene list).
+           - All / Core view: Spotify-style shuffle toggle.
+           - Dialogues view + scene open: scene back-button (returns to scene list).
            Same slot in the bar — no layout shift between views. -->
       <button
-        v-if="view === 'phrases'"
+        v-if="view === 'phrases' || view === 'seeds'"
         class="shuffle-toggle"
         :class="{ active: mode === 'shuffled' }"
         :aria-pressed="mode === 'shuffled'"
@@ -1131,23 +1202,23 @@ watch(playbackSpeed, (newSpeed) => {
       </div>
     </div>
 
-    <!-- Loading State (phrases view only — pods has its own loading) -->
-    <div v-if="(view === 'phrases' || selectedScene) && isLoading" class="loading">
+    <!-- Loading State (All / Core only — Dialogues has its own loading) -->
+    <div v-if="(view === 'phrases' || view === 'seeds' || selectedScene) && isLoading" class="loading">
       <div class="loading-spinner"></div>
-      <p>Loading phrases...</p>
+      <p>Loading...</p>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="(view === 'phrases' || selectedScene) && error" class="error" @click.stop>
+    <div v-else-if="(view === 'phrases' || view === 'seeds' || selectedScene) && error" class="error" @click.stop>
       <p>{{ error }}</p>
-      <button @click="loadPhrases()">Retry</button>
+      <button @click="view === 'seeds' ? loadSeeds() : loadPhrases()">Retry</button>
     </div>
 
-    <!-- Belt-jump strip — Phrases view only. One pip per belt that has at
-         least one phrase in the inventory. Tap to jump to that belt's
-         first phrase. The active pip is filled; others are outlined. -->
+    <!-- Belt-jump strip — All / Core views. One pip per belt that has at
+         least one row in the inventory. Tap to jump to that belt's first
+         row. Active pip is filled; others are outlined. -->
     <div
-      v-if="view === 'phrases' && beltJumpPoints.length > 1"
+      v-if="(view === 'phrases' || view === 'seeds') && beltJumpPoints.length > 1"
       class="belt-jump-strip"
       @click.stop
     >
@@ -1166,11 +1237,11 @@ watch(playbackSpeed, (newSpeed) => {
       </button>
     </div>
 
-    <!-- Teleprompter (phrases view, or pods view with a scene selected).
+    <!-- Teleprompter (All / Core, or Dialogues with a scene selected).
          Standalone v-if so the belt-jump strip above doesn't break the
          chain that loading/error states form. -->
     <div
-      v-if="!isLoading && !error && (view === 'phrases' || (view === 'pods' && selectedScene))"
+      v-if="!isLoading && !error && (view === 'phrases' || view === 'seeds' || (view === 'pods' && selectedScene))"
       class="teleprompter"
     >
       <div class="phrase-list">
