@@ -631,11 +631,12 @@ const sentenceScale = computed(() => {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   /* Fixed size — char-count-based scaling actively inverted prominence
    * (short LEGOs grew, salient long LEGOs shrank). Salience now comes
-   * from tile chrome (border/colour/shadow + non-salient dimming),
-   * not font size. Long words wrap within the tile via overflow-wrap. */
+   * from tile chrome (border/colour/shadow), not font size.
+   * Single-line tiles — if a tile doesn't fit on the current row, the
+   * flex container wraps the WHOLE TILE to its own row (never breaks
+   * the text inside a tile). A chunk is always one unit. */
   font-size: 1.8rem;
-  overflow-wrap: break-word;
-  hyphens: auto;
+  white-space: nowrap;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   overflow-wrap: break-word;
@@ -740,8 +741,7 @@ const sentenceScale = computed(() => {
 .carriage-cell .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: 1.7rem;
-  overflow-wrap: break-word;
-  hyphens: auto;
+  white-space: nowrap;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: 0.02em;
@@ -829,7 +829,9 @@ const sentenceScale = computed(() => {
     0 0 12px 2px rgba(255, 255, 255, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   max-width: calc(100vw - 3rem);
-  overflow: hidden;
+  /* overflow: hidden was clipping single-line tiles whose text was
+   * longer than the tile padding suggested. With nowrap text the
+   * tile grows to fit; we don't need to hide overflow. */
   position: relative;
 }
 
@@ -868,13 +870,12 @@ const sentenceScale = computed(() => {
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: calc(1.8rem * var(--sentence-scale, 1));
-  overflow-wrap: break-word;
-  hyphens: auto;
+  /* Single-line tiles — never wrap text inside a tile. If the tile
+   * doesn't fit on the current row, the flex container wraps the
+   * whole tile to its own row. A chunk is always one unit. */
+  white-space: nowrap;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
-  overflow-wrap: break-word;
-  word-break: break-word;
-  hyphens: manual;
   letter-spacing: 0.02em;
   user-select: none;
   position: relative;
