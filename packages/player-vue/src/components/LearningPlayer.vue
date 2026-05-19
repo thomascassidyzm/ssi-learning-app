@@ -2600,12 +2600,19 @@ const playCommentaryAudio = async (commentary) => {
       finish('cancelled', false)
     }, 100)
 
-    // Safety timeout (max 60 seconds for any commentary)
+    // Safety timeout — deadlock breaker for the case where audio.onEnded
+    // never fires (mobile Safari quirks, silent load failures, etc.). NOT
+    // a "commentary must finish in N seconds" cap. Sized to the clip's
+    // actual duration plus a 10s buffer for codec/buffering slack, with a
+    // 60s floor for clips without metadata. The fixed 60s cap previously
+    // here cut off a 58–62s instruction by milliseconds on every play.
+    const expectedMs = commentary.duration_ms ?? 0
+    const safetyMs = Math.max(60_000, expectedMs + 10_000)
     safetyTimeout = setTimeout(() => {
       if (settled) return
       try { audio.stop() } catch {}
       finish('safety_timeout', false)
-    }, 60000)
+    }, safetyMs)
   })
 }
 
