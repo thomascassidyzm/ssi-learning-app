@@ -847,6 +847,13 @@ export async function generateLearningScript(
   let currentLegoOrdinal = 0  // updated as each LEGO is introduced in the walk
   const graduatedSeeds = new Set<number>()         // idempotency check
   const graduatedQueue: number[] = []              // graduation order; L1 windows are slices
+  // Track the most recent round that emitted ANY listening cluster (L1
+  // baked here, or L2 firing in the runtime — l2FiresAt is deterministic
+  // per round). Used to enforce the "never two listening exercises
+  // contiguous" rule: a listening cluster only fires if the previous
+  // listening was at least MIN_LISTENING_GAP rounds ago.
+  let lastListeningRound = -1000
+  const MIN_LISTENING_GAP = 2  // rounds between any two listening clusters
   // Per-seed L1 fire counter — bumped on each emit in emitL1Cluster.
   // Drives stage progression: stage = floor((fireCount-1) / layer1StageDuration) + 1
   // capped at the highest key in layer1StagePlaylist (eternal hold).
@@ -1377,24 +1384,36 @@ export async function generateLearningScript(
           graduatedQueue.push(sNum)
         }
 
-        // L2 wins → skip L1 entirely on pod rounds.
-        if (!l2FiresAt(roundNumber)) {
-          let seeds: number[] | null = null
-          if (l1RetiredFiresAt(roundNumber)) {
-            const drawn = retiredUrn(l1RetiredSeedsList())
-            if (drawn.length > 0) seeds = drawn
-          } else if (l1ReserveFiresAt(roundNumber)) {
-            const drawn = reserveUrn(l1ReserveSeedsList())
-            if (drawn.length > 0) seeds = drawn
-          } else if (l1ActiveFiresAt(roundNumber)) {
-            seeds = l1ActiveSeedsList()
-          }
-          if (seeds && seeds.length > 0) {
-            const listenCounter = { v: cycleNum }
-            // omitOutro stays false — mutex guarantees no L2 collision when
-            // we reach this branch.
-            emitL1Cluster(seeds, roundNumber, listenCounter, false)
-            cycleNum = listenCounter.v
+        // L2 wins → skip L1 entirely on pod rounds. L2 also counts
+        // for the contiguous-listening cooldown.
+        if (l2FiresAt(roundNumber)) {
+          lastListeningRound = roundNumber
+        } else {
+          // Don't fire L1 if a listening cluster just fired within the
+          // last MIN_LISTENING_GAP rounds, AND don't fire L1 if L2 is
+          // scheduled for the very next round (would leave them
+          // adjacent). Tom's "never two listening exercises contiguous"
+          // rule — both directions matter because L2 is runtime-baked
+          // by cadence and we can see it coming.
+          const tooSoon = roundNumber - lastListeningRound < MIN_LISTENING_GAP
+          const l2NextRound = l2FiresAt(roundNumber + 1)
+          if (!tooSoon && !l2NextRound) {
+            let seeds: number[] | null = null
+            if (l1RetiredFiresAt(roundNumber)) {
+              const drawn = retiredUrn(l1RetiredSeedsList())
+              if (drawn.length > 0) seeds = drawn
+            } else if (l1ReserveFiresAt(roundNumber)) {
+              const drawn = reserveUrn(l1ReserveSeedsList())
+              if (drawn.length > 0) seeds = drawn
+            } else if (l1ActiveFiresAt(roundNumber)) {
+              seeds = l1ActiveSeedsList()
+            }
+            if (seeds && seeds.length > 0) {
+              const listenCounter = { v: cycleNum }
+              emitL1Cluster(seeds, roundNumber, listenCounter, false)
+              cycleNum = listenCounter.v
+              lastListeningRound = roundNumber
+            }
           }
         }
       }
