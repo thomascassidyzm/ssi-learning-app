@@ -1365,12 +1365,22 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     const cycleType = (cycle?.type || '') as string
     const isIntroOrDebut = cycleType === 'intro' || cycleType === 'debut'
     const isCmpCycle = cycleType === 'component_intro' || cycleType === 'component_practice'
+    // The cycle's own known text — feeds the small ghost label under
+    // the target tile on intro/debut/component cycles. Without it the
+    // single-tile branch produces a tile-only render and the known
+    // scaffold under the tile vanishes. The legacy path got knownText
+    // via the componentLegoIds branch (legoKnownTextMap lookup); the
+    // bootstrap path has it directly on the cycle.
+    const cycleKnownText = cycle.known?.text || ''
     if (isCmpCycle) {
       // Component intro/practice: show a single tile with the component's target text
       const targetText = cycle.target?.text || ''
       if (targetText) {
         const legoId = cycle.legoId || currentRound.value?.legoId || cycle?.id || 'phrase'
-        return [{ id: legoId, targetText, isSalient: true, isSoloComponent: true }]
+        return [{
+          id: legoId, targetText, isSalient: true, isSoloComponent: true,
+          ...(cycleKnownText ? { knownText: cycleKnownText } : {}),
+        }]
       }
     }
     if (isIntroOrDebut && currentRound.value?.legoId) {
@@ -1382,7 +1392,10 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         ? (cycle.target?.textNative || cycle.target?.text || '')
         : (cycle.target?.text || '')
       if (targetText) {
-        return [{ id: legoId, targetText, isSalient: true }]
+        return [{
+          id: legoId, targetText, isSalient: true,
+          ...(cycleKnownText ? { knownText: cycleKnownText } : {}),
+        }]
       }
     }
     // No decomposition available — fallback: show the full phrase as a single tile
