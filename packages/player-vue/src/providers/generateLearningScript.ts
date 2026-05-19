@@ -122,23 +122,33 @@ const ROLE_SPEED: Record<string, number> = {
 
 // Per Aran's listening-layers spec (canonical visualiser at popty.app/listening-playground.html).
 // Graduation is event-driven (1 LEGO == 1 round; a seed graduates once all its
-// LEGOs have been introduced and the offset has elapsed). Active-10 and reserve
-// fire on co-prime intervals (3 / 13) so they only clash every 39 rounds.
+// LEGOs have been introduced and the offset has elapsed).
+//
+// L1 firing model (2026-05-19 simplification): ONE cadence + ONE rotating
+// queue. Every `l1Cadence` rounds, the next non-empty lane in
+// `l1QueueTemplate` fires. L2 pre-empts L1 (same-round) and we skip L1
+// when L2 fires the next round, so no two listening clusters are ever
+// adjacent. Cadence MUST be coprime with L2's roundInterval (default 5)
+// — cadences 4 / 5 / 10 etc. land L1 candidates on L2-adjacent rounds
+// every time and never fire. Defaults to 3.
+type L1Lane = 'active' | 'reserve' | 'retired'
+
 export interface ListeningConfig {
   enabled: boolean
   offset: number              // rounds after last LEGO before seed graduates
   // Layer 1 — graduated seed sentences
   l1ActiveSize: number        // sliding window of N most recent graduated seeds
-  l1ActiveInterval: number    // active fires every N rounds
   l1ReserveSize: number       // older seeds beyond active, fixed-size window
-  l1ReserveInterval: number   // reserve fires every N rounds
-  /** Retired bucket — graduated seeds older than ACTIVE+RESERVE windows.
-   * No size cap; everything past the reserve tail. Fires least often, on
-   * URN-sampled pulls. */
-  l1RetiredInterval: number
-  /** Sentences pulled per fire for REVIEW and RETIRED buckets via URN
+  /** Sentences pulled per fire for RESERVE and RETIRED buckets via URN
    * sampling (no-replacement draw, refill when bucket exhausted). */
   l1UrnPullCount: number
+  /** Rounds between consecutive L1 firings. Must be coprime with L2's
+   * roundInterval (default 5) or L1 will be permanently blocked by the
+   * "no adjacent listening" rule. Defaults to 3. */
+  l1Cadence: number
+  /** Slot rotation — each entry consumes one cadence slot. Empty lanes
+   * are skipped (early course before reserve/retired have content). */
+  l1QueueTemplate: L1Lane[]
   /** Legacy / fallback flat playlist. Used when layer1StagePlaylist is
    * empty — every L1 fire of every seed plays this same sequence, no
    * decay. Kept for back-compat with the pre-staged-decay model. */
@@ -170,11 +180,13 @@ export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   // after every one of its LEGOs has fully dropped out of spaced rep.
   offset: 90,
   l1ActiveSize: 10,
-  l1ActiveInterval: 7,
   l1ReserveSize: 50,
-  l1ReserveInterval: 13,
-  l1RetiredInterval: 23,
   l1UrnPullCount: 10,
+  l1Cadence: 3,
+  // Rotation: 3× active, 1× reserve, 1× retired per cycle. Heavier on
+  // active because that's the freshest material; reserve/retired are
+  // background refreshers.
+  l1QueueTemplate: ['active', 'active', 'reserve', 'active', 'retired'],
   layer1Playlist: ['ps', 'ps2x', 'ps2x'],
   layer1StagePlaylist: {
     '1': ['ps', 'ps2x', 'ps2x'],
@@ -359,24 +371,23 @@ export async function generateLearningScript(
   // NULL audio IDs are gracefully skipped by the downstream filters.)
 
   // -------------------------------------------------------------------------
-  // Listening Layers (Aran spec, 2026-04-29 — canonical visualiser at
-  // popty.app/listening-playground.html).
+  // Listening Layers (Aran spec, refactored 2026-05-19 to single-cadence
+  // queue model).
   //
-  //   Layer 2 (Pod 0):     fires every round at and after podActivationRound
-  //                        (default R6 = start of seed 2). Pod-round = main-round
-  //                        - activation + 1 (1:1). Stage progression follows the
-  //                        7-stage table below.
-  //   Layer 1 (graduated): two co-prime rotations on the queue of graduated
-  //                        seeds —
-  //                          active = last `l1ActiveSize` (10) seeds, every
-  //                          `l1ActiveInterval` (3) rounds
-  //                          reserve = next `l1ReserveSize` (50) older seeds,
-  //                          every `l1ReserveInterval` (13) rounds
-  //                        Both can fire in the same round (every 39); when
-  //                        they do, we emit one combined cluster (reserve
-  //                        first, then active) with a single bookend pair.
+  //   Layer 2 (Pod 0):  fires every POD_ROUND_INTERVAL rounds (default 5)
+  //                     from podActivationRound onward. Pod-round counts
+  //                     fires, not main-rounds. Stage table unchanged.
+  //   Layer 1:          fires every l1Cadence rounds (default 3 — must be
+  //                     coprime with POD_ROUND_INTERVAL or L1 stalls
+  //                     under adjacency rule). Lane picked by popping
+  //                     l1QueueTemplate in rotation; empty lanes skip.
+  //                     Buckets unchanged: ACTIVE = last l1ActiveSize,
+  //                     RESERVE = next l1ReserveSize older, RETIRED = the
+  //                     rest. URN sampling for reserve/retired.
   //
-  // L1 + L2 bookends may both fire in the same round — Aran approved.
+  // Adjacency rule: no two listening clusters in adjacent rounds. L2
+  // takes precedence (same-round mutex by L2-claims-slot); L1 skips when
+  // l2FiresAt(round+1) to prevent L1→L2 adjacency.
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound ?? 6
   const POD_ROUND_INTERVAL = Math.max(1, Math.floor(podRoundInterval))
@@ -847,13 +858,11 @@ export async function generateLearningScript(
   let currentLegoOrdinal = 0  // updated as each LEGO is introduced in the walk
   const graduatedSeeds = new Set<number>()         // idempotency check
   const graduatedQueue: number[] = []              // graduation order; L1 windows are slices
-  // Track the most recent round that emitted ANY listening cluster (L1
-  // baked here, or L2 firing in the runtime — l2FiresAt is deterministic
-  // per round). Used to enforce the "never two listening exercises
-  // contiguous" rule: a listening cluster only fires if the previous
-  // listening was at least MIN_LISTENING_GAP rounds ago.
+  // Last round that emitted ANY listening cluster (L1 baked here, or L2
+  // firing in the runtime — l2FiresAt is deterministic per round). Gates
+  // the L1 cadence and combined with l2FiresAt(round+1) prevents adjacent
+  // listening clusters.
   let lastListeningRound = -1000
-  const MIN_LISTENING_GAP = 2  // rounds between any two listening clusters
   // Per-seed L1 fire counter — bumped on each emit in emitL1Cluster.
   // Drives stage progression: stage = floor((fireCount-1) / layer1StageDuration) + 1
   // capped at the highest key in layer1StagePlaylist (eternal hold).
@@ -915,22 +924,12 @@ export async function generateLearningScript(
     if (graduatedQueue.length <= tail) return []
     return graduatedQueue.slice(0, graduatedQueue.length - tail)
   }
-  function l1ActiveFiresAt(round: number): boolean {
-    return round > 0
-      && round % listeningConfig.l1ActiveInterval === 0
-      && graduatedQueue.length > 0
-  }
-  function l1ReserveFiresAt(round: number): boolean {
-    return round > 0
-      && round % listeningConfig.l1ReserveInterval === 0
-      && graduatedQueue.length > listeningConfig.l1ActiveSize
-  }
-  function l1RetiredFiresAt(round: number): boolean {
-    const tail = listeningConfig.l1ActiveSize + listeningConfig.l1ReserveSize
-    const interval = listeningConfig.l1RetiredInterval ?? 23
-    return round > 0
-      && round % interval === 0
-      && graduatedQueue.length > tail
+  function laneSeedsList(lane: L1Lane): number[] {
+    switch (lane) {
+      case 'active': return l1ActiveSeedsList()
+      case 'reserve': return l1ReserveSeedsList()
+      case 'retired': return l1RetiredSeedsList()
+    }
   }
 
   // URN sampler — draws `pullSize` items from a pool without replacement,
@@ -960,6 +959,16 @@ export async function generateLearningScript(
   }
   const reserveUrn = createUrnSampler(listeningConfig.l1UrnPullCount ?? 10)
   const retiredUrn = createUrnSampler(listeningConfig.l1UrnPullCount ?? 10)
+
+  // L1 slot queue — rotating template, refills on exhaustion. Each cadence
+  // step pops the next entry; empty lanes are skipped so early-course
+  // (when only ACTIVE has content) doesn't burn slots on empty buckets.
+  const L1_QUEUE_TEMPLATE: L1Lane[] = listeningConfig.l1QueueTemplate
+    && listeningConfig.l1QueueTemplate.length > 0
+    ? listeningConfig.l1QueueTemplate
+    : ['active', 'active', 'reserve', 'active', 'retired']
+  const L1_CADENCE = Math.max(1, Math.floor(listeningConfig.l1Cadence ?? 3))
+  let l1Queue: L1Lane[] = [...L1_QUEUE_TEMPLATE]
 
   // Build LEGO text map for phrase decomposition (normalised target text → LEGO key)
   // Uses ALL LEGOs (not just is_new) since reused LEGOs are still valid vocabulary
@@ -1358,19 +1367,13 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 6: Layer 1 (graduated seeds) — three buckets (ACTIVE / RESERVE
-      // / RETIRED), each with its own cadence. MUTEX rule: only one listening
-      // activity fires per round. Priority (highest → lowest):
-      //
-      //   L2 (pod) > L1 RETIRED > L1 RESERVE > L1 ACTIVE
-      //
-      // L2 wins always — pod laps are runtime-scheduled and pre-empt L1.
-      // Among L1s, the rarest cadence wins so the spec'd frequency of the
-      // slower buckets is actually honoured (otherwise ACTIVE always wins
-      // on collisions and RESERVE/RETIRED fire vanishingly rarely).
-      //
-      // RESERVE and RETIRED draw via URN sampling — 10 seeds without
-      // replacement per fire, bucket refills on exhaustion.
+      // Phase 6: Layer 1 (graduated seeds) — single cadence + rotating
+      // queue. Every L1_CADENCE rounds we pop the next non-empty lane
+      // from L1_QUEUE_TEMPLATE and emit a cluster. L2 pre-empts L1
+      // (same-round, by claiming lastListeningRound) and we skip L1
+      // when L2 fires the very next round, so no two listening clusters
+      // are ever adjacent. Mutex by construction (one cluster per
+      // cadence) — no priority logic, no per-lane intervals.
       if (listeningConfig.enabled) {
         // Graduate any seed whose last LEGO is at least `offset` LEGOs
         // behind the learner's current LEGO. Catalogue-anchored — works
@@ -1384,33 +1387,33 @@ export async function generateLearningScript(
           graduatedQueue.push(sNum)
         }
 
-        // L2 wins → skip L1 entirely on pod rounds. L2 also counts
-        // for the contiguous-listening cooldown.
         if (l2FiresAt(roundNumber)) {
+          // L2 owns this slot — runtime plays the pod lap. L1 sits out.
           lastListeningRound = roundNumber
         } else {
-          // Don't fire L1 if a listening cluster just fired within the
-          // last MIN_LISTENING_GAP rounds, AND don't fire L1 if L2 is
-          // scheduled for the very next round (would leave them
-          // adjacent). Tom's "never two listening exercises contiguous"
-          // rule — both directions matter because L2 is runtime-baked
-          // by cadence and we can see it coming.
-          const tooSoon = roundNumber - lastListeningRound < MIN_LISTENING_GAP
+          const tooSoon = roundNumber - lastListeningRound < L1_CADENCE
           const l2NextRound = l2FiresAt(roundNumber + 1)
           if (!tooSoon && !l2NextRound) {
-            let seeds: number[] | null = null
-            if (l1RetiredFiresAt(roundNumber)) {
-              const drawn = retiredUrn(l1RetiredSeedsList())
-              if (drawn.length > 0) seeds = drawn
-            } else if (l1ReserveFiresAt(roundNumber)) {
-              const drawn = reserveUrn(l1ReserveSeedsList())
-              if (drawn.length > 0) seeds = drawn
-            } else if (l1ActiveFiresAt(roundNumber)) {
-              seeds = l1ActiveSeedsList()
+            // Pop next non-empty lane from queue. Empty lanes (early
+            // course, retired/reserve still empty) are silently consumed
+            // so the queue rotation doesn't stall. Iteration cap = 2 ×
+            // template length so a misconfigured template (or pre-
+            // graduation rounds with everything empty) can't infinite-
+            // loop.
+            let drawn: number[] = []
+            const MAX_ITERS = L1_QUEUE_TEMPLATE.length * 2
+            for (let it = 0; it < MAX_ITERS && drawn.length === 0; it++) {
+              if (l1Queue.length === 0) l1Queue = [...L1_QUEUE_TEMPLATE]
+              const lane = l1Queue.shift()!
+              const pool = laneSeedsList(lane)
+              if (pool.length === 0) continue
+              drawn = lane === 'active' ? pool
+                : lane === 'reserve' ? reserveUrn(pool)
+                : retiredUrn(pool)
             }
-            if (seeds && seeds.length > 0) {
+            if (drawn.length > 0) {
               const listenCounter = { v: cycleNum }
-              emitL1Cluster(seeds, roundNumber, listenCounter, false)
+              emitL1Cluster(drawn, roundNumber, listenCounter, false)
               cycleNum = listenCounter.v
               lastListeningRound = roundNumber
             }
@@ -1589,19 +1592,34 @@ export async function generateLearningScript(
       }
     }
 
-    // Phase 5: Listening (L1 active-10 every 3 rounds + reserve every 13;
-    // L2 runtime-scheduled). Same as main loop — keeps the listening layer
-    // ticking through infinite play.
-    if (shouldEmit()) {
-      const fireActive = l1ActiveFiresAt(roundNumber)
-      const fireReserve = l1ReserveFiresAt(roundNumber)
-      if (fireActive || fireReserve) {
-        const seeds: number[] = []
-        if (fireReserve) seeds.push(...l1ReserveSeedsList())
-        if (fireActive) seeds.push(...l1ActiveSeedsList())
-        const listenCounter = { v: cycleNum }
-        emitL1Cluster(seeds, roundNumber, listenCounter, l2FiresAt(roundNumber))
-        cycleNum = listenCounter.v
+    // Phase 5: Listening — same single-cadence-with-queue model as the
+    // main loop. L2 pre-empts L1 (same-round); L1 skips when L2 fires
+    // next round (no-adjacent rule).
+    if (shouldEmit() && listeningConfig.enabled) {
+      if (l2FiresAt(roundNumber)) {
+        lastListeningRound = roundNumber
+      } else {
+        const tooSoon = roundNumber - lastListeningRound < L1_CADENCE
+        const l2NextRound = l2FiresAt(roundNumber + 1)
+        if (!tooSoon && !l2NextRound) {
+          let drawn: number[] = []
+          const MAX_ITERS = L1_QUEUE_TEMPLATE.length * 2
+          for (let it = 0; it < MAX_ITERS && drawn.length === 0; it++) {
+            if (l1Queue.length === 0) l1Queue = [...L1_QUEUE_TEMPLATE]
+            const lane = l1Queue.shift()!
+            const pool = laneSeedsList(lane)
+            if (pool.length === 0) continue
+            drawn = lane === 'active' ? pool
+              : lane === 'reserve' ? reserveUrn(pool)
+              : retiredUrn(pool)
+          }
+          if (drawn.length > 0) {
+            const listenCounter = { v: cycleNum }
+            emitL1Cluster(drawn, roundNumber, listenCounter, false)
+            cycleNum = listenCounter.v
+            lastListeningRound = roundNumber
+          }
+        }
       }
     }
 
