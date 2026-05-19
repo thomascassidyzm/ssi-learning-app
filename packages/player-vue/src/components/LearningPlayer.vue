@@ -1400,12 +1400,35 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         }]
       }
     }
-    // No decomposition available — fallback: show the full phrase as a single tile
+    // No phrase-level decomposition — try at minimum to isolate the
+    // salient LEGO as its own tile against the rest of the phrase.
+    // The salient must always be its own unit; collapsing the whole
+    // phrase into one tile (the old fallback) hid the LEGO being
+    // practised and made every USE phrase visually identical.
     if (cycle && !isIntroOrDebut && !isCmpCycle) {
       const targetText = useNative ? (cycle.target?.textNative || cycle.target?.text || '') : (cycle.target?.text || '')
-      if (targetText) {
-        return [{ id: cycle.legoId || 'phrase', targetText, isSalient: false }]
+      if (!targetText) return []
+      const salientId = cycle.legoId || currentRound.value?.legoId || ''
+      const salientText = salientId
+        ? (useNative ? legoTargetTextNativeMap.value.get(salientId) : null) || legoTargetTextMap.value.get(salientId) || ''
+        : ''
+      // Substring match — fast and good for un-inflected LEGO references.
+      // Inflected forms (Croatian "prijatelja" inflecting to a form that
+      // doesn't match "prijatelj") fall through to the single-tile last
+      // resort, which is the same behaviour we had before.
+      if (salientText && targetText.includes(salientText)) {
+        const idx = targetText.indexOf(salientText)
+        const before = targetText.slice(0, idx).trim()
+        const after = targetText.slice(idx + salientText.length).trim()
+        const blocks: LegoBlock[] = []
+        if (before) blocks.push({ id: `${salientId}_rest_before`, targetText: before, isSalient: false })
+        blocks.push({ id: salientId, targetText: salientText, isSalient: true })
+        if (after) blocks.push({ id: `${salientId}_rest_after`, targetText: after, isSalient: false })
+        return blocks
       }
+      // Last resort: whole phrase as one tile (salient false — there's
+      // no way to isolate the salient LEGO from the rest at this point).
+      return [{ id: salientId || 'phrase', targetText, isSalient: false }]
     }
     return []
   }
