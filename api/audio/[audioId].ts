@@ -103,15 +103,33 @@ export default async function handler(
       supabaseServiceKey || (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
     )
 
-    // Query course_audio table for the audio's S3 key
-    const { data: audioRecord, error: queryError } = await supabase
-      .from('course_audio')
-      .select('id, s3_key, duration_ms')
-      .eq('id', audioId)
-      .single()
+    // Query course_audio first (vast majority of plays — seed/lego/practice
+    // audio). Fall back to shared_audio (meta-cognitive instructions +
+    // encouragements that live in the cross-course template table, no
+    // longer duplicated per course as of 2026-05-20).
+    let audioRecord: { id: string; s3_key: string; duration_ms: number } | null = null
+    let queryError: { message?: string } | null = null
+    {
+      const r = await supabase
+        .from('course_audio')
+        .select('id, s3_key, duration_ms')
+        .eq('id', audioId)
+        .maybeSingle()
+      audioRecord = r.data as typeof audioRecord
+      queryError = r.error
+    }
+    if (!audioRecord) {
+      const r = await supabase
+        .from('shared_audio')
+        .select('id, s3_key, duration_ms')
+        .eq('id', audioId)
+        .maybeSingle()
+      audioRecord = r.data as typeof audioRecord
+      if (!audioRecord) queryError = r.error || queryError
+    }
 
-    if (queryError || !audioRecord) {
-      console.error('[AudioProxy] Audio not found in course_audio:', audioId, queryError?.message)
+    if (!audioRecord) {
+      console.error('[AudioProxy] Audio not found in course_audio or shared_audio:', audioId, queryError?.message)
       res.setHeader('Cache-Control', 'no-store')
       res.status(404).json({ error: 'Audio not found' })
       return

@@ -671,19 +671,21 @@ export class CourseDataProvider {
   async getInstructions(): Promise<Array<AudioRef & { text: string; position: number }>> {
     if (!this.client) return []
 
+    // Instructions are meta-cognitive (about the learning method itself),
+    // not course-specific. Query the cross-course template table directly
+    // rather than the per-course copy — eliminates the import-time text
+    // duplication that caused the "instructionIndex points at different
+    // messages on different courses" bug. Known-language filter routes
+    // each learner to the right translation.
+    const knownLang = this.courseId.split('_for_')[1] || ''
+    if (!knownLang) return []
+
     try {
-      // Canonical sequence is on course_audio.sequence (migration
-      // 20260520_instruction_canonical_sequence.sql). Order by that first
-      // so a learner's persisted instructionIndex points at the SAME
-      // logical instruction across every course in the same known-language.
-      // Rows still missing a sequence (e.g. non-English instructions before
-      // their translations are sequenced) fall through to id ordering —
-      // same legacy behaviour, only affecting those courses.
       const { data, error } = await this.client
-        .from('course_audio')
+        .from('shared_audio')
         .select('id, s3_key, duration_ms, text, sequence')
-        .eq('course_code', this.courseId)
-        .eq('role', 'instruction')
+        .eq('audio_type', 'instruction')
+        .eq('language', knownLang)
         .order('sequence', { ascending: true, nullsFirst: false })
         .order('id', { ascending: true })
 
@@ -706,21 +708,23 @@ export class CourseDataProvider {
   }
 
   /**
-   * Get all encouragement audio for the course (random pool)
-   * v13.1: Encouragements are motivational messages, randomly selected
-   * These are copied from shared_audio at import time
-   *
-   * @returns Array of AudioRef (unordered pool)
+   * Get all encouragement audio (random pool, cross-course)
+   * Encouragements are motivational messages — same as instructions, they
+   * live in shared_audio rather than being copied per-course. Filtered by
+   * the learner's known language so they hear their own translation.
    */
   async getEncouragements(): Promise<Array<AudioRef & { text: string }>> {
     if (!this.client) return []
 
+    const knownLang = this.courseId.split('_for_')[1] || ''
+    if (!knownLang) return []
+
     try {
       const { data, error } = await this.client
-        .from('course_audio')
+        .from('shared_audio')
         .select('id, s3_key, duration_ms, text')
-        .eq('course_code', this.courseId)
-        .eq('role', 'encouragement')
+        .eq('audio_type', 'encouragement')
+        .eq('language', knownLang)
 
       if (error || !data) {
         // console.warn('[CourseDataProvider] No encouragements found:', error?.message)
