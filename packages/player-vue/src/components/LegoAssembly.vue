@@ -99,14 +99,18 @@ function tokenize(text: string): string[] {
   return cleaned.split(/\s+/).filter(Boolean)
 }
 
-/** Get original-cased tokens (parallel to tokenize, for display). */
+/** Get original-cased tokens (parallel to tokenize, for display).
+ *  Preserves apostrophes and other in-word punctuation — "j'apprends",
+ *  "l'italiano", "don't" all stay intact. Standalone punctuation tokens
+ *  (e.g. a bare "." between words) are dropped so the token count
+ *  matches tokenize() and the index-based alignment in ensureTileCoverage
+ *  stays consistent. */
 function originalTokens(text: string): string[] {
   if (!text) return []
-  const cleaned = text.trim().replace(PUNCT_RE, '')
   if (CJK_RE.test(text)) {
-    return cleaned.split('').filter(ch => ch.trim() !== '')
+    return text.trim().split('').filter(ch => ch.trim() !== '' && ch.replace(PUNCT_RE, '').length > 0)
   }
-  return cleaned.split(/\s+/).filter(Boolean)
+  return text.trim().split(/\s+/).filter(t => t && t.replace(PUNCT_RE, '').length > 0)
 }
 
 /** Join tokens back — no separator for CJK, space for alphabetic. */

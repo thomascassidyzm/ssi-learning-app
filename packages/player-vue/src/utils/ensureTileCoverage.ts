@@ -36,10 +36,15 @@ export function ensureTileCoverage(blocks: LegoBlock[], fullPhraseText: string):
   const phraseTokens = tokenize(fullPhraseText)
   if (phraseTokens.length === 0) return blocks
 
-  // Original-cased tokens for display (parallel array)
+  // Original-cased tokens for display (parallel array). Preserves
+  // apostrophes and other in-word punctuation — "j'apprends",
+  // "l'italiano", "don't" all stay intact. Standalone punctuation
+  // tokens (bare ".", etc.) are dropped to keep token count in lock-
+  // step with phraseTokens above — otherwise the matchStart index
+  // walk below would drift.
   const originalTokens = isCJK
-    ? fullPhraseText.replace(PUNCT_RE, '').split('').filter(ch => ch.trim() !== '')
-    : fullPhraseText.trim().replace(PUNCT_RE, '').split(/\s+/).filter(Boolean)
+    ? fullPhraseText.trim().split('').filter(ch => ch.trim() !== '' && ch.replace(PUNCT_RE, '').length > 0)
+    : fullPhraseText.trim().split(/\s+/).filter(t => t && t.replace(PUNCT_RE, '').length > 0)
 
   const result: LegoBlock[] = []
   let phraseIdx = 0
