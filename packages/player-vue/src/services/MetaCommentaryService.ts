@@ -42,10 +42,14 @@ export interface GlobalCommentaryState {
 const GLOBAL_STORAGE_KEY = 'ssi_commentary_global_'
 
 /**
- * Cadence — fire commentary on every Nth completed round. Tunable in one
- * place; 2 means "every other round" (commentary after rounds 2, 4, 6, …).
- * Round 1 stays uninterrupted so a fresh learner gets one warm-up.
+ * Cadence — first commentary lands on FIRST_COMMENTARY_ROUND, then every
+ * COMMENTARY_EVERY_N_ROUNDS rounds after that. With the defaults below,
+ * commentary fires after rounds 5, 7, 9, 11, … — round 5 is the first
+ * full SEED (the first 4 rounds are short individual-LEGO intros), so a
+ * brand-new learner gets one full seed of uninterrupted onboarding before
+ * the first instruction.
  */
+const FIRST_COMMENTARY_ROUND = 5
 const COMMENTARY_EVERY_N_ROUNDS = 2
 
 export class MetaCommentaryService {
@@ -125,8 +129,8 @@ export class MetaCommentaryService {
    * performance heuristics — just the simple rule.
    */
   onRoundComplete(roundNumber: number): MetaCommentaryAudio | null {
-    if (roundNumber <= 0) return null
-    if (roundNumber % COMMENTARY_EVERY_N_ROUNDS !== 0) return null
+    if (roundNumber < FIRST_COMMENTARY_ROUND) return null
+    if ((roundNumber - FIRST_COMMENTARY_ROUND) % COMMENTARY_EVERY_N_ROUNDS !== 0) return null
 
     const commentary = this.getNextCommentary()
     if (!commentary) return null
