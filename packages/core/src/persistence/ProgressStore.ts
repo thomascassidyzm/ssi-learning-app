@@ -233,6 +233,90 @@ export class ProgressStore implements IProgressStore {
    * doesn't lower highest_completed_round_index, and a forward one doesn't
    * lower the ceiling either (it ratchets only up).
    */
+  /**
+   * Switch playback mode. Setting 'infplay' starts the INF round counter
+   * at 1 — but only if not already in infplay (idempotent re-entry).
+   * Setting 'main' resets infplay_round_index to 0 so a future entry
+   * starts fresh from 1.
+   */
+  async setMode(
+    learnerId: string,
+    courseId: string,
+    mode: 'main' | 'infplay'
+  ): Promise<void> {
+    const update: Record<string, unknown> = {
+      current_mode: mode,
+      last_practiced_at: new Date().toISOString(),
+    };
+    if (mode === 'main') {
+      // Leaving INF PLAY — counter goes back to 0 so next entry starts
+      // the visible "INF round N" display from 1.
+      update.infplay_round_index = 0;
+    }
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .update(update)
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId)
+      // For mode='infplay', only initialise the counter if we're NOT
+      // already in infplay. Re-tapping while already in INF PLAY is a
+      // no-op rather than a counter reset. Achieved by an additional
+      // conditional update below.
+      ;
+    if (error) {
+      throw new Error(`Failed to set mode: ${error.message}`);
+    }
+
+    // For initial entry into INF PLAY, set counter to 1. Guarded so
+    // re-entry (already in infplay) doesn't reset progress.
+    if (mode === 'infplay') {
+      const { error: initErr } = await this.client
+        .schema(this.schema)
+        .from('course_enrollments')
+        .update({ infplay_round_index: 1 })
+        .eq('learner_id', learnerId)
+        .eq('course_id', courseId)
+        .or('infplay_round_index.is.null,infplay_round_index.eq.0');
+      if (initErr) {
+        throw new Error(`Failed to initialise infplay counter: ${initErr.message}`);
+      }
+    }
+  }
+
+  /**
+   * Increment infplay_round_index by 1 — call once per round_complete
+   * while in INF PLAY mode. PostgREST has no "increment" verb; we read
+   * the current value and write current+1. Race-condition safe enough
+   * for single-device play (the only place writing).
+   */
+  async bumpInfplayRound(
+    learnerId: string,
+    courseId: string
+  ): Promise<void> {
+    const { data, error: readErr } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .select('current_mode, infplay_round_index')
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId)
+      .single();
+    if (readErr) {
+      throw new Error(`Failed to read enrollment for bump: ${readErr.message}`);
+    }
+    if (!data || data.current_mode !== 'infplay') return;  // mode='main' → no-op
+    const next = ((data.infplay_round_index as number) ?? 0) + 1;
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .update({ infplay_round_index: next })
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId);
+    if (error) {
+      throw new Error(`Failed to bump infplay round: ${error.message}`);
+    }
+  }
+
   async setEnrollmentCursor(
     learnerId: string,
     courseId: string,
@@ -612,6 +696,8 @@ export class ProgressStore implements IProgressStore {
       current_cycle_index: (data.current_cycle_index as number) ?? null,
       highest_completed_round_index: (data.highest_completed_round_index as number) ?? null,
       highest_completed_lego_id: (data.highest_completed_lego_id as string) ?? null,
+      current_mode: ((data.current_mode as string) === 'infplay' ? 'infplay' : 'main') as 'main' | 'infplay',
+      infplay_round_index: (data.infplay_round_index as number) ?? 0,
     };
   }
 

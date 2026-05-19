@@ -71,6 +71,15 @@ export interface CourseEnrollmentRecord {
    *  the learner taps "skip to round N". Lego IDs have the form S0042L05, so
    *  the seed (and therefore the load target) is derivable from this field. */
   highest_completed_lego_id: string | null;
+  /** Playback mode. 'main' = normal course progression. 'infplay' = past-
+   *  course-end review-only mode (no intros, spaced rep + random USE).
+   *  Set automatically when the learner hits course end; reset to 'main'
+   *  when they back-belt-skip out. */
+  current_mode: 'main' | 'infplay';
+  /** Rounds elapsed since entering INF PLAY mode. Resets to 1 on entry,
+   *  increments per round_complete while in INF PLAY, reset to 0 on
+   *  mode=main. */
+  infplay_round_index: number;
 }
 
 export interface LegoProgressRecord extends LegoProgress {
@@ -196,6 +205,12 @@ export interface IProgressStore {
   updateCurrentCycle(learnerId: string, courseId: string, cycleIndex: number): Promise<void>;
   setEnrollmentCursor(learnerId: string, courseId: string, legoId: string, roundIndex: number): Promise<void>;
   updateEnrollmentActivity(learnerId: string, courseId: string, highestSeed: number, practiceMinutes: number): Promise<void>;
+  /** Switch playback mode. Setting 'infplay' starts the INF round counter
+   *  at 1 (only on initial entry; idempotent if already in infplay).
+   *  Setting 'main' resets infplay_round_index to 0. */
+  setMode(learnerId: string, courseId: string, mode: 'main' | 'infplay'): Promise<void>;
+  /** Increment infplay_round_index by 1. No-op if not currently in infplay. */
+  bumpInfplayRound(learnerId: string, courseId: string): Promise<void>;
 
   // LEGO progress
   getLegoProgress(learnerId: string, courseId: string): Promise<LegoProgressRecord[]>;
