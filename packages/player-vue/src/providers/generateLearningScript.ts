@@ -220,7 +220,7 @@ export async function generateLearningScript(
    * L1-outro merge decision stays in sync with the runtime scheduler.
    * Default 1 (every round, legacy behaviour).
    */
-  podRoundInterval: number = 1,
+  podRoundInterval: number = 6,
 ): Promise<LearningScriptResult> {
   // Per-round shape — DB-tweakable via algorithm_config.script_shape.
   const SPACED_REP_OFFSETS = scriptShape.spacedRepOffsets

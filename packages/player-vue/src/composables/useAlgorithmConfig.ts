@@ -193,7 +193,10 @@ const DEFAULT_PODS: PodsConfig = {
   gapTightMs: 200,
   gapGluedMs: 300,
   gapBetweenMs: 1000,
-  roundInterval: 1,
+  /* L2 pod-lap fires every 6 main rounds from activation onward. Was 1
+   * (every round, legacy behaviour); per spec it should match the L1
+   * active cadence so listening exercises cluster predictably. */
+  roundInterval: 6,
   podActivationRound: 6,
 }
 
