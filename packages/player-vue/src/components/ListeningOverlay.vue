@@ -322,6 +322,9 @@ const setView = (v) => {
     loadPhrases()
   } else if (v === 'seeds') {
     hasMore.value = false
+    // Core defaults to ordered — seed-by-seed makes pedagogical sense
+    // as a beginning. User can still flip to shuffled with the toggle.
+    mode.value = 'ordered'
     loadSeeds()
   } else {
     // pods: scene list visible until a scene is picked
