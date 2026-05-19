@@ -13,6 +13,7 @@ export interface Cycle {
   pauseDuration?: number // ms — set by toSimpleRounds formula
   lingerMs?: number // ms — extra hold after voice2 (intro/debut: lets learner read tiles)
   legoId?: string // The LEGO this cycle is practising
+  seedId?: string // S#### seed prefix — used by telemetry/logEvent
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
   componentLegoTextsNative?: string[]

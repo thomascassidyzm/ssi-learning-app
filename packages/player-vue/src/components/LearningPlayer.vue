@@ -934,7 +934,7 @@ simplePlayer.onPhaseChanged((phase) => {
   // a time; logging on phase transitions captures every audio start
   // regardless of cache vs network. Batches via usePlayerLog (5s + 10-
   // event flush + pagehide beacon) — complete, not continuous.
-  const cycle = simplePlayer.currentCycle.value as any
+  const cycle = simplePlayer.currentCycle.value
   if (!cycle) return
 
   // L1 cluster boundary — fires once per cluster, on the prompt phase
@@ -1267,7 +1267,7 @@ const legoTargetTextMap = computed<Map<string, string>>(() => {
     if (!round.legoId || !round.cycles?.length) continue
     // Use canonical text from Round (set by toSimpleRounds from intro item)
     // — no cycle scanning needed, immune to ID naming issues.
-    const text = (round as any).legoTargetText || round.cycles[0]?.target?.text
+    const text = round.legoTargetText || round.cycles[0]?.target?.text
     if (text) map.set(round.legoId, text)
   }
   return map
@@ -1278,7 +1278,7 @@ const legoTargetTextNativeMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
     if (!round.legoId || !round.cycles?.length) continue
-    const native = (round as any).legoTargetTextNative
+    const native = round.legoTargetTextNative
     if (native) map.set(round.legoId, native)
   }
   return map
@@ -1289,7 +1289,7 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
   const map = new Map<string, string>()
   for (const round of (loadedRounds.value || [])) {
     if (!round.legoId || !round.cycles?.length) continue
-    const text = (round as any).legoKnownText || round.cycles[0]?.known?.text
+    const text = round.legoKnownText || round.cycles[0]?.known?.text
     if (text) map.set(round.legoId, text)
   }
   return map
@@ -1351,7 +1351,7 @@ const soloComponentIds = computed<Set<string>>(() => {
 
 // Current phrase's LEGO blocks for the assembly view
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
-  const cycle = simplePlayer.currentCycle.value as any
+  const cycle = simplePlayer.currentCycle.value
   const useNative = isNativeScript.value && hasRomanizedText.value
   if (!cycle?.componentLegoIds?.length) {
     // Detect intro/debut/component cycles from the cycle.type field —
@@ -1463,7 +1463,7 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
 
 // Voice1 duration for assembly timing
 const currentVoice1DurationMs = computed(() => {
-  const cycle = simplePlayer.currentCycle.value as any
+  const cycle = simplePlayer.currentCycle.value
   // Duration not on SimplePlayer Cycle — use a reasonable default
   return 2000
 })
@@ -3586,7 +3586,7 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
 const salientKnownParts = computed<{ prefix: string; match: string; suffix: string } | null>(() => {
   const full = displayedKnownText.value
   if (!full) return null
-  const legoId = (simplePlayer.currentCycle.value as any)?.legoId
+  const legoId = simplePlayer.currentCycle.value?.legoId
   if (!legoId) return null
   // Prefer the course-wide map (authoritative LEGO known_text from DB);
   // fall back to round-derived map if the global load hasn't completed.
@@ -3732,7 +3732,7 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
 // Component priming items should NOT show tiles (they ARE the component being primed)
 // Uses cycle ID for sync detection (currentPlayableItem is set async, causes race)
 const isIntroOrDebutPhase = computed(() => {
-  const cycleId = (simplePlayer.currentCycle.value as any)?.id || ''
+  const cycleId = simplePlayer.currentCycle.value?.id || ''
   // Component priming items are NOT intro/debut — they don't show component tiles
   if (cycleId.includes('_cmp_intro_') || cycleId.includes('_cmp_practice_')) return false
   if (cycleId.includes('_intro_') || cycleId.includes('_debut_')) return true
