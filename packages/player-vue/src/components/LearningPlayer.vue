@@ -8039,19 +8039,26 @@ const highestBeltColor = computed(() => BELTS[Math.max(0, highestBeltIndex.value
 // that backing out (closing the app) doesn't strand them at the new spot.
 const jumpToFurthest = async () => {
   const targetLegoId = highestCompletedLegoId.value
-  if (!targetLegoId) {
+  if (!targetLegoId && currentMode.value !== 'infplay') {
     console.warn('[LearningPlayer] jumpToFurthest: no ceiling stored')
     return
   }
 
   haltAllPlayback()
 
-  // Infinite-play branch: if the ceiling IS the course's final LEGO
-  // there's nothing further than that on the main loop. Generate a
-  // script with the whole course + a fresh batch of infinite-play
-  // rounds and drop the learner at the first infinite-play round.
-  // This is "go to your furthest point" for a course-complete learner.
-  const infPlay = await hasReachedInfinitePlay(targetLegoId, courseCode.value)
+  // Infinite-play branch: if the learner is in INF PLAY mode OR the
+  // ceiling IS the course's final LEGO, "furthest reached" means INF
+  // PLAY. Generate a script with the whole course + a fresh batch of
+  // infinite-play rounds and drop the learner at the first infinite-
+  // play round.
+  //
+  // The currentMode check covers the "belt-skipped forward into INF
+  // PLAY without completing every LEGO" case — without it, jumping
+  // here would fall through to "go to highest LEGO" and yank the
+  // learner OUT of INF PLAY into an earlier LEGO with its intro.
+  // (Tom's bug report 2026-05-20.)
+  const infPlay = currentMode.value === 'infplay'
+    || (targetLegoId ? await hasReachedInfinitePlay(targetLegoId, courseCode.value) : false)
   if (infPlay) {
     const mainLoopCount = await getCourseMainLoopRoundCount(courseCode.value)
     const endSeed = mainLoopCount + EXPANSION_BATCH
@@ -8077,18 +8084,28 @@ const jumpToFurthest = async () => {
     if (firstInfIdx >= 0) {
       console.log(`[LearningPlayer] jumpToFurthest: jumping to first infinite-play round (index ${firstInfIdx})`)
       simplePlayer.jumpToRound(firstInfIdx)
-      if (beltProgress.value) {
+      if (beltProgress.value && targetLegoId) {
         // Sync belt label to the last main-loop seed (= top belt).
-        const lastMainLegoId = targetLegoId
-        const lastSeed = getSeedFromLegoId(lastMainLegoId)
+        const lastSeed = getSeedFromLegoId(targetLegoId)
         if (lastSeed) beltProgress.value.setPlayingPosition(lastSeed)
       }
       await persistCursorAtCurrentRound()
       return
     }
     // Fall through to the legoId-based jump if we somehow couldn't
-    // find an infinite-play round to land on.
+    // find an infinite-play round to land on. Only meaningful when we
+    // have a target LEGO — currentMode='infplay' without a ceiling has
+    // nothing to fall back to, just bail.
+    if (!targetLegoId) {
+      console.warn('[LearningPlayer] jumpToFurthest: in INF PLAY but no infinite-play round found and no ceiling — aborting')
+      return
+    }
     console.warn('[LearningPlayer] jumpToFurthest: infinite play flagged but no infinite-play round found — falling back to ceiling LEGO')
+  }
+
+  if (!targetLegoId) {
+    console.warn('[LearningPlayer] jumpToFurthest: no ceiling stored (and not in INF PLAY)')
+    return
   }
 
   // Standard "go to your furthest LEGO" — main-loop resume.
