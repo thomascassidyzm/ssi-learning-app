@@ -120,35 +120,23 @@ const ROLE_SPEED: Record<string, number> = {
   trans: 1.0,
 }
 
-// Per Aran's listening-layers spec (canonical visualiser at popty.app/listening-playground.html).
-// Graduation is event-driven (1 LEGO == 1 round; a seed graduates once all its
-// LEGOs have been introduced and the offset has elapsed).
+// Per Aran's listening-layers spec.
+// Graduation is event-driven (1 LEGO == 1 round; a seed graduates once
+// all its LEGOs have been introduced and the offset has elapsed).
 //
-// L1 firing model (2026-05-19 simplification): ONE cadence + ONE rotating
-// queue. Every `l1Cadence` rounds, the next non-empty lane in
-// `l1QueueTemplate` fires. L2 pre-empts L1 (same-round) and we skip L1
-// when L2 fires the next round, so no two listening clusters are ever
-// adjacent. Cadence MUST be coprime with L2's roundInterval (default 5)
-// — cadences 4 / 5 / 10 etc. land L1 candidates on L2-adjacent rounds
-// every time and never fire. Defaults to 3.
-type L1Lane = 'active' | 'reserve' | 'retired'
-
+// 2026-05-19: L1 listening pulled out of the main flow. L2 stays in
+// (every POD_ROUND_INTERVAL rounds, runtime-scheduled); L1 graduation
+// still tracks here so Listening MODE — the explicit learner-triggered
+// session — has a fully-warmed pool to draw from.
 export interface ListeningConfig {
   enabled: boolean
   offset: number              // rounds after last LEGO before seed graduates
-  // Layer 1 — graduated seed sentences
+  // Layer 1 buckets — consumed by Listening MODE.
   l1ActiveSize: number        // sliding window of N most recent graduated seeds
   l1ReserveSize: number       // older seeds beyond active, fixed-size window
   /** Sentences pulled per fire for RESERVE and RETIRED buckets via URN
    * sampling (no-replacement draw, refill when bucket exhausted). */
   l1UrnPullCount: number
-  /** Rounds between consecutive L1 firings. Must be coprime with L2's
-   * roundInterval (default 5) or L1 will be permanently blocked by the
-   * "no adjacent listening" rule. Defaults to 3. */
-  l1Cadence: number
-  /** Slot rotation — each entry consumes one cadence slot. Empty lanes
-   * are skipped (early course before reserve/retired have content). */
-  l1QueueTemplate: L1Lane[]
   /** Legacy / fallback flat playlist. Used when layer1StagePlaylist is
    * empty — every L1 fire of every seed plays this same sequence, no
    * decay. Kept for back-compat with the pre-staged-decay model. */
@@ -182,11 +170,6 @@ export const DEFAULT_LISTENING_CONFIG: ListeningConfig = {
   l1ActiveSize: 10,
   l1ReserveSize: 50,
   l1UrnPullCount: 10,
-  l1Cadence: 3,
-  // Rotation: 3× active, 1× reserve, 1× retired per cycle. Heavier on
-  // active because that's the freshest material; reserve/retired are
-  // background refreshers.
-  l1QueueTemplate: ['active', 'active', 'reserve', 'active', 'retired'],
   layer1Playlist: ['ps', 'ps2x', 'ps2x'],
   layer1StagePlaylist: {
     '1': ['ps', 'ps2x', 'ps2x'],
@@ -371,23 +354,22 @@ export async function generateLearningScript(
   // NULL audio IDs are gracefully skipped by the downstream filters.)
 
   // -------------------------------------------------------------------------
-  // Listening Layers (Aran spec, refactored 2026-05-19 to single-cadence
-  // queue model).
+  // Listening Layers (2026-05-19: L1 pulled out of main flow).
   //
   //   Layer 2 (Pod 0):  fires every POD_ROUND_INTERVAL rounds (default 5)
-  //                     from podActivationRound onward. Pod-round counts
-  //                     fires, not main-rounds. Stage table unchanged.
-  //   Layer 1:          fires every l1Cadence rounds (default 3 — must be
-  //                     coprime with POD_ROUND_INTERVAL or L1 stalls
-  //                     under adjacency rule). Lane picked by popping
-  //                     l1QueueTemplate in rotation; empty lanes skip.
-  //                     Buckets unchanged: ACTIVE = last l1ActiveSize,
-  //                     RESERVE = next l1ReserveSize older, RETIRED = the
-  //                     rest. URN sampling for reserve/retired.
-  //
-  // Adjacency rule: no two listening clusters in adjacent rounds. L2
-  // takes precedence (same-round mutex by L2-claims-slot); L1 skips when
-  // l2FiresAt(round+1) to prevent L1→L2 adjacency.
+  //                     from podActivationRound onward. Runtime-scheduled
+  //                     by usePodLapScheduler. Pod-round counts fires,
+  //                     not main-rounds. Stage table unchanged.
+  //   Layer 1:          REMOVED from main flow. Graduated seeds are
+  //                     still tracked here (graduatedQueue) so Listening
+  //                     MODE — the explicit learner-triggered session —
+  //                     can consume the warmed pool. Buckets: ACTIVE =
+  //                     last l1ActiveSize, RESERVE = next l1ReserveSize
+  //                     older, RETIRED = the rest. URN sampling for
+  //                     reserve/retired stays available via
+  //                     reserveUrn/retiredUrn closures, and the cluster
+  //                     emit helper (emitL1Cluster) is retained for
+  //                     Listening MODE wiring.
   // -------------------------------------------------------------------------
   const POD_ACTIVATION_ROUND = listeningConfig.podActivationRound ?? 6
   const POD_ROUND_INTERVAL = Math.max(1, Math.floor(podRoundInterval))
@@ -858,11 +840,6 @@ export async function generateLearningScript(
   let currentLegoOrdinal = 0  // updated as each LEGO is introduced in the walk
   const graduatedSeeds = new Set<number>()         // idempotency check
   const graduatedQueue: number[] = []              // graduation order; L1 windows are slices
-  // Last round that emitted ANY listening cluster (L1 baked here, or L2
-  // firing in the runtime — l2FiresAt is deterministic per round). Gates
-  // the L1 cadence and combined with l2FiresAt(round+1) prevents adjacent
-  // listening clusters.
-  let lastListeningRound = -1000
   // Per-seed L1 fire counter — bumped on each emit in emitL1Cluster.
   // Drives stage progression: stage = floor((fireCount-1) / layer1StageDuration) + 1
   // capped at the highest key in layer1StagePlaylist (eternal hold).
@@ -924,13 +901,6 @@ export async function generateLearningScript(
     if (graduatedQueue.length <= tail) return []
     return graduatedQueue.slice(0, graduatedQueue.length - tail)
   }
-  function laneSeedsList(lane: L1Lane): number[] {
-    switch (lane) {
-      case 'active': return l1ActiveSeedsList()
-      case 'reserve': return l1ReserveSeedsList()
-      case 'retired': return l1RetiredSeedsList()
-    }
-  }
 
   // URN sampler — draws `pullSize` items from a pool without replacement,
   // refills (re-shuffles the current pool) when exhausted. State persists
@@ -959,16 +929,6 @@ export async function generateLearningScript(
   }
   const reserveUrn = createUrnSampler(listeningConfig.l1UrnPullCount ?? 10)
   const retiredUrn = createUrnSampler(listeningConfig.l1UrnPullCount ?? 10)
-
-  // L1 slot queue — rotating template, refills on exhaustion. Each cadence
-  // step pops the next entry; empty lanes are skipped so early-course
-  // (when only ACTIVE has content) doesn't burn slots on empty buckets.
-  const L1_QUEUE_TEMPLATE: L1Lane[] = listeningConfig.l1QueueTemplate
-    && listeningConfig.l1QueueTemplate.length > 0
-    ? listeningConfig.l1QueueTemplate
-    : ['active', 'active', 'reserve', 'active', 'retired']
-  const L1_CADENCE = Math.max(1, Math.floor(listeningConfig.l1Cadence ?? 3))
-  let l1Queue: L1Lane[] = [...L1_QUEUE_TEMPLATE]
 
   // Build LEGO text map for phrase decomposition (normalised target text → LEGO key)
   // Uses ALL LEGOs (not just is_new) since reused LEGOs are still valid vocabulary
@@ -1367,69 +1327,27 @@ export async function generateLearningScript(
         }
       }
 
-      // Phase 6: Layer 1 (graduated seeds) — single cadence + rotating
-      // queue. Every L1_CADENCE rounds we pop the next non-empty lane
-      // from L1_QUEUE_TEMPLATE and emit a cluster. L2 pre-empts L1
-      // (same-round, by claiming lastListeningRound) and we skip L1
-      // when L2 fires the very next round, so no two listening clusters
-      // are ever adjacent. Mutex by construction (one cluster per
-      // cadence) — no priority logic, no per-lane intervals.
+      // Layer 1 main-flow emission was removed 2026-05-19. L1 listening
+      // now lives exclusively in Listening MODE (explicit learner-
+      // triggered session), not interleaved with the cycle work. We
+      // still track graduation here so the seed pool is ready when
+      // Listening MODE consumes it.
       if (listeningConfig.enabled) {
-        // Graduate any seed whose last LEGO is at least `offset` LEGOs
-        // behind the learner's current LEGO. Catalogue-anchored — works
-        // identically whether this is a fresh full-course generation or
-        // a belt-skip chunk dropping in mid-course.
         for (const [sNum, lastOrd] of seedLastLegoOrdinal) {
           if (graduatedSeeds.has(sNum)) continue
-          if (currentLegoOrdinal === 0) continue  // no LEGO seen yet in this walk
+          if (currentLegoOrdinal === 0) continue
           if (currentLegoOrdinal - lastOrd < listeningConfig.offset) continue
           graduatedSeeds.add(sNum)
           graduatedQueue.push(sNum)
         }
-
-        if (l2FiresAt(roundNumber)) {
-          // L2 owns this slot — runtime plays the pod lap. L1 sits out.
-          lastListeningRound = roundNumber
-        } else {
-          const tooSoon = roundNumber - lastListeningRound < L1_CADENCE
-          const l2NextRound = l2FiresAt(roundNumber + 1)
-          if (!tooSoon && !l2NextRound) {
-            // Pop next non-empty lane from queue. Empty lanes (early
-            // course, retired/reserve still empty) are silently consumed
-            // so the queue rotation doesn't stall. Iteration cap = 2 ×
-            // template length so a misconfigured template (or pre-
-            // graduation rounds with everything empty) can't infinite-
-            // loop.
-            let drawn: number[] = []
-            const MAX_ITERS = L1_QUEUE_TEMPLATE.length * 2
-            for (let it = 0; it < MAX_ITERS && drawn.length === 0; it++) {
-              if (l1Queue.length === 0) l1Queue = [...L1_QUEUE_TEMPLATE]
-              const lane = l1Queue.shift()!
-              const pool = laneSeedsList(lane)
-              if (pool.length === 0) continue
-              drawn = lane === 'active' ? pool
-                : lane === 'reserve' ? reserveUrn(pool)
-                : retiredUrn(pool)
-            }
-            if (drawn.length > 0) {
-              const listenCounter = { v: cycleNum }
-              emitL1Cluster(drawn, roundNumber, listenCounter, false)
-              cycleNum = listenCounter.v
-              lastListeningRound = roundNumber
-            }
-          }
-        }
       }
 
-      // Phase 7 (Layer 2 Pod 0) used to emit pod laps here. Pods are now
-      // runtime-scheduled by usePodLapScheduler so they decouple from main
-      // round arithmetic — see migration 20260504_pod_ratchet.sql for the
-      // model. The pod emission helpers below (emitPodLap / podStageFor /
-      // STAGE_PLAYLIST / hasPods / podSentences / podRoundForMainRound /
-      // l2FiresAt / listenIntroAudio / listenOutroAudio / hasBookends) are
-      // intentionally retained as dead code for one release so a hot-fix
-      // rollback only needs to re-add this if-block. Safe to delete after
-      // the runtime path is proven on staging.
+      // L2 (pod laps) stays runtime-scheduled by usePodLapScheduler —
+      // every POD_ROUND_INTERVAL rounds from podActivationRound onward,
+      // independent of main-round arithmetic. The script's emitPodLap /
+      // l2FiresAt / podStageFor / STAGE_PLAYLIST / podSentences /
+      // podRoundForMainRound helpers are intentionally retained for
+      // hot-fix rollback to the in-script L2 path.
     }
   }
 
@@ -1592,36 +1510,8 @@ export async function generateLearningScript(
       }
     }
 
-    // Phase 5: Listening — same single-cadence-with-queue model as the
-    // main loop. L2 pre-empts L1 (same-round); L1 skips when L2 fires
-    // next round (no-adjacent rule).
-    if (shouldEmit() && listeningConfig.enabled) {
-      if (l2FiresAt(roundNumber)) {
-        lastListeningRound = roundNumber
-      } else {
-        const tooSoon = roundNumber - lastListeningRound < L1_CADENCE
-        const l2NextRound = l2FiresAt(roundNumber + 1)
-        if (!tooSoon && !l2NextRound) {
-          let drawn: number[] = []
-          const MAX_ITERS = L1_QUEUE_TEMPLATE.length * 2
-          for (let it = 0; it < MAX_ITERS && drawn.length === 0; it++) {
-            if (l1Queue.length === 0) l1Queue = [...L1_QUEUE_TEMPLATE]
-            const lane = l1Queue.shift()!
-            const pool = laneSeedsList(lane)
-            if (pool.length === 0) continue
-            drawn = lane === 'active' ? pool
-              : lane === 'reserve' ? reserveUrn(pool)
-              : retiredUrn(pool)
-          }
-          if (drawn.length > 0) {
-            const listenCounter = { v: cycleNum }
-            emitL1Cluster(drawn, roundNumber, listenCounter, false)
-            cycleNum = listenCounter.v
-            lastListeningRound = roundNumber
-          }
-        }
-      }
-    }
+    // L1 listening removed from infinite-play main flow 2026-05-19 —
+    // moved to Listening MODE. L2 stays runtime-scheduled (unchanged).
 
     // Safety: if nothing emitted (no usable LEGOs at all), stop — otherwise
     // we'd loop emitting empty rounds.

@@ -91,17 +91,9 @@ export interface ListeningModeConfig {
   offset: number              // rounds after last LEGO before seed graduates
   l1ActiveSize: number        // sliding window size of recent graduated seeds
   l1ReserveSize: number       // older graduated seeds beyond active (fixed window)
-  /** Sentences pulled per URN draw for RESERVE and RETIRED. */
+  /** Sentences pulled per URN draw for RESERVE and RETIRED. Consumed
+   * by Listening MODE — L1 is no longer interleaved with main flow. */
   l1UrnPullCount: number
-  /** Rounds between consecutive L1 firings. MUST be coprime with
-   * PodsConfig.roundInterval (default 5) or L1 is permanently blocked
-   * by the no-adjacent-listening rule. Default 3. */
-  l1Cadence: number
-  /** Slot rotation — each entry consumes one cadence slot. Empty lanes
-   * skip (early course before reserve/retired have content). Default
-   * ['active','active','reserve','active','retired'] gives 3/5 active,
-   * 1/5 reserve, 1/5 retired across a cycle. */
-  l1QueueTemplate: Array<'active' | 'reserve' | 'retired'>
   /** Legacy / fallback flat playlist — used when layer1StagePlaylist is empty. */
   layer1Playlist: ListeningSlotRole[]
   /** Staged Layer 1 playlist — keys are stage numbers, values are the
@@ -172,8 +164,6 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
   l1ActiveSize: 10,
   l1ReserveSize: 50,
   l1UrnPullCount: 10,
-  l1Cadence: 3,
-  l1QueueTemplate: ['active', 'active', 'reserve', 'active', 'retired'],
   layer1Playlist: ['ps', 'ps2x', 'ps2x'],
   layer1StagePlaylist: {
     '1': ['ps', 'ps2x', 'ps2x'],
