@@ -625,7 +625,13 @@ const sentenceScale = computed(() => {
 
 .tile-target .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 2rem);
+  /* Fixed size — char-count-based scaling actively inverted prominence
+   * (short LEGOs grew, salient long LEGOs shrank). Salience now comes
+   * from tile chrome (border/colour), not font size. Long words wrap
+   * within the tile via overflow-wrap below. */
+  font-size: 1.5rem;
+  overflow-wrap: break-word;
+  hyphens: auto;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   overflow-wrap: break-word;
@@ -729,7 +735,9 @@ const sentenceScale = computed(() => {
 
 .carriage-cell .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: clamp(1.1rem, calc(2rem - var(--char-count, 8) * 0.035rem), 1.7rem);
+  font-size: 1.4rem;
+  overflow-wrap: break-word;
+  hyphens: auto;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: 0.02em;
@@ -855,7 +863,9 @@ const sentenceScale = computed(() => {
 
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: calc(clamp(1.1rem, calc(2.2rem - var(--char-count, 8) * 0.035rem), 1.875rem) * var(--sentence-scale, 1));
+  font-size: calc(1.5rem * var(--sentence-scale, 1));
+  overflow-wrap: break-word;
+  hyphens: auto;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   overflow-wrap: break-word;
@@ -1012,7 +1022,7 @@ const sentenceScale = computed(() => {
 .lego-block.salient .block-text {
   color: rgba(255, 255, 255, 1);
   font-weight: 600;
-  font-size: calc(clamp(1.1rem, calc(2.3rem - var(--char-count, 8) * 0.035rem), 2.125rem) * var(--sentence-scale, 1));
+  font-size: calc(1.75rem * var(--sentence-scale, 1));
 }
 
 /* --- HIDDEN --- */
@@ -1059,7 +1069,7 @@ const sentenceScale = computed(() => {
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
   .lego-block .block-text {
-    font-size: calc(clamp(1rem, calc(1.9rem - var(--char-count, 8) * 0.03rem), 1.625rem) * var(--sentence-scale, 1));
+    font-size: calc(1.3rem * var(--sentence-scale, 1));
   }
   .lego-block {
     padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
@@ -1068,18 +1078,18 @@ const sentenceScale = computed(() => {
     padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   }
   .lego-block.salient .block-text {
-    font-size: calc(clamp(1rem, calc(2rem - var(--char-count, 8) * 0.03rem), 1.875rem) * var(--sentence-scale, 1));
+    font-size: calc(1.5rem * var(--sentence-scale, 1));
   }
 
   .tile-target .comp {
-    font-size: clamp(1rem, calc(2rem - var(--char-count, 8) * 0.03rem), 1.75rem);
+    font-size: 1.3rem;
   }
 
   .carriage-cell {
     padding: 0.45em 0.7em;
   }
   .carriage-cell .comp {
-    font-size: clamp(1rem, calc(1.7rem - var(--char-count, 8) * 0.03rem), 1.5rem);
+    font-size: 1.2rem;
   }
 }
 </style>
