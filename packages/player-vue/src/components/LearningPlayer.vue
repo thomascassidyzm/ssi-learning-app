@@ -1243,26 +1243,80 @@ watch(
   }
 )
 
-// Round-ENTRY audio prefetch — pull the WHOLE round's audio (and a
-// couple ahead) into the service-worker cache as soon as a round
-// becomes current. Without this, only the *next* round was preloaded
-// (after the current round completed), so a session-start round or
-// any jump-to-round had to fetch its cycles' audio mid-play. On
-// patchy 4G that read as 20s mid-cycle stalls (Aran's report).
+// ============================================================================
+// AUDIO PREFETCH LADDER (explicit phases)
+// ============================================================================
 //
-// loadedRounds is the canonical reactive ref of the player's queue;
-// preloadSimpleRoundAudio dedupes via audioPreloadedRounds so repeat
-// triggers (or overlapping prefetch-on-complete) are no-ops.
+// Phase 1 — instant: bootstrap fetches ~15 cycles via /api/courses/:code/cycles
+//          (useInstantPlayback.bootstrap), so the first cycle starts in <2s.
+// Phase 2 — background: generateScript() walks the whole course locally
+//          (loadAllData → handoff replaces simplePlayer's queue with the
+//          full Round[]). No network per round from here on.
+// Phase 3 — eager: when a round becomes current (session start / advance /
+//          skip / jump), prefetch the WHOLE round's audio + the next
+//          AUDIO_EAGER_AHEAD rounds in parallel. Service worker
+//          CacheFirst on /api/audio/* takes the responses.
+// Phase 4 — deep: in the background, walk all remaining rounds and pull
+//          their audio AUDIO_DEEP_BATCH at a time, serialised between
+//          batches so we don't hammer the network. Listening clusters
+//          (L1 / L2) are cycles in the round.cycles array, so they ride
+//          along automatically with the per-round preload.
+//
+// Throttle / cellular-awareness lives downstream of these — for now
+// fire-and-forget. Future: respect navigator.connection.saveData / type.
+
+const AUDIO_EAGER_AHEAD = 3   // rounds (current + next 2) loaded on round entry
+const AUDIO_DEEP_BATCH = 5    // rounds per batch in the deep background walk
+
+// Phase 3 — eager prefetch on round entry. immediate: true catches session
+// start / resume so the FIRST round of a session is preloaded before its
+// first cycle plays (was the source of Aran's mid-cycle 4G stalls).
 watch(
   () => [simplePlayer.roundIndex.value, loadedRounds.value?.length],
   ([roundIndex, totalLoaded]) => {
     if (typeof roundIndex !== 'number' || !totalLoaded) return
     if (!loadedRounds.value || roundIndex >= loadedRounds.value.length) return
-    // Current round + next 2 — covers ~3-4 minutes of audio ahead so
-    // even a fully cold cache catches up before the buffer drains.
-    void preloadSimpleRoundAudio(loadedRounds.value, 3, roundIndex)
+    void preloadSimpleRoundAudio(loadedRounds.value, AUDIO_EAGER_AHEAD, roundIndex)
   },
   { immediate: true },
+)
+
+// Phase 4 — deep prefetch. After the full script lands and the eager
+// window is fed, walk the rest of the course in batches so subsequent
+// sessions / offline play have all audio already cached. audioPreloadedRounds
+// dedupes — a round only fetches once per session regardless of which
+// phase triggered it.
+let deepPrefetchRunning = false
+async function deepPrefetchRestOfCourse() {
+  if (deepPrefetchRunning) return
+  deepPrefetchRunning = true
+  try {
+    const total = loadedRounds.value?.length ?? 0
+    if (!total) return
+    const startFrom = (simplePlayer.roundIndex.value ?? 0) + AUDIO_EAGER_AHEAD
+    for (let i = startFrom; i < total; i += AUDIO_DEEP_BATCH) {
+      // Serialise batches so we don't blast hundreds of concurrent fetches.
+      await preloadSimpleRoundAudio(loadedRounds.value, AUDIO_DEEP_BATCH, i)
+    }
+    console.log(`[AudioPrefetch] Deep walk complete: ${total - startFrom} rounds preloaded`)
+  } catch (err) {
+    console.warn('[AudioPrefetch] Deep walk failed:', err)
+  } finally {
+    deepPrefetchRunning = false
+  }
+}
+
+// Kick off deep prefetch once loadedRounds is populated (which happens
+// when the full-script handoff lands). One-shot — re-runs are no-ops via
+// audioPreloadedRounds dedup, but the watcher won't re-fire unless the
+// total round count actually changes (e.g. new infplay rounds appended).
+watch(
+  () => loadedRounds.value?.length,
+  (total, prev) => {
+    if (!total || total === prev) return
+    // Defer one tick so the eager preload kicks off first.
+    void Promise.resolve().then(deepPrefetchRestOfCourse)
+  },
 )
 
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
