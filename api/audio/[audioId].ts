@@ -3,9 +3,15 @@
  *
  * Purpose:
  * - Entitlement verification (paid vs free)
- * - Analytics (track audio requests)
  * - Future CDN flexibility (swap S3 without app update)
  * - CORS bypass (proper headers from our domain)
+ *
+ * NOTE on analytics (2026-05-19): play-level analytics live in
+ * `player_events.audio_play`, fired client-side on every play. The
+ * proxy used to also insert into `audio_plays`, but that table only
+ * captured cache MISSES (SW CacheFirst serves repeat plays without
+ * touching the proxy) — useless for learner activity. `audio_plays`
+ * was dropped.
  *
  * Endpoint: GET /api/audio/:audioId
  */
@@ -13,7 +19,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Initialize Supabase client
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -65,52 +70,6 @@ function validateAudioRecord(row: unknown): { ok: true; value: AudioRecord } | {
     return { ok: true, value: { id: r.id, s3_key: r.s3_key, duration_ms: 0 } }
   }
   return { ok: true, value: { id: r.id, s3_key: r.s3_key, duration_ms: r.duration_ms } }
-}
-
-interface AudioPlayEvent {
-  user_id: string | null
-  audio_id: string
-  course_id: string | null
-  seed_id: string | null
-  audio_role: string | null
-  device_type: string | null
-  is_offline: boolean
-  ip_country: string | null
-}
-
-/**
- * Log audio play event (fire and forget - never blocks audio delivery)
- */
-async function logAudioPlay(
-  supabase: ReturnType<typeof createClient>,
-  event: AudioPlayEvent
-): Promise<void> {
-  try {
-    // supabase-js returns errors in `{ error }`; it does NOT throw on
-    // PostgREST errors. Without this explicit check, a missing table or
-    // RLS rejection is completely invisible — the `audio_plays` table
-    // was missing in prod for ~3 months before this surfaced because
-    // the old try/catch wrapper couldn't catch what never threw.
-    const { error } = await supabase.from('audio_plays').insert(event)
-    if (error) {
-      console.warn(
-        `[AudioProxy] Failed to log audio play: ${error.message} (code=${error.code ?? 'n/a'})`
-      )
-    }
-  } catch (error) {
-    // Keep the catch for genuinely thrown errors (network, auth, etc.)
-    console.warn('[AudioProxy] logAudioPlay threw:', error)
-  }
-}
-
-/**
- * Detect device type from user agent
- */
-function getDeviceType(userAgent: string): 'mobile' | 'tablet' | 'desktop' {
-  const ua = userAgent.toLowerCase()
-  if (/ipad|android(?!.*mobile)|tablet/i.test(ua)) return 'tablet'
-  if (/iphone|ipod|android.*mobile|webos|blackberry|opera mini|iemobile/i.test(ua)) return 'mobile'
-  return 'desktop'
 }
 
 export default async function handler(
@@ -176,28 +135,6 @@ export default async function handler(
       return
     }
     const sample: AudioRecord = validation.value
-
-    // Log analytics (fire and forget). user_id comes from the
-    // ssi-user-id cookie set on the client by useAuth's handleAuthChange.
-    // <audio> elements can't add custom headers, but cookies flow with
-    // them automatically (same-origin), and Vercel populates req.cookies.
-    // Falls back to the legacy x-user-id header for fetch-based callers.
-    const userId = (req.cookies?.['ssi-user-id'] as string | undefined)
-      || (req.headers['x-user-id'] as string | undefined)
-      || null
-    const analyticsEvent: AudioPlayEvent = {
-      user_id: userId,
-      audio_id: audioId,
-      course_id: req.query.courseId as string | null,
-      seed_id: req.query.seedId as string | null,
-      audio_role: req.query.role as string | null,
-      device_type: getDeviceType(req.headers['user-agent'] || ''),
-      is_offline: req.query.offline === 'true',
-      ip_country: (req.headers['x-vercel-ip-country'] as string) || null,
-    }
-
-    // Non-blocking analytics insert
-    logAudioPlay(supabase, analyticsEvent).catch(() => {})
 
     // Fetch audio from S3 using AWS SDK
     const command = new GetObjectCommand({

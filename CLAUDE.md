@@ -45,9 +45,9 @@ User-id columns in this DB are mixed-type — there is no single comparison patt
 | Column type | Pattern | Examples |
 |---|---|---|
 | TEXT user_id | `column = auth.uid()::text` | `learners.user_id`, `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id` |
-| UUID user_id | `column = auth.uid()` (no cast) | `audio_plays.user_id`, `player_events.user_id` |
+| UUID user_id | `column = auth.uid()` (no cast) | `player_events.user_id` |
 
-**Why mixed:** The Clerk migration `20251219120000` changed `learners.user_id` from UUID to TEXT for Clerk's string IDs. Clerk was never shipped — auth is Supabase — but several columns were already converted by then and weren't reverted. Newer tables (`audio_plays`, `player_events`) were authored against Supabase Auth directly and use UUID. Before authoring a new policy, **check the column type** (`\d <table>` or look at the create migration).
+**Why mixed:** The Clerk migration `20251219120000` changed `learners.user_id` from UUID to TEXT for Clerk's string IDs. Clerk was never shipped — auth is Supabase — but several columns were already converted by then and weren't reverted. Newer tables (`player_events`) were authored against Supabase Auth directly and use UUID. Before authoring a new policy, **check the column type** (`\d <table>` or look at the create migration).
 
 **Do not** use any of:
 - Wrong cast direction — throws `operator does not exist: uuid = text` (or vice versa) at policy creation time
@@ -838,11 +838,11 @@ Best-in-class audio system with backend proxy and graceful degradation. **Core p
 - Resume within 24 hours of interruption
 - Options: Current belt, 2 hours, 5 hours, entire course (up to 10 hours)
 
-### Analytics (audio_plays table)
-Every audio request is tracked:
-- user_id, audio_id, course_id, seed_id
-- audio_role (known/target1/target2)
-- device_type, is_offline, ip_country
+### Analytics (player_events.audio_play)
+Every audio play is tracked client-side via `player_events`:
+- user_id, course_code, session_id, occurred_at on the event row
+- payload: { url, role, legoId, cycleId, cycleType, playbackSpeed }
+- `audio_plays` was dropped 2026-05-19 — SW CacheFirst means the proxy only sees cache misses, useless as a play log. `player_events.audio_play` is the source of truth.
 
 ### Key Files
 | File | Purpose |

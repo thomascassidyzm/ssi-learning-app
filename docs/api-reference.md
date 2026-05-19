@@ -9,7 +9,7 @@
 | `/api/audio/:audioId` | GET | No | Proxy audio from S3 via `course_audio` table lookup |
 
 - Queries `course_audio.id` to get `s3_key`, streams from S3
-- Logs to `audio_plays` (fire-and-forget)
+- Play-level analytics live in `player_events.audio_play` (fired client-side); the proxy intentionally does NOT log per-request (SW CacheFirst means it only sees cache misses)
 - Sets `Cache-Control: public, max-age=31536000, immutable` on success only
 - Error responses get `Cache-Control: no-store`
 

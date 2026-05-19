@@ -293,10 +293,11 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
-   * Mirror the current learner id into a cookie so the audio proxy can
-   * attribute audio_plays rows to the right user. <audio> elements can't
-   * carry custom headers, so cookies (sent automatically same-origin) are
-   * the cleanest channel for this. Cleared on sign-out.
+   * Mirror the current learner id into a cookie so /api/player-events
+   * can attribute analytics rows to the right user. Same-origin cookies
+   * flow automatically with fetch (player-events) and <audio> requests
+   * — useful as the auth channel because <audio> elements can't carry
+   * custom headers. Cleared on sign-out.
    *
    * Not load-bearing — purely for analytics. Failures are silent.
    */

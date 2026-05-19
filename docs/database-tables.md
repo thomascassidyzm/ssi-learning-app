@@ -11,7 +11,6 @@
 | `course_legos` | id | Learning units with denormalized audio IDs (known_audio_id, target1_audio_id, target2_audio_id) |
 | `course_practice_phrases` | id | Practice sentences with denormalized audio IDs |
 | `course_audio` | id (UUID text) | Audio file references — s3_key, duration_ms, course_code, text, role, voice_id |
-| `audio_plays` | id | Analytics: tracks every audio request |
 
 **IMPORTANT:** The audio table is `course_audio`, NOT `audio_samples`. The `audio_samples` table does not exist.
 
