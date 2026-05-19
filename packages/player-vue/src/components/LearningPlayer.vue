@@ -64,6 +64,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds } from '../providers/backendCyclesToRounds'
+import type { Round as PlayerRound } from '../playback/SimplePlayer'
 
 /**
  * Instant-playback feature flag — courses listed here use the new
@@ -3670,21 +3671,21 @@ function toSimpleRoundsWithComponents(items: any[]) {
 // without their known-text breakdown (single-tile fallback), until the
 // full-script handoff fired the legacy converter and backfilled the
 // maps. Now the bootstrap path populates them up front.
-function extractComponentsToMaps(rounds: any[], logPrefix = '[Components]') {
+function extractComponentsToMaps(rounds: PlayerRound[], logPrefix = '[Components]') {
   let count = 0
   for (const round of rounds) {
     for (const cycle of round.cycles ?? []) {
-      if ((cycle as any).components) {
-        _componentsByCycleId.set(cycle.id, (cycle as any).components)
+      if (cycle.components) {
+        _componentsByCycleId.set(cycle.id, cycle.components)
         if (cycle.legoId) {
-          _componentsByLegoId.set(cycle.legoId, (cycle as any).components)
+          _componentsByLegoId.set(cycle.legoId, cycle.components)
         }
         count++
       }
-      if ((cycle as any).componentsNative) {
-        _componentsByCycleIdNative.set(cycle.id, (cycle as any).componentsNative)
+      if (cycle.componentsNative) {
+        _componentsByCycleIdNative.set(cycle.id, cycle.componentsNative)
         if (cycle.legoId) {
-          _componentsByLegoIdNative.set(cycle.legoId, (cycle as any).componentsNative)
+          _componentsByLegoIdNative.set(cycle.legoId, cycle.componentsNative)
         }
       }
     }

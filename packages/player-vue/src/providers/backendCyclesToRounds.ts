@@ -141,6 +141,17 @@ function toPlayerCycle(bc: BackendCycle): Cycle | null {
   // to apply the same belt/context curves at play time. That keeps this
   // adapter pure (no `props.course.voice_config` plumbing).
 
+  // Decomposition → componentLegoIds / componentLegoTexts. The backend's
+  // `decomposition` is per-token (one entry per word, with optional legoId
+  // and an isGhost flag for particles); the legacy script generator emits
+  // parallel componentLegoIds + componentLegoTexts arrays for non-ghost
+  // tokens. Convergence: derive the same arrays here so downstream code
+  // (currentPhraseLegoBlocks in LearningPlayer) reads the same shape from
+  // both producers.
+  const bound = bc.decomposition?.filter((d) => !!d.legoId) ?? []
+  const componentLegoIds = bound.length > 0 ? bound.map((d) => d.legoId as string) : undefined
+  const componentLegoTexts = bound.length > 0 ? bound.map((d) => d.target) : undefined
+
   const cycle: Cycle = {
     id: bc.id,
     type: bc.type,
@@ -172,10 +183,20 @@ function toPlayerCycle(bc: BackendCycle): Cycle | null {
     // scaling the baked value. Matches `toSimpleRounds`.
     ...(bc.durations.target1_ms ? { target1DurationMs: bc.durations.target1_ms } : {}),
     ...(bc.durations.target2_ms ? { target2DurationMs: bc.durations.target2_ms } : {}),
-    // Components feed `_componentsByCycleId` / `_componentsByLegoId`
-    // in LearningPlayer (the M-LEGO breakdown tiles). Backend ships
-    // them on every cycle that has the parent LEGO's components.
+    // M-LEGO component breakdown for the per-tile known/target labels.
+    // Same field shape as legacy toSimpleRounds.
     ...(bc.components && bc.components.length > 0 ? { components: bc.components } : {}),
+    // Native-script variant — backend doesn't emit a separate componentsNative
+    // today; fall back to the same array so downstream consumers that
+    // prefer native script still get something rather than empty.
+    // (Refine when the backend gains a native-script column.)
+    ...(bc.components && bc.components.length > 0 ? { componentsNative: bc.components } : {}),
+    // Phrase-decomposition parallel arrays — drive multi-tile rendering
+    // for USE phrases that reference previously-introduced LEGOs.
+    ...(componentLegoIds ? { componentLegoIds } : {}),
+    ...(componentLegoTexts ? { componentLegoTexts } : {}),
+    // Native-script variant — same fallback rationale as componentsNative.
+    ...(componentLegoTexts ? { componentLegoTextsNative: componentLegoTexts } : {}),
   }
 
   return cycle
