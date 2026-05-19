@@ -1319,15 +1319,23 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value as any
   const useNative = isNativeScript.value && hasRomanizedText.value
   if (!cycle?.componentLegoIds?.length) {
-    // Detect intro/debut from cycle ID (sync, no async dependency on currentPlayableItem)
-    const cycleId = cycle?.id || ''
-    const isIntroOrDebut = cycleId.includes('_intro_') || cycleId.includes('_debut_')
-    const isCmpCycle = cycleId.includes('_cmp_intro_') || cycleId.includes('_cmp_practice_')
+    // Detect intro/debut/component cycles from the cycle.type field —
+    // authoritative and works for both the legacy script-generator
+    // path (toSimpleRounds preserves the type) and the instant-playback
+    // bootstrap path (backend cycles carry type directly). The previous
+    // substring match on cycle.id ('_intro_'/'_debut_' with trailing
+    // underscores) only matched the legacy ID format
+    // (S0287L01_intro_R123) and silently missed the backend's bare
+    // S0287L01_intro / S0287L01_debut IDs, leaving intro/debut tiles
+    // blank on the bootstrap path until full-script handoff landed.
+    const cycleType = (cycle?.type || '') as string
+    const isIntroOrDebut = cycleType === 'intro' || cycleType === 'debut'
+    const isCmpCycle = cycleType === 'component_intro' || cycleType === 'component_practice'
     if (isCmpCycle) {
       // Component intro/practice: show a single tile with the component's target text
       const targetText = cycle.target?.text || ''
       if (targetText) {
-        const legoId = cycle.legoId || currentRound.value?.legoId || cycleId
+        const legoId = cycle.legoId || currentRound.value?.legoId || cycle?.id || 'phrase'
         return [{ id: legoId, targetText, isSalient: true, isSoloComponent: true }]
       }
     }
