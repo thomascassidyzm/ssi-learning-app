@@ -42,15 +42,31 @@ export interface GlobalCommentaryState {
 const GLOBAL_STORAGE_KEY = 'ssi_commentary_global_'
 
 /**
- * Cadence — first commentary lands on FIRST_COMMENTARY_ROUND, then every
- * COMMENTARY_EVERY_N_ROUNDS rounds after that. With the defaults below,
- * commentary fires after rounds 5, 7, 9, 11, … — round 5 is the first
- * full SEED (the first 4 rounds are short individual-LEGO intros), so a
- * brand-new learner gets one full seed of uninterrupted onboarding before
- * the first instruction.
+ * Cadence — early rounds are short (individual-LEGO intros, ~3 cycles
+ * each), so a fixed "every other round" would fire too often at the
+ * start. The early-rounds list spaces commentary out by cycle count
+ * (~20 cycles ≈ 5-10 mins) while round count is still ramping up:
+ *
+ *   Round 5   – first full SEED has just played out
+ *   Round 10  – ~20 more cycles of practice
+ *   Round 14  – another ~20 cycles
+ *   Round 18  – another ~20 cycles
+ *   Round 20, 22, 24, …  – steady state, every 2 rounds (rounds are
+ *                          longer now, so each pair ≈ 20 cycles)
+ *
+ * Tunable at the top so the cadence can be re-balanced without code
+ * spelunking. Keep `EARLY` in ascending order.
  */
-const FIRST_COMMENTARY_ROUND = 5
-const COMMENTARY_EVERY_N_ROUNDS = 2
+const EARLY_COMMENTARY_ROUNDS = [5, 10, 14, 18] as const
+const STEADY_STATE_FROM_ROUND = 20
+const STEADY_STATE_INTERVAL = 2
+
+function shouldFireAtRound(round: number): boolean {
+  if (round <= 0) return false
+  if ((EARLY_COMMENTARY_ROUNDS as readonly number[]).includes(round)) return true
+  if (round < STEADY_STATE_FROM_ROUND) return false
+  return (round - STEADY_STATE_FROM_ROUND) % STEADY_STATE_INTERVAL === 0
+}
 
 export class MetaCommentaryService {
   private provider: CourseDataProvider
@@ -129,8 +145,7 @@ export class MetaCommentaryService {
    * performance heuristics — just the simple rule.
    */
   onRoundComplete(roundNumber: number): MetaCommentaryAudio | null {
-    if (roundNumber < FIRST_COMMENTARY_ROUND) return null
-    if ((roundNumber - FIRST_COMMENTARY_ROUND) % COMMENTARY_EVERY_N_ROUNDS !== 0) return null
+    if (!shouldFireAtRound(roundNumber)) return null
 
     const commentary = this.getNextCommentary()
     if (!commentary) return null
