@@ -307,8 +307,16 @@ const maxLineChars = computed(() => {
   return HYPHEN_LIMITS[lang] || DEFAULT_HYPHEN_LIMIT
 })
 
+// Non-breaking space \u2014 joins words inside a tile so the browser can't
+// wrap at a normal space (which would leave "ce n'est pas / un probl\u00E8me"
+// with no visual cue that it's one chunk). The ONLY wrap points become
+// the SHY characters this function inserts, which display as a hyphen
+// at the break \u2014 reading as "one chunk continuing on the next line".
+const NBSP = '\u00A0'
+
 function softHyphenate(text: string): string {
   const limit = maxLineChars.value
+  // Short text \u2014 return verbatim. Browser won't wrap; regular spaces fine.
   if (text.length <= limit) return text
   const words = text.split(' ')
   const result: string[] = []
@@ -323,17 +331,19 @@ function softHyphenate(text: string): string {
       }
       w = parts.join(SHY)
     }
-    // Would adding this word exceed the line? Insert shy before the space
+    // Would adding this word exceed the line? Insert shy break here.
     if (result.length > 0 && lineLen + 1 + w.replace(/\u00AD/g, '').length > limit) {
       result.push(SHY + w)
       lineLen = w.replace(/\u00AD/g, '').length
     } else {
-      if (result.length > 0) lineLen += 1 // space
+      if (result.length > 0) lineLen += 1
       result.push(w)
       lineLen += w.replace(/\u00AD/g, '').length
     }
   }
-  return result.join(' ')
+  // Join with NBSP \u2014 prevents the browser from breaking at a regular
+  // space. SHY break points stay as the ONLY wrap opportunities.
+  return result.join(NBSP)
 }
 
 /**
@@ -629,14 +639,13 @@ const sentenceScale = computed(() => {
 
 .tile-target .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* Fixed size — char-count-based scaling actively inverted prominence
-   * (short LEGOs grew, salient long LEGOs shrank). Salience now comes
-   * from tile chrome (border/colour/shadow), not font size.
-   * Single-line tiles — if a tile doesn't fit on the current row, the
-   * flex container wraps the WHOLE TILE to its own row (never breaks
-   * the text inside a tile). A chunk is always one unit. */
+  /* Fixed size — salience comes from tile chrome, not font scaling.
+   * Wrap is allowed at soft-hyphen points only (softHyphenate joins
+   * words with NBSP and inserts SHY at intended break positions), so
+   * a chunk that wraps shows a visible hyphen — reads as "one chunk
+   * continuing on the next line". */
   font-size: 1.8rem;
-  white-space: nowrap;
+  hyphens: manual;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   overflow-wrap: break-word;
@@ -741,7 +750,7 @@ const sentenceScale = computed(() => {
 .carriage-cell .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: 1.7rem;
-  white-space: nowrap;
+  hyphens: manual;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: 0.02em;
@@ -870,10 +879,12 @@ const sentenceScale = computed(() => {
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: calc(1.8rem * var(--sentence-scale, 1));
-  /* Single-line tiles — never wrap text inside a tile. If the tile
-   * doesn't fit on the current row, the flex container wraps the
-   * whole tile to its own row. A chunk is always one unit. */
-  white-space: nowrap;
+  /* Wrap only at soft-hyphen positions inserted by softHyphenate().
+   * Words inside a tile are joined with NBSP so the browser can't break
+   * at a regular space — the only wrap points are the SHY characters,
+   * which display as a hyphen. Reads as "one chunk, continued on next
+   * line" rather than two unrelated chunks stacked. */
+  hyphens: manual;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   letter-spacing: 0.02em;
