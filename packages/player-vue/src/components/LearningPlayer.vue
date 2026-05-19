@@ -2297,6 +2297,23 @@ const playingNextBelt = computed(() => {
   return { ...BELTS[idx], index: idx }
 })
 
+// "Would tapping forward-skip right now land the learner in INF PLAY?"
+// True when (a) we're already in INF PLAY mode, or (b) the course
+// doesn't extend into the next belt — i.e. handleSkipToNextBelt would
+// enter INF PLAY via its `enterInfplay = !nextBeltThreshold ||
+// nextBeltThreshold > courseMaxSeed` branch. Drives the button morph
+// from chevron → "∞ INF PLAY" pill in the same forward-skip slot.
+const wouldEnterInfplay = computed(() => {
+  if (currentMode.value === 'infplay') return true
+  const next = playingNextBelt.value
+  if (!next) return true  // already past the last belt in the enum
+  const courseMaxSeed = beltProgress.value?.courseSeedCount?.value
+  if (typeof courseMaxSeed === 'number' && next.seedsRequired > courseMaxSeed) {
+    return true  // next belt starts past where this course ends
+  }
+  return false
+})
+
 const playingPrevBelt = computed(() => {
   const idx = playingBelt.value.index - 1
   if (idx < 0) return null
@@ -8640,35 +8657,43 @@ defineExpose({
             <span class="belt-timer-label">{{ formattedSessionTime }}</span>
           </button>
 
+          <!-- Forward action: belt-skip chevron in normal mode, morphs
+               into a labelled "∞ INF PLAY" pill when forward-skip would
+               land the learner in INF PLAY (course end, no further
+               belts ahead). Same slot — the layout doesn't shift, but
+               the affordance is unambiguous about what's about to
+               happen. Tom called the morph "the skip belt button
+               BECOMES IP button". -->
           <button
             class="belt-header-skip belt-header-skip--forward"
             :class="{
               'is-skipping': isSkippingBelt,
               'is-loading-target': nextBeltLoading,
-              'is-infplay': currentMode === 'infplay' || !playingNextBelt,
+              'is-infplay': wouldEnterInfplay,
             }"
             @click="handleSkipToNextBelt"
-            :disabled="currentMode !== 'infplay' && !playingNextBelt"
             :title="currentMode === 'infplay'
-              ? `INF PLAY round ${infplayRoundIndex}`
-              : (playingNextBelt ? `Skip to ${playingNextBelt.name} belt` : 'End of course')"
+              ? `INF PLAY — round ${infplayRoundIndex}`
+              : (wouldEnterInfplay
+                  ? 'Enter INF PLAY (random review of everything you have learned)'
+                  : `Skip to ${playingNextBelt?.name ?? 'next'} belt`)"
             :aria-label="currentMode === 'infplay'
               ? `Infinite play, round ${infplayRoundIndex}`
-              : (playingNextBelt ? `Skip to ${playingNextBelt.name} belt` : 'End of course')"
-            :style="playingNextBelt && currentMode !== 'infplay'
+              : (wouldEnterInfplay
+                  ? 'Enter INF PLAY: random review of everything you have learned'
+                  : `Skip to ${playingNextBelt?.name ?? 'next'} belt`)"
+            :style="playingNextBelt && !wouldEnterInfplay
               ? { '--skip-belt-color': playingNextBelt.color, '--skip-belt-glow': playingNextBelt.glow }
               : {}"
           >
-            <!-- INF PLAY: infinity glyph instead of double-chevron. Same
-                 button shape, different content + 'is-infplay' class
-                 drives the purple/gradient styling (see CSS). -->
-            <svg v-if="currentMode === 'infplay' || !playingNextBelt"
-                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 aria-hidden="true" focusable="false">
-              <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
-            </svg>
-            <svg v-else
-                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            <template v-if="wouldEnterInfplay">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   aria-hidden="true" focusable="false" class="infplay-glyph">
+                <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
+              </svg>
+              <span class="infplay-label">{{ currentMode === 'infplay' ? `INF PLAY · ${infplayRoundIndex}` : 'INF PLAY' }}</span>
+            </template>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
               <polyline points="13 17 18 12 13 7"/>
               <polyline points="6 17 11 12 6 7"/>
@@ -9832,22 +9857,41 @@ defineExpose({
   opacity: 0.5;
 }
 
-/* INF PLAY forward-button styling. Same shape as the belt-skip button
- * (so the layout doesn't shift) but a purple/violet gradient instead
- * of the belt-colored accent, signalling that this is a different
- * KIND of action — entering / being in the review-only mode past
- * course end. */
+/* INF PLAY forward-button styling. The forward-skip slot MORPHS from
+ * a 36×36 chevron circle into a wider labelled pill when the next
+ * forward action would be to enter / continue INF PLAY. Same slot,
+ * unambiguous affordance — purple gradient + "INF PLAY" text so the
+ * learner knows exactly what they're tapping into. */
 .belt-header-skip.is-infplay {
+  width: auto;
+  min-width: 36px;
+  padding: 0 12px;
+  height: 36px;
+  border-radius: 18px;          /* pill */
+  gap: 6px;
   opacity: 1;
   color: #ffffff;
   border-color: rgba(167, 139, 250, 0.55);
   background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2),
               0 0 10px rgba(167, 139, 250, 0.35);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.belt-header-skip.is-infplay .infplay-glyph {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+.belt-header-skip.is-infplay .infplay-label {
+  white-space: nowrap;
+  line-height: 1;
 }
 .belt-header-skip.is-infplay:hover:not(:disabled) {
   opacity: 1;
-  transform: scale(1.1);
+  transform: scale(1.04);
   background: linear-gradient(135deg, #8b4ff5 0%, #b69cfb 100%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
               0 0 16px rgba(167, 139, 250, 0.55);
