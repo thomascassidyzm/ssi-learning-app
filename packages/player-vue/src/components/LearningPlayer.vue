@@ -5435,12 +5435,18 @@ const jumpToRound = async (roundIndex) => {
  */
 const handleSkipToNextBelt = async () => {
   cancelInFlightLap()
-  // Get current playing position's seed (not stored progress)
   const currentRound = simplePlayer.currentRound.value
+
+  // Already in infinite play — next-belt-skip is a no-op. Exit infplay
+  // via the back-belt button instead.
+  if (currentRound && !isMainLoopRound(currentRound)) {
+    console.log('[LearningPlayer] Already in infinite play — no next belt to skip to')
+    return
+  }
+
   const currentSeedId = currentRound?.seedId || 'S0001'
   const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
 
-  // Calculate next belt based on CURRENT playing position
   const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
   const BELT_NAMES = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black']
 
@@ -5455,6 +5461,12 @@ const handleSkipToNextBelt = async () => {
   const nextBeltIndex = currentBeltIndex + 1
   const nextBeltThreshold = BELT_THRESHOLDS[nextBeltIndex]
   const nextBeltNameFromPosition = BELT_NAMES[nextBeltIndex]
+  const courseMaxSeed = beltProgress.value?.courseSeedCount.value ?? nextBeltThreshold ?? 668
+
+  // Enter infplay when there's no higher belt OR the next belt is past
+  // the course's published max seed. From any belt, repeated next-belt
+  // presses eventually land in infplay.
+  const enterInfplay = !nextBeltThreshold || nextBeltThreshold > courseMaxSeed
 
   console.log('[LearningPlayer] handleSkipToNextBelt called', {
     currentSeedId,
@@ -5462,56 +5474,77 @@ const handleSkipToNextBelt = async () => {
     currentBeltName: BELT_NAMES[currentBeltIndex],
     nextBeltName: nextBeltNameFromPosition,
     nextBeltThreshold,
+    courseMaxSeed,
+    enterInfplay,
     isPlaying: simplePlayer.isPlaying.value,
   })
-
-  if (nextBeltIndex >= BELT_THRESHOLDS.length || !nextBeltThreshold) {
-    console.log('[LearningPlayer] Cannot skip - already at highest belt')
-    return
-  }
 
   isSkippingBelt.value = true
   try {
     haltAllPlayback()
-    // Clamp to what's actually published. The BELT_THRESHOLDS array is
-    // course-agnostic, but most courses don't have 668 seeds — e.g.
-    // zho_for_eng tops out at seed 350, so a brown→black skip targets
-    // seed 400 and 404s. Cap at the course max so the final jump lands
-    // on the last reachable seed; natural play from there reaches the
-    // end and triggers infinite play.
-    const courseMaxSeed = beltProgress.value?.courseSeedCount.value ?? nextBeltThreshold
-    const targetSeed = Math.min(nextBeltThreshold, courseMaxSeed)
-    const clampedSuffix = targetSeed < nextBeltThreshold ? ' (clamped to course max)' : ''
-    console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}${clampedSuffix}`)
 
-    // Check if target seed is already loaded
+    if (enterInfplay) {
+      // Drop the learner at the first infplay round. Reuses jumpToFurthest's
+      // discovery pattern: find the first round in cachedRounds with no
+      // intro/debut/build cycles (i.e. pure revival).
+      const firstInfIdx = cachedRounds.value.findIndex((r: any) =>
+        r?.cycles?.length && !r.cycles.some((c: any) =>
+          c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+        )
+      )
+      if (firstInfIdx >= 0) {
+        console.log(`[LearningPlayer] Skipping past last belt — entering infinite play at round index ${firstInfIdx}`)
+        simplePlayer.jumpToRound(firstInfIdx)
+        // Anchor belt to the last main-loop seed (= top reachable belt
+        // colour for this course). Otherwise the infplay round's random
+        // USE legoId would set the visual to whichever LEGO it drew.
+        if (beltProgress.value) {
+          beltProgress.value.setPlayingPosition(courseMaxSeed)
+        }
+        await persistCursorAtCurrentRound()
+        return
+      }
+      // No infplay rounds loaded — try regenerating the script then re-find.
+      if (supabase?.value) {
+        console.debug('[LearningPlayer] No infplay rounds loaded; regenerating script')
+        const skipResult = await generateScript()
+        if (skipResult.items.length > 0) {
+          const newRounds = toSimpleRoundsWithComponents(skipResult.items) as any[]
+          cachedRounds.value = newRounds
+          simplePlayer.appendRounds(newRounds)
+          const refoundIdx = newRounds.findIndex((r: any) =>
+            r?.cycles?.length && !r.cycles.some((c: any) =>
+              c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+            )
+          )
+          if (refoundIdx >= 0) {
+            simplePlayer.jumpToRound(refoundIdx)
+            if (beltProgress.value) beltProgress.value.setPlayingPosition(courseMaxSeed)
+            await persistCursorAtCurrentRound()
+            return
+          }
+        }
+      }
+      console.warn('[LearningPlayer] Could not enter infinite play — no revival rounds found')
+      return
+    }
+
+    // Normal belt-to-belt skip
+    const targetSeed = nextBeltThreshold
+    console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}`)
     const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
-
     if (existingRoundIndex < 0 && supabase?.value) {
-      // Target seed not in the current script. The script is course-wide
-      // by construction (post-refactor) — this branch should be rare. If
-      // it does fire (course content changed, first-ever load incomplete),
-      // regenerate the FULL script rather than a chunk; the chunk path
-      // was the source of L1 silent failures.
       console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, regenerating full script...`)
       const skipResult = await generateScript()
       if (skipResult.items.length > 0) {
         const newRounds = toSimpleRoundsWithComponents(skipResult.items)
         simplePlayer.addRounds(newRounds as any)
-        console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
       }
     }
-
-    // Now jump to the seed
     simplePlayer.jumpToSeed(targetSeed)
-
-    // Update visual playing position only — belt award requires natural completion
     if (beltProgress.value) {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
-
-    // Persist the new position so the resting-state "skip to round N"
-    // choice can surface if this jump put the learner behind their ceiling.
     await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
@@ -5545,14 +5578,37 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
  * If close to current belt start, goes to previous belt
  */
 const handleGoBackBelt = async () => {
-  // Get current playing position's seed (not stored progress)
   const currentRound = simplePlayer.currentRound.value
-  const currentSeedId = currentRound?.seedId || 'S0001'
-  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
-
-  // Calculate current belt based on CURRENT playing position
   const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
   const BELT_NAMES = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black']
+
+  // Exit infplay → drop the learner at the start of the highest belt
+  // their course can reach. From there they CAN navigate backward through
+  // belts normally (intros will replay for those LEGOs — that's fine,
+  // they came back deliberately).
+  if (currentRound && !isMainLoopRound(currentRound)) {
+    const courseMaxSeed = beltProgress.value?.courseSeedCount.value ?? 668
+    let topBeltIndex = 0
+    for (let i = BELT_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (BELT_THRESHOLDS[i] <= courseMaxSeed) { topBeltIndex = i; break }
+    }
+    const targetSeed = BELT_THRESHOLDS[topBeltIndex] === 0 ? 1 : BELT_THRESHOLDS[topBeltIndex]
+    console.log(`[LearningPlayer] Exiting infinite play — going to ${BELT_NAMES[topBeltIndex]} belt at seed ${targetSeed}`)
+    try {
+      haltAllPlayback()
+      await loadSeedIfNeeded(targetSeed)
+      simplePlayer.jumpToSeed(targetSeed)
+      if (beltProgress.value) beltProgress.value.setPlayingPosition(targetSeed)
+      await persistCursorAtCurrentRound()
+    } catch (err) {
+      console.warn('[LearningPlayer] handleGoBackBelt (exit infplay) error:', err)
+    }
+    return
+  }
+
+  // Normal back-belt: get current playing position's seed
+  const currentSeedId = currentRound?.seedId || 'S0001'
+  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
 
   let currentBeltIndex = 0
   for (let i = BELT_THRESHOLDS.length - 1; i >= 0; i--) {
@@ -5687,19 +5743,7 @@ simplePlayer.setRuntimeOverrides({
     // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
     // alternate-fib spaced rep. Tagging happens at script generation;
     // this just gates on the live Turbo flag.
-    if (turboActive.value && cycle.turboOmit === true) return true
-    // Never replay intro / debut cycles for LEGOs the learner has
-    // already reached. Skip-back navigation can otherwise drop into a
-    // main-loop intro for a long-since-learned LEGO, which feels like
-    // regressing — Tom's "I should NEVER EVER EVER be going back to
-    // introductions" rule. Builds and uses still play (legit practice).
-    if ((cycle.type === 'intro' || cycle.type === 'debut')
-        && cycle.legoId
-        && highestCompletedLegoId.value
-        && cycle.legoId <= highestCompletedLegoId.value) {
-      return true
-    }
-    return false
+    return turboActive.value && cycle.turboOmit === true
   },
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
