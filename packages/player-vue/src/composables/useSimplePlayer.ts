@@ -48,6 +48,7 @@ export interface UseSimplePlayerReturn {
   findRoundIndexForLegoId: (legoId: string) => number
   addRounds: (rounds: Round[]) => void
   appendRounds: (rounds: Round[]) => void
+  replaceQueueFromCurrent: (rounds: Round[]) => void
   hasRound: (roundNumber: number) => boolean
   onPhaseChanged: (callback: (phase: Phase) => void) => void
   onCycleCompleted: (callback: (cycle: Cycle) => void) => void
@@ -277,6 +278,32 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Replace every round after the current one with the given batch.
+   * Wraps SimplePlayer.replaceQueueFromCurrent and mirrors the same
+   * (kept, future) computation into roundsRef so reactive consumers
+   * (cachedRounds, legacy refs) see the new queue immediately.
+   *
+   * Use for the bootstrap → full-script handoff: bootstrap initializes
+   * the player from a small API window, full-script generation lands
+   * later and replaces the queue past the playing round with the
+   * locally-generated whole-course rounds.
+   */
+  const replaceQueueFromCurrent = (newRounds: Round[]) => {
+    if (!player || newRounds.length === 0) return
+    player.replaceQueueFromCurrent(newRounds)
+    const currentRoundNumber = roundsRef.value[internalState.value.roundIndex]?.roundNumber
+    if (currentRoundNumber == null) {
+      roundsRef.value = [...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
+      return
+    }
+    const kept = roundsRef.value.filter(r => r.roundNumber <= currentRoundNumber)
+    const future = newRounds
+      .filter(r => r.roundNumber > currentRoundNumber)
+      .sort((a, b) => a.roundNumber - b.roundNumber)
+    roundsRef.value = [...kept, ...future]
+  }
+
+  /**
    * Check if a round exists by roundNumber
    */
   const hasRound = (roundNumber: number): boolean => {
@@ -328,6 +355,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     findRoundIndexForLegoId,
     addRounds,
     appendRounds,
+    replaceQueueFromCurrent,
     hasRound,
     onPhaseChanged,
     onCycleCompleted,

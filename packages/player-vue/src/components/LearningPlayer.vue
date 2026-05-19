@@ -6617,6 +6617,48 @@ onMounted(async () => {
               }
             })
 
+          // Full-script handoff: kick off generateScript() in the
+          // background. The bootstrap above gave us ~5 minutes of
+          // audio to play with, which is plenty for the generator to
+          // walk the whole course (one Supabase read of course_legos
+          // + course_practice_phrases + course_seeds). When it lands
+          // we replace SimplePlayer's queue past the currently-playing
+          // round with the full local script — every subsequent round
+          // is locally constructed, so no per-round network calls,
+          // graceful degradation into infplay when audio's missing,
+          // and offline-mode-capable as the audio cache fills in.
+          //
+          // The tier-3 chain above stays alive in parallel — if the
+          // full-script gen fails for any reason (network blip, query
+          // timeout on a big course), the API path keeps the player
+          // fed. Both writing the same SimplePlayer queue is safe:
+          // appendRounds dedupes by roundNumber, and
+          // replaceQueueFromCurrent only touches future rounds.
+          //
+          // Round numbers between bootstrap and full script align by
+          // construction — both derive from course_round_index /
+          // course_legos in the same order — so the handoff is
+          // silent: same lego_id, same audio IDs, same phase
+          // transitions across the round-3 → round-4 boundary.
+          void generateScript()
+            .then((result) => {
+              const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
+              if (fullRounds.length === 0) {
+                console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on API path')
+                return
+              }
+              simplePlayer.replaceQueueFromCurrent(fullRounds)
+              // Mirror into the legacy ref so saveRoundProgress's
+              // cachedRounds walk (and any other consumer reading the
+              // alias) has the full course in scope, not just the
+              // bootstrap window.
+              cachedRounds.value = fullRounds
+              console.log(`[InstantPlayback] Full-script handoff: ${fullRounds.length} rounds local, no further per-round network needed`)
+            })
+            .catch((err) => {
+              console.warn('[InstantPlayback] Full-script background gen failed, API path remains the fallback:', err)
+            })
+
           // Mark position + data ready and skip the legacy load
           // entirely. The flag-on branch is now the only source of
           // truth for the player's round list.

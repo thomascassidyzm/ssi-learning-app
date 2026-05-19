@@ -112,3 +112,53 @@ describe('SimplePlayer — failure handling', () => {
     expect(failedEvents[0].reason).toBe('needs-gesture')
   })
 })
+
+describe('SimplePlayer.replaceQueueFromCurrent', () => {
+  beforeEach(() => {
+    vi.stubGlobal('Audio', vi.fn(makeMockAudio))
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('preserves the round currently playing and drops earlier ones from the batch', () => {
+    // Bootstrap rounds 1..5 already loaded, player advanced into round 3.
+    // Full script lands with rounds 1..10. Expect: rounds 1..3 from
+    // bootstrap kept (round 3 is the playing one, can't swap mid-cycle),
+    // rounds 4..10 taken from the full script.
+    const bootstrap = ['S0001L01', 'S0001L02', 'S0001L03', 'S0001L04', 'S0001L05'].map(makeRound)
+    const player = new SimplePlayer(bootstrap)
+    // Mark each bootstrap round so we can distinguish source after replace
+    for (const r of (player as any).rounds) r.__source = 'bootstrap'
+    ;(player as any).state.roundIndex = 2  // playing round 3 (S0001L03)
+
+    const fullScript = ['S0001L01', 'S0001L02', 'S0001L03', 'S0001L04', 'S0001L05',
+                        'S0001L06', 'S0001L07', 'S0001L08', 'S0001L09', 'S0001L10'].map(makeRound)
+    for (const r of fullScript) (r as any).__source = 'fullscript'
+
+    player.replaceQueueFromCurrent(fullScript)
+
+    const after = (player as any).rounds
+    expect(after).toHaveLength(10)
+    // Rounds 1..3 from bootstrap (the playing one and earlier untouched)
+    expect(after.slice(0, 3).map((r: any) => r.__source)).toEqual(['bootstrap', 'bootstrap', 'bootstrap'])
+    // Rounds 4..10 from full script
+    expect(after.slice(3).map((r: any) => r.__source)).toEqual(Array(7).fill('fullscript'))
+    // Player state unchanged
+    expect((player as any).state.roundIndex).toBe(2)
+  })
+
+  it('full-replaces when player has never started (idle, no current round)', () => {
+    const player = new SimplePlayer([])
+    const fullScript = ['S0001L01', 'S0001L02'].map(makeRound)
+    player.replaceQueueFromCurrent(fullScript)
+    expect((player as any).rounds).toHaveLength(2)
+  })
+
+  it('no-ops on empty batch', () => {
+    const initial = ['S0001L01', 'S0001L02'].map(makeRound)
+    const player = new SimplePlayer(initial)
+    player.replaceQueueFromCurrent([])
+    expect((player as any).rounds).toHaveLength(2)
+  })
+})

@@ -294,6 +294,44 @@ export class SimplePlayer {
   }
 
   /**
+   * Replace every round AFTER the one currently playing with the given
+   * batch. Rounds at or before the current index are kept verbatim so
+   * the in-flight round, cycleIndex and phase are unaffected. The
+   * batch is sorted by roundNumber and only entries strictly greater
+   * than the current round's roundNumber are spliced in — anything
+   * lower is dropped (it would regress the queue) and anything matching
+   * the current is dropped (replacing the playing round would desync
+   * cycleIndex against a different cycles array).
+   *
+   * Use when a higher-quality / more-complete round source becomes
+   * available mid-session (typically: the JS full-script generator
+   * landing after the bootstrap API path has already started playback).
+   * The handoff is silent — same lego_id, same audio IDs, same phase
+   * transitions — because both sources derive from the same content
+   * tables. Round numbers must align.
+   */
+  replaceQueueFromCurrent(newRounds: Round[]): void {
+    if (newRounds.length === 0) return
+
+    const currentRoundNumber = this.rounds[this.state.roundIndex]?.roundNumber
+
+    if (currentRoundNumber == null) {
+      // Idle / never initialized — full replace, sorted.
+      this.rounds = [...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
+      console.debug(`[SimplePlayer] Replaced queue (idle): ${this.rounds.length} rounds`)
+      return
+    }
+
+    const kept = this.rounds.filter(r => r.roundNumber <= currentRoundNumber)
+    const future = newRounds
+      .filter(r => r.roundNumber > currentRoundNumber)
+      .sort((a, b) => a.roundNumber - b.roundNumber)
+
+    this.rounds = [...kept, ...future]
+    console.debug(`[SimplePlayer] Replaced queue from current (round ${currentRoundNumber}): kept ${kept.length}, future ${future.length}, total ${this.rounds.length}`)
+  }
+
+  /**
    * Check if a round exists by its roundNumber
    */
   hasRound(roundNumber: number): boolean {
