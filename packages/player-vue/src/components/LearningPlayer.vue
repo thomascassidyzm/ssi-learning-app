@@ -2596,20 +2596,12 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
  */
 const updateBeltForPosition = (roundIndex) => {
   if (!beltProgress.value) return
-
-  // Derive the seed from the round's salient LEGO id — the lego_id is the
-  // canonical position per the existing memory rule, and it encodes the
-  // seed (S0042L03 → 42). This is correct for:
-  //   - Multi-LEGO seeds (e.g. 3 rounds within seed 42 all map to seed 42)
-  //   - Spaced-rep / infinite-play rounds where the round's content might
-  //     reference earlier seeds but the salient LEGO is the recent one
-  //     being practised. The cursor stays on the salient LEGO, not the
-  //     content-of-origin.
-  // The old `scriptBaseOffset + roundIndex + 1` heuristic assumed one
-  // round per seed in sequence and produced wildly wrong cursor positions
-  // during spaced-rep, making the journey-bar cursor dart around the course.
+  // Use the visual helper — for main-loop rounds returns round.legoId,
+  // for infplay rounds returns lastMainLoopLegoId. Without this the
+  // single-chevron skip during infplay made the belt bounce around as
+  // each random USE legoId was treated as the new "position".
   const round = loadedRounds.value?.[roundIndex]
-  const legoId = round?.legoId
+  const legoId = visualLegoIdForRound(round)
   if (!legoId) return
   const seed = getSeedFromLegoId(legoId)
   if (seed === null) return
