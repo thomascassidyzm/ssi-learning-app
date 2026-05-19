@@ -1352,8 +1352,9 @@ const soloComponentIds = computed<Set<string>>(() => {
 // Current phrase's LEGO blocks for the assembly view
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
+  if (!cycle) return []
   const useNative = isNativeScript.value && hasRomanizedText.value
-  if (!cycle?.componentLegoIds?.length) {
+  if (!cycle.componentLegoIds?.length) {
     // Detect intro/debut/component cycles from the cycle.type field —
     // authoritative and works for both the legacy script-generator
     // path (toSimpleRounds preserves the type) and the instant-playback
