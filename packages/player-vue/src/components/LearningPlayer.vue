@@ -767,6 +767,19 @@ const isMainLoopRound = (round: any): boolean =>
     c.type === 'intro' || c.type === 'debut' || c.type === 'build'
   )
 
+// For visual position (belt colour, playingSeedNumber) — during an
+// infinite-play round, round.legoId is the random USE LEGO drawn for
+// that round (anywhere in the course), so using it directly makes the
+// belt indicator bounce around with each cycle. Anchor instead to the
+// last main-loop LEGO the learner reached, which is what the belt is
+// actually tracking. Falls back to round.legoId when no main-loop
+// ceiling is known (cold start / fresh learner). */
+const visualLegoIdForRound = (round: any): string | null => {
+  if (!round) return null
+  if (isMainLoopRound(round)) return round.legoId || null
+  return lastMainLoopLegoId.value || round.legoId || null
+}
+
 // Expose reactive state for UI - writable refs that sync with simplePlayer
 // We need writable refs because legacy code assigns to these directly
 const currentRoundIndex = ref(0)
@@ -1135,12 +1148,15 @@ simplePlayer.onRoundCompleted((round) => {
       // Individual mode: existing behavior
       saveRoundProgress(round.legoId, completedRoundIndex, round)
       handleRoundBoundary(completedRoundIndex, round.legoId, round)
-      if (beltProgress.value?.setCurrentLegoId) {
-        beltProgress.value.setCurrentLegoId(round.legoId)
+      // Belt visuals follow the main-loop LEGO this round is "for" —
+      // for infplay rounds that's the last main-loop LEGO reached, NOT
+      // the random USE drawn first (which would make the belt jump).
+      const visualLegoId = visualLegoIdForRound(round)
+      if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
+        beltProgress.value.setCurrentLegoId(visualLegoId)
       }
-      // Update playing belt accent to match current content
-      if (round.legoId && beltProgress.value?.setPlayingPosition) {
-        const seed = getSeedFromLegoId(round.legoId)
+      if (visualLegoId && beltProgress.value?.setPlayingPosition) {
+        const seed = getSeedFromLegoId(visualLegoId)
         if (seed !== null) beltProgress.value.setPlayingPosition(seed)
       }
     }
@@ -3742,6 +3758,9 @@ const isIntroPhase = computed(() => {
 // scriptItemToCycle). One signal, read straight off the cycle being played,
 // doesn't depend on item-lookup state.
 const showPhaseStrip = computed(() => {
+  // Hide on the resting screen — no live cycle is playing there, so the
+  // pill shows a stale "active" segment which reads as noise.
+  if (!simplePlayer.isPlaying.value) return false
   return (simplePlayer.currentCycle.value?.pauseDuration ?? 0) > 0
 })
 
@@ -5668,7 +5687,19 @@ simplePlayer.setRuntimeOverrides({
     // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
     // alternate-fib spaced rep. Tagging happens at script generation;
     // this just gates on the live Turbo flag.
-    return turboActive.value && cycle.turboOmit === true
+    if (turboActive.value && cycle.turboOmit === true) return true
+    // Never replay intro / debut cycles for LEGOs the learner has
+    // already reached. Skip-back navigation can otherwise drop into a
+    // main-loop intro for a long-since-learned LEGO, which feels like
+    // regressing — Tom's "I should NEVER EVER EVER be going back to
+    // introductions" rule. Builds and uses still play (legit practice).
+    if ((cycle.type === 'intro' || cycle.type === 'debut')
+        && cycle.legoId
+        && highestCompletedLegoId.value
+        && cycle.legoId <= highestCompletedLegoId.value) {
+      return true
+    }
+    return false
   },
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
@@ -5694,11 +5725,13 @@ const drivingMode = useDrivingMode({
     const completedIdx = newRoundIndex - 1
     if (completedIdx >= 0 && cachedRounds.value && completedIdx < cachedRounds.value.length) {
       const round = cachedRounds.value[completedIdx]
-      if (round?.legoId && beltProgress.value?.setCurrentLegoId) {
-        beltProgress.value.setCurrentLegoId(round.legoId)
+      // Use visual helper — infplay rounds have a random round.legoId.
+      const visualLegoId = visualLegoIdForRound(round)
+      if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
+        beltProgress.value.setCurrentLegoId(visualLegoId)
       }
-      if (round?.legoId && beltProgress.value?.setPlayingPosition) {
-        const seed = getSeedFromLegoId(round.legoId)
+      if (visualLegoId && beltProgress.value?.setPlayingPosition) {
+        const seed = getSeedFromLegoId(visualLegoId)
         if (seed !== null) beltProgress.value.setPlayingPosition(seed)
       }
     }
