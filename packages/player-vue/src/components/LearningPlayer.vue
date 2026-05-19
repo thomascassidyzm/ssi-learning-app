@@ -1192,6 +1192,40 @@ simplePlayer.onSessionComplete(async () => {
   showPausedSummary()
 })
 
+// Round ENTRY persistence: whenever the player advances or jumps to a
+// new round (skip-forward chevron, jump-to-seed, natural advance after a
+// completed round, anything that changes currentRound.legoId), save the
+// position immediately so the cursor + ceiling reflect what the learner
+// has actually REACHED — not just what they've played through to the
+// very last cycle of.
+//
+// The old contract (only round_completed persisted) was a methodology
+// trap: a learner who skips forward through known LEGOs to validate
+// recognition (the "I know this, next" flow) never completed those
+// rounds, so their high-water stayed at the last full completion. The
+// "you've been further than this — go to furthest point" affordance
+// then jumped them BACKWARDS to where they last finished a round, even
+// though they'd been practising cycles in much higher LEGOs.
+//
+// Ratchet trigger guarantees the ceiling never regresses, so skipping
+// BACK to an earlier round just updates the cursor (correct for resume
+// position) without lowering the high-water.
+watch(
+  () => simplePlayer.currentRound.value?.legoId,
+  (newLegoId, prevLegoId) => {
+    if (!newLegoId || newLegoId === prevLegoId) return
+    if (isGuestLearner.value || props.classContext) return
+    const round = simplePlayer.currentRound.value
+    const roundIndex = simplePlayer.roundIndex.value
+    if (!round || roundIndex == null) return
+    if (isMainLoopRound(round) &&
+        (!lastMainLoopLegoId.value || newLegoId > lastMainLoopLegoId.value)) {
+      lastMainLoopLegoId.value = newLegoId
+    }
+    saveRoundProgress(newLegoId, roundIndex, round)
+  }
+)
+
 // Sync simplePlayer's current cycle to local currentCycle ref for text display
 // This watcher runs after currentCycle ref is defined (around line 1240)
 watch(() => simplePlayer.currentCycle.value, (simpleCycle) => {
