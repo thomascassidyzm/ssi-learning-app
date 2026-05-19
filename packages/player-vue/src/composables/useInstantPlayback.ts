@@ -196,20 +196,17 @@ interface CachedCycles {
   cachedAt: number
 }
 
-function cyclesCacheKey(courseCode: string, fromLegoId: string, resume: boolean): string {
-  // resume=true responses drop the first LEGO's intro+debut — different
-  // shape, separate cache entry.
-  return CYCLES_STORAGE_PREFIX + courseCode + '-' + fromLegoId + (resume ? '-resume' : '')
+function cyclesCacheKey(courseCode: string, fromLegoId: string): string {
+  return CYCLES_STORAGE_PREFIX + courseCode + '-' + fromLegoId
 }
 
 function readCachedCycles(
   courseCode: string,
   fromLegoId: string,
   expectedVersion: number,
-  resume: boolean,
 ): CyclesResponse | null {
   try {
-    const raw = localStorage.getItem(cyclesCacheKey(courseCode, fromLegoId, resume))
+    const raw = localStorage.getItem(cyclesCacheKey(courseCode, fromLegoId))
     if (!raw) return null
     const parsed = JSON.parse(raw) as CachedCycles
     if (
@@ -230,12 +227,11 @@ function writeCachedCycles(
   courseCode: string,
   fromLegoId: string,
   response: CyclesResponse,
-  resume: boolean,
 ): void {
   try {
     const payload: CachedCycles = { response, cachedAt: Date.now() }
     localStorage.setItem(
-      cyclesCacheKey(courseCode, fromLegoId, resume),
+      cyclesCacheKey(courseCode, fromLegoId),
       JSON.stringify(payload),
     )
   } catch (err) {
@@ -365,7 +361,6 @@ export function useInstantPlayback(
     limit: number,
     signal?: AbortSignal,
     expectedVersion?: number,
-    resume = false,
   ): Promise<CyclesResponse> {
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
@@ -374,12 +369,8 @@ export function useInstantPlayback(
     // has the round-map and can validate), serve the cached cycles response
     // when it matches. Skip network entirely. This is the "zero-network
     // resume" path for returning visitors to a previously-fetched position.
-    //
-    // The resume flag is part of the cache key — a resume=true response
-    // (no intro+debut for the first LEGO) is shape-different from
-    // resume=false (full first LEGO), so they can't share storage.
     if (typeof expectedVersion === 'number') {
-      const cached = readCachedCycles(code, fromLegoId, expectedVersion, resume)
+      const cached = readCachedCycles(code, fromLegoId, expectedVersion)
       if (cached) {
         // Only return cache if it covers >= the requested limit — a tiny
         // cached response (e.g. an old limit=1 entry) shouldn't satisfy a
@@ -392,8 +383,7 @@ export function useInstantPlayback(
 
     const url =
       `${apiBase}/${encodeURIComponent(code)}/cycles` +
-      `?from=${encodeURIComponent(fromLegoId)}&limit=${limit}` +
-      (resume ? '&resume=true' : '')
+      `?from=${encodeURIComponent(fromLegoId)}&limit=${limit}`
 
     const res = await fetch(url, { signal })
     if (!res.ok) {
@@ -404,7 +394,7 @@ export function useInstantPlayback(
     const response = (await res.json()) as CyclesResponse
     // Write-through cache. Stamp is the version the server returned, which
     // gets compared against the current round-map version on read.
-    writeCachedCycles(code, fromLegoId, response, resume)
+    writeCachedCycles(code, fromLegoId, response)
     return response
   }
 
@@ -432,24 +422,18 @@ export function useInstantPlayback(
   async function bootstrap(legoId?: string): Promise<BootstrapResult> {
     isReady.value = false
 
-    // 1. Resolve starting legoId from the caller / position store. This
-    //    is a LOCAL lookup (in-memory or one quick supabase row read
-    //    that happens in the parent before this composable is called),
-    //    so it doesn't add network roundtrips to the critical path.
-    //
-    //    Resume vs fresh-start vs re-experience:
-    //      - Explicit legoId from caller → re-experience (belt-skip
-    //        back / deliberate jump). Intros should play.
-    //      - Resolver returns non-null → resume (returning learner
-    //        opens app). Skip intro+debut for the start LEGO.
-    //      - Resolver returns null → fresh learner. Round 1 with
-    //        full intros.
+    // 1. Resolve starting legoId from the caller / position store. The
+    //    resolver is responsible for translating "where the learner left
+    //    off" into "what LEGO should we load now" — typically NEXT(last
+    //    completed) via the round-map, so the resume LEGO is genuinely
+    //    new to the learner and its intro plays naturally. Returning
+    //    null = fresh learner; bootstrap falls to the round-map's first
+    //    LEGO. Throwing = "no content available" (e.g. course end);
+    //    bootstrap propagates and the caller falls to the legacy path.
     let startLegoId: string | null = legoId ?? null
-    let isResume = false
     if (!startLegoId && resolveStartLegoId) {
       const resolved = await resolveStartLegoId()
       startLegoId = resolved ?? null
-      isResume = startLegoId != null
     }
 
     // 2. The bootstrap critical path: round-map fetch + first-round
@@ -480,7 +464,7 @@ export function useInstantPlayback(
       if (startLegoId) {
         const [m, r] = await Promise.all([
           fetchRoundMap(),
-          fetchCycles(startLegoId, BOOTSTRAP_LIMIT, ctrl.signal, expectedVersion, isResume),
+          fetchCycles(startLegoId, BOOTSTRAP_LIMIT, ctrl.signal, expectedVersion),
         ])
         map = m
         response = r
@@ -491,14 +475,11 @@ export function useInstantPlayback(
           throw new Error('[InstantPlayback] round-map has no rounds')
         }
         startLegoId = first.legoId
-        // Fresh start (round 1) — never resume; the learner does need
-        // the intro for their first-ever LEGO.
         response = await fetchCycles(
           startLegoId,
           BOOTSTRAP_LIMIT,
           ctrl.signal,
           map.version,
-          false,
         )
       }
     } finally {
@@ -721,6 +702,11 @@ export function useInstantPlayback(
     currentRound,
     roundMap,
     isReady,
+
+    // Resolver helpers — the caller's resolveStartLegoId needs the
+    // round-map to compute NEXT(lastCompleted). Cached path is instant;
+    // uncached path is one tiny fetch (~20 KB).
+    getOrFetchRoundMap: fetchRoundMap,
 
     // Navigation helpers (player layer uses these to keep the
     // composable in sync with playback position).

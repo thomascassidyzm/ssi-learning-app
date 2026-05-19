@@ -192,13 +192,6 @@ export default async function handler(
     }
   }
 
-  // `resume=true` flags this as a returning-learner bootstrap, not a fresh
-  // start. When set, we skip the FIRST LEGO's intro + debut cycles —
-  // those are "first encounter" pedagogy that's confusing/misleading
-  // when the learner has already mastered the LEGO. Subsequent LEGOs in
-  // the response keep their intros (they ARE new to the learner).
-  const resume = req.query.resume === 'true'
-
   try {
     const supabase = createClient(
       supabaseUrl,
@@ -281,14 +274,7 @@ export default async function handler(
         continue
       }
 
-      const allLegoCycles = buildLegoCycles(lego, phrasesByKey.get(legoKey) || [])
-
-      // Resume bootstrap: the FIRST LEGO is one the learner already met,
-      // so drop its intro + debut. Subsequent LEGOs (i > 0) keep theirs
-      // — they're genuinely new to the learner.
-      const legoCycles = (resume && i === 0)
-        ? allLegoCycles.filter((c) => c.type !== 'intro' && c.type !== 'debut')
-        : allLegoCycles
+      const legoCycles = buildLegoCycles(lego, phrasesByKey.get(legoKey) || [])
 
       for (const cycle of legoCycles) {
         if (cycles.length >= limit) {

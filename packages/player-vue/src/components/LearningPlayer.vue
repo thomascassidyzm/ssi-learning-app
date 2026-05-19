@@ -386,8 +386,34 @@ const instantPlayback = useInstantPlayback(courseCode, {
         learnerId.value,
         courseCode.value,
       )
-      return enrollment?.last_completed_lego_id ?? null
-    } catch {
+      const lastCompleted = enrollment?.last_completed_lego_id ?? null
+      if (!lastCompleted) return null  // fresh learner → bootstrap defaults to R1
+
+      // last_completed_lego_id means the learner FINISHED that LEGO.
+      // Resume should land on the NEXT one in script order, not replay
+      // the one they just completed. Look it up in the round-map.
+      // Throwing on course-end propagates up through bootstrap to the
+      // legacy-path fallback, which handles infinite play correctly
+      // until INF PLAY mode lands.
+      const map = await instantPlayback.getOrFetchRoundMap()
+      const idx = map.rounds.findIndex(r => r.legoId === lastCompleted)
+      if (idx === -1) {
+        // LEGO not in round-map (schema drift, deleted content, etc.).
+        // Treat as fresh start rather than crashing.
+        console.warn(`[InstantPlayback] last_completed ${lastCompleted} not in round-map; starting at R1`)
+        return null
+      }
+      const next = map.rounds[idx + 1]
+      if (!next) {
+        // Course end — no further LEGOs to introduce. Throw so bootstrap
+        // propagates and LearningPlayer's catch falls to the legacy path
+        // (which emits infplay rounds via generateLearningScript). This
+        // is the seam where INF PLAY MODE will plug in.
+        throw new Error('CourseEndNoNextLego')
+      }
+      return next.legoId
+    } catch (err) {
+      if ((err as Error)?.message === 'CourseEndNoNextLego') throw err
       return null
     }
   },
@@ -6792,34 +6818,25 @@ onMounted(async () => {
           // script handoff fires and backfills.
           extractComponentsToMaps(initialRounds, '[Components] bootstrap')
 
-          // 4. Resume position. The composable bootstraps AT
-          //    `last_completed_lego_id`; the legacy player resumes at
-          //    that LEGO + 1 (so the learner doesn't redo the LEGO
-          //    they just finished). Mirror that behaviour here.
-          //    Fresh learners (bootstrap legoId === first round) stay
-          //    at round 0.
+          // 4. Resume position. The resolver returns NEXT(last_completed)
+          //    so the bootstrap LEGO IS the round the learner should
+          //    play next — no "jump past" needed. We start at round 0
+          //    of initialRounds (= the resolved next LEGO) and apply
+          //    the saved mid-round cycle cursor so app close/reopen
+          //    mid-round resumes at the right cycle, not the round
+          //    start. Fresh learners (resolver returned null →
+          //    bootstrap picked round-map.rounds[0]) get the same
+          //    "start at round 0 cycle 0" treatment, which is correct
+          //    because they have no saved cycle state.
           const startedAtLegoId = bootstrapResult.firstCycle.lego_id
-          const firstRoundLegoId = map.rounds[0]?.legoId
-          if (startedAtLegoId && startedAtLegoId !== firstRoundLegoId) {
-            const lastIdx = initialRounds.findIndex(r => r.legoId === startedAtLegoId)
-            if (lastIdx >= 0 && lastIdx + 1 < initialRounds.length) {
-              console.log(`[InstantPlayback] Resuming after ${startedAtLegoId} (round ${lastIdx + 1})`)
-              simplePlayer.jumpToRound(lastIdx + 1)
-              // Keep the composable's cursor in sync with what
-              // the player will actually play next — tier 3 uses
-              // currentLegoId to anchor the N+1 lookup.
-              const nextRound = initialRounds[lastIdx + 1]
-              if (nextRound?.legoId) {
-                instantPlayback.setCurrentLegoId(nextRound.legoId)
-              }
-            } else if (lastIdx >= 0) {
-              console.log(`[InstantPlayback] Resuming at final loaded round (${startedAtLegoId})`)
-              simplePlayer.jumpToRound(lastIdx)
-            }
-            // If the lego isn't in the buffer yet, we stay at round 0
-            // and the round-map advance will land naturally as the
-            // user plays — degraded-but-correct.
+          const resumeCycle = Math.max(0, savedCurrentCycleIndex.value || 0)
+          if (resumeCycle > 0) {
+            console.log(`[InstantPlayback] Resuming at ${startedAtLegoId} cycle ${resumeCycle}`)
+            simplePlayer.jumpToRound(0, resumeCycle)
           }
+          // Keep the composable's cursor in sync with what's playing,
+          // so tier-3 anchors the N+1 lookup off the right LEGO.
+          instantPlayback.setCurrentLegoId(startedAtLegoId)
 
           // Mirror the same belt-position update the legacy path does
           // so the belt label / journey bar reflect where the user is
