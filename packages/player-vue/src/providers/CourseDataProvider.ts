@@ -672,12 +672,19 @@ export class CourseDataProvider {
     if (!this.client) return []
 
     try {
-      // Query course_audio for all instructions, ordered by id (preserves import order)
+      // Canonical sequence is on course_audio.sequence (migration
+      // 20260520_instruction_canonical_sequence.sql). Order by that first
+      // so a learner's persisted instructionIndex points at the SAME
+      // logical instruction across every course in the same known-language.
+      // Rows still missing a sequence (e.g. non-English instructions before
+      // their translations are sequenced) fall through to id ordering —
+      // same legacy behaviour, only affecting those courses.
       const { data, error } = await this.client
         .from('course_audio')
-        .select('id, s3_key, duration_ms, text')
+        .select('id, s3_key, duration_ms, text, sequence')
         .eq('course_code', this.courseId)
         .eq('role', 'instruction')
+        .order('sequence', { ascending: true, nullsFirst: false })
         .order('id', { ascending: true })
 
       if (error || !data) {
