@@ -193,14 +193,13 @@ const DEFAULT_PODS: PodsConfig = {
   gapTightMs: 200,
   gapGluedMs: 300,
   gapBetweenMs: 1000,
-  /* L2 pod-lap fires every 2 main rounds from activation. Hotfix
-   * 2026-05-20: was 5, but combined with 20+ activation values from
-   * earlier rules it meant most sessions surfaced zero pods. 2 matches
-   * the early cadence of the eventual growing-interval spec (pods at
-   * rounds 2, 4, 7, 10, 14, 18, 23, 28, 33, 38 — gaps 2/2/3/3/4/4/5/5/5/5).
-   * The growing-interval scheduler lands separately; this default keeps
-   * pods firing while we get there. */
-  roundInterval: 2,
+  /* L2 pod-lap fires every 5 main rounds from activation. Hotfix
+   * 2026-05-20: stale activation values (21+ from an earlier rule) are
+   * capped at 2 on read in usePodLapScheduler — that unblocks existing
+   * learners. Cadence stays at 5 here so the session pacing feels right
+   * (~25 min between pods). The growing-interval scheduler (2/2/3/3/4/4
+   * /5/5/5/5...) lands separately. */
+  roundInterval: 5,
   podActivationRound: 2,
 }
 
