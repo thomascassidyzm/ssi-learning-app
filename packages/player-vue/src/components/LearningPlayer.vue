@@ -5979,6 +5979,27 @@ simplePlayer.setRuntimeOverrides({
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
+
+/**
+ * Ceiling used by the Listening / Pronunciation overlay's "All" tab.
+ * Derived from beltProgress.highestLegoId (high-water mark, only ever
+ * moves forward) — NOT playingSeedNumber. The previous code used the
+ * current playing seed, which silently shrank the All-tab pool whenever
+ * the learner was revisiting earlier content or sitting in infinite
+ * play with the cursor wherever. The All tab is "every USE phrase you
+ * have ever met"; the high-water lego id is the right anchor for that.
+ *
+ * +1 because ListeningOverlay's filter is strictly seed_number <
+ * upToSeed (used for "completed seeds only" semantics on the old
+ * cursor-based code path). Adding 1 includes the highest seed too,
+ * matching the inclusive "everything I've reached" meaning.
+ */
+const listeningCeilingSeed = computed<number | null>(() => {
+  const legoId = beltProgress.value?.highestLegoId?.value ?? null
+  if (!legoId) return null
+  const seed = getSeedFromLegoId(legoId)
+  return seed != null ? seed + 1 : null
+})
 const isDrivingModeActive = ref(false)
 let drivingModeInitialRound: number | null = null
 
@@ -8854,7 +8875,7 @@ defineExpose({
         v-if="showListeningOverlay"
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
-        :up-to-seed="beltProgress?.playingSeedNumber?.value ?? null"
+        :up-to-seed="listeningCeilingSeed"
         @close="handleCloseListening"
       />
     </Transition>
