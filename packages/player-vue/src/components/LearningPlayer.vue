@@ -3321,6 +3321,91 @@ const clearPreparingState = () => {
   }
 }
 
+// ============================================================================
+// INF PLAY first-entry introduction
+//
+// When a learner first enters INF PLAY for a course, type out a short
+// explanation in the same dialog box used for the welcome / preparing
+// messages. Runs in parallel with the audio warm-up so the wait feels
+// purposeful: learner reads, audio downloads, both finish around the
+// same time, then INF PLAY starts. Marked per-course in localStorage —
+// subsequent entries skip the intro.
+// ============================================================================
+const isShowingInfPlayIntro = ref(false)
+const infPlayIntroMessage = ref('')
+let infPlayIntroTimeout: ReturnType<typeof setTimeout> | null = null
+
+function infPlayIntroSeenKey(courseCode: string): string {
+  return `ssi-infplay-intro-shown-${courseCode}`
+}
+function hasSeenInfPlayIntro(courseCode: string): boolean {
+  if (!courseCode) return true
+  try {
+    return localStorage.getItem(infPlayIntroSeenKey(courseCode)) === 'true'
+  } catch {
+    return true  // treat localStorage failure as "already seen" — don't loop the intro
+  }
+}
+function markInfPlayIntroSeen(courseCode: string): void {
+  if (!courseCode) return
+  try {
+    localStorage.setItem(infPlayIntroSeenKey(courseCode), 'true')
+  } catch { /* swallow — non-critical */ }
+}
+
+// Full text. Paragraph breaks render via CSS `white-space: pre-line`
+// in the template branch. Length tuned to ~12-15s of typing + a few
+// seconds of read time, matching realistic warm-up duration.
+const INFPLAY_INTRO_TEXT = `Congratulations!
+
+There are no more new items in the current version of the course — now you need to keep practising them in lots of different contexts until the memories are formed and you can surface them automatically. Without thinking!
+
+We're now going into infinite play, which means the course keeps going, prompting you with new combinations of the pieces you've already learnt.`
+
+/**
+ * Type out the intro into the dialog box. Returns a Promise that
+ * resolves once the typewriter has finished AND a short read-pause
+ * has elapsed. Caller can race this against the audio warm-up via
+ * Promise.all so the learner sees the intro complete naturally.
+ */
+async function startInfPlayIntro(): Promise<void> {
+  isShowingInfPlayIntro.value = true
+  infPlayIntroMessage.value = ''
+  if (infPlayIntroTimeout) clearTimeout(infPlayIntroTimeout)
+
+  const message = INFPLAY_INTRO_TEXT
+  let charIndex = 0
+
+  return new Promise<void>((resolve) => {
+    const typeChar = () => {
+      if (!isShowingInfPlayIntro.value) {
+        // Caller dismissed (rare) — resolve so any awaiter doesn't hang.
+        resolve()
+        return
+      }
+      if (charIndex < message.length) {
+        infPlayIntroMessage.value += message[charIndex]
+        charIndex++
+        infPlayIntroTimeout = setTimeout(typeChar, 28)
+      } else {
+        // Typewriter done — hold for 2.5s so the learner can read the
+        // last paragraph before INF PLAY starts.
+        infPlayIntroTimeout = setTimeout(resolve, 2500)
+      }
+    }
+    typeChar()
+  })
+}
+
+function clearInfPlayIntro(): void {
+  isShowingInfPlayIntro.value = false
+  infPlayIntroMessage.value = ''
+  if (infPlayIntroTimeout) {
+    clearTimeout(infPlayIntroTimeout)
+    infPlayIntroTimeout = null
+  }
+}
+
 // Emit play state changes to parent (for nav bar play/stop toggle).
 // Includes pod-lap and commentary audio so the big play/stop button keeps
 // reading "stop" while THOSE are playing — pressing it during a pod halts
@@ -5715,10 +5800,24 @@ const handleSkipToNextBelt = async () => {
         // rounds before jumping. Otherwise the random-USE LEGOs in
         // each round each need a network roundtrip on play, giving
         // the "audio missing / stuttering" UX Tom flagged.
+        //
+        // Parallel: if this is the FIRST time the learner enters INF
+        // PLAY for this course, type out the introductory message in
+        // the dialog box at the same time. Both Promise.all'd so the
+        // jumpToRound waits for the learner to read AND for the audio
+        // to be cached.
         isWarmingUpInfPlay.value = true
         try {
           const slice = cachedRounds.value.slice(firstInfIdx, firstInfIdx + 5)
-          await warmUpInfPlayRounds(slice as any, slice.length)
+          const showIntro = !hasSeenInfPlayIntro(courseCode.value)
+          const warmUpPromise = warmUpInfPlayRounds(slice as any, slice.length)
+          if (showIntro) {
+            await Promise.all([warmUpPromise, startInfPlayIntro()])
+            markInfPlayIntroSeen(courseCode.value)
+            clearInfPlayIntro()
+          } else {
+            await warmUpPromise
+          }
         } finally {
           isWarmingUpInfPlay.value = false
         }
@@ -7560,10 +7659,24 @@ onMounted(async () => {
                     // random-sampled content defeats the linear 30-min
                     // prefetch buffer — without this the learner hits
                     // network-fetch stalls on every cycle.
+                    //
+                    // Auto-resume can land learners who have NEVER
+                    // explicitly entered INF PLAY (mode flag was set
+                    // by the saveRoundProgress auto-entry on their
+                    // first infplay round). Show the intro on first
+                    // encounter here too, in parallel with warm-up.
                     isWarmingUpInfPlay.value = true
                     try {
                       const slice = simpleRounds.slice(firstInfPlayIdx, firstInfPlayIdx + 5)
-                      await warmUpInfPlayRounds(slice as any, slice.length)
+                      const showIntro = !hasSeenInfPlayIntro(courseCode.value)
+                      const warmUpPromise = warmUpInfPlayRounds(slice as any, slice.length)
+                      if (showIntro) {
+                        await Promise.all([warmUpPromise, startInfPlayIntro()])
+                        markInfPlayIntroSeen(courseCode.value)
+                        clearInfPlayIntro()
+                      } else {
+                        await warmUpPromise
+                      }
                     } finally {
                       isWarmingUpInfPlay.value = false
                     }
@@ -8506,7 +8619,10 @@ defineExpose({
           handleSkipToNextBelt flow, so the existing overlay covers
           the wait without an extra surface — just different copy. -->
   <Transition name="fade">
-    <div v-if="isSkippingBelt || isWarmingUpInfPlay" class="belt-skip-overlay">
+    <!-- Suppress overlay when the INF PLAY intro is on-screen — the
+         typed message IS the loading affordance; an overlay on top
+         would hide it. Audio still warms up in parallel. -->
+    <div v-if="(isSkippingBelt || isWarmingUpInfPlay) && !isShowingInfPlayIntro" class="belt-skip-overlay">
       <div class="belt-skip-spinner"></div>
       <span class="belt-skip-label">{{
         isWarmingUpInfPlay
@@ -9216,7 +9332,10 @@ defineExpose({
              conflict with the pronunciation audio that is the actual
              lesson. AT users can navigate to this region manually. -->
         <div class="pane-text-known">
-          <p v-if="isAwakening" class="known-text loading-text">
+          <p v-if="isShowingInfPlayIntro" class="known-text loading-text infplay-intro-text">
+            {{ infPlayIntroMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
+          </p>
+          <p v-else-if="isAwakening" class="known-text loading-text">
             {{ currentLoadingMessage }}<span class="loading-cursor" aria-hidden="true">▌</span>
           </p>
           <p v-else-if="isPreparingToPlay" class="known-text loading-text preparing-text">
@@ -11889,6 +12008,20 @@ button.phase-segment:active:not(.is-active) {
 .loading-text {
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-secondary);
+}
+
+/* INF PLAY first-entry intro. Same monospace + typewriter cursor as
+ * the other loading-text branches, but preserves paragraph breaks
+ * (the message is multi-paragraph) and shrinks the font-size so the
+ * whole body fits in the dialog box without scrolling. */
+.infplay-intro-text {
+  white-space: pre-line;
+  font-size: 0.85em;
+  line-height: 1.5;
+  text-align: left;
+  max-width: 64ch;
+  margin-inline: auto;
+  padding: 0.25em 0.5em;
 }
 
 .loading-cursor {
