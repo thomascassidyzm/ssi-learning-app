@@ -7590,11 +7590,27 @@ onMounted(async () => {
               // freshHighestLego was already read at the top of this
               // branch and mirrored into the ref. Run the infinite-play
               // detection against it.
-              hasReachedInfinitePlayInSession = await hasReachedInfinitePlay(
+              // Two ways to be "in infplay" for resume purposes:
+              //   1. Position-derived: highest_completed_lego_id IS the
+              //      course's literal final LEGO (natural progression
+              //      through every belt)
+              //   2. Mode-derived: current_mode === 'infplay'
+              //      (explicit purple-button entry — works even when
+              //      the learner belt-skipped forward and didn't
+              //      touch the literal final LEGO, e.g. Tom's deu
+              //      stuck at highest=S0281L01 in a 592-LEGO course)
+              //
+              // Either signal triggers the infplay resume branch,
+              // which jumps to first-infplay-round instead of the
+              // legoId-based resume that would replay S0281L01+1's
+              // intro.
+              const positionSaysInfPlay = await hasReachedInfinitePlay(
                 freshHighestLego,
                 courseCode.value,
               )
-              console.log(`[LearningPlayer] Infinite-play check: highest_lego=${freshHighestLego} → ${hasReachedInfinitePlayInSession ? 'YES, course complete' : 'no, still in main loop'}`)
+              const enrollmentSaysInfPlay = (freshProgress?.currentMode ?? 'main') === 'infplay'
+              hasReachedInfinitePlayInSession = positionSaysInfPlay || enrollmentSaysInfPlay
+              console.log(`[LearningPlayer] Infinite-play check: highest_lego=${freshHighestLego} positionSays=${positionSaysInfPlay} modeSays=${enrollmentSaysInfPlay} → ${hasReachedInfinitePlayInSession ? 'YES, in INF PLAY' : 'no, still in main loop'}`)
 
               let endSeed: number
               if (hasReachedInfinitePlayInSession) {
