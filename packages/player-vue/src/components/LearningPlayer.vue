@@ -3354,13 +3354,12 @@ function markInfPlayIntroSeen(courseCode: string): void {
 }
 
 // Full text. Paragraph breaks render via CSS `white-space: pre-line`
-// in the template branch. Length tuned to ~12-15s of typing + a few
-// seconds of read time, matching realistic warm-up duration.
-const INFPLAY_INTRO_TEXT = `Congratulations!
+// in the template branch. ~4s of typing + 2.5s read pause — roughly
+// matched to the ~3s audio-bootstrap fetch so neither side blocks
+// the other.
+const INFPLAY_INTRO_TEXT = `Congratulations — you've met every new item in this course.
 
-There are no more new items in the current version of the course — now you need to keep practising them in lots of different contexts until the memories are formed and you can surface them automatically. Without thinking!
-
-We're now going into infinite play, which means the course keeps going, prompting you with new combinations of the pieces you've already learnt.`
+From here you'll keep practising what you know in fresh combinations until you can use them without thinking. This is infinite play.`
 
 /**
  * Type out the intro into the dialog box. Returns a Promise that
@@ -11615,7 +11614,11 @@ button.phase-segment:active:not(.is-active) {
   bottom: 0;
   width: 0%;
   background: var(--ssi-red);
-  transition: width 0.1s linear;
+  /* No width transition. ringProgress updates via requestAnimationFrame
+   * at ~60fps which is already smooth enough during the SPEAK phase. The
+   * old `transition: width 0.1s linear` made the bar slide backwards
+   * when the phase ended (width snapping 100→0 was animated). Snap to
+   * zero instead so the segment just clears. */
   pointer-events: none;
   z-index: 0;
 }
