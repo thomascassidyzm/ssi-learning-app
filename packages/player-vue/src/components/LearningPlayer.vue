@@ -5711,7 +5711,22 @@ const handleSkipToNextBelt = async () => {
       )
       if (firstInfIdx >= 0) {
         console.log(`[LearningPlayer] Skipping past last belt — entering infinite play at round index ${firstInfIdx}`)
+        // Phase 1 (blocking): warm up audio for the first 5 infplay
+        // rounds before jumping. Otherwise the random-USE LEGOs in
+        // each round each need a network roundtrip on play, giving
+        // the "audio missing / stuttering" UX Tom flagged.
+        isWarmingUpInfPlay.value = true
+        try {
+          const slice = cachedRounds.value.slice(firstInfIdx, firstInfIdx + 5)
+          await warmUpInfPlayRounds(slice as any, slice.length)
+        } finally {
+          isWarmingUpInfPlay.value = false
+        }
         simplePlayer.jumpToRound(firstInfIdx)
+        // Phase 2 (background): top up the rest of the infplay rounds
+        // while the learner plays the first batch. By the time they
+        // reach round 6, everything should be cached.
+        warmUpInfPlayRoundsBackground(cachedRounds.value as any, firstInfIdx + 5)
         // Anchor belt to the last main-loop seed (= top reachable belt
         // colour for this course). Otherwise the infplay round's random
         // USE legoId would set the visual to whichever LEGO it drew.
@@ -6071,6 +6086,64 @@ const showTurboPopup = ref(false)
 
 // Belt skip feedback state (showBeltModal merged into showProgressModal above)
 const isSkippingBelt = ref(false)
+
+// INF PLAY audio warm-up state. Set true while the first batch of
+// infplay rounds is being downloaded; gates the play button so the
+// learner doesn't tap into silent/stuttering audio. Cleared once the
+// blocking download completes; the second phase (rest of script)
+// runs in the background and doesn't gate playback.
+const isWarmingUpInfPlay = ref(false)
+
+/**
+ * Phase 1 (BLOCKING): download all audio for the next `count` rounds.
+ * Tom's design 2026-05-20 — INF PLAY's random sampling defeats the
+ * linear 30-min prefetch, so we batch-load a chunk of rounds before
+ * playback starts and then top up in the background while the
+ * learner plays through.
+ *
+ * Walks each round's cycles, collects unique audio URLs (known +
+ * target1 + target2 + any presentation/listening clips), fires
+ * fetch() against /api/audio/* — service-worker CacheFirst absorbs
+ * the responses into the audio cache. Subsequent <audio> playback
+ * hits the cache, no network roundtrip.
+ *
+ * Parallel-limited at 5 to saturate 4G without thrashing. Errors
+ * are swallowed — partial cache is better than blocking forever.
+ */
+async function warmUpInfPlayRounds(rounds: any[], count: number): Promise<void> {
+  const slice = rounds.slice(0, Math.max(0, count))
+  const urls = new Set<string>()
+  for (const r of slice) {
+    if (!Array.isArray(r?.cycles)) continue
+    for (const c of r.cycles) {
+      if (c?.known?.audioUrl) urls.add(c.known.audioUrl)
+      if (c?.target?.voice1Url) urls.add(c.target.voice1Url)
+      if (c?.target?.voice2Url) urls.add(c.target.voice2Url)
+    }
+  }
+  const list = [...urls]
+  if (list.length === 0) return
+
+  const parallel = 5
+  for (let i = 0; i < list.length; i += parallel) {
+    const batch = list.slice(i, i + parallel)
+    await Promise.allSettled(batch.map(url =>
+      fetch(url).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)
+    ))
+  }
+}
+
+/**
+ * Phase 2 (BACKGROUND): fire-and-forget warm-up for the rest of the
+ * script. Runs while phase-1 rounds are playing — by the time the
+ * learner gets through 5 rounds (~25 min), the whole batch should
+ * be cached. Errors swallowed; never blocks playback.
+ */
+function warmUpInfPlayRoundsBackground(rounds: any[], skipFirst: number): void {
+  const remaining = rounds.slice(skipFirst)
+  if (remaining.length === 0) return
+  void warmUpInfPlayRounds(remaining, remaining.length).catch(() => { /* silent */ })
+}
 
 // ============================================
 // ADAPTATION CONSENT & TIMING
@@ -7379,7 +7452,22 @@ onMounted(async () => {
                   )
                   if (firstInfPlayIdx >= 0) {
                     console.debug(`[eagerLoad] ${modeTag}: infinite play reached — resuming at first infinite-play round (index ${firstInfPlayIdx})`)
+                    // Phase 1 (blocking): warm up audio for the first
+                    // 5 infplay rounds before allowing playback. The
+                    // random-sampled content defeats the linear 30-min
+                    // prefetch buffer — without this the learner hits
+                    // network-fetch stalls on every cycle.
+                    isWarmingUpInfPlay.value = true
+                    try {
+                      const slice = simpleRounds.slice(firstInfPlayIdx, firstInfPlayIdx + 5)
+                      await warmUpInfPlayRounds(slice as any, slice.length)
+                    } finally {
+                      isWarmingUpInfPlay.value = false
+                    }
                     simplePlayer.jumpToRound(firstInfPlayIdx)
+                    // Phase 2 (background): cache the rest while the
+                    // first batch plays.
+                    warmUpInfPlayRoundsBackground(simpleRounds as any, firstInfPlayIdx + 5)
                   } else {
                     // Shouldn't happen — endSeed was sized to force
                     // infinite-play emission — but fall through to the
@@ -8307,11 +8395,21 @@ defineExpose({
     @expand="showProgressModal = true"
   />
 
-  <!-- Belt Skip Loading Overlay -->
+  <!-- Belt Skip Loading Overlay. Same overlay covers two states:
+       1. belt-to-belt skip (Jumping to X belt...)
+       2. INF PLAY warm-up (downloading first batch of audio so the
+          random-sampled content plays smoothly from cache). The
+          isWarmingUpInfPlay state nests inside isSkippingBelt in the
+          handleSkipToNextBelt flow, so the existing overlay covers
+          the wait without an extra surface — just different copy. -->
   <Transition name="fade">
-    <div v-if="isSkippingBelt" class="belt-skip-overlay">
+    <div v-if="isSkippingBelt || isWarmingUpInfPlay" class="belt-skip-overlay">
       <div class="belt-skip-spinner"></div>
-      <span class="belt-skip-label">Jumping to {{ nextBelt?.name || 'next' }} belt...</span>
+      <span class="belt-skip-label">{{
+        isWarmingUpInfPlay
+          ? 'Preparing INF PLAY audio…'
+          : `Jumping to ${nextBelt?.name || 'next'} belt…`
+      }}</span>
     </div>
   </Transition>
 
