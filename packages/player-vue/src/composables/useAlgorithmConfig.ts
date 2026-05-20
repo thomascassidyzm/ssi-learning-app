@@ -193,11 +193,15 @@ const DEFAULT_PODS: PodsConfig = {
   gapTightMs: 200,
   gapGluedMs: 300,
   gapBetweenMs: 1000,
-  /* L2 pod-lap fires every 5 main rounds from activation onward. Per
-   * 2026-05-19 spec: coprime cadences (L2:5, L1 active:7, reserve:13,
-   * retired:23) minimise collisions; mutex priority resolves the rest. */
-  roundInterval: 5,
-  podActivationRound: 6,
+  /* L2 pod-lap fires every 2 main rounds from activation. Hotfix
+   * 2026-05-20: was 5, but combined with 20+ activation values from
+   * earlier rules it meant most sessions surfaced zero pods. 2 matches
+   * the early cadence of the eventual growing-interval spec (pods at
+   * rounds 2, 4, 7, 10, 14, 18, 23, 28, 33, 38 — gaps 2/2/3/3/4/4/5/5/5/5).
+   * The growing-interval scheduler lands separately; this default keeps
+   * pods firing while we get there. */
+  roundInterval: 2,
+  podActivationRound: 2,
 }
 
 const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {

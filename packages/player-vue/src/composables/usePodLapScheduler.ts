@@ -101,7 +101,17 @@ export function podStageFor(
   return { stage: totalStages, iter: null }
 }
 
-const DEFAULT_POD_ACTIVATION = 6
+const DEFAULT_POD_ACTIVATION = 2
+
+// Hotfix cap (2026-05-20). Some learners have stale enrollment values like
+// 21 / 31 / 58 from an earlier activation rule. Combined with the previous
+// roundInterval=5 they meant pods only fired once every ~5 rounds, starting
+// 20+ rounds into the course — so most sessions surfaced no pods at all.
+// Capping the lifetime activation value here is the smallest change that
+// unblocks pods for the majority of learners without a backfill migration.
+// The proper redesign (mode-agnostic monotonic counter, growing intervals
+// like 2 / 2 / 3 / 3 / 4 / 4 / 5 / 5 / 5 / 5...) lands separately.
+const POD_ACTIVATION_CAP = 2
 
 // ============================================================================
 // Types
@@ -258,10 +268,13 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
       const enrollment = (enrollmentResult as any)?.data
       if (enrollment) {
-        podActivationRound.value =
-          enrollment.pod_activation_round != null
-            ? enrollment.pod_activation_round
-            : DEFAULT_POD_ACTIVATION
+        // Cap stale lifetime activation values (e.g. 21, 31, 58) so they
+        // don't keep pods locked behind a 20+-round wait. See
+        // POD_ACTIVATION_CAP block above for context.
+        const stored = enrollment.pod_activation_round
+        podActivationRound.value = stored != null
+          ? Math.min(stored, POD_ACTIVATION_CAP)
+          : DEFAULT_POD_ACTIVATION
         completedPodRounds.value = enrollment.completed_pod_rounds ?? 0
       } else {
         // Brand-new enrollment, guest, or read failed — keep defaults.
