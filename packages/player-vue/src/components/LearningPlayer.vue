@@ -589,10 +589,33 @@ const liftLocalCeilingIfHigher = (legoId: string | null, roundIndex: number) => 
 const persistCursorAtCurrentRound = async () => {
   const round = simplePlayer.currentRound.value
   const idx = simplePlayer.roundIndex.value
-  if (round?.legoId && typeof idx === 'number') {
-    await setRemoteCursor(round.legoId, idx)
-    liftLocalCeilingIfHigher(round.legoId, idx)
+  if (!round?.legoId || typeof idx !== 'number') return
+
+  // INF PLAY rounds carry a random-USE LEGO as their primary legoId
+  // (could be anywhere in the course). Writing THAT as the cursor
+  // makes the cursor point at some random earlier position, BEHIND
+  // the learner's actual highest LEGO — surfacing as "you've been
+  // further than this" in the resting state. Substitute the last
+  // main-loop LEGO (== the learner's true cursor anchor) so the
+  // cursor stays meaningful in INF PLAY.
+  //
+  // Mirrors saveRoundProgress's substitution at line 623. Both writes
+  // (round-completion AND explicit navigation) need the same logic
+  // or one path overwrites the other with a bad value.
+  let legoIdToSave = round.legoId
+  const isInfPlayRound = !!round.cycles?.length && !round.cycles.some((c: any) =>
+    c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+  )
+  if (isInfPlayRound) {
+    // Prefer the session high-water; fall back to the persisted
+    // ceiling if we got here without playing any main-loop round
+    // this session (e.g. jumpToFurthest straight into INF PLAY).
+    const anchor = lastMainLoopLegoId.value ?? highestCompletedLegoId.value
+    if (anchor) legoIdToSave = anchor
   }
+
+  await setRemoteCursor(legoIdToSave, idx)
+  liftLocalCeilingIfHigher(legoIdToSave, idx)
 }
 
 const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
@@ -5664,6 +5687,18 @@ const handleSkipToNextBelt = async () => {
         } catch (modeErr) {
           console.warn('[LearningPlayer] setMode(infplay) on skip-to-next failed:', modeErr)
         }
+      }
+
+      // Make sure the cursor-substitution anchor is set BEFORE we land
+      // on an infplay round + call persistCursorAtCurrentRound below.
+      // Without this, the cursor write would use the infplay round's
+      // random-USE legoId (some earlier LEGO) and stamp the DB with
+      // a position behind the learner's actual highest. Fall back to
+      // the ceiling if the in-session high-water hasn't been recorded
+      // yet (rare — tapping the button typically means they just
+      // completed a main-loop round).
+      if (!lastMainLoopLegoId.value && highestCompletedLegoId.value) {
+        lastMainLoopLegoId.value = highestCompletedLegoId.value
       }
 
       // Drop the learner at the first infplay round. Reuses jumpToFurthest's
