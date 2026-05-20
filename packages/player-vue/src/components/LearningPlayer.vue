@@ -6145,6 +6145,72 @@ function warmUpInfPlayRoundsBackground(rounds: any[], skipFirst: number): void {
   void warmUpInfPlayRounds(remaining, remaining.length).catch(() => { /* silent */ })
 }
 
+// Pre-emptive INF PLAY warm-up — once-per-session guard. When the
+// learner crosses into the LAST belt with content (wouldEnterInfplay
+// flips true while still in main-loop mode), kick off the warm-up
+// in the background. By the time they actually enter INF PLAY, the
+// audio is cached — entry's awaited phase-1 warm-up is a no-op
+// because SW CacheFirst returns instantly for already-cached URLs.
+//
+// Idempotent: once triggered, stays set for the session even if the
+// learner back-belt-skips out. Re-entering the last belt won't re-
+// trigger (audio's already cached, no need to download twice).
+const hasTriggeredPreemptiveInfPlayWarmUp = ref(false)
+
+async function triggerPreemptiveInfPlayWarmUp(): Promise<void> {
+  try {
+    let rounds: any[] = cachedRounds.value as any
+    const isInfPlayRound = (r: any) =>
+      Array.isArray(r?.cycles) && r.cycles.length > 0 && !r.cycles.some((c: any) =>
+        c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+      )
+
+    let firstInfIdx = rounds.findIndex(isInfPlayRound)
+
+    if (firstInfIdx < 0) {
+      // Instant-playback bootstrap rounds don't include infplay tail.
+      // Run the full script gen (the existing full-script handoff would
+      // do this anyway after bootstrap; we just need it now). Idempotent
+      // — generateScript cached if already run elsewhere.
+      console.log('[LearningPlayer] Pre-emptive INF PLAY warm-up: generating full script')
+      const result = await generateScript()
+      const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
+      if (fullRounds.length > 0) {
+        cachedRounds.value = fullRounds
+        rounds = fullRounds
+        firstInfIdx = rounds.findIndex(isInfPlayRound)
+      }
+    }
+
+    if (firstInfIdx < 0) {
+      console.log('[LearningPlayer] Pre-emptive INF PLAY warm-up: no infplay rounds available — skipping')
+      return
+    }
+
+    console.log(`[LearningPlayer] Pre-emptive INF PLAY warm-up: caching first 5 infplay rounds (starting at index ${firstInfIdx})`)
+    // Run phase-1 in background (no await — main loop keeps playing),
+    // then phase-2 after it completes.
+    const slice = rounds.slice(firstInfIdx, firstInfIdx + 5)
+    void warmUpInfPlayRounds(slice, slice.length).then(() => {
+      console.log('[LearningPlayer] Pre-emptive warm-up phase 1 complete; firing phase 2')
+      warmUpInfPlayRoundsBackground(rounds, firstInfIdx + 5)
+    })
+  } catch (err) {
+    console.warn('[LearningPlayer] Pre-emptive INF PLAY warm-up failed:', err)
+  }
+}
+
+// Watch the forward-button "would enter INF PLAY" signal — when it
+// flips true and the learner is still in main mode, the last-belt
+// boundary has been crossed. Time to start warming up.
+watch(wouldEnterInfplay, (entering) => {
+  if (!entering) return
+  if (currentMode.value === 'infplay') return  // entry path handles its own warm-up
+  if (hasTriggeredPreemptiveInfPlayWarmUp.value) return
+  hasTriggeredPreemptiveInfPlayWarmUp.value = true
+  void triggerPreemptiveInfPlayWarmUp()
+})
+
 // ============================================
 // ADAPTATION CONSENT & TIMING
 // Learner consents once, then timing runs silently
