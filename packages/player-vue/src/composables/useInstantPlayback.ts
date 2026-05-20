@@ -398,9 +398,33 @@ export function useInstantPlayback(
     return response
   }
 
-  function bufferCycles(cycles: BackendCycle[]): void {
+  /**
+   * LEGOs currently known to be PARTIAL — the API returned cycles for them
+   * but stopped mid-LEGO (response.next_lego_id pointed back at them). We
+   * must NOT emit a Round for these LEGOs yet: SimplePlayer's appendRounds
+   * dedupes by roundNumber, so a partial Round becomes permanently stuck.
+   * Wait until a follow-up fetch clears the partial flag (= a later response
+   * either pushed cycles for the NEXT LEGO, or returned the partial LEGO's
+   * remaining cycles with next_lego_id pointing past it).
+   *
+   * Cleared the instant a response includes ANY cycles for the LEGO without
+   * setting next_lego_id back to it: that means the API has now emitted past
+   * the partial point, so all of this LEGO's cycles are in the buffer.
+   */
+  const partialLegoIds = ref<Set<string>>(new Set())
+
+  /**
+   * Buffer cycles from a /cycles or /infplay-cycles response. The
+   * `nextLegoId` arg is the response's pagination cursor: if non-null
+   * AND it matches a LEGO that received cycles in this batch, that
+   * LEGO is partial. Every other LEGO that received cycles is now
+   * fully buffered (the API emits cycles in round-map order).
+   */
+  function bufferCycles(cycles: BackendCycle[], nextLegoId?: string | null): void {
     const buf = cycleBuffer.value
+    const legosInBatch = new Set<string>()
     for (const cycle of cycles) {
+      legosInBatch.add(cycle.lego_id)
       const existing = buf.get(cycle.lego_id)
       if (!existing) {
         buf.set(cycle.lego_id, [cycle])
@@ -413,6 +437,29 @@ export function useInstantPlayback(
         existing.push(cycle)
       }
     }
+    // Update partial-LEGO bookkeeping. Every LEGO that received cycles
+    // EXCEPT the partial tail (if any) is now complete.
+    const partial = partialLegoIds.value
+    let mutated = false
+    for (const id of legosInBatch) {
+      if (id === nextLegoId) {
+        if (!partial.has(id)) { partial.add(id); mutated = true }
+      } else {
+        if (partial.delete(id)) mutated = true
+      }
+    }
+    if (mutated) partialLegoIds.value = new Set(partial)
+  }
+
+  /**
+   * True iff every cycle for `legoId` is in the buffer. False both for
+   * LEGOs not yet fetched AND for LEGOs whose last fetch was a partial
+   * tail. `backendCyclesToRounds` uses this to gate Round emission so a
+   * partial LEGO never becomes a permanently-truncated Round.
+   */
+  function isLegoComplete(legoId: string): boolean {
+    if (!cycleBuffer.value.has(legoId)) return false
+    return !partialLegoIds.value.has(legoId)
   }
 
   // -----------------------------------------------------------
@@ -621,7 +668,7 @@ export function useInstantPlayback(
     // had <BOOTSTRAP_LIMIT cycles). SimplePlayer can be initialised
     // with a complete round structure from this — no tier-1 await
     // needed before play.
-    bufferCycles(response.cycles)
+    bufferCycles(response.cycles, response.next_lego_id)
     currentLegoId.value = firstCycle.lego_id
     isReady.value = true
 
@@ -650,7 +697,7 @@ export function useInstantPlayback(
         ctrl.signal,
         roundMap.value?.version,
       )
-      bufferCycles(response.cycles)
+      bufferCycles(response.cycles, response.next_lego_id)
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {
         console.warn('[InstantPlayback] tier-1 prefetch failed:', err)
@@ -736,7 +783,7 @@ export function useInstantPlayback(
         ctrl.signal,
         map.version,
       )
-      bufferCycles(response.cycles)
+      bufferCycles(response.cycles, response.next_lego_id)
 
       // Tier 3 also covers listening for round N+1. Mirror the
       // tier-2 logic against the freshly-fetched cycles.
@@ -805,6 +852,7 @@ export function useInstantPlayback(
     cancel()
     roundMap.value = null
     cycleBuffer.value = new Map()
+    partialLegoIds.value = new Set()
     currentLegoId.value = null
     isReady.value = false
   }
@@ -836,6 +884,7 @@ export function useInstantPlayback(
     // composable in sync with playback position).
     setCurrentLegoId,
     getBufferedCyclesForLego,
+    isLegoComplete,
 
     // Lifecycle
     cancel,

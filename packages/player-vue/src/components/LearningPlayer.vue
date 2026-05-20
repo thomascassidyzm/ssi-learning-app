@@ -1055,6 +1055,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
         const refreshed = backendCyclesToRounds(
           instantPlayback.getBufferedCyclesForLego,
           map,
+          instantPlayback.isLegoComplete,
         )
         // Diff against what SimplePlayer already has and append only
         // the new tail. appendRounds dedupes by roundNumber so even a
@@ -7447,6 +7448,7 @@ onMounted(async () => {
             : backendCyclesToRounds(
                 instantPlayback.getBufferedCyclesForLego,
                 map,
+                instantPlayback.isLegoComplete,
               )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
@@ -7511,6 +7513,7 @@ onMounted(async () => {
                 const refreshedRounds = backendCyclesToRounds(
                   instantPlayback.getBufferedCyclesForLego,
                   refreshedMap,
+                  instantPlayback.isLegoComplete,
                 )
                 // appendRounds dedupes by roundNumber, so this is a
                 // safe no-op when nothing new arrived.

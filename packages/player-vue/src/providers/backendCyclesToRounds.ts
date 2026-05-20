@@ -99,6 +99,18 @@ export function infPlayCyclesToRounds(
 export function backendCyclesToRounds(
   getCyclesFor: (legoId: string) => BackendCycle[],
   roundMap: RoundMap,
+  /**
+   * Predicate: true iff every cycle for `legoId` is in the buffer.
+   * Required so a partial-tail LEGO never gets emitted as a truncated
+   * Round — SimplePlayer.appendRounds dedupes by roundNumber, so a
+   * partial Round becomes permanently stuck at its partial size. The
+   * fetch returns 15 cycles regardless of LEGO boundaries; the last
+   * LEGO in the window is usually partial (next_lego_id points back
+   * at it). Without this gate, that LEGO's USE phrases never play.
+   * Defaults to "always complete" for callers that don't track
+   * partials (legacy/test paths).
+   */
+  isLegoComplete: (legoId: string) => boolean = () => true,
 ): Round[] {
   const rounds: Round[] = []
 
@@ -108,6 +120,10 @@ export function backendCyclesToRounds(
     // near-edge top-up later. Skip silently; appendRounds() handles
     // insertion-order when it lands.
     if (!legoCycles || legoCycles.length === 0) continue
+    // Partial LEGO — wait until the next fetch confirms we're past it
+    // before registering the Round. Same insertion-order story applies
+    // (later passes will pick it up once complete).
+    if (!isLegoComplete(entry.legoId)) continue
 
     // The intro cycle (if present) carries the canonical LEGO text +
     // components. Fall back to the first cycle for legacy shape.
