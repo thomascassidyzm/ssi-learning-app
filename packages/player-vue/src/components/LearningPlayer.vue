@@ -8527,6 +8527,25 @@ const highestAbsoluteRound = computed(() => {
   return typeof idx === 'number' ? idx + 1 : null
 })
 
+// Cursor LEGO ID for the resting-state journey-bar comparison.
+// INF PLAY rounds carry a random USE legoId as the round's primary
+// — substitute the main-loop anchor (matches what saveRoundProgress
+// writes to DB) so the lex compare against highestCompletedLegoId
+// reflects pedagogical position, not whichever random LEGO the
+// infplay round happened to draw first.
+const cursorLegoId = computed(() => {
+  const round = simplePlayer.currentRound.value
+  if (!round?.legoId) return null
+  const cycles = (round as any).cycles
+  const isInfPlayRound = Array.isArray(cycles) && cycles.length > 0 && !cycles.some((c: any) =>
+    c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+  )
+  if (isInfPlayRound) {
+    return lastMainLoopLegoId.value ?? highestCompletedLegoId.value ?? round.legoId
+  }
+  return round.legoId
+})
+
 // Belt colours for the journey-bar markers, derived from the same source
 // the belt label uses. The "now" colour matches playingBelt (cursor's
 // belt). The "furthest" colour is computed from the ceiling's lego id —
@@ -8729,6 +8748,11 @@ defineExpose({
   highestBeltColor,
   cursorBeltIndex,
   highestBeltIndex,
+  // LEGO-ID versions for the resting-state "behind ceiling" comparison.
+  // PlayerRestingState prefers these over round_index because the index
+  // can lag behind the LEGO position in INF PLAY.
+  lastCompletedLegoId: cursorLegoId,
+  highestCompletedLegoId,
   jumpToFurthest,
 })
 </script>

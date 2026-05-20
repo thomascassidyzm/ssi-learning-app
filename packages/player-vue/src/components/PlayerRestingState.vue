@@ -17,6 +17,13 @@ const props = defineProps({
   // fresh enrollments.
   currentRound: { type: Number, default: null },
   highestRound: { type: Number, default: null },
+  // LEGO IDs at cursor and ceiling. These are the CANONICAL position
+  // markers — round_index can lag behind the LEGO position by several
+  // rounds (e.g. INF PLAY substitutes the LEGO but the round_index
+  // advances per-round), so showJumpChoice must compare LEGO IDs not
+  // round indices. Null for guests / fresh enrollments.
+  currentLegoId: { type: String, default: null },
+  highestLegoId: { type: String, default: null },
   // Belt colours for the two journey-bar markers. Derived upstream from
   // the actual lego IDs (which encode the seed — S0042L05 → seed 42),
   // so they match the belt label exactly. Pre-computed here rather than
@@ -29,6 +36,17 @@ const emit = defineEmits(['start', 'change-course', 'jump-to-furthest'])
 
 const showJumpChoice = computed(() => {
   if (!props.isPlayerReady) return false
+  // Prefer LEGO-ID comparison — that's the canonical position. Round
+  // index can lag behind (INF PLAY round_index advances while
+  // last_completed_lego_id is substituted to the same lastMainLoopLegoId
+  // every round), which made the warning fire even when the learner
+  // is at-or-past their highest LEGO.
+  const cur = props.currentLegoId
+  const hi = props.highestLegoId
+  if (typeof cur === 'string' && typeof hi === 'string') {
+    return cur < hi  // lex compare on SNNNNLNN format works
+  }
+  // Fallback: round-index compare for callers that don't pass legoIds.
   const c = props.currentRound
   const h = props.highestRound
   return typeof c === 'number' && typeof h === 'number' && c < h
