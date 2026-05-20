@@ -48,12 +48,16 @@ const MAX_LIMIT = 15
 // offsets are past the main-loop and the round is pure random USE.
 const SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
 // N-1 gets 3 phrases (per main-loop n1PhraseCount=3), others get 1.
-// Tom 2026-05-20: "it's actually 3x N-1, but apart from that, it's
-// correct". So a typical INF PLAY round at peak emits:
-//   3 (N-1) + 9 (other offsets each contributing 1) + 10 random USE
-//   = 22 cycles ≈ "around 20" per spec.
 const N1_PHRASE_COUNT = 3
-const RANDOM_USE_PER_ROUND = 10
+// Target a constant round length regardless of how much spaced rep
+// is left in the drain. Tom 2026-05-20: "we have MORE RND USE per
+// round to keep cycles = 22 — it then keeps ROUND length approx the
+// same for inserting encouragements, listening exercises and so on".
+// Peak (infplay round 1): ~12 spaced rep + 10 USE = 22.
+// Drained (round 90+): 0 spaced rep + 22 USE = 22.
+const TARGET_CYCLES_PER_ROUND = 22
+const MIN_RANDOM_USE_PER_ROUND = 6
+const MAX_RANDOM_USE_PER_ROUND = TARGET_CYCLES_PER_ROUND
 
 interface LegoRow {
   seed_number: number
@@ -264,9 +268,19 @@ export default async function handler(
       }
 
       // Phase 2: Random USE — uniform sample over all main-loop LEGOs,
-      // dedup'd against this round's spaced rep set.
+      // dedup'd against this round's spaced rep set. Count scales to
+      // hit TARGET_CYCLES_PER_ROUND. Early rounds have lots of spaced
+      // rep → fewer USE needed; rounds past 89 have zero spaced rep
+      // → USE fills the whole round.
+      const projectedSpacedRepCount = spacedRepEntries.reduce(
+        (sum, e) => sum + e.phraseCount, 0,
+      )
+      const targetRandomUse = Math.max(
+        MIN_RANDOM_USE_PER_ROUND,
+        Math.min(MAX_RANDOM_USE_PER_ROUND, TARGET_CYCLES_PER_ROUND - projectedSpacedRepCount),
+      )
       const availableForUse = legoRows.filter(l => !usedLegosThisRound.has(l.lego_id))
-      const randomUseLegos = sampleN(availableForUse, RANDOM_USE_PER_ROUND)
+      const randomUseLegos = sampleN(availableForUse, targetRandomUse)
       for (const l of randomUseLegos) usedLegosThisRound.add(l.lego_id)
 
       // Emit spaced rep first (per the JS generator's order).
