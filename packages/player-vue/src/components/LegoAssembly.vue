@@ -290,6 +290,11 @@ const SHY = '\u00AD'
 
 // Max characters per visual line before soft-hyphenation, by target language.
 // CJK characters are larger and denser — fewer per line keeps them readable.
+// Compound-noun and agglutinative languages get a lower limit too: their
+// single-word lengths regularly blow past 14-16 chars (Krankenversicherung,
+// gezondheidszorg, kindergeborenes…) and the same DEFAULT_HYPHEN_LIMIT that
+// works for Spanish / French / Italian leaves them stranded — words >limit
+// are the only ones softHyphenate splits.
 const HYPHEN_LIMITS: Record<string, number> = {
   jpn: 10,  // Japanese
   zho: 10,  // Chinese (Mandarin)
@@ -299,6 +304,14 @@ const HYPHEN_LIMITS: Record<string, number> = {
   tha: 12,  // Thai (no spaces, medium-density script)
   ara: 16,  // Arabic (connected script, slightly shorter)
   heb: 16,  // Hebrew
+  deu: 14,  // German (long compound nouns)
+  nld: 14,  // Dutch (same family of compounds)
+  swe: 14,  // Swedish
+  nor: 14,  // Norwegian
+  dan: 14,  // Danish
+  fin: 14,  // Finnish (agglutinative)
+  hun: 14,  // Hungarian (agglutinative)
+  isl: 14,  // Icelandic (compound nouns)
 }
 const DEFAULT_HYPHEN_LIMIT = 20 // Roman alphabet languages
 
@@ -643,14 +656,19 @@ const sentenceScale = computed(() => {
    * Wrap is allowed at soft-hyphen points only (softHyphenate joins
    * words with NBSP and inserts SHY at intended break positions), so
    * a chunk that wraps shows a visible hyphen — reads as "one chunk
-   * continuing on the next line". */
+   * continuing on the next line".
+   *
+   * `word-break: break-word` was deliberately removed (2026-05-20):
+   * it overrode the soft-hyphen-only design by letting the browser
+   * break inside any word at arbitrary points, which is what was
+   * making German compound nouns wrap mid-syllable instead of at
+   * the intended SHY breakpoints. overflow-wrap: break-word stays
+   * as a last-resort safety if even the SHY-split parts overflow. */
   font-size: 1.8rem;
   hyphens: manual;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   overflow-wrap: break-word;
-  word-break: break-word;
-  hyphens: manual;
   letter-spacing: 0.02em;
   position: relative;
   padding: 0 0.35em;
