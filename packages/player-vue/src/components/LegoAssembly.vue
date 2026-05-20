@@ -354,16 +354,40 @@ function blockWords(text: string | undefined | null): string[] {
   return trimmed.split(/\s+/).filter(Boolean)
 }
 
+/**
+ * "Usable" aligned components — i.e. each one is a single word, so they
+ * render cleanly as M-LEGO sub-tiles with stub dividers. If ANY component
+ * is multi-word, returning false here forces the caller to fall through
+ * to word-split-the-whole-block rendering instead, which guarantees that
+ * no single .comp ever has to wrap text across two lines.
+ */
+function blockHasUsableComponents(block: LegoBlock): boolean {
+  const comps = alignedBlockComponents(block)
+  if (!comps || comps.length === 0) return false
+  return comps.every(c => blockWords(c.target).length <= 1)
+}
+
 // Convenience: words of the single-block target text in single-tile mode.
 const singleBlockWords = computed(() => {
   return blockWords(props.blocks[0]?.targetText)
 })
 
-// True when the single-tile block is a multi-word A-LEGO that should
-// render as word-sized sub-tiles. Does NOT fire for M-LEGO components
-// (those have their own structure via mLegoComponents).
+// "Usable" M-LEGO components = each component is single-word. If any
+// is multi-word the M-LEGO path is skipped and we fall through to
+// word-splitting the whole targetText — same rule as
+// blockHasUsableComponents() in the practice phrase path.
+const usableMLegoComponents = computed(() => {
+  const comps = mLegoComponents.value
+  if (!comps || comps.length === 0) return false
+  return comps.every(c => blockWords(c.target).length <= 1)
+})
+
+// True when the single-tile block should render as word-sized sub-tiles
+// (multi-word A-LEGO with no usable components). Fires either when
+// there are no M-LEGO components OR when those components include a
+// multi-word entry that would otherwise wrap inside a single .comp.
 const isMultiWordSingleBlock = computed(() => {
-  if (mLegoComponents.value) return false
+  if (usableMLegoComponents.value) return false
   return singleBlockWords.value.length > 1
 })
 
@@ -484,11 +508,14 @@ const sentenceScale = computed(() => {
       <div
         class="tile-target"
         :class="{
-          'has-components': !!mLegoComponents || isMultiWordSingleBlock,
-          'word-split': isMultiWordSingleBlock,
+          'has-components': usableMLegoComponents || isMultiWordSingleBlock,
+          'word-split': !usableMLegoComponents && isMultiWordSingleBlock,
         }"
       >
-        <template v-if="mLegoComponents">
+        <!-- "Usable" M-LEGO components = every component is single-word.
+             If ANY is multi-word, drop down to word-split on the whole
+             targetText instead, so no .comp ever has to wrap internally. -->
+        <template v-if="usableMLegoComponents && mLegoComponents">
           <span
             v-for="(comp, i) in mLegoComponents"
             :key="i"
@@ -573,13 +600,19 @@ const sentenceScale = computed(() => {
             <div
               class="lego-block"
               :class="{
-                'has-components': !!alignedBlockComponents(block) || blockWords(block.targetText).length > 1,
-                'word-split': !alignedBlockComponents(block) && blockWords(block.targetText).length > 1,
+                'has-components': blockHasUsableComponents(block) || blockWords(block.targetText).length > 1,
+                'word-split': !blockHasUsableComponents(block) && blockWords(block.targetText).length > 1,
                 'solo-component': block.isSoloComponent,
                 'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),
               }"
             >
-              <template v-if="alignedBlockComponents(block)">
+              <!-- "Usable" aligned components = every component is single-word.
+                   If ANY component is multi-word, fall through to word-split
+                   on the whole block instead — otherwise that multi-word
+                   component would have to wrap text inside a single .comp,
+                   which produces the "Ich will es nicht / Herausfinden"
+                   intra-tile wrap Tom flagged. -->
+              <template v-if="blockHasUsableComponents(block)">
                 <span
                   v-for="(comp, ci) in alignedBlockComponents(block)!"
                   :key="ci"
@@ -692,17 +725,13 @@ const sentenceScale = computed(() => {
 
 .tile-target .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* Base target font — bumped 1.8→2.2rem (2026-05-20) so the target
-   * tiles are at least as large as the known-sentence panel above.
-   * Combined with sentenceScale floor 0.85, minimum effective size is
-   * ~1.87rem (≈ 30px), comfortably bigger than --known-text-size
-   * (1.35-1.5rem). Long phrases now wrap onto more rows rather than
-   * shrinking the type — that's Tom's "use more vertical space"
-   * preference.
-   *
+  /* Base target font: 1.6rem (Tom 2026-05-20 — "target the size of the
+   * current known, approx"). Paired with --known-text-size dropping to
+   * ~1.05rem so the relative balance is target ≈ 1.6 / known ≈ 1.05
+   * (≈1.5× ratio, clear hierarchy without dominating).
    * `word-break: break-word` was removed: it let the browser break
    * inside any word at arbitrary points, ignoring SHY breakpoints. */
-  font-size: 2.2rem;
+  font-size: 1.6rem;
   hyphens: manual;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
@@ -825,7 +854,7 @@ const sentenceScale = computed(() => {
 
 .carriage-cell .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 2.05rem;
+  font-size: 1.5rem;
   hyphens: manual;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
@@ -954,10 +983,8 @@ const sentenceScale = computed(() => {
 
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* Base 2.2rem (bumped from 1.8rem 2026-05-20) — see .tile-target .comp
-   * above for rationale: target tiles need to be at least as large as
-   * the known panel, and we'd rather wrap onto more rows than shrink. */
-  font-size: calc(2.2rem * var(--sentence-scale, 1));
+  /* Base 1.6rem — see .tile-target .comp above for rationale. */
+  font-size: calc(1.6rem * var(--sentence-scale, 1));
   /* Wraps: word-boundary by default (clean space breaks), plus any SHY
    * positions softHyphenate inserted mid-word for long compound nouns.
    * `hyphens: manual` means a wrap AT a SHY shows a visible hyphen
@@ -1188,12 +1215,12 @@ const sentenceScale = computed(() => {
    MOBILE
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
-  /* Mobile target sizes bumped ~25% (2026-05-20) to track the desktop
-   * bump and keep target ≥ known across viewports. With the 0.85
-   * sentenceScale floor, mobile minimum effective size is ~1.6rem,
-   * still above the PWA-standalone known-text-size of 1.5rem. */
+  /* Mobile target sizes track the desktop sizes — target ~1.4rem,
+   * carriage ~1.3rem. Paired with the reduced --known-text-size so
+   * the relative hierarchy (target ≈ 1.5× known) holds across
+   * viewports. */
   .lego-block .block-text {
-    font-size: calc(1.9rem * var(--sentence-scale, 1));
+    font-size: calc(1.4rem * var(--sentence-scale, 1));
   }
   .lego-block {
     padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
@@ -1202,19 +1229,18 @@ const sentenceScale = computed(() => {
     padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
   }
   .lego-block.salient .block-text {
-    /* Same as non-salient — transform:scale on the tile handles the bump */
-    font-size: calc(1.9rem * var(--sentence-scale, 1));
+    font-size: calc(1.4rem * var(--sentence-scale, 1));
   }
 
   .tile-target .comp {
-    font-size: 1.9rem;
+    font-size: 1.4rem;
   }
 
   .carriage-cell {
     padding: 0.45em 0.7em;
   }
   .carriage-cell .comp {
-    font-size: 1.75rem;
+    font-size: 1.3rem;
   }
 }
 </style>

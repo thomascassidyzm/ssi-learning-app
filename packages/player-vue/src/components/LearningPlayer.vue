@@ -4120,6 +4120,13 @@ const showLearningHint = computed(() => {
   if (learningHintPromptsShown.value >= LEARNING_HINT_PROMPT_LIMIT) return false
   // Don't show during intro phase (typewriter message shows instead)
   if (isIntroPhase.value) return false
+  // Don't show once the learner has finished white belt — by then the
+  // 4-phase cycle is muscle memory and the cycle-phase pill is doing
+  // the job of communicating phase. White belt threshold = yellow belt
+  // (index 1) reached. Falls open while beltProgress is still loading
+  // (null/undefined → no override, default behaviour wins).
+  const highestBelt = beltProgress.value?.highestBeltIndex?.value
+  if (typeof highestBelt === 'number' && highestBelt >= 1) return false
   return true
 })
 
@@ -9833,7 +9840,13 @@ defineExpose({
   --ring-center-size: 110px;
   --ring-icon-size: 36px;
   --text-zone-min-height: 90px;  /* Increased for larger text */
-  --known-text-size: 1.35rem;
+  /* Known text is context — the learner already understands it. Sized
+   * smaller than the target (target ≈ 1.5× known) so the hierarchy
+   * pushes attention to the language being learned, not the language
+   * already known. Previous values 1.35 / 1.35 left the known panel
+   * dominating the screen. (Tom 2026-05-20: "make known smaller —
+   * they know that already, that's the point".) */
+  --known-text-size: 1.05rem;
   --target-text-size: 1.35rem;
 
   /* ============ THEME COLORS ============ */
@@ -12895,7 +12908,7 @@ button.phase-segment:active:not(.is-active) {
     --ring-center-size: 85px;
     --ring-icon-size: 28px;
     --text-zone-min-height: 50px;
-    --known-text-size: 1.5rem;
+    --known-text-size: 1.15rem;
     --target-text-size: 1.25rem;
   }
 }
