@@ -476,7 +476,13 @@ const sentenceScale = computed(() => {
                 styling). Wraps across lines at sub-tile boundaries rather
                 than wrapping text inside one big tile.
              3. Single-word A-LEGO → one sub-tile, no dividers. -->
-      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents || isMultiWordSingleBlock }">
+      <div
+        class="tile-target"
+        :class="{
+          'has-components': !!mLegoComponents || isMultiWordSingleBlock,
+          'word-split': isMultiWordSingleBlock,
+        }"
+      >
         <template v-if="mLegoComponents">
           <span
             v-for="(comp, i) in mLegoComponents"
@@ -563,6 +569,7 @@ const sentenceScale = computed(() => {
               class="lego-block"
               :class="{
                 'has-components': !!alignedBlockComponents(block) || blockWords(block.targetText).length > 1,
+                'word-split': !alignedBlockComponents(block) && blockWords(block.targetText).length > 1,
                 'solo-component': block.isSoloComponent,
                 'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),
               }"
@@ -700,9 +707,13 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
-/* Stubs-bright: short lines from top & bottom edges, open middle */
-.tile-target.has-components .comp + .comp::before,
-.tile-target.has-components .comp + .comp::after {
+/* Stubs-bright: short solid lines from top & bottom edges, open middle.
+   Used for true M-LEGO compositions where each .comp is a known A-LEGO
+   atom — the visible stubs signal "real composition of known pieces".
+   Suppressed when .word-split is set (purely-visual word segmentation of
+   a single LEGO, which uses the softer dotted style below). */
+.tile-target.has-components:not(.word-split) .comp + .comp::before,
+.tile-target.has-components:not(.word-split) .comp + .comp::after {
   content: '';
   position: absolute;
   left: 0;
@@ -712,11 +723,27 @@ const sentenceScale = computed(() => {
   z-index: 2;
   pointer-events: none;
 }
-.tile-target.has-components .comp + .comp::before {
+.tile-target.has-components:not(.word-split) .comp + .comp::before {
   top: 0;
 }
-.tile-target.has-components .comp + .comp::after {
+.tile-target.has-components:not(.word-split) .comp + .comp::after {
   bottom: 0;
+}
+
+/* Dotted divider: full-height vertical dotted line between word-segments
+   of a single multi-word LEGO. Visually softer than the M-LEGO stubs so
+   the salient LEGO still reads as ONE unit, just with internal hints of
+   word boundaries — "joined by dotted lines" per the design intent. */
+.tile-target.has-components.word-split .comp + .comp::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 0;
+  border-left: 1.5px dotted rgba(255, 255, 255, 0.35);
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* Known text underneath (single A-LEGO) */
@@ -960,9 +987,10 @@ const sentenceScale = computed(() => {
   font-weight: 400;
 }
 
-/* Stubs-bright on practice M-LEGOs */
-.lego-block.has-components .comp + .comp::before,
-.lego-block.has-components .comp + .comp::after {
+/* Stubs-bright on practice M-LEGOs — suppressed for .word-split (see
+   the dotted divider below). */
+.lego-block.has-components:not(.word-split) .comp + .comp::before,
+.lego-block.has-components:not(.word-split) .comp + .comp::after {
   content: '';
   position: absolute;
   left: 0;
@@ -972,11 +1000,28 @@ const sentenceScale = computed(() => {
   z-index: 2;
   pointer-events: none;
 }
-.lego-block.has-components .comp + .comp::before {
+.lego-block.has-components:not(.word-split) .comp + .comp::before {
   top: 0;
 }
-.lego-block.has-components .comp + .comp::after {
+.lego-block.has-components:not(.word-split) .comp + .comp::after {
   bottom: 0;
+}
+
+/* Dotted divider for word-split A-LEGOs in practice phrases — matches
+   the .tile-target.word-split style. Salient + non-salient blocks both
+   use this; the salient block's outer outline (handled elsewhere) is
+   what marks it as the focus, and the dotted internal dividers keep it
+   reading as a single LEGO with internal word boundaries. */
+.lego-block.has-components.word-split .comp + .comp::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 0;
+  border-left: 1.5px dotted rgba(255, 255, 255, 0.35);
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════
