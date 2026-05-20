@@ -5989,7 +5989,30 @@ simplePlayer.setRuntimeOverrides({
     // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
     // alternate-fib spaced rep. Tagging happens at script generation;
     // this just gates on the live Turbo flag.
-    return turboActive.value && cycle.turboOmit === true
+    if (turboActive.value && cycle.turboOmit === true) return true
+
+    // INF PLAY safety net: drop cycles whose audio isn't in the warm-
+    // up cache. Tom's design 2026-05-20: "INF PLAY doesn't need any
+    // particular cycles" — so a missing-audio cycle should be skipped
+    // rather than played silently. The warm-up (pre-emptive + entry-
+    // time) covers ~all cycles in normal flow; this catches stragglers
+    // (slow network, edge cases) without stalling playback.
+    //
+    // Only applies in INF PLAY mode — main-loop play must NOT skip
+    // missing-audio cycles (the pedagogical order matters there).
+    // We trust the warm-up has run before this gate matters: an empty
+    // warmedUpAudioUrls set short-circuits to "don't skip" so we
+    // don't accidentally drop everything on a fresh enrollment.
+    if (currentMode.value === 'infplay' && warmedUpAudioUrls.value.size > 0) {
+      const known = (cycle as any)?.known?.audioUrl
+      const v1 = (cycle as any)?.target?.voice1Url
+      const v2 = (cycle as any)?.target?.voice2Url
+      const cached = (url: string | undefined) => !url || warmedUpAudioUrls.value.has(url)
+      if (!cached(known) || !cached(v1) || !cached(v2)) {
+        return true
+      }
+    }
+    return false
   },
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
@@ -6110,6 +6133,13 @@ const isWarmingUpInfPlay = ref(false)
  * Parallel-limited at 5 to saturate 4G without thrashing. Errors
  * are swallowed — partial cache is better than blocking forever.
  */
+// Tracks URLs the warm-up has successfully cached. Drives the
+// shouldSkipCycle gate in INF PLAY so cycles with uncached audio are
+// silently dropped (rather than stalling / playing silently) —
+// because INF PLAY doesn't need any particular cycle, only that
+// SOMETHING with audio plays in each slot.
+const warmedUpAudioUrls = ref<Set<string>>(new Set())
+
 async function warmUpInfPlayRounds(rounds: any[], count: number): Promise<void> {
   const slice = rounds.slice(0, Math.max(0, count))
   const urls = new Set<string>()
@@ -6127,9 +6157,16 @@ async function warmUpInfPlayRounds(rounds: any[], count: number): Promise<void> 
   const parallel = 5
   for (let i = 0; i < list.length; i += parallel) {
     const batch = list.slice(i, i + parallel)
-    await Promise.allSettled(batch.map(url =>
-      fetch(url).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)
+    const results = await Promise.allSettled(batch.map(url =>
+      fetch(url).then(r => r.ok ? r.arrayBuffer().then(() => url) : null).catch(() => null)
     ))
+    // Mark every URL that resolved successfully — it's now in the SW
+    // CacheFirst store, safe for the shouldSkipCycle gate to trust.
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        warmedUpAudioUrls.value.add(r.value)
+      }
+    }
   }
 }
 
