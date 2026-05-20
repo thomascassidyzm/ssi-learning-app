@@ -40,12 +40,20 @@ if (!supabaseUrl) {
 }
 
 const COURSE_CODE_RE = /^[a-z0-9_]+$/
-const DEFAULT_LIMIT = 5   // ~5 rounds × ~12 cycles ≈ 60 cycles
+const DEFAULT_LIMIT = 5   // ~5 rounds × ~20 cycles ≈ 100 cycles
 const MAX_LIMIT = 15
+// Spaced rep at fib offsets — matches the main-loop schedule.
+// Drains naturally over 89 INF PLAY rounds: each round drops the
+// offsets that reach past course-end. By infplay round 90, all
+// offsets are past the main-loop and the round is pure random USE.
 const SPACED_REP_OFFSETS = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
-const TARGET_CYCLES_PER_ROUND = 12  // ~6 random USE + ~6 spaced rep when both apply
-const RANDOM_USE_PER_ROUND = 6
-const MAX_SPACED_REP_PER_ROUND = 6
+// Per Tom's spec 2026-05-20: "around 20 cycles in INF PLAY ROUNDS /
+// around 10 RND USE PHRASES / Spaced REVIEW cycles as normal for all
+// previous LEGOS until they drop out". So: up to 11 spaced rep
+// (every fib offset that still hits a main-loop LEGO) + 10 random
+// USE. Cap removed.
+const RANDOM_USE_PER_ROUND = 10
+const MAX_SPACED_REP_PER_ROUND = SPACED_REP_OFFSETS.length
 
 interface LegoRow {
   seed_number: number

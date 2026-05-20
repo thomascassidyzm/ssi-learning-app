@@ -461,11 +461,20 @@ export function useInstantPlayback(
     }
   }
 
-  async function bootstrapInfPlay(): Promise<BootstrapResult> {
+  /**
+   * `fromRound` is the learner's CURRENT INF PLAY round (1-based;
+   * round 1 = first round past main-loop). For fresh-into-infplay or
+   * a learner who hasn't accumulated any infplay rounds yet, pass 1.
+   * For a returning deep-infplay learner (e.g. infplay_round_index=
+   * 50), pass 50 so spaced rep math computes correctly for absolute
+   * round = mainLoopCount + 50, not + 1.
+   */
+  async function bootstrapInfPlay(fromRound: number = 1): Promise<BootstrapResult> {
     isReady.value = false
+    nextInfRoundCursor.value = Math.max(1, fromRound)
     const ctrl = makeAbort()
     try {
-      const result = await fetchInfPlayCycles(1, BOOTSTRAP_LIMIT, ctrl.signal)
+      const result = await fetchInfPlayCycles(nextInfRoundCursor.value, BOOTSTRAP_LIMIT, ctrl.signal)
       infPlayCycles.value = result.cycles
       nextInfRoundCursor.value = result.nextInfRound
       const firstCycle = result.cycles[0]

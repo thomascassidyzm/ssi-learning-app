@@ -7371,11 +7371,18 @@ onMounted(async () => {
           //
           // This replaces the legacy CourseEndNoNextLego throw +
           // generateScript fallback (5-15s on cold cache).
+          //
+          // Also pulls the learner's current infplay_round_index so
+          // bootstrap fetches from the RIGHT round (returning deep-
+          // infplay learners get spaced rep computed against their
+          // actual progress, not against round 1).
           let inferEnrollmentMode: 'main' | 'infplay' = 'main'
+          let inferInfPlayRoundIndex = 1
           if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
             try {
               const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
               inferEnrollmentMode = (enr?.current_mode === 'infplay') ? 'infplay' : 'main'
+              inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
             } catch (modeErr) {
               console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
             }
@@ -7386,7 +7393,7 @@ onMounted(async () => {
           //    have audio ready to roll. Cold-path budget here is
           //    one indexed query + one tiny cycles fetch.
           const bootstrapResult = inferEnrollmentMode === 'infplay'
-            ? await instantPlayback.bootstrapInfPlay()
+            ? await instantPlayback.bootstrapInfPlay(inferInfPlayRoundIndex)
             : await instantPlayback.bootstrap()
           console.log(
             `[InstantPlayback] Bootstrap ready (${inferEnrollmentMode}):`,
