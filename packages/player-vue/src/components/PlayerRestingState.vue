@@ -24,6 +24,10 @@ const props = defineProps({
   // round indices. Null for guests / fresh enrollments.
   currentLegoId: { type: String, default: null },
   highestLegoId: { type: String, default: null },
+  // Playback mode. INF PLAY = "you're at the furthest by definition,
+  // no jump-back UX makes sense". The warning is suppressed entirely
+  // for mode='infplay'.
+  currentMode: { type: String, default: 'main' },
   // Belt colours for the two journey-bar markers. Derived upstream from
   // the actual lego IDs (which encode the seed — S0042L05 → seed 42),
   // so they match the belt label exactly. Pre-computed here rather than
@@ -36,20 +40,21 @@ const emit = defineEmits(['start', 'change-course', 'jump-to-furthest'])
 
 const showJumpChoice = computed(() => {
   if (!props.isPlayerReady) return false
-  // Prefer LEGO-ID comparison — that's the canonical position. Round
-  // index can lag behind (INF PLAY round_index advances while
-  // last_completed_lego_id is substituted to the same lastMainLoopLegoId
-  // every round), which made the warning fire even when the learner
-  // is at-or-past their highest LEGO.
+
+  // INF PLAY: by definition the learner is at their furthest point.
+  // No "you've been further than this" makes sense in this mode —
+  // there IS nothing further. Suppress unconditionally.
+  if (props.currentMode === 'infplay') return false
+
+  // Main mode: compare LEGO IDs (canonical position). If either is
+  // missing, suppress — the round-index fallback was misleading
+  // (round_index can lag legoId during the resting-state render
+  // window) and caused the "flash then settle" effect on every
+  // course. Wait until we have definitive data.
   const cur = props.currentLegoId
   const hi = props.highestLegoId
-  if (typeof cur === 'string' && typeof hi === 'string') {
-    return cur < hi  // lex compare on SNNNNLNN format works
-  }
-  // Fallback: round-index compare for callers that don't pass legoIds.
-  const c = props.currentRound
-  const h = props.highestRound
-  return typeof c === 'number' && typeof h === 'number' && c < h
+  if (typeof cur !== 'string' || typeof hi !== 'string') return false
+  return cur < hi  // lex compare on SNNNNLNN
 })
 
 // Three-zone schematic: "now" anchored on the left, "furthest" sits at a

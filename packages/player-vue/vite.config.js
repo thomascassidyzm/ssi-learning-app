@@ -14,7 +14,12 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     VitePWA({
-      registerType: 'prompt',  // User chooses when to update — no mid-session disruption
+      // autoUpdate: new SW activates on next page load without a prompt.
+      // Pairs with skipWaiting below so users always get the latest JS
+      // immediately. Previous 'prompt' mode left stale bundles in the
+      // wild when learners dismissed/missed the update dot, leading to
+      // "fighting cache" symptoms Tom flagged 2026-05-20.
+      registerType: 'autoUpdate',
 
       workbox: {
         // Precache app shell
@@ -42,8 +47,11 @@ export default defineConfig(({ mode }) => ({
         // Acceptable: main deploys are weekly at most.
         cleanupOutdatedCaches: true,
 
-        // Don't skip waiting — PwaUpdatePrompt handles activation on user action
-        // clientsClaim ensures new SW controls all tabs once activated
+        // skipWaiting + clientsClaim — new SW activates immediately and
+        // claims all tabs. Combined with autoUpdate registerType above,
+        // users always see the latest deploy on next page load without
+        // any prompt-dismissal flow leaving them on stale bundles.
+        skipWaiting: true,
         clientsClaim: true,
 
         // Runtime caching for fonts/CDN/audio

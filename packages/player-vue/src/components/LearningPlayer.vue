@@ -8760,6 +8760,9 @@ defineExpose({
   // can lag behind the LEGO position in INF PLAY.
   lastCompletedLegoId: cursorLegoId,
   highestCompletedLegoId,
+  // Playback mode — drives PlayerRestingState's "suppress warning
+  // entirely in INF PLAY" guard.
+  currentMode,
   jumpToFurthest,
 })
 </script>
@@ -9871,13 +9874,7 @@ defineExpose({
   --ring-center-size: 110px;
   --ring-icon-size: 36px;
   --text-zone-min-height: 90px;  /* Increased for larger text */
-  /* Known text is context — the learner already understands it. Sized
-   * smaller than the target (target ≈ 1.5× known) so the hierarchy
-   * pushes attention to the language being learned, not the language
-   * already known. Previous values 1.35 / 1.35 left the known panel
-   * dominating the screen. (Tom 2026-05-20: "make known smaller —
-   * they know that already, that's the point".) */
-  --known-text-size: 1.05rem;
+  --known-text-size: 1.35rem;
   --target-text-size: 1.35rem;
 
   /* ============ THEME COLORS ============ */
@@ -12939,7 +12936,7 @@ button.phase-segment:active:not(.is-active) {
     --ring-center-size: 85px;
     --ring-icon-size: 28px;
     --text-zone-min-height: 50px;
-    --known-text-size: 1.15rem;
+    --known-text-size: 1.5rem;
     --target-text-size: 1.25rem;
   }
 }

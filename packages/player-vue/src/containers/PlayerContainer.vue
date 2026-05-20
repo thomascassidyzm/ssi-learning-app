@@ -93,6 +93,7 @@ const currentRound = computed(() => learningPlayerRef.value?.currentAbsoluteRoun
 const highestRound = computed(() => learningPlayerRef.value?.highestAbsoluteRound ?? null)
 const currentLegoId = computed(() => learningPlayerRef.value?.lastCompletedLegoId ?? null)
 const highestLegoId = computed(() => learningPlayerRef.value?.highestCompletedLegoId ?? null)
+const currentModeRef = computed(() => learningPlayerRef.value?.currentMode ?? 'main')
 const cursorBeltColor = computed(() => learningPlayerRef.value?.cursorBeltColor ?? null)
 const highestBeltColor = computed(() => learningPlayerRef.value?.highestBeltColor ?? null)
 const jumpChoiceDismissed = ref(false)
@@ -550,6 +551,7 @@ onMounted(() => {
       :highest-round="restingHighestRound"
       :current-lego-id="restingCurrentLegoId"
       :highest-lego-id="restingHighestLegoId"
+      :current-mode="currentModeRef"
       :cursor-belt-color="cursorBeltColor"
       :highest-belt-color="highestBeltColor"
       @start="handleTogglePlayback"
