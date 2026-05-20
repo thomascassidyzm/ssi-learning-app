@@ -65,6 +65,9 @@ import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
+import { useCourseBundle } from '../composables/useCourseBundle'
+import { getAudioCache } from '../cache/createAudioCache'
+import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
 
 /**
  * Instant-playback feature flag — courses listed here use the new
@@ -432,6 +435,22 @@ const instantPlayback = useInstantPlayback(courseCode, {
     }
   },
 })
+
+// ============================================================
+// Bundle-based caching architecture (cache-based-content-loading)
+// ============================================================
+// Single source of truth for "is this audio playable locally."
+// Bundle ships the full course structure in one fetch; AudioCache
+// stores blobs in IndexedDB with quota-aware LRU eviction; the
+// BundleDownloader walks every persistent audio ref in the
+// background so by the time the learner reaches spaced rep /
+// INF PLAY, the audio is already local. The legacy warm-up
+// surface stays alongside for now — this commit only adds the
+// bundle layer; subsequent commits wire the prefetcher and
+// remove the warm-up code.
+const courseBundle = useCourseBundle()
+const audioCache = getAudioCache()
+let bundleDownloader: BundleDownloader | null = null
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
@@ -7368,6 +7387,30 @@ onMounted(async () => {
       })
 
       // ============================================
+      // Bundle load + background downloader (cache-based-content-loading)
+      // ============================================
+      // Fire bundle fetch + BundleDownloader as early as possible so the
+      // background download has the longest possible runway. Does NOT
+      // block the existing bootstrap path — both run concurrently.
+      // Bundle fetch is cache-first (localStorage), typically resolves
+      // in <10ms for returning learners.
+      //
+      // Failures are non-fatal: if the bundle endpoint is down or the
+      // course isn't migrated to the new format yet, the existing
+      // instant-playback + warm-up path continues to work unchanged.
+      void courseBundle.load(courseCode.value)
+        .then((bundle) => {
+          console.log(`[BundleLoad] Loaded bundle for ${bundle.courseCode} v${bundle.version}: ${bundle.legos.length} LEGOs, ${bundle.phrases.length} phrases`)
+          bundleDownloader = createBundleDownloader({ audioCache })
+          return bundleDownloader.start(bundle)
+        })
+        .catch((err) => {
+          // Branch-isolated: bundle endpoint may not yet be live on this
+          // course. Legacy warm-up path is the safety net.
+          console.warn('[BundleLoad] Bundle fetch failed — continuing with legacy path:', err)
+        })
+
+      // ============================================
       // Instant-playback cutover path (feature-flagged)
       // ============================================
       // When the course is in INSTANT_PLAYBACK_COURSES the player is
@@ -8392,6 +8435,11 @@ onUnmounted(() => {
   // Abort any in-flight instant-playback fetches so we don't keep
   // pulling data the user just navigated away from.
   instantPlayback.cancel()
+
+  // Stop the bundle downloader if running. Cursor is persisted on
+  // each batch so the next session resumes where we left off.
+  bundleDownloader?.stop()
+  courseBundle.cancel()
 
   // End class session if active
   if (classSessionId.value) {
