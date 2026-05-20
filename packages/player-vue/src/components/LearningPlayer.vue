@@ -8947,6 +8947,7 @@ defineExpose({
       :voice1-duration-ms="currentVoice1DurationMs"
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+      :cycle-type="simplePlayer.currentCycle.value?.type"
     />
 
 

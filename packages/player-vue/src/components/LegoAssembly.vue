@@ -25,7 +25,14 @@ const props = defineProps<{
   voice1DurationMs?: number
   components?: ComponentBreakdown[]
   targetLang?: string // ISO 639-3 language code (e.g., 'jpn', 'zho', 'spa')
+  /** Cycle type: 'use' lowers the visual mass of non-salient context tiles
+   *  (smaller padding, dimmer border, ~85% font) — context in USE is
+   *  already-known scaffolding, not a chunk being practised. Intro/debut
+   *  and BLDs keep full-mass tiles. */
+  cycleType?: string
 }>()
+
+const isUseCycle = computed(() => (props.cycleType || '').toLowerCase() === 'use')
 
 // Detect M-LEGO: multiple components on the salient block or in props
 // Falls back to word-aligned synthesis when known/target have matching word counts
@@ -508,6 +515,7 @@ const sentenceScale = computed(() => {
                   'has-components': wagon.length > 1,
                   'wagon-start': wi === 0,
                   'wagon-end': wi === practiceCarriageWagons(block)!.length - 1,
+                  'context': isUseCycle && !block.isSalient,
                 }"
                 :style="{ '--char-count': wagon.reduce((s, c) => s + c.target.length, 0) }"
               >
@@ -540,6 +548,7 @@ const sentenceScale = computed(() => {
                 'has-components': !!alignedBlockComponents(block),
                 'solo-component': block.isSoloComponent,
                 'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),
+                'context': isUseCycle && !block.isSalient && !block.id.startsWith('_gap_') && !block.id.startsWith('_SYN'),
               }"
             >
               <template v-if="alignedBlockComponents(block)">
@@ -920,6 +929,29 @@ const sentenceScale = computed(() => {
   font-weight: 400;
 }
 
+/* Context — non-salient tile in a USE cycle. The LEGO is already known
+   scaffolding (the salient LEGO is the one being practised), so the
+   magnet still exists but with lighter visual mass: smaller padding,
+   dimmer border, softer background, ~85% font. Keeps the "every word
+   is a magnet" metaphor intact while pushing focus onto the salient. */
+.lego-block.context {
+  padding: calc(0.4em * var(--sentence-scale, 1)) calc(0.8em * var(--sentence-scale, 1));
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 0 6px 1px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.lego-block.context .block-text {
+  font-size: calc(1.6rem * var(--sentence-scale, 1));
+  color: rgba(255, 255, 255, 0.72);
+  font-weight: 400;
+}
+.lego-block.context.has-components .comp + .comp::before,
+.lego-block.context.has-components .comp + .comp::after {
+  background: rgba(255, 255, 255, 0.22);
+}
+
 /* Stubs-bright on practice M-LEGOs — M-LEGO components rendered as
    adjacent sub-tiles get the same partial vertical bars as
    .tile-target.has-components above. */
@@ -1161,6 +1193,22 @@ const sentenceScale = computed(() => {
 }
 :root[data-theme="mist"] .lego-block.ghost .block-text {
   font-weight: 400;
+}
+
+/* Context — mist theme. Lighter mass: thinner border, softer background,
+   dimmer text. Salient still dominates via its red accent. */
+:root[data-theme="mist"] .lego-block.context {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08);
+}
+:root[data-theme="mist"] .lego-block.context .block-text {
+  color: rgba(44, 38, 34, 0.62);
+  font-weight: 400;
+}
+:root[data-theme="mist"] .lego-block.context.has-components .comp + .comp::before,
+:root[data-theme="mist"] .lego-block.context.has-components .comp + .comp::after {
+  background: rgba(44, 38, 34, 0.12);
 }
 
 /* M-LEGO stubs for mist theme */
