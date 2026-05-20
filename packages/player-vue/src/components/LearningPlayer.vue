@@ -667,8 +667,14 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
     // counter); chained bumpInfplayRound then increments per round.
     if (isInfPlayRound) {
       try {
+        // Auto-entry also ratchets highest to course's final LEGO.
+        // Same semantic as explicit-tap entry — once you're playing
+        // INF PLAY rounds, your high-water mark is the end of the
+        // main loop regardless of which path got you there.
+        const finalLego = await getCourseFinalLego(courseCode.value)
         await progressStore.value.setMode(
           learnerId.value, courseCode.value, 'infplay',
+          finalLego ?? undefined,
         )
         await progressStore.value.bumpInfplayRound(
           learnerId.value, courseCode.value,
@@ -678,6 +684,10 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
         // waiting for the next enrollment reload.
         if (currentMode.value !== 'infplay') currentMode.value = 'infplay'
         infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value + 1)
+        if (finalLego && (!highestCompletedLegoId.value || finalLego.legoId > highestCompletedLegoId.value)) {
+          highestCompletedLegoId.value = finalLego.legoId
+          highestCompletedRoundIndex.value = finalLego.roundIndex
+        }
       } catch (err) {
         console.warn('[LearningPlayer] INF PLAY mode/counter update failed:', err)
       }
@@ -759,6 +769,46 @@ const hasReachedInfinitePlay = async (
   } catch (err) {
     console.warn('[LearningPlayer] hasReachedInfinitePlay threw:', err)
     return false
+  }
+}
+
+/**
+ * The course's final main-loop LEGO ID, plus the 0-indexed
+ * round_index it occupies. Used when entering INF PLAY to ratchet
+ * highest_completed_* so the high-water mark reflects "done with new
+ * content" regardless of whether the learner played every belt or
+ * belt-skipped forward.
+ *
+ * Same caching shape as getCourseMainLoopRoundCount — single Supabase
+ * query per course per session.
+ */
+let courseFinalLegoCache: { legoId: string; roundIndex: number } | null = null
+let courseFinalLegoCacheKey: string | null = null
+const getCourseFinalLego = async (course: string): Promise<{ legoId: string; roundIndex: number } | null> => {
+  if (courseFinalLegoCache && courseFinalLegoCacheKey === course) {
+    return courseFinalLegoCache
+  }
+  if (!supabase?.value || !course) return null
+  try {
+    const { data, error } = await supabase.value
+      .from('course_legos')
+      .select('seed_number, lego_index')
+      .eq('course_code', course)
+      .eq('is_new', true)
+      .order('seed_number', { ascending: false })
+      .order('lego_index', { ascending: false })
+      .limit(1)
+    if (error || !data || !data[0]) return null
+    const row = data[0] as { seed_number: number; lego_index: number }
+    const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+    const count = await getCourseMainLoopRoundCount(course)
+    if (count <= 0) return null
+    courseFinalLegoCache = { legoId, roundIndex: count - 1 }  // 0-indexed
+    courseFinalLegoCacheKey = course
+    return courseFinalLegoCache
+  } catch (err) {
+    console.warn('[LearningPlayer] getCourseFinalLego threw:', err)
+    return null
   }
 }
 
@@ -5758,16 +5808,36 @@ const handleSkipToNextBelt = async () => {
     haltAllPlayback()
 
     if (enterInfplay) {
-      // Explicit tap-to-enter INF PLAY — write the mode flag so the
-      // back-belt-skip handler knows we're in INF PLAY and so the next
-      // session's bootstrap goes straight to legacy infplay content
-      // instead of trying to resolve a next LEGO. Idempotent if already
-      // in infplay (counter stays put).
+      // Explicit tap-to-enter INF PLAY:
+      //   1. setMode('infplay') — flips the mode flag so back-belt-
+      //      skip exits correctly + next session resumes here
+      //   2. Ratchet highest_completed_lego_id to course's final
+      //      LEGO. Belt-skipping past content IS the legitimate way
+      //      to enter INF PLAY (Tom 2026-05-20: "how the fuck do I
+      //      get beyond the highest lego if not by skipping past
+      //      it") so highest must reflect "I'm done with new content"
+      //      not "what I literally played through". Forward-only —
+      //      if learner already happens to be at the final LEGO,
+      //      no-op.
       if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
         try {
-          await progressStore.value.setMode(learnerId.value, courseCode.value, 'infplay')
+          const finalLego = await getCourseFinalLego(courseCode.value)
+          await progressStore.value.setMode(
+            learnerId.value,
+            courseCode.value,
+            'infplay',
+            finalLego ?? undefined,
+          )
           currentMode.value = 'infplay'
           if (infplayRoundIndex.value === 0) infplayRoundIndex.value = 1
+          // Mirror the ratchet into local refs so the resting-state
+          // UI updates without a roundtrip.
+          if (finalLego) {
+            if (!highestCompletedLegoId.value || finalLego.legoId > highestCompletedLegoId.value) {
+              highestCompletedLegoId.value = finalLego.legoId
+              highestCompletedRoundIndex.value = finalLego.roundIndex
+            }
+          }
         } catch (modeErr) {
           console.warn('[LearningPlayer] setMode(infplay) on skip-to-next failed:', modeErr)
         }

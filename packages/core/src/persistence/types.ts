@@ -207,8 +207,18 @@ export interface IProgressStore {
   updateEnrollmentActivity(learnerId: string, courseId: string, highestSeed: number, practiceMinutes: number): Promise<void>;
   /** Switch playback mode. Setting 'infplay' starts the INF round counter
    *  at 1 (only on initial entry; idempotent if already in infplay).
-   *  Setting 'main' resets infplay_round_index to 0. */
-  setMode(learnerId: string, courseId: string, mode: 'main' | 'infplay'): Promise<void>;
+   *  Setting 'main' resets infplay_round_index to 0. Optional
+   *  ratchetHighestTo: when entering INF PLAY, also ratchets the
+   *  highest_completed_lego_id / round_index to the given values
+   *  (forward-only). Per Tom: belt-skipping past content to enter INF
+   *  PLAY is the legitimate way, so highest must reflect "I'm done
+   *  with new content" not "what I literally played through". */
+  setMode(
+    learnerId: string,
+    courseId: string,
+    mode: 'main' | 'infplay',
+    ratchetHighestTo?: { legoId: string; roundIndex: number }
+  ): Promise<void>;
   /** Increment infplay_round_index by 1. No-op if not currently in infplay. */
   bumpInfplayRound(learnerId: string, courseId: string): Promise<void>;
 

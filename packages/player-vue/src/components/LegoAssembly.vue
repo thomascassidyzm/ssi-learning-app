@@ -320,43 +320,28 @@ const maxLineChars = computed(() => {
   return HYPHEN_LIMITS[lang] || DEFAULT_HYPHEN_LIMIT
 })
 
-// Non-breaking space \u2014 joins words inside a tile so the browser can't
-// wrap at a normal space (which would leave "ce n'est pas / un probl\u00E8me"
-// with no visual cue that it's one chunk). The ONLY wrap points become
-// the SHY characters this function inserts, which display as a hyphen
-// at the break \u2014 reading as "one chunk continuing on the next line".
-const NBSP = '\u00A0'
-
 function softHyphenate(text: string): string {
   const limit = maxLineChars.value
-  // Short text \u2014 return verbatim. Browser won't wrap; regular spaces fine.
-  if (text.length <= limit) return text
-  const words = text.split(' ')
-  const result: string[] = []
-  let lineLen = 0
-  for (const word of words) {
-    // If a single word is too long, break it mid-word
-    let w = word
-    if (w.length > limit) {
-      const parts: string[] = []
-      for (let i = 0; i < w.length; i += limit) {
-        parts.push(w.slice(i, i + limit))
-      }
-      w = parts.join(SHY)
+  // Only split SINGLE LONG WORDS mid-word \u2014 German compound nouns
+  // ("Krankenversicherung" \u2192 "Krankenversich\u00ADerung"), agglutinative
+  // Finnish/Hungarian forms, etc. Anything below the per-language
+  // limit is returned verbatim.
+  //
+  // Multi-word phrases keep regular inter-word spaces and wrap at
+  // word boundaries naturally \u2014 NO visible hyphen at a normal word
+  // break. The prior design used NBSP between words + SHY at line
+  // boundaries to force "one chunk" semantics, but for any multi-word
+  // tile that wrapped (most German sentences) it produced fake hyphens
+  // at every wrapped word break ("Ich bin mir - / nicht sicher, - /
+  // wann ich - / bereit sein werde"), which read as nonsense.
+  return text.split(' ').map(word => {
+    if (word.length <= limit) return word
+    const parts: string[] = []
+    for (let i = 0; i < word.length; i += limit) {
+      parts.push(word.slice(i, i + limit))
     }
-    // Would adding this word exceed the line? Insert shy break here.
-    if (result.length > 0 && lineLen + 1 + w.replace(/\u00AD/g, '').length > limit) {
-      result.push(SHY + w)
-      lineLen = w.replace(/\u00AD/g, '').length
-    } else {
-      if (result.length > 0) lineLen += 1
-      result.push(w)
-      lineLen += w.replace(/\u00AD/g, '').length
-    }
-  }
-  // Join with NBSP \u2014 prevents the browser from breaking at a regular
-  // space. SHY break points stay as the ONLY wrap opportunities.
-  return result.join(NBSP)
+    return parts.join(SHY)
+  }).join(' ')
 }
 
 /**
@@ -653,17 +638,15 @@ const sentenceScale = computed(() => {
 .tile-target .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   /* Fixed size — salience comes from tile chrome, not font scaling.
-   * Wrap is allowed at soft-hyphen points only (softHyphenate joins
-   * words with NBSP and inserts SHY at intended break positions), so
-   * a chunk that wraps shows a visible hyphen — reads as "one chunk
-   * continuing on the next line".
+   * Wraps at word boundaries by default, plus any SHY positions that
+   * softHyphenate inserted MID-WORD for long compound nouns (e.g. German
+   * "Krankenversicherung" → "Krankenversich­erung"). `hyphens: manual`
+   * means a wrap at a SHY shows a visible hyphen (signalling "this
+   * single word is broken"); word-boundary wraps show no extra mark.
    *
    * `word-break: break-word` was deliberately removed (2026-05-20):
-   * it overrode the soft-hyphen-only design by letting the browser
-   * break inside any word at arbitrary points, which is what was
-   * making German compound nouns wrap mid-syllable instead of at
-   * the intended SHY breakpoints. overflow-wrap: break-word stays
-   * as a last-resort safety if even the SHY-split parts overflow. */
+   * it let the browser break inside any word at arbitrary points if
+   * a tile got narrow, ignoring the intentional SHY breakpoints. */
   font-size: 1.8rem;
   hyphens: manual;
   font-weight: 600;
@@ -897,11 +880,11 @@ const sentenceScale = computed(() => {
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: calc(1.8rem * var(--sentence-scale, 1));
-  /* Wrap only at soft-hyphen positions inserted by softHyphenate().
-   * Words inside a tile are joined with NBSP so the browser can't break
-   * at a regular space — the only wrap points are the SHY characters,
-   * which display as a hyphen. Reads as "one chunk, continued on next
-   * line" rather than two unrelated chunks stacked. */
+  /* Wraps: word-boundary by default (clean space breaks), plus any SHY
+   * positions softHyphenate inserted mid-word for long compound nouns.
+   * `hyphens: manual` means a wrap AT a SHY shows a visible hyphen
+   * (signalling "this word is broken"); plain word-break wraps show
+   * nothing extra. */
   hyphens: manual;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);

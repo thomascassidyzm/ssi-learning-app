@@ -242,11 +242,21 @@ export class ProgressStore implements IProgressStore {
    *   - 'main': counter NOT reset — preserves "has this learner ever
    *     been in INF PLAY" so jumpToFurthest and the purple pill can
    *     keep showing the count after a back-belt-skip out.
+   *
+   * Optional `ratchetHighestTo`: when entering INF PLAY, also ratchet
+   * highest_completed_lego_id + highest_completed_round_index to the
+   * given (legoId, roundIndex). Per Tom 2026-05-20: belt-skipping
+   * past content IS the legitimate way to enter INF PLAY, so the
+   * data model has to accept that. Entering INF PLAY = "I've reached
+   * the end of the new content I want to deal with" — highest should
+   * reflect that even if the learner didn't literally play every belt.
+   * Forward-only via .or filter; existing higher values never regress.
    */
   async setMode(
     learnerId: string,
     courseId: string,
-    mode: 'main' | 'infplay'
+    mode: 'main' | 'infplay',
+    ratchetHighestTo?: { legoId: string; roundIndex: number }
   ): Promise<void> {
     const { error } = await this.client
       .schema(this.schema)
@@ -273,6 +283,24 @@ export class ProgressStore implements IProgressStore {
         .or('infplay_round_index.is.null,infplay_round_index.eq.0');
       if (initErr) {
         throw new Error(`Failed to initialise infplay counter: ${initErr.message}`);
+      }
+
+      // Ratchet highest_* to the course's final main-loop LEGO.
+      // Forward-only — never lowers an existing higher value.
+      if (ratchetHighestTo) {
+        const { error: rErr } = await this.client
+          .schema(this.schema)
+          .from('course_enrollments')
+          .update({
+            highest_completed_lego_id: ratchetHighestTo.legoId,
+            highest_completed_round_index: ratchetHighestTo.roundIndex,
+          })
+          .eq('learner_id', learnerId)
+          .eq('course_id', courseId)
+          .or(`highest_completed_lego_id.is.null,highest_completed_lego_id.lt.${ratchetHighestTo.legoId}`);
+        if (rErr) {
+          throw new Error(`Failed to ratchet highest on infplay entry: ${rErr.message}`);
+        }
       }
     }
   }
