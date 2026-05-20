@@ -1,0 +1,376 @@
+/**
+ * Course Bundle API — GET /api/courses/:code/bundle
+ *
+ * One-shot, versioned payload containing EVERY LEGO and EVERY phrase in
+ * the course, with every audio reference classified as `ephemeral` or
+ * `persistent`. The single source of truth for client-side script
+ * generation, audio prefetching, and the background bundle downloader.
+ *
+ * Replaces the JIT model where the backend assembled cycles per
+ * request (/cycles and /infplay-cycles). The backend now just ships
+ * the raw structure once; the client owns assembly, sampling and
+ * caching.
+ *
+ * Wire format: see `packages/player-vue/src/types/courseBundle.ts`.
+ *
+ * Query strategy — 4 parallel Supabase queries, no migrations:
+ *   - `courses`                (content_version + 404 probe)
+ *   - `course_legos`           (is_new = true, ordered)
+ *   - `course_practice_phrases` (build/use, including legacy roles)
+ *   - `course_round_index`     (main-loop ordering)
+ *
+ * Returns 503 if course_round_index is empty for an existing course
+ * (the materialised view hasn't been refreshed yet — operator action
+ * required), so a misconfigured course doesn't silently ship an
+ * unplayable bundle to the client.
+ */
+
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
+import type {
+  CourseBundle,
+  BundleLego,
+  BundlePhrase,
+  BundleSeed,
+  BundleRoundMapEntry,
+  BundleAudioRef,
+  AudioLifecycle,
+  PhraseRole,
+} from '../../../packages/player-vue/src/types/courseBundle'
+
+const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+if (!supabaseUrl) {
+  throw new Error('Missing SUPABASE_URL environment variable')
+}
+
+const COURSE_CODE_RE = /^[a-z0-9_]+$/
+
+interface CourseRow {
+  content_version: number | null
+}
+
+interface LegoRow {
+  seed_number: number
+  lego_index: number
+  type: 'A' | 'M' | null
+  known_text: string | null
+  target_text: string | null
+  target_text_roman: string | null
+  components: Array<{ known: string; target: string }> | null
+  is_new: boolean | null
+  known_audio_id: string | null
+  target1_audio_id: string | null
+  target2_audio_id: string | null
+  presentation_audio_id: string | null
+  known_duration_ms: number | null
+  target1_duration_ms: number | null
+  target2_duration_ms: number | null
+  presentation_duration_ms: number | null
+}
+
+interface PhraseRow {
+  seed_number: number
+  lego_index: number
+  position: number | null
+  phrase_role: string | null
+  known_text: string | null
+  target_text: string | null
+  target_text_roman: string | null
+  decomposition: Array<{
+    legoId: string | null
+    target: string
+    known: string
+    isGhost: boolean
+  }> | null
+  known_audio_id: string | null
+  target1_audio_id: string | null
+  target2_audio_id: string | null
+  known_duration_ms: number | null
+  target1_duration_ms: number | null
+  target2_duration_ms: number | null
+}
+
+interface RoundIndexRow {
+  round_index: number
+  seed_number: number
+  lego_index: number
+}
+
+/** Build a LEGO id of the form "S0042L01". Same helper as infplay-cycles.ts. */
+function buildLegoId(seed: number, lego: number): string {
+  return `S${String(seed).padStart(4, '0')}L${String(lego).padStart(2, '0')}`
+}
+
+/** Build a Seed id of the form "S0042". */
+function buildSeedId(seed: number): string {
+  return `S${String(seed).padStart(4, '0')}`
+}
+
+/**
+ * Pick display target text. Mirrors `pickTargets()` in cycles.ts:
+ * when target_text_roman is non-empty, that's the display text and
+ * the native script becomes targetTextNative.
+ */
+function pickTargets(row: {
+  target_text: string | null
+  target_text_roman: string | null
+}): { targetText: string; targetTextNative?: string } {
+  if (row.target_text_roman && row.target_text_roman.trim()) {
+    return {
+      targetText: row.target_text_roman,
+      targetTextNative: row.target_text ?? '',
+    }
+  }
+  return { targetText: row.target_text ?? '' }
+}
+
+/**
+ * Build an audio ref. Returns undefined when id is null/empty so the
+ * caller omits the key entirely — we never emit `{ id: null }`.
+ */
+function buildAudioRef(
+  id: string | null | undefined,
+  lifecycle: AudioLifecycle,
+  durationMs: number | null | undefined,
+): BundleAudioRef | undefined {
+  if (!id) return undefined
+  const ref: BundleAudioRef = { id, lifecycle }
+  if (typeof durationMs === 'number') ref.durationMs = durationMs
+  return ref
+}
+
+/** Normalise legacy `practice` / `eternal_eligible` roles to the wire roles. */
+function normaliseRole(raw: string | null | undefined): PhraseRole | null {
+  if (raw === 'build' || raw === 'practice') return 'build'
+  if (raw === 'use' || raw === 'eternal_eligible') return 'use'
+  return null
+}
+
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse,
+): Promise<void> {
+  if (req.method !== 'GET') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  const code = req.query.code
+  if (!code || typeof code !== 'string' || !COURSE_CODE_RE.test(code)) {
+    res.status(400).json({ error: 'Invalid course code' })
+    return
+  }
+
+  try {
+    const supabase = createClient(
+      supabaseUrl,
+      supabaseServiceKey ||
+        (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim(),
+    )
+
+    // 4 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
+    // of physics; collapsing into Promise.all keeps the whole bundle
+    // assemble at ~150-300ms instead of 4× that.
+    const [courseRes, legosRes, phrasesRes, roundsRes] = await Promise.all([
+      supabase
+        .from('courses')
+        .select('content_version')
+        .eq('course_code', code)
+        .maybeSingle(),
+      supabase
+        .from('course_legos')
+        .select(
+          'seed_number, lego_index, type, known_text, target_text, target_text_roman, components, is_new, ' +
+            'known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, ' +
+            'known_duration_ms, target1_duration_ms, target2_duration_ms, presentation_duration_ms',
+        )
+        .eq('course_code', code)
+        .eq('is_new', true)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true }),
+      supabase
+        .from('course_practice_phrases')
+        .select(
+          'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, decomposition, ' +
+            'known_audio_id, target1_audio_id, target2_audio_id, ' +
+            'known_duration_ms, target1_duration_ms, target2_duration_ms',
+        )
+        .eq('course_code', code)
+        .in('phrase_role', ['build', 'use', 'practice', 'eternal_eligible'])
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
+        .order('position', { ascending: true }),
+      supabase
+        .from('course_round_index')
+        .select('round_index, seed_number, lego_index')
+        .eq('course_code', code)
+        .order('round_index', { ascending: true }),
+    ])
+
+    if (courseRes.error) {
+      console.error('[Bundle] courses query failed:', courseRes.error.message)
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(500).json({ error: 'Failed to load course' })
+      return
+    }
+    if (!courseRes.data) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(404).json({ error: 'Course not found' })
+      return
+    }
+    if (legosRes.error) {
+      console.error('[Bundle] legos query failed:', legosRes.error.message)
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(500).json({ error: 'Failed to load course LEGOs' })
+      return
+    }
+    if (phrasesRes.error) {
+      console.error('[Bundle] phrases query failed:', phrasesRes.error.message)
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(500).json({ error: 'Failed to load course phrases' })
+      return
+    }
+    if (roundsRes.error) {
+      console.error('[Bundle] round-index query failed:', roundsRes.error.message)
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(500).json({ error: 'Failed to load course round-index' })
+      return
+    }
+
+    const legoRows: LegoRow[] = (legosRes.data || []) as unknown as LegoRow[]
+    const phraseRows: PhraseRow[] = (phrasesRes.data || []) as unknown as PhraseRow[]
+    const roundRows: RoundIndexRow[] = (roundsRes.data || []) as unknown as RoundIndexRow[]
+    const version = ((courseRes.data as unknown as CourseRow).content_version ?? 1)
+
+    // Course exists but the materialised round-index is empty — operator
+    // action needed (refresh the view). Surfacing as 503 lets clients
+    // distinguish from a missing course (404).
+    if (roundRows.length === 0) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(503).json({
+        error: `Course ${code} has no round-index entries (run materialised-view refresh)`,
+      })
+      return
+    }
+
+    // --- LEGOs --------------------------------------------------------------
+    const legos: BundleLego[] = legoRows.map((row) => {
+      const legoId = buildLegoId(row.seed_number, row.lego_index)
+      const seedId = buildSeedId(row.seed_number)
+      const targets = pickTargets(row)
+      const components =
+        Array.isArray(row.components) && row.components.length > 0
+          ? row.components.map((c) => ({ known: c?.known ?? '', target: c?.target ?? '' }))
+          : undefined
+
+      const ephemeralAudio: BundleLego['ephemeralAudio'] = {}
+      const known = buildAudioRef(row.known_audio_id, 'ephemeral', row.known_duration_ms)
+      if (known) ephemeralAudio.known = known
+      const target1 = buildAudioRef(row.target1_audio_id, 'ephemeral', row.target1_duration_ms)
+      if (target1) ephemeralAudio.target1 = target1
+      const target2 = buildAudioRef(row.target2_audio_id, 'ephemeral', row.target2_duration_ms)
+      if (target2) ephemeralAudio.target2 = target2
+      const presentation = buildAudioRef(
+        row.presentation_audio_id,
+        'ephemeral',
+        row.presentation_duration_ms,
+      )
+      if (presentation) ephemeralAudio.presentation = presentation
+
+      const lego: BundleLego = {
+        legoId,
+        seedNumber: row.seed_number,
+        legoIndex: row.lego_index,
+        seedId,
+        type: row.type,
+        knownText: row.known_text ?? '',
+        targetText: targets.targetText,
+        isNew: row.is_new !== false,
+        ephemeralAudio,
+      }
+      if (targets.targetTextNative !== undefined) lego.targetTextNative = targets.targetTextNative
+      if (components) lego.components = components
+      return lego
+    })
+
+    // --- Phrases ------------------------------------------------------------
+    // Synthetic position counter per (legoId, role) — preserves DB row
+    // order. This is the spec'd id format: ${legoId}_${role}_${position}.
+    const positionCounters = new Map<string, number>()
+    const phrases: BundlePhrase[] = []
+    for (const row of phraseRows) {
+      const role = normaliseRole(row.phrase_role)
+      if (!role) continue
+      const legoId = buildLegoId(row.seed_number, row.lego_index)
+      const key = `${legoId}:${role}`
+      const nextPos = (positionCounters.get(key) ?? 0) + 1
+      positionCounters.set(key, nextPos)
+
+      const targets = pickTargets(row)
+      const lifecycle: AudioLifecycle = role === 'use' ? 'persistent' : 'ephemeral'
+
+      const audio: BundlePhrase['audio'] = {}
+      const known = buildAudioRef(row.known_audio_id, lifecycle, row.known_duration_ms)
+      if (known) audio.known = known
+      const target1 = buildAudioRef(row.target1_audio_id, lifecycle, row.target1_duration_ms)
+      if (target1) audio.target1 = target1
+      const target2 = buildAudioRef(row.target2_audio_id, lifecycle, row.target2_duration_ms)
+      if (target2) audio.target2 = target2
+
+      const phrase: BundlePhrase = {
+        phraseId: `${legoId}_${role}_${String(nextPos).padStart(2, '0')}`,
+        legoId,
+        position: nextPos,
+        role,
+        knownText: row.known_text ?? '',
+        targetText: targets.targetText,
+        audio,
+      }
+      if (targets.targetTextNative !== undefined) phrase.targetTextNative = targets.targetTextNative
+      if (Array.isArray(row.decomposition) && row.decomposition.length > 0) {
+        phrase.decomposition = row.decomposition
+      }
+      phrases.push(phrase)
+    }
+
+    // --- Round map ----------------------------------------------------------
+    const roundMap: BundleRoundMapEntry[] = roundRows.map((r) => ({
+      roundIndex: r.round_index,
+      legoId: buildLegoId(r.seed_number, r.lego_index),
+      seedNumber: r.seed_number,
+    }))
+
+    // --- Seeds (derived from the round map — no extra DB query) -------------
+    // De-dup while preserving first-seen order (round_index ascending), so
+    // seed list reads top-to-bottom in the order the learner will encounter.
+    const seenSeeds = new Set<number>()
+    const seeds: BundleSeed[] = []
+    for (const r of roundRows) {
+      if (seenSeeds.has(r.seed_number)) continue
+      seenSeeds.add(r.seed_number)
+      seeds.push({ seedId: buildSeedId(r.seed_number), seedNumber: r.seed_number })
+    }
+
+    const bundle: CourseBundle = {
+      courseCode: code,
+      version,
+      mainLoopCount: roundRows.length,
+      legos,
+      phrases,
+      seeds,
+      roundMap,
+    }
+
+    res.setHeader(
+      'Cache-Control',
+      'private, max-age=300, s-maxage=86400, stale-while-revalidate=86400',
+    )
+    res.status(200).json(bundle)
+  } catch (err) {
+    console.error('[Bundle] Unexpected error:', err)
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}
