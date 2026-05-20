@@ -409,12 +409,17 @@ function alignedBlockComponents(block: LegoBlock): ComponentBreakdown[] | null {
   return aligned
 }
 
-// Uniform sentence-level scaling: all tiles in a phrase scale together
+// Uniform sentence-level scaling: all tiles in a phrase scale together.
+// Floor 0.85 (was 0.65) and gentler slope (was 0.008) so the target font
+// stays at least as big as the known-text panel above — long phrases
+// just wrap onto more rows rather than shrinking the type. Combined with
+// the bumped base font-size below the minimum legible size is now ~1.87rem
+// (= 0.85 × 2.2rem base), well above the known panel's 1.35-1.5rem.
 const sentenceScale = computed(() => {
   if (props.blocks.length <= 1) return 1
   const totalChars = props.blocks.reduce((sum, b) => sum + b.targetText.length, 0)
   if (totalChars <= 20) return 1
-  return Math.max(0.65, 1 - (totalChars - 20) * 0.008)
+  return Math.max(0.85, 1 - (totalChars - 20) * 0.005)
 })
 </script>
 
@@ -687,17 +692,17 @@ const sentenceScale = computed(() => {
 
 .tile-target .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  /* Fixed size — salience comes from tile chrome, not font scaling.
-   * Wraps at word boundaries by default, plus any SHY positions that
-   * softHyphenate inserted MID-WORD for long compound nouns (e.g. German
-   * "Krankenversicherung" → "Krankenversich­erung"). `hyphens: manual`
-   * means a wrap at a SHY shows a visible hyphen (signalling "this
-   * single word is broken"); word-boundary wraps show no extra mark.
+  /* Base target font — bumped 1.8→2.2rem (2026-05-20) so the target
+   * tiles are at least as large as the known-sentence panel above.
+   * Combined with sentenceScale floor 0.85, minimum effective size is
+   * ~1.87rem (≈ 30px), comfortably bigger than --known-text-size
+   * (1.35-1.5rem). Long phrases now wrap onto more rows rather than
+   * shrinking the type — that's Tom's "use more vertical space"
+   * preference.
    *
-   * `word-break: break-word` was deliberately removed (2026-05-20):
-   * it let the browser break inside any word at arbitrary points if
-   * a tile got narrow, ignoring the intentional SHY breakpoints. */
-  font-size: 1.8rem;
+   * `word-break: break-word` was removed: it let the browser break
+   * inside any word at arbitrary points, ignoring SHY breakpoints. */
+  font-size: 2.2rem;
   hyphens: manual;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
@@ -820,7 +825,7 @@ const sentenceScale = computed(() => {
 
 .carriage-cell .comp {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: 1.7rem;
+  font-size: 2.05rem;
   hyphens: manual;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
@@ -949,7 +954,10 @@ const sentenceScale = computed(() => {
 
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: calc(1.8rem * var(--sentence-scale, 1));
+  /* Base 2.2rem (bumped from 1.8rem 2026-05-20) — see .tile-target .comp
+   * above for rationale: target tiles need to be at least as large as
+   * the known panel, and we'd rather wrap onto more rows than shrink. */
+  font-size: calc(2.2rem * var(--sentence-scale, 1));
   /* Wraps: word-boundary by default (clean space breaks), plus any SHY
    * positions softHyphenate inserted mid-word for long compound nouns.
    * `hyphens: manual` means a wrap AT a SHY shows a visible hyphen
@@ -1180,8 +1188,12 @@ const sentenceScale = computed(() => {
    MOBILE
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
+  /* Mobile target sizes bumped ~25% (2026-05-20) to track the desktop
+   * bump and keep target ≥ known across viewports. With the 0.85
+   * sentenceScale floor, mobile minimum effective size is ~1.6rem,
+   * still above the PWA-standalone known-text-size of 1.5rem. */
   .lego-block .block-text {
-    font-size: calc(1.55rem * var(--sentence-scale, 1));
+    font-size: calc(1.9rem * var(--sentence-scale, 1));
   }
   .lego-block {
     padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
@@ -1191,18 +1203,18 @@ const sentenceScale = computed(() => {
   }
   .lego-block.salient .block-text {
     /* Same as non-salient — transform:scale on the tile handles the bump */
-    font-size: calc(1.55rem * var(--sentence-scale, 1));
+    font-size: calc(1.9rem * var(--sentence-scale, 1));
   }
 
   .tile-target .comp {
-    font-size: 1.55rem;
+    font-size: 1.9rem;
   }
 
   .carriage-cell {
     padding: 0.45em 0.7em;
   }
   .carriage-cell .comp {
-    font-size: 1.45rem;
+    font-size: 1.75rem;
   }
 }
 </style>
