@@ -68,6 +68,7 @@ import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
+import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 
 /**
  * Instant-playback feature flag — courses listed here use the new
@@ -451,6 +452,11 @@ const instantPlayback = useInstantPlayback(courseCode, {
 const courseBundle = useCourseBundle()
 const audioCache = getAudioCache()
 let bundleDownloader: BundleDownloader | null = null
+// JIT prefetcher — ephemeral acquire/release around LEGO debut rounds,
+// persistent backstop for the next ~30 cycles. Replaces the warm-up
+// surface in the existing instant-playback path (next commit removes
+// the now-redundant code).
+const audioPrefetcher = createAudioPrefetcher({ audioCache })
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
@@ -1310,6 +1316,13 @@ simplePlayer.onRoundCompleted((round) => {
     seedId: round.seedId,
   })
 
+  // AudioPrefetcher: release the completed LEGO's ephemeral audio
+  // (intro/debut/builds) and acquire the next LEGOs' ephemeral sets.
+  // No-op if the bundle hasn't loaded yet (setBundle hasn't fired).
+  // Errors swallowed inside the prefetcher.
+  void audioPrefetcher.onRoundCompleted(loadedRounds.value as any, completedRoundIndex)
+  void audioPrefetcher.onRoundChanged(loadedRounds.value as any, completedRoundIndex + 1)
+
   // Synchronously pause if a pod is about to fire on this boundary.
   // handleRoundBoundary is async and runs on a later microtask — by the
   // time its own pause() lands, simplePlayer's orchestrator may have
@@ -1413,6 +1426,28 @@ simplePlayer.onSessionComplete(async () => {
   sessionEnded.value = true
   showPausedSummary()
 })
+
+// AudioPrefetcher initial fire — once the bundle has loaded AND rounds
+// are populated, kick the prefetcher at the current playback position.
+// The watch refires when any of (bundle, rounds, roundIndex) changes,
+// so progressive script loads / belt skips also re-arm the prefetcher.
+// Idempotent inside the prefetcher (cache calls de-dupe).
+watch(
+  () => [
+    courseBundle.bundle.value?.version ?? null,
+    loadedRounds.value.length,
+    simplePlayer.roundIndex.value,
+  ] as const,
+  () => {
+    if (!courseBundle.bundle.value) return
+    if (loadedRounds.value.length === 0) return
+    void audioPrefetcher.onRoundChanged(
+      loadedRounds.value as any,
+      simplePlayer.roundIndex.value,
+    )
+  },
+  { immediate: true },
+)
 
 // Round ENTRY persistence: whenever the player advances or jumps to a
 // new round (skip-forward chevron, jump-to-seed, natural advance after a
@@ -7401,6 +7436,11 @@ onMounted(async () => {
       void courseBundle.load(courseCode.value)
         .then((bundle) => {
           console.log(`[BundleLoad] Loaded bundle for ${bundle.courseCode} v${bundle.version}: ${bundle.legos.length} LEGOs, ${bundle.phrases.length} phrases`)
+          // Arm the prefetcher with the bundle. The reactive watch
+          // below picks up bundle-ready + rounds-populated transitions
+          // and fires the initial onRoundChanged for the current
+          // playback position.
+          audioPrefetcher.setBundle(bundle)
           bundleDownloader = createBundleDownloader({ audioCache })
           return bundleDownloader.start(bundle)
         })
@@ -8440,6 +8480,10 @@ onUnmounted(() => {
   // each batch so the next session resumes where we left off.
   bundleDownloader?.stop()
   courseBundle.cancel()
+  // Drop the prefetcher's in-memory indices. Cached ephemeral audio
+  // for in-progress LEGOs stays in IndexedDB; the cache's own
+  // lifecycle reclaims it on the next session boundary or eviction.
+  audioPrefetcher.reset()
 
   // End class session if active
   if (classSessionId.value) {
