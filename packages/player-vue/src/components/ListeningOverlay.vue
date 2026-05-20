@@ -1753,7 +1753,10 @@ watch(playbackSpeed, (newSpeed) => {
  * ═══════════════════════════════════════════════════════════════ */
 .view-tabs {
   position: absolute;
-  top: 0.6rem;
+  /* Same safe-area pattern as .close-btn / .download-btn — absolutely
+   * positioned children ignore the parent's safe-area padding, so the
+   * notch/Dynamic Island ate the tabs on iOS PWA. */
+  top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
