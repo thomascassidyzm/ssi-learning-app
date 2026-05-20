@@ -46,14 +46,14 @@ const MAX_LIMIT = 15
 // Drains naturally over 89 INF PLAY rounds: each round drops the
 // offsets that reach past course-end. By infplay round 90, all
 // offsets are past the main-loop and the round is pure random USE.
-const SPACED_REP_OFFSETS = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
-// Per Tom's spec 2026-05-20: "around 20 cycles in INF PLAY ROUNDS /
-// around 10 RND USE PHRASES / Spaced REVIEW cycles as normal for all
-// previous LEGOS until they drop out". So: up to 11 spaced rep
-// (every fib offset that still hits a main-loop LEGO) + 10 random
-// USE. Cap removed.
+const SPACED_REP_OFFSETS = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89]
+// N-1 gets 3 phrases (per main-loop n1PhraseCount=3), others get 1.
+// Tom 2026-05-20: "it's actually 3x N-1, but apart from that, it's
+// correct". So a typical INF PLAY round at peak emits:
+//   3 (N-1) + 9 (other offsets each contributing 1) + 10 random USE
+//   = 22 cycles ≈ "around 20" per spec.
+const N1_PHRASE_COUNT = 3
 const RANDOM_USE_PER_ROUND = 10
-const MAX_SPACED_REP_PER_ROUND = SPACED_REP_OFFSETS.length
 
 interface LegoRow {
   seed_number: number
@@ -241,18 +241,26 @@ export default async function handler(
       usedLegosThisRound.clear()
 
       // Phase 1: Spaced rep. For each fib offset, find the LEGO at
-      // (absoluteRound - offset - 1) in legoRows (0-indexed).
-      // Stops contributing when absoluteRound - offset <= 0.
-      const spacedRepLegos: { lego: LegoRow; offset: number }[] = []
+      // (absoluteRound - offset - 1) in legoRows (0-indexed). Stops
+      // contributing when absoluteRound - offset overshoots either
+      // end of the main loop (< 1 or > mainLoopCount).
+      //
+      // phraseCount = 3 for N-1 (per the main-loop schedule's
+      // n1PhraseCount), 1 for all other offsets. Three phrases for
+      // the same N-1 LEGO are drawn round-robin from its USE pool.
+      const spacedRepEntries: { lego: LegoRow; offset: number; phraseCount: number }[] = []
       for (const offset of SPACED_REP_OFFSETS) {
-        if (spacedRepLegos.length >= MAX_SPACED_REP_PER_ROUND) break
         const reviewRound = absoluteRound - offset
         if (reviewRound < 1) continue
         const lego = legoRows[reviewRound - 1]  // 0-indexed
         if (!lego) continue
         if (usedLegosThisRound.has(lego.lego_id)) continue
         usedLegosThisRound.add(lego.lego_id)
-        spacedRepLegos.push({ lego, offset })
+        spacedRepEntries.push({
+          lego,
+          offset,
+          phraseCount: offset === 1 ? N1_PHRASE_COUNT : 1,
+        })
       }
 
       // Phase 2: Random USE — uniform sample over all main-loop LEGOs,
@@ -261,33 +269,39 @@ export default async function handler(
       const randomUseLegos = sampleN(availableForUse, RANDOM_USE_PER_ROUND)
       for (const l of randomUseLegos) usedLegosThisRound.add(l.lego_id)
 
-      // Emit spaced rep first (per the JS generator's order)
-      for (const { lego, offset } of spacedRepLegos) {
+      // Emit spaced rep first (per the JS generator's order).
+      // For each entry, draw phraseCount distinct phrases from the
+      // LEGO's USE pool (Fisher-Yates partial shuffle) — N-1's 3
+      // phrases should be different ones, not the same phrase three
+      // times.
+      for (const { lego, offset, phraseCount } of spacedRepEntries) {
         const phrases = phrasesByLego.get(lego.lego_id)
         if (!phrases || phrases.length === 0) continue
-        const phrase = phrases[Math.floor(Math.random() * phrases.length)]
-        if (!phrase.known_audio_id || !phrase.target1_audio_id || !phrase.target2_audio_id) continue
-        cycleSeq++
-        cycles.push({
-          id: `${lego.lego_id}_infsr_R${infRound}_${cycleSeq}`,
-          type: 'spaced_rep',
-          lego_id: lego.lego_id,
-          seed_number: lego.seed_number,
-          known_text: phrase.known_text || '',
-          target_text: phrase.target_text_roman || phrase.target_text || '',
-          ...(phrase.target_text_roman && phrase.target_text ? { target_text_native: phrase.target_text } : {}),
-          audio: {
-            known_id: phrase.known_audio_id,
-            target1_id: phrase.target1_audio_id,
-            target2_id: phrase.target2_audio_id,
-          },
-          durations: {
-            ...(phrase.target1_duration_ms ? { target1_ms: phrase.target1_duration_ms } : {}),
-            ...(phrase.target2_duration_ms ? { target2_ms: phrase.target2_duration_ms } : {}),
-          },
-          is_new: false,
-          inf_round: infRound,
-        })
+        const drawn = sampleN(phrases, Math.min(phraseCount, phrases.length))
+        for (const phrase of drawn) {
+          if (!phrase.known_audio_id || !phrase.target1_audio_id || !phrase.target2_audio_id) continue
+          cycleSeq++
+          cycles.push({
+            id: `${lego.lego_id}_infsr_R${infRound}_${cycleSeq}`,
+            type: 'spaced_rep',
+            lego_id: lego.lego_id,
+            seed_number: lego.seed_number,
+            known_text: phrase.known_text || '',
+            target_text: phrase.target_text_roman || phrase.target_text || '',
+            ...(phrase.target_text_roman && phrase.target_text ? { target_text_native: phrase.target_text } : {}),
+            audio: {
+              known_id: phrase.known_audio_id,
+              target1_id: phrase.target1_audio_id,
+              target2_id: phrase.target2_audio_id,
+            },
+            durations: {
+              ...(phrase.target1_duration_ms ? { target1_ms: phrase.target1_duration_ms } : {}),
+              ...(phrase.target2_duration_ms ? { target2_ms: phrase.target2_duration_ms } : {}),
+            },
+            is_new: false,
+            inf_round: infRound,
+          })
+        }
       }
 
       // Then random USE
