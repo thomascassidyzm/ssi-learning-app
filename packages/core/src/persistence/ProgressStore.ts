@@ -286,20 +286,35 @@ export class ProgressStore implements IProgressStore {
       }
 
       // Ratchet highest_* to the course's final main-loop LEGO.
-      // Forward-only — never lowers an existing higher value.
+      //
+      // CRITICAL: write LAST_completed_lego_id, not highest_*. The
+      // ratchet trigger (migration 20260512_lego_id_independent_ratchet)
+      // ONLY respects writes via last_completed_lego_id — its ELSE
+      // branch overwrites any direct highest_completed_lego_id write
+      // with OLD.highest_completed_lego_id, undoing direct ratchets
+      // silently.
+      //
+      // So we update last_completed_lego_id = finalLegoId — the
+      // trigger then lifts highest_completed_lego_id to match (and
+      // leaves highest_completed_round_index alone, since we don't
+      // touch last_completed_round_index here, which is correct:
+      // the cursor's round_index may already be deep into infplay
+      // territory and we don't want to regress it).
+      //
+      // Forward-only via the .or filter — never lowers an existing
+      // higher last_completed_lego_id.
       if (ratchetHighestTo) {
         const { error: rErr } = await this.client
           .schema(this.schema)
           .from('course_enrollments')
           .update({
-            highest_completed_lego_id: ratchetHighestTo.legoId,
-            highest_completed_round_index: ratchetHighestTo.roundIndex,
+            last_completed_lego_id: ratchetHighestTo.legoId,
           })
           .eq('learner_id', learnerId)
           .eq('course_id', courseId)
-          .or(`highest_completed_lego_id.is.null,highest_completed_lego_id.lt.${ratchetHighestTo.legoId}`);
+          .or(`last_completed_lego_id.is.null,last_completed_lego_id.lt.${ratchetHighestTo.legoId}`);
         if (rErr) {
-          throw new Error(`Failed to ratchet highest on infplay entry: ${rErr.message}`);
+          throw new Error(`Failed to ratchet last_lego on infplay entry: ${rErr.message}`);
         }
       }
     }
