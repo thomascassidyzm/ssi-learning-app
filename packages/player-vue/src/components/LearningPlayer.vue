@@ -6807,6 +6807,20 @@ const expandScript = async (): Promise<number> => {
       // added some main-loop rounds) is handled cleanly.
       simplePlayer.appendRounds(newRounds as any)
       console.log(`[LearningPlayer] Expanded script: ${loadedCount} → ${expandedRounds.length} rounds (+${newRounds.length} appended)`)
+      // Chain INF PLAY audio warm-up onto every expansion. Per Tom
+      // 2026-05-20: there shouldn't be "subsequent warm-up periods" —
+      // each new batch of 50 rounds should background-cache its audio
+      // while the previous batch plays. EXPANSION_THRESHOLD=5 means
+      // we fire when ~5 rounds remain, giving ~25 min for the new
+      // batch to download before the learner reaches it.
+      const isInfPlayRound = (r: any) =>
+        Array.isArray(r?.cycles) && r.cycles.length > 0 && !r.cycles.some((c: any) =>
+          c.type === 'intro' || c.type === 'debut' || c.type === 'build'
+        )
+      const hasInfPlayInExpansion = newRounds.some(isInfPlayRound)
+      if (currentMode.value === 'infplay' || hasInfPlayInExpansion) {
+        warmUpInfPlayRoundsBackground(newRounds as any, 0)
+      }
       return newRounds.length
     } else {
       console.warn('[LearningPlayer] Expansion produced no new rounds — generator may be out of LEGOs to revive')
