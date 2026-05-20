@@ -5796,21 +5796,21 @@ const handleSkipToNextBelt = async () => {
       )
       if (firstInfIdx >= 0) {
         console.log(`[LearningPlayer] Skipping past last belt — entering infinite play at round index ${firstInfIdx}`)
-        // Phase 1 (blocking): warm up audio for the first 5 infplay
-        // rounds before jumping. Otherwise the random-USE LEGOs in
-        // each round each need a network roundtrip on play, giving
-        // the "audio missing / stuttering" UX Tom flagged.
+        // Spotify-style bootstrap: fetch only the FIRST cycle's audio
+        // (~3 files, ~3s on 4G), then start. Background fetch keeps
+        // ahead of playback for everything else. Mirrors the main
+        // player's instant-playback model.
         //
-        // Parallel: if this is the FIRST time the learner enters INF
-        // PLAY for this course, type out the introductory message in
-        // the dialog box at the same time. Both Promise.all'd so the
-        // jumpToRound waits for the learner to read AND for the audio
-        // to be cached.
+        // If first-time learner, type out the intro in parallel —
+        // both the 3s audio fetch AND the ~14s typewriter need to
+        // finish before play starts. The typewriter is the longer
+        // bound, so the audio's cached well before the learner reads
+        // the last paragraph.
         isWarmingUpInfPlay.value = true
         try {
-          const slice = cachedRounds.value.slice(firstInfIdx, firstInfIdx + 5)
+          const slice = cachedRounds.value.slice(firstInfIdx)
           const showIntro = !hasSeenInfPlayIntro(courseCode.value)
-          const warmUpPromise = warmUpInfPlayRounds(slice as any, slice.length)
+          const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
           if (showIntro) {
             await Promise.all([warmUpPromise, startInfPlayIntro()])
             markInfPlayIntroSeen(courseCode.value)
@@ -5822,10 +5822,10 @@ const handleSkipToNextBelt = async () => {
           isWarmingUpInfPlay.value = false
         }
         simplePlayer.jumpToRound(firstInfIdx)
-        // Phase 2 (background): top up the rest of the infplay rounds
-        // while the learner plays the first batch. By the time they
-        // reach round 6, everything should be cached.
-        warmUpInfPlayRoundsBackground(cachedRounds.value as any, firstInfIdx + 5)
+        // Phase 2 (background): everything else — fetch the rest of
+        // round 1's cycles + rounds 2..N in parallel-5. By the time
+        // the first cycle finishes (~10s), the next cycles are cached.
+        warmUpInfPlayRoundsBackground(cachedRounds.value as any, firstInfIdx)
         // Anchor belt to the last main-loop seed (= top reachable belt
         // colour for this course). Otherwise the infplay round's random
         // USE legoId would set the visual to whichever LEGO it drew.
@@ -6270,6 +6270,43 @@ async function warmUpInfPlayRounds(rounds: any[], count: number): Promise<void> 
 }
 
 /**
+ * Bootstrap-style INF PLAY entry — fetch JUST the first cycle's
+ * audio (~3 files, ~3s on 4G), then return. Caller starts playback
+ * immediately and fires warmUpInfPlayRoundsBackground for everything
+ * else.
+ *
+ * Mirrors the main player's instant-playback bootstrap: by the time
+ * the first cycle finishes playing (~10s), the parallel-5 background
+ * fetch has cached cycle 2, 3, 4 of round 1 plus the start of round
+ * 2. Subsequent cycles play from cache.
+ *
+ * Per Tom 2026-05-20: "load first cycle and then everything else
+ * when that is playing model... I don't see how the first 5 ROUNDS,
+ * or whatever we think is good — could be just 1 ROUND is much
+ * harder to do than the main player".
+ */
+async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
+  const firstRound = rounds[0]
+  if (!firstRound || !Array.isArray(firstRound.cycles) || firstRound.cycles.length === 0) return
+  const firstCycle = firstRound.cycles[0]
+  const urls = [
+    firstCycle?.known?.audioUrl,
+    firstCycle?.target?.voice1Url,
+    firstCycle?.target?.voice2Url,
+  ].filter(Boolean) as string[]
+  if (urls.length === 0) return
+
+  const results = await Promise.allSettled(urls.map(url =>
+    fetch(url).then(r => r.ok ? r.arrayBuffer().then(() => url) : null).catch(() => null)
+  ))
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) {
+      warmedUpAudioUrls.value.add(r.value)
+    }
+  }
+}
+
+/**
  * Phase 2 (BACKGROUND): fire-and-forget warm-up for the rest of the
  * script. Runs while phase-1 rounds are playing — by the time the
  * learner gets through 5 rounds (~25 min), the whole batch should
@@ -6323,14 +6360,13 @@ async function triggerPreemptiveInfPlayWarmUp(): Promise<void> {
       return
     }
 
-    console.log(`[LearningPlayer] Pre-emptive INF PLAY warm-up: caching first 5 infplay rounds (starting at index ${firstInfIdx})`)
-    // Run phase-1 in background (no await — main loop keeps playing),
-    // then phase-2 after it completes.
-    const slice = rounds.slice(firstInfIdx, firstInfIdx + 5)
-    void warmUpInfPlayRounds(slice, slice.length).then(() => {
-      console.log('[LearningPlayer] Pre-emptive warm-up phase 1 complete; firing phase 2')
-      warmUpInfPlayRoundsBackground(rounds, firstInfIdx + 5)
-    })
+    console.log(`[LearningPlayer] Pre-emptive INF PLAY warm-up: caching all infplay rounds (starting at index ${firstInfIdx})`)
+    // Pre-emptive is already background — no two-phase split needed.
+    // Fire one big background batch for everything from the first
+    // infplay round onward. By the time the learner finishes the
+    // last main-loop belt, all infplay audio is cached and entry
+    // (Spotify-style bootstrap of just the first cycle) is instant.
+    warmUpInfPlayRoundsBackground(rounds, firstInfIdx)
   } catch (err) {
     console.warn('[LearningPlayer] Pre-emptive INF PLAY warm-up failed:', err)
   }
@@ -7668,22 +7704,17 @@ onMounted(async () => {
                   )
                   if (firstInfPlayIdx >= 0) {
                     console.debug(`[eagerLoad] ${modeTag}: infinite play reached — resuming at first infinite-play round (index ${firstInfPlayIdx})`)
-                    // Phase 1 (blocking): warm up audio for the first
-                    // 5 infplay rounds before allowing playback. The
-                    // random-sampled content defeats the linear 30-min
-                    // prefetch buffer — without this the learner hits
-                    // network-fetch stalls on every cycle.
+                    // Spotify-style bootstrap: fetch only the first
+                    // cycle's audio (~3 files), start playing, fetch
+                    // everything else in background. Same model as
+                    // the main player's instant-playback bootstrap.
                     //
-                    // Auto-resume can land learners who have NEVER
-                    // explicitly entered INF PLAY (mode flag was set
-                    // by the saveRoundProgress auto-entry on their
-                    // first infplay round). Show the intro on first
-                    // encounter here too, in parallel with warm-up.
+                    // If first-time learner, type intro in parallel.
                     isWarmingUpInfPlay.value = true
                     try {
-                      const slice = simpleRounds.slice(firstInfPlayIdx, firstInfPlayIdx + 5)
+                      const slice = simpleRounds.slice(firstInfPlayIdx)
                       const showIntro = !hasSeenInfPlayIntro(courseCode.value)
-                      const warmUpPromise = warmUpInfPlayRounds(slice as any, slice.length)
+                      const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
                       if (showIntro) {
                         await Promise.all([warmUpPromise, startInfPlayIntro()])
                         markInfPlayIntroSeen(courseCode.value)
@@ -7695,9 +7726,8 @@ onMounted(async () => {
                       isWarmingUpInfPlay.value = false
                     }
                     simplePlayer.jumpToRound(firstInfPlayIdx)
-                    // Phase 2 (background): cache the rest while the
-                    // first batch plays.
-                    warmUpInfPlayRoundsBackground(simpleRounds as any, firstInfPlayIdx + 5)
+                    // Phase 2 (background): everything else.
+                    warmUpInfPlayRoundsBackground(simpleRounds as any, firstInfPlayIdx)
                   } else {
                     // Shouldn't happen — endSeed was sized to force
                     // infinite-play emission — but fall through to the
