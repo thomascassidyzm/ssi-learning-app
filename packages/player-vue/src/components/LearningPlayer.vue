@@ -1028,6 +1028,27 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
 
   if (isInstantPlaybackCourse(courseCode.value)) {
     if (idx >= totalLoaded - INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS) {
+      // INF PLAY uses its own pagination (round-number-based) vs
+      // main-loop tier-3 (legoId-based). Branch on mode.
+      if (currentMode.value === 'infplay') {
+        void instantPlayback.prefetchNextInfPlayBatch().then(() => {
+          const mapForInf = instantPlayback.roundMap.value
+          if (!mapForInf) return
+          const mainLoopCount = mapForInf.rounds[0] ? mapForInf.rounds[0].r - 1 : 0
+          const refreshed = infPlayCyclesToRounds(
+            instantPlayback.infPlayCycles.value as any,
+            mainLoopCount,
+          )
+          if (refreshed.length > totalLoaded) {
+            const newRounds = refreshed.slice(totalLoaded) as any
+            simplePlayer.appendRounds(newRounds)
+            loadedRounds.value = refreshed as any
+            // Warm up the new rounds' audio too.
+            warmUpInfPlayRoundsBackground(newRounds as any, 0)
+          }
+        })
+        return
+      }
       void instantPlayback.prefetchTier3().then(() => {
         const map = instantPlayback.roundMap.value
         if (!map) return
@@ -7501,9 +7522,17 @@ onMounted(async () => {
                 }
               })
           } else {
-            // INF PLAY background prefetch: get the next batch of
-            // infplay rounds. By the time the learner reaches the
-            // edge of the current batch, the next is ready.
+            // INF PLAY: warm up audio for ALL bootstrap rounds in
+            // background. The /infplay-cycles endpoint gave us cycle
+            // metadata; the audio bytes still need fetching. Without
+            // this, the audio element pulls each clip on-demand,
+            // exposing 4G latency on every cycle (Tom's "audio fell
+            // off a cliff after 2 cycles" 2026-05-20).
+            warmUpInfPlayRoundsBackground(initialRounds as any, 0)
+            // Next-batch prefetch: get the next 5 infplay rounds AND
+            // warm up their audio. Fires concurrently with the first-
+            // batch warm-up above so by the time the learner reaches
+            // round 6 the audio's ready.
             void instantPlayback.prefetchNextInfPlayBatch().then(() => {
               const mapForInf = instantPlayback.roundMap.value
               if (!mapForInf) return
@@ -7516,6 +7545,8 @@ onMounted(async () => {
                 const newRounds = refreshedRounds.slice(initialRounds.length) as any
                 simplePlayer.appendRounds(newRounds)
                 loadedRounds.value = refreshedRounds as any
+                // Warm up the new rounds' audio too.
+                warmUpInfPlayRoundsBackground(newRounds as any, 0)
               }
             })
           }
