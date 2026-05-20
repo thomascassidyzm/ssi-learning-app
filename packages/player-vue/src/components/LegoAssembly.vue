@@ -325,15 +325,11 @@ function softHyphenate(text: string): string {
   // Only split SINGLE LONG WORDS mid-word \u2014 German compound nouns
   // ("Krankenversicherung" \u2192 "Krankenversich\u00ADerung"), agglutinative
   // Finnish/Hungarian forms, etc. Anything below the per-language
-  // limit is returned verbatim.
-  //
-  // Multi-word phrases keep regular inter-word spaces and wrap at
-  // word boundaries naturally \u2014 NO visible hyphen at a normal word
-  // break. The prior design used NBSP between words + SHY at line
-  // boundaries to force "one chunk" semantics, but for any multi-word
-  // tile that wrapped (most German sentences) it produced fake hyphens
-  // at every wrapped word break ("Ich bin mir - / nicht sicher, - /
-  // wann ich - / bereit sein werde"), which read as nonsense.
+  // limit is returned verbatim. Multi-word phrases never go through
+  // this path because the multi-word A-LEGO render path (see template
+  // + singleBlockWords / blockWords below) splits them into separate
+  // .comp tiles with M-LEGO-style dividers, so each tile contains a
+  // single word.
   return text.split(' ').map(word => {
     if (word.length <= limit) return word
     const parts: string[] = []
@@ -343,6 +339,33 @@ function softHyphenate(text: string): string {
     return parts.join(SHY)
   }).join(' ')
 }
+
+/**
+ * Word-split a single-block (non-M-LEGO) LEGO's text into sub-tiles.
+ * A multi-word A-LEGO renders as a chain of word-sized .comp tiles with
+ * the same vertical-bar dividers M-LEGO components use, and wraps to the
+ * next line at a divider rather than wrapping text inside one tile.
+ * CJK / no-space scripts return as a single segment (no spaces to split).
+ */
+function blockWords(text: string | undefined | null): string[] {
+  if (!text) return []
+  const trimmed = text.trim()
+  if (!trimmed) return []
+  return trimmed.split(/\s+/).filter(Boolean)
+}
+
+// Convenience: words of the single-block target text in single-tile mode.
+const singleBlockWords = computed(() => {
+  return blockWords(props.blocks[0]?.targetText)
+})
+
+// True when the single-tile block is a multi-word A-LEGO that should
+// render as word-sized sub-tiles. Does NOT fire for M-LEGO components
+// (those have their own structure via mLegoComponents).
+const isMultiWordSingleBlock = computed(() => {
+  if (mLegoComponents.value) return false
+  return singleBlockWords.value.length > 1
+})
 
 /**
  * For long M-LEGOs in practice phrases: split aligned components into
@@ -446,14 +469,27 @@ const sentenceScale = computed(() => {
         '--char-count': blocks[0]?.targetText.length || 8,
       }"
     >
-      <!-- Target row: single tile, components are spans with stubs between -->
-      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents }">
+      <!-- Target row: single tile, components are spans with stubs between.
+           Three modes:
+             1. M-LEGO with components → component-aligned sub-tiles
+             2. Multi-word A-LEGO → word-aligned sub-tiles (same divider
+                styling). Wraps across lines at sub-tile boundaries rather
+                than wrapping text inside one big tile.
+             3. Single-word A-LEGO → one sub-tile, no dividers. -->
+      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents || isMultiWordSingleBlock }">
         <template v-if="mLegoComponents">
           <span
             v-for="(comp, i) in mLegoComponents"
             :key="i"
             class="comp"
           >{{ softHyphenate(comp.target) }}</span>
+        </template>
+        <template v-else-if="isMultiWordSingleBlock">
+          <span
+            v-for="(word, i) in singleBlockWords"
+            :key="i"
+            class="comp"
+          >{{ softHyphenate(word) }}</span>
         </template>
         <span v-else class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
       </div>
@@ -526,7 +562,7 @@ const sentenceScale = computed(() => {
             <div
               class="lego-block"
               :class="{
-                'has-components': !!alignedBlockComponents(block),
+                'has-components': !!alignedBlockComponents(block) || blockWords(block.targetText).length > 1,
                 'solo-component': block.isSoloComponent,
                 'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),
               }"
@@ -537,6 +573,13 @@ const sentenceScale = computed(() => {
                   :key="ci"
                   class="comp block-text"
                 >{{ softHyphenate(comp.target) }}</span>
+              </template>
+              <template v-else-if="blockWords(block.targetText).length > 1">
+                <span
+                  v-for="(word, wi) in blockWords(block.targetText)"
+                  :key="wi"
+                  class="comp block-text"
+                >{{ softHyphenate(word) }}</span>
               </template>
               <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
             </div>
