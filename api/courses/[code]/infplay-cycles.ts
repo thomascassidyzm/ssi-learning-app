@@ -182,7 +182,7 @@ export default async function handler(
         .limit(10000),
       supabase
         .from('courses')
-        .select('course_version')
+        .select('content_version')
         .eq('course_code', code)
         .single(),
     ])
@@ -217,7 +217,7 @@ export default async function handler(
     }))
     const phraseRows: PhraseRow[] = (phrasesResult.data || []) as PhraseRow[]
     const mainLoopCount = legoRows.length
-    const version = (courseResult.data as any).course_version ?? 1
+    const version = (courseResult.data as any).content_version ?? 1
 
     if (mainLoopCount === 0) {
       res.status(404).json({ error: `Course ${code} has no main-loop LEGOs` })
