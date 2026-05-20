@@ -1354,7 +1354,12 @@ watch(
 .listening-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  /* Bottom NavPill is z-index 2900 and BottomNav 3000 — both were
+   * painting over the overlay's footer area on iOS PWA. 3100 sits
+   * above both. Belt-skip loader is also 3000; if both ever show
+   * together the belt-skip loader needs the higher one, so kept at
+   * a strict +100 over the highest player-chrome value. */
+  z-index: 3100;
   display: flex;
   flex-direction: column;
   /* Near-solid base so the player chrome behind doesn't bleed through.
