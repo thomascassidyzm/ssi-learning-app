@@ -101,17 +101,15 @@ export function podStageFor(
   return { stage: totalStages, iter: null }
 }
 
-const DEFAULT_POD_ACTIVATION = 2
+const DEFAULT_POD_ACTIVATION = 5
 
 // Hotfix cap (2026-05-20). Some learners have stale enrollment values like
-// 21 / 31 / 58 from an earlier activation rule. Combined with the previous
-// roundInterval=5 they meant pods only fired once every ~5 rounds, starting
-// 20+ rounds into the course — so most sessions surfaced no pods at all.
-// Capping the lifetime activation value here is the smallest change that
-// unblocks pods for the majority of learners without a backfill migration.
-// The proper redesign (mode-agnostic monotonic counter, growing intervals
-// like 2 / 2 / 3 / 3 / 4 / 4 / 5 / 5 / 5 / 5...) lands separately.
-const POD_ACTIVATION_CAP = 2
+// 21 / 31 / 58 from an earlier activation rule. Cap at 5 so the first pod
+// surfaces ~5 rounds into a session (gives the learner time to settle into
+// speaking practice before listening pods start interleaving). The proper
+// redesign (mode-agnostic monotonic counter, growing intervals like
+// 2 / 2 / 3 / 3 / 4 / 4 / 5 / 5 / 5 / 5...) lands separately.
+const POD_ACTIVATION_CAP = 5
 
 // ============================================================================
 // Types

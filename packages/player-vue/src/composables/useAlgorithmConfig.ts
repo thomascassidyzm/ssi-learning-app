@@ -195,12 +195,12 @@ const DEFAULT_PODS: PodsConfig = {
   gapBetweenMs: 1000,
   /* L2 pod-lap fires every 5 main rounds from activation. Hotfix
    * 2026-05-20: stale activation values (21+ from an earlier rule) are
-   * capped at 2 on read in usePodLapScheduler — that unblocks existing
-   * learners. Cadence stays at 5 here so the session pacing feels right
-   * (~25 min between pods). The growing-interval scheduler (2/2/3/3/4/4
+   * capped at 5 on read in usePodLapScheduler so the first pod surfaces
+   * ~5 rounds in (gives the learner time to settle into speaking practice
+   * before pods interleave). The growing-interval scheduler (2/2/3/3/4/4
    * /5/5/5/5...) lands separately. */
   roundInterval: 5,
-  podActivationRound: 2,
+  podActivationRound: 5,
 }
 
 const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {
