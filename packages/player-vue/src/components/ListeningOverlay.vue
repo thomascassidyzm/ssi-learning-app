@@ -1354,12 +1354,13 @@ watch(
 .listening-overlay {
   position: fixed;
   inset: 0;
-  /* Bottom NavPill is z-index 2900 and BottomNav 3000 — both were
-   * painting over the overlay's footer area on iOS PWA. 3100 sits
-   * above both. Belt-skip loader is also 3000; if both ever show
-   * together the belt-skip loader needs the higher one, so kept at
-   * a strict +100 over the highest player-chrome value. */
-  z-index: 3100;
+  /* Intentionally BELOW the bottom NavPill (z-index 2900) and BottomNav
+   * (z-index 3000) — the nav stays visible during Listening Mode as an
+   * escape route so the learner can leave via the normal nav pill as
+   * well as the close-X. To prevent the nav from clipping the last item
+   * in the scroll area, .scene-list and .phrase-list carry their own
+   * bottom padding that clears the nav-pill footprint. */
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   /* Near-solid base so the player chrome behind doesn't bleed through.
@@ -1808,16 +1809,32 @@ watch(
  * SCENE LIST (Pods view, no scene selected)
  * ═══════════════════════════════════════════════════════════════ */
 .scene-list-wrap {
+  /* Scrollable region — without this, long pods (>~6 scenes) just clip
+   * past the viewport and the bottom scenes get painted over by the
+   * nav-pill (which stays visible during Listening Mode as an escape
+   * route). Now scrolls independently; .scene-list's padding-bottom
+   * gives the last scene clearance above the nav pill. */
+  flex: 1;
+  min-height: 0;
   width: 100%;
   max-width: 600px;
-  margin: 4.5rem auto 1.5rem;
+  margin: 4.5rem auto 0;
   padding: 0 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.scene-list-wrap::-webkit-scrollbar { display: none; }
 
 .scene-list {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
+  /* Clear the nav-pill footprint (~60px tall, sits 12px + safe-area
+   * from the viewport bottom). 110px is a comfortable buffer that
+   * holds across iPhone notch heights without leaving an awkward gap
+   * when the pod has only a few scenes. */
+  padding-bottom: 110px;
 }
 
 .scene-empty {
