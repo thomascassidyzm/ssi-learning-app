@@ -12827,6 +12827,52 @@ button.phase-segment:active:not(.is-active) {
   box-shadow: none;
 }
 
+/* --- INF PLAY button states (mist theme — must override the generic
+   white belt-skip styling above with matching specificity) --- */
+[data-theme="mist"] .player .belt-header-skip.is-infplay-eligible {
+  background: rgba(124, 58, 237, 0.10);
+  border: 1.5px solid rgba(124, 58, 237, 0.55);
+  color: #7c3aed;
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
+  animation: belt-infplay-throb-mist 1.8s ease-in-out infinite;
+}
+[data-theme="mist"] .player .belt-header-skip.is-infplay-eligible:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.18);
+  color: #6d28d9;
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
+              0 0 14px rgba(124, 58, 237, 0.35);
+}
+[data-theme="mist"] .player .belt-header-skip.is-infplay-active {
+  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+  border: 1.5px solid rgba(124, 58, 237, 0.7);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(44, 38, 34, 0.14),
+              0 0 14px rgba(167, 139, 250, 0.5);
+  animation: none;
+}
+[data-theme="mist"] .player .belt-header-skip.is-infplay-active:hover:not(:disabled) {
+  background: linear-gradient(135deg, #8b4ff5 0%, #b69cfb 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16),
+              0 0 18px rgba(167, 139, 250, 0.65);
+}
+
+/* Mist-theme throb keyframes — softer shadow than the dark-theme
+ * version so the pulse reads on a light background without looking
+ * like a defect. */
+@keyframes belt-infplay-throb-mist {
+  0%, 100% {
+    box-shadow: 0 2px 4px rgba(44, 38, 34, 0.08),
+                0 0 3px rgba(124, 58, 237, 0.20);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 2px 6px rgba(44, 38, 34, 0.12),
+                0 0 12px rgba(124, 58, 237, 0.45);
+    transform: scale(1.06);
+  }
+}
+
 /* --- Mode / Transport buttons --- */
 [data-theme="mist"] .player .mode-btn,
 [data-theme="mist"] .player .transport-btn {
