@@ -129,6 +129,15 @@ const playbackSpeed = ref(1)
 // Inject providers
 const supabase = inject('supabase', null)
 
+// Belt-jump strip refs — used to scroll the active belt into the
+// horizontal centre on mount + whenever the active belt changes. Without
+// this, the White (start) and Black (end) belts get clipped at the
+// strip's edges on narrow viewports; the user has no idea they can
+// scroll. With it, the active belt always lands in the middle and the
+// edge fade-mask (see CSS) hints that more belts exist either side.
+const beltStripEl = ref<HTMLElement | null>(null)
+const activeBeltPipEl = ref<HTMLElement | null>(null)
+
 // State
 const isLoading = ref(true)
 const error = ref(null)
@@ -147,6 +156,13 @@ const visiblePhrases = ref([])
 const currentIndex = ref(-1)
 const isPlaying = ref(false)
 const audioController = ref(null)
+
+/** Dialogues (pods) loop toggle. OFF (default): on scene-end, auto-
+ *  advance to the next scene — the whole pod plays as a continuous
+ *  listening session. ON: stay on the current scene, restart it from
+ *  the top (Spotify-style single-track repeat). Only meaningful in
+ *  pods view with a scene selected. */
+const loopScene = ref(false)
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -707,6 +723,28 @@ const advanceToNext = async (myPlaybackId) => {
 const handleEndOfList = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId) return
 
+  // Dialogues view with a scene selected: loop the scene or auto-advance
+  // to the next scene, depending on the loop toggle. Default is auto-
+  // advance — the whole pod plays through as a continuous session.
+  if (view.value === 'pods' && selectedScene.value && !loopScene.value) {
+    const sceneList = pods.scenes.value
+    const currentSceneIdx = sceneList.findIndex(s => s.id === selectedScene.value.id)
+    const nextScene = currentSceneIdx >= 0 ? sceneList[currentSceneIdx + 1] : null
+    if (nextScene) {
+      // openScene resets currentIndex to 0 and stops playback; kick off
+      // playback once the new scene's phrases have landed.
+      openScene(nextScene)
+      await nextTick()
+      playbackId += 1
+      const newId = playbackId
+      await playCurrentPhrase(newId)
+      return
+    }
+    // No next scene: fall through to the default loop-this-list behaviour
+    // (restart current scene). End of pod = polite re-cycle of the last
+    // scene rather than abrupt stop.
+  }
+
   if (mode.value === 'shuffled') {
     shufflePhrases()
   }
@@ -1041,6 +1079,24 @@ watch(playbackSpeed, (newSpeed) => {
     audioController.value.setPlaybackRate(newSpeed)
   }
 })
+
+// Centre the active belt in the belt-jump strip whenever it changes (on
+// mount, on belt promotion, on view switch). nextTick so the ref is
+// resolved after Vue has rendered the new active pip.
+watch(
+  [currentBeltIndex, view, beltJumpPoints],
+  async () => {
+    await nextTick()
+    const pip = activeBeltPipEl.value
+    if (!pip || typeof pip.scrollIntoView !== 'function') return
+    try {
+      pip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    } catch {
+      // Older Safari quirks — bail silently; the fade-mask still works.
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -1153,6 +1209,22 @@ watch(playbackSpeed, (newSpeed) => {
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
+      <button
+        v-if="view === 'pods' && selectedScene"
+        class="scene-loop-btn"
+        :class="{ active: loopScene }"
+        type="button"
+        :title="loopScene ? 'Repeat this scene — tap to flow into next scenes instead' : 'Flow into next scene — tap to repeat this scene'"
+        :aria-pressed="loopScene"
+        @click="loopScene = !loopScene"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+      </button>
 
       <!-- Transport: play/stop + progress bar -->
       <div class="transport-bar">
@@ -1204,12 +1276,14 @@ watch(playbackSpeed, (newSpeed) => {
          row. Active pip is filled; others are outlined. -->
     <div
       v-if="(view === 'phrases' || view === 'seeds') && beltJumpPoints.length > 1"
+      ref="beltStripEl"
       class="belt-jump-strip"
       @click.stop
     >
       <button
         v-for="point in beltJumpPoints"
         :key="point.beltIndex"
+        :ref="(el) => { if (point.beltIndex === currentBeltIndex) activeBeltPipEl = el }"
         class="belt-jump-pip"
         :class="{ active: point.beltIndex === currentBeltIndex }"
         :style="{ '--pip-color': point.beltColor }"
@@ -1831,6 +1905,13 @@ watch(playbackSpeed, (newSpeed) => {
   padding: 0.5rem 1rem 0.25rem;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Soft edge fade — signals "more content scrolls off this side" so the
+   * White (start) and Black (end) belts aren't quietly clipped on narrow
+   * viewports. Fades only the outer ~6% of the strip; the active belt
+   * always renders fully because we scrollIntoView it on mount + change. */
+  -webkit-mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+          mask-image: linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+  scroll-behavior: smooth;
 }
 
 .belt-jump-strip::-webkit-scrollbar {
@@ -1911,6 +1992,41 @@ watch(playbackSpeed, (newSpeed) => {
 }
 
 .scene-back-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Dialogues loop toggle — same chrome as scene-back / shuffle so the
+ * three sit naturally in a row. Filled with belt colour when active to
+ * make the "you're repeating one scene" state unmistakable. */
+.scene-loop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-medium);
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.scene-loop-btn:hover {
+  background: var(--pill-bg-hover);
+  color: var(--text-secondary);
+}
+
+.scene-loop-btn.active {
+  background: var(--belt-color);
+  border-color: var(--belt-color);
+  color: white;
+}
+
+.scene-loop-btn svg {
   width: 16px;
   height: 16px;
 }
