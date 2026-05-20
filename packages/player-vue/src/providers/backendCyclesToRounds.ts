@@ -38,6 +38,51 @@ const audioUrl = (uuid: string | undefined): string => {
 }
 
 /**
+ * INF PLAY adapter — converts BackendCycles emitted by
+ * /api/courses/:code/infplay-cycles into Round[]. Different shape from
+ * the main-loop adapter: each Round groups cycles by `inf_round`
+ * (multiple LEGOs per round — spaced rep + random USE), not by
+ * legoId.
+ *
+ * The round's nominal legoId is the first cycle's legoId — purely
+ * cosmetic, used as a fallback for the runtime cursor when
+ * saveRoundProgress doesn't have a lastMainLoopLegoId anchor. The
+ * INF PLAY round itself isn't "about" any single LEGO.
+ */
+export function infPlayCyclesToRounds(
+  cycles: BackendCycle[],
+  mainLoopCount: number,
+): Round[] {
+  const byRound = new Map<number, BackendCycle[]>()
+  for (const c of cycles) {
+    const r = (c as any).inf_round as number | undefined
+    if (typeof r !== 'number') continue
+    const list = byRound.get(r)
+    if (list) list.push(c)
+    else byRound.set(r, [c])
+  }
+  const rounds: Round[] = []
+  for (const [infR, cs] of [...byRound.entries()].sort(([a], [b]) => a - b)) {
+    const playerCycles: Cycle[] = []
+    for (const bc of cs) {
+      const cycle = toPlayerCycle(bc)
+      if (cycle) playerCycles.push(cycle)
+    }
+    if (playerCycles.length === 0) continue
+    const first = cs[0]
+    rounds.push({
+      roundNumber: mainLoopCount + infR,  // absolute round number, 1-based
+      legoId: first.lego_id,
+      seedId: `S${String(first.seed_number).padStart(4, '0')}`,
+      legoTargetText: '',  // INF PLAY rounds aren't "about" one LEGO
+      legoKnownText: '',
+      cycles: playerCycles,
+    })
+  }
+  return rounds
+}
+
+/**
  * Convert cycles buffered by `useInstantPlayback` into `Round[]`,
  * walking `roundMap` in script order so LEGOs land in the order the
  * spaced-rep math expects.
@@ -105,8 +150,12 @@ export function backendCyclesToRounds(
  * The backend emits `intro | debut | build | use` today; `listening`
  * is reserved for a future endpoint extension and is handled here
  * defensively so when it lands we don't have to change the adapter.
+ *
+ * Exported for the INF PLAY adapter (infPlayCyclesToRounds) which
+ * reuses the same cycle-shaping logic but groups by inf_round rather
+ * than by legoId.
  */
-function toPlayerCycle(bc: BackendCycle): Cycle | null {
+export function toPlayerCycle(bc: BackendCycle): Cycle | null {
   const isIntro = bc.type === 'intro'
   const isListening = bc.type === 'listening'
 

@@ -416,6 +416,117 @@ export function useInstantPlayback(
   }
 
   // -----------------------------------------------------------
+  // Public API: INF PLAY bootstrap — parallel to bootstrap() but
+  // sources cycles from /api/courses/:code/infplay-cycles instead of
+  // /cycles. Same instant-playback shape: ~150-300ms to first cycle,
+  // background prefetch keeps the queue ahead of playback.
+  //
+  // Tom 2026-05-20: prior INF PLAY entry fell back to legacy
+  // generateScript (5-15s on cold cache); this endpoint matches the
+  // main-loop bootstrap latency.
+  // -----------------------------------------------------------
+
+  /** Pagination cursor for infplay round prefetch (1-based). */
+  const nextInfRoundCursor = ref<number>(1)
+
+  /** Cycles buffered from /infplay-cycles, walked by SimplePlayer in
+   *  the order they were emitted (server returns spaced rep before
+   *  random USE per round). Each cycle has inf_round on it. */
+  const infPlayCycles = ref<BackendCycle[]>([])
+
+  async function fetchInfPlayCycles(
+    fromRound: number,
+    limit: number,
+    signal?: AbortSignal,
+  ): Promise<{ cycles: BackendCycle[]; nextInfRound: number; mainLoopCount: number; version: number }> {
+    const code = courseCode.value
+    if (!code) throw new Error('[InstantPlayback] courseCode is empty')
+    const url = `${apiBase}/${encodeURIComponent(code)}/infplay-cycles?from_round=${fromRound}&limit=${limit}`
+    const res = await fetch(url, { signal })
+    if (!res.ok) {
+      throw new Error(`[InstantPlayback] infplay-cycles fetch failed: ${res.status}`)
+    }
+    const json = (await res.json()) as {
+      course_code: string
+      version: number
+      cycles: BackendCycle[]
+      next_inf_round: number
+      main_loop_count: number
+    }
+    return {
+      cycles: json.cycles,
+      nextInfRound: json.next_inf_round,
+      mainLoopCount: json.main_loop_count,
+      version: json.version,
+    }
+  }
+
+  async function bootstrapInfPlay(): Promise<BootstrapResult> {
+    isReady.value = false
+    const ctrl = makeAbort()
+    try {
+      const result = await fetchInfPlayCycles(1, BOOTSTRAP_LIMIT, ctrl.signal)
+      infPlayCycles.value = result.cycles
+      nextInfRoundCursor.value = result.nextInfRound
+      const firstCycle = result.cycles[0]
+      if (!firstCycle) {
+        throw new Error('[InstantPlayback] /infplay-cycles returned no cycles')
+      }
+      // Buffer into the standard map so backendCyclesToRounds can pick
+      // them up. INF PLAY rounds don't have a round-map equivalent —
+      // we synthesize one from the inf_round numbers below.
+      bufferCycles(result.cycles)
+      currentLegoId.value = firstCycle.lego_id
+      isReady.value = true
+      // Manufacture a "round-map" for backendCyclesToRounds. Each
+      // unique inf_round becomes a synthetic round entry. legoId is
+      // the FIRST cycle in that inf_round (purely cosmetic — keeps
+      // adapter happy; cursor logic uses lastMainLoopLegoId anyway).
+      const seenRounds = new Map<number, BackendCycle>()
+      for (const c of result.cycles) {
+        const r = (c as any).inf_round as number
+        if (typeof r === 'number' && !seenRounds.has(r)) seenRounds.set(r, c)
+      }
+      roundMap.value = {
+        course_code: courseCode.value,
+        version: result.version,
+        rounds: [...seenRounds.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([r, c]) => ({
+            r: result.mainLoopCount + r,  // absolute round number
+            legoId: c.lego_id,
+            seed: c.seed_number,
+          })),
+      }
+      return { firstCycle, mapVersion: result.version }
+    } finally {
+      releaseAbort(ctrl)
+    }
+  }
+
+  /** Background prefetch — fetches the next INF PLAY round window. */
+  async function prefetchNextInfPlayBatch(): Promise<void> {
+    const ctrl = makeAbort()
+    try {
+      const result = await fetchInfPlayCycles(
+        nextInfRoundCursor.value,
+        BOOTSTRAP_LIMIT,
+        ctrl.signal,
+      )
+      if (result.cycles.length === 0) return
+      bufferCycles(result.cycles)
+      infPlayCycles.value = [...infPlayCycles.value, ...result.cycles]
+      nextInfRoundCursor.value = result.nextInfRound
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        console.warn('[InstantPlayback] infplay prefetch failed:', err)
+      }
+    } finally {
+      releaseAbort(ctrl)
+    }
+  }
+
+  // -----------------------------------------------------------
   // Public API: bootstrap (the critical path)
   // -----------------------------------------------------------
 
@@ -692,6 +803,10 @@ export function useInstantPlayback(
   return {
     // First-paint critical path
     bootstrap,
+    bootstrapInfPlay,
+    prefetchNextInfPlayBatch,
+    infPlayCycles,
+    nextInfRoundCursor,
 
     // Prefetch tiers
     prefetchTier1,

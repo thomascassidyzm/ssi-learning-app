@@ -63,7 +63,7 @@ import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback } from '../composables/useInstantPlayback'
-import { backendCyclesToRounds } from '../providers/backendCyclesToRounds'
+import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 
 /**
@@ -1685,6 +1685,16 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       // Last resort: whole phrase as one tile (salient false — there's
       // no way to isolate the salient LEGO from the rest at this point).
       return [{ id: salientId || 'phrase', targetText, isSalient: false }]
+    }
+    // Golden rule: if audio will play, text must be present. Whatever
+    // failed above (missing legoId, missing componentLegoIds, empty
+    // targetText after the useNative dance), fall back to the cycle's
+    // own target text as a single tile. Never render audio with a
+    // blank screen.
+    const fallbackText = cycle.target?.text || cycle.target?.textNative || ''
+    if (fallbackText) {
+      const fallbackId = cycle.legoId || currentRound.value?.legoId || cycle.id || 'phrase'
+      return [{ id: fallbackId, targetText: fallbackText, isSalient: true }]
     }
     return []
   }
@@ -7354,13 +7364,32 @@ onMounted(async () => {
       // unchanged. The only difference is WHERE the data came from.
       if (isInstantPlaybackCourse(courseCode.value)) {
         try {
+          // Pre-check: if the learner's already in INF PLAY mode,
+          // bootstrap from /infplay-cycles instead of /cycles. Same
+          // latency budget (~150-300ms), but emits review-only content
+          // (spaced rep + random USE) instead of main-loop intros.
+          //
+          // This replaces the legacy CourseEndNoNextLego throw +
+          // generateScript fallback (5-15s on cold cache).
+          let inferEnrollmentMode: 'main' | 'infplay' = 'main'
+          if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
+            try {
+              const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
+              inferEnrollmentMode = (enr?.current_mode === 'infplay') ? 'infplay' : 'main'
+            } catch (modeErr) {
+              console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
+            }
+          }
+
           // 1. Bootstrap — round-map + first cycle. This is the
           //    minimum to know "what round is the learner on" and to
           //    have audio ready to roll. Cold-path budget here is
           //    one indexed query + one tiny cycles fetch.
-          const bootstrapResult = await instantPlayback.bootstrap()
+          const bootstrapResult = inferEnrollmentMode === 'infplay'
+            ? await instantPlayback.bootstrapInfPlay()
+            : await instantPlayback.bootstrap()
           console.log(
-            '[InstantPlayback] Bootstrap ready:',
+            `[InstantPlayback] Bootstrap ready (${inferEnrollmentMode}):`,
             `firstCycle=${bootstrapResult.firstCycle.id}`,
             `mapVersion=${bootstrapResult.mapVersion}`,
           )
@@ -7373,19 +7402,24 @@ onMounted(async () => {
           //    "playback is the loading mask" fix per the spec.
 
           // 3. Build the player's Round[] from the composable's
-          //    buffer, walking the round-map in script order. The
-          //    adapter skips legoIds the buffer hasn't seen yet —
-          //    they fill in as tier 3 / near-edge top-up land.
+          //    buffer. INF PLAY uses a different adapter — rounds
+          //    group by inf_round (multiple LEGOs per round) vs main-
+          //    loop which groups by legoId.
           const map = instantPlayback.roundMap.value
           if (!map) {
             // Bootstrap promises this is non-null on success, but
             // defensively bail to the legacy path if it ever isn't.
             throw new Error('Instant playback bootstrap left roundMap empty')
           }
-          const initialRounds = backendCyclesToRounds(
-            instantPlayback.getBufferedCyclesForLego,
-            map,
-          )
+          const initialRounds = inferEnrollmentMode === 'infplay'
+            ? infPlayCyclesToRounds(
+                instantPlayback.infPlayCycles.value as any,
+                map.rounds[0] ? map.rounds[0].r - 1 : 0,  // mainLoopCount = absolute round - infRound
+              )
+            : backendCyclesToRounds(
+                instantPlayback.getBufferedCyclesForLego,
+                map,
+              )
           if (initialRounds.length === 0) {
             throw new Error('Instant playback produced 0 rounds from buffer')
           }
@@ -7432,55 +7466,76 @@ onMounted(async () => {
             if (seed !== null) beltProgress.value.setPlayingPosition(seed)
           }
 
-          // 5. Background tier 2 + 3 — listening audio + next round's
-          //    cycles. Never blocking; errors swallowed inside the
-          //    composable. Per the spec, the user has the whole
-          //    current round (~5 mins) to download these.
-          void instantPlayback.prefetchTier2()
-            .then(() => instantPlayback.prefetchTier3())
-            .then(() => {
-              // Tier 3 may have brought in the N+1 round's cycles —
-              // fold them into SimplePlayer so the engine can walk
-              // past the initial loaded edge without stalling.
-              const refreshedMap = instantPlayback.roundMap.value
-              if (!refreshedMap) return
-              const refreshedRounds = backendCyclesToRounds(
-                instantPlayback.getBufferedCyclesForLego,
-                refreshedMap,
+          // 5. Background tier 2 + 3 — main-loop only. INF PLAY has
+          //    its own pagination via prefetchNextInfPlayBatch (fired
+          //    by the near-edge watcher below). Tier 2/3 walk the
+          //    round-map by legoId, which doesn't make sense for INF
+          //    PLAY's by-round structure.
+          if (inferEnrollmentMode !== 'infplay') {
+            void instantPlayback.prefetchTier2()
+              .then(() => instantPlayback.prefetchTier3())
+              .then(() => {
+                // Tier 3 may have brought in the N+1 round's cycles —
+                // fold them into SimplePlayer so the engine can walk
+                // past the initial loaded edge without stalling.
+                const refreshedMap = instantPlayback.roundMap.value
+                if (!refreshedMap) return
+                const refreshedRounds = backendCyclesToRounds(
+                  instantPlayback.getBufferedCyclesForLego,
+                  refreshedMap,
+                )
+                // appendRounds dedupes by roundNumber, so this is a
+                // safe no-op when nothing new arrived.
+                if (refreshedRounds.length > initialRounds.length) {
+                  const newRounds = refreshedRounds.slice(initialRounds.length) as any
+                  simplePlayer.appendRounds(newRounds)
+                  loadedRounds.value = refreshedRounds as any
+                  extractComponentsToMaps(newRounds, '[Components] tier-3 refresh')
+                }
+              })
+          } else {
+            // INF PLAY background prefetch: get the next batch of
+            // infplay rounds. By the time the learner reaches the
+            // edge of the current batch, the next is ready.
+            void instantPlayback.prefetchNextInfPlayBatch().then(() => {
+              const mapForInf = instantPlayback.roundMap.value
+              if (!mapForInf) return
+              const mainLoopCount = mapForInf.rounds[0] ? mapForInf.rounds[0].r - 1 : 0
+              const refreshedRounds = infPlayCyclesToRounds(
+                instantPlayback.infPlayCycles.value as any,
+                mainLoopCount,
               )
-              // appendRounds dedupes by roundNumber, so this is a
-              // safe no-op when nothing new arrived.
               if (refreshedRounds.length > initialRounds.length) {
                 const newRounds = refreshedRounds.slice(initialRounds.length) as any
                 simplePlayer.appendRounds(newRounds)
                 loadedRounds.value = refreshedRounds as any
-                extractComponentsToMaps(newRounds, '[Components] tier-3 refresh')
               }
             })
+          }
 
           // Full-script handoff: kick off generateScript() in the
-          // background. The bootstrap above gave us ~5 minutes of
-          // audio to play with, which is plenty for the generator to
-          // walk the whole course (one Supabase read of course_legos
-          // + course_practice_phrases + course_seeds). When it lands
-          // we replace SimplePlayer's queue past the currently-playing
-          // round with the full local script — every subsequent round
-          // is locally constructed, so no per-round network calls,
-          // graceful degradation into infplay when audio's missing,
-          // and offline-mode-capable as the audio cache fills in.
+          // background. INF PLAY skips this — its content comes from
+          // the /infplay-cycles endpoint, paginated batch-by-batch.
+          // generateScript would emit a full main-loop + 50 infplay
+          // rounds which would replace the queue with content that
+          // doesn't make sense in INF PLAY (no need to re-walk main
+          // loop the learner has chosen to leave).
+          if (inferEnrollmentMode === 'infplay') {
+            positionInitialized.value = true
+            dataReady = true
+            return
+          }
+
+          // Main-loop handoff path below.
           //
-          // The tier-3 chain above stays alive in parallel — if the
-          // full-script gen fails for any reason (network blip, query
-          // timeout on a big course), the API path keeps the player
-          // fed. Both writing the same SimplePlayer queue is safe:
-          // appendRounds dedupes by roundNumber, and
-          // replaceQueueFromCurrent only touches future rounds.
-          //
-          // Round numbers between bootstrap and full script align by
-          // construction — both derive from course_round_index /
-          // course_legos in the same order — so the handoff is
-          // silent: same lego_id, same audio IDs, same phase
-          // transitions across the round-3 → round-4 boundary.
+          // The bootstrap above gave us ~5 minutes of audio to play
+          // with, which is plenty for the generator to walk the whole
+          // course. When it lands we replace SimplePlayer's queue
+          // past the currently-playing round with the full local
+          // script — every subsequent round is locally constructed,
+          // so no per-round network calls, graceful degradation into
+          // infplay when audio's missing, offline-mode-capable as the
+          // audio cache fills in.
           void generateScript()
             .then((result) => {
               const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
