@@ -8715,18 +8715,28 @@ defineExpose({
                the affordance is unambiguous about what's about to
                happen. Tom called the morph "the skip belt button
                BECOMES IP button". -->
+          <!-- Forward action: belt-skip chevron in normal main-loop
+               states; infinity symbol when forward-skip would land in
+               INF PLAY. Two distinct visual states for the infinity:
+                 - eligible (would-enter, not currently in)  → throbs,
+                   calling the learner to make a choice
+                 - activated (currentMode === 'infplay')     → steady,
+                   confident "you're here" state
+               Same 36×36 slot as the chevron in both cases — no layout
+               shift, the visual state carries the meaning. -->
           <button
             class="belt-header-skip belt-header-skip--forward"
             :class="{
               'is-skipping': isSkippingBelt,
               'is-loading-target': nextBeltLoading,
-              'is-infplay': wouldEnterInfplay,
+              'is-infplay-eligible': wouldEnterInfplay && currentMode !== 'infplay',
+              'is-infplay-active': currentMode === 'infplay',
             }"
             @click="handleSkipToNextBelt"
             :title="currentMode === 'infplay'
-              ? `INF PLAY — round ${infplayRoundIndex}`
+              ? `In INF PLAY (round ${infplayRoundIndex})`
               : (wouldEnterInfplay
-                  ? 'Enter INF PLAY (random review of everything you have learned)'
+                  ? 'Enter INF PLAY — random review of everything you have learned'
                   : `Skip to ${playingNextBelt?.name ?? 'next'} belt`)"
             :aria-label="currentMode === 'infplay'
               ? `Infinite play, round ${infplayRoundIndex}`
@@ -8737,13 +8747,13 @@ defineExpose({
               ? { '--skip-belt-color': playingNextBelt.color, '--skip-belt-glow': playingNextBelt.glow }
               : {}"
           >
-            <template v-if="wouldEnterInfplay">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                   aria-hidden="true" focusable="false" class="infplay-glyph">
-                <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
-              </svg>
-              <span class="infplay-label">{{ infplayRoundIndex > 0 ? `INF PLAY · ${infplayRoundIndex}` : 'INF PLAY' }}</span>
-            </template>
+            <svg v-if="wouldEnterInfplay"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 :stroke-width="currentMode === 'infplay' ? 2.4 : 2"
+                 stroke-linecap="round" stroke-linejoin="round"
+                 aria-hidden="true" focusable="false">
+              <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
+            </svg>
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
               <polyline points="13 17 18 12 13 7"/>
@@ -9908,49 +9918,58 @@ defineExpose({
   opacity: 0.5;
 }
 
-/* INF PLAY forward-button styling. The forward-skip slot MORPHS from
- * a 36×36 chevron circle into a wider labelled pill when the next
- * forward action would be to enter / continue INF PLAY. Same slot,
- * unambiguous affordance — purple gradient + "INF PLAY" text so the
- * learner knows exactly what they're tapping into. */
-.belt-header-skip.is-infplay {
-  width: auto;
-  min-width: 36px;
-  padding: 0 12px;
-  height: 36px;
-  border-radius: 18px;          /* pill */
-  gap: 6px;
+/* INF PLAY forward-button — two distinct visual states sharing the
+ * 36×36 chevron slot.
+ *
+ *   is-infplay-eligible  →  outline purple, throbs to call the eye.
+ *                           "Tap here to enter INF PLAY."
+ *   is-infplay-active    →  filled purple gradient, steady, brighter
+ *                           glow. "You're in INF PLAY."
+ *
+ * The infinity glyph stays the same; what differs is whether the
+ * button is solid (active) or outlined-and-throbbing (eligible).
+ */
+.belt-header-skip.is-infplay-eligible {
+  opacity: 1;
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.7);
+  background: rgba(124, 58, 237, 0.10);
+  animation: belt-infplay-throb 1.8s ease-in-out infinite;
+}
+.belt-header-skip.is-infplay-eligible:hover:not(:disabled) {
+  opacity: 1;
+  transform: scale(1.08);
+  color: #ddd6fe;
+  background: rgba(124, 58, 237, 0.18);
+}
+
+.belt-header-skip.is-infplay-active {
   opacity: 1;
   color: #ffffff;
   border-color: rgba(167, 139, 250, 0.55);
   background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2),
-              0 0 10px rgba(167, 139, 250, 0.35);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+              0 0 14px rgba(167, 139, 250, 0.5);
 }
-.belt-header-skip.is-infplay .infplay-glyph {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-}
-.belt-header-skip.is-infplay .infplay-label {
-  white-space: nowrap;
-  line-height: 1;
-}
-.belt-header-skip.is-infplay:hover:not(:disabled) {
+.belt-header-skip.is-infplay-active:hover:not(:disabled) {
   opacity: 1;
-  transform: scale(1.04);
+  transform: scale(1.06);
   background: linear-gradient(135deg, #8b4ff5 0%, #b69cfb 100%);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 16px rgba(167, 139, 250, 0.55);
+              0 0 18px rgba(167, 139, 250, 0.65);
 }
-.belt-header-skip.is-infplay:disabled {
-  opacity: 0.55;
-  cursor: default;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+
+@keyframes belt-infplay-throb {
+  0%, 100% {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2),
+                0 0 4px rgba(167, 139, 250, 0.25);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25),
+                0 0 14px rgba(167, 139, 250, 0.55);
+    transform: scale(1.06);
+  }
 }
 
 @keyframes belt-skip-pulse {
