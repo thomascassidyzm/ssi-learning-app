@@ -616,6 +616,10 @@ const persistCursorAtCurrentRound = async () => {
 
   await setRemoteCursor(legoIdToSave, idx)
   liftLocalCeilingIfHigher(legoIdToSave, idx)
+  // Mirror what we just wrote to DB into the local ref so the
+  // resting-state journey-bar reflects current cursor without
+  // waiting for the next enrollment reload.
+  lastCompletedLegoIdRef.value = legoIdToSave
 }
 
 const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
@@ -660,6 +664,9 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
       console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoIdToSave)
     }
     liftLocalCeilingIfHigher(legoIdToSave, roundIndex)
+    // Mirror cursor write into local ref for the resting-state
+    // journey-bar comparison (DB-canonical cursor).
+    lastCompletedLegoIdRef.value = legoIdToSave
     // INF PLAY auto-entry (mid-session). Crossing from the last main-
     // loop round into the first infplay round flips current_mode here
     // so we don't have to wait for a session restart for the mode flag
@@ -929,6 +936,13 @@ const isPlaying = ref(false)
 // when the cursor is currently behind this ceiling.
 const highestCompletedRoundIndex = ref<number | null>(null)
 const highestCompletedLegoId = ref<string | null>(null)
+// Cursor LEGO ID from the enrollment row (last_completed_lego_id).
+// Reactive copy of the DB value — the canonical "where is the cursor"
+// signal for the resting-state journey-bar comparison. DON'T derive
+// this from simplePlayer.currentRound: that's null/stale during the
+// resting state, and an INF PLAY round's legoId is a random USE that
+// doesn't represent pedagogical position.
+const lastCompletedLegoIdRef = ref<string | null>(null)
 // Current cursor (vs ceiling). Critical for infinite-play resume:
 // in infinite-play rounds the saved lastLegoId points to a LEGO
 // reviewed via random-USE, which the legoId-based resume would map to
@@ -968,6 +982,7 @@ watch(
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
         lastCompletedRoundIndex.value = saved.lastCompletedRoundIndex ?? null
+        lastCompletedLegoIdRef.value = saved.lastCompletedLegoId ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
         currentMode.value = saved.currentMode ?? 'main'
@@ -976,6 +991,7 @@ watch(
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
         lastCompletedRoundIndex.value = null
+        lastCompletedLegoIdRef.value = null
         savedCurrentCycleIndex.value = 0
         savedLastPracticedAt.value = null
         currentMode.value = 'main'
@@ -8528,23 +8544,14 @@ const highestAbsoluteRound = computed(() => {
 })
 
 // Cursor LEGO ID for the resting-state journey-bar comparison.
-// INF PLAY rounds carry a random USE legoId as the round's primary
-// — substitute the main-loop anchor (matches what saveRoundProgress
-// writes to DB) so the lex compare against highestCompletedLegoId
-// reflects pedagogical position, not whichever random LEGO the
-// infplay round happened to draw first.
-const cursorLegoId = computed(() => {
-  const round = simplePlayer.currentRound.value
-  if (!round?.legoId) return null
-  const cycles = (round as any).cycles
-  const isInfPlayRound = Array.isArray(cycles) && cycles.length > 0 && !cycles.some((c: any) =>
-    c.type === 'intro' || c.type === 'debut' || c.type === 'build'
-  )
-  if (isInfPlayRound) {
-    return lastMainLoopLegoId.value ?? highestCompletedLegoId.value ?? round.legoId
-  }
-  return round.legoId
-})
+// Sourced from the DB enrollment row (last_completed_lego_id) via
+// lastCompletedLegoIdRef — NOT derived from simplePlayer.
+// simplePlayer.currentRound is null/stale during the resting state
+// (player hasn't started) and an INF PLAY round's legoId is a
+// random USE phrase that doesn't represent pedagogical position.
+// The DB cursor already has the INF PLAY substitution baked in
+// (saveRoundProgress writes lastMainLoopLegoId for infplay rounds).
+const cursorLegoId = computed(() => lastCompletedLegoIdRef.value)
 
 // Belt colours for the journey-bar markers, derived from the same source
 // the belt label uses. The "now" colour matches playingBelt (cursor's
