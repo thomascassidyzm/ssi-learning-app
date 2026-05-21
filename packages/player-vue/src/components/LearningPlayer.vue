@@ -1680,9 +1680,15 @@ async function loadGlobalLegoKnownTexts() {
   const code = courseCode.value
   if (!client || !code) return
   try {
+    // NOTE: course_legos has no target_text_native column (native script
+    // lives on course_practice_phrases). The bad SELECT was returning
+    // 400 silently — the whole global map was empty in production, which
+    // is why INFPLAY phrases were ribboning. Native-script lookups now
+    // fall back to the same romanised map; better than nothing until
+    // course_legos gains a target_text_native column.
     const { data, error } = await client
       .from('course_legos')
-      .select('lego_id, known_text, target_text, target_text_native')
+      .select('lego_id, known_text, target_text')
       .eq('course_code', code)
     if (error) {
       console.warn('[LearningPlayer] Failed to load global lego texts:', error.message)
@@ -1690,17 +1696,40 @@ async function loadGlobalLegoKnownTexts() {
     }
     const knownMap = new Map<string, string>()
     const targetMap = new Map<string, string>()
-    const nativeMap = new Map<string, string>()
     for (const row of (data || [])) {
       if (!row.lego_id) continue
       if (row.known_text) knownMap.set(row.lego_id, row.known_text)
       if (row.target_text) targetMap.set(row.lego_id, row.target_text)
-      if (row.target_text_native) nativeMap.set(row.lego_id, row.target_text_native)
     }
+
+    // Also pull M-LEGO component atoms course-wide. Without this the
+    // INFPLAY decomposer only matches whole LEGO texts (strict ~26%
+    // for German); adding atoms lifts to broader-match ~60%, matching
+    // what the analysis scripts predict. Atoms get synthetic ids
+    // (atom:<parent>:<text>) so they don't collide with real LEGO
+    // ids in the reverse map; first-wins ordering in decomposePhrase
+    // means a real A-LEGO of the same text still dominates an atom.
+    const { data: compData, error: compErr } = await client
+      .from('course_practice_phrases')
+      .select('seed_number, lego_index, target_text')
+      .eq('course_code', code)
+      .eq('phrase_role', 'component')
+      .limit(20000)
+    if (compErr) {
+      console.warn('[LearningPlayer] Component atom load failed:', compErr.message)
+    } else {
+      for (const row of (compData || [])) {
+        if (!row.target_text) continue
+        const parent = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+        const synthId = `atom:${parent}:${row.target_text}`
+        if (!targetMap.has(synthId)) targetMap.set(synthId, row.target_text)
+      }
+    }
+
     globalLegoKnownTextMap.value = knownMap
     globalLegoTargetTextMap.value = targetMap
-    globalLegoTargetTextNativeMap.value = nativeMap
-    console.log('[LearningPlayer] Loaded', knownMap.size, 'global lego texts for', code)
+    globalLegoTargetTextNativeMap.value = targetMap
+    console.log(`[LearningPlayer] Loaded ${knownMap.size} legos + ${(compData || []).length} component atoms for ${code}`)
   } catch (err) {
     console.warn('[LearningPlayer] Global lego text load errored:', err)
   }

@@ -192,7 +192,12 @@ export function decomposePhrase({
         blocks.push({
           id: legoId,
           targetText: originalText,
-          isSalient: false,
+          // Salient flag from the greedy walk — covers A-LEGO salients
+          // (no atoms to anchor on, so the salientSpan branch above
+          // never fires) and any other position where the salient
+          // happens to be found by greedy max-munch rather than via
+          // its M-LEGO atom decomposition.
+          isSalient: legoId === salientId,
           ...(comps ? { components: comps } : {}),
         })
         pos += w
