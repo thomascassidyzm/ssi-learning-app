@@ -34,9 +34,10 @@ export interface BundleDownloaderOptions {
   /** Cache to write into. Required. */
   audioCache: AudioCache
   /**
-   * Max concurrent fetches. Default 4. The cache de-dupes in-flight
-   * fetches for the same id, so this controls cache concurrency, not
-   * total network parallelism.
+   * Max concurrent fetches. Default 1 — keeps us well clear of
+   * Vercel's edge rate limit on cold-cache batches across many
+   * learners. Retained as an option for future tuning (e.g. once
+   * the proxy gets a token bucket) but stays at 1 in production.
    */
   concurrency?: number
   /**
@@ -49,6 +50,17 @@ export interface BundleDownloaderOptions {
    * 'ssi-bundle-download-'.
    */
   storagePrefix?: string
+  /**
+   * Sleep function used for jitter and retry backoff. Defaults to
+   * setTimeout-backed. Tests inject a synchronous resolver to avoid
+   * burning wall-clock time.
+   */
+  sleep?: (ms: number) => Promise<void>
+  /**
+   * RNG used to pick jitter durations. Defaults to Math.random.
+   * Tests inject a deterministic sequence for assertions.
+   */
+  random?: () => number
 }
 
 export interface BundleDownloaderProgress {
@@ -88,10 +100,36 @@ interface CursorPayload {
   cachedIds: string[]
 }
 
-const DEFAULT_CONCURRENCY = 4
+const DEFAULT_CONCURRENCY = 1
 const DEFAULT_QUOTA_PRESSURE_CEILING = 0.85
 const DEFAULT_STORAGE_PREFIX = 'ssi-bundle-download-'
 const CURSOR_PERSIST_EVERY = 10
+
+// Uniform politeness jitter applied between cache-miss fetches.
+const JITTER_MIN_MS = 100
+const JITTER_MAX_MS = 300
+
+// Exponential backoff on 429/503 — 1s, 2s, 4s, 8s, capped at 30s.
+const BACKOFF_BASE_MS = 1000
+const BACKOFF_CAP_MS = 30_000
+const MAX_RETRIES = 3
+
+/** Default sleep, real-time. Stripped to a no-op shim in tests. */
+const defaultSleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Parse the HTTP status out of an AudioCache fetch error message.
+ * AudioCache.persistent.ensure rejects with
+ *   `AudioCache: fetch <id> → <status>`
+ * Anything else returns null and is treated as non-retryable.
+ */
+function parseFetchStatus(message: string): number | null {
+  const match = message.match(/→\s*(\d{3})\b/)
+  if (!match) return null
+  const status = Number(match[1])
+  return Number.isFinite(status) ? status : null
+}
 
 // ============================================================================
 // FACTORY
@@ -102,6 +140,8 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
   const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY
   const ceiling = options.quotaPressureCeiling ?? DEFAULT_QUOTA_PRESSURE_CEILING
   const storagePrefix = options.storagePrefix ?? DEFAULT_STORAGE_PREFIX
+  const sleep = options.sleep ?? defaultSleep
+  const random = options.random ?? Math.random
 
   // Mutable state — singleton per downloader instance.
   let activeCourseCode: string | null = null
@@ -334,14 +374,43 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
           if (queueIdx >= batchTarget) return
           const id = queue[queueIdx]
           queueIdx += 1
-          try {
-            await audioCache.persistent.ensure(id)
-          } catch (err) {
-            progress = {
-              ...progress,
-              lastError: err instanceof Error ? err.message : String(err),
+
+          // Cache-hit fast path: ensure() resolves synchronously from
+          // audioCache.has(id), so we skip both jitter and retry. A
+          // cold-cache learner should never sit through pointless
+          // jitter while the cache walks already-cached ids.
+          const wasAlreadyCached = audioCache.persistent.has(id)
+          if (!wasAlreadyCached) {
+            // Politeness jitter (100–300ms uniform) between cache-miss
+            // fetches — spreads cold-cache hammering across the edge.
+            const jitter = JITTER_MIN_MS + Math.floor(random() * (JITTER_MAX_MS - JITTER_MIN_MS + 1))
+            await sleep(jitter)
+            if (stopRequested) return
+          }
+
+          // Attempt with bounded retries on 429/503. Other errors stay
+          // non-retryable (recorded once in lastError and we move on).
+          let attempt = 0
+          while (true) {
+            try {
+              await audioCache.persistent.ensure(id)
+              break
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err)
+              const status = parseFetchStatus(message)
+              const retryable = status === 429 || status === 503
+              if (retryable && attempt < MAX_RETRIES && !stopRequested) {
+                const delay = Math.min(BACKOFF_BASE_MS * 2 ** attempt, BACKOFF_CAP_MS)
+                attempt += 1
+                await sleep(delay)
+                if (stopRequested) return
+                continue
+              }
+              progress = { ...progress, lastError: message }
+              break
             }
           }
+
           const nowCached = audioCache.persistent.has(id)
           if (nowCached) {
             if (!cursorSet.has(id)) cursorSet.add(id)

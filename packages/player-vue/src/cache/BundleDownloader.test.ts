@@ -232,7 +232,7 @@ beforeEach(() => {
 describe('BundleDownloader', () => {
   it('walks persistent audio in roundMap order', async () => {
     const mock = makeMockCache({ mode: 'auto' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
     await dl.start(bundle)
     expect(mock.ensureCalls).toEqual(ALL_15_IDS)
@@ -240,7 +240,7 @@ describe('BundleDownloader', () => {
 
   it('walks pods before USE phrases, pods in pod_order ascending', async () => {
     const mock = makeMockCache({ mode: 'auto' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
     // Two pods, pod_order 1 then 0 — walker must reorder.
     const pods: BundlePod[] = [
@@ -307,7 +307,7 @@ describe('BundleDownloader', () => {
 
   it('dedupes shared bookend audio across pods', async () => {
     const mock = makeMockCache({ mode: 'auto' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
     // Shared bookend ids — common case where the server inlines the same
     // course-level intro/outro on every pod.
@@ -340,7 +340,7 @@ describe('BundleDownloader', () => {
   it('skips ids already present in cache', async () => {
     const preCached = ['L1-k', 'L2-t1', 'L3-t2']
     const mock = makeMockCache({ mode: 'auto', preCached })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
     await dl.start(bundle)
     // None of the pre-cached ids should be ensure()'d.
@@ -360,7 +360,7 @@ describe('BundleDownloader', () => {
       cachedIds: ['L1-k', 'L1-t1', 'L1-t2', 'L2-k'],
     })
     const mock = makeMockCache({ mode: 'auto' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     await dl.start(bundle)
     // First 4 ids should be skipped; remaining 11 attempted.
     expect(mock.ensureCalls).not.toContain('L1-k')
@@ -377,14 +377,14 @@ describe('BundleDownloader', () => {
       cachedIds: ['L1-k', 'L1-t1', 'L1-t2'],
     })
     const mock = makeMockCache({ mode: 'auto' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     await dl.start(bundle)
     expect(mock.ensureCalls).toEqual(ALL_15_IDS)
   })
 
   it('respects the concurrency cap (no more than N in-flight at once)', async () => {
     const mock = makeMockCache({ mode: 'manual' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache, concurrency: 2 })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, concurrency: 2, sleep: async () => undefined })
     const bundle = buildBundle()
     const runPromise = dl.start(bundle)
 
@@ -414,7 +414,7 @@ describe('BundleDownloader', () => {
   it('continues past an ensure() error and records lastError', async () => {
     const failIds = new Set(['L2-t1', 'L4-k'])
     const mock = makeMockCache({ mode: 'auto', failIds })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
     await dl.start(bundle)
     // Every id was attempted, even the failing ones.
@@ -430,6 +430,7 @@ describe('BundleDownloader', () => {
     const dl = createBundleDownloader({
       audioCache: mock.audioCache,
       quotaPressureCeiling: 0.85,
+      sleep: async () => undefined,
     })
     const bundle = buildBundle()
     await dl.start(bundle)
@@ -441,7 +442,7 @@ describe('BundleDownloader', () => {
 
   it('emits monotonically increasing `cached` counts to subscribers', async () => {
     const mock = makeMockCache({ mode: 'auto' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const cachedSeries: number[] = []
     dl.onProgress((p) => cachedSeries.push(p.cached))
     await dl.start(buildBundle())
@@ -455,7 +456,7 @@ describe('BundleDownloader', () => {
 
   it('stop() halts the loop after the current batch resolves', async () => {
     const mock = makeMockCache({ mode: 'manual' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache, concurrency: 2 })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, concurrency: 2, sleep: async () => undefined })
     const bundle = buildBundle()
     const runPromise = dl.start(bundle)
 
@@ -472,6 +473,199 @@ describe('BundleDownloader', () => {
     expect(mock.ensureCalls).toHaveLength(2)
   })
 
+  // -------------------------------------------------------------------------
+  // Politeness: jitter + 429/503 backoff
+  // -------------------------------------------------------------------------
+
+  it('applies jitter between cache-miss fetches but skips it for cache hits', async () => {
+    // Pre-cache 3 of the 15 ids so the queue still contains the other 12.
+    // After build, has() is also true for those 12 once auto-mode ensures
+    // them — but the worker's hit-check runs BEFORE ensure, so all 12 are
+    // miss-path and each gets one sleep call. The 3 pre-cached are filtered
+    // out at queue build and never reach the worker.
+    const mock = makeMockCache({ mode: 'auto', preCached: ['L1-k', 'L2-t1', 'L3-t2'] })
+    const sleep = vi.fn(async (_ms: number) => undefined)
+    const random = vi.fn(() => 0.5) // → 200ms
+    const dl = createBundleDownloader({
+      audioCache: mock.audioCache,
+      sleep,
+      random,
+    })
+    await dl.start(buildBundle())
+    // 12 miss-path ensures, each preceded by exactly one jitter sleep.
+    expect(mock.ensureCalls).toHaveLength(12)
+    expect(sleep).toHaveBeenCalledTimes(12)
+    for (const call of sleep.mock.calls) {
+      const ms = call[0] as number
+      expect(ms).toBeGreaterThanOrEqual(100)
+      expect(ms).toBeLessThanOrEqual(300)
+    }
+  })
+
+  it('does not jitter when every id is already cached at worker time', async () => {
+    // Force the cache-hit fast path inside the worker by pre-caching
+    // every id — but route them through the queue by spoofing the
+    // resume cursor with NONE of them, so they enter the worker but
+    // `audioCache.persistent.has(id)` returns true on inspection.
+    // Easiest: bypass the queue-build filter via the resume cursor —
+    // but cursorSet only adds, it doesn't remove the cache check.
+    // Instead test the simpler invariant: with all ids pre-cached, the
+    // queue is empty and sleep is never invoked.
+    const mock = makeMockCache({ mode: 'auto', preCached: ALL_15_IDS })
+    const sleep = vi.fn(async (_ms: number) => undefined)
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep })
+    await dl.start(buildBundle())
+    expect(mock.ensureCalls).toHaveLength(0)
+    expect(sleep).not.toHaveBeenCalled()
+    expect(dl.getProgress().cached).toBe(15)
+  })
+
+  it('retries on 429 with exponential backoff and succeeds', async () => {
+    // Fail the first 2 attempts for L1-k with 429, then succeed.
+    let l1kAttempts = 0
+    const sleep = vi.fn(async (_ms: number) => undefined)
+    const cachedSet = new Set<string>()
+    const ensure = vi.fn(async (id: string): Promise<void> => {
+      if (id === 'L1-k') {
+        l1kAttempts += 1
+        if (l1kAttempts <= 2) {
+          throw new Error(`AudioCache: fetch ${id} → 429`)
+        }
+      }
+      cachedSet.add(id)
+    })
+    const audioCache: AudioCache = {
+      persistent: {
+        ensure,
+        has: (id: string) => cachedSet.has(id),
+        getBlobUrl: vi.fn(async () => null),
+        evictToTarget: vi.fn(async () => undefined),
+      },
+      ephemeral: {
+        acquireForLego: vi.fn(async () => undefined),
+        releaseForLego: vi.fn(async () => 0),
+        has: vi.fn(() => false),
+        getBlobUrl: vi.fn(async () => null),
+      },
+      has: (id: string) => cachedSet.has(id),
+      getBlobUrl: vi.fn(async () => null),
+      quotaPressure: vi.fn(async () => 0),
+      stats: vi.fn(async () => ({
+        persistent: { count: cachedSet.size, bytes: 0 },
+        ephemeral: { count: 0, bytes: 0 },
+        quotaBytes: undefined,
+        usageBytes: undefined,
+      })),
+      clearCourse: vi.fn(async () => undefined),
+    }
+
+    const dl = createBundleDownloader({
+      audioCache,
+      sleep,
+      random: () => 0,
+    })
+    await dl.start(buildBundle())
+
+    // L1-k was attempted 3 times total (2 failures + 1 success).
+    expect(l1kAttempts).toBe(3)
+    // Backoff sleeps: 1000ms after attempt 1, 2000ms after attempt 2.
+    // (Plus jitter sleeps for every cache-miss id — we only assert the
+    // backoff values appear in the sleep call list.)
+    const sleepMs = sleep.mock.calls.map((c) => c[0] as number)
+    expect(sleepMs).toContain(1000)
+    expect(sleepMs).toContain(2000)
+    // All 15 ids ended up cached.
+    expect(cachedSet.size).toBe(15)
+    expect(dl.getProgress().cached).toBe(15)
+    // No lastError — the retries succeeded.
+    expect(dl.getProgress().lastError).toBeNull()
+  })
+
+  it('gives up after 3 retries on persistent 429 and moves on', async () => {
+    // L2-t1 always returns 429.
+    const sleep = vi.fn(async (_ms: number) => undefined)
+    const cachedSet = new Set<string>()
+    let l2t1Attempts = 0
+    const ensure = vi.fn(async (id: string): Promise<void> => {
+      if (id === 'L2-t1') {
+        l2t1Attempts += 1
+        throw new Error(`AudioCache: fetch ${id} → 429`)
+      }
+      cachedSet.add(id)
+    })
+    const audioCache: AudioCache = {
+      persistent: {
+        ensure,
+        has: (id: string) => cachedSet.has(id),
+        getBlobUrl: vi.fn(async () => null),
+        evictToTarget: vi.fn(async () => undefined),
+      },
+      ephemeral: {
+        acquireForLego: vi.fn(async () => undefined),
+        releaseForLego: vi.fn(async () => 0),
+        has: vi.fn(() => false),
+        getBlobUrl: vi.fn(async () => null),
+      },
+      has: (id: string) => cachedSet.has(id),
+      getBlobUrl: vi.fn(async () => null),
+      quotaPressure: vi.fn(async () => 0),
+      stats: vi.fn(async () => ({
+        persistent: { count: cachedSet.size, bytes: 0 },
+        ephemeral: { count: 0, bytes: 0 },
+        quotaBytes: undefined,
+        usageBytes: undefined,
+      })),
+      clearCourse: vi.fn(async () => undefined),
+    }
+    const dl = createBundleDownloader({
+      audioCache,
+      sleep,
+      random: () => 0,
+    })
+    await dl.start(buildBundle())
+
+    // Initial attempt + 3 retries = 4 calls.
+    expect(l2t1Attempts).toBe(4)
+    // Other 14 ids cached.
+    expect(cachedSet.size).toBe(14)
+    expect(dl.getProgress().cached).toBe(14)
+    // lastError reflects the 429.
+    expect(dl.getProgress().lastError).toMatch(/L2-t1 → 429/)
+    // Backoff sleeps: 1s, 2s, 4s (the 3 retry delays before giving up).
+    const sleepMs = sleep.mock.calls.map((c) => c[0] as number)
+    expect(sleepMs.filter((ms) => ms === 1000).length).toBeGreaterThanOrEqual(1)
+    expect(sleepMs.filter((ms) => ms === 2000).length).toBeGreaterThanOrEqual(1)
+    expect(sleepMs.filter((ms) => ms === 4000).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('honours non-default concurrency', async () => {
+    const mock = makeMockCache({ mode: 'manual' })
+    const dl = createBundleDownloader({
+      audioCache: mock.audioCache,
+      concurrency: 3,
+      sleep: async () => undefined,
+      random: () => 0,
+    })
+    const bundle = buildBundle()
+    const runPromise = dl.start(bundle)
+
+    await tickUntil(() => mock.ensureCalls.length >= 3)
+    expect(mock.currentInFlight).toBe(3)
+
+    while (mock.pendingEnsures.size > 0 || mock.ensureCalls.length < 15) {
+      const pending = Array.from(mock.pendingEnsures.values())
+      for (const p of pending) p.resolve()
+      const before = mock.ensureCalls.length
+      await tickUntil(
+        () => mock.ensureCalls.length > before || mock.ensureCalls.length >= 15,
+      )
+    }
+    await runPromise
+    expect(mock.peakInFlight).toBeLessThanOrEqual(3)
+    expect(mock.peakInFlight).toBeGreaterThanOrEqual(2)
+    expect(mock.ensureCalls).toHaveLength(15)
+  })
+
   it('resetCursor() removes the localStorage key for the course', async () => {
     lsStore['ssi-bundle-download-spa'] = JSON.stringify({
       version: 1,
@@ -482,7 +676,7 @@ describe('BundleDownloader', () => {
       cachedIds: ['X-k'],
     })
     const mock = makeMockCache({ mode: 'auto' })
-    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     dl.resetCursor('spa')
     expect(lsStore['ssi-bundle-download-spa']).toBeUndefined()
     // Other courses are left intact.
