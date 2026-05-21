@@ -451,8 +451,11 @@ function alignedBlockComponents(block: LegoBlock): ComponentBreakdown[] | null {
 // Floor 0.85 so the target font stays at least as big as the known-text
 // panel above — long phrases wrap onto more rows rather than shrinking
 // the type below a legible size.
+// Applies to single-block phrases too (Tom 2026-05-21): when decomposition
+// falls back to a single tile holding the whole phrase, that one tile
+// should still respect total-char shrinkage. Otherwise the salient bump
+// reads as huge relative to multi-block phrases that *do* shrink.
 const sentenceScale = computed(() => {
-  if (props.blocks.length <= 1) return 1
   const totalChars = props.blocks.reduce((sum, b) => sum + b.targetText.length, 0)
   if (totalChars <= 20) return 1
   return Math.max(0.85, 1 - (totalChars - 20) * 0.005)

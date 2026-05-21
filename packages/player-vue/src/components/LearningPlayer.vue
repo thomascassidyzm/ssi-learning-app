@@ -1950,6 +1950,18 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       // be located (A-LEGOs with inflected forms, CJK with non-substring
       // match, content gaps where _componentsByLegoId hasn't loaded the
       // salient yet).
+      console.warn(
+        `[displayBlocks] Single-tile fallback (non-intro/non-cmp): decomposePhrase + substring + atom-position all failed.`,
+        {
+          phrase: targetText,
+          salientId,
+          salientText,
+          hasAtoms: salientId ? _componentsByLegoId.has(salientId) : false,
+          vocabSize: legoTargetTextMap.value.size,
+          globalVocabSize: globalLegoTargetTextMap.value.size,
+          cycleType: (cycle?.type || ''),
+        },
+      )
       return [{ id: salientId || 'phrase', targetText, isSalient: false }]
     }
     // Golden rule: if audio will play, text must be present. Whatever
@@ -1960,6 +1972,18 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     const fallbackText = cycle.target?.text || cycle.target?.textNative || ''
     if (fallbackText) {
       const fallbackId = cycle.legoId || currentRound.value?.legoId || cycle.id || 'phrase'
+      console.warn(
+        `[displayBlocks] Last-resort fallback (intro/debut/cmp branch fell through): emitting whole phrase as single salient tile.`,
+        {
+          phrase: fallbackText,
+          fallbackId,
+          cycleType: (cycle.type || ''),
+          isIntroOrDebut,
+          isCmpCycle,
+          hasLegoId: !!currentRound.value?.legoId,
+          knownText: cycleKnownText,
+        },
+      )
       return [{ id: fallbackId, targetText: fallbackText, isSalient: true }]
     }
     return []
