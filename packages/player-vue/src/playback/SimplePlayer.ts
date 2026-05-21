@@ -409,16 +409,19 @@ export class SimplePlayer {
     if (this.state.isPlaying) return
     this.updateState({ isPlaying: true })
 
-    if (this.state.phase === 'pause') {
-      this.startPausePhase()
-    } else if (this.state.phase === 'idle') {
-      // After belt skip or jumpToRound while paused, phase is idle —
-      // start from prompt (same as play() but skipping the isPlaying guard)
-      this.startPhase('prompt')
-    } else {
-      // Re-start current phase to ensure correct audio src
-      this.startPhase(this.state.phase)
-    }
+    // Always restart the current cycle from prompt. If the learner has
+    // stopped the app at all, the previous phase's context is gone from
+    // their head — they may not remember the prompt that played before
+    // the pause-phase silence, the voice they just heard, etc. So we
+    // give them the full 4-phase cycle from the top.
+    //
+    // If a learner just wants to skip to voice1 / voice2, the in-cycle
+    // phase-strip nav pill is the explicit way to do that.
+    //
+    // This also fixes the "looks frozen" UX where pausing in the silent
+    // pause phase + resuming used to restart the silent timer with no
+    // audio cue that anything had happened.
+    this.startPhase('prompt')
   }
 
   stop(): void {
