@@ -1237,13 +1237,23 @@ simplePlayer.onPhaseChanged((phase) => {
 
   // Audio play — log the URL + role for any phase that actually plays
   // a file. Skips silent phases (pause, or listening cycles with
-  // missing prompt/voice2). audio_id is recoverable from the URL.
+  // missing prompt/voice2).
   let audioUrl: string | undefined
   let role: 'known' | 'target1' | 'target2' | null = null
   if (phase === 'prompt') { audioUrl = cycle.known?.audioUrl; role = 'known' }
   else if (phase === 'voice1') { audioUrl = cycle.target?.voice1Url; role = 'target1' }
   else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2' }
   if (audioUrl && role) {
+    // cacheHit reflects whether AudioCache.persistent has the id at the
+    // moment the cycle begins playing — signal for "did the
+    // BundleDownloader / AudioPrefetcher have time to land this audio
+    // in IndexedDB before the learner reached it." Tri-state: null when
+    // we couldn't extract an id (already a blob: URL post-resolution,
+    // or an off-format URL) so queries can distinguish "uncached" from
+    // "couldn't tell".
+    const idMatch = audioUrl.match(/\/api\/audio\/([^?/]+)/)
+    const audioId = idMatch ? idMatch[1] : null
+    const cacheHit = audioId ? audioCache.has(audioId) : null
     logEvent('audio_play', {
       url: audioUrl,
       role,
@@ -1252,6 +1262,7 @@ simplePlayer.onPhaseChanged((phase) => {
       legoId: cycle.legoId ?? null,
       seedId: cycle.seedId ?? null,
       playbackSpeed: cycle.playbackSpeed ?? 1.0,
+      cacheHit,
     })
   }
 })
@@ -3195,6 +3206,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
   try {
     if (lap.intro && !omitIntro) {
       const segStart = Date.now()
+      const cacheHit = audioCache.has(lap.intro.id)
       const result = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
       const ok = handleSegmentResult(result, {
         url: audioUrlFor(lap.intro.id),
@@ -3206,6 +3218,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
         podRound: lap.podRound,
         elapsedMs: Date.now() - segStart,
         reason: result.reason,
+        cacheHit,
       })
       if (!ok) return false
       // Intro → first play: between-phrases pause, gives the bookend room
@@ -3215,6 +3228,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
       const play = lap.plays[i] as PodPlay
       const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
       const segStart = Date.now()
+      const cacheHit = audioCache.has(play.audioId)
       const result = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
       const ok = handleSegmentResult(result, {
         url: audioUrlFor(play.audioId),
@@ -3229,6 +3243,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
         stage: play.stage,
         elapsedMs: Date.now() - segStart,
         reason: result.reason,
+        cacheHit,
       })
       if (!ok) return false
       if (next) {
@@ -3240,6 +3255,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     }
     if (lap.outro) {
       const segStart = Date.now()
+      const cacheHit = audioCache.has(lap.outro.id)
       const result = await playPodSegment(lap.outro.id, lap.outro.duration_ms, 1.0)
       const ok = handleSegmentResult(result, {
         url: audioUrlFor(lap.outro.id),
@@ -3251,6 +3267,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
         podRound: lap.podRound,
         elapsedMs: Date.now() - segStart,
         reason: result.reason,
+        cacheHit,
       })
       if (!ok) return false
     }
