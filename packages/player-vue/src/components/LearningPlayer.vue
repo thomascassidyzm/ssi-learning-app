@@ -2527,18 +2527,15 @@ const playingPrevBelt = computed(() => {
   return { ...BELTS[idx], index: idx }
 })
 
-// Calculate which belt the "back" button will go TO
-// Based on playing position: if >2 seeds into playing belt, go to its start; otherwise previous belt
+// Calculate which belt the "back" button will go TO.
+// Unified rule: always the belt below the current visual playing belt.
+// On White belt, stays on White (button is disabled by the template guard).
+// Works the same in main loop and INF PLAY — in INF PLAY this is "exit
+// + step down one belt from where you visually are", not "go to the
+// highest LEGO" (which would land you in the same belt because the
+// INF PLAY entry ratchets highest_lego to the course's final LEGO).
 const backTargetBelt = computed(() => {
-  const pb = playingBelt.value
-  const currentRound = simplePlayer.currentRound?.value
-  const currentSeedId = currentRound?.seedId || 'S0001'
-  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
-  const beltStart = pb.seedsRequired === 0 ? 1 : pb.seedsRequired
-  if (currentSeedNumber > beltStart + 2 && pb.index > 0) {
-    return pb
-  }
-  return playingPrevBelt.value ?? pb
+  return playingPrevBelt.value ?? playingBelt.value
 })
 
 // Belt skip loading state: true when target belt's first round is NOT yet loaded
@@ -6209,93 +6206,48 @@ const loadSeedIfNeeded = async (targetSeed: number) => {
  */
 const handleGoBackBelt = async () => {
   const currentRound = simplePlayer.currentRound.value
-  const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
-  const BELT_NAMES = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black']
+  const isInfplay = !!(currentRound && !isMainLoopRound(currentRound))
 
-  // Exit INF PLAY → drop the learner at their highest LEGO (the last
-  // main-loop position before they crossed into INF PLAY). Per the
-  // design doc decision: back-belt-skip CANCELS the entry rather than
-  // re-walking the belt. They land back where they were, ready to play
-  // forward into INF PLAY again or back through earlier belts.
-  if (currentRound && !isMainLoopRound(currentRound)) {
-    const targetLegoId = highestCompletedLegoId.value
-    const targetSeed = targetLegoId
-      ? (parseInt(targetLegoId.substring(1, 5), 10) || 1)
-      : 1
-    console.log(`[LearningPlayer] Exiting INF PLAY → highest LEGO ${targetLegoId} (seed ${targetSeed})`)
-    try {
-      haltAllPlayback()
-      // Clear infplay mode FIRST so the next bootstrap (if the load
-      // triggers one) doesn't immediately throw CourseEndNoNextLego
-      // and bounce us back into infplay content.
-      if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-        try {
-          await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
-          currentMode.value = 'main'
-          // NOTE: infplayRoundIndex is lifetime — leave it alone on
-          // exit. Once they've been in INF PLAY, the counter stays as
-          // a "have they ever been" signal for jumpToFurthest and the
-          // pill's lifetime display.
-        } catch (modeErr) {
-          console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
-        }
-      }
-      await loadSeedIfNeeded(targetSeed)
-      simplePlayer.jumpToSeed(targetSeed)
-      if (beltProgress.value) beltProgress.value.setPlayingPosition(targetSeed)
-      await persistCursorAtCurrentRound()
-    } catch (err) {
-      console.warn('[LearningPlayer] handleGoBackBelt (exit infplay) error:', err)
-    }
-    return
-  }
-
-  // Normal back-belt: get current playing position's seed
-  const currentSeedId = currentRound?.seedId || 'S0001'
-  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
-
-  let currentBeltIndex = 0
-  for (let i = BELT_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (currentSeedNumber >= BELT_THRESHOLDS[i]) {
-      currentBeltIndex = i
-      break
-    }
-  }
-
-  // Calculate target: start of current belt, or previous belt if near the start
-  const currentBeltStart = BELT_THRESHOLDS[currentBeltIndex] === 0 ? 1 : BELT_THRESHOLDS[currentBeltIndex]
-  const prevBeltIndex = currentBeltIndex > 0 ? currentBeltIndex - 1 : 0
-  const prevBeltStart = BELT_THRESHOLDS[prevBeltIndex] === 0 ? 1 : BELT_THRESHOLDS[prevBeltIndex]
-
-  // If we're more than 2 seeds into current belt, go to its start
-  // Otherwise, go to previous belt's start
-  const targetSeed = (currentSeedNumber > currentBeltStart + 2 && currentBeltIndex > 0)
-    ? currentBeltStart
-    : prevBeltStart
+  // Unified rule: jump to the start of the belt visually BELOW the
+  // current playing belt. Mirrors backTargetBelt above. Works the
+  // same in main loop and INF PLAY — in INF PLAY this also exits the
+  // mode flag so subsequent sessions resume in main-loop, and it
+  // doesn't rely on highest_completed_lego_id (which the INF PLAY
+  // entry ratchets to the course's final LEGO, so using it as the
+  // back target lands the learner in the same belt they were on).
+  const target = backTargetBelt.value
+  const targetSeed = target.seedsRequired === 0 ? 1 : target.seedsRequired
 
   console.log('[LearningPlayer] handleGoBackBelt called', {
-    currentSeedId,
-    currentSeedNumber,
-    currentBeltName: BELT_NAMES[currentBeltIndex],
+    isInfplay,
+    currentSeedId: currentRound?.seedId,
+    visualBelt: playingBelt.value.name,
+    targetBelt: target.name,
     targetSeed,
-    targetBeltName: BELT_NAMES[targetSeed >= currentBeltStart ? currentBeltIndex : prevBeltIndex],
-    isPlaying: simplePlayer.isPlaying.value,
   })
 
-  // No overlay for back navigation — data is already loaded so it's instant
   try {
     haltAllPlayback()
-    console.log(`[LearningPlayer] Going back to seed ${targetSeed}`)
 
-    // Handle edge case: seed 0 (white belt) means go to round 0
-    if (targetSeed === 0) {
+    // If we're in INF PLAY, flip the mode flag back to main-loop so
+    // future resume-bootstrap doesn't bounce us back into INF PLAY.
+    // infplayRoundIndex is a lifetime counter — leave it alone.
+    if (isInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+      try {
+        await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
+        currentMode.value = 'main'
+      } catch (modeErr) {
+        console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
+      }
+    }
+
+    if (targetSeed <= 1) {
       simplePlayer.jumpToRound(0)
     } else {
       await loadSeedIfNeeded(targetSeed)
       simplePlayer.jumpToSeed(targetSeed)
     }
 
-    // Update visual playing position only — belt award requires natural completion
     if (beltProgress.value) {
       beltProgress.value.setPlayingPosition(targetSeed)
     }
@@ -6304,7 +6256,7 @@ const handleGoBackBelt = async () => {
     // the resting-state choice surfaces next time the player pauses.
     await persistCursorAtCurrentRound()
 
-    console.log(`[LearningPlayer] handleGoBackBelt: complete, now at seed ${targetSeed}`)
+    console.log(`[LearningPlayer] handleGoBackBelt: complete, now at ${target.name} belt (seed ${targetSeed})`)
   } catch (err) {
     console.warn('[LearningPlayer] handleGoBackBelt error:', err)
   }
