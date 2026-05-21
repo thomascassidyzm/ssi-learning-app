@@ -3120,46 +3120,20 @@ const podDelay = (ms: number) => ms <= 0
  * Play a full pod lap (intro bookend → all plays → outro bookend).
  * Returns true iff the lap played to completion (so the ratchet should advance).
  * Caller is responsible for pausing/resuming simplePlayer around this.
+ *
+ * Pod audio is reused many times per pod-round → the cache-based bundle
+ * download path owns prefetch (lives in IndexedDB, served as blob: URLs
+ * by AudioController.audioSource). No per-lap prefetch is done here; if
+ * audio isn't cached yet, the gap manifests audibly and shows up in
+ * audio_play telemetry as a long `elapsedMs`.
  */
-// How many upcoming pod audio files to keep warm in the HTTP/SW cache. Tight
-// inter-play gaps (Aran 2026-05-19: all gaps zeroed) leave no room for a cold
-// load(), so audible silence appears between plays unless the next files'
-// bytes are already in cache by the time play() is called. 8 is enough to
-// absorb a slow phone network without flooding the controller's 50-slot
-// preload LRU during a 130-play lap.
-const POD_PREFETCH_WINDOW = 8
-
 const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
 
-  const audio = audioController.value
   const courseId = encodeURIComponent(courseCode.value)
   const audioUrlFor = (id: string) => `/api/audio/${id}?courseId=${courseId}`
-  const prefetch = (id: string) => {
-    try { audio?.preload({ id, url: audioUrlFor(id) }) } catch {}
-  }
-
-  // Build the linear sequence of audio IDs the lap will play, so we can
-  // roll a prefetch window across it. Intro is skipped iff omitIntro.
-  const sequence: string[] = []
-  if (lap.intro && !omitIntro) sequence.push(lap.intro.id)
-  for (const p of lap.plays) sequence.push(p.audioId)
-  if (lap.outro) sequence.push(lap.outro.id)
-
-  // Warm the first window up-front before we start playing anything.
-  for (let i = 0; i < Math.min(POD_PREFETCH_WINDOW, sequence.length); i++) {
-    prefetch(sequence[i])
-  }
-  // Index of the next sequence entry to prefetch as the lap advances.
-  let prefetchCursor = Math.min(POD_PREFETCH_WINDOW, sequence.length)
-  const advancePrefetch = () => {
-    if (prefetchCursor < sequence.length) {
-      prefetch(sequence[prefetchCursor])
-      prefetchCursor++
-    }
-  }
 
   let playsCompleted = 0
   let abortReason: 'completed' | 'audio_error' | 'cancelled' | 'safety_timeout' = 'completed'
@@ -3175,12 +3149,12 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     payload: Record<string, unknown>,
   ): boolean => {
     // Emit per-play telemetry mirroring the main-cycle audio_play shape.
-    // duration_ms_actual lets us spot plays that ended unnaturally fast
-    // (load error masquerading as natural end via _notifyEnded).
+    // elapsedMs lets us spot plays that ended unnaturally fast (load
+    // error masquerading as natural end via _notifyEnded) or slowly
+    // (cold cache, prefetch missed).
     logEvent('audio_play', payload)
     if (result.ok) {
       playsCompleted++
-      advancePrefetch()
       return true
     }
     abortReason = result.reason === 'cancelled' ? 'cancelled' : 'safety_timeout'
