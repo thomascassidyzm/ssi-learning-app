@@ -218,8 +218,8 @@ function setupHappyFixture() {
     },
     course_round_index: {
       data: [
-        { round_index: 1, seed_number: 1, lego_index: 1 },
-        { round_index: 2, seed_number: 2, lego_index: 1 },
+        { round_index: 1, seed_number: 1, lego_id: 'S0001L01' },
+        { round_index: 2, seed_number: 2, lego_id: 'S0002L01' },
       ],
       error: null,
     },
@@ -267,10 +267,12 @@ describe('GET /api/courses/:code/bundle', () => {
     expect(lego1.targetTextNative).toBeUndefined()
     expect(lego1.components).toBeUndefined()
     expect(lego1.isNew).toBe(true)
+    // known + presentation audio refs have no durationMs because the
+    // course_legos / course_practice_phrases tables only carry target1
+    // and target2 duration columns (see bundle.ts notes on LegoRow).
     expect(lego1.ephemeralAudio.known).toEqual({
       id: 'aud-known-1',
       lifecycle: 'ephemeral',
-      durationMs: 800,
     })
     expect(lego1.ephemeralAudio.target1).toEqual({
       id: 'aud-t1-1',
@@ -310,7 +312,8 @@ describe('GET /api/courses/:code/bundle', () => {
     expect(phraseBuild2).toBeDefined()
     expect(phraseBuild2.role).toBe('build')
     expect(phraseBuild2.audio.known.lifecycle).toBe('ephemeral')
-    expect(phraseBuild2.decomposition).toHaveLength(1)
+    // decomposition no longer in bundle (column lives in dashboard repo only).
+    expect(phraseBuild2.decomposition).toBeUndefined()
 
     // eternal_eligible becomes a use with persistent lifecycle.
     const phraseUse2 = bundle.phrases.find((p: any) => p.legoId === 'S0002L01')

@@ -64,10 +64,14 @@ interface LegoRow {
   target1_audio_id: string | null
   target2_audio_id: string | null
   presentation_audio_id: string | null
-  known_duration_ms: number | null
   target1_duration_ms: number | null
   target2_duration_ms: number | null
-  presentation_duration_ms: number | null
+  // NOTE: course_legos table does NOT have known_duration_ms or
+  // presentation_duration_ms columns — only target1/target2 durations
+  // exist (per 20260202110000_direct_audio_ids.sql). The cycle views
+  // synthesise the known/presentation durations from course_audio via
+  // JOIN, but we query the tables directly. BundleAudioRef.durationMs
+  // is already optional in the contract, so omitting these is fine.
 }
 
 interface PhraseRow {
@@ -78,24 +82,28 @@ interface PhraseRow {
   known_text: string | null
   target_text: string | null
   target_text_roman: string | null
-  decomposition: Array<{
-    legoId: string | null
-    target: string
-    known: string
-    isGhost: boolean
-  }> | null
   known_audio_id: string | null
   target1_audio_id: string | null
   target2_audio_id: string | null
-  known_duration_ms: number | null
   target1_duration_ms: number | null
   target2_duration_ms: number | null
+  // NOTE: course_practice_phrases table does NOT have known_duration_ms.
+  // See LegoRow note above.
+  // NOTE: `decomposition` is added by a migration in the dashboard repo
+  // (ssi-dashboard-v7-clean/migrations) and may not exist in every
+  // environment; we omit it here to keep the SELECT portable. cycles.ts
+  // gets it via the get_course_cycles_window RPC which handles the
+  // absence; if we want decomposition in the bundle later, the same
+  // approach (or a NULL-tolerant column-list select) is the way.
 }
 
 interface RoundIndexRow {
   round_index: number
   seed_number: number
-  lego_index: number
+  // course_round_index materialised view exposes lego_id (string like
+  // "S0042L01"), NOT lego_index. See round-map.ts which uses lego_id
+  // directly. We carry it through and slice the index out where needed.
+  lego_id: string
 }
 
 /** Build a LEGO id of the form "S0042L01". Same helper as infplay-cycles.ts. */
@@ -184,7 +192,7 @@ export default async function handler(
         .select(
           'seed_number, lego_index, type, known_text, target_text, target_text_roman, components, is_new, ' +
             'known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, ' +
-            'known_duration_ms, target1_duration_ms, target2_duration_ms, presentation_duration_ms',
+            'target1_duration_ms, target2_duration_ms',
         )
         .eq('course_code', code)
         .eq('is_new', true)
@@ -193,9 +201,9 @@ export default async function handler(
       supabase
         .from('course_practice_phrases')
         .select(
-          'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, decomposition, ' +
+          'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
             'known_audio_id, target1_audio_id, target2_audio_id, ' +
-            'known_duration_ms, target1_duration_ms, target2_duration_ms',
+            'target1_duration_ms, target2_duration_ms',
         )
         .eq('course_code', code)
         .in('phrase_role', ['build', 'use', 'practice', 'eternal_eligible'])
@@ -204,7 +212,7 @@ export default async function handler(
         .order('position', { ascending: true }),
       supabase
         .from('course_round_index')
-        .select('round_index, seed_number, lego_index')
+        .select('round_index, seed_number, lego_id')
         .eq('course_code', code)
         .order('round_index', { ascending: true }),
     ])
@@ -266,17 +274,16 @@ export default async function handler(
           : undefined
 
       const ephemeralAudio: BundleLego['ephemeralAudio'] = {}
-      const known = buildAudioRef(row.known_audio_id, 'ephemeral', row.known_duration_ms)
+      // known + presentation durations aren't on course_legos (only
+      // target1/target2 have duration columns there). Caller treats
+      // BundleAudioRef.durationMs as optional.
+      const known = buildAudioRef(row.known_audio_id, 'ephemeral', null)
       if (known) ephemeralAudio.known = known
       const target1 = buildAudioRef(row.target1_audio_id, 'ephemeral', row.target1_duration_ms)
       if (target1) ephemeralAudio.target1 = target1
       const target2 = buildAudioRef(row.target2_audio_id, 'ephemeral', row.target2_duration_ms)
       if (target2) ephemeralAudio.target2 = target2
-      const presentation = buildAudioRef(
-        row.presentation_audio_id,
-        'ephemeral',
-        row.presentation_duration_ms,
-      )
+      const presentation = buildAudioRef(row.presentation_audio_id, 'ephemeral', null)
       if (presentation) ephemeralAudio.presentation = presentation
 
       const lego: BundleLego = {
@@ -312,7 +319,8 @@ export default async function handler(
       const lifecycle: AudioLifecycle = role === 'use' ? 'persistent' : 'ephemeral'
 
       const audio: BundlePhrase['audio'] = {}
-      const known = buildAudioRef(row.known_audio_id, lifecycle, row.known_duration_ms)
+      // known duration isn't on course_practice_phrases (only target1/2).
+      const known = buildAudioRef(row.known_audio_id, lifecycle, null)
       if (known) audio.known = known
       const target1 = buildAudioRef(row.target1_audio_id, lifecycle, row.target1_duration_ms)
       if (target1) audio.target1 = target1
@@ -329,16 +337,14 @@ export default async function handler(
         audio,
       }
       if (targets.targetTextNative !== undefined) phrase.targetTextNative = targets.targetTextNative
-      if (Array.isArray(row.decomposition) && row.decomposition.length > 0) {
-        phrase.decomposition = row.decomposition
-      }
+      // decomposition intentionally omitted — see PhraseRow note above.
       phrases.push(phrase)
     }
 
     // --- Round map ----------------------------------------------------------
     const roundMap: BundleRoundMapEntry[] = roundRows.map((r) => ({
       roundIndex: r.round_index,
-      legoId: buildLegoId(r.seed_number, r.lego_index),
+      legoId: r.lego_id,
       seedNumber: r.seed_number,
     }))
 
