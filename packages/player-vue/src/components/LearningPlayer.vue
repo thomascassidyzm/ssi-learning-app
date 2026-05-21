@@ -3019,22 +3019,34 @@ const podLapCancelled = ref(false)
  * Play a single pod-lap audio segment (one bookend or one pod play).
  * Uses the same audioController as commentary. Resolves on ended/error.
  */
-const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<boolean> => {
-  if (!audioId || !audioController.value) return false
+type PodSegmentReason = 'natural' | 'cancelled' | 'safety_timeout'
+type PodSegmentResult = { ok: boolean; reason: PodSegmentReason }
+
+const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<PodSegmentResult> => {
+  if (!audioId || !audioController.value) return { ok: false, reason: 'safety_timeout' }
   const audio = audioController.value
   return new Promise((resolve) => {
     let cancelPoll: ReturnType<typeof setInterval> | null = null
     let safetyTimeout: ReturnType<typeof setTimeout> | null = null
+    let settled = false
     const cleanup = () => {
       audio.offEnded(onEnded)
       try { (audio as any).setPlaybackRate?.(1.0) } catch {}
       if (cancelPoll) clearInterval(cancelPoll)
       if (safetyTimeout) clearTimeout(safetyTimeout)
     }
-    const onEnded = () => {
+    const finish = (result: PodSegmentResult) => {
+      if (settled) return
+      settled = true
       cleanup()
-      resolve(true)
+      resolve(result)
     }
+    // AudioController._notifyEnded fires onEnded for BOTH natural-end AND
+    // load/play errors (it has no error callback path). So this resolves
+    // ok:true for both — we can't tell them apart from here. Per-play
+    // telemetry in playPodLap lets us see latency anomalies that suggest
+    // failed plays without bailing out the whole lap on transient errors.
+    const onEnded = () => finish({ ok: true, reason: 'natural' })
     audio.onEnded(onEnded)
     try {
       ;(audio as any).setPlaybackRate?.(playbackSpeed)
@@ -3042,21 +3054,18 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
     audio.play({ id: audioId, url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`, duration_ms: durationMs })
       .catch((err: any) => {
         console.warn('[LearningPlayer] Pod segment audio error:', err?.message || err)
-        cleanup()
-        resolve(false)
+        finish({ ok: false, reason: 'safety_timeout' })
       })
     cancelPoll = setInterval(() => {
       if (podLapCancelled.value) {
         // User stop signal — abort and stop the audio so it doesn't keep
         // playing in the background after we've released the promise.
         try { audio.stop() } catch {}
-        cleanup()
-        resolve(false)
+        finish({ ok: false, reason: 'cancelled' })
       }
     }, 100)
     safetyTimeout = setTimeout(() => {
-      cleanup()
-      resolve(false)
+      finish({ ok: false, reason: 'safety_timeout' })
     }, 30000)
   })
 }
@@ -3112,18 +3121,89 @@ const podDelay = (ms: number) => ms <= 0
  * Returns true iff the lap played to completion (so the ratchet should advance).
  * Caller is responsible for pausing/resuming simplePlayer around this.
  */
+// How many upcoming pod audio files to keep warm in the HTTP/SW cache. Tight
+// inter-play gaps (Aran 2026-05-19: all gaps zeroed) leave no room for a cold
+// load(), so audible silence appears between plays unless the next files'
+// bytes are already in cache by the time play() is called. 8 is enough to
+// absorb a slow phone network without flooding the controller's 50-slot
+// preload LRU during a 130-play lap.
+const POD_PREFETCH_WINDOW = 8
+
 const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<boolean> => {
   podLapCancelled.value = false
   podLapSkippedByUser.value = false
   playingPodLapAudio.value = true
+
+  const audio = audioController.value
+  const courseId = encodeURIComponent(courseCode.value)
+  const audioUrlFor = (id: string) => `/api/audio/${id}?courseId=${courseId}`
+  const prefetch = (id: string) => {
+    try { audio?.preload({ id, url: audioUrlFor(id) }) } catch {}
+  }
+
+  // Build the linear sequence of audio IDs the lap will play, so we can
+  // roll a prefetch window across it. Intro is skipped iff omitIntro.
+  const sequence: string[] = []
+  if (lap.intro && !omitIntro) sequence.push(lap.intro.id)
+  for (const p of lap.plays) sequence.push(p.audioId)
+  if (lap.outro) sequence.push(lap.outro.id)
+
+  // Warm the first window up-front before we start playing anything.
+  for (let i = 0; i < Math.min(POD_PREFETCH_WINDOW, sequence.length); i++) {
+    prefetch(sequence[i])
+  }
+  // Index of the next sequence entry to prefetch as the lap advances.
+  let prefetchCursor = Math.min(POD_PREFETCH_WINDOW, sequence.length)
+  const advancePrefetch = () => {
+    if (prefetchCursor < sequence.length) {
+      prefetch(sequence[prefetchCursor])
+      prefetchCursor++
+    }
+  }
+
+  let playsCompleted = 0
+  let abortReason: 'completed' | 'audio_error' | 'cancelled' | 'safety_timeout' = 'completed'
+
   logEvent('pod_lap_start', {
     podRound: lap.podRound,
     plays: lap.plays.length,
     omitIntro,
   })
+
+  const handleSegmentResult = (
+    result: PodSegmentResult,
+    payload: Record<string, unknown>,
+  ): boolean => {
+    // Emit per-play telemetry mirroring the main-cycle audio_play shape.
+    // duration_ms_actual lets us spot plays that ended unnaturally fast
+    // (load error masquerading as natural end via _notifyEnded).
+    logEvent('audio_play', payload)
+    if (result.ok) {
+      playsCompleted++
+      advancePrefetch()
+      return true
+    }
+    abortReason = result.reason === 'cancelled' ? 'cancelled' : 'safety_timeout'
+    return false
+  }
+
+  const startedAt = Date.now()
+
   try {
     if (lap.intro && !omitIntro) {
-      const ok = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
+      const segStart = Date.now()
+      const result = await playPodSegment(lap.intro.id, lap.intro.duration_ms, 1.0)
+      const ok = handleSegmentResult(result, {
+        url: audioUrlFor(lap.intro.id),
+        role: 'pod_intro',
+        cycleType: 'pod_intro',
+        legoId: null,
+        seedId: null,
+        playbackSpeed: 1.0,
+        podRound: lap.podRound,
+        elapsedMs: Date.now() - segStart,
+        reason: result.reason,
+      })
       if (!ok) return false
       // Intro → first play: between-phrases pause, gives the bookend room
       await podDelay(podsConfig.value.gapBetweenMs)
@@ -3131,7 +3211,22 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     for (let i = 0; i < lap.plays.length; i++) {
       const play = lap.plays[i] as PodPlay
       const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
-      const ok = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
+      const segStart = Date.now()
+      const result = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
+      const ok = handleSegmentResult(result, {
+        url: audioUrlFor(play.audioId),
+        role: play.playRole,
+        cycleType: 'pod_play',
+        legoId: null,
+        seedId: null,
+        playbackSpeed: play.playbackSpeed,
+        podRound: lap.podRound,
+        playIndex: i,
+        sentenceIdx: play.sentenceIdx,
+        stage: play.stage,
+        elapsedMs: Date.now() - segStart,
+        reason: result.reason,
+      })
       if (!ok) return false
       if (next) {
         await podDelay(podGapMs(play, next))
@@ -3141,7 +3236,19 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
       }
     }
     if (lap.outro) {
-      const ok = await playPodSegment(lap.outro.id, lap.outro.duration_ms, 1.0)
+      const segStart = Date.now()
+      const result = await playPodSegment(lap.outro.id, lap.outro.duration_ms, 1.0)
+      const ok = handleSegmentResult(result, {
+        url: audioUrlFor(lap.outro.id),
+        role: 'pod_outro',
+        cycleType: 'pod_outro',
+        legoId: null,
+        seedId: null,
+        playbackSpeed: 1.0,
+        podRound: lap.podRound,
+        elapsedMs: Date.now() - segStart,
+        reason: result.reason,
+      })
       if (!ok) return false
     }
     return true
@@ -3152,6 +3259,10 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
       cancelled: podLapCancelled.value,
       skippedByUser: podLapSkippedByUser.value,
       stoppedByUser: userStoppedDuringLap.value,
+      playsCompleted,
+      playsExpected: lap.plays.length,
+      abortReason,
+      elapsedMs: Date.now() - startedAt,
     })
   }
 }
