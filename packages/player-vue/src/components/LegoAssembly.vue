@@ -580,7 +580,7 @@ const sentenceScale = computed(() => {
                   'has-components': wagon.length > 1,
                   'wagon-start': wi === 0,
                   'wagon-end': wi === practiceCarriageWagons(block)!.length - 1,
-                  'context': isUseCycle && !block.isSalient,
+                  'salient': block.isSalient,
                 }"
                 :style="{ '--char-count': wagon.reduce((s, c) => s + c.target.length, 0) }"
               >
@@ -618,7 +618,7 @@ const sentenceScale = computed(() => {
                 'has-components': !!alignedBlockComponents(block),
                 'solo-component': block.isSoloComponent,
                 'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),
-                'context': isUseCycle && !block.isSalient && !block.id.startsWith('_gap_') && !block.id.startsWith('_SYN'),
+                'salient': block.isSalient,
               }"
             >
               <template v-if="alignedBlockComponents(block)">
