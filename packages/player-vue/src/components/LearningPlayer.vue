@@ -69,6 +69,7 @@ import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
+import { generateScript as generateBundleScript } from '../script/generateScript'
 
 /**
  * Instant-playback feature flag — courses listed here use the new
@@ -97,6 +98,29 @@ const INSTANT_PLAYBACK_COURSES = new Set<string>([
 ])
 function isInstantPlaybackCourse(courseCode: string): boolean {
   return INSTANT_PLAYBACK_ALL || INSTANT_PLAYBACK_COURSES.has(courseCode)
+}
+
+// ============================================================
+// Bundle-based content loading rollout flag
+// ============================================================
+// Mirrors the INSTANT_PLAYBACK rollout pattern above. When enabled
+// for a course, the INF PLAY entry path uses the new client-side
+// generateScript() + AudioCache + AudioPrefetcher pipeline instead
+// of the legacy server-side /infplay-cycles + warm-up dance. Bundle
+// load + BundleDownloader fire for ALL courses regardless (those are
+// purely additive, see C1+C2). Only the INF PLAY entry switches per
+// course via this flag.
+//
+// Add a course code below to canary it. Leave empty + ALL=false to
+// keep the new path dormant. Legacy path remains the safety net —
+// the new path falls through to legacy if the bundle isn't loaded
+// or generateScript returns no rounds.
+const BUNDLE_BASED_ALL = false
+const BUNDLE_BASED_COURSES = new Set<string>([
+  // Add a single course here to canary, e.g. 'jpn_for_eng'.
+])
+function isBundleBasedCourse(courseCode: string): boolean {
+  return BUNDLE_BASED_ALL || BUNDLE_BASED_COURSES.has(courseCode)
 }
 
 /**
@@ -5866,6 +5890,96 @@ const jumpToRound = async (roundIndex) => {
  * Jump to start of next belt
  * Uses SessionController's lazy loading to load the target round on demand
  */
+/**
+ * Bundle-based INF PLAY entry — flag-gated via `isBundleBasedCourse`.
+ *
+ * Replaces the legacy warm-up dance (warmUpFirstInfPlayCycle +
+ * warmUpInfPlayRoundsBackground + shouldSkipCycle gate) with the new
+ * cache-based pipeline: generateScript() emits INF PLAY rounds from
+ * the bundle, audioCache.persistent.ensure() guarantees the first
+ * cycle's audio is in cache before play, and AudioPrefetcher's watch
+ * acquires ephemeral + persistent audio for everything that follows.
+ *
+ * Returns `true` on success, `false` to signal the caller should fall
+ * through to the legacy path (bundle not loaded yet, or generateScript
+ * returned no rounds for some reason).
+ *
+ * Side effects intentionally LEFT to the caller (so they're identical
+ * across both paths):
+ *  - setMode('infplay') / currentMode update
+ *  - highestCompletedLegoId ratchet
+ *  - lastMainLoopLegoId anchor
+ *  - beltProgress.setPlayingPosition
+ *  - persistCursorAtCurrentRound
+ */
+async function enterInfPlayViaBundle(fromInfRound: number, showIntro: boolean): Promise<boolean> {
+  const bundle = courseBundle.bundle.value
+  if (!bundle) {
+    console.warn('[INF PLAY bundle] Bundle not loaded yet — falling through to legacy warm-up path')
+    return false
+  }
+  let result: ReturnType<typeof generateBundleScript>
+  try {
+    result = generateBundleScript({
+      bundle,
+      position: { mode: 'infplay', fromInfRound: Math.max(1, fromInfRound) },
+      roundLimit: 15,
+    })
+  } catch (err) {
+    console.warn('[INF PLAY bundle] generateScript threw — falling through to legacy:', err)
+    return false
+  }
+  if (result.rounds.length === 0) {
+    console.warn('[INF PLAY bundle] generateScript returned 0 rounds — falling through to legacy')
+    return false
+  }
+
+  // Append the new INF PLAY rounds and remember where the first one
+  // landed in the queue. appendRounds dedupes by roundNumber, so
+  // calling this twice for the same fromInfRound is a no-op rather
+  // than a duplicate insert.
+  const firstNewIdx = simplePlayer.roundCount.value
+  simplePlayer.appendRounds(result.rounds)
+  // Mirror into cachedRounds for downstream consumers that read the
+  // legacy alias (saveRoundProgress, etc.).
+  loadedRounds.value = [...loadedRounds.value, ...result.rounds]
+
+  // Pre-cache the first cycle's audio so playback doesn't gap. We
+  // extract the audio ids from the cycle's URL fields (`/api/audio/<id>`)
+  // and await the persistent.ensure calls before jumpToRound. The
+  // AudioPrefetcher's watch will handle the rest once the round
+  // change fires.
+  const firstCycle = result.rounds[0]?.cycles?.[0]
+  const firstAudioIds: string[] = []
+  if (firstCycle) {
+    const urls = [firstCycle.known?.audioUrl, firstCycle.target?.voice1Url, firstCycle.target?.voice2Url]
+    for (const url of urls) {
+      const id = url?.split('/').pop()
+      if (id) firstAudioIds.push(id)
+    }
+  }
+
+  isWarmingUpInfPlay.value = true
+  try {
+    const ensurePromise = Promise.all(
+      firstAudioIds.map((id) => audioCache.persistent.ensure(id).catch(() => { /* silent */ })),
+    )
+    if (showIntro) {
+      await Promise.all([ensurePromise, startInfPlayIntro()])
+      markInfPlayIntroSeen(courseCode.value)
+      clearInfPlayIntro()
+    } else {
+      await ensurePromise
+    }
+  } finally {
+    isWarmingUpInfPlay.value = false
+  }
+
+  console.log(`[INF PLAY bundle] Entered at fromInfRound=${fromInfRound}, ${result.rounds.length} rounds appended at index ${firstNewIdx}`)
+  simplePlayer.jumpToRound(firstNewIdx)
+  return true
+}
+
 const handleSkipToNextBelt = async () => {
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
@@ -5984,22 +6098,29 @@ const handleSkipToNextBelt = async () => {
         // finish before play starts. The typewriter is the longer
         // bound, so the audio's cached well before the learner reads
         // the last paragraph.
-        isWarmingUpInfPlay.value = true
-        try {
-          const slice = cachedRounds.value.slice(firstInfIdx)
-          const showIntro = !hasSeenInfPlayIntro(courseCode.value)
-          const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
-          if (showIntro) {
-            await Promise.all([warmUpPromise, startInfPlayIntro()])
-            markInfPlayIntroSeen(courseCode.value)
-            clearInfPlayIntro()
-          } else {
-            await warmUpPromise
+        const showIntro = !hasSeenInfPlayIntro(courseCode.value)
+        // Bundle-based path (flag-gated). On success, skips the legacy
+        // warm-up dance entirely. On failure (bundle not loaded, gen
+        // returned 0), falls through to the legacy path below.
+        const usedBundle = isBundleBasedCourse(courseCode.value)
+          && await enterInfPlayViaBundle(infplayRoundIndex.value || 1, showIntro)
+        if (!usedBundle) {
+          isWarmingUpInfPlay.value = true
+          try {
+            const slice = cachedRounds.value.slice(firstInfIdx)
+            const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
+            if (showIntro) {
+              await Promise.all([warmUpPromise, startInfPlayIntro()])
+              markInfPlayIntroSeen(courseCode.value)
+              clearInfPlayIntro()
+            } else {
+              await warmUpPromise
+            }
+          } finally {
+            isWarmingUpInfPlay.value = false
           }
-        } finally {
-          isWarmingUpInfPlay.value = false
+          simplePlayer.jumpToRound(firstInfIdx)
         }
-        simplePlayer.jumpToRound(firstInfIdx)
         // Phase 2 (background): everything else — fetch the rest of
         // round 1's cycles + rounds 2..N in parallel-5. By the time
         // the first cycle finishes (~10s), the next cycles are cached.
@@ -7997,24 +8118,28 @@ onMounted(async () => {
                     // the main player's instant-playback bootstrap.
                     //
                     // If first-time learner, type intro in parallel.
-                    isWarmingUpInfPlay.value = true
-                    try {
-                      const slice = simpleRounds.slice(firstInfPlayIdx)
-                      const showIntro = !hasSeenInfPlayIntro(courseCode.value)
-                      const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
-                      if (showIntro) {
-                        await Promise.all([warmUpPromise, startInfPlayIntro()])
-                        markInfPlayIntroSeen(courseCode.value)
-                        clearInfPlayIntro()
-                      } else {
-                        await warmUpPromise
+                    const showIntro = !hasSeenInfPlayIntro(courseCode.value)
+                    const usedBundle = isBundleBasedCourse(courseCode.value)
+                      && await enterInfPlayViaBundle(infplayRoundIndex.value || 1, showIntro)
+                    if (!usedBundle) {
+                      isWarmingUpInfPlay.value = true
+                      try {
+                        const slice = simpleRounds.slice(firstInfPlayIdx)
+                        const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
+                        if (showIntro) {
+                          await Promise.all([warmUpPromise, startInfPlayIntro()])
+                          markInfPlayIntroSeen(courseCode.value)
+                          clearInfPlayIntro()
+                        } else {
+                          await warmUpPromise
+                        }
+                      } finally {
+                        isWarmingUpInfPlay.value = false
                       }
-                    } finally {
-                      isWarmingUpInfPlay.value = false
+                      simplePlayer.jumpToRound(firstInfPlayIdx)
+                      // Phase 2 (background): everything else.
+                      warmUpInfPlayRoundsBackground(simpleRounds as any, firstInfPlayIdx)
                     }
-                    simplePlayer.jumpToRound(firstInfPlayIdx)
-                    // Phase 2 (background): everything else.
-                    warmUpInfPlayRoundsBackground(simpleRounds as any, firstInfPlayIdx)
                   } else {
                     // Shouldn't happen — endSeed was sized to force
                     // infinite-play emission — but fall through to the
