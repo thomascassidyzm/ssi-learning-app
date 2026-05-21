@@ -6106,16 +6106,24 @@ const handleSkipToNextBelt = async () => {
         lastMainLoopLegoId.value = highestCompletedLegoId.value
       }
 
-      // Drop the learner at the first infplay round. Reuses jumpToFurthest's
-      // discovery pattern: find the first round in cachedRounds with no
-      // intro/debut/build cycles (i.e. pure revival).
-      const firstInfIdx = cachedRounds.value.findIndex((r: any) =>
-        r?.cycles?.length && !r.cycles.some((c: any) =>
-          c.type === 'intro' || c.type === 'debut' || c.type === 'build'
-        )
-      )
+      // Find the first INF PLAY round in cachedRounds.
+      //
+      // mainLoopCount = courseFinalLegoRef.roundIndex + 1. Any cached
+      // round at or beyond that index is an INF PLAY round; anything
+      // before it is main-loop. We deliberately stopped using the
+      // "round has no intro/debut/build cycles" predicate that lived
+      // here previously: in courses where some LEGOs have missing audio
+      // (Croatian, German, etc.) the script generator strips the
+      // intro/debut/build cycles for those LEGOs, leaving early
+      // main-loop rounds matching the same shape as an INF PLAY round.
+      // The user would then click ∞ and land on S0001L02 instead of an
+      // actual revival round. Tom 2026-05-21.
+      const mainLoopCount = (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+      const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
+        ? mainLoopCount
+        : -1
       if (firstInfIdx >= 0) {
-        console.log(`[LearningPlayer] Skipping past last belt — entering infinite play at round index ${firstInfIdx}`)
+        console.log(`[LearningPlayer] Skipping past last belt — entering infinite play at round index ${firstInfIdx} (mainLoopCount=${mainLoopCount})`)
         // Spotify-style bootstrap: fetch only the FIRST cycle's audio
         // (~3 files, ~3s on 4G), then start. Background fetch keeps
         // ahead of playback for everything else. Mirrors the main
@@ -6170,11 +6178,12 @@ const handleSkipToNextBelt = async () => {
           const newRounds = toSimpleRoundsWithComponents(skipResult.items) as any[]
           cachedRounds.value = newRounds
           simplePlayer.appendRounds(newRounds)
-          const refoundIdx = newRounds.findIndex((r: any) =>
-            r?.cycles?.length && !r.cycles.some((c: any) =>
-              c.type === 'intro' || c.type === 'debut' || c.type === 'build'
-            )
-          )
+          // Same mainLoopCount-based boundary as above — see comment at
+          // first firstInfIdx for why we stopped trusting the cycle-type
+          // predicate.
+          const refoundIdx = mainLoopCount > 0 && newRounds.length > mainLoopCount
+            ? mainLoopCount
+            : -1
           if (refoundIdx >= 0) {
             simplePlayer.jumpToRound(refoundIdx)
             if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
