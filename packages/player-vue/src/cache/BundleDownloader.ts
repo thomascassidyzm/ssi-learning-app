@@ -82,7 +82,9 @@ export interface BundleDownloader {
 // ============================================================================
 
 interface CursorPayload {
-  version: number
+  // Matches CourseBundle.version — see courseBundle.ts. Stored
+  // round-trip via JSON.stringify so any JSON-safe value works.
+  version: string | number
   cachedIds: string[]
 }
 

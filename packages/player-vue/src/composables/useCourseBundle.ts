@@ -57,9 +57,12 @@ const DEFAULT_STORAGE_PREFIX = 'ssi-course-bundle-'
 function isValidBundle(value: unknown, expectedCode: string): value is CourseBundle {
   if (!value || typeof value !== 'object') return false
   const b = value as Partial<CourseBundle>
+  // version may be a semver string ("0.5.1") or an integer — courses
+  // table content_version is text on some courses, int on others.
+  const versionOk = typeof b.version === 'string' || typeof b.version === 'number'
   return (
     b.courseCode === expectedCode &&
-    typeof b.version === 'number' &&
+    versionOk &&
     Array.isArray(b.legos) &&
     Array.isArray(b.phrases) &&
     Array.isArray(b.seeds) &&
@@ -165,10 +168,13 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
    * course) update `bundle.value`. Swallows all errors — offline blips
    * keep the cached copy.
    */
-  async function revalidate(code: string, cachedVersion: number): Promise<void> {
+  async function revalidate(code: string, cachedVersion: string | number): Promise<void> {
     try {
       const fresh = await fetchBundle(code)
-      if (fresh.version > cachedVersion) {
+      // !== rather than > because versions can be semver strings
+      // (e.g. "0.5.1") where lexicographic > misorders (e.g. "0.10"
+      // < "0.5"). Any difference triggers a refresh.
+      if (fresh.version !== cachedVersion) {
         writeCache(code, fresh)
         // Race-protect: if the caller has since loaded a different
         // course, don't stomp on it.

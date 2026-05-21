@@ -209,11 +209,14 @@ export interface BundleRoundMapEntry {
 export interface CourseBundle {
   courseCode: string
   /**
-   * `courses.content_version` at fetch time. The client compares its
-   * cached version against a tiny `/round-map` (or `/bundle` head)
-   * call on session start and re-fetches if the server has bumped.
+   * `courses.content_version` at fetch time. Stored as text in the DB
+   * (semver like "0.5.1") for some courses, integer for others — we
+   * accept either type and use !== comparison for change detection.
+   * The client compares its cached version against a tiny `/round-map`
+   * (or `/bundle` head) call on session start and re-fetches if the
+   * server has bumped.
    */
-  version: number
+  version: string | number
   /** Total LEGOs in the main loop — used by INF PLAY math to compute absolute round numbers. */
   mainLoopCount: number
 
