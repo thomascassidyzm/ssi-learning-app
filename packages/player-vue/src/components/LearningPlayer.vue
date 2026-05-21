@@ -1452,6 +1452,25 @@ simplePlayer.onRoundCompleted((round) => {
 // lap and calls showPausedSummary then. Surfacing the summary now
 // would call simplePlayer.stop() + release audioEngaged mid-lap and
 // iOS would drop the session.
+// Telemetry for audio failures. Both first-try (attempt=1, silently
+// retried) and second-try (attempt=2, halted) emit through this — gives
+// us visibility on how often the retry-once heuristic actually saves
+// the cycle vs how often the learner gets the tap-to-retry chip. The
+// payload mirrors AudioFailedEvent so admin diagnostics can group by
+// reason / role / errorCode.
+simplePlayer.onAudioFailed((event) => {
+  logEvent('audio_failed', {
+    reason: event.reason,
+    role: event.role,
+    cycleType: event.cycleType,
+    legoId: event.legoId,
+    cycleId: event.cycleId,
+    errorCode: event.errorCode,
+    attempt: event.attempt,
+    lastError: event.lastError,
+  })
+})
+
 simplePlayer.onSessionComplete(async () => {
   logEvent('session_complete', {
     deferredForLap: playingPodLapAudio.value || playingCommentaryAudio.value,
@@ -10076,17 +10095,27 @@ defineExpose({
         <!-- Component tiles now rendered inside LegoAssembly -->
       </div>
 
-      <!-- Audio failure banner. Only shown for the iOS autoplay case —
-           the browser revoked our audio unlock and will not play until the
-           user taps. All other failures skip-and-plough, not halt. -->
-      <div
+      <!-- Audio failure banner. Two halt cases:
+           - 'needs-gesture': iOS revoked the audio unlock; tap the player
+             to resume from the same cycle (the surrounding control pane
+             handles the tap).
+           - 'play-error': audio load/play failed twice in a row (likely
+             blob-URL race or transient network). Same affordance — a
+             tap-to-retry chip wired to togglePlayback so resume() re-
+             attempts the current cycle from the prompt phase. -->
+      <button
         v-if="audioFailedBanner"
+        type="button"
         class="audio-failed-banner"
+        :class="{ 'audio-failed-banner--play-error': audioFailedBanner.reason === 'play-error' }"
         role="status"
         aria-live="polite"
+        @click.stop="togglePlayback"
       >
-        Paused — tap play to continue
-      </div>
+        {{ audioFailedBanner.reason === 'play-error'
+          ? "Audio didn't load — tap to retry"
+          : "Paused — tap play to continue" }}
+      </button>
 
       <!-- Play button when paused. The surrounding element handles the tap;
            this is a visual hint. The "Playing / Paused" sr-only announcer
@@ -11447,8 +11476,12 @@ defineExpose({
   box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
 }
 
-/* Audio-failure banner (circuit breaker / needs-gesture) */
+/* Audio-failure banner. Default styling = needs-gesture (blue, neutral
+   "tap to resume"). The --play-error modifier shifts to amber so a
+   genuine failure reads as different from the routine iOS unlock prompt
+   without escalating to red — it's recoverable, not broken. */
 .audio-failed-banner {
+  display: block;
   padding: 0.5rem 1rem;
   margin: 0.5rem auto;
   max-width: 28rem;
@@ -11458,6 +11491,22 @@ defineExpose({
   color: var(--text-primary);
   font-size: 0.9rem;
   text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.3;
+}
+
+.audio-failed-banner:hover {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.audio-failed-banner--play-error {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.audio-failed-banner--play-error:hover {
+  background: rgba(245, 158, 11, 0.22);
 }
 
 /* Play hint when paused */
@@ -14075,4 +14124,26 @@ button.phase-segment:active:not(.is-active) {
     #ffffff 58%, var(--belt-color) 65%) !important;
 }
 /* Black belt uses same white pill style — no special override needed */
+
+/* --- Audio-failed banner in mist theme --- */
+/* Mist's lighter palette needs softer backgrounds + an explicit text
+   colour so the chip reads on a light surface. */
+[data-theme="mist"] .player .audio-failed-banner {
+  background: rgba(59, 130, 246, 0.10);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: var(--text-primary);
+}
+
+[data-theme="mist"] .player .audio-failed-banner:hover {
+  background: rgba(59, 130, 246, 0.16);
+}
+
+[data-theme="mist"] .player .audio-failed-banner--play-error {
+  background: rgba(217, 119, 6, 0.12);
+  border-color: rgba(217, 119, 6, 0.45);
+}
+
+[data-theme="mist"] .player .audio-failed-banner--play-error:hover {
+  background: rgba(217, 119, 6, 0.18);
+}
 </style>

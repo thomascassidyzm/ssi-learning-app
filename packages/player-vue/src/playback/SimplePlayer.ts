@@ -86,14 +86,33 @@ type EventCallback = (data?: unknown) => void
 
 export interface AudioFailedEvent {
   /**
-   * Only 'needs-gesture' remains: iOS Safari revokes the audio unlock when
-   * a tab has been backgrounded long enough, and play() then rejects with
-   * NotAllowedError. The UI prompts "tap to resume" and a user tap
-   * restores playback. All other audio failures (bad UUID, 404, 5xx,
-   * safety timeout) are logged and skipped — the player ploughs on so
-   * the learner experience is never interrupted by data / infra issues.
+   * - 'needs-gesture': iOS Safari revoked the audio unlock (backgrounded
+   *   tab); play() rejected with NotAllowedError. UI prompts "tap to
+   *   resume" and a user tap restores playback. The browser will not
+   *   play ANY audio until that tap, so we must halt.
+   * - 'play-error': audio element fired `error` (bad UUID / 404 / decode
+   *   / CORS / blob-URL race against BundleDownloader). Emitted twice
+   *   per cycle in the failure path: once with attempt=1 just before
+   *   the silent retry, and once with attempt=2 if the retry also
+   *   fails. The attempt=2 emission accompanies a halt — the player
+   *   pauses and the UI offers tap-to-retry — because advancing the
+   *   phase machine while no sound came out lies to the learner about
+   *   what they just heard.
    */
-  reason: 'needs-gesture'
+  reason: 'needs-gesture' | 'play-error'
+  /**
+   * Cycle role the failure occurred on — lets diagnostics see whether
+   * blob-URL races skew toward target voices (the bigger files that
+   * BundleDownloader fetches later) vs the known prompt.
+   */
+  role?: 'known' | 'target1' | 'target2'
+  cycleType?: string
+  legoId?: string
+  cycleId?: string
+  /** HTMLMediaElement.error?.code if available (1=ABORTED, 2=NETWORK, 3=DECODE, 4=SRC_NOT_SUPPORTED). */
+  errorCode?: number
+  /** 1 = first try, 2 = retry. attempt=2 in a 'play-error' event means we've halted. */
+  attempt?: 1 | 2
   lastError?: string
 }
 
@@ -129,6 +148,14 @@ export class SimplePlayer {
   // Stale play() rejections and safety timeouts check this to avoid
   // advancing the phase machine from a superseded audio request.
   private playGeneration: number = 0
+  // Single silent retry for transient audio failures. Most production
+  // errors are blob-URL races (BundleDownloader hasn't reached this
+  // audio yet) — re-setting src + calling load()/play() against the
+  // proxy URL almost always succeeds the second time. Tracks the URL
+  // so we don't retry a different audio if playAudio fired in between.
+  private retryAttempted: boolean = false
+  private retryUrl: string | null = null
+  private retryIsTarget: boolean = false
 
   /** Runtime overrides — set via setRuntimeOverrides, may be reassigned at any time. */
   private runtimeOverrides: SimplePlayerRuntimeOverrides = {}
@@ -141,12 +168,14 @@ export class SimplePlayer {
 
     this.onEndedHandler = () => this.onAudioEnded()
     this.onErrorHandler = (e: Event) => {
-      // Audio element fired an error during playback. Log and advance.
-      // The learner experience must never stall on a broken UUID / 404.
-      console.warn('[SimplePlayer] audio error — skipping cycle:', e)
-      if (this.state.phase !== 'pause' && this.state.phase !== 'idle') {
-        this.onAudioEnded()
-      }
+      // Audio element fired an error during playback. Try once more,
+      // then halt — silently advancing lies to the learner because the
+      // UI moves through phases while no sound came out. Pause phase
+      // and idle don't have audio in flight, so ignore those.
+      if (this.state.phase === 'pause' || this.state.phase === 'idle') return
+      const code = this.audio.error?.code
+      console.warn(`[SimplePlayer] audio error (code=${code}) on phase=${this.state.phase}`, e)
+      this.handleAudioFailure(code)
     }
 
     this.audio.addEventListener('ended', this.onEndedHandler)
@@ -169,6 +198,119 @@ export class SimplePlayer {
       reason: 'needs-gesture',
       lastError,
     } satisfies AudioFailedEvent)
+  }
+
+  /**
+   * Map the current phase to the audio role (for telemetry). Returns
+   * undefined for phases that don't play cycle audio (pause, idle).
+   */
+  private phaseToRole(): 'known' | 'target1' | 'target2' | undefined {
+    switch (this.state.phase) {
+      case 'prompt': return 'known'
+      case 'voice1': return 'target1'
+      case 'voice2': return 'target2'
+      default: return undefined
+    }
+  }
+
+  /** Common context for an audio_failed telemetry payload. */
+  private buildFailedContext(errorCode: number | undefined, attempt: 1 | 2, lastError?: string): AudioFailedEvent {
+    const cycle = this.currentCycle
+    return {
+      reason: 'play-error',
+      role: this.phaseToRole(),
+      cycleType: cycle?.type,
+      legoId: cycle?.legoId,
+      cycleId: cycle?.id,
+      errorCode,
+      attempt,
+      lastError,
+    }
+  }
+
+  /**
+   * Centralised handler for any audio failure on a playing phase. Routes
+   * the first failure into a silent retry of the same URL; if the retry
+   * also fails (or there's no URL to retry), halts the player and surfaces
+   * an audio_failed event so the UI can offer tap-to-retry.
+   *
+   * Every failure emits audio_failed for telemetry — attempt=1 fires
+   * before the retry, attempt=2 fires alongside the halt.
+   */
+  private handleAudioFailure(errorCode: number | undefined, lastError?: string): void {
+    if (this.state.phase === 'pause' || this.state.phase === 'idle') return
+    if (!this.state.isPlaying) return
+
+    if (!this.retryAttempted && this.retryUrl) {
+      // First failure — log and silently retry the same URL.
+      this.retryAttempted = true
+      this.emit('audio_failed', this.buildFailedContext(errorCode, 1, lastError))
+      this.retryCurrentAudio()
+      return
+    }
+
+    // Retry already burned (or no URL to retry against) — halt.
+    this.tripPlayError(errorCode, lastError)
+  }
+
+  /**
+   * Re-set the audio src and call load()+play() against the same URL.
+   * Browsers retry the network fetch — most blob-URL races against
+   * BundleDownloader resolve here because by the time we re-fetch the
+   * bundle has reached this audio. Reuses the same Audio element so
+   * the mobile gesture unlock stays intact.
+   */
+  private retryCurrentAudio(): void {
+    const url = this.retryUrl
+    if (!url) return
+    const isTarget = this.retryIsTarget
+    this.clearSafetyTimer()
+    const gen = ++this.playGeneration
+    console.warn(`[SimplePlayer] Retrying audio (attempt 2/2): ${url}`)
+    try {
+      this.audio.src = url
+      this.audio.load()
+    } catch (err) {
+      console.warn('[SimplePlayer] retry load() threw:', err)
+    }
+    let rate = 1.0
+    if (isTarget && this.currentCycle) {
+      rate = this.currentCycle.playbackSpeed ?? 1.0
+      const multiplier = this.runtimeOverrides.getPlaybackSpeedMultiplier?.(this.currentCycle) ?? 1.0
+      rate *= multiplier
+    }
+    this.audio.playbackRate = rate
+    this.audio.play().catch((err) => {
+      if (gen !== this.playGeneration) return
+      console.warn('[SimplePlayer] retry play() rejected:', err?.message)
+      if (isGestureRequiredError(err)) {
+        this.tripGestureRequired(err.message || 'autoplay blocked')
+        return
+      }
+      // Retry failed — halt with the play-error reason.
+      this.tripPlayError(undefined, err?.message)
+    })
+    this.safetyTimer = setTimeout(() => {
+      if (gen !== this.playGeneration) return
+      console.warn('[SimplePlayer] Safety timeout on retry — halting')
+      this.tripPlayError(undefined, 'safety-timeout-after-retry')
+    }, 10_000)
+  }
+
+  /**
+   * Halt the player after a failed retry. Same shape as
+   * tripGestureRequired: pause audio, clear timers, drop isPlaying, emit
+   * audio_failed. UI surfaces a "tap to retry" affordance bound to the
+   * same resume() flow as the gesture-required path.
+   */
+  private tripPlayError(errorCode: number | undefined, lastError?: string): void {
+    console.warn('[SimplePlayer] Audio playback failed after retry — halting session')
+    this.audio.pause()
+    this.clearPauseTimer()
+    this.clearSafetyTimer()
+    this.clearLingerTimer()
+    this.updateState({ isPlaying: false })
+    this.emit('audio_failed', this.buildFailedContext(errorCode, 2, lastError))
   }
 
   // Event emitter
@@ -560,6 +702,14 @@ export class SimplePlayer {
   private playAudio(url: string, isTarget = false): void {
     this.clearSafetyTimer()
     const gen = ++this.playGeneration
+    // Reset retry state on every fresh play. retryAttempted only stays
+    // true between the first failure and either (a) the retry succeeding
+    // or (b) playAudio being called again for a different URL.
+    if (this.retryUrl !== url) {
+      this.retryAttempted = false
+      this.retryUrl = url
+      this.retryIsTarget = isTarget
+    }
     this.audio.src = url
     // Only modulate target language audio — known language always plays at 1.0x.
     // Runtime override (Turbo) can multiply the baked rate; the override is
@@ -586,14 +736,15 @@ export class SimplePlayer {
       console.warn('[SimplePlayer] play() rejected:', err.message)
       if (isGestureRequiredError(err)) {
         // Autoplay policy blocked us — pause so the UI can prompt
-        // "tap to resume". This is the only halt left: the browser
-        // will not let us play anything else until the user taps.
+        // "tap to resume". The browser will not let us play anything
+        // else until the user taps, so we halt regardless of retry.
         this.tripGestureRequired(err.message || 'autoplay blocked')
         return
       }
-      // Any other play() rejection (bad src, network, decode) — skip
-      // the cycle and plough on. Learner experience must not stall.
-      this.onAudioEnded()
+      // Any other play() rejection (bad src, network, decode) — try
+      // once more, then halt. Don't silently advance — that lies to
+      // the learner about what they just heard.
+      this.handleAudioFailure(undefined, err?.message)
     })
     this.safetyTimer = setTimeout(() => {
       // Ignore if a newer playAudio call has started
