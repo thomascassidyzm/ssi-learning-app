@@ -1661,6 +1661,14 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
 // cheap query (~300 rows per course) and serves as the primary source
 // for the highlight lookup.
 const globalLegoKnownTextMap = ref<Map<string, string>>(new Map())
+// Course-wide target_text lookup. Same rationale as the known-text map
+// above, but for the target language — INFPLAY USE phrases reference
+// LEGOs anywhere in the course, and the round-derived legoTargetTextMap
+// only has entries for loaded rounds. decomposePhrase needs every
+// known-vocab text to bind tokens correctly, so we load all target_text
+// + target_text_native rows once per course mount.
+const globalLegoTargetTextMap = ref<Map<string, string>>(new Map())
+const globalLegoTargetTextNativeMap = ref<Map<string, string>>(new Map())
 
 async function loadGlobalLegoKnownTexts() {
   const client = supabase.value
@@ -1669,20 +1677,27 @@ async function loadGlobalLegoKnownTexts() {
   try {
     const { data, error } = await client
       .from('course_legos')
-      .select('lego_id, known_text')
+      .select('lego_id, known_text, target_text, target_text_native')
       .eq('course_code', code)
     if (error) {
-      console.warn('[LearningPlayer] Failed to load global lego known texts:', error.message)
+      console.warn('[LearningPlayer] Failed to load global lego texts:', error.message)
       return
     }
-    const map = new Map<string, string>()
+    const knownMap = new Map<string, string>()
+    const targetMap = new Map<string, string>()
+    const nativeMap = new Map<string, string>()
     for (const row of (data || [])) {
-      if (row.lego_id && row.known_text) map.set(row.lego_id, row.known_text)
+      if (!row.lego_id) continue
+      if (row.known_text) knownMap.set(row.lego_id, row.known_text)
+      if (row.target_text) targetMap.set(row.lego_id, row.target_text)
+      if (row.target_text_native) nativeMap.set(row.lego_id, row.target_text_native)
     }
-    globalLegoKnownTextMap.value = map
-    console.log('[LearningPlayer] Loaded', map.size, 'global lego known texts for', code)
+    globalLegoKnownTextMap.value = knownMap
+    globalLegoTargetTextMap.value = targetMap
+    globalLegoTargetTextNativeMap.value = nativeMap
+    console.log('[LearningPlayer] Loaded', knownMap.size, 'global lego texts for', code)
   } catch (err) {
-    console.warn('[LearningPlayer] Global lego known text load errored:', err)
+    console.warn('[LearningPlayer] Global lego text load errored:', err)
   }
 }
 
@@ -1776,8 +1791,16 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       // rendering per methodology, rather than the before/salient/after
       // ribbon of the substring path. Used most heavily by INFPLAY USE
       // phrases where the backend's `decomposition` array isn't populated.
+      // textMap merges round-derived (legoTargetTextMap, fast and current)
+      // with course-wide (globalLegoTargetTextMap, loaded once per course
+      // mount) so INFPLAY phrases referencing LEGOs whose rounds aren't
+      // loaded still resolve. Round-derived wins on conflict (it's the
+      // freshest source).
       if (salientId) {
-        const textMap = (useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value)
+        const roundDerived = useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value
+        const globalDerived = useNative ? globalLegoTargetTextNativeMap.value : globalLegoTargetTextMap.value
+        const textMap = new Map<string, string>(globalDerived)
+        for (const [id, text] of roundDerived.entries()) textMap.set(id, text)
         const compsMap = useNative ? _componentsByLegoIdNative : _componentsByLegoId
         const decomposed = decomposePhrase({
           targetText,
