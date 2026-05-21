@@ -12060,7 +12060,7 @@ defineExpose({
   font-weight: 600;
 }
 .hero-known-context {
-  opacity: 0.55;
+  opacity: 0.72;
 }
 
 /* Listening pedagogy — calmer, italic, slightly smaller. The learner is
@@ -13948,7 +13948,7 @@ button.phase-segment:active:not(.is-active) {
   color: var(--text-primary);
 }
 [data-theme="mist"] .player .hero-known-context {
-  color: rgba(44, 38, 34, 0.55);
+  color: rgba(44, 38, 34, 0.72);
 }
 
 [data-theme="mist"] .player .hero-target {

@@ -323,20 +323,35 @@ const knownText = computed(() => {
 })
 
 
-// Carriage mode: long M-LEGOs (4+ components) render as groups of up to 3,
-// each group is a mini M-LEGO tile with internal stubs, groups linked externally
+// Carriage mode: long M-LEGOs split into wagon groups so the tile
+// doesn't wrap text internally. Two triggers:
+//  - atomCount > 3 (existing): balanced groups of up to 3 atoms each
+//  - targetText > CARRIAGE_CHAR_THRESHOLD (Tom 2026-05-21): few atoms
+//    but long total text. Each component (atom or inserter) becomes
+//    its own group so the tile splits cleanly at component boundaries.
+//
+// Without the char trigger, an intro/debut of a long-but-few-atom
+// M-LEGO falls into the single-tile branch and wraps its text
+// internally — looks like a runaway tile bleeding off-screen.
 const carriageGroups = computed(() => {
+  const CARRIAGE_CHAR_THRESHOLD = 24
   if (props.blocks.length !== 1) return null
   if (!mLegoComponents.value) return null
-  // Atom-count threshold (inserters don't push us into carriage mode).
-  const atomCount = mLegoComponents.value.filter(c => !c.isInserter).length
-  if (atomCount <= 3) return null
   const comps = mLegoComponents.value
-  const groups: ComponentBreakdown[][] = []
-  for (let i = 0; i < comps.length; i += 3) {
-    groups.push(comps.slice(i, i + 3))
+  // Atom-count threshold (inserters don't push us into carriage mode).
+  const atomCount = comps.filter(c => !c.isInserter).length
+  const fullText = props.blocks[0]?.targetText || ''
+  if (atomCount <= 3 && fullText.length <= CARRIAGE_CHAR_THRESHOLD) return null
+  if (atomCount > 3) {
+    // Balanced groups of up to 3 atoms each.
+    const groups: ComponentBreakdown[][] = []
+    for (let i = 0; i < comps.length; i += 3) {
+      groups.push(comps.slice(i, i + 3))
+    }
+    return groups
   }
-  return groups
+  // Few atoms but text overflows — every component is its own group.
+  return comps.map(c => [c])
 })
 
 // RTL detection — Arabic, Hebrew, and related scripts
