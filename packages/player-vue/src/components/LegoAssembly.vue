@@ -1105,31 +1105,16 @@ const sentenceScale = computed(() => {
 }
 
 /* --- SALIENT LEGO (newly introduced) ---
-   Scale the whole tile 20% bigger — true size pop, includes the
-   padding, border, shadow and text proportionally. transform:scale
-   doesn't push the layout (the wrapper still reserves the unscaled
-   slot) so neighbouring tiles stay put while the salient lifts above
-   them via z-index. SSi red wash + red border + chunky red glow
-   carry the colour cue alongside the size. */
-.lego-block.salient {
-  background-color: rgba(255, 255, 255, 0.92);
-  background-image: linear-gradient(rgba(194, 58, 58, 0.28), rgba(194, 58, 58, 0.28));
-  border-color: rgba(194, 58, 58, 0.7);
-  border-width: 2px;
-  padding: calc(0.7em * var(--sentence-scale, 1)) calc(1.3em * var(--sentence-scale, 1));
-  box-shadow:
-    0 0 18px 5px rgba(194, 58, 58, 0.3),
-    0 3px 10px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  transform: scale(1.2);
-  transform-origin: center;
-  z-index: 1;
-  position: relative;
-}
+   No chrome change — salient tile reads identical to its neighbours.
+   Differentiation is carried entirely by the non-salient `:not(.salient)`
+   rule (smaller, slightly muted text). Salient itself gets a subtle
+   weight + size bump on the text only; no border colour, no glow, no
+   scale transform — those broke catastrophically on long phrases that
+   wrapped to multiple lines (4-line phrase x scale(1.2) bled off-screen).
+   Tom 2026-05-21. */
 .lego-block.salient .block-text {
-  color: rgba(255, 255, 255, 1);
+  font-size: calc(1.7rem * var(--sentence-scale, 1));
   font-weight: 600;
-  font-size: calc(1.9rem * var(--sentence-scale, 1));
 }
 
 /* --- HIDDEN --- */
@@ -1181,11 +1166,15 @@ const sentenceScale = computed(() => {
   .lego-block {
     padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
   }
-  .lego-block.salient {
-    padding: calc(0.6em * var(--sentence-scale, 1)) calc(1.1em * var(--sentence-scale, 1));
+  /* Mobile: shrink both sides of the salient bump while keeping the
+     same subtle delta as desktop. The :not(.salient):not(.wagon) rule
+     in the desktop block beats the mobile base on specificity, so the
+     non-salient size needs its own mobile-scoped override here. */
+  .lego-block:not(.salient):not(.wagon) .block-text {
+    font-size: calc(1.45rem * var(--sentence-scale, 1));
   }
   .lego-block.salient .block-text {
-    font-size: calc(1.6rem * var(--sentence-scale, 1));
+    font-size: calc(1.55rem * var(--sentence-scale, 1));
   }
 
   .tile-target .comp {
@@ -1216,17 +1205,11 @@ const sentenceScale = computed(() => {
 }
 
 
-:root[data-theme="mist"] .lego-block.salient {
-  background-color: #ffffff;
-  background-image: linear-gradient(rgba(194, 58, 58, 0.14), rgba(194, 58, 58, 0.14));
-  border: 1.5px solid rgba(194, 58, 58, 0.55);
-  box-shadow: 0 2px 4px rgba(194, 58, 58, 0.15),
-              0 8px 24px rgba(44, 38, 34, 0.08);
-}
-
-:root[data-theme="mist"] .lego-block.salient .block-text {
-  color: var(--text-primary);
-}
+/* Salient in mist: same chrome as a normal tile. The default mist
+   .lego-block rule above (white bg, neutral border, dark shadow)
+   handles it. No mist-specific salient rule needed — text gets the
+   default text-primary colour and the subtle weight+size bump from
+   the unscoped .lego-block.salient .block-text rule. */
 
 /* M-LEGO stubs for mist theme */
 :root[data-theme="mist"] .tile-target.has-components .comp + .comp::before,
@@ -1245,8 +1228,16 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .tile-target .comp.is-inserter,
 :root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
   font-size: calc(1.55rem * var(--sentence-scale, 1));
-  color: rgba(44, 38, 34, 0.78);
+  color: rgba(44, 38, 34, 0.62);
   font-weight: 500;
+}
+
+/* Non-salient tile chrome (mist) — softer border + lighter shadow so
+   the salient's normal border reads as the "active" one by contrast. */
+:root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) {
+  border-color: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
+              0 4px 12px rgba(44, 38, 34, 0.05);
 }
 
 /* Hyphenated wagon edge stubs for mist theme */
@@ -1302,5 +1293,17 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .lego-tile.salient .carriage-cell {
   border-color: rgba(0, 0, 0, 0.35);
   background: #ffffff;
+}
+
+/* Mobile sizing for mist — mirrors the scoped mobile rules but with
+   :root[data-theme="mist"] specificity so it beats the mist non-salient
+   rule above. Without this the bump collapses to weight+colour only on
+   mobile-mist (the most common live-test surface). */
+@media (max-width: 600px) {
+  :root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) .block-text,
+  :root[data-theme="mist"] .tile-target .comp.is-inserter,
+  :root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
+    font-size: calc(1.45rem * var(--sentence-scale, 1));
+  }
 }
 </style>
