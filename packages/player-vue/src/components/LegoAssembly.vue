@@ -155,39 +155,51 @@ function alignComponentsToFullText(
   const fullOriginal = originalTokens(fullText)
   if (fullTokens.length === 0) return comps
 
-  // Build alignment: for each component, find its token span in fullTokens
+  // Build alignment: for each component, find its earliest unclaimed match
+  // in fullTokens. Order-independent — atoms may appear in any order in the
+  // phrase (German V2 fronting, separable-verb fronting, etc.); we still
+  // recognise them as the same M-LEGO's components and emit them in the
+  // order they actually appear in the phrase.
   type Span = { compIdx: number; start: number; end: number }
   const spans: Span[] = []
-  let searchFrom = 0
+  const claimed = new Set<number>()
 
   for (let ci = 0; ci < comps.length; ci++) {
     const compTokens = tokenize(comps[ci].target)
     if (compTokens.length === 0) continue
-    // Find component tokens in fullTokens starting from searchFrom
     let matchStart = -1
-    for (let i = searchFrom; i <= fullTokens.length - compTokens.length; i++) {
-      let match = true
+    outer: for (let i = 0; i <= fullTokens.length - compTokens.length; i++) {
       for (let j = 0; j < compTokens.length; j++) {
-        if (fullTokens[i + j] !== compTokens[j]) {
-          match = false
-          break
-        }
+        if (claimed.has(i + j)) continue outer
+        if (fullTokens[i + j] !== compTokens[j]) continue outer
       }
-      if (match) { matchStart = i; break }
+      matchStart = i
+      break
     }
     if (matchStart === -1) {
       // Component not found — alignment failed, return raw components
       return comps
     }
+    for (let k = 0; k < compTokens.length; k++) claimed.add(matchStart + k)
     spans.push({ compIdx: ci, start: matchStart, end: matchStart + compTokens.length })
-    searchFrom = matchStart + compTokens.length
   }
 
   if (spans.length === 0) return comps
 
+  // Sort by phrase position so emitted components follow phrase order, not
+  // canonical M-LEGO order.
+  spans.sort((a, b) => a.start - b.start)
+
   // Check if components already cover all tokens
   const totalCovered = spans.reduce((s, sp) => s + (sp.end - sp.start), 0)
-  if (totalCovered === fullTokens.length) return comps
+  if (totalCovered === fullTokens.length) {
+    // Re-emit in phrase order so the tile reads left-to-right correctly
+    // even when the declared canonical order differs from phrase order.
+    return spans.map(sp => ({
+      known: comps[sp.compIdx].known,
+      target: joinTokens(fullOriginal.slice(sp.start, sp.end), fullText),
+    }))
+  }
 
   const isCJK = CJK_RE.test(fullText)
   const result: ComponentBreakdown[] = []

@@ -1768,10 +1768,10 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       const salientText = salientId
         ? (useNative ? legoTargetTextNativeMap.value.get(salientId) : null) || legoTargetTextMap.value.get(salientId) || ''
         : ''
-      // Substring match — fast and good for un-inflected LEGO references.
-      // Inflected forms (Croatian "prijatelja" inflecting to a form that
-      // doesn't match "prijatelj") fall through to the single-tile last
-      // resort, which is the same behaviour we had before.
+
+      // First try: substring match of the canonical salient text. Cheap,
+      // works for un-inflected LEGOs (Romance languages, English, simple
+      // German cases).
       if (salientText && targetText.includes(salientText)) {
         const idx = targetText.indexOf(salientText)
         const before = targetText.slice(0, idx).trim()
@@ -1782,8 +1782,93 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         if (after) blocks.push({ id: `${salientId}_rest_after`, targetText: after, isSalient: false })
         return blocks
       }
-      // Last resort: whole phrase as one tile (salient false — there's
-      // no way to isolate the salient LEGO from the rest at this point).
+
+      // Second try: atom-position span detection. For M-LEGOs (LEGOs with
+      // declared atomic components), each atom is character-exact in the
+      // phrase per methodology — even when the canonical M-LEGO text isn't
+      // (separable verbs, V2 word order, conjugated participles like
+      // "überrascht" inside an M-LEGO whose canonical form is different).
+      // We locate each atom's token range independently, take the min/max
+      // as the salient's span, and emit before/salient/after with the
+      // salient block carrying its components so inserter rendering
+      // engages for any non-atom tokens between atoms.
+      // CJK skipped — substring-match already works for character-based
+      // scripts and this path's word-tokeniser doesn't apply.
+      const CJK_RE_LP = /[　-鿿가-힯＀-￯]/
+      const PUNCT_RE_LP = /[.,!?;:¡¿'"]+/g
+      if (
+        salientId &&
+        !CJK_RE_LP.test(targetText) &&
+        _componentsByLegoId.has(salientId)
+      ) {
+        const atoms = (useNative ? _componentsByLegoIdNative.get(salientId) : null) || _componentsByLegoId.get(salientId) || []
+        if (atoms.length >= 1) {
+          // Tokenise the phrase, tracking original-text char offsets.
+          const tokStarts: number[] = []
+          const tokEnds: number[] = []
+          const tokLower: string[] = []
+          const tokenRe = /\S+/g
+          let tm: RegExpExecArray | null
+          while ((tm = tokenRe.exec(targetText)) !== null) {
+            const raw = tm[0]
+            const cleaned = raw.toLowerCase().replace(PUNCT_RE_LP, '')
+            if (cleaned.length === 0) continue
+            tokStarts.push(tm.index)
+            tokEnds.push(tm.index + raw.length)
+            tokLower.push(cleaned)
+          }
+
+          // Find each atom's token range — earliest unclaimed match,
+          // out-of-order allowed (matches the word-order tolerance in
+          // alignComponentsToFullText downstream).
+          const claimed = new Set<number>()
+          const atomStarts: number[] = []
+          const atomEndsExcl: number[] = []
+          let allFound = true
+          for (const atom of atoms) {
+            const atomToks = atom.target.toLowerCase().replace(PUNCT_RE_LP, '').split(/\s+/).filter(Boolean)
+            if (atomToks.length === 0) continue
+            let foundAt = -1
+            outer: for (let i = 0; i <= tokLower.length - atomToks.length; i++) {
+              for (let k = 0; k < atomToks.length; k++) {
+                if (claimed.has(i + k)) continue outer
+                if (tokLower[i + k] !== atomToks[k]) continue outer
+              }
+              foundAt = i
+              break
+            }
+            if (foundAt === -1) { allFound = false; break }
+            for (let k = 0; k < atomToks.length; k++) claimed.add(foundAt + k)
+            atomStarts.push(foundAt)
+            atomEndsExcl.push(foundAt + atomToks.length)
+          }
+
+          if (allFound && atomStarts.length > 0) {
+            const spanStartTok = Math.min(...atomStarts)
+            const spanEndTokExcl = Math.max(...atomEndsExcl)
+            const spanStartChar = tokStarts[spanStartTok]
+            const spanEndChar = tokEnds[spanEndTokExcl - 1]
+            const before = targetText.slice(0, spanStartChar).trim()
+            const salientPhrase = targetText.slice(spanStartChar, spanEndChar).trim()
+            const after = targetText.slice(spanEndChar).trim()
+            const blocks: LegoBlock[] = []
+            if (before) blocks.push({ id: `${salientId}_rest_before`, targetText: before, isSalient: false })
+            blocks.push({
+              id: salientId,
+              targetText: salientPhrase,
+              isSalient: true,
+              components: atoms,
+            })
+            if (after) blocks.push({ id: `${salientId}_rest_after`, targetText: after, isSalient: false })
+            return blocks
+          }
+        }
+      }
+
+      // Last resort: whole phrase as one tile. Reached when no atoms could
+      // be located (A-LEGOs with inflected forms, CJK with non-substring
+      // match, content gaps where _componentsByLegoId hasn't loaded the
+      // salient yet).
       return [{ id: salientId || 'phrase', targetText, isSalient: false }]
     }
     // Golden rule: if audio will play, text must be present. Whatever
