@@ -34,6 +34,8 @@ import type {
   BundleSeed,
   BundleRoundMapEntry,
   BundleAudioRef,
+  BundlePod,
+  BundlePodSentence,
   AudioLifecycle,
   PhraseRole,
 } from '../../../packages/player-vue/src/types/courseBundle'
@@ -104,6 +106,29 @@ interface RoundIndexRow {
   // "S0042L01"), NOT lego_index. See round-map.ts which uses lego_id
   // directly. We carry it through and slice the index out where needed.
   lego_id: string
+}
+
+interface PodRow {
+  id: string
+  pod_order: number
+  title: string | null
+  intro_audio_id: string | null
+  outro_audio_id: string | null
+}
+
+interface PodSentenceRow {
+  pod_id: string
+  global_order: number
+  target_text: string | null
+  known_text: string | null
+  target_audio_id: string | null
+  known_audio_id: string | null
+  glue_to_next: boolean | null
+}
+
+interface CourseAudioRow {
+  id: string
+  duration_ms: number | null
 }
 
 /** Build a LEGO id of the form "S0042L01". Same helper as infplay-cycles.ts. */
@@ -178,10 +203,10 @@ export default async function handler(
         (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim(),
     )
 
-    // 4 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
+    // 6 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
     // of physics; collapsing into Promise.all keeps the whole bundle
-    // assemble at ~150-300ms instead of 4× that.
-    const [courseRes, legosRes, phrasesRes, roundsRes] = await Promise.all([
+    // assemble at ~150-300ms instead of 6× that.
+    const [courseRes, legosRes, phrasesRes, roundsRes, podsRes, bookendsRes] = await Promise.all([
       supabase
         .from('courses')
         .select('content_version')
@@ -215,6 +240,21 @@ export default async function handler(
         .select('round_index, seed_number, lego_id')
         .eq('course_code', code)
         .order('round_index', { ascending: true }),
+      supabase
+        .from('listening_pods')
+        .select('id, pod_order, title')
+        .eq('course_code', code)
+        .order('pod_order', { ascending: true, nullsFirst: true }),
+      // Bookends live in course_audio (role-based), not on listening_pods.
+      // One pair per course today — shared across all that course's pods.
+      // BundlePod inlines them per-pod so each pod entry is self-contained
+      // for the downloader's priority walk; the seen-set in
+      // iterateBundleAudio collapses the duplicates into a single download.
+      supabase
+        .from('course_audio')
+        .select('id, role, duration_ms')
+        .eq('course_code', code)
+        .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
     ])
 
     if (courseRes.error) {
@@ -245,6 +285,16 @@ export default async function handler(
       res.setHeader('Cache-Control', 'no-store')
       res.status(500).json({ error: 'Failed to load course round-index' })
       return
+    }
+    // Pods + bookends are non-fatal. A course can ship without Layer 2 yet
+    // (no pods row → empty pods[]); a bookend miss just means the lap
+    // plays without the intro/outro narration. Log and continue so we
+    // never lose the rest of the bundle over pod content gaps.
+    if (podsRes.error) {
+      console.warn('[Bundle] listening_pods query failed (non-fatal):', podsRes.error.message)
+    }
+    if (bookendsRes.error) {
+      console.warn('[Bundle] bookend audio query failed (non-fatal):', bookendsRes.error.message)
     }
 
     const legoRows: LegoRow[] = (legosRes.data || []) as unknown as LegoRow[]
@@ -359,6 +409,70 @@ export default async function handler(
       seeds.push({ seedId: buildSeedId(r.seed_number), seedNumber: r.seed_number })
     }
 
+    // --- Pods (Layer 2) -----------------------------------------------------
+    // Two-step: pod rows tell us which pod_ids to fetch sentences for.
+    // Done sequentially because the second query depends on the first.
+    // Skipped entirely if the course has no pods row.
+    const podRows: PodRow[] = (podsRes?.data || []) as unknown as PodRow[]
+    const bookendRows: Array<{ id: string; role: string; duration_ms: number | null }> =
+      (bookendsRes?.data || []) as unknown as Array<{ id: string; role: string; duration_ms: number | null }>
+
+    let podSentenceRows: PodSentenceRow[] = []
+    if (podRows.length > 0) {
+      const sentencesRes = await supabase
+        .from('listening_pod_sentences')
+        .select('pod_id, global_order, target_text, known_text, target_audio_id, known_audio_id, glue_to_next')
+        .in('pod_id', podRows.map((p) => p.id))
+        .order('global_order', { ascending: true })
+      if (sentencesRes.error) {
+        console.warn(
+          '[Bundle] listening_pod_sentences query failed (non-fatal):',
+          sentencesRes.error.message,
+        )
+      } else {
+        podSentenceRows = (sentencesRes.data || []) as unknown as PodSentenceRow[]
+      }
+    }
+
+    const bookendByRole = new Map<string, BundleAudioRef>()
+    for (const row of bookendRows) {
+      const ref = buildAudioRef(row.id, 'persistent', row.duration_ms)
+      if (ref) bookendByRole.set(row.role, ref)
+    }
+    const introRef = bookendByRole.get('bookend_listen_intro')
+    const outroRef = bookendByRole.get('bookend_listen_outro')
+
+    const sentencesByPod = new Map<string, BundlePodSentence[]>()
+    for (const row of podSentenceRows) {
+      const target = buildAudioRef(row.target_audio_id, 'persistent', null)
+      const known = buildAudioRef(row.known_audio_id, 'persistent', null)
+      const sentence: BundlePodSentence = {
+        globalOrder: row.global_order,
+        knownText: row.known_text ?? '',
+        targetText: row.target_text ?? '',
+        glueToNext: row.glue_to_next === true,
+      }
+      if (target) sentence.targetAudio = target
+      if (known) sentence.knownAudio = known
+      let bucket = sentencesByPod.get(row.pod_id)
+      if (!bucket) { bucket = []; sentencesByPod.set(row.pod_id, bucket) }
+      bucket.push(sentence)
+    }
+
+    const pods: BundlePod[] = podRows.map((row) => {
+      const pod: BundlePod = {
+        podId: row.id,
+        // pod_order is nullable in the DB; treat null as 0 so single-pod
+        // courses (today's common case) still walk in a deterministic order.
+        podOrder: row.pod_order ?? 0,
+        title: row.title,
+        sentences: sentencesByPod.get(row.id) ?? [],
+      }
+      if (introRef) pod.introAudio = introRef
+      if (outroRef) pod.outroAudio = outroRef
+      return pod
+    })
+
     const bundle: CourseBundle = {
       courseCode: code,
       version,
@@ -367,6 +481,7 @@ export default async function handler(
       phrases,
       seeds,
       roundMap,
+      pods,
     }
 
     res.setHeader(

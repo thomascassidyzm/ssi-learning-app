@@ -29,6 +29,7 @@ function makeBundle(version: number | string, courseCode: string = COURSE_CODE):
     phrases: [],
     seeds: [],
     roundMap: [],
+    pods: [],
   }
 }
 

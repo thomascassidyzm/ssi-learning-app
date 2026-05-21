@@ -9,7 +9,13 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AudioCache } from './AudioCache.types'
-import type { CourseBundle, BundleLego, BundlePhrase, BundleRoundMapEntry } from '../types/courseBundle'
+import type {
+  CourseBundle,
+  BundleLego,
+  BundlePhrase,
+  BundlePod,
+  BundleRoundMapEntry,
+} from '../types/courseBundle'
 import { createBundleDownloader } from './BundleDownloader'
 
 // ---------------------------------------------------------------------------
@@ -194,6 +200,7 @@ function buildBundle(courseCode = 'spa', version = 1): CourseBundle {
     phrases,
     seeds: [],
     roundMap,
+    pods: [],
   }
 }
 
@@ -229,6 +236,105 @@ describe('BundleDownloader', () => {
     const bundle = buildBundle()
     await dl.start(bundle)
     expect(mock.ensureCalls).toEqual(ALL_15_IDS)
+  })
+
+  it('walks pods before USE phrases, pods in pod_order ascending', async () => {
+    const mock = makeMockCache({ mode: 'auto' })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const bundle = buildBundle()
+    // Two pods, pod_order 1 then 0 — walker must reorder.
+    const pods: BundlePod[] = [
+      {
+        podId: 'p1',
+        podOrder: 1,
+        title: 'Second',
+        introAudio: { id: 'p1-intro', lifecycle: 'persistent' },
+        outroAudio: { id: 'p1-outro', lifecycle: 'persistent' },
+        sentences: [
+          {
+            globalOrder: 2,
+            knownText: 'k2',
+            targetText: 't2',
+            glueToNext: false,
+            targetAudio: { id: 'p1-s2-tgt', lifecycle: 'persistent' },
+            knownAudio: { id: 'p1-s2-kn', lifecycle: 'persistent' },
+          },
+          {
+            globalOrder: 1,
+            knownText: 'k1',
+            targetText: 't1',
+            glueToNext: false,
+            targetAudio: { id: 'p1-s1-tgt', lifecycle: 'persistent' },
+            knownAudio: { id: 'p1-s1-kn', lifecycle: 'persistent' },
+          },
+        ],
+      },
+      {
+        podId: 'p0',
+        podOrder: 0,
+        title: 'First',
+        introAudio: { id: 'p0-intro', lifecycle: 'persistent' },
+        outroAudio: { id: 'p0-outro', lifecycle: 'persistent' },
+        sentences: [
+          {
+            globalOrder: 1,
+            knownText: 'k1',
+            targetText: 't1',
+            glueToNext: false,
+            targetAudio: { id: 'p0-s1-tgt', lifecycle: 'persistent' },
+            knownAudio: { id: 'p0-s1-kn', lifecycle: 'persistent' },
+          },
+        ],
+      },
+    ]
+    bundle.pods = pods
+    await dl.start(bundle)
+
+    // First: pod 0 (intro → sentences globalOrder asc → outro).
+    // Second: pod 1 (intro → sentences globalOrder asc → outro).
+    // Then: all 15 USE phrase ids.
+    expect(mock.ensureCalls).toEqual([
+      'p0-intro',
+      'p0-s1-tgt', 'p0-s1-kn',
+      'p0-outro',
+      'p1-intro',
+      'p1-s1-tgt', 'p1-s1-kn',
+      'p1-s2-tgt', 'p1-s2-kn',
+      'p1-outro',
+      ...ALL_15_IDS,
+    ])
+  })
+
+  it('dedupes shared bookend audio across pods', async () => {
+    const mock = makeMockCache({ mode: 'auto' })
+    const dl = createBundleDownloader({ audioCache: mock.audioCache })
+    const bundle = buildBundle()
+    // Shared bookend ids — common case where the server inlines the same
+    // course-level intro/outro on every pod.
+    const sharedIntro = { id: 'shared-intro', lifecycle: 'persistent' as const }
+    const sharedOutro = { id: 'shared-outro', lifecycle: 'persistent' as const }
+    bundle.pods = [
+      {
+        podId: 'p0',
+        podOrder: 0,
+        title: null,
+        introAudio: sharedIntro,
+        outroAudio: sharedOutro,
+        sentences: [],
+      },
+      {
+        podId: 'p1',
+        podOrder: 1,
+        title: null,
+        introAudio: sharedIntro,
+        outroAudio: sharedOutro,
+        sentences: [],
+      },
+    ]
+    await dl.start(bundle)
+    // Each shared id appears exactly once.
+    expect(mock.ensureCalls.filter((id) => id === 'shared-intro')).toHaveLength(1)
+    expect(mock.ensureCalls.filter((id) => id === 'shared-outro')).toHaveLength(1)
   })
 
   it('skips ids already present in cache', async () => {

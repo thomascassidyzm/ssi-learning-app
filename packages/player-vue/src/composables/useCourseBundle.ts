@@ -82,7 +82,8 @@ function isValidBundle(value: unknown, expectedCode: string): value is CourseBun
     Array.isArray(b.legos) &&
     Array.isArray(b.phrases) &&
     Array.isArray(b.seeds) &&
-    Array.isArray(b.roundMap)
+    Array.isArray(b.roundMap) &&
+    Array.isArray(b.pods)
   )
 }
 

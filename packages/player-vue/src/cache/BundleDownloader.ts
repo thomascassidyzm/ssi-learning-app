@@ -179,7 +179,13 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
    * Walk the bundle and return the ordered list of persistent audio ids.
    *
    * Priority:
-   *   1. Seeds (TODO: BundleSeed has no audio refs in v1 — see header)
+   *   1. Pods (Layer 2) — one pod at a time, in pod_order ascending.
+   *      Per pod: intro bookend → sentences (target, then known, in
+   *      globalOrder) → outro bookend. Pods come first because they're
+   *      the most cache-sensitive content: laps have near-zero inter-play
+   *      gaps and play 130+ files in quick succession, so any cold-load
+   *      latency is audible. Spaced-rep USE phrases sit inside a ~10s
+   *      cycle that absorbs load latency, so they're lower priority.
    *   2. Belt-forward: roundMap order, for each LEGO emit its USE phrases'
    *      k/t1/t2 in (position, role) order.
    *
@@ -189,6 +195,34 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
     const seen = new Set<string>()
     const out: string[] = []
 
+    const yieldRef = (ref: BundleAudioRef | undefined) => {
+      if (!ref) return
+      if (ref.lifecycle !== 'persistent') return
+      if (seen.has(ref.id)) return
+      seen.add(ref.id)
+      out.push(ref.id)
+    }
+
+    // --- 1. Pods (Layer 2) ---------------------------------------------
+    // Sort pods defensively even though the server orders them — the
+    // CourseBundle contract doesn't pin pod order.
+    const orderedPods = [...bundle.pods].sort((a, b) => a.podOrder - b.podOrder)
+    for (const pod of orderedPods) {
+      yieldRef(pod.introAudio)
+      // Sentences in globalOrder ascending. The runtime plays them in
+      // this order with role/speed driven by the active stage playlist,
+      // but the underlying audio file is the same — caching globalOrder
+      // ascending means lap N has the cache primed for sentence k before
+      // the lap reaches it.
+      const orderedSentences = [...pod.sentences].sort((a, b) => a.globalOrder - b.globalOrder)
+      for (const sentence of orderedSentences) {
+        yieldRef(sentence.targetAudio)
+        yieldRef(sentence.knownAudio)
+      }
+      yieldRef(pod.outroAudio)
+    }
+
+    // --- 2. USE phrases by roundMap order ------------------------------
     // Index phrases by lego for O(1) lookup as we walk roundMap.
     const phrasesByLego = new Map<string, BundlePhrase[]>()
     for (const phrase of bundle.phrases) {
@@ -202,19 +236,8 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       list.sort((a, b) => a.position - b.position)
     }
 
-    // TODO: walk seeds first when BundleSeed gains audio refs. For v1
-    // the seed shape carries no audio, so we go straight to roundMap.
-
     // Sort roundMap defensively — spec says ascending but don't trust callers.
     const orderedRounds = [...bundle.roundMap].sort((a, b) => a.roundIndex - b.roundIndex)
-
-    const yieldRef = (ref: BundleAudioRef | undefined) => {
-      if (!ref) return
-      if (ref.lifecycle !== 'persistent') return
-      if (seen.has(ref.id)) return
-      seen.add(ref.id)
-      out.push(ref.id)
-    }
 
     for (const entry of orderedRounds) {
       const usePhrases = phrasesByLego.get(entry.legoId)

@@ -95,6 +95,7 @@ function makeBundle(): CourseBundle {
       legoId,
       seedNumber: 1,
     })),
+    pods: [],
   }
 }
 

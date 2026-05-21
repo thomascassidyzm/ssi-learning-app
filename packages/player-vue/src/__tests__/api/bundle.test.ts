@@ -223,6 +223,42 @@ function setupHappyFixture() {
       ],
       error: null,
     },
+    listening_pods: {
+      data: [
+        { id: 'spa_for_eng_v2:pod-0', pod_order: null, title: 'Spanish Pod 0' },
+      ],
+      error: null,
+    },
+    course_audio: {
+      data: [
+        { id: 'intro-aud', role: 'bookend_listen_intro', duration_ms: 2100 },
+        { id: 'outro-aud', role: 'bookend_listen_outro', duration_ms: 2500 },
+      ],
+      error: null,
+    },
+    listening_pod_sentences: {
+      data: [
+        {
+          pod_id: 'spa_for_eng_v2:pod-0',
+          global_order: 1,
+          target_text: 'hola',
+          known_text: 'hello',
+          target_audio_id: 'pod-s1-tgt',
+          known_audio_id: 'pod-s1-kn',
+          glue_to_next: false,
+        },
+        {
+          pod_id: 'spa_for_eng_v2:pod-0',
+          global_order: 2,
+          target_text: 'adios',
+          known_text: 'goodbye',
+          target_audio_id: 'pod-s2-tgt',
+          known_audio_id: null,
+          glue_to_next: true,
+        },
+      ],
+      error: null,
+    },
   }
 }
 
@@ -295,10 +331,50 @@ describe('GET /api/courses/:code/bundle', () => {
       seedNumber: 1,
     })
 
-    // Querying hit the right four tables.
+    // Querying hit the right tables. listening_pod_sentences is fetched
+    // sequentially (depends on which pod ids exist) — included here too.
     expect(lastFromCalls.sort()).toEqual(
-      ['courses', 'course_legos', 'course_practice_phrases', 'course_round_index'].sort(),
+      [
+        'courses',
+        'course_legos',
+        'course_practice_phrases',
+        'course_round_index',
+        'listening_pods',
+        'course_audio',
+        'listening_pod_sentences',
+      ].sort(),
     )
+
+    // Pods shape: one pod with two sentences, intro+outro inlined from
+    // course_audio.
+    expect(bundle.pods).toHaveLength(1)
+    const pod = bundle.pods[0]
+    expect(pod.podId).toBe('spa_for_eng_v2:pod-0')
+    expect(pod.podOrder).toBe(0) // pod_order was null → coerced to 0
+    expect(pod.title).toBe('Spanish Pod 0')
+    expect(pod.introAudio).toEqual({
+      id: 'intro-aud',
+      lifecycle: 'persistent',
+      durationMs: 2100,
+    })
+    expect(pod.outroAudio).toEqual({
+      id: 'outro-aud',
+      lifecycle: 'persistent',
+      durationMs: 2500,
+    })
+    expect(pod.sentences).toHaveLength(2)
+    expect(pod.sentences[0]).toEqual({
+      globalOrder: 1,
+      knownText: 'hello',
+      targetText: 'hola',
+      glueToNext: false,
+      targetAudio: { id: 'pod-s1-tgt', lifecycle: 'persistent' },
+      knownAudio: { id: 'pod-s1-kn', lifecycle: 'persistent' },
+    })
+    // Sentence 2 has no known_audio_id — knownAudio must be absent, not null.
+    expect(pod.sentences[1].targetAudio.id).toBe('pod-s2-tgt')
+    expect('knownAudio' in pod.sentences[1]).toBe(false)
+    expect(pod.sentences[1].glueToNext).toBe(true)
   })
 
   it('normalises legacy phrase roles (practice → build, eternal_eligible → use)', async () => {

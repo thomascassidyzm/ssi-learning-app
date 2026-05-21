@@ -153,6 +153,7 @@ function makeBundle(opts: FixtureOpts = {}): CourseBundle {
     phrases,
     seeds: legos.map((l) => ({ seedId: l.seedId, seedNumber: l.seedNumber })),
     roundMap,
+    pods: [],
   }
 }
 

@@ -203,6 +203,52 @@ export interface BundleRoundMapEntry {
 }
 
 // ============================================================================
+// LISTENING PODS (Layer 2)
+// ============================================================================
+
+/**
+ * One sentence inside a listening pod. Pod sentences play in
+ * `globalOrder` ascending, possibly multiple times per pod-round, with
+ * speed + role variations driven by the stage playlist (see
+ * `usePodLapScheduler`). Audio is reused thousands of times across a
+ * learner's pod-rounds — always `lifecycle: 'persistent'`.
+ *
+ * Either audio ref may be absent if the upstream content build hasn't
+ * mastered it yet; the runtime tolerates missing slots.
+ */
+export interface BundlePodSentence {
+  /** 1-based position within the pod, matching `listening_pod_sentences.global_order`. */
+  globalOrder: number
+  knownText: string
+  targetText: string
+  /** True iff this sentence's utterance flows directly into the next one (no breath). */
+  glueToNext: boolean
+  targetAudio?: BundleAudioRef
+  knownAudio?: BundleAudioRef
+}
+
+/**
+ * One listening pod — the Layer-2 unit. Today (2026-05) every course
+ * has exactly one pod (`pod-0`); the array shape future-proofs the
+ * downloader and runtime for multiple pods per course without further
+ * wire-format changes.
+ */
+export interface BundlePod {
+  /** `listening_pods.id` — composite key like `${courseCode}:pod-0`. */
+  podId: string
+  /** `listening_pods.pod_order` — 0-based authoring index, drives download priority. */
+  podOrder: number
+  /** Author-facing label; nullable in DB. */
+  title: string | null
+  /** Bookend played before every lap. */
+  introAudio?: BundleAudioRef
+  /** Bookend played after every lap. */
+  outroAudio?: BundleAudioRef
+  /** Sentences in `globalOrder` ascending. */
+  sentences: BundlePodSentence[]
+}
+
+// ============================================================================
 // BUNDLE
 // ============================================================================
 
@@ -224,6 +270,8 @@ export interface CourseBundle {
   phrases: BundlePhrase[]
   seeds: BundleSeed[]
   roundMap: BundleRoundMapEntry[]
+  /** Listening pods (Layer 2) — empty array if the course has none. */
+  pods: BundlePod[]
 }
 
 // ============================================================================
@@ -254,6 +302,14 @@ export function* iterateBundleAudio(bundle: CourseBundle): Iterable<BundleAudioR
     yield* yieldOnce(phrase.audio.known)
     yield* yieldOnce(phrase.audio.target1)
     yield* yieldOnce(phrase.audio.target2)
+  }
+  for (const pod of bundle.pods) {
+    yield* yieldOnce(pod.introAudio)
+    yield* yieldOnce(pod.outroAudio)
+    for (const sentence of pod.sentences) {
+      yield* yieldOnce(sentence.targetAudio)
+      yield* yieldOnce(sentence.knownAudio)
+    }
   }
 }
 
