@@ -25,6 +25,7 @@
 
 import type { CourseBundle, BundleAudioRef, BundlePhrase } from '../types/courseBundle'
 import type { AudioCache } from './AudioCache.types'
+import { BELT_THRESHOLDS } from '../playback/PriorityRoundLoader'
 
 // ============================================================================
 // PUBLIC TYPES
@@ -34,10 +35,9 @@ export interface BundleDownloaderOptions {
   /** Cache to write into. Required. */
   audioCache: AudioCache
   /**
-   * Max concurrent fetches. Default 1 — keeps us well clear of
-   * Vercel's edge rate limit on cold-cache batches across many
-   * learners. Retained as an option for future tuning (e.g. once
-   * the proxy gets a token bucket) but stays at 1 in production.
+   * Max concurrent fetches. Default 4 — concurrency=4 amortises cold-start
+   * ~4× faster than the previous default of 1, and stays well under the
+   * proxy rate-limit ceiling. Retained as an option for future tuning.
    */
   concurrency?: number
   /**
@@ -100,7 +100,7 @@ interface CursorPayload {
   cachedIds: string[]
 }
 
-const DEFAULT_CONCURRENCY = 1
+const DEFAULT_CONCURRENCY = 4
 const DEFAULT_QUOTA_PRESSURE_CEILING = 0.85
 const DEFAULT_STORAGE_PREFIX = 'ssi-bundle-download-'
 const CURSOR_PERSIST_EVERY = 10
@@ -226,8 +226,15 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
    *      gaps and play 130+ files in quick succession, so any cold-load
    *      latency is audible. Spaced-rep USE phrases sit inside a ~10s
    *      cycle that absorbs load latency, so they're lower priority.
-   *   2. Belt-forward: roundMap order, for each LEGO emit its USE phrases'
-   *      k/t1/t2 in (position, role) order.
+   *   2. Belt entry points — for each belt threshold (1, 8, 20, 40, 80,
+   *      150, 280, 400), find the first LEGO in roundMap order at or after
+   *      that threshold and emit its USE phrases' k/t1/t2. This guarantees
+   *      that even mid-cold-start, a belt-skipping learner lands on a
+   *      LEGO whose audio is already cached: every belt's Round-1 entry
+   *      gets primed before we fill in the long tail.
+   *   3. Belt-forward: roundMap order, for each LEGO emit its USE phrases'
+   *      k/t1/t2 in (position, role) order — skipping anything already
+   *      emitted by pass 2.
    *
    * Deduplicated by id across the whole walk.
    */
@@ -262,7 +269,7 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       yieldRef(pod.outroAudio)
     }
 
-    // --- 2. USE phrases by roundMap order ------------------------------
+    // --- 2 & 3. USE phrases — belt entries first, then roundMap order -
     // Index phrases by lego for O(1) lookup as we walk roundMap.
     const phrasesByLego = new Map<string, BundlePhrase[]>()
     for (const phrase of bundle.phrases) {
@@ -279,14 +286,35 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
     // Sort roundMap defensively — spec says ascending but don't trust callers.
     const orderedRounds = [...bundle.roundMap].sort((a, b) => a.roundIndex - b.roundIndex)
 
-    for (const entry of orderedRounds) {
-      const usePhrases = phrasesByLego.get(entry.legoId)
-      if (!usePhrases) continue
+    const yieldUsePhrasesFor = (legoId: string) => {
+      const usePhrases = phrasesByLego.get(legoId)
+      if (!usePhrases) return
       for (const phrase of usePhrases) {
         yieldRef(phrase.audio.known)
         yieldRef(phrase.audio.target1)
         yieldRef(phrase.audio.target2)
       }
+    }
+
+    // --- 2. Belt entry points — first LEGO at/after each belt threshold.
+    // We iterate thresholds ascending (smallest first) so the first belt's
+    // entry gets cached before the second belt's, etc. The deduper in
+    // yieldRef makes overlap a no-op (e.g. if seed 1 is the only LEGO,
+    // all thresholds resolve to the same entry).
+    const emittedBeltLegos = new Set<string>()
+    for (const threshold of BELT_THRESHOLDS) {
+      // First roundMap entry whose seedNumber clears the threshold.
+      const entry = orderedRounds.find((e) => e.seedNumber >= threshold)
+      if (!entry) continue
+      if (emittedBeltLegos.has(entry.legoId)) continue
+      emittedBeltLegos.add(entry.legoId)
+      yieldUsePhrasesFor(entry.legoId)
+    }
+
+    // --- 3. Fill the rest in roundMap order. yieldRef dedupes by id, so
+    // anything already emitted by the belt-entry pass is silently skipped.
+    for (const entry of orderedRounds) {
+      yieldUsePhrasesFor(entry.legoId)
     }
 
     return out
