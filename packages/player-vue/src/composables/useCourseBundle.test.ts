@@ -1,8 +1,16 @@
 /**
  * Tests for useCourseBundle — cache-first + background revalidation.
+ *
+ * Cache lives in IndexedDB (was localStorage; swapped because a single
+ * bundle is 1–3MB and localStorage caps at ~5MB per origin). Tests use
+ * `fake-indexeddb/auto` to give vitest a real IDB implementation, and
+ * each test gets its own DB name to avoid cross-test pollution without
+ * needing per-test deletion.
  */
 
+import 'fake-indexeddb/auto'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { openDB } from 'idb'
 import { useCourseBundle } from './useCourseBundle'
 import type { CourseBundle } from '../types/courseBundle'
 
@@ -11,9 +19,8 @@ import type { CourseBundle } from '../types/courseBundle'
 // ----------------------------------------------------------------------------
 
 const COURSE_CODE = 'spa_for_eng_v2'
-const STORAGE_PREFIX = 'ssi-course-bundle-'
 
-function makeBundle(version: number, courseCode: string = COURSE_CODE): CourseBundle {
+function makeBundle(version: number | string, courseCode: string = COURSE_CODE): CourseBundle {
   return {
     courseCode,
     version,
@@ -26,45 +33,48 @@ function makeBundle(version: number, courseCode: string = COURSE_CODE): CourseBu
 }
 
 // ----------------------------------------------------------------------------
-// localStorage shim — happy-dom provides one, but we explicitly stub it so
-// quota-exceeded behaviour is testable and tests are deterministic.
+// Per-test DB isolation. Each spec gets a fresh DB name so we don't have to
+// drop and recreate between specs, which is racey under fake-indexeddb when
+// connections from prior tests haven't closed yet.
 // ----------------------------------------------------------------------------
 
-interface LocalStorageShim extends Storage {
-  __setQuotaExceeded(value: boolean): void
+let dbCounter = 0
+let currentDbName: string
+
+function freshDbName(): string {
+  dbCounter += 1
+  return `ssi-course-bundles-test-${dbCounter}`
 }
 
-function makeLocalStorageShim(): LocalStorageShim {
-  const store = new Map<string, string>()
-  let quotaExceeded = false
-  return {
-    get length() {
-      return store.size
-    },
-    clear() {
-      store.clear()
-    },
-    getItem(key: string) {
-      return store.get(key) ?? null
-    },
-    key(index: number) {
-      return Array.from(store.keys())[index] ?? null
-    },
-    removeItem(key: string) {
-      store.delete(key)
-    },
-    setItem(key: string, value: string) {
-      if (quotaExceeded) {
-        const err = new Error('QuotaExceededError')
-        err.name = 'QuotaExceededError'
-        throw err
+// Seed the cache directly via idb so tests can simulate "warm cache" and
+// "corrupted cache" states without going through useCourseBundle itself.
+async function seedCache(dbName: string, value: unknown): Promise<void> {
+  const db = await openDB(dbName, 1, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('bundles')) {
+        db.createObjectStore('bundles', { keyPath: 'courseCode' })
       }
-      store.set(key, value)
     },
-    __setQuotaExceeded(value: boolean) {
-      quotaExceeded = value
+  })
+  await db.put('bundles', {
+    courseCode: (value as { courseCode?: string })?.courseCode ?? COURSE_CODE,
+    bundle: value,
+    cachedAt: Date.now(),
+  })
+  db.close()
+}
+
+async function readCacheRaw(dbName: string, code: string): Promise<unknown> {
+  const db = await openDB(dbName, 1, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('bundles')) {
+        db.createObjectStore('bundles', { keyPath: 'courseCode' })
+      }
     },
-  } as LocalStorageShim
+  })
+  const row = await db.get('bundles', code)
+  db.close()
+  return row
 }
 
 // ----------------------------------------------------------------------------
@@ -75,6 +85,16 @@ function makeLocalStorageShim(): LocalStorageShim {
 async function flushMicrotasks(rounds = 5): Promise<void> {
   for (let i = 0; i < rounds; i++) {
     await Promise.resolve()
+  }
+}
+
+/**
+ * Drain both microtasks and the macrotask queue. fake-indexeddb resolves
+ * via setTimeout(0), so pure microtask flushes don't advance it.
+ */
+async function flushAll(rounds = 3): Promise<void> {
+  for (let i = 0; i < rounds; i++) {
+    await new Promise((r) => setTimeout(r, 0))
   }
 }
 
@@ -96,11 +116,8 @@ function defer<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: (e:
 // Per-test setup
 // ----------------------------------------------------------------------------
 
-let storage: LocalStorageShim
-
 beforeEach(() => {
-  storage = makeLocalStorageShim()
-  vi.stubGlobal('localStorage', storage)
+  currentDbName = freshDbName()
   vi.stubGlobal('fetch', vi.fn())
 })
 
@@ -120,7 +137,7 @@ describe('useCourseBundle', () => {
       new Response(JSON.stringify(fixture), { status: 200 }),
     )
 
-    const { load, bundle, isReady } = useCourseBundle()
+    const { load, bundle, isReady } = useCourseBundle({ dbName: currentDbName })
 
     expect(bundle.value).toBeNull()
     expect(isReady.value).toBe(false)
@@ -135,20 +152,25 @@ describe('useCourseBundle', () => {
       `/api/courses/${COURSE_CODE}/bundle`,
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
-    // Persisted to cache for next session.
-    expect(storage.getItem(STORAGE_PREFIX + COURSE_CODE)).not.toBeNull()
+
+    // Bundle write is fire-and-forget; drain to let IDB finish.
+    await flushAll()
+    const row = (await readCacheRaw(currentDbName, COURSE_CODE)) as
+      | { bundle: CourseBundle }
+      | undefined
+    expect(row?.bundle).toEqual(fixture)
   })
 
-  it('warm cache: load() resolves immediately before fetch completes', async () => {
+  it('warm cache: load() resolves with cached bundle before network completes', async () => {
     const cached = makeBundle(1)
-    storage.setItem(STORAGE_PREFIX + COURSE_CODE, JSON.stringify(cached))
+    await seedCache(currentDbName, cached)
 
-    // Build a fetch that hangs forever — proves load() resolved without
-    // awaiting the network.
+    // Build a fetch that hangs forever — proves load() resolved from
+    // the cache, not from the network.
     const deferred = defer<Response>()
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(deferred.promise)
 
-    const { load, bundle, isReady } = useCourseBundle()
+    const { load, bundle, isReady } = useCourseBundle({ dbName: currentDbName })
     const result = await load(COURSE_CODE)
 
     expect(result).toEqual(cached)
@@ -163,37 +185,60 @@ describe('useCourseBundle', () => {
   it('revalidation: server bumps version → bundle.value updates', async () => {
     const cached = makeBundle(1)
     const fresh = makeBundle(2)
-    storage.setItem(STORAGE_PREFIX + COURSE_CODE, JSON.stringify(cached))
+    await seedCache(currentDbName, cached)
 
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(fresh), { status: 200 }),
     )
 
-    const { load, bundle } = useCourseBundle()
+    const { load, bundle } = useCourseBundle({ dbName: currentDbName })
     await load(COURSE_CODE)
     expect(bundle.value).toEqual(cached) // optimistic
 
-    // Let the background revalidate run to completion.
-    await flushMicrotasks(20)
-
-    expect(bundle.value).toEqual(fresh)
-    expect(JSON.parse(storage.getItem(STORAGE_PREFIX + COURSE_CODE)!)).toEqual(fresh)
+    // Wait for the background revalidate's IDB write + ref update.
+    await vi.waitFor(() => {
+      expect(bundle.value).toEqual(fresh)
+    })
+    const row = (await readCacheRaw(currentDbName, COURSE_CODE)) as
+      | { bundle: CourseBundle }
+      | undefined
+    expect(row?.bundle).toEqual(fresh)
   })
 
   it('revalidation: same version → bundle.value unchanged', async () => {
     const cached = makeBundle(1)
-    storage.setItem(STORAGE_PREFIX + COURSE_CODE, JSON.stringify(cached))
+    await seedCache(currentDbName, cached)
 
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(makeBundle(1)), { status: 200 }),
     )
 
-    const { load, bundle } = useCourseBundle()
+    const { load, bundle } = useCourseBundle({ dbName: currentDbName })
     await load(COURSE_CODE)
     const before = bundle.value
-    await flushMicrotasks(20)
+    // Give the revalidate ample time to run (and confirm it's a no-op).
+    await flushAll(5)
 
     expect(bundle.value).toBe(before) // identity unchanged
+  })
+
+  it('semver version strings: any change refreshes (no lexicographic > trap)', async () => {
+    // "0.10.0" > "0.5.1" semantically, but lexicographic "0.10" < "0.5"
+    // would lose. The composable uses !== so this is fine in both
+    // directions.
+    const cached = makeBundle('0.5.1')
+    const fresh = makeBundle('0.10.0')
+    await seedCache(currentDbName, cached)
+
+    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify(fresh), { status: 200 }),
+    )
+
+    const { load, bundle } = useCourseBundle({ dbName: currentDbName })
+    await load(COURSE_CODE)
+    await vi.waitFor(() => {
+      expect(bundle.value).toEqual(fresh)
+    })
   })
 
   it('cancel(): aborts in-flight fetches without throwing', async () => {
@@ -209,78 +254,53 @@ describe('useCourseBundle', () => {
         }),
     )
 
-    const { load, cancel } = useCourseBundle()
+    const { load, cancel } = useCourseBundle({ dbName: currentDbName })
     const pending = load(COURSE_CODE)
+    // Catch the eventual rejection right away so the rejection itself
+    // doesn't race the assertion.
+    const settled = pending.catch((e) => e)
+
+    // Give the cache read (IDB, macrotask-based via fake-indexeddb) a
+    // chance to resolve to null, then let the fetch register its abort
+    // listener.
+    await flushAll(3)
 
     // Don't throw on cancel itself.
     expect(() => cancel()).not.toThrow()
 
-    // The pending load will reject — catch it so the test runner
-    // doesn't see an unhandled rejection.
-    await expect(pending).rejects.toBeDefined()
+    const err = await settled
+    expect(err).toBeDefined()
   })
 
   it('evictCache(): removes the cached bundle, leaves bundle.value alone', async () => {
     const cached = makeBundle(1)
-    storage.setItem(STORAGE_PREFIX + COURSE_CODE, JSON.stringify(cached))
+    await seedCache(currentDbName, cached)
 
     // Make the background revalidate hang so it can't repopulate.
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(defer<Response>().promise)
 
-    const { load, bundle, evictCache } = useCourseBundle()
+    const { load, bundle, evictCache } = useCourseBundle({ dbName: currentDbName })
     await load(COURSE_CODE)
 
-    expect(storage.getItem(STORAGE_PREFIX + COURSE_CODE)).not.toBeNull()
+    const beforeRow = await readCacheRaw(currentDbName, COURSE_CODE)
+    expect(beforeRow).toBeDefined()
     const liveBefore = bundle.value
 
-    evictCache(COURSE_CODE)
+    await evictCache(COURSE_CODE)
 
-    expect(storage.getItem(STORAGE_PREFIX + COURSE_CODE)).toBeNull()
+    const afterRow = await readCacheRaw(currentDbName, COURSE_CODE)
+    expect(afterRow).toBeUndefined()
     expect(bundle.value).toBe(liveBefore) // ref untouched
   })
 
-  it('quota exceeded on write does not throw; bundle.value still populated', async () => {
-    storage.__setQuotaExceeded(true)
-    const fixture = makeBundle(1)
-    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      new Response(JSON.stringify(fixture), { status: 200 }),
-    )
-
-    const { load, bundle, isReady } = useCourseBundle()
-    const result = await load(COURSE_CODE)
-
-    expect(result).toEqual(fixture)
-    expect(bundle.value).toEqual(fixture)
-    expect(isReady.value).toBe(true)
-    // Cache write was rejected — storage stays empty.
-    expect(storage.getItem(STORAGE_PREFIX + COURSE_CODE)).toBeNull()
-  })
-
-  it('corrupted cache: invalid JSON treated as cache miss', async () => {
-    storage.setItem(STORAGE_PREFIX + COURSE_CODE, '{not valid json')
-    const fixture = makeBundle(1)
-    ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      new Response(JSON.stringify(fixture), { status: 200 }),
-    )
-
-    const { load, bundle } = useCourseBundle()
-    await load(COURSE_CODE)
-
-    expect(bundle.value).toEqual(fixture)
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1) // had to fetch
-  })
-
   it('corrupted cache: wrong shape treated as cache miss', async () => {
-    storage.setItem(
-      STORAGE_PREFIX + COURSE_CODE,
-      JSON.stringify({ courseCode: COURSE_CODE, legos: 'not-an-array' }),
-    )
+    await seedCache(currentDbName, { courseCode: COURSE_CODE, legos: 'not-an-array' })
     const fixture = makeBundle(1)
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(fixture), { status: 200 }),
     )
 
-    const { load, bundle } = useCourseBundle()
+    const { load, bundle } = useCourseBundle({ dbName: currentDbName })
     await load(COURSE_CODE)
 
     expect(bundle.value).toEqual(fixture)
@@ -288,24 +308,21 @@ describe('useCourseBundle', () => {
   })
 
   it('corrupted cache: missing version treated as cache miss', async () => {
-    storage.setItem(
-      STORAGE_PREFIX + COURSE_CODE,
-      JSON.stringify({
-        courseCode: COURSE_CODE,
-        // version: missing
-        mainLoopCount: 0,
-        legos: [],
-        phrases: [],
-        seeds: [],
-        roundMap: [],
-      }),
-    )
+    await seedCache(currentDbName, {
+      courseCode: COURSE_CODE,
+      // version: missing
+      mainLoopCount: 0,
+      legos: [],
+      phrases: [],
+      seeds: [],
+      roundMap: [],
+    })
     const fixture = makeBundle(1)
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(fixture), { status: 200 }),
     )
 
-    const { load, bundle } = useCourseBundle()
+    const { load, bundle } = useCourseBundle({ dbName: currentDbName })
     await load(COURSE_CODE)
 
     expect(bundle.value).toEqual(fixture)
@@ -317,7 +334,7 @@ describe('useCourseBundle', () => {
     const deferred = defer<Response>()
     ;(globalThis.fetch as ReturnType<typeof vi.fn>).mockReturnValue(deferred.promise)
 
-    const { load } = useCourseBundle()
+    const { load } = useCourseBundle({ dbName: currentDbName })
     const p1 = load(COURSE_CODE)
     const p2 = load(COURSE_CODE)
 

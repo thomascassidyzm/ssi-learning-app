@@ -1,12 +1,20 @@
 /**
  * useCourseBundle — fetch + cache the one-shot course bundle.
  *
- * Mirrors the cache-first + background-revalidation pattern used by
- * `useInstantPlayback` for the round-map: on `load()` we read
- * localStorage first and resolve immediately if a valid cached bundle
- * exists, then revalidate against the server in the background. If the
- * server has bumped `version`, we overwrite the cache and update the
- * ref (race-protected against course-code changes).
+ * Cache-first + background-revalidation. On `load()` we read the cached
+ * bundle from IndexedDB; if present and shape-valid, we resolve with it
+ * immediately and revalidate against the server in the background. If
+ * the server has bumped `version`, we overwrite the cache and update
+ * the ref (race-protected against course-code changes).
+ *
+ * Why IndexedDB and not localStorage:
+ *   A single course bundle runs 1–3MB. localStorage caps at ~5MB per
+ *   origin in Chrome/Safari (browser-enforced, not configurable),
+ *   which couldn't hold more than one course at a time and frequently
+ *   blew up with QuotaExceededError. IndexedDB has gigabytes of room
+ *   (Chrome lets origins use ~60% of free disk), and the slight async
+ *   latency on reads doesn't matter — `load()` is awaited before
+ *   playback starts anyway.
  *
  * No singleton. Each invocation owns its own state. The caller keeps
  * the reference for the session.
@@ -16,6 +24,7 @@
  */
 
 import { ref, type Ref } from 'vue'
+import { openDB, type IDBPDatabase } from 'idb'
 import type { CourseBundle } from '../types/courseBundle'
 
 // ============================================================================
@@ -25,8 +34,8 @@ import type { CourseBundle } from '../types/courseBundle'
 export interface UseCourseBundleOptions {
   /** Override the base URL. Default '/api/courses'. */
   apiBase?: string
-  /** Storage key prefix. Default 'ssi-course-bundle-'. */
-  storagePrefix?: string
+  /** Override the IndexedDB name. Default 'ssi-course-bundles-v1'. */
+  dbName?: string
 }
 
 export interface UseCourseBundle {
@@ -35,7 +44,7 @@ export interface UseCourseBundle {
   error: Ref<Error | null>
   load(courseCode: string): Promise<CourseBundle>
   cancel(): void
-  evictCache(courseCode: string): void
+  evictCache(courseCode: string): Promise<void>
 }
 
 // ============================================================================
@@ -43,7 +52,14 @@ export interface UseCourseBundle {
 // ============================================================================
 
 const DEFAULT_API_BASE = '/api/courses'
-const DEFAULT_STORAGE_PREFIX = 'ssi-course-bundle-'
+const DEFAULT_DB_NAME = 'ssi-course-bundles-v1'
+const STORE_NAME = 'bundles'
+
+interface CacheRow {
+  courseCode: string
+  bundle: CourseBundle
+  cachedAt: number
+}
 
 // ============================================================================
 // SHAPE VALIDATION
@@ -76,7 +92,7 @@ function isValidBundle(value: unknown, expectedCode: string): value is CourseBun
 
 export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourseBundle {
   const apiBase = options.apiBase ?? DEFAULT_API_BASE
-  const storagePrefix = options.storagePrefix ?? DEFAULT_STORAGE_PREFIX
+  const dbName = options.dbName ?? DEFAULT_DB_NAME
 
   // -----------------------------------------------------------
   // State
@@ -93,58 +109,60 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
   const inFlightLoads = new Map<string, Promise<CourseBundle>>()
 
   // -----------------------------------------------------------
-  // Cache I/O
+  // IndexedDB — lazy, idempotent init
   // -----------------------------------------------------------
 
-  function storageKey(code: string): string {
-    return storagePrefix + code
+  let dbPromise: Promise<IDBPDatabase> | null = null
+
+  function getDB(): Promise<IDBPDatabase> {
+    if (!dbPromise) {
+      dbPromise = openDB(dbName, 1, {
+        upgrade(db) {
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME, { keyPath: 'courseCode' })
+          }
+        },
+      })
+    }
+    return dbPromise
   }
 
-  function readCache(code: string): CourseBundle | null {
+  // -----------------------------------------------------------
+  // Cache I/O (async — IDB)
+  // -----------------------------------------------------------
+
+  async function readCache(code: string): Promise<CourseBundle | null> {
     try {
-      const raw = localStorage.getItem(storageKey(code))
-      if (!raw) return null
-      const parsed: unknown = JSON.parse(raw)
-      if (!isValidBundle(parsed, code)) return null
-      return parsed
+      const db = await getDB()
+      const row = (await db.get(STORE_NAME, code)) as CacheRow | undefined
+      if (!row) return null
+      if (!isValidBundle(row.bundle, code)) {
+        // Schema drift between writer and reader (e.g. older session
+        // wrote a now-invalid shape). Treat as miss and refetch.
+        return null
+      }
+      return row.bundle
     } catch (err) {
       console.warn('[CourseBundle] Failed to read cache:', err)
       return null
     }
   }
 
-  function writeCache(code: string, payload: CourseBundle): void {
-    // Evict other courses' bundle caches first. A single course bundle
-    // can run 1–3MB; localStorage's ~5MB budget can't hold more than
-    // one. Single-course users (the common case) keep instant
-    // cache-first revisits; multi-course session-hoppers pay one
-    // network round-trip per switch — much better than the
-    // QuotaExceededError loop the previous build hit.
-    evictOtherBundles(code)
+  async function writeCache(code: string, payload: CourseBundle): Promise<void> {
     try {
-      localStorage.setItem(storageKey(code), JSON.stringify(payload))
-    } catch (err) {
-      // Genuinely too big for localStorage even after evicting others
-      // (extreme bundle on a constrained browser). Bundle still lives
-      // in `bundle.value` for this session — we just lose the
-      // warm-start benefit next time. Non-fatal.
-      console.warn('[CourseBundle] Failed to write cache (quota?):', err)
-    }
-  }
-
-  function evictOtherBundles(currentCode: string): void {
-    try {
-      const keepKey = storageKey(currentCode)
-      const toEvict: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith(storagePrefix) && key !== keepKey) {
-          toEvict.push(key)
-        }
+      const db = await getDB()
+      const row: CacheRow = {
+        courseCode: code,
+        bundle: payload,
+        cachedAt: Date.now(),
       }
-      for (const key of toEvict) localStorage.removeItem(key)
-    } catch {
-      // localStorage unavailable / private-mode quota; ignored.
+      await db.put(STORE_NAME, row)
+    } catch (err) {
+      // IDB writes can fail under extreme quota pressure or in
+      // private-browsing modes that disable persistent storage.
+      // The bundle still lives in `bundle.value` for this session,
+      // we just lose the warm-start benefit next time. Non-fatal.
+      console.warn('[CourseBundle] Failed to write cache:', err)
     }
   }
 
@@ -199,7 +217,7 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
       // (e.g. "0.5.1") where lexicographic > misorders (e.g. "0.10"
       // < "0.5"). Any difference triggers a refresh.
       if (fresh.version !== cachedVersion) {
-        writeCache(code, fresh)
+        await writeCache(code, fresh)
         // Race-protect: if the caller has since loaded a different
         // course, don't stomp on it.
         if (bundle.value?.courseCode === code) {
@@ -216,27 +234,32 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
   // -----------------------------------------------------------
 
   function load(code: string): Promise<CourseBundle> {
-    // Cache-first read — synchronous, optimistic.
-    const cached = readCache(code)
-    if (cached) {
-      bundle.value = cached
-      isReady.value = true
-      error.value = null
-      // Background revalidate — never block on it.
-      void revalidate(code, cached.version)
-      return Promise.resolve(cached)
-    }
-
-    // De-dupe: if a network fetch for this same code is already in
-    // flight, ride along.
+    // De-dupe: if a load for this same code is already in flight, ride
+    // along. Same code = same result, no need for parallel cache reads
+    // or fetches.
     const existing = inFlightLoads.get(code)
     if (existing) return existing
 
-    // Cold path — must wait for network.
     const promise = (async () => {
       try {
+        // Cache-first read. IDB latency is ~1-5ms on a warm DB; the
+        // caller is awaiting load() anyway so this is unobservable.
+        const cached = await readCache(code)
+        if (cached) {
+          bundle.value = cached
+          isReady.value = true
+          error.value = null
+          // Background revalidate — never block on it.
+          void revalidate(code, cached.version)
+          return cached
+        }
+
+        // Cold path — wait for network.
         const fresh = await fetchBundle(code)
-        writeCache(code, fresh)
+        // Fire-and-forget the write — the bundle is already usable.
+        // No await: even if writeCache is slow (rare), playback
+        // shouldn't wait.
+        void writeCache(code, fresh)
         bundle.value = fresh
         isReady.value = true
         error.value = null
@@ -266,9 +289,10 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
     activeAborts.clear()
   }
 
-  function evictCache(code: string): void {
+  async function evictCache(code: string): Promise<void> {
     try {
-      localStorage.removeItem(storageKey(code))
+      const db = await getDB()
+      await db.delete(STORE_NAME, code)
     } catch (err) {
       console.warn('[CourseBundle] Failed to evict cache:', err)
     }
