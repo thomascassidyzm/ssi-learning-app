@@ -159,6 +159,29 @@ export class AudioCacheImpl implements AudioCache {
     if (this.persistentIds.has(id)) return
     if (opts.lifecycle === 'ephemeral' && this.ephemeralIds.has(id)) return
 
+    // Cross-namespace promotion: id is already cached as ephemeral and the
+    // caller wants it persistent. Rewrite the existing row's lifecycle in
+    // place instead of re-fetching, and move it between the in-memory Sets.
+    if (opts.lifecycle === 'persistent' && this.ephemeralIds.has(id)) {
+      const existing = await this.db.get(STORE, id)
+      if (existing) {
+        const promoted: AudioRow = {
+          ...existing,
+          lifecycle: 'persistent',
+          ephemeralOwnerLegoId: null,
+          lastAccessedAt: Date.now(),
+        }
+        await this.db.put(STORE, promoted)
+        this.ephemeralIds.delete(id)
+        this.persistentIds.add(id)
+        this.statsCache = null
+        return
+      }
+      // Row missing from DB despite Set membership — fall through to fetch
+      // and self-heal the inconsistency.
+      this.ephemeralIds.delete(id)
+    }
+
     const res = await fetch(this.audioUrl(id), opts.signal ? { signal: opts.signal } : undefined)
     if (!res.ok) {
       throw new Error(`AudioCache: fetch ${id} → ${res.status}`)
@@ -184,8 +207,13 @@ export class AudioCacheImpl implements AudioCache {
     }
     await this.db.put(STORE, row)
 
-    if (opts.lifecycle === 'persistent') this.persistentIds.add(id)
-    else this.ephemeralIds.add(id)
+    if (opts.lifecycle === 'persistent') {
+      this.persistentIds.add(id)
+      // Defensive: if id was somehow in both Sets, ensure only persistent.
+      this.ephemeralIds.delete(id)
+    } else {
+      this.ephemeralIds.add(id)
+    }
 
     this.statsCache = null
   }
