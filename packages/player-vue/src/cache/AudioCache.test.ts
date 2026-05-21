@@ -463,4 +463,172 @@ describe('AudioCache', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/custom/z.mp3')
     expect(direct.has('z')).toBe(true)
   })
+
+  // ==========================================================================
+  // EPHEMERAL — IDEMPOTENT RE-ACQUIRE
+  // ==========================================================================
+
+  it('ephemeral.acquireForLego is idempotent — re-acquire is a no-op', async () => {
+    await cache.ephemeral.acquireForLego({ legoId: 'L', audioIds: ['a', 'b'] })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    // Re-acquire the same set: nothing new should be fetched.
+    await cache.ephemeral.acquireForLego({ legoId: 'L', audioIds: ['a', 'b'] })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    for (const id of ['a', 'b']) {
+      expect(cache.ephemeral.has(id)).toBe(true)
+      const row = await readRow(id)
+      expect(row?.lifecycle).toBe('ephemeral')
+      expect(row?.ephemeralOwnerLegoId).toBe('L')
+    }
+  })
+
+  // ==========================================================================
+  // EPHEMERAL — RELEASE SCOPING
+  // ==========================================================================
+
+  it('releaseForLego drops only ids owned by that lego; other legos untouched', async () => {
+    await cache.ephemeral.acquireForLego({ legoId: 'L1', audioIds: ['a', 'b'] })
+    await cache.ephemeral.acquireForLego({ legoId: 'L2', audioIds: ['c', 'd'] })
+
+    const deleted = await cache.ephemeral.releaseForLego('L1')
+    expect(deleted).toBe(2)
+
+    expect(cache.ephemeral.has('a')).toBe(false)
+    expect(cache.ephemeral.has('b')).toBe(false)
+    expect(cache.ephemeral.has('c')).toBe(true)
+    expect(cache.ephemeral.has('d')).toBe(true)
+    expect(await readRow('a')).toBeUndefined()
+    expect(await readRow('c')).toBeDefined()
+  })
+
+  it('releaseForLego does NOT delete persistent ids even if a lego "shared" the id', async () => {
+    // 'a' is persistent first. A later ephemeral acquireForLego that lists 'a'
+    // must skip it (persistent wins) — and releaseForLego must therefore
+    // leave 'a' alone.
+    await cache.persistent.ensure('a')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await cache.ephemeral.acquireForLego({ legoId: 'L', audioIds: ['a', 'b'] })
+    // Only 'b' fetched (a was already persistent).
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    const deleted = await cache.ephemeral.releaseForLego('L')
+    // Only 'b' was actually owned by L.
+    expect(deleted).toBe(1)
+
+    expect(cache.persistent.has('a')).toBe(true)
+    expect(cache.has('a')).toBe(true)
+    expect(await readRow('a')).toBeDefined()
+    expect(cache.has('b')).toBe(false)
+  })
+
+  // ==========================================================================
+  // EVICTION — EPHEMERAL OWNED BY LIVE LEGO IS NOT A CANDIDATE
+  // ==========================================================================
+
+  it('persistent.evictToTarget does NOT touch ephemeral rows still owned by a live lego', async () => {
+    // Acquire a live ephemeral set then a persistent row that's newer.
+    await cache.ephemeral.acquireForLego({ legoId: 'L', audioIds: ['e1', 'e2'] })
+    await cache.persistent.ensure('p1')
+
+    // Force pressure: target 0 bytes — must still leave ephemerals alone.
+    await cache.persistent.evictToTarget(0)
+
+    expect(cache.persistent.has('p1')).toBe(false)
+    expect(cache.ephemeral.has('e1')).toBe(true)
+    expect(cache.ephemeral.has('e2')).toBe(true)
+  })
+
+  // ==========================================================================
+  // STATS — PER-NAMESPACE COUNT/BYTES
+  // ==========================================================================
+
+  it('stats() returns correct per-namespace count and bytes', async () => {
+    // Custom sizes per id so the math is verifiable.
+    fetchMock = makeFetchMock({
+      sizePerId: (id) => {
+        if (id === 'p1') return 100
+        if (id === 'p2') return 50
+        if (id === 'e1') return 10
+        return 1
+      },
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    await cache.persistent.ensure('p1')
+    await cache.persistent.ensure('p2')
+    await cache.ephemeral.acquireForLego({ legoId: 'L', audioIds: ['e1'] })
+
+    const s = await cache.stats()
+    expect(s.persistent.count).toBe(2)
+    expect(s.persistent.bytes).toBe(150)
+    expect(s.ephemeral.count).toBe(1)
+    expect(s.ephemeral.bytes).toBe(10)
+  })
+
+  // ==========================================================================
+  // CROSS-NAMESPACE PROMOTION
+  // ==========================================================================
+
+  it('persistent.ensure(id) promotes an existing ephemeral row in-place — no double-fetch', async () => {
+    // 1) Acquire as ephemeral.
+    await cache.ephemeral.acquireForLego({ legoId: 'L', audioIds: ['x'] })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(cache.ephemeral.has('x')).toBe(true)
+    expect(cache.persistent.has('x')).toBe(false)
+
+    // 2) Ensure as persistent — should NOT re-fetch.
+    await cache.persistent.ensure('x')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    // 3) Row lifecycle is now persistent; Sets are clean.
+    const row = await readRow('x')
+    expect(row?.lifecycle).toBe('persistent')
+    expect(row?.ephemeralOwnerLegoId).toBeNull()
+    expect(cache.persistent.has('x')).toBe(true)
+    expect(cache.ephemeral.has('x')).toBe(false)
+
+    // 4) Subsequent releaseForLego('L') must NOT delete the (now persistent) row.
+    const deleted = await cache.ephemeral.releaseForLego('L')
+    expect(deleted).toBe(0)
+    expect(await readRow('x')).toBeDefined()
+    expect(cache.persistent.has('x')).toBe(true)
+  })
+
+  // ==========================================================================
+  // RACE — CONCURRENT ENSURE + RELEASE
+  // ==========================================================================
+
+  it('concurrent ephemeral acquire + release: final state has no L-owned rows for any id', async () => {
+    // The test asserts the only guarantee the contract makes: after both
+    // operations settle, no row in IndexedDB is still owned by L. The acquire
+    // may or may not have written some rows past the abort (timing-dependent),
+    // but releaseForLego ran the cursor delete pass on by-ephemeral-owner=L
+    // AFTER aborting in-flight fetches. Any row that landed after the cursor
+    // pass would still leave L's Set entries inconsistent, so the in-memory
+    // Sets are also checked for cleanliness.
+    fetchMock = makeFetchMock({ delayMs: 30 })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const acquire = cache.ephemeral.acquireForLego({
+      legoId: 'L',
+      audioIds: ['r1', 'r2', 'r3', 'r4'],
+    })
+
+    // Fire release after a brief delay so SOME fetches may have settled
+    // but others are still in flight.
+    await new Promise((r) => setTimeout(r, 5))
+    await cache.ephemeral.releaseForLego('L')
+    await acquire
+
+    for (const id of ['r1', 'r2', 'r3', 'r4']) {
+      const row = await readRow(id)
+      if (row) {
+        expect(row.ephemeralOwnerLegoId).not.toBe('L')
+      }
+      expect(cache.ephemeral.has(id)).toBe(false)
+    }
+  })
 })
