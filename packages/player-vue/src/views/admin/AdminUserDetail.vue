@@ -285,14 +285,14 @@ function beltTone(beltName: string): Tone | undefined {
 function handlePlatformRoleChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value || null
   if (profile.value) {
-    updateUserRole(profile.value.id, 'platform_role', value)
+    updateUserRole(profile.value.id, 'platform_role', value, getAuthToken)
   }
 }
 
 function handleEducationalRoleChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value || null
   if (profile.value) {
-    updateUserRole(profile.value.id, 'educational_role', value)
+    updateUserRole(profile.value.id, 'educational_role', value, getAuthToken)
   }
 }
 

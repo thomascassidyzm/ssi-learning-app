@@ -367,67 +367,35 @@ async function createGovtAdmin(): Promise<void> {
   successMessage.value = null
   govtAdminCode.value = null
 
+  // All four DB writes (learners, govt_admins, invite_codes — and the
+  // region lookup) moved server-side under service-role auth in
+  // /api/admin/create-govt-admin. The migrations on 2026-05-21
+  // (block_anon_role_escalation + fix_learners_update_grant) REVOKEd
+  // direct INSERT on these tables, so this is the only path that works.
   try {
-    const client = getClient()
-    const userId = `govt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    const emailStr = newGovtEmail.value.trim().toLowerCase()
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
 
-    // 1. Create learner record
-    const insertData: Record<string, unknown> = {
-      user_id: userId,
-      display_name: newGovtName.value.trim(),
-      educational_role: 'govt_admin',
-    }
-    if (emailStr) {
-      insertData.verified_emails = [emailStr]
-    }
-    const { error: learnerError } = await client.from('learners').insert(insertData)
-    if (learnerError) throw learnerError
-
-    // 2. Look up the region_code for the selected group (for backward compat)
-    const createdBy = getCurrentUserId() || userId
-    const selectedGroup = groups.value.find(g => g.id === newGovtGroup.value)
-    let regionCode: string | null = null
-    if (selectedGroup) {
-      // Try to find a matching region by group name
-      const matchingRegion = regions.value.find(r =>
-        r.name.toLowerCase() === selectedGroup.name.toLowerCase()
-      )
-      if (matchingRegion) regionCode = matchingRegion.code
-    }
-
-    // 3. Create govt_admins record (group_id + region_code for backward compat)
-    const govtInsert: Record<string, unknown> = {
-      user_id: userId,
-      group_id: newGovtGroup.value,
-      organization_name: newGovtOrg.value.trim(),
-      created_by: createdBy,
-    }
-    if (regionCode) govtInsert.region_code = regionCode
-    const { error: govtError } = await client.from('govt_admins').insert(govtInsert)
-    if (govtError) throw govtError
-
-    // 4. Generate an invite code they can use to sign in
-    const code = [
-      Math.random().toString(36).substr(2, 3).toUpperCase(),
-      Math.random().toString(36).substr(2, 3).toUpperCase(),
-    ].join('-')
-
-    const { error: codeError } = await client.from('invite_codes').insert({
-      code,
-      code_type: 'govt_admin',
-      created_by: createdBy,
-      grants_group_id: newGovtGroup.value,
-      grants_region: regionCode,
-      max_uses: 1,
-      metadata: {
-        organization_name: newGovtOrg.value.trim(),
-        recipient_email: emailStr,
-        recipient_name: newGovtName.value.trim(),
+    const resp = await fetch('/api/admin/create-govt-admin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
+      body: JSON.stringify({
+        display_name: newGovtName.value.trim(),
+        email: newGovtEmail.value.trim().toLowerCase(),
+        group_id: newGovtGroup.value,
+        organization_name: newGovtOrg.value.trim(),
+      }),
     })
-    if (codeError) console.warn('[SetupView] invite code creation failed:', codeError)
-    else govtAdminCode.value = code
+
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      throw new Error(data.error || `HTTP ${resp.status}`)
+    }
+
+    govtAdminCode.value = data.invite_code || null
 
     const groupName = groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group'
     successMessage.value = `Govt Admin "${newGovtName.value.trim()}" created for ${groupName}`
