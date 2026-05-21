@@ -24,7 +24,7 @@ import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { INITIAL_PRELOAD_SEEDS, LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
-import { useSharedBeltProgress, getSeedFromLegoId, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
+import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useOfflineCache } from '../composables/useOfflineCache'
@@ -839,11 +839,16 @@ const hasReachedInfinitePlay = async (
  * Same caching shape as getCourseMainLoopRoundCount — single Supabase
  * query per course per session.
  */
-let courseFinalLegoCache: { legoId: string; roundIndex: number } | null = null
 let courseFinalLegoCacheKey: string | null = null
+// Reactive ref backing the cache so computeds (wouldEnterInfplay) can
+// derive end-of-course decisions without an extra async fetch on every
+// tick. Populated by getCourseFinalLego below, kicked off early in
+// loadAllData so it's ready by the time the learner can press
+// forward-skip.
+const courseFinalLegoRef = ref<{ legoId: string; roundIndex: number } | null>(null)
 const getCourseFinalLego = async (course: string): Promise<{ legoId: string; roundIndex: number } | null> => {
-  if (courseFinalLegoCache && courseFinalLegoCacheKey === course) {
-    return courseFinalLegoCache
+  if (courseFinalLegoRef.value && courseFinalLegoCacheKey === course) {
+    return courseFinalLegoRef.value
   }
   if (!supabase?.value || !course) return null
   try {
@@ -860,9 +865,9 @@ const getCourseFinalLego = async (course: string): Promise<{ legoId: string; rou
     const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
     const count = await getCourseMainLoopRoundCount(course)
     if (count <= 0) return null
-    courseFinalLegoCache = { legoId, roundIndex: count - 1 }  // 0-indexed
+    courseFinalLegoRef.value = { legoId, roundIndex: count - 1 }  // 0-indexed
     courseFinalLegoCacheKey = course
-    return courseFinalLegoCache
+    return courseFinalLegoRef.value
   } catch (err) {
     console.warn('[LearningPlayer] getCourseFinalLego threw:', err)
     return null
@@ -2636,10 +2641,35 @@ const wouldEnterInfplay = computed(() => {
   if (currentMode.value === 'infplay') return true
   const next = playingNextBelt.value
   if (!next) return true  // already past the last belt in the enum
-  const courseMaxSeed = beltProgress.value?.courseSeedCount?.value
-  if (typeof courseMaxSeed === 'number' && next.seedsRequired > courseMaxSeed) {
-    return true  // next belt starts past where this course ends
+
+  // LEGO-based end-of-course detection. The course's final LEGO is
+  // what defines "end of course"; its parent seed determines which
+  // belt has the last content. If the learner is at or past that
+  // belt visually, the forward-skip slot morphs into "∞ INF PLAY"
+  // and tapping it enters infplay rather than jumping to an empty
+  // next belt.
+  //
+  // We deliberately stopped using seed-threshold math
+  // (next.seedsRequired > courseMaxSeed) because:
+  //   1. courseSeedCount could resolve as null/undefined, defaulting
+  //      to a heuristic that didn't match short courses, causing the
+  //      button to keep advancing into empty belts instead of
+  //      offering INF PLAY entry.
+  //   2. Seeds are an accounting unit. LEGO ids are the unit of
+  //      learning, and encode their parent seed (S0048L02 = seed 48,
+  //      lego 2) so we can derive belt from LEGO id directly.
+  const finalLegoId = courseFinalLegoRef.value?.legoId
+  if (finalLegoId) {
+    const finalSeed = getSeedFromLegoId(finalLegoId)
+    if (finalSeed !== null) {
+      const finalBeltIdx = getBeltIndexForSeed(finalSeed)
+      return playingBelt.value.index >= finalBeltIdx
+    }
   }
+
+  // Fallback for the brief window before getCourseFinalLego resolves
+  // (or in environments without a Supabase client): treat "no further
+  // belt in the enum" as the cue. Matches the previous default.
   return false
 })
 
@@ -6118,37 +6148,38 @@ const handleSkipToNextBelt = async () => {
     return
   }
 
-  const currentSeedId = currentRound?.seedId || 'S0001'
-  const currentSeedNumber = parseInt(currentSeedId.substring(1, 5), 10) || 1
+  // Single source of truth for the entry decision: the template-bound
+  // computed used to morph the button into the purple "∞" pill. If the
+  // morph is visible, the click enters INF PLAY; otherwise it jumps to
+  // the next belt. Keeps the click behaviour aligned with what the
+  // learner sees on the button.
+  const enterInfplay = wouldEnterInfplay.value
 
-  const BELT_THRESHOLDS = [0, 8, 20, 40, 80, 150, 280, 400]
-  const BELT_NAMES = ['White', 'Yellow', 'Orange', 'Green', 'Blue', 'Purple', 'Brown', 'Black']
+  // For the belt jump path we still need the next belt's first seed.
+  // playingNextBelt is the belt visually above the current one (derived
+  // from beltProgress, which is the same source the belt label uses).
+  const nextBelt = playingNextBelt.value
+  const nextBeltThreshold = nextBelt?.seedsRequired ?? 0
 
-  let currentBeltIndex = 0
-  for (let i = BELT_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (currentSeedNumber >= BELT_THRESHOLDS[i]) {
-      currentBeltIndex = i
-      break
+  // Visual belt anchor for INF PLAY entry: the seed of the course's
+  // final LEGO. Falls back to nextBeltThreshold then to a sensible
+  // default — the anchor is purely visual (belt label colour) so a
+  // mild miss is recoverable.
+  const courseEndSeed = (() => {
+    const fin = courseFinalLegoRef.value?.legoId
+    if (fin) {
+      const s = getSeedFromLegoId(fin)
+      if (s !== null) return s
     }
-  }
-
-  const nextBeltIndex = currentBeltIndex + 1
-  const nextBeltThreshold = BELT_THRESHOLDS[nextBeltIndex]
-  const nextBeltNameFromPosition = BELT_NAMES[nextBeltIndex]
-  const courseMaxSeed = beltProgress.value?.courseSeedCount.value ?? nextBeltThreshold ?? 668
-
-  // Enter infplay when there's no higher belt OR the next belt is past
-  // the course's published max seed. From any belt, repeated next-belt
-  // presses eventually land in infplay.
-  const enterInfplay = !nextBeltThreshold || nextBeltThreshold > courseMaxSeed
+    return nextBeltThreshold || 668
+  })()
 
   console.log('[LearningPlayer] handleSkipToNextBelt called', {
-    currentSeedId,
-    currentSeedNumber,
-    currentBeltName: BELT_NAMES[currentBeltIndex],
-    nextBeltName: nextBeltNameFromPosition,
+    currentLegoId: currentRound?.legoId,
+    currentBelt: playingBelt.value.name,
+    nextBelt: nextBelt?.name ?? '(none)',
     nextBeltThreshold,
-    courseMaxSeed,
+    courseFinalLegoId: courseFinalLegoRef.value?.legoId ?? '(not yet loaded)',
     enterInfplay,
     isPlaying: simplePlayer.isPlaying.value,
   })
@@ -6256,7 +6287,7 @@ const handleSkipToNextBelt = async () => {
         // colour for this course). Otherwise the infplay round's random
         // USE legoId would set the visual to whichever LEGO it drew.
         if (beltProgress.value) {
-          beltProgress.value.setPlayingPosition(courseMaxSeed)
+          beltProgress.value.setPlayingPosition(courseEndSeed)
         }
         await persistCursorAtCurrentRound()
         return
@@ -6276,7 +6307,7 @@ const handleSkipToNextBelt = async () => {
           )
           if (refoundIdx >= 0) {
             simplePlayer.jumpToRound(refoundIdx)
-            if (beltProgress.value) beltProgress.value.setPlayingPosition(courseMaxSeed)
+            if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
             await persistCursorAtCurrentRound()
             return
           }
@@ -6288,7 +6319,7 @@ const handleSkipToNextBelt = async () => {
 
     // Normal belt-to-belt skip
     const targetSeed = nextBeltThreshold
-    console.log(`[LearningPlayer] Skipping to ${nextBeltNameFromPosition} belt - seed ${targetSeed}`)
+    console.log(`[LearningPlayer] Skipping to ${nextBelt?.name ?? 'next'} belt - seed ${targetSeed}`)
     const existingRoundIndex = simplePlayer.findRoundIndexForSeed(targetSeed)
     if (existingRoundIndex < 0 && supabase?.value) {
       console.debug(`[progressiveLoad] Belt skip: target seed ${targetSeed} not loaded, regenerating full script...`)
@@ -7636,6 +7667,13 @@ onMounted(async () => {
       // Failures are non-fatal: if the bundle endpoint is down or the
       // course isn't migrated to the new format yet, the existing
       // instant-playback + warm-up path continues to work unchanged.
+      // Kick off course-final-LEGO resolution as early as possible so
+      // wouldEnterInfplay has the data ready when the learner first
+      // sees the forward-skip button. Cheap (one indexed query), cached.
+      // Fire-and-forget — the computed has a sensible fallback while
+      // this is in flight.
+      void getCourseFinalLego(courseCode.value)
+
       void courseBundle.load(courseCode.value)
         .then((bundle) => {
           console.log(`[BundleLoad] Loaded bundle for ${bundle.courseCode} v${bundle.version}: ${bundle.legos.length} LEGOs, ${bundle.phrases.length} phrases`)
