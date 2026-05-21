@@ -316,16 +316,27 @@ export function useAdminUserDetail(client: SupabaseClient) {
   async function updateUserRole(
     learnerId: string,
     field: 'platform_role' | 'educational_role',
-    value: string | null
+    value: string | null,
+    getAuthToken: () => Promise<string | null>
   ): Promise<boolean> {
     roleUpdateStatus.value = null
     try {
-      const { error: updateError } = await client
-        .from('learners')
-        .update({ [field]: value })
-        .eq('id', learnerId)
+      const token = await getAuthToken()
+      if (!token) throw new Error('No auth token')
 
-      if (updateError) throw updateError
+      const resp = await fetch('/api/admin/update-user-role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ learner_id: learnerId, field, value }),
+      })
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${resp.status}`)
+      }
 
       // Update local state
       if (profile.value) {
