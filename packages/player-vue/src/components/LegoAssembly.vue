@@ -401,29 +401,73 @@ function softHyphenate(text: string): string {
 
 
 /**
- * For long M-LEGOs in practice phrases: split aligned components into
- * balanced wagon groups (~2-3 per wagon) so the LEGO renders as multiple
- * adjacent tiles rather than one shrunken-text tile. Stubs on the outer
- * edges of each wagon (see CSS) communicate that the tiles are one LEGO
- * being "hyphenated" across the boundary.
+ * Wagonise a long block into adjacent tiles instead of letting it wrap
+ * its text internally. Three paths:
  *
- * Threshold: more than 3 components. Below that, a single tile reads fine.
+ *  1. M-LEGO with >3 declared atoms — split at component boundaries
+ *     in groups of up to 3. Internal stubs render between atoms within
+ *     each wagon (real M-LEGO composition).
+ *  2. M-LEGO with ≤3 atoms but text > WAGON_CHAR_THRESHOLD — one
+ *     component per wagon. No internal stubs (wagon.length = 1), but
+ *     the wagon edge-stubs still mark "this LEGO continues".
+ *  3. Block with no declared components but text > WAGON_CHAR_THRESHOLD
+ *     — synthesise word-wagons (~3 words each), packing each wagon's
+ *     words as ONE component so the template doesn't render misleading
+ *     M-LEGO atom-divider stubs INSIDE the wagon.
+ *
+ * Single-word blocks always return null — nothing to split on.
  */
 function practiceCarriageWagons(block: LegoBlock): ComponentBreakdown[][] | null {
+  // Char threshold above which the tile would visibly wrap on mobile
+  // widths — chosen empirically against the 1.45-1.7rem mono font at
+  // ~390px viewport.
+  const WAGON_CHAR_THRESHOLD = 24
+
   const aligned = alignedBlockComponents(block)
-  if (!aligned) return null
-  // Threshold counts declared atoms only — inserters live inside the
-  // span and shouldn't push a 2-atom M-LEGO with 2 inserters into wagon
-  // mode (which would split atoms across wagons).
-  const atomCount = aligned.filter(c => !c.isInserter).length
-  if (atomCount <= 3) return null
-  const wagonCount = Math.ceil(aligned.length / 3)
-  const wagonSize = Math.ceil(aligned.length / wagonCount)
-  const wagons: ComponentBreakdown[][] = []
-  for (let i = 0; i < aligned.length; i += wagonSize) {
-    wagons.push(aligned.slice(i, i + wagonSize))
+
+  if (aligned) {
+    // Threshold counts declared atoms only — inserters live inside the
+    // span and shouldn't push a 2-atom M-LEGO with 2 inserters into wagon
+    // mode (which would split atoms across wagons).
+    const atomCount = aligned.filter(c => !c.isInserter).length
+    if (atomCount > 3) {
+      const wagonCount = Math.ceil(aligned.length / 3)
+      const wagonSize = Math.ceil(aligned.length / wagonCount)
+      const wagons: ComponentBreakdown[][] = []
+      for (let i = 0; i < aligned.length; i += wagonSize) {
+        wagons.push(aligned.slice(i, i + wagonSize))
+      }
+      return wagons
+    }
+    if (block.targetText.length > WAGON_CHAR_THRESHOLD) {
+      // Few atoms, long text — each component (atom or inserter) gets
+      // its own wagon. Single-component wagons skip the internal stubs.
+      return aligned.map(c => [c])
+    }
+    return null
   }
-  return wagons
+
+  // No declared components but text too long for one tile — synthesise
+  // word-wagons. Reached by A-LEGOs whose canonical text is multi-word
+  // (rare) and by the single-tile fallback in LearningPlayer when
+  // decomposition fails and the whole phrase rides in one block.
+  if (block.targetText.length > WAGON_CHAR_THRESHOLD) {
+    const words = block.targetText.split(/\s+/).filter(Boolean)
+    if (words.length < 2) return null
+    const wagonCount = Math.ceil(words.length / 3)
+    const wagonSize = Math.ceil(words.length / wagonCount)
+    const wagons: ComponentBreakdown[][] = []
+    for (let i = 0; i < words.length; i += wagonSize) {
+      const slice = words.slice(i, i + wagonSize)
+      // Pack as ONE component per wagon — template auto-sets
+      // `has-components` on wagon.length > 1, which would render
+      // misleading M-LEGO atom-divider stubs INSIDE each wagon.
+      wagons.push([{ known: '', target: slice.join(' ') }])
+    }
+    return wagons
+  }
+
+  return null
 }
 
 /**
