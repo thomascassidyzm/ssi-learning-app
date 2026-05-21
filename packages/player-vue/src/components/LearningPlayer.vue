@@ -7562,8 +7562,20 @@ onMounted(async () => {
           // and fires the initial onRoundChanged for the current
           // playback position.
           audioPrefetcher.setBundle(bundle)
-          bundleDownloader = createBundleDownloader({ audioCache })
-          return bundleDownloader.start(bundle)
+          // BundleDownloader gated on the same flag as the bundle-based
+          // INF PLAY path. Default-off because for large courses the
+          // downloader fires thousands of /api/audio/<id> requests
+          // (~3000+ for a 600-LEGO course at 4-wide concurrency), which
+          // tripped Vercel's edge rate-limit and 403'd staging from
+          // every test-user IP on 2026-05-21. Per-course canary keeps
+          // the blast radius bounded while the politeness work
+          // (jitter, backoff on 429/503, lower default concurrency)
+          // lands separately.
+          if (isBundleBasedCourse(courseCode.value)) {
+            bundleDownloader = createBundleDownloader({ audioCache })
+            return bundleDownloader.start(bundle)
+          }
+          return undefined
         })
         .catch((err) => {
           // Branch-isolated: bundle endpoint may not yet be live on this
