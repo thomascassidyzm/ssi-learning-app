@@ -132,6 +132,27 @@ export interface DecomposePhraseArgs {
   componentsByLegoId: Map<string, Atom[]>
 }
 
+/** Find a contiguous token span matching the salient's canonical text.
+ *  Returns the token range or null. Character-exact, case-insensitive
+ *  (via the normaliser). Used to claim the salient's tokens BEFORE the
+ *  greedy max-munch walk runs — otherwise a longer overlapping M-LEGO
+ *  match could swallow the salient and leave nothing flagged isSalient. */
+function findSalientTextSpan(
+  tokens: Tok[],
+  salientText: string,
+): { startTok: number; endTokExcl: number } | null {
+  const salientToks = normaliseLegoText(salientText).split(/\s+/).filter(Boolean)
+  if (salientToks.length === 0) return null
+  for (let i = 0; i <= tokens.length - salientToks.length; i++) {
+    let match = true
+    for (let k = 0; k < salientToks.length; k++) {
+      if (tokens[i + k].lower !== salientToks[k]) { match = false; break }
+    }
+    if (match) return { startTok: i, endTokExcl: i + salientToks.length }
+  }
+  return null
+}
+
 export function decomposePhrase({
   targetText,
   salientId,
@@ -148,9 +169,28 @@ export function decomposePhrase({
   const reverseMap = buildTextToLegoIdMap(textMap)
   if (reverseMap.size === 0) return null
 
-  // Step 1: if salient is an M-LEGO with declared atoms, locate its span.
+  // Step 1: locate the salient's token span. Try in order:
+  //   1a. M-LEGO atoms (non-contiguous allowed — handles separable verbs
+  //       and word-order rearrangement).
+  //   1b. Canonical salient text as a contiguous token sequence (handles
+  //       A-LEGO salients AND M-LEGOs whose canonical text appears
+  //       verbatim in the phrase).
+  // Either path claims the span's tokens so the greedy walk can't
+  // swallow them into a longer overlapping M-LEGO and leave the salient
+  // unflagged.
   const salientAtoms = salientId ? componentsByLegoId.get(salientId) ?? null : null
-  const salientSpan = salientAtoms ? findSalientSpan(tokens, salientAtoms) : null
+  let salientSpan = salientAtoms ? findSalientSpan(tokens, salientAtoms) : null
+  if (!salientSpan && salientId) {
+    const salientText = textMap.get(salientId)
+    if (salientText) {
+      const textSpan = findSalientTextSpan(tokens, salientText)
+      if (textSpan) {
+        const fullClaim = new Set<number>()
+        for (let i = textSpan.startTok; i < textSpan.endTokExcl; i++) fullClaim.add(i)
+        salientSpan = { startTok: textSpan.startTok, endTokExcl: textSpan.endTokExcl, claimed: fullClaim }
+      }
+    }
+  }
 
   // Step 2: walk tokens, emitting blocks. Salient span is one block;
   // other tokens use greedy max-munch.
@@ -159,19 +199,25 @@ export function decomposePhrase({
   let unmatchedCount = 0
 
   while (pos < tokens.length) {
-    // Salient span emits as one block carrying its components (so the
-    // inserter rendering engages for inside-span non-atom tokens).
+    // Salient span emits as one block. If the span came from the M-LEGO
+    // atom path (salientAtoms non-null), carry components so the inserter
+    // rendering engages for inside-span non-atom tokens. If it came from
+    // the text-substring path (A-LEGO or contiguous M-LEGO), no
+    // components — single tile.
     if (salientSpan && pos === salientSpan.startTok) {
       const spanText = targetText.slice(
         tokens[salientSpan.startTok].start,
         tokens[salientSpan.endTokExcl - 1].end,
       )
-      blocks.push({
+      const block: LegoBlock = {
         id: salientId,
         targetText: spanText,
         isSalient: true,
-        components: salientAtoms!.map(a => ({ known: '', target: a.target })),
-      })
+      }
+      if (salientAtoms) {
+        block.components = salientAtoms.map(a => ({ known: '', target: a.target }))
+      }
+      blocks.push(block)
       pos = salientSpan.endTokExcl
       continue
     }

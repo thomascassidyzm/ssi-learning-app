@@ -14,12 +14,15 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     VitePWA({
-      // autoUpdate: new SW activates on next page load without a prompt.
-      // Pairs with skipWaiting below so users always get the latest JS
-      // immediately. Previous 'prompt' mode left stale bundles in the
-      // wild when learners dismissed/missed the update dot, leading to
-      // "fighting cache" symptoms Tom flagged 2026-05-20.
-      registerType: 'autoUpdate',
+      // prompt: new SW waits until the user actively triggers it (banner
+      // or blue dot). Tom's hard rule (2026-05-21): NEVER force-update
+      // while audio is playing — autoUpdate's automatic SKIP_WAITING
+      // posts controllerchange, vite-plugin-pwa reloads the page, and
+      // any cycle audio mid-flight is killed. Reverts the autoUpdate
+      // change from 18f4c27. The stale-bundle risk it addressed is
+      // mitigated by NetworkFirst on navigations (so the next natural
+      // page load always sees the fresh shell) + cleanupOutdatedCaches.
+      registerType: 'prompt',
 
       workbox: {
         // Precache app shell

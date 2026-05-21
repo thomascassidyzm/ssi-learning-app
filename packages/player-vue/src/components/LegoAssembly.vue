@@ -985,16 +985,19 @@ const sentenceScale = computed(() => {
    being practised) + this single "second colour" for every other
    tile type. Previously-known siblings, ghost-filled tokens, solo
    components extracted from M-LEGOs, and in-span inserters between
-   M-LEGO atoms all collapse to the same muted treatment — same
-   tile shape, same border, slightly dimmer + lighter text weight.
-   Authors should not need to learn five different visual idioms
-   to read a practice phrase.
+   M-LEGO atoms all collapse to the same treatment.
+
+   Approach: smaller-darker rather than opacity-dim. Opacity made
+   tiles read as "disabled / can't click this" (Tom's feedback on
+   first iteration). Smaller font + still-full-text-colour signals
+   "established / quieter" — like footnote vs headline — instead
+   of "deactivated".
    ───────────────────────────────────────────────────────────────── */
-.lego-block:not(.salient):not(.wagon),
+.lego-block:not(.salient):not(.wagon) .block-text,
 .tile-target .comp.is-inserter,
 .lego-block.has-components .comp.is-inserter {
-  opacity: 0.72;
-  font-weight: 400;
+  font-size: calc(1.55rem * var(--sentence-scale, 1));
+  font-weight: 500;
 }
 
 /* Stubs-bright on practice M-LEGOs — M-LEGO components rendered as
@@ -1233,15 +1236,17 @@ const sentenceScale = computed(() => {
   background: rgba(44, 38, 34, 0.2);
 }
 
-/* Mist theme: single "second colour" treatment for every non-salient
-   tile (previously-known sibling, ghost, solo-component, in-span
-   inserter). Colour-shift rather than opacity because the mist tile is
-   white-on-light — pure opacity would muddy the background paper. */
+/* Mist theme: single "second colour" treatment. Matches the dark theme's
+   smaller-darker approach — full text colour, smaller font, NOT a
+   disabled-looking grey-out. The salient (with its red border + red
+   tint background from the existing mist .salient rule) still
+   dominates by chrome rather than by text contrast. */
 :root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) .block-text,
 :root[data-theme="mist"] .tile-target .comp.is-inserter,
 :root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
-  color: rgba(44, 38, 34, 0.55);
-  font-weight: 400;
+  font-size: calc(1.55rem * var(--sentence-scale, 1));
+  color: rgba(44, 38, 34, 0.78);
+  font-weight: 500;
 }
 
 /* Hyphenated wagon edge stubs for mist theme */
