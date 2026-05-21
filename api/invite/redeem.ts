@@ -1,8 +1,9 @@
 /**
  * Invite Code Redemption API - POST /api/invite/redeem
  *
- * Requires Clerk JWT. Validates and redeems an invite code for the authenticated user,
- * creating the appropriate role records and updating learner data.
+ * Requires a Supabase Auth JWT. Validates and redeems an invite code for the
+ * authenticated user, creating the appropriate role records and updating
+ * learner data.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -25,7 +26,7 @@ export default async function handler(
     return
   }
 
-  // Verify Clerk JWT
+  // Verify Supabase Auth JWT
   const authResult = await verifyAuthToken(req)
   if (!authResult.valid || !authResult.userId) {
     res.status(401).json({ error: authResult.error || 'Unauthorized' })

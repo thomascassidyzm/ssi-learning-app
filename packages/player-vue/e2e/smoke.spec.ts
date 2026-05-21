@@ -30,12 +30,10 @@ function assertNoPageErrors(pageErrors: Error[]) {
   ).toEqual([])
 }
 
-// Console-error allowlist: filter known noise (Clerk auth, favicon, missing backend in dev).
+// Console-error allowlist: filter known noise (favicon, missing backend in dev).
 function filterConsoleErrors(errors: string[]) {
   return errors.filter(
     (e) =>
-      !e.includes('clerk') &&
-      !e.includes('Clerk') &&
       !e.includes('favicon') &&
       !e.includes('Failed to load resource') // expected when no backend
   )

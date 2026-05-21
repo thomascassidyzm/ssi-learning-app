@@ -1,8 +1,8 @@
 /**
  * Invite Code Creation API - POST /api/invite/create
  *
- * Requires Clerk JWT. Creates a new invite code. Caller must have appropriate
- * permission for the code_type they're creating.
+ * Requires a Supabase Auth JWT. Creates a new invite code. Caller must have
+ * appropriate permission for the code_type they're creating.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -26,7 +26,7 @@ export default async function handler(
     return
   }
 
-  // Verify Clerk JWT
+  // Verify Supabase Auth JWT
   const authResult = await verifyAuthToken(req)
   if (!authResult.valid || !authResult.userId) {
     res.status(401).json({ error: authResult.error || 'Unauthorized' })

@@ -4,7 +4,7 @@
  * GET /api/subscription
  *
  * Returns the user's current subscription status.
- * Requires Clerk authentication.
+ * Requires Supabase Auth.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -61,7 +61,7 @@ export default async function handler(
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get learner ID for this Clerk user
+    // Get learner ID for this Supabase Auth user
     const { data: learner, error: learnerError } = await supabase
       .from('learners')
       .select('id')
@@ -69,7 +69,7 @@ export default async function handler(
       .single()
 
     if (learnerError || !learner) {
-      // User exists in Clerk but not yet in our database
+      // User exists in Supabase Auth but not yet in our database
       res.status(200).json({
         subscription: null,
         isSubscribed: false,

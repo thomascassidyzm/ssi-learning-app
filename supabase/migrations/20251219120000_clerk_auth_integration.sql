@@ -1,3 +1,23 @@
+-- ============================================================
+-- SUPERSEDED — kept for history
+-- ============================================================
+-- Clerk Third-Party Auth integration was never shipped: Supabase Auth
+-- (email OTP) is the production auth provider. This migration DID run
+-- against the database (the learners.user_id TEXT conversion below is
+-- still live in production), so the file is preserved verbatim as a
+-- historical record. Do NOT re-run it.
+--
+-- Follow-up state (2026-05):
+--   * Supabase Auth canonical (see 20260227_supabase_auth.sql)
+--   * auth.jwt()->>'sub' usage replaced by auth.uid()::text in
+--     20260512_unify_user_id_auth_pattern.sql
+--   * handle_new_user() trigger restored in
+--     20260521180000_block_anon_role_escalation.sql
+--   * learners.user_id is still TEXT (conversion to UUID is a
+--     destructive change, deferred — see
+--     supabase/migrations-proposed/)
+-- ============================================================
+--
 -- Clerk Authentication Integration Migration
 -- Updates the database to work with Clerk as the auth provider instead of Supabase Auth
 --
