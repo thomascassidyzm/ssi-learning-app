@@ -170,7 +170,10 @@ describe('useBeltProgress - Supabase sync', () => {
 
   it('fetchRemoteProgress returns belt index and lastLegoId', async () => {
     mockSupabase.maybeSingle.mockResolvedValue({
-      data: { highest_completed_seed: 45, last_completed_lego_id: 'S0045L03' },
+      // Column renamed from highest_completed_seed to highest_completed_lego_id
+      // (see useBeltProgress.ts:191 — composable reads the lego_id form,
+      // deriving belt index client-side).
+      data: { highest_completed_lego_id: 'S0045L03', last_completed_lego_id: 'S0045L03' },
       error: null,
     })
 
@@ -202,7 +205,7 @@ describe('useBeltProgress - Supabase sync', () => {
 
     // Remote: seed 20 (orange, belt index 2) — behind local
     mockSupabase.maybeSingle.mockResolvedValue({
-      data: { highest_completed_seed: 20, last_completed_lego_id: 'S0020L01' },
+      data: { highest_completed_lego_id: 'S0020L01', last_completed_lego_id: 'S0020L01' },
       error: null,
     })
     mockSupabase.upsert.mockResolvedValue({ error: null })
@@ -234,7 +237,7 @@ describe('useBeltProgress - Supabase sync', () => {
 
     // Remote: seed 100 — ahead of local
     mockSupabase.maybeSingle.mockResolvedValue({
-      data: { highest_completed_seed: 100, last_completed_lego_id: 'S0100L02' },
+      data: { highest_completed_lego_id: 'S0100L02', last_completed_lego_id: 'S0100L02' },
       error: null,
     })
 
