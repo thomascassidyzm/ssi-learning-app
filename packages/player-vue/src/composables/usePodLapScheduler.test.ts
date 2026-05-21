@@ -116,15 +116,21 @@ describe('usePodLapScheduler — initialization', () => {
     await scheduler.initialize()
 
     expect(scheduler.isInitialized.value).toBe(true)
-    expect(scheduler.podActivationRound.value).toBe(6)
+    // Default activation lowered from 6 to 5 (commit 65ee76b8:
+    // "L2 pod activation: round 5 — give learners speaking-practice warm-up")
+    expect(scheduler.podActivationRound.value).toBe(5)
     expect(scheduler.completedPodRounds.value).toBe(0)
-    expect(scheduler.shouldFireLapAt(5)).toBe(false)
-    expect(scheduler.shouldFireLapAt(6)).toBe(true)
+    expect(scheduler.shouldFireLapAt(4)).toBe(false)
+    expect(scheduler.shouldFireLapAt(5)).toBe(true)
   })
 
-  it('returning user with pin reads stored values', async () => {
+  it('returning user with pin reads stored values (capped by POD_ACTIVATION_CAP)', async () => {
     state.podSentences = [podSentence(1)]
     state.bookends = [bookendIntro, bookendOutro]
+    // Stored value 50 is larger than POD_ACTIVATION_CAP (5). Per commit
+    // 839dc9f ("cap stale activation values"), values bigger than the
+    // cap are clamped down so historical pre-cap rows don't keep pods
+    // locked behind a 20+-round wait. Stored count (7) is unaffected.
     state.enrollment = { pod_activation_round: 50, completed_pod_rounds: 7 }
 
     const scheduler = usePodLapScheduler({
@@ -134,10 +140,10 @@ describe('usePodLapScheduler — initialization', () => {
     })
     await scheduler.initialize()
 
-    expect(scheduler.podActivationRound.value).toBe(50)
+    expect(scheduler.podActivationRound.value).toBe(5)
     expect(scheduler.completedPodRounds.value).toBe(7)
-    expect(scheduler.shouldFireLapAt(49)).toBe(false)
-    expect(scheduler.shouldFireLapAt(50)).toBe(true)
+    expect(scheduler.shouldFireLapAt(4)).toBe(false)
+    expect(scheduler.shouldFireLapAt(5)).toBe(true)
   })
 
   it('guests skip the enrollment read entirely (in-memory ratchet)', async () => {
@@ -293,7 +299,8 @@ describe('usePodLapScheduler — ratchet semantics', () => {
     await s.initialize()
     await s.reset()
     expect(s.completedPodRounds.value).toBe(0)
-    expect(s.podActivationRound.value).toBe(6)
+    // Default activation is 5 (was 6 pre-65ee76b8).
+    expect(s.podActivationRound.value).toBe(5)
     expect(state.enrollmentUpdates).toContainEqual({
       completed_pod_rounds: 0,
       pod_activation_round: null,
