@@ -473,145 +473,39 @@ export function useAuth(): AuthState & AuthActions {
   }
 
   /**
-   * Migrate guest progress to authenticated user
-   * This reads from OfflineCache and uploads to Supabase
+   * Migrate guest progress to authenticated user.
+   *
+   * Reassigns any `sessions` rows still owned by the legacy
+   * GUEST_ID_KEY to the now-signed-in learner, then clears the
+   * key. Live progress (course_enrollments / lego_progress /
+   * seed_progress) writes straight to Supabase keyed by learner id
+   * — no client-side replay needed.
+   *
+   * The original 2024-era implementation also replayed progress out
+   * of an IndexedDB OfflineCache, but nothing has written to that
+   * store since the Wave 3 cache cleanup, and OfflineCache itself
+   * was deleted along with this body's invocation of it.
    */
   async function migrateGuestProgress(): Promise<void> {
     if (!learner.value || !supabase.value) {
-      console.log('[useAuth] Cannot migrate: no learner or supabase')
       return
     }
-
     const oldGuestId = localStorage.getItem(GUEST_ID_KEY)
     if (!oldGuestId) {
-      console.log('[useAuth] No guest data to migrate')
       return
     }
-
-    console.log('[useAuth] Migrating guest progress to learner:', learner.value.id)
-
     try {
-      // Import OfflineCache dynamically to avoid circular deps
-      const { createOfflineCache } = await import('@ssi/core')
-      const cache = createOfflineCache()
-
-      // Get all guest progress from IndexedDB
-      const guestProgress = await cache.getProgressByLearner(oldGuestId)
-
-      if (!guestProgress || guestProgress.length === 0) {
-        console.log('[useAuth] No guest progress found')
-        clearGuestData()
-        return
+      const { count } = await supabase.value
+        .from('sessions')
+        .update({ learner_id: learner.value.id }, { count: 'exact' })
+        .eq('learner_id', oldGuestId)
+      if (count && count > 0) {
+        console.log(`[useAuth] Reassigned ${count} guest session(s) to learner ${learner.value.id}`)
       }
-
-      console.log(`[useAuth] Found ${guestProgress.length} course(s) to migrate`)
-
-      for (const progress of guestProgress) {
-        // Check if user already has progress for this course (skip if so)
-        const { data: existing } = await supabase.value
-          .from('course_enrollments')
-          .select('id')
-          .eq('learner_id', learner.value.id)
-          .eq('course_id', progress.courseId)
-          .single()
-
-        if (existing) {
-          console.log(`[useAuth] Skipping ${progress.courseId} - already has cloud progress`)
-          continue
-        }
-
-        // Create enrollment
-        await supabase.value
-          .from('course_enrollments')
-          .insert({
-            learner_id: learner.value.id,
-            course_id: progress.courseId,
-            helix_state: progress.helixState,
-          })
-
-        // Migrate LEGO progress
-        if (progress.legoProgress.length > 0) {
-          const legoRecords = progress.legoProgress.map(lp => ({
-            learner_id: learner.value!.id,
-            lego_id: lp.lego_id,
-            course_id: lp.course_id,
-            thread_id: lp.thread_id,
-            fibonacci_position: lp.fibonacci_position,
-            skip_number: lp.skip_number,
-            reps_completed: lp.reps_completed,
-            is_retired: lp.is_retired,
-            last_practiced_at: lp.last_practiced_at,
-          }))
-
-          await supabase.value
-            .from('lego_progress')
-            .upsert(legoRecords, { onConflict: 'learner_id,lego_id' })
-        }
-
-        // Migrate SEED progress
-        if (progress.seedProgress.length > 0) {
-          const seedRecords = progress.seedProgress.map(sp => ({
-            learner_id: learner.value!.id,
-            seed_id: sp.seed_id,
-            course_id: sp.course_id,
-            thread_id: sp.thread_id,
-            is_introduced: sp.is_introduced,
-            introduced_at: sp.introduced_at,
-          }))
-
-          await supabase.value
-            .from('seed_progress')
-            .upsert(seedRecords, { onConflict: 'learner_id,seed_id' })
-        }
-
-        console.log(`[useAuth] Migrated progress for ${progress.courseId}`)
-      }
-
-      // Migrate belt progress from localStorage to Supabase enrollment
-      try {
-        for (const progress of guestProgress) {
-          const beltKey = `ssi_belt_progress_${progress.courseId}`
-          const beltData = localStorage.getItem(beltKey)
-          if (beltData) {
-            const parsed = JSON.parse(beltData)
-            if (parsed.highestLegoId) {
-              await supabase.value
-                .from('course_enrollments')
-                .update({ last_completed_lego_id: parsed.highestLegoId })
-                .eq('learner_id', learner.value!.id)
-                .eq('course_id', progress.courseId)
-              console.log(`[useAuth] Migrated belt progress for ${progress.courseId}: ${parsed.highestLegoId}`)
-            }
-          }
-        }
-      } catch (beltErr) {
-        console.warn('[useAuth] Belt progress migration failed (non-critical):', beltErr)
-      }
-
-      // Migrate guest sessions to authenticated user
-      try {
-        const { count } = await supabase.value
-          .from('sessions')
-          .update({ learner_id: learner.value!.id }, { count: 'exact' })
-          .eq('learner_id', oldGuestId)
-        if (count && count > 0) {
-          console.log(`[useAuth] Migrated ${count} guest session(s)`)
-        }
-      } catch (sessionErr) {
-        console.warn('[useAuth] Session migration failed (non-critical):', sessionErr)
-      }
-
-      // Clear guest data from IndexedDB
-      await cache.deleteProgressByLearner(oldGuestId)
-
-      // Clear local storage guest data
-      clearGuestData()
-
-      console.log('[useAuth] Migration complete')
-    } catch (err) {
-      console.error('[useAuth] Migration failed:', err)
-      // Don't clear guest data on failure - let them try again
+    } catch (sessionErr) {
+      console.warn('[useAuth] Session reassignment failed (non-critical):', sessionErr)
     }
+    clearGuestData()
   }
 
   /**

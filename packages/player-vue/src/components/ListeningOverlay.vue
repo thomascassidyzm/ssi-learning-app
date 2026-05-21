@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useOfflineCache } from '../composables/useOfflineCache'
+import { getAudioCache } from '../cache/createAudioCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
@@ -910,7 +910,7 @@ watch(isPlaying, async (playing) => {
 // Offline Pack Download — preload USE phrase audio for plane-ride listening
 // ============================================================================
 
-const { cache: offlineCache } = useOfflineCache()
+const audioCache = getAudioCache()
 
 // Diagnostic event log — same session_id as LearningPlayer's instance
 // so a user's actions across the player + overlay land on one timeline.
@@ -991,10 +991,11 @@ const downloadListeningPack = async () => {
       return
     }
 
-    // Filter out already-cached IDs
+    // Filter out already-cached IDs (sync check against AudioCache's
+    // in-memory id Set — no IndexedDB round-trip).
     const missing = []
     for (const id of ids) {
-      if (offlineCache.isAudioCached(id)) {
+      if (audioCache.persistent.has(id)) {
         packDone.value++
       } else {
         missing.push(id)
@@ -1006,9 +1007,11 @@ const downloadListeningPack = async () => {
       toFetch: missing.length,
     })
 
-    // cacheAudio fetches the URL internally and stores the blob in IndexedDB;
-    // the SW (CacheFirst on /api/audio/*) also caches en route, giving
-    // belt-and-braces durability.
+    // audioCache.persistent.ensure fetches via /api/audio/<id> and stores
+    // the blob in IndexedDB ssi-audio-cache-v2. The SW (CacheFirst on
+    // /api/audio/*) also caches en route, giving belt-and-braces
+    // durability. In-flight de-dupe means multiple ensure() calls for
+    // the same id collapse into one fetch.
     for (let i = 0; i < missing.length; i += PACK_CONCURRENCY) {
       if (packState.value !== 'downloading') {
         logEvent('listening_pack_end', { reason: 'cancelled', total: ids.length, failures: cacheFailures, completed: packDone.value })
@@ -1017,9 +1020,8 @@ const downloadListeningPack = async () => {
 
       const batch = missing.slice(i, i + PACK_CONCURRENCY)
       await Promise.all(batch.map(async (id) => {
-        const url = `/api/audio/${id}?courseId=${encodeURIComponent(props.courseCode)}`
         try {
-          await offlineCache.cacheAudio({ id, url, durationMs: 0 }, props.courseCode)
+          await audioCache.persistent.ensure(id)
         } catch (err) {
           cacheFailures++
           console.warn('[ListeningOverlay] Failed to cache', id, err)

@@ -13,7 +13,7 @@ import {
 import type { CourseDataProvider } from '../providers/CourseDataProvider'
 import type { CourseInfo } from '../composables/useEntitlement'
 import { useCyclePlayback } from '../composables/useCyclePlayback'
-import { scriptItemToCycle, collectAllAudioRefs } from '../utils/scriptItemToCycle'
+import { scriptItemToCycle } from '../utils/scriptItemToCycle'
 import type { Cycle } from '../types/Cycle'
 import SessionComplete from './SessionComplete.vue'
 // OnboardingTooltips removed - deprecated
@@ -27,7 +27,6 @@ import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/us
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
-import { useOfflineCache } from '../composables/useOfflineCache'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
@@ -3475,144 +3474,41 @@ const { state: cyclePlaybackState, playCycle, stop: stopCycle } = useCyclePlayba
 const currentCycle = ref<Cycle | null>(null)
 
 // Offline cache for IndexedDB-based audio caching
-// AudioController.audioSource now comes from createAudioCacheSource (Wave 3
-// AudioCache, IndexedDB ssi-audio-cache-v2) — see onMounted. The legacy
-// OfflineCache exports below remain wired only for OfflineStatusIndicator
-// + ?reset=1 recovery; task F deletes them with the rest of @ssi/core/cache.
-const { cache: offlineCache, cacheStats, refreshCacheStats } = useOfflineCache()
+// AudioController.audioSource is built from createAudioCacheSource over the
+// Wave 3 AudioCache (IndexedDB ssi-audio-cache-v2) — see onMounted. The
+// legacy OfflineCache + useOfflineCache composable were deleted along
+// with DownloadCourseButton / OfflineStatusIndicator; AudioCache is the
+// only IndexedDB audio cache now.
 
 /**
- * Build an audio URL map from a ScriptItem
- * Maps audioId to URL for all audio in the item
- */
-const buildAudioUrlMap = (scriptItem: any): Map<string, string> => {
-  const map = new Map<string, string>()
-
-  if (scriptItem?.audioRefs?.known?.id && scriptItem?.audioRefs?.known?.url) {
-    map.set(scriptItem.audioRefs.known.id, scriptItem.audioRefs.known.url)
-  }
-  if (scriptItem?.audioRefs?.target?.voice1?.id && scriptItem?.audioRefs?.target?.voice1?.url) {
-    map.set(scriptItem.audioRefs.target.voice1.id, scriptItem.audioRefs.target.voice1.url)
-  }
-  if (scriptItem?.audioRefs?.target?.voice2?.id && scriptItem?.audioRefs?.target?.voice2?.url) {
-    map.set(scriptItem.audioRefs.target.voice2.id, scriptItem.audioRefs.target.voice2.url)
-  }
-  if (scriptItem?.presentationAudio?.id && scriptItem?.presentationAudio?.url) {
-    map.set(scriptItem.presentationAudio.id, scriptItem.presentationAudio.url)
-  }
-
-  return map
-}
-
-/**
- * Create a getAudioSource function for a specific ScriptItem
- * Returns cached blob if available, otherwise falls back to URL for direct playback
- */
-const createGetAudioSource = (scriptItem: any) => {
-  const urlMap = buildAudioUrlMap(scriptItem)
-
-  return async (audioId: string): Promise<{ type: 'blob'; blob: Blob } | { type: 'url'; url: string } | null> => {
-    // Try IndexedDB cache first (for offline support)
-    if (offlineCache) {
-      const cached = await offlineCache.getCachedAudio(audioId)
-      if (cached) {
-        return { type: 'blob', blob: cached }
-      }
-    }
-
-    // Fall back to URL for direct playback (works online, bypasses CORS)
-    const url = urlMap.get(audioId)
-    if (url) {
-      return { type: 'url', url }
-    }
-
-    console.error('[getAudioSource] No URL found for audioId:', audioId)
-    return null
-  }
-}
-
-/**
- * Generic getAudioSource function for SimplePlayer pipeline
- * Resolves any audioId to either a cached blob or proxy URL
- */
-const getAudioSourceForSession = async (audioId: string): Promise<{ type: 'blob'; blob: Blob } | { type: 'url'; url: string } | null> => {
-  if (!audioId || audioId === 'undefined' || audioId === 'null') {
-    console.error('[getAudioSourceForSession] Invalid audioId:', audioId)
-    return null
-  }
-
-  // Try IndexedDB cache first (for offline support)
-  if (offlineCache) {
-    const cached = await offlineCache.getCachedAudio(audioId)
-    if (cached) {
-      return { type: 'blob', blob: cached }
-    }
-  }
-
-  // Fall back to proxy URL for direct playback
-  const proxyUrl = `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`
-  return { type: 'url', url: proxyUrl }
-}
-
-/**
- * Build proxy URL for audio caching.
- * The proxy bypasses CORS and allows us to fetch audio blobs.
- * Falls back to direct S3 URL if proxy isn't available.
- */
-const buildCacheUrl = (audioId: string, s3Url: string, courseId: string): string => {
-  // Use proxy endpoint for fetching (bypasses CORS)
-  // Proxy: /api/audio/{audioId}?courseId={courseId}
-  if (audioId && audioId !== 'undefined' && audioId !== 'null') {
-    const proxyUrl = `/api/audio/${audioId}?courseId=${encodeURIComponent(courseId)}`
-    return proxyUrl
-  }
-  // Fallback to S3 URL (will likely fail due to CORS, but try anyway)
-  return s3Url
-}
-
-/**
- * Prefetch all audio for a round's items
- * Downloads audio files through proxy and caches them by audioId
+ * Resolve an audioId to a URL for the SimplePlayer / useCyclePlayback /
+ * useDrivingMode pipelines (different surface from AudioController's
+ * audioSource — these consume `{type:'url', url} | {type:'blob', blob}`
+ * and call URL.createObjectURL on the blob branch).
  *
- * Call this BEFORE starting playback to ensure all audio is ready
- * Returns true if all audio was cached successfully, false if any failed
+ * We always return the URL branch — AudioCache hands us blob: URLs
+ * when the id is cached, otherwise we fall through to the /api/audio
+ * proxy URL. The Audio element treats blob: and http: URLs identically
+ * so the distinction is moot for the consumers.
+ *
+ * Replaces three legacy helpers (createGetAudioSource / buildAudioUrlMap
+ * / getAudioSourceForSession) that wrapped the now-deleted OfflineCache.
  */
-const prefetchRoundAudio = async (items: any[], courseId: string): Promise<boolean> => {
-  if (!offlineCache) {
-    console.warn('[prefetchRoundAudio] No offline cache available')
-    return false
+const resolveAudioFromCache = async (
+  audioId: string,
+): Promise<{ type: 'url'; url: string } | null> => {
+  if (!audioId || audioId === 'undefined' || audioId === 'null') {
+    console.error('[resolveAudioFromCache] Invalid audioId:', audioId)
+    return null
   }
-
-  const audioRefs = collectAllAudioRefs(items)
-  const uncached = audioRefs.filter(ref => !offlineCache.isAudioCached(ref.id))
-
-  if (uncached.length === 0) {
-    // All audio already cached
-    return true
+  const blobUrl = await audioCache.getBlobUrl(audioId)
+  if (blobUrl) {
+    return { type: 'url', url: blobUrl }
   }
-
-  console.log(`[prefetchRoundAudio] Caching ${uncached.length} audio files...`)
-
-  // Fetch all uncached audio in parallel using proxy URLs
-  const results = await Promise.allSettled(
-    uncached.map(ref => {
-      const cacheUrl = buildCacheUrl(ref.id, ref.url, courseId)
-      return offlineCache.cacheAudio({ id: ref.id, url: cacheUrl }, courseId)
-    })
-  )
-
-  const failed = results.filter(r => r.status === 'rejected')
-  if (failed.length > 0) {
-    console.warn(`[prefetchRoundAudio] ${failed.length}/${uncached.length} audio files failed to cache (non-blocking)`)
-    // Don't return false - caching failures shouldn't block playback
-    // Playback will still work using direct S3 URLs via Audio element
+  return {
+    type: 'url',
+    url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,
   }
-
-  const succeeded = uncached.length - failed.length
-  if (succeeded > 0) {
-    console.log(`[prefetchRoundAudio] Successfully cached ${succeeded} audio files`)
-  }
-  return true  // Always return true - caching is best-effort, not required
 }
 
 /**
@@ -3667,7 +3563,7 @@ const startCyclePlayback = async (itemOrPlayable: any) => {
 
   // Create audio source resolver for this ScriptItem
   // Uses cached blobs if available, falls back to direct URL playback
-  const getAudioSource = createGetAudioSource(scriptItem)
+  const getAudioSource = resolveAudioFromCache
 
   // Emit fire-path event for network visualization
   // Extract LEGO IDs from the cycle for brain animation
@@ -5164,18 +5060,11 @@ const handleCycleEvent = async (event) => {
           }
 
           console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
-
-          // Prefetch audio for new round (fire-and-forget - will complete during setTimeout delay)
-          const newRound = cachedRounds.value[currentRoundIndex.value]
-          if (newRound?.items && courseCode.value) {
-            prefetchRoundAudio(newRound.items, courseCode.value).then(() => {
-              // Also prefetch next round after current finishes
-              const nextRound = cachedRounds.value[currentRoundIndex.value + 1]
-              if (nextRound?.items) {
-                prefetchRoundAudio(nextRound.items, courseCode.value)
-              }
-            })
-          }
+          // Round-boundary audio prefetch used to run a legacy
+          // prefetchRoundAudio() helper here; AudioPrefetcher's
+          // onRoundChanged + onRoundCompleted (wired at lines ~1359
+          // and ~1480) now own that responsibility with proper
+          // ephemeral lifecycle tracking.
         }
 
         // Get next script item and convert to playable
@@ -6733,7 +6622,7 @@ const drivingMode = useDrivingMode({
     return simpleRoundToTypedCycles(rounds[roundIndex].cycles)
   },
   getTotalRounds: () => cachedRounds.value?.length ?? 0,
-  getAudioSource: getAudioSourceForSession,
+  getAudioSource: resolveAudioFromCache,
   onRoundChange: (newRoundIndex: number) => {
     if (drivingModeInitialRound === null) {
       drivingModeInitialRound = newRoundIndex

@@ -17,9 +17,6 @@ export * from './engine';
 // Learning algorithms (SpacedRepetition, TripleHelix)
 export * from './learning';
 
-// Offline cache and audio source
-export * from './cache';
-
 // Data persistence (Supabase)
 export * from './persistence';
 

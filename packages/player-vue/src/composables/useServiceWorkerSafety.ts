@@ -147,7 +147,10 @@ export async function unregisterAllServiceWorkers(): Promise<number> {
  * - Runtime caches
  * - Any other Cache API storage
  *
- * Does NOT clear IndexedDB (audio cache) - use useOfflineCache.clearCache() for that.
+ * Does NOT clear IndexedDB (audio cache). The ?reset=1 recovery path in
+ * App.vue enumerates `indexedDB.databases()` and deletes each one — that
+ * covers AudioCache (ssi-audio-cache-v2) and the bundle store
+ * (ssi-course-bundles-v1) automatically.
  */
 export async function clearAllCaches(): Promise<number> {
   if (!('caches' in window)) {
