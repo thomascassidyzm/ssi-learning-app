@@ -4364,9 +4364,17 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
 // hero card can highlight the substring matching the current cycle's salient
 // LEGO. Anchors the learner's attention on "the thing being practised in this
 // cycle" — works equally for current-round practice and for spaced-review
-// cycles (whose salient is a different, older LEGO). Returns null when there
-// is no salient, no known text for the salient, no substring match, or the
-// match is the whole sentence (highlighting everything is noise).
+// cycles (whose salient is a different, older LEGO).
+//
+// SSi methodology invariant: the salient LEGO MUST appear in the USE phrase
+// in both languages (the LEGO pair is the unit). If salient known text isn't
+// found in the phrase known text, that's a content authoring error, not a
+// graceful-degrade case — surface it via console.warn so QA catches it.
+//
+// Returns null only when there is no salient yet (cycle hasn't loaded), no
+// salient known text in the maps (vocab not yet loaded), or the match spans
+// the whole sentence (highlighting everything is noise — typically because
+// the salient LEGO IS the whole phrase, e.g. intro/debut).
 const salientKnownParts = computed<{ prefix: string; match: string; suffix: string } | null>(() => {
   const full = displayedKnownText.value
   if (!full) return null
@@ -4377,7 +4385,13 @@ const salientKnownParts = computed<{ prefix: string; match: string; suffix: stri
   const salientKnown = globalLegoKnownTextMap.value.get(legoId) || legoKnownTextMap.value.get(legoId)
   if (!salientKnown || !salientKnown.trim()) return null
   const idx = full.toLowerCase().indexOf(salientKnown.toLowerCase())
-  if (idx === -1) return null
+  if (idx === -1) {
+    console.warn(
+      `[salientKnownParts] Salient LEGO's known text not found in phrase known text — content authoring error (salient pair invariant violated).`,
+      { legoId, salientKnown, phraseKnown: full },
+    )
+    return null
+  }
   // Whole-phrase match → highlighting everything is pointless; skip.
   if (idx === 0 && salientKnown.trim().length >= full.trim().length) return null
   return {
@@ -9524,7 +9538,12 @@ defineExpose({
               <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <p v-else class="hero-known">{{ displayedKnownText }}</p>
+              <p v-else class="hero-known">
+                <template v-if="salientKnownParts">
+                  <span class="hero-known-context">{{ salientKnownParts.prefix }}</span><span class="hero-known-salient">{{ salientKnownParts.match }}</span><span class="hero-known-context">{{ salientKnownParts.suffix }}</span>
+                </template>
+                <template v-else>{{ displayedKnownText }}</template>
+              </p>
             </div>
           </div>
         </template>
@@ -10111,7 +10130,10 @@ defineExpose({
             <span class="listening-speed-badge" aria-label="Playback speed">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
           </p>
           <p v-else class="known-text">
-            {{ displayedKnownText }}
+            <template v-if="salientKnownParts">
+              <span class="hero-known-context">{{ salientKnownParts.prefix }}</span><span class="hero-known-salient">{{ salientKnownParts.match }}</span><span class="hero-known-context">{{ salientKnownParts.suffix }}</span>
+            </template>
+            <template v-else>{{ displayedKnownText }}</template>
           </p>
         </div>
 
@@ -12014,16 +12036,16 @@ defineExpose({
   max-width: 100%;
 }
 
-/* Inline highlight on the substring matching the current cycle's salient
-   LEGO's known text. SSi-red wash matches the salient tile's red tint —
-   the colour couples the two so the learner sees "this English text =
-   this Italian tile" at a glance. */
+/* Inline emphasis on the substring matching the current cycle's salient
+   LEGO's known text. Couples to the salient tile below — same weight-
+   bump + context-fade treatment so the learner sees "this English bit
+   = this target tile" without the red wash that broke long phrases.
+   Tom 2026-05-21. */
 .hero-known-salient {
-  background: rgba(194, 58, 58, 0.22);
-  color: rgba(255, 255, 255, 1);
-  font-weight: 500;
-  border-radius: 3px;
-  padding: 0 0.18em;
+  font-weight: 600;
+}
+.hero-known-context {
+  opacity: 0.55;
 }
 
 /* Listening pedagogy — calmer, italic, slightly smaller. The learner is
@@ -13907,9 +13929,11 @@ button.phase-segment:active:not(.is-active) {
 }
 
 [data-theme="mist"] .player .hero-known-salient {
-  background: rgba(194, 58, 58, 0.14);
+  font-weight: 600;
   color: var(--text-primary);
-  font-weight: 500;
+}
+[data-theme="mist"] .player .hero-known-context {
+  color: rgba(44, 38, 34, 0.55);
 }
 
 [data-theme="mist"] .player .hero-target {
