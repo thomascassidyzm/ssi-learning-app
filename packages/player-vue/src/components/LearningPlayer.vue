@@ -47,6 +47,7 @@ import { useAuthModal } from '../composables/useAuthModal'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
+import { decomposePhrase } from '../utils/decomposePhrase'
 import ListeningOverlay from './ListeningOverlay.vue'
 import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
@@ -1769,7 +1770,28 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         ? (useNative ? legoTargetTextNativeMap.value.get(salientId) : null) || legoTargetTextMap.value.get(salientId) || ''
         : ''
 
-      // First try: substring match of the canonical salient text. Cheap,
+      // First try: client-side decomposition against the learner's known
+      // vocab. Walks every phrase token and binds each to a previously-
+      // introduced LEGO. Produces N tiles (one per LEGO) — chunked
+      // rendering per methodology, rather than the before/salient/after
+      // ribbon of the substring path. Used most heavily by INFPLAY USE
+      // phrases where the backend's `decomposition` array isn't populated.
+      if (salientId) {
+        const textMap = (useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value)
+        const compsMap = useNative ? _componentsByLegoIdNative : _componentsByLegoId
+        const decomposed = decomposePhrase({
+          targetText,
+          salientId,
+          textMap,
+          componentsByLegoId: compsMap,
+        })
+        if (decomposed && decomposed.length > 0) {
+          const covered = ensureTileCoverage(decomposed, targetText)
+          if (covered.length > 0) return covered
+        }
+      }
+
+      // Second try: substring match of the canonical salient text. Cheap,
       // works for un-inflected LEGOs (Romance languages, English, simple
       // German cases).
       if (salientText && targetText.includes(salientText)) {

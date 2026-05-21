@@ -1,0 +1,219 @@
+/**
+ * decomposePhrase — client-side fallback for when the backend doesn't ship
+ * a `decomposition` array on a cycle (notably INFPLAY USE phrases today).
+ *
+ * Walks the phrase token-by-token and binds each token (or token-group)
+ * to a previously-introduced LEGO from the learner's known-vocab map.
+ * Returns the same LegoBlock[] shape the rich-path renderer in
+ * LearningPlayer already consumes — so downstream tile rendering,
+ * inserter styling, and ensureTileCoverage gap-fill are reused without
+ * branching.
+ *
+ * Salient handling: if the salient LEGO is an M-LEGO with declared atoms,
+ * locate every atom's token position first (character-exact, out-of-order
+ * allowed, claimed-token tracking — same logic LegoAssembly uses
+ * internally), then emit ONE salient block whose targetText spans from
+ * first atom to last atom (including any tokens between atoms — those
+ * render as inserters via the existing alignComponentsToFullText path).
+ *
+ * Other tokens: greedy max-munch against the reverse-text map (longest
+ * matching key at each position wins). Salient atoms are claimed first
+ * so they can't be re-matched as their own A-LEGOs.
+ *
+ * Unmatched tokens: per the SSi methodology invariant, every word in a
+ * phrase is a previously-introduced LEGO. An unmatched token therefore
+ * indicates a content authoring bug; we surface it with a console.warn
+ * AND emit a ghost-tile so the golden rule still holds (every audible
+ * word has a visual tile).
+ *
+ * CJK: skipped — character-based tokenisation means the existing
+ * substring path already works for those scripts. Returns null so the
+ * caller can fall through.
+ *
+ * Returns null when decomposition can't be attempted (CJK, empty input,
+ * vocab maps not yet loaded). Caller falls back to its existing chain.
+ */
+
+import type { LegoBlock } from '../components/LegoAssembly.vue'
+
+const CJK_RE = /[　-鿿가-힯＀-￯]/
+const PUNCT_RE = /[.,!?;:¡¿'"]+/g
+const MAX_WINDOW = 8  // longest M-LEGO token-count we'd reasonably look up
+
+type Atom = { known: string; target: string }
+type Tok = { lower: string; start: number; end: number }
+
+function tokenisePhrase(targetText: string): Tok[] {
+  const tokens: Tok[] = []
+  const re = /\S+/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(targetText)) !== null) {
+    const raw = m[0]
+    const cleaned = raw.toLowerCase().replace(PUNCT_RE, '')
+    if (cleaned.length === 0) continue
+    tokens.push({ lower: cleaned, start: m.index, end: m.index + raw.length })
+  }
+  return tokens
+}
+
+function normaliseLegoText(text: string): string {
+  return text.toLowerCase().replace(PUNCT_RE, '').trim()
+}
+
+function atomTokens(atomTarget: string): string[] {
+  return normaliseLegoText(atomTarget).split(/\s+/).filter(Boolean)
+}
+
+/** Build a reverse `Map<lowercase_normalised_text, legoId>` from the
+ *  learner's known-LEGO text map. Both A-LEGOs and M-LEGOs are included —
+ *  whatever's been loaded into the text map is matchable. */
+function buildTextToLegoIdMap(textMap: Map<string, string>): Map<string, string> {
+  const m = new Map<string, string>()
+  for (const [id, text] of textMap.entries()) {
+    if (!text) continue
+    const key = normaliseLegoText(text)
+    if (key.length === 0) continue
+    // First-wins on collision (LEGOs shouldn't duplicate text, but defensive)
+    if (!m.has(key)) m.set(key, id)
+  }
+  return m
+}
+
+/** Locate every declared atom of an M-LEGO in the phrase tokens. Returns
+ *  the span (first-atom token start, last-atom token end-exclusive) and
+ *  the set of token indices claimed by the salient, or null if any atom
+ *  can't be found character-exact. */
+function findSalientSpan(
+  tokens: Tok[],
+  atoms: Atom[],
+): { startTok: number; endTokExcl: number; claimed: Set<number> } | null {
+  if (atoms.length === 0) return null
+  const claimed = new Set<number>()
+  const atomStarts: number[] = []
+  const atomEnds: number[] = []
+  for (const atom of atoms) {
+    const aToks = atomTokens(atom.target)
+    if (aToks.length === 0) continue
+    let foundAt = -1
+    outer: for (let i = 0; i <= tokens.length - aToks.length; i++) {
+      for (let k = 0; k < aToks.length; k++) {
+        if (claimed.has(i + k)) continue outer
+        if (tokens[i + k].lower !== aToks[k]) continue outer
+      }
+      foundAt = i
+      break
+    }
+    if (foundAt === -1) return null
+    for (let k = 0; k < aToks.length; k++) claimed.add(foundAt + k)
+    atomStarts.push(foundAt)
+    atomEnds.push(foundAt + aToks.length)
+  }
+  if (atomStarts.length === 0) return null
+  const startTok = Math.min(...atomStarts)
+  const endTokExcl = Math.max(...atomEnds)
+  // Claim every token inside the span (including inserters) so the
+  // greedy walk doesn't re-bind them to their own A-LEGOs.
+  const fullClaim = new Set<number>()
+  for (let i = startTok; i < endTokExcl; i++) fullClaim.add(i)
+  return { startTok, endTokExcl, claimed: fullClaim }
+}
+
+export interface DecomposePhraseArgs {
+  targetText: string
+  salientId: string
+  /** legoTargetTextMap (or its useNative variant) — id → text */
+  textMap: Map<string, string>
+  /** _componentsByLegoId (or its useNative variant) — M-LEGO id → atoms */
+  componentsByLegoId: Map<string, Atom[]>
+}
+
+export function decomposePhrase({
+  targetText,
+  salientId,
+  textMap,
+  componentsByLegoId,
+}: DecomposePhraseArgs): LegoBlock[] | null {
+  if (!targetText) return null
+  if (CJK_RE.test(targetText)) return null
+  if (textMap.size === 0) return null  // vocab not yet loaded
+
+  const tokens = tokenisePhrase(targetText)
+  if (tokens.length === 0) return null
+
+  const reverseMap = buildTextToLegoIdMap(textMap)
+  if (reverseMap.size === 0) return null
+
+  // Step 1: if salient is an M-LEGO with declared atoms, locate its span.
+  const salientAtoms = salientId ? componentsByLegoId.get(salientId) ?? null : null
+  const salientSpan = salientAtoms ? findSalientSpan(tokens, salientAtoms) : null
+
+  // Step 2: walk tokens, emitting blocks. Salient span is one block;
+  // other tokens use greedy max-munch.
+  const blocks: LegoBlock[] = []
+  let pos = 0
+  let unmatchedCount = 0
+
+  while (pos < tokens.length) {
+    // Salient span emits as one block carrying its components (so the
+    // inserter rendering engages for inside-span non-atom tokens).
+    if (salientSpan && pos === salientSpan.startTok) {
+      const spanText = targetText.slice(
+        tokens[salientSpan.startTok].start,
+        tokens[salientSpan.endTokExcl - 1].end,
+      )
+      blocks.push({
+        id: salientId,
+        targetText: spanText,
+        isSalient: true,
+        components: salientAtoms!.map(a => ({ known: '', target: a.target })),
+      })
+      pos = salientSpan.endTokExcl
+      continue
+    }
+
+    // Greedy max-munch from reverseMap. Don't let a window overlap into
+    // the salient span (would corrupt the salient's identity).
+    let matched = false
+    const maxW = Math.min(MAX_WINDOW, tokens.length - pos)
+    for (let w = maxW; w >= 1; w--) {
+      if (salientSpan && pos < salientSpan.startTok && pos + w > salientSpan.startTok) continue
+      const slice = tokens.slice(pos, pos + w)
+      const key = slice.map(t => t.lower).join(' ')
+      const legoId = reverseMap.get(key)
+      if (legoId) {
+        const originalText = targetText.slice(slice[0].start, slice[w - 1].end)
+        const atoms = componentsByLegoId.get(legoId)
+        const comps = atoms ? atoms.map(a => ({ known: '', target: a.target })) : undefined
+        blocks.push({
+          id: legoId,
+          targetText: originalText,
+          isSalient: false,
+          ...(comps ? { components: comps } : {}),
+        })
+        pos += w
+        matched = true
+        break
+      }
+    }
+
+    if (!matched) {
+      unmatchedCount++
+      console.warn(
+        `[decomposePhrase] Unmatched token "${targetText.slice(tokens[pos].start, tokens[pos].end)}" in phrase "${targetText}" — methodology says every word should be a previously-introduced LEGO. Likely content gap.`,
+      )
+      blocks.push({
+        id: `_gap_cs_${pos}`,
+        targetText: targetText.slice(tokens[pos].start, tokens[pos].end),
+        isSalient: false,
+      })
+      pos += 1
+    }
+  }
+
+  // If we couldn't match anything at all, the vocab is too sparse to
+  // produce a useful decomposition — let the caller fall back.
+  if (blocks.length === 0) return null
+  if (unmatchedCount === tokens.length) return null
+
+  return blocks
+}
