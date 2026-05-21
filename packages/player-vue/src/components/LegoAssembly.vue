@@ -361,6 +361,14 @@ const isRTL = computed(() => {
   return RTL_RE.test(text)
 })
 
+// CJK presence per-text \u2014 Roman-tuned tile sizing reads cramped for
+// character-based scripts. Drives an `is-cjk` class on .lego-block /
+// .tile-target that bumps font-size and adds letter-spacing, without
+// inserting actual whitespace between glyphs.
+function hasCjk(text: string | undefined | null): boolean {
+  return !!text && CJK_RE.test(text)
+}
+
 // Soft-hyphenate long text so tiles can wrap instead of shrinking.
 // Inserts \u00AD at word boundaries, and mid-word if a single word > maxChars.
 const SHY = '\u00AD'
@@ -587,7 +595,7 @@ const sentenceScale = computed(() => {
            its full text, even if multi-word. Text wraps naturally at
            word boundaries inside the tile when needed; the tile
            outline stays continuous because it IS one chunk. -->
-      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents }">
+      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents, 'is-cjk': hasCjk(blocks[0]?.targetText) }">
         <template v-if="mLegoComponents">
           <span
             v-for="(comp, i) in mLegoComponents"
@@ -643,6 +651,7 @@ const sentenceScale = computed(() => {
                   'wagon-start': wi === 0,
                   'wagon-end': wi === practiceCarriageWagons(block)!.length - 1,
                   'salient': block.isSalient,
+                  'is-cjk': hasCjk(block.targetText),
                 }"
                 :style="{ '--char-count': wagon.reduce((s, c) => s + c.target.length, 0) }"
               >
@@ -681,6 +690,7 @@ const sentenceScale = computed(() => {
                 'solo-component': block.isSoloComponent,
                 'ghost': block.id.startsWith('_gap_') || block.id.startsWith('_SYN'),
                 'salient': block.isSalient,
+                'is-cjk': hasCjk(block.targetText),
               }"
             >
               <template v-if="alignedBlockComponents(block)">
@@ -1179,6 +1189,27 @@ const sentenceScale = computed(() => {
   font-weight: 600;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   CJK SIZING — Chinese/Japanese/Korean characters are denser than
+   Roman letters and read cramped at Roman-tuned sizes. Bump font-
+   size ~20% and add letter-spacing so glyphs breathe without
+   inserting actual whitespace between characters.
+   ═══════════════════════════════════════════════════════════════ */
+.lego-block.is-cjk .block-text {
+  font-size: calc(2.15rem * var(--sentence-scale, 1));
+  letter-spacing: 0.08em;
+}
+.lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
+  font-size: calc(1.85rem * var(--sentence-scale, 1));
+}
+.lego-block.salient.is-cjk .block-text {
+  font-size: calc(2rem * var(--sentence-scale, 1));
+}
+.tile-target.is-cjk .comp {
+  font-size: 2.2rem;
+  letter-spacing: 0.08em;
+}
+
 /* --- HIDDEN --- */
 .lego-block-wrapper.hidden {
   opacity: 0;
@@ -1239,8 +1270,22 @@ const sentenceScale = computed(() => {
     font-size: calc(1.55rem * var(--sentence-scale, 1));
   }
 
+  /* CJK mobile — keep the ~20% bump proportional to the mobile baseline. */
+  .lego-block.is-cjk .block-text {
+    font-size: calc(1.9rem * var(--sentence-scale, 1));
+  }
+  .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
+    font-size: calc(1.7rem * var(--sentence-scale, 1));
+  }
+  .lego-block.salient.is-cjk .block-text {
+    font-size: calc(1.8rem * var(--sentence-scale, 1));
+  }
+
   .tile-target .comp {
     font-size: 1.6rem;
+  }
+  .tile-target.is-cjk .comp {
+    font-size: 1.9rem;
   }
 
   .carriage-cell {
@@ -1366,6 +1411,36 @@ const sentenceScale = computed(() => {
   :root[data-theme="mist"] .tile-target .comp.is-inserter,
   :root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
     font-size: calc(1.45rem * var(--sentence-scale, 1));
+  }
+}
+
+/* CJK sizing — mist-scoped counterparts. The unscoped .is-cjk rules lose
+   to the mist non-salient rule on specificity (mist adds :root +
+   [data-theme]), so each one needs a mist-prefixed sibling. */
+:root[data-theme="mist"] .lego-block.is-cjk .block-text {
+  font-size: calc(2.15rem * var(--sentence-scale, 1));
+}
+:root[data-theme="mist"] .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
+  font-size: calc(1.85rem * var(--sentence-scale, 1));
+}
+:root[data-theme="mist"] .lego-block.salient.is-cjk .block-text {
+  font-size: calc(2rem * var(--sentence-scale, 1));
+}
+:root[data-theme="mist"] .tile-target.is-cjk .comp {
+  font-size: 2.2rem;
+}
+@media (max-width: 600px) {
+  :root[data-theme="mist"] .lego-block.is-cjk .block-text {
+    font-size: calc(1.9rem * var(--sentence-scale, 1));
+  }
+  :root[data-theme="mist"] .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
+    font-size: calc(1.7rem * var(--sentence-scale, 1));
+  }
+  :root[data-theme="mist"] .lego-block.salient.is-cjk .block-text {
+    font-size: calc(1.8rem * var(--sentence-scale, 1));
+  }
+  :root[data-theme="mist"] .tile-target.is-cjk .comp {
+    font-size: 1.9rem;
   }
 }
 </style>
