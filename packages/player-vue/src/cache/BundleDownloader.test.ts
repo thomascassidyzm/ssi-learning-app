@@ -317,7 +317,7 @@ describe('BundleDownloader', () => {
     expect(mock.ensureCalls).toEqual([...beltEntryIds, ...restIds])
   })
 
-  it('walks pods before USE phrases, pods in pod_order ascending', async () => {
+  it('walks pods after USE phrases, pods in pod_order ascending', async () => {
     const mock = makeMockCache({ mode: 'auto' })
     const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
@@ -369,10 +369,14 @@ describe('BundleDownloader', () => {
     bundle.pods = pods
     await dl.start(bundle)
 
-    // First: pod 0 (intro → sentences globalOrder asc → outro).
-    // Second: pod 1 (intro → sentences globalOrder asc → outro).
-    // Then: all 15 USE phrase ids.
+    // First: all 15 USE phrase ids (learner-reachability priority).
+    // Then: pod 0 (intro → sentences globalOrder asc → outro).
+    // Then: pod 1 (intro → sentences globalOrder asc → outro).
+    // Pods last because the first pod doesn't fire until round 5+ —
+    // minutes after session start — so they have ample runway behind
+    // the LEGO USE corpus that the learner hits from minute one.
     expect(mock.ensureCalls).toEqual([
+      ...ALL_15_IDS,
       'p0-intro',
       'p0-s1-tgt', 'p0-s1-kn',
       'p0-outro',
@@ -380,7 +384,6 @@ describe('BundleDownloader', () => {
       'p1-s1-tgt', 'p1-s1-kn',
       'p1-s2-tgt', 'p1-s2-kn',
       'p1-outro',
-      ...ALL_15_IDS,
     ])
   })
 

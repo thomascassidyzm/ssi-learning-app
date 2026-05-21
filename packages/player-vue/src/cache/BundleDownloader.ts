@@ -218,23 +218,25 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
   /**
    * Walk the bundle and return the ordered list of persistent audio ids.
    *
-   * Priority:
-   *   1. Pods (Layer 2) — one pod at a time, in pod_order ascending.
-   *      Per pod: intro bookend → sentences (target, then known, in
-   *      globalOrder) → outro bookend. Pods come first because they're
-   *      the most cache-sensitive content: laps have near-zero inter-play
-   *      gaps and play 130+ files in quick succession, so any cold-load
-   *      latency is audible. Spaced-rep USE phrases sit inside a ~10s
-   *      cycle that absorbs load latency, so they're lower priority.
-   *   2. Belt entry points — for each belt threshold (1, 8, 20, 40, 80,
+   * Priority — learner-reachability order. Earliest-needed first.
+   *
+   *   1. Belt entry points — for each belt threshold (1, 8, 20, 40, 80,
    *      150, 280, 400), find the first LEGO in roundMap order at or after
    *      that threshold and emit its USE phrases' k/t1/t2. This guarantees
    *      that even mid-cold-start, a belt-skipping learner lands on a
    *      LEGO whose audio is already cached: every belt's Round-1 entry
    *      gets primed before we fill in the long tail.
-   *   3. Belt-forward: roundMap order, for each LEGO emit its USE phrases'
-   *      k/t1/t2 in (position, role) order — skipping anything already
-   *      emitted by pass 2.
+   *   2. Belt-forward LEGO USE phrases — roundMap order, for each LEGO
+   *      emit its USE phrases' k/t1/t2 in (position, role) order, skipping
+   *      anything already emitted by pass 1.
+   *   3. Pods (Layer 2) last — one pod at a time, in pod_order ascending.
+   *      Per pod: intro bookend → sentences (target, then known, in
+   *      globalOrder) → outro bookend. Pods are cache-sensitive WHEN they
+   *      play (130+ files in quick succession with near-zero inter-play
+   *      gaps), but the first pod doesn't fire until round 5+ — minutes
+   *      after session start. With concurrency=4 the LEGO USE corpus
+   *      finishes in tens of seconds, leaving ample runway for pods to
+   *      catch up before they're needed.
    *
    * Deduplicated by id across the whole walk.
    */
@@ -250,26 +252,7 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       out.push(ref.id)
     }
 
-    // --- 1. Pods (Layer 2) ---------------------------------------------
-    // Sort pods defensively even though the server orders them — the
-    // CourseBundle contract doesn't pin pod order.
-    const orderedPods = [...bundle.pods].sort((a, b) => a.podOrder - b.podOrder)
-    for (const pod of orderedPods) {
-      yieldRef(pod.introAudio)
-      // Sentences in globalOrder ascending. The runtime plays them in
-      // this order with role/speed driven by the active stage playlist,
-      // but the underlying audio file is the same — caching globalOrder
-      // ascending means lap N has the cache primed for sentence k before
-      // the lap reaches it.
-      const orderedSentences = [...pod.sentences].sort((a, b) => a.globalOrder - b.globalOrder)
-      for (const sentence of orderedSentences) {
-        yieldRef(sentence.targetAudio)
-        yieldRef(sentence.knownAudio)
-      }
-      yieldRef(pod.outroAudio)
-    }
-
-    // --- 2 & 3. USE phrases — belt entries first, then roundMap order -
+    // --- 1 & 2. USE phrases — belt entries first, then roundMap order -
     // Index phrases by lego for O(1) lookup as we walk roundMap.
     const phrasesByLego = new Map<string, BundlePhrase[]>()
     for (const phrase of bundle.phrases) {
@@ -296,7 +279,7 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       }
     }
 
-    // --- 2. Belt entry points — first LEGO at/after each belt threshold.
+    // --- 1. Belt entry points — first LEGO at/after each belt threshold.
     // We iterate thresholds ascending (smallest first) so the first belt's
     // entry gets cached before the second belt's, etc. The deduper in
     // yieldRef makes overlap a no-op (e.g. if seed 1 is the only LEGO,
@@ -311,10 +294,31 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       yieldUsePhrasesFor(entry.legoId)
     }
 
-    // --- 3. Fill the rest in roundMap order. yieldRef dedupes by id, so
-    // anything already emitted by the belt-entry pass is silently skipped.
+    // --- 2. Fill the rest of LEGO USE phrases in roundMap order. yieldRef
+    // dedupes by id, so anything already emitted by the belt-entry pass
+    // is silently skipped.
     for (const entry of orderedRounds) {
       yieldUsePhrasesFor(entry.legoId)
+    }
+
+    // --- 3. Pods (Layer 2) last — first pod doesn't fire until round 5+,
+    // so they have minutes of runway after LEGO USE phrases finish.
+    // Sort pods defensively even though the server orders them — the
+    // CourseBundle contract doesn't pin pod order.
+    const orderedPods = [...bundle.pods].sort((a, b) => a.podOrder - b.podOrder)
+    for (const pod of orderedPods) {
+      yieldRef(pod.introAudio)
+      // Sentences in globalOrder ascending. The runtime plays them in
+      // this order with role/speed driven by the active stage playlist,
+      // but the underlying audio file is the same — caching globalOrder
+      // ascending means lap N has the cache primed for sentence k before
+      // the lap reaches it.
+      const orderedSentences = [...pod.sentences].sort((a, b) => a.globalOrder - b.globalOrder)
+      for (const sentence of orderedSentences) {
+        yieldRef(sentence.targetAudio)
+        yieldRef(sentence.knownAudio)
+      }
+      yieldRef(pod.outroAudio)
     }
 
     return out
