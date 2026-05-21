@@ -114,13 +114,37 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
   }
 
   function writeCache(code: string, payload: CourseBundle): void {
+    // Evict other courses' bundle caches first. A single course bundle
+    // can run 1–3MB; localStorage's ~5MB budget can't hold more than
+    // one. Single-course users (the common case) keep instant
+    // cache-first revisits; multi-course session-hoppers pay one
+    // network round-trip per switch — much better than the
+    // QuotaExceededError loop the previous build hit.
+    evictOtherBundles(code)
     try {
       localStorage.setItem(storageKey(code), JSON.stringify(payload))
     } catch (err) {
-      // QuotaExceededError or similar — log and continue. The bundle
-      // still lives in `bundle.value` for this session; we just lose
-      // the warm-start benefit next time.
+      // Genuinely too big for localStorage even after evicting others
+      // (extreme bundle on a constrained browser). Bundle still lives
+      // in `bundle.value` for this session — we just lose the
+      // warm-start benefit next time. Non-fatal.
       console.warn('[CourseBundle] Failed to write cache (quota?):', err)
+    }
+  }
+
+  function evictOtherBundles(currentCode: string): void {
+    try {
+      const keepKey = storageKey(currentCode)
+      const toEvict: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith(storagePrefix) && key !== keepKey) {
+          toEvict.push(key)
+        }
+      }
+      for (const key of toEvict) localStorage.removeItem(key)
+    } catch {
+      // localStorage unavailable / private-mode quota; ignored.
     }
   }
 
