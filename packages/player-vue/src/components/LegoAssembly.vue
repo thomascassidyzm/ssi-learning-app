@@ -9,7 +9,7 @@ export interface LegoBlock {
   /** This A-LEGO was extracted from an M-LEGO and now appears solo */
   isSoloComponent?: boolean
   /** M-LEGO component breakdown */
-  components?: { known: string; target: string; absorbed?: boolean }[]
+  components?: { known: string; target: string; absorbed?: boolean; isInserter?: boolean }[]
 }
 
 type AssemblyPhase = 'hidden' | 'scattered' | 'assembling' | 'assembled' | 'dissolving'
@@ -17,6 +17,10 @@ type AssemblyPhase = 'hidden' | 'scattered' | 'assembling' | 'assembled' | 'diss
 export interface ComponentBreakdown {
   known: string
   target: string
+  /** Token sits inside an M-LEGO span but is not one of the LEGO's declared
+   *  atoms — a previously-introduced LEGO inserted into the M-LEGO. Rendered
+   *  with reduced opacity so the salient LEGO atoms still pop. */
+  isInserter?: boolean
 }
 
 const props = defineProps<{
@@ -127,9 +131,20 @@ function joinTokens(tokens: string[], text: string): string {
 
 /**
  * Align declared components to the full LEGO targetText.
- * Words not covered by any component get absorbed into the nearest component
- * (prefix → next component, trailing → previous component).
- * This ensures the tile displays ALL words the audio says.
+ *
+ * Gap-handling rules:
+ *  - Tokens **before** the first declared atom → absorbed as prefix into
+ *    the first comp (preserves leading articles, punctuation, etc.).
+ *  - Tokens **between** declared atoms → emitted as their own inserter
+ *    components (isInserter: true). These are previously-introduced
+ *    LEGOs slotted inside the M-LEGO's span — e.g. "dich morgen" inside
+ *    "rufe…an". Renderer dims them so the salient atoms still pop.
+ *  - Tokens **after** the last declared atom → absorbed as suffix onto
+ *    the last comp.
+ *
+ * This ensures the tile displays ALL words the audio says, and surfaces
+ * inside-span gaps as visually-distinct inserters per the SSi methodology
+ * invariant (every inside-span token is a previously-introduced LEGO).
  * CJK-aware: uses per-character tokenization for Chinese/Japanese/Korean.
  */
 function alignComponentsToFullText(
@@ -174,31 +189,43 @@ function alignComponentsToFullText(
   const totalCovered = spans.reduce((s, sp) => s + (sp.end - sp.start), 0)
   if (totalCovered === fullTokens.length) return comps
 
-  // Absorb gaps: tokens between components attach to the NEXT component (prefix)
-  // Trailing tokens after last component attach to the LAST component (suffix)
+  const isCJK = CJK_RE.test(fullText)
   const result: ComponentBreakdown[] = []
-  let tokenIdx = 0
+  const firstSpan = spans[0]
+  const lastSpan = spans[spans.length - 1]
 
-  for (let si = 0; si < spans.length; si++) {
+  // First comp: prefix tokens (before first atom) absorbed in. Preserves
+  // leading articles / punctuation that aren't true inserters between atoms.
+  const prefixTokens = fullOriginal.slice(0, firstSpan.start)
+  const firstSpanTokens = fullOriginal.slice(firstSpan.start, firstSpan.end)
+  result.push({
+    known: comps[firstSpan.compIdx].known,
+    target: joinTokens([...prefixTokens, ...firstSpanTokens], fullText),
+  })
+
+  // Walk the remaining spans. Gap tokens between this span and the previous
+  // are TRUE inserters — emit as their own components with isInserter=true.
+  for (let si = 1; si < spans.length; si++) {
+    const prevEnd = spans[si - 1].end
     const span = spans[si]
-    const comp = comps[span.compIdx]
-    // Gap tokens before this component → prefix into this component
-    const gapBefore = fullOriginal.slice(tokenIdx, span.start)
-    const compOriginal = fullOriginal.slice(span.start, span.end)
+    const gapTokens = fullOriginal.slice(prevEnd, span.start)
+    for (const tok of gapTokens) {
+      result.push({ known: '', target: tok, isInserter: true })
+    }
+    const spanTokens = fullOriginal.slice(span.start, span.end)
     result.push({
-      known: comp.known,
-      target: joinTokens([...gapBefore, ...compOriginal], fullText),
+      known: comps[span.compIdx].known,
+      target: joinTokens(spanTokens, fullText),
     })
-    tokenIdx = span.end
   }
 
-  // Trailing gap tokens → suffix onto last component
-  if (tokenIdx < fullTokens.length && result.length > 0) {
+  // Trailing tokens after last span → suffix onto last comp
+  if (lastSpan.end < fullTokens.length) {
+    const trailing = fullOriginal.slice(lastSpan.end)
     const last = result[result.length - 1]
-    const trailing = fullOriginal.slice(tokenIdx)
     result[result.length - 1] = {
-      known: last.known,
-      target: last.target + (CJK_RE.test(fullText) ? '' : ' ') + joinTokens(trailing, fullText),
+      ...last,
+      target: last.target + (isCJK ? '' : ' ') + joinTokens(trailing, fullText),
     }
   }
 
@@ -275,7 +302,10 @@ const knownText = computed(() => {
 // each group is a mini M-LEGO tile with internal stubs, groups linked externally
 const carriageGroups = computed(() => {
   if (props.blocks.length !== 1) return null
-  if (!mLegoComponents.value || mLegoComponents.value.length <= 3) return null
+  if (!mLegoComponents.value) return null
+  // Atom-count threshold (inserters don't push us into carriage mode).
+  const atomCount = mLegoComponents.value.filter(c => !c.isInserter).length
+  if (atomCount <= 3) return null
   const comps = mLegoComponents.value
   const groups: ComponentBreakdown[][] = []
   for (let i = 0; i < comps.length; i += 3) {
@@ -356,7 +386,12 @@ function softHyphenate(text: string): string {
  */
 function practiceCarriageWagons(block: LegoBlock): ComponentBreakdown[][] | null {
   const aligned = alignedBlockComponents(block)
-  if (!aligned || aligned.length <= 3) return null
+  if (!aligned) return null
+  // Threshold counts declared atoms only — inserters live inside the
+  // span and shouldn't push a 2-atom M-LEGO with 2 inserters into wagon
+  // mode (which would split atoms across wagons).
+  const atomCount = aligned.filter(c => !c.isInserter).length
+  if (atomCount <= 3) return null
   const wagonCount = Math.ceil(aligned.length / 3)
   const wagonSize = Math.ceil(aligned.length / wagonCount)
   const wagons: ComponentBreakdown[][] = []
@@ -471,6 +506,7 @@ const sentenceScale = computed(() => {
             v-for="(comp, i) in mLegoComponents"
             :key="i"
             class="comp"
+            :class="{ 'is-inserter': comp.isInserter }"
           >{{ softHyphenate(comp.target) }}</span>
         </template>
         <span v-else class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
@@ -519,7 +555,12 @@ const sentenceScale = computed(() => {
                 }"
                 :style="{ '--char-count': wagon.reduce((s, c) => s + c.target.length, 0) }"
               >
-                <span v-for="(comp, ci) in wagon" :key="ci" class="comp block-text">{{ softHyphenate(comp.target) }}</span>
+                <span
+                  v-for="(comp, ci) in wagon"
+                  :key="ci"
+                  class="comp block-text"
+                  :class="{ 'is-inserter': comp.isInserter }"
+                >{{ softHyphenate(comp.target) }}</span>
               </div>
             </div>
             <div v-if="practiceCarriageWagons(block)!.some(w => w.some(c => c.known))" class="hyphenated-known-track">
@@ -556,6 +597,7 @@ const sentenceScale = computed(() => {
                   v-for="(comp, ci) in alignedBlockComponents(block)!"
                   :key="ci"
                   class="comp block-text"
+                  :class="{ 'is-inserter': comp.isInserter }"
                 >{{ softHyphenate(comp.target) }}</span>
               </template>
               <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
@@ -952,6 +994,20 @@ const sentenceScale = computed(() => {
   background: rgba(255, 255, 255, 0.22);
 }
 
+/* Inserter — a previously-introduced LEGO sitting INSIDE an M-LEGO's
+   atom span (e.g. "dich" between "fühlst" and the M-LEGO's other atoms,
+   or "dich morgen" between "rufe…an"). The salient M-LEGO atoms keep
+   their full white; the inserter dims ~10pp so the LEGO chunk still
+   pops, while the inserter reads as "previously-known piece slotted
+   in to make the grammar work". Applies inside .tile-target (intro/
+   debut) and .lego-block.has-components (practice phrases) — covers
+   both render modes that emit per-component .comp spans. */
+.tile-target .comp.is-inserter,
+.lego-block.has-components .comp.is-inserter {
+  opacity: 0.7;
+  font-weight: 400;
+}
+
 /* Stubs-bright on practice M-LEGOs — M-LEGO components rendered as
    adjacent sub-tiles get the same partial vertical bars as
    .tile-target.has-components above. */
@@ -1217,6 +1273,15 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::before,
 :root[data-theme="mist"] .lego-block.has-components .comp + .comp::after {
   background: rgba(44, 38, 34, 0.2);
+}
+
+/* Inserter — mist theme. Same intent as the default theme: ~10pp dim
+   so the salient atoms still dominate the M-LEGO chunk. Colour-shift
+   rather than pure opacity because the mist tile is white-on-light. */
+:root[data-theme="mist"] .tile-target .comp.is-inserter,
+:root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
+  color: rgba(44, 38, 34, 0.55);
+  font-weight: 400;
 }
 
 /* Hyphenated wagon edge stubs for mist theme */
