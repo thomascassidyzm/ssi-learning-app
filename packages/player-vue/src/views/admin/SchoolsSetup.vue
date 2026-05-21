@@ -288,42 +288,32 @@ async function createStaff(): Promise<void> {
   error.value = null
   successMessage.value = null
 
+  // Both DB writes (learners + user_tags) moved server-side under
+  // service-role auth in /api/admin/create-staff. The 2026-05-21
+  // block_anon_role_escalation migration REVOKEd INSERT on learners,
+  // so this is the only path that works.
   try {
-    const client = getClient()
-    const userId = `staff_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    const educationalRole = newStaffRole.value === 'admin' ? 'school_admin' : 'teacher'
-    const roleInContext = newStaffRole.value === 'admin' ? 'admin' : 'teacher'
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
 
-    // Create learner record (with email in verified_emails so auth linking works)
-    const emailStr = newStaffEmail.value.trim().toLowerCase()
-    const insertData: Record<string, unknown> = {
-      user_id: userId,
-      display_name: newStaffName.value.trim(),
-      educational_role: educationalRole,
+    const resp = await fetch('/api/admin/create-staff', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        display_name: newStaffName.value.trim(),
+        email: newStaffEmail.value.trim().toLowerCase(),
+        school_id: newStaffSchool.value,
+        role: newStaffRole.value,
+      }),
+    })
+
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      throw new Error(data.error || `HTTP ${resp.status}`)
     }
-    if (emailStr) {
-      insertData.verified_emails = [emailStr]
-    }
-
-    const { error: learnerError } = await client
-      .from('learners')
-      .insert(insertData)
-
-    if (learnerError) throw learnerError
-
-    // Link to school via user_tag
-    const addedBy = getCurrentUserId() || userId
-    const { error: tagError } = await client
-      .from('user_tags')
-      .insert({
-        user_id: userId,
-        tag_type: 'school',
-        tag_value: `SCHOOL:${newStaffSchool.value}`,
-        role_in_context: roleInContext,
-        added_by: addedBy,
-      })
-
-    if (tagError) throw tagError
 
     const schoolName = schools.value.find(s => s.id === newStaffSchool.value)?.school_name || ''
     const roleLabel = newStaffRole.value === 'admin' ? 'School Admin' : 'Teacher'
