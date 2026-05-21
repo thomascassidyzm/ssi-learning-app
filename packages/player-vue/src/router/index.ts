@@ -256,6 +256,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Try Links', description: 'Zero-friction preview links for partners' },
       },
       {
+        path: 'release-notes',
+        name: 'admin-release-notes',
+        component: () => import('@/views/admin/AdminReleaseNotes.vue'),
+        meta: { title: 'Release Notes', description: 'Curate the What\'s New panel in Settings' },
+      },
+      {
         path: 'schools',
         name: 'admin-schools',
         component: () => import('@/views/admin/SchoolsSetup.vue'),

@@ -10,6 +10,7 @@ import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { useReleaseNotes } from '../composables/useReleaseNotes'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'openDriving', 'settingChanged'])
 
@@ -75,6 +76,18 @@ const versionDisplay = computed(() => {
   const sha = buildNumber || 'dev'
   return formattedBuildTime.value ? `${sha} · ${formattedBuildTime.value}` : sha
 })
+
+// What's new — latest curated release notes from Supabase
+const { notes: releaseNotes, isLoading: notesLoading, load: loadReleaseNotes } = useReleaseNotes()
+const showAllNotes = ref(false)
+const visibleNotes = computed(() => showAllNotes.value ? releaseNotes.value : releaseNotes.value.slice(0, 1))
+function formatReleaseDate(iso: string): string {
+  try {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  } catch { return '' }
+}
 
 // Practice mode visibility (default: off — unlocked via settings or notification)
 const showListeningMode = ref(false)
@@ -583,6 +596,10 @@ const toggleTheme = () => {
 }
 
 onMounted(async () => {
+  // Lazy-load release notes for the What's New panel — cached in the
+  // composable singleton across openings, so this is a one-off per session.
+  loadReleaseNotes()
+
   // Load practice mode visibility
   showListeningMode.value = localStorage.getItem('ssi-mode-listening') === 'true'
   showPronunciationMode.value = localStorage.getItem('ssi-mode-pronunciation') === 'true'
@@ -883,6 +900,33 @@ const confirmReset = async () => {
         <span class="build-sha">{{ buildNumber || 'dev' }}</span>
         <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
       </div>
+
+      <!-- What's New — admin-curated release notes (see /admin/release-notes) -->
+      <section v-if="releaseNotes.length > 0" class="section whats-new">
+        <h3 class="section-title">What's new</h3>
+        <div class="card">
+          <div v-for="(note, idx) in visibleNotes" :key="note.id" class="whats-new-entry">
+            <div class="whats-new-head">
+              <span class="whats-new-date">{{ formatReleaseDate(note.released_at) }}</span>
+              <span v-if="note.version && note.version !== formatReleaseDate(note.released_at)" class="whats-new-version">{{ note.version }}</span>
+            </div>
+            <p v-if="note.headline" class="whats-new-headline">{{ note.headline }}</p>
+            <ul class="whats-new-bullets">
+              <li v-for="(bullet, bi) in note.bullets" :key="bi">{{ bullet }}</li>
+            </ul>
+            <hr v-if="idx < visibleNotes.length - 1" class="whats-new-sep" />
+          </div>
+          <button
+            v-if="releaseNotes.length > 1"
+            class="whats-new-toggle"
+            @click="showAllNotes = !showAllNotes"
+          >{{ showAllNotes ? 'Show latest only' : `See ${releaseNotes.length - 1} earlier update${releaseNotes.length - 1 === 1 ? '' : 's'}` }}</button>
+        </div>
+      </section>
+      <section v-else-if="notesLoading" class="section whats-new">
+        <h3 class="section-title">What's new</h3>
+        <div class="card whats-new-loading">Loading…</div>
+      </section>
 
       <!-- Account Section (guest - not signed in) -->
       <section class="section" v-if="!isSignedIn">
@@ -1563,6 +1607,45 @@ const confirmReset = async () => {
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
+
+/* What's new — release-notes panel under the build-card */
+.whats-new .card { padding: 0.875rem 1rem; }
+.whats-new-loading { color: var(--text-muted); font-size: 0.85rem; }
+.whats-new-entry { padding: 0.25rem 0; }
+.whats-new-head {
+  display: flex; align-items: baseline; gap: 0.6rem;
+  margin-bottom: 0.25rem;
+}
+.whats-new-date {
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--text-secondary, var(--text-muted));
+}
+.whats-new-version {
+  font-size: 0.72rem; color: var(--text-muted);
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+.whats-new-headline {
+  margin: 0.1rem 0 0.4rem;
+  font-size: 0.92rem; font-weight: 500;
+  color: var(--text-primary);
+  font-style: italic;
+}
+.whats-new-bullets {
+  margin: 0; padding-left: 1.1rem;
+  font-size: 0.88rem; color: var(--text-primary);
+}
+.whats-new-bullets li { margin: 0.15rem 0; line-height: 1.35; }
+.whats-new-sep {
+  border: 0; height: 1px; background: var(--border-subtle);
+  margin: 0.7rem -0.25rem;
+}
+.whats-new-toggle {
+  background: none; border: 0; padding: 0.4rem 0 0;
+  font: inherit; font-size: 0.82rem;
+  color: var(--ssi-red, #c23a3a);
+  cursor: pointer;
+}
+.whats-new-toggle:hover { text-decoration: underline; }
 
 .divider {
   height: 1px;
