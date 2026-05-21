@@ -37,6 +37,14 @@ const props = defineProps<{
 }>()
 
 const isUseCycle = computed(() => (props.cycleType || '').toLowerCase() === 'use')
+// Known-text (the English subtitle under each tile) only renders during
+// intro and debut cycles — the first time a learner meets the LEGO. Once
+// the salient appears alongside other LEGOs (BLD / USE phrases), the
+// target tiles must stand alone. Tom 2026-05-21.
+const isIntroOrDebut = computed(() => {
+  const t = (props.cycleType || '').toLowerCase()
+  return t === 'intro' || t === 'debut'
+})
 
 // Detect M-LEGO: multiple components on the salient block or in props
 // Falls back to word-aligned synthesis when known/target have matching word counts
@@ -91,19 +99,24 @@ const mLegoComponents = computed(() => {
 })
 
 function normaliseForCompare(text: string, isCJK: boolean): string {
-  let s = text.toLowerCase().trim().replace(PUNCT_RE, '')
+  let s = text.toLowerCase().trim().replace(SMART_APOS_RE, "'").replace(PUNCT_RE, '')
   if (isCJK) s = s.replace(/\s+/g, '')
   return s
 }
 
 // CJK detection — matches ensureTileCoverage.ts
 const CJK_RE = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
-const PUNCT_RE = /[.,!?;:¡¿'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g
+// Sentence punctuation only — in-word apostrophes/hyphens preserved so
+// "j'apprends", "d'un", "well-meaning" retain lexical identity. Smart-
+// quote variants normalised to ASCII via SMART_APOS_RE upstream.
+// ASCII apostrophe deliberately NOT in this class.
+const PUNCT_RE = /[.,!?;:¡¿"“”„«»\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g
+const SMART_APOS_RE = /[‘’ʼ]/g  // typographic single quotes → straight
 
 /** Tokenize text: per-character for CJK, per-word for alphabetic. Strips punctuation. */
 function tokenize(text: string): string[] {
   if (!text) return []
-  const cleaned = text.toLowerCase().trim().replace(PUNCT_RE, '')
+  const cleaned = text.toLowerCase().trim().replace(SMART_APOS_RE, "'").replace(PUNCT_RE, '')
   if (CJK_RE.test(text)) {
     return cleaned.split('').filter(ch => ch.trim() !== '')
   }
@@ -472,7 +485,7 @@ const sentenceScale = computed(() => {
           >
             <span v-for="(comp, ci) in group" :key="ci" class="comp">{{ softHyphenate(comp.target) }}</span>
           </div>
-          <div v-if="group.some(c => c.known)" class="carriage-known-row">
+          <div v-if="isIntroOrDebut && group.some(c => c.known)" class="carriage-known-row">
             <span
               v-for="(comp, ci) in group"
               :key="ci"
@@ -523,15 +536,19 @@ const sentenceScale = computed(() => {
         </template>
         <span v-else class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
       </div>
-      <!-- Known row: per-component aligned text -->
-      <div v-if="mLegoComponents && mLegoComponents.some(c => c.known)" class="tile-known-row">
-        <span
-          v-for="(comp, i) in mLegoComponents"
-          :key="i"
-          class="tile-known-comp"
-        >{{ comp.known || '' }}</span>
-      </div>
-      <div v-else-if="knownText" class="tile-known">{{ knownText }}</div>
+      <!-- Known row: only during intro/debut. Once the salient LEGO
+           appears alongside other LEGOs, the English subtitle gets
+           dropped — target tiles stand alone. -->
+      <template v-if="isIntroOrDebut">
+        <div v-if="mLegoComponents && mLegoComponents.some(c => c.known)" class="tile-known-row">
+          <span
+            v-for="(comp, i) in mLegoComponents"
+            :key="i"
+            class="tile-known-comp"
+          >{{ comp.known || '' }}</span>
+        </div>
+        <div v-else-if="knownText" class="tile-known">{{ knownText }}</div>
+      </template>
     </div>
 
     <!-- ═══════════════════════════════════════════
@@ -575,7 +592,7 @@ const sentenceScale = computed(() => {
                 >{{ softHyphenate(comp.target) }}</span>
               </div>
             </div>
-            <div v-if="practiceCarriageWagons(block)!.some(w => w.some(c => c.known))" class="hyphenated-known-track">
+            <div v-if="isIntroOrDebut && practiceCarriageWagons(block)!.some(w => w.some(c => c.known))" class="hyphenated-known-track">
               <div
                 v-for="(wagon, wi) in practiceCarriageWagons(block)!"
                 :key="wi"
@@ -614,14 +631,16 @@ const sentenceScale = computed(() => {
               </template>
               <span v-else class="block-text">{{ softHyphenate(block.targetText) }}</span>
             </div>
-            <div v-if="alignedBlockComponents(block)?.some(c => c.known)" class="block-known-row">
-              <span
-                v-for="(comp, ci) in alignedBlockComponents(block)!"
-                :key="ci"
-                class="block-known-comp"
-              >{{ comp.known || '' }}</span>
-            </div>
-            <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+            <template v-if="isIntroOrDebut">
+              <div v-if="alignedBlockComponents(block)?.some(c => c.known)" class="block-known-row">
+                <span
+                  v-for="(comp, ci) in alignedBlockComponents(block)!"
+                  :key="ci"
+                  class="block-known-comp"
+                >{{ comp.known || '' }}</span>
+              </div>
+              <span v-else-if="block.knownText" class="block-known">{{ block.knownText }}</span>
+            </template>
           </template>
         </div>
       </TransitionGroup>
@@ -960,63 +979,21 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
-/* Solo component — extracted from an M-LEGO, dashed vertical edges */
-.lego-block.solo-component {
-  border-left-style: dashed;
-  border-right-style: dashed;
-}
-.lego-block.solo-component.salient {
-  border-left-style: dashed;
-  border-right-style: dashed;
-}
-
-/* Ghost — undeclared word, grokable from prior M-LEGO context.
-   Same tile shape so the "every audible word is a tile" model holds.
-   Subtly less pronounced — dashed border + small text-weight shift —
-   not faint enough to read as "greyed out / disabled". */
-.lego-block.ghost {
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.15);
-}
-.lego-block.ghost .block-text {
-  font-weight: 400;
-}
-
-/* Context — non-salient tile in a USE cycle. The LEGO is already known
-   scaffolding (the salient LEGO is the one being practised), so the
-   magnet still exists but with lighter visual mass: smaller padding,
-   dimmer border, softer background, ~85% font. Keeps the "every word
-   is a magnet" metaphor intact while pushing focus onto the salient. */
-.lego-block.context {
-  padding: calc(0.4em * var(--sentence-scale, 1)) calc(0.8em * var(--sentence-scale, 1));
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 0 6px 1px rgba(255, 255, 255, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-.lego-block.context .block-text {
-  font-size: calc(1.6rem * var(--sentence-scale, 1));
-  color: rgba(255, 255, 255, 0.72);
-  font-weight: 400;
-}
-.lego-block.context.has-components .comp + .comp::before,
-.lego-block.context.has-components .comp + .comp::after {
-  background: rgba(255, 255, 255, 0.22);
-}
-
-/* Inserter — a previously-introduced LEGO sitting INSIDE an M-LEGO's
-   atom span (e.g. "dich" between "fühlst" and the M-LEGO's other atoms,
-   or "dich morgen" between "rufe…an"). The salient M-LEGO atoms keep
-   their full white; the inserter dims ~10pp so the LEGO chunk still
-   pops, while the inserter reads as "previously-known piece slotted
-   in to make the grammar work". Applies inside .tile-target (intro/
-   debut) and .lego-block.has-components (practice phrases) — covers
-   both render modes that emit per-component .comp spans. */
+/* ─────────────────────────────────────────────────────────────────
+   ONE alternate visual treatment for "previously-known" tiles.
+   Tom 2026-05-21: two looks only — white salient (the current LEGO
+   being practised) + this single "second colour" for every other
+   tile type. Previously-known siblings, ghost-filled tokens, solo
+   components extracted from M-LEGOs, and in-span inserters between
+   M-LEGO atoms all collapse to the same muted treatment — same
+   tile shape, same border, slightly dimmer + lighter text weight.
+   Authors should not need to learn five different visual idioms
+   to read a practice phrase.
+   ───────────────────────────────────────────────────────────────── */
+.lego-block:not(.salient):not(.wagon),
 .tile-target .comp.is-inserter,
 .lego-block.has-components .comp.is-inserter {
-  opacity: 0.7;
+  opacity: 0.72;
   font-weight: 400;
 }
 
@@ -1248,37 +1225,6 @@ const sentenceScale = computed(() => {
   color: var(--text-primary);
 }
 
-/* Solo component — mist theme */
-:root[data-theme="mist"] .lego-block.solo-component {
-  border-left-style: dashed;
-  border-right-style: dashed;
-}
-
-/* Ghost — mist theme. Same subtle treatment: dashed border + lighter weight. */
-:root[data-theme="mist"] .lego-block.ghost {
-  border-style: dashed;
-  border-color: rgba(0, 0, 0, 0.28);
-}
-:root[data-theme="mist"] .lego-block.ghost .block-text {
-  font-weight: 400;
-}
-
-/* Context — mist theme. Lighter mass: thinner border, softer background,
-   dimmer text. Salient still dominates via its red accent. */
-:root[data-theme="mist"] .lego-block.context {
-  background: rgba(255, 255, 255, 0.85);
-  border-color: rgba(0, 0, 0, 0.18);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08);
-}
-:root[data-theme="mist"] .lego-block.context .block-text {
-  color: rgba(44, 38, 34, 0.62);
-  font-weight: 400;
-}
-:root[data-theme="mist"] .lego-block.context.has-components .comp + .comp::before,
-:root[data-theme="mist"] .lego-block.context.has-components .comp + .comp::after {
-  background: rgba(44, 38, 34, 0.12);
-}
-
 /* M-LEGO stubs for mist theme */
 :root[data-theme="mist"] .tile-target.has-components .comp + .comp::before,
 :root[data-theme="mist"] .tile-target.has-components .comp + .comp::after,
@@ -1287,9 +1233,11 @@ const sentenceScale = computed(() => {
   background: rgba(44, 38, 34, 0.2);
 }
 
-/* Inserter — mist theme. Same intent as the default theme: ~10pp dim
-   so the salient atoms still dominate the M-LEGO chunk. Colour-shift
-   rather than pure opacity because the mist tile is white-on-light. */
+/* Mist theme: single "second colour" treatment for every non-salient
+   tile (previously-known sibling, ghost, solo-component, in-span
+   inserter). Colour-shift rather than opacity because the mist tile is
+   white-on-light — pure opacity would muddy the background paper. */
+:root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) .block-text,
 :root[data-theme="mist"] .tile-target .comp.is-inserter,
 :root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
   color: rgba(44, 38, 34, 0.55);

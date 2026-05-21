@@ -37,7 +37,12 @@
 import type { LegoBlock } from '../components/LegoAssembly.vue'
 
 const CJK_RE = /[　-鿿가-힯＀-￯]/
-const PUNCT_RE = /[.,!?;:¡¿'"]+/g
+// Strip sentence punctuation but PRESERVE in-word apostrophes and hyphens —
+// French "d'un" / "j'aime", English "don't", compound nouns etc. keep
+// their lexical identity. Smart-quote variants normalise to straight ASCII
+// first so "l'italiano" and "l'italiano" match the same key.
+const PUNCT_RE = /[.,!?;:¡¿"„""«»]+/g
+const SMART_APOS_RE = /[‘’ʼ]/g  // ’ ‘ ʼ → '
 const MAX_WINDOW = 8  // longest M-LEGO token-count we'd reasonably look up
 
 type Atom = { known: string; target: string }
@@ -49,7 +54,7 @@ function tokenisePhrase(targetText: string): Tok[] {
   let m: RegExpExecArray | null
   while ((m = re.exec(targetText)) !== null) {
     const raw = m[0]
-    const cleaned = raw.toLowerCase().replace(PUNCT_RE, '')
+    const cleaned = raw.toLowerCase().replace(SMART_APOS_RE, "'").replace(PUNCT_RE, '')
     if (cleaned.length === 0) continue
     tokens.push({ lower: cleaned, start: m.index, end: m.index + raw.length })
   }
@@ -57,7 +62,7 @@ function tokenisePhrase(targetText: string): Tok[] {
 }
 
 function normaliseLegoText(text: string): string {
-  return text.toLowerCase().replace(PUNCT_RE, '').trim()
+  return text.toLowerCase().replace(SMART_APOS_RE, "'").replace(PUNCT_RE, '').trim()
 }
 
 function atomTokens(atomTarget: string): string[] {

@@ -2,14 +2,17 @@ import type { LegoBlock } from '../components/LegoAssembly.vue'
 
 const TAG = '[TileCoverage]'
 
-/** Same punctuation-strip regex as generateLearningScript.ts */
-const PUNCT_RE = /[.,!?;:¡¿'"\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g
+/** Sentence punctuation only — in-word apostrophes/hyphens preserved so
+ *  contractions and compounds keep lexical identity. Smart-quote variants
+ *  normalise to ASCII via SMART_APOS_RE first. */
+const PUNCT_RE = /[.,!?;:¡¿"“”„«»\u3000-\u303f\uff00-\uff0f\uff1a-\uff20\uff3b-\uff40\uff5b-\uff65]+/g
+const SMART_APOS_RE = /[‘’ʼ]/g
 
 /** CJK detection — same regex as generateLearningScript.ts */
 const CJK_RE = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/
 
 function normalize(text: string): string {
-  return text.toLowerCase().trim().replace(PUNCT_RE, '')
+  return text.toLowerCase().trim().replace(SMART_APOS_RE, "'").replace(PUNCT_RE, '')
 }
 
 /** Tokenize: split on whitespace for alphabetic, per-character for CJK */

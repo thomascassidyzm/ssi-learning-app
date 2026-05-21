@@ -1907,7 +1907,9 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
               id: salientId,
               targetText: salientPhrase,
               isSalient: true,
-              components: atoms,
+              // Strip known text — only intro/debut shows it (LegoAssembly
+              // gates the known-row render on isIntroOrDebut).
+              components: atoms.map(a => ({ known: '', target: a.target })),
             })
             if (after) blocks.push({ id: `${salientId}_rest_after`, targetText: after, isSalient: false })
             return blocks
