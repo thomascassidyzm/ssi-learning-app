@@ -68,6 +68,7 @@ import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backe
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
+import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
 import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 import { generateScript as generateBundleScript } from '../script/generateScript'
@@ -102,26 +103,28 @@ function isInstantPlaybackCourse(courseCode: string): boolean {
 }
 
 // ============================================================
-// Bundle-based content loading rollout flag
+// Bundle-based INF PLAY entry rollout flag
 // ============================================================
 // Mirrors the INSTANT_PLAYBACK rollout pattern above. When enabled
 // for a course, the INF PLAY entry path uses the new client-side
 // generateScript() + AudioCache + AudioPrefetcher pipeline instead
-// of the legacy server-side /infplay-cycles + warm-up dance. Bundle
-// load + BundleDownloader fire for ALL courses regardless (those are
-// purely additive, see C1+C2). Only the INF PLAY entry switches per
-// course via this flag.
+// of the legacy server-side /infplay-cycles + warm-up dance.
+//
+// Bundle load + BundleDownloader fire for ALL courses regardless —
+// the downloader is polite enough now (concurrency=1, jitter,
+// 429/503 backoff per BundleDownloader.ts) that it doesn't need a
+// gate. Only the INF PLAY entry switches per course via this flag.
 //
 // Add a course code below to canary it. Leave empty + ALL=false to
-// keep the new path dormant. Legacy path remains the safety net —
-// the new path falls through to legacy if the bundle isn't loaded
-// or generateScript returns no rounds.
-const BUNDLE_BASED_ALL = false
-const BUNDLE_BASED_COURSES = new Set<string>([
+// keep the new INF PLAY path dormant. Legacy INF PLAY path remains
+// the safety net — the new path falls through to legacy if the
+// bundle isn't loaded or generateScript returns no rounds.
+const BUNDLE_BASED_INFPLAY_ALL = false
+const BUNDLE_BASED_INFPLAY_COURSES = new Set<string>([
   // Add a single course here to canary, e.g. 'jpn_for_eng'.
 ])
-function isBundleBasedCourse(courseCode: string): boolean {
-  return BUNDLE_BASED_ALL || BUNDLE_BASED_COURSES.has(courseCode)
+function isBundleBasedInfplayCourse(courseCode: string): boolean {
+  return BUNDLE_BASED_INFPLAY_ALL || BUNDLE_BASED_INFPLAY_COURSES.has(courseCode)
 }
 
 /**
@@ -477,6 +480,9 @@ const instantPlayback = useInstantPlayback(courseCode, {
 const courseBundle = useCourseBundle()
 const audioCache = getAudioCache()
 let bundleDownloader: BundleDownloader | null = null
+// Module-scoped so onUnmounted can revoke its blob URLs. Built per
+// session in onMounted once the courseCode is known.
+let audioCacheSource: AudioCacheSource | null = null
 // JIT prefetcher — ephemeral acquire/release around LEGO debut rounds,
 // persistent backstop for the next ~30 cycles. Replaces the warm-up
 // surface in the existing instant-playback path (next commit removes
@@ -3469,7 +3475,11 @@ const { state: cyclePlaybackState, playCycle, stop: stopCycle } = useCyclePlayba
 const currentCycle = ref<Cycle | null>(null)
 
 // Offline cache for IndexedDB-based audio caching
-const { initAudioSource, cache: offlineCache, cacheStats, refreshCacheStats } = useOfflineCache()
+// AudioController.audioSource now comes from createAudioCacheSource (Wave 3
+// AudioCache, IndexedDB ssi-audio-cache-v2) — see onMounted. The legacy
+// OfflineCache exports below remain wired only for OfflineStatusIndicator
+// + ?reset=1 recovery; task F deletes them with the rest of @ssi/core/cache.
+const { cache: offlineCache, cacheStats, refreshCacheStats } = useOfflineCache()
 
 /**
  * Build an audio URL map from a ScriptItem
@@ -6202,7 +6212,7 @@ const jumpToRound = async (roundIndex) => {
  * Uses SessionController's lazy loading to load the target round on demand
  */
 /**
- * Bundle-based INF PLAY entry — flag-gated via `isBundleBasedCourse`.
+ * Bundle-based INF PLAY entry — flag-gated via `isBundleBasedInfplayCourse`.
  *
  * Replaces the legacy warm-up dance (warmUpFirstInfPlayCycle +
  * warmUpInfPlayRoundsBackground + shouldSkipCycle gate) with the new
@@ -6422,7 +6432,7 @@ const handleSkipToNextBelt = async () => {
         // Bundle-based path (flag-gated). On success, skips the legacy
         // warm-up dance entirely. On failure (bundle not loaded, gen
         // returned 0), falls through to the legacy path below.
-        const usedBundle = isBundleBasedCourse(courseCode.value)
+        const usedBundle = isBundleBasedInfplayCourse(courseCode.value)
           && await enterInfPlayViaBundle(infplayRoundIndex.value || 1, showIntro)
         if (!usedBundle) {
           isWarmingUpInfPlay.value = true
@@ -7770,12 +7780,16 @@ onMounted(async () => {
   audioController.value = new RealAudioController()
   currentCourseCode.value = courseCode.value
 
-  // Initialize audio caching layer (IndexedDB-based)
-  // AudioSource provides cache-first URL resolution for offline support
+  // Wire the cache-first AudioSource. AudioController.play() calls
+  // audioSource.getAudioUrl(audioRef) and uses the returned blob: URL
+  // when AudioCache has the id, falling through to /api/audio/<id>
+  // when it doesn't. Bundle download + JIT prefetch populate
+  // AudioCache; the SW cache stays as a network-level backstop for
+  // anything neither layer has seen yet.
   if (courseCode.value) {
-    const audioSource = initAudioSource(courseCode.value)
-    audioController.value.setAudioSource(audioSource)
-    console.log('[LearningPlayer] Audio cache layer initialized for course:', courseCode.value)
+    audioCacheSource = createAudioCacheSource(audioCache, courseCode.value)
+    audioController.value.setAudioSource(audioCacheSource)
+    console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value)
   }
 
   // Initialize belt progress (loads from localStorage, merges with Supabase)
@@ -7845,20 +7859,16 @@ onMounted(async () => {
           // and fires the initial onRoundChanged for the current
           // playback position.
           audioPrefetcher.setBundle(bundle)
-          // BundleDownloader gated on the same flag as the bundle-based
-          // INF PLAY path. Default-off because for large courses the
-          // downloader fires thousands of /api/audio/<id> requests
-          // (~3000+ for a 600-LEGO course at 4-wide concurrency), which
-          // tripped Vercel's edge rate-limit and 403'd staging from
-          // every test-user IP on 2026-05-21. Per-course canary keeps
-          // the blast radius bounded while the politeness work
-          // (jitter, backoff on 429/503, lower default concurrency)
-          // lands separately.
-          if (isBundleBasedCourse(courseCode.value)) {
-            bundleDownloader = createBundleDownloader({ audioCache })
-            return bundleDownloader.start(bundle)
-          }
-          return undefined
+          // Start BundleDownloader unconditionally. It used to be gated
+          // behind BUNDLE_BASED_INFPLAY_COURSES after a 2026-05-21
+          // incident where concurrency=4 fired ~3000 /api/audio/<id>
+          // requests for a 600-LEGO course and tripped Vercel's edge
+          // rate-limit. BundleDownloader is now polite enough by
+          // default (concurrency=1, 100–300ms jitter on cache miss,
+          // 429/503 exponential backoff with 3 retries) to run for
+          // every course without that risk — see BundleDownloader.ts.
+          bundleDownloader = createBundleDownloader({ audioCache })
+          return bundleDownloader.start(bundle)
         })
         .catch((err) => {
           // Branch-isolated: bundle endpoint may not yet be live on this
@@ -8414,7 +8424,7 @@ onMounted(async () => {
                     //
                     // If first-time learner, type intro in parallel.
                     const showIntro = !hasSeenInfPlayIntro(courseCode.value)
-                    const usedBundle = isBundleBasedCourse(courseCode.value)
+                    const usedBundle = isBundleBasedInfplayCourse(courseCode.value)
                       && await enterInfPlayViaBundle(infplayRoundIndex.value || 1, showIntro)
                     if (!usedBundle) {
                       isWarmingUpInfPlay.value = true
@@ -8904,6 +8914,11 @@ onUnmounted(() => {
   // for in-progress LEGOs stays in IndexedDB; the cache's own
   // lifecycle reclaims it on the next session boundary or eviction.
   audioPrefetcher.reset()
+  // Release any blob: URLs the AudioSource handed out this session so
+  // we don't leak. Cached blobs in IndexedDB survive — only the
+  // URL.createObjectURL handles are revoked.
+  audioCacheSource?.revokeAllBlobUrls()
+  audioCacheSource = null
 
   // End class session if active
   if (classSessionId.value) {
