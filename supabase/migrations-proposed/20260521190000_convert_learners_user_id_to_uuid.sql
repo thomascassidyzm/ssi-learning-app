@@ -7,12 +7,11 @@
 --
 -- Context
 -- -------
--- 20251219120000_clerk_auth_integration.sql converted learners.user_id
--- from UUID to TEXT to accommodate Clerk's string IDs. Clerk was never
--- fully shipped — Supabase Auth (UUID subjects) is canonical. The
--- conversion stuck because reverting it is destructive (drops the
--- foreign key to auth.users and forces every dependent view/policy
--- to be rebuilt).
+-- Migration 20251219120000 converted learners.user_id from UUID to
+-- TEXT. That migration was never fully shipped — Supabase Auth (UUID
+-- subjects) is canonical. The conversion stuck because reverting it
+-- is destructive (drops the foreign key to auth.users and forces
+-- every dependent view/policy to be rebuilt).
 --
 -- Today's symptoms
 -- ----------------
@@ -23,7 +22,7 @@
 -- What this migration does
 -- ------------------------
 -- 1. Verifies every learners.user_id value is a valid UUID (i.e. no
---    Clerk-style "user_2abc..." strings ever leaked in).
+--    stray non-UUID strings ever leaked in).
 -- 2. Drops dependent views, policies, and the existing column.
 -- 3. Re-adds learners.user_id as UUID with the foreign key back to
 --    auth.users (ON DELETE CASCADE so deleting an auth.users row
@@ -36,7 +35,7 @@
 --
 -- What this migration does NOT do
 -- -------------------------------
--- * It does not touch the other Clerk-era TEXT user_id columns:
+-- * It does not touch the other legacy TEXT user_id columns:
 --     - schools.admin_user_id
 --     - classes.teacher_user_id
 --     - user_tags.user_id
@@ -100,7 +99,7 @@ DROP POLICY IF EXISTS learners_claim_by_email_update ON learners;
 -- ============================================
 ALTER TABLE learners ALTER COLUMN user_id TYPE UUID USING user_id::uuid;
 
--- Re-add the foreign key to auth.users (matches the pre-Clerk baseline)
+-- Re-add the foreign key to auth.users (matches the pre-conversion baseline)
 ALTER TABLE learners
   ADD CONSTRAINT learners_user_id_fkey
   FOREIGN KEY (user_id)

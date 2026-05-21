@@ -28,11 +28,10 @@
 --    useAuth.ts:204-263 multi-email flow).
 -- 2. learners INSERT: REVOKE entirely from anon + authenticated.
 --    New-learner creation now happens server-side via the restored
---    handle_new_user() trigger (was dropped by the Clerk migration
---    in 2025-12 which was never properly shipped). The client-side
---    INSERT fallback at useAuth.ts:255 will fail with permission
---    denied — that path was the exploit vector and is no longer
---    reachable.
+--    handle_new_user() trigger (was dropped by the non-shipped
+--    20251219120000 migration). The client-side INSERT fallback at
+--    useAuth.ts:255 will fail with permission denied — that path was
+--    the exploit vector and is no longer reachable.
 -- 3. govt_admins INSERT/UPDATE: REVOKE from anon + authenticated.
 --    No legitimate client writes; all admin UI must move to /api/admin/*.
 -- 4. invite_codes INSERT/UPDATE: REVOKE from anon + authenticated.
@@ -49,12 +48,12 @@
 --
 -- Restoring the auth-user trigger
 -- -------------------------------
--- The Clerk migration (20251219120000) dropped handle_new_user() and
--- the on_auth_user_created trigger on auth.users. Clerk was never
--- fully shipped — Supabase Auth is canonical — so we restore the
--- trigger here, adjusted for the TEXT user_id column the Clerk
--- migration also produced. SECURITY DEFINER means the trigger runs
--- as the table owner and bypasses the REVOKE on INSERT.
+-- The non-shipped 20251219120000 migration dropped handle_new_user()
+-- and the on_auth_user_created trigger on auth.users. Supabase Auth
+-- is canonical — so we restore the trigger here, adjusted for the
+-- TEXT user_id column that migration also produced. SECURITY DEFINER
+-- means the trigger runs as the table owner and bypasses the REVOKE
+-- on INSERT.
 
 BEGIN;
 
@@ -95,8 +94,8 @@ REVOKE INSERT, UPDATE ON invite_codes FROM anon, authenticated;
 -- ============================================
 -- 5. Restore handle_new_user() trigger for signup
 -- ============================================
--- The Clerk migration (20251219120000) dropped this. Restoring it
--- with user_id::TEXT cast since learners.user_id is now TEXT.
+-- The non-shipped 20251219120000 migration dropped this. Restoring
+-- it with user_id::TEXT cast since learners.user_id is now TEXT.
 -- SECURITY DEFINER means the function runs as its owner (postgres),
 -- which bypasses the REVOKE INSERT above and lets signup work.
 
@@ -120,7 +119,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
 COMMENT ON FUNCTION handle_new_user() IS
-  'Creates learners row when a new auth.users row is inserted. SECURITY DEFINER bypasses the REVOKE INSERT on learners that blocks the role-escalation exploit. Restored 2026-05-21 (dropped by Clerk migration 20251219120000 — Clerk never shipped).';
+  'Creates learners row when a new auth.users row is inserted. SECURITY DEFINER bypasses the REVOKE INSERT on learners that blocks the role-escalation exploit. Restored 2026-05-21 (dropped by the non-shipped 20251219120000 migration).';
 
 NOTIFY pgrst, 'reload schema';
 

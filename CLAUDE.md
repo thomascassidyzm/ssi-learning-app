@@ -47,11 +47,11 @@ User-id columns in this DB are mixed-type — there is no single comparison patt
 | TEXT user_id | `column = auth.uid()::text` | `learners.user_id`, `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id` |
 | UUID user_id | `column = auth.uid()` (no cast) | `player_events.user_id` |
 
-**Why mixed:** The Clerk migration `20251219120000` changed `learners.user_id` from UUID to TEXT for Clerk's string IDs. Clerk was never shipped — auth is Supabase — but several columns were already converted by then and weren't reverted. Newer tables (`player_events`) were authored against Supabase Auth directly and use UUID. Before authoring a new policy, **check the column type** (`\d <table>` or look at the create migration).
+**Why mixed:** A legacy auth migration (`20251219120000`, never shipped) converted `learners.user_id` from UUID to TEXT and several other columns with it. Those weren't reverted. Newer tables (`player_events`) use UUID directly. Before authoring a new policy, **check the column type** (`\d <table>` or look at the create migration).
 
 **Do not** use any of:
 - Wrong cast direction — throws `operator does not exist: uuid = text` (or vice versa) at policy creation time
-- `auth.jwt()->>'sub'` — Clerk-era artefact. Evaluates to the same value as `auth.uid()::text` under Supabase Auth today, but the two definitions could diverge under impersonation or future JWT-claims work. Migration `20260512_unify_user_id_auth_pattern.sql` converted every direct use to one of the two canonical patterns above.
+- `auth.jwt()->>'sub'` — legacy pattern. Evaluates to the same value as `auth.uid()::text` today, but the two definitions could diverge under impersonation or future JWT-claims work. Migration `20260512_unify_user_id_auth_pattern.sql` converted every direct use to one of the two canonical patterns above.
 
 After any policy change, end the migration with `NOTIFY pgrst, 'reload schema';`.
 
