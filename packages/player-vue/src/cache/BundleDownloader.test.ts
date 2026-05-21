@@ -230,12 +230,91 @@ beforeEach(() => {
 })
 
 describe('BundleDownloader', () => {
-  it('walks persistent audio in roundMap order', async () => {
+  it('walks persistent USE audio in roundMap order when no belt boundaries split the loop', async () => {
+    // Small fixture (5 LEGOs at seedNumbers 1..5) only crosses the first
+    // belt threshold (1). All belt-entry passes resolve to L1, which is
+    // already first in roundMap order, so the queue is identical to the
+    // pure roundMap walk.
     const mock = makeMockCache({ mode: 'auto' })
     const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
     await dl.start(bundle)
     expect(mock.ensureCalls).toEqual(ALL_15_IDS)
+  })
+
+  it('front-loads each belt-entry LEGO before filling the rest in roundMap order', async () => {
+    // Build a bundle that spans the first four belts (seedNumbers up to
+    // 45). Belt thresholds 1, 8, 20, 40 each resolve to a different
+    // entry LEGO; thresholds 80+ have no eligible LEGO and are skipped.
+    const legos: BundleLego[] = []
+    const phrases: BundlePhrase[] = []
+    const roundMap: BundleRoundMapEntry[] = []
+    const seedNumbers = [1, 5, 8, 15, 20, 30, 40, 45]
+    seedNumbers.forEach((seedNumber, i) => {
+      const legoId = `L${seedNumber}`
+      legos.push({
+        legoId,
+        seedNumber,
+        legoIndex: 1,
+        seedId: `S${seedNumber}`,
+        type: 'A',
+        knownText: `known-${seedNumber}`,
+        targetText: `target-${seedNumber}`,
+        isNew: true,
+        ephemeralAudio: {},
+      })
+      phrases.push({
+        phraseId: `${legoId}_use_01`,
+        legoId,
+        position: 1,
+        role: 'use',
+        knownText: `k-${seedNumber}`,
+        targetText: `t-${seedNumber}`,
+        audio: {
+          known: { id: `${legoId}-k`, lifecycle: 'persistent' },
+          target1: { id: `${legoId}-t1`, lifecycle: 'persistent' },
+          target2: { id: `${legoId}-t2`, lifecycle: 'persistent' },
+        },
+      })
+      roundMap.push({ roundIndex: i + 1, legoId, seedNumber })
+    })
+    const bundle: CourseBundle = {
+      courseCode: 'belts',
+      version: 1,
+      mainLoopCount: seedNumbers.length,
+      legos,
+      phrases,
+      seeds: [],
+      roundMap,
+      pods: [],
+    }
+
+    const mock = makeMockCache({ mode: 'auto' })
+    const dl = createBundleDownloader({
+      audioCache: mock.audioCache,
+      concurrency: 1, // deterministic order for assertion
+      sleep: async () => undefined,
+    })
+    await dl.start(bundle)
+
+    // Belt-entry pass — first LEGO at/after each threshold:
+    //   1 → L1, 8 → L8, 20 → L20, 40 → L40 (80/150/280/400 have no match)
+    // Then roundMap fill — L1, L5, L8, L15, L20, L30, L40, L45, with the
+    // four belt-entry LEGOs deduped out.
+    const beltEntryIds = [
+      'L1-k', 'L1-t1', 'L1-t2',
+      'L8-k', 'L8-t1', 'L8-t2',
+      'L20-k', 'L20-t1', 'L20-t2',
+      'L40-k', 'L40-t1', 'L40-t2',
+    ]
+    const restIds = [
+      // L1, L8, L20, L40 already emitted — only the gaps remain.
+      'L5-k', 'L5-t1', 'L5-t2',
+      'L15-k', 'L15-t1', 'L15-t2',
+      'L30-k', 'L30-t1', 'L30-t2',
+      'L45-k', 'L45-t1', 'L45-t2',
+    ]
+    expect(mock.ensureCalls).toEqual([...beltEntryIds, ...restIds])
   })
 
   it('walks pods before USE phrases, pods in pod_order ascending', async () => {
