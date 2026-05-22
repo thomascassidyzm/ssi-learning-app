@@ -50,12 +50,18 @@ export default defineConfig(({ mode }) => ({
         // Acceptable: main deploys are weekly at most.
         cleanupOutdatedCaches: true,
 
-        // skipWaiting + clientsClaim — new SW activates immediately and
-        // claims all tabs. Combined with autoUpdate registerType above,
-        // users always see the latest deploy on next page load without
-        // any prompt-dismissal flow leaving them on stale bundles.
-        skipWaiting: true,
-        clientsClaim: true,
+        // skipWaiting + clientsClaim MUST be false to honour registerType:
+        // 'prompt'. With them true, the new SW self-activates immediately
+        // on install and claims every tab — interrupting any in-flight
+        // session (audio killed mid-cycle, in-memory player state lost).
+        // The "Update" button in PwaUpdatePrompt calls
+        // updateServiceWorker(true), which posts SKIP_WAITING to the
+        // waiting SW only when the user actively opts in. That path
+        // remains the only way the new SW takes control. Tom's hard rule
+        // (2026-05-22, learnt the hard way during a session): NEVER
+        // interrupt a playing session with an automatic update.
+        skipWaiting: false,
+        clientsClaim: false,
 
         // Runtime caching for fonts/CDN/audio
         runtimeCaching: [
