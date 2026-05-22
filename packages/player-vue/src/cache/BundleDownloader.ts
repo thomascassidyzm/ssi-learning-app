@@ -226,17 +226,19 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
    *      that even mid-cold-start, a belt-skipping learner lands on a
    *      LEGO whose audio is already cached: every belt's Round-1 entry
    *      gets primed before we fill in the long tail.
-   *   2. Belt-forward LEGO USE phrases — roundMap order, for each LEGO
-   *      emit its USE phrases' k/t1/t2 in (position, role) order, skipping
-   *      anything already emitted by pass 1.
-   *   3. Pods (Layer 2) last — one pod at a time, in pod_order ascending.
+   *   2. Pods (Layer 2) — one pod at a time, in pod_order ascending.
    *      Per pod: intro bookend → sentences (target, then known, in
-   *      globalOrder) → outro bookend. Pods are cache-sensitive WHEN they
-   *      play (130+ files in quick succession with near-zero inter-play
-   *      gaps), but the first pod doesn't fire until round 5+ — minutes
-   *      after session start. With concurrency=4 the LEGO USE corpus
-   *      finishes in tens of seconds, leaving ample runway for pods to
-   *      catch up before they're needed.
+   *      globalOrder) → outro bookend. Pods come before the LEGO long
+   *      tail because Listening Mode is a one-tap entry from the UI, not
+   *      gated on round progression — a learner can open it at any time
+   *      and expect the pod to be ready. The first pod is ~130 files
+   *      (~25s with concurrency=4), so the gap between belt-entry coverage
+   *      and listening-mode coverage is small.
+   *   3. Belt-forward LEGO USE phrases — roundMap order, for each LEGO
+   *      emit its USE phrases' k/t1/t2 in (position, role) order, skipping
+   *      anything already emitted by pass 1. This is the long tail —
+   *      thousands of files filling in over minutes, but every belt's
+   *      Round-1 entry is already covered by pass 1 and pods by pass 2.
    *
    * Deduplicated by id across the whole walk.
    */
@@ -294,17 +296,11 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       yieldUsePhrasesFor(entry.legoId)
     }
 
-    // --- 2. Fill the rest of LEGO USE phrases in roundMap order. yieldRef
-    // dedupes by id, so anything already emitted by the belt-entry pass
-    // is silently skipped.
-    for (const entry of orderedRounds) {
-      yieldUsePhrasesFor(entry.legoId)
-    }
-
-    // --- 3. Pods (Layer 2) last — first pod doesn't fire until round 5+,
-    // so they have minutes of runway after LEGO USE phrases finish.
-    // Sort pods defensively even though the server orders them — the
-    // CourseBundle contract doesn't pin pod order.
+    // --- 2. Pods (Layer 2) — sit between belt entries and the LEGO long
+    // tail so Listening Mode is usable within tens of seconds of session
+    // start, not after the whole course finishes downloading. Sort pods
+    // defensively even though the server orders them — the CourseBundle
+    // contract doesn't pin pod order.
     const orderedPods = [...bundle.pods].sort((a, b) => a.podOrder - b.podOrder)
     for (const pod of orderedPods) {
       yieldRef(pod.introAudio)
@@ -319,6 +315,13 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
         yieldRef(sentence.knownAudio)
       }
       yieldRef(pod.outroAudio)
+    }
+
+    // --- 3. Fill the rest of LEGO USE phrases in roundMap order. yieldRef
+    // dedupes by id, so anything already emitted by the belt-entry pass
+    // is silently skipped.
+    for (const entry of orderedRounds) {
+      yieldUsePhrasesFor(entry.legoId)
     }
 
     return out

@@ -317,7 +317,7 @@ describe('BundleDownloader', () => {
     expect(mock.ensureCalls).toEqual([...beltEntryIds, ...restIds])
   })
 
-  it('walks pods after USE phrases, pods in pod_order ascending', async () => {
+  it('walks pods between belt entries and the LEGO long tail, pods in pod_order ascending', async () => {
     const mock = makeMockCache({ mode: 'auto' })
     const dl = createBundleDownloader({ audioCache: mock.audioCache, sleep: async () => undefined })
     const bundle = buildBundle()
@@ -369,14 +369,17 @@ describe('BundleDownloader', () => {
     bundle.pods = pods
     await dl.start(bundle)
 
-    // First: all 15 USE phrase ids (learner-reachability priority).
-    // Then: pod 0 (intro → sentences globalOrder asc → outro).
-    // Then: pod 1 (intro → sentences globalOrder asc → outro).
-    // Pods last because the first pod doesn't fire until round 5+ —
-    // minutes after session start — so they have ample runway behind
-    // the LEGO USE corpus that the learner hits from minute one.
+    // With the small 5-LEGO fixture (seedNumbers 1..5), the belt-entry
+    // pass emits LEGO 1's USE phrases for the White-belt threshold and
+    // skips the rest (no LEGO clears 8). So order is:
+    //   First: LEGO 1's USE phrases (belt entry for White).
+    //   Then: pod 0, then pod 1 (Listening Mode coverage).
+    //   Then: LEGOs 2-5 USE phrases (long tail; LEGO 1 deduped).
+    // Pods sit between belt entries and the long tail so Listening Mode
+    // is usable within tens of seconds — not after the whole course
+    // downloads.
     expect(mock.ensureCalls).toEqual([
-      ...ALL_15_IDS,
+      'L1-k', 'L1-t1', 'L1-t2',
       'p0-intro',
       'p0-s1-tgt', 'p0-s1-kn',
       'p0-outro',
@@ -384,6 +387,10 @@ describe('BundleDownloader', () => {
       'p1-s1-tgt', 'p1-s1-kn',
       'p1-s2-tgt', 'p1-s2-kn',
       'p1-outro',
+      'L2-k', 'L2-t1', 'L2-t2',
+      'L3-k', 'L3-t1', 'L3-t2',
+      'L4-k', 'L4-t1', 'L4-t2',
+      'L5-k', 'L5-t1', 'L5-t2',
     ])
   })
 
