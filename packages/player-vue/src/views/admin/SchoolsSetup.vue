@@ -205,59 +205,32 @@ async function createSchool(): Promise<void> {
   error.value = null
   successMessage.value = null
 
+  // schools + 2 invite_codes inserts moved to /api/admin/create-school
+  // (block_anon_role_escalation REVOKEd invite_codes INSERT, so the
+  // client-side path was producing schools whose join codes couldn't
+  // be redeemed).
   try {
-    const client = getClient()
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
 
-    // Get user ID from Supabase session (must match auth.uid() for RLS)
-    const { data: { session } } = await client.auth.getSession()
-    const userId = session?.user?.id || getCurrentUserId()
-    if (!userId) throw new Error('No user ID — are you logged in?')
+    const resp = await fetch('/api/admin/create-school', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        school_name: newSchoolName.value.trim(),
+        group_id: newSchoolGroup.value || null,
+      }),
+    })
 
-    const row: Record<string, unknown> = {
-      school_name: newSchoolName.value.trim(),
-      admin_user_id: userId,
-    }
-    if (newSchoolGroup.value) row.group_id = newSchoolGroup.value
-
-    const { data, error: insertError } = await client
-      .from('schools')
-      .insert(row)
-      .select('id, school_name, teacher_join_code, admin_join_code')
-      .single()
-
-    if (insertError) throw insertError
-
-    // Create invite_codes row so teachers can redeem the join code
-    const { error: inviteError } = await client
-      .from('invite_codes')
-      .insert({
-        code: data.teacher_join_code,
-        code_type: 'teacher',
-        grants_school_id: data.id,
-        created_by: userId,
-        is_active: true,
-      })
-
-    if (inviteError) {
-      console.error('[SetupView] Failed to create invite code for teacher join code:', inviteError)
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      throw new Error(data.error || `HTTP ${resp.status}`)
     }
 
-    // Create invite_codes row so admins can redeem the admin join code
-    const { error: adminInviteError } = await client
-      .from('invite_codes')
-      .insert({
-        code: data.admin_join_code,
-        code_type: 'school_admin_join',
-        grants_school_id: data.id,
-        created_by: userId,
-        is_active: true,
-      })
-
-    if (adminInviteError) {
-      console.error('[SetupView] Failed to create invite code for admin join code:', adminInviteError)
-    }
-
-    successMessage.value = `School "${data.school_name}" created`
+    successMessage.value = `School "${data.school?.school_name || newSchoolName.value.trim()}" created`
     newSchoolName.value = ''
     newSchoolGroup.value = ''
 
