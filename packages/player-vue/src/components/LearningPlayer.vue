@@ -3688,6 +3688,32 @@ watch(() => cyclePlaybackState.value.phase, (phase) => {
   currentPhase.value = cyclePhaseToUiPhase(phase)
 })
 
+// Buffering-prompt dialog message — surfaces a subtle "still fetching"
+// note ONLY when the gate in SimplePlayer.startPhase('prompt') has to
+// actually wait for the known audio to land in the local cache. 200ms
+// threshold so the common-case fast resolve (in-flight fetch already
+// underway from BundleDownloader) doesn't flicker the message at all;
+// only the slow-path miss surfaces it. Cleared the moment phase moves
+// off 'buffering' to anything else — prompt, idle, pause, etc.
+const bufferingPromptVisible = ref(false)
+const bufferingPromptMessage = 'Just grabbing the next phrase…'
+let bufferingShowTimer: ReturnType<typeof setTimeout> | null = null
+watch(() => simplePlayer.phase.value, (phase) => {
+  if (phase === 'buffering') {
+    if (bufferingShowTimer) clearTimeout(bufferingShowTimer)
+    bufferingShowTimer = setTimeout(() => {
+      bufferingPromptVisible.value = true
+      bufferingShowTimer = null
+    }, 200)
+  } else {
+    if (bufferingShowTimer) {
+      clearTimeout(bufferingShowTimer)
+      bufferingShowTimer = null
+    }
+    bufferingPromptVisible.value = false
+  }
+})
+
 // Watch SimplePlayer phase and map to UI phase (using local Phase constant)
 watch(pendingPhase, (phase) => {
   const phaseMap: Record<string, string> = {
@@ -6676,6 +6702,30 @@ simplePlayer.setRuntimeOverrides({
     }
     return false
   },
+  // Pre-PROMPT gate: don't enter the prompt phase until the cycle's
+  // known audio is in the local cache. A cache miss at cycle-creation
+  // time leaves the URL pointing at /api/audio/<id>; without this gate
+  // the audio element would start loading from network during PROMPT
+  // and a safety timer can advance to PAUSE before any bytes play —
+  // the learner hears silence where the prompt should be. The cycle
+  // IS the prompt; we can't omit it. Bounded to 5s so a permanent
+  // network failure can't deadlock the player — after that we fall
+  // through to playAudio and the existing retry-once-then-halt path
+  // produces a clean halt instead of silent skip.
+  ensureKnownReady: async (cycle) => {
+    const url = (cycle as any)?.known?.audioUrl as string | undefined
+    if (!url) return
+    // Already a local blob — nothing to wait for.
+    if (url.startsWith('blob:')) return
+    // Proxy URL pattern: /api/audio/<uuid>. Extract id and ensure cache.
+    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
+    if (!match) return
+    const audioId = match[1]
+    await Promise.race([
+      audioCache.persistent.ensure(audioId),
+      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+    ])
+  },
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
@@ -9527,6 +9577,9 @@ defineExpose({
               </p>
               <p v-else-if="isPreparingToPlay" class="hero-known loading-text preparing-text">
                 {{ preparingMessage }}<span class="loading-cursor">▌</span>
+              </p>
+              <p v-else-if="bufferingPromptVisible" class="hero-known loading-text preparing-text">
+                {{ bufferingPromptMessage }}<span class="loading-cursor">▌</span>
               </p>
               <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}

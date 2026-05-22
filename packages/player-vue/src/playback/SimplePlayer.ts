@@ -50,6 +50,19 @@ export interface SimplePlayerRuntimeOverrides {
    * cull turboOmit-tagged cycles. Consulted before starting any phase, so toggling
    * Turbo mid-round shortens the remaining round on the next cycle boundary. */
   shouldSkipCycle?: (cycle: Cycle) => boolean
+  /**
+   * Optional pre-PROMPT gate. Resolves when this cycle's known audio is
+   * ready to play from the local cache. While we wait, the player sits
+   * in the 'buffering' phase — the UI can surface a subtle message
+   * after a brief threshold so the learner sees an explanation instead
+   * of a silent PROMPT.
+   *
+   * Implementations MUST bound the wait (5s is a reasonable ceiling).
+   * If the override rejects or times out, we fall through to playAudio
+   * and the existing retry-once-then-halt machinery takes over — so a
+   * permanent network failure still surfaces as a clean halt, not a
+   * deadlocked player. */
+  ensureKnownReady?: (cycle: Cycle) => Promise<void>
 }
 
 export interface Round {
@@ -65,8 +78,15 @@ export interface Round {
   cycles: Cycle[]
 }
 
-// Phases: prompt → pause → voice1 → voice2
-export type Phase = 'idle' | 'prompt' | 'pause' | 'voice1' | 'voice2'
+// Phases: idle → buffering (only if known audio not yet local) → prompt → pause → voice1 → voice2
+//
+// 'buffering' is a guard before PROMPT, not a fifth playback phase. It only
+// fires if the cycle's known audio URL points at the network proxy (not a
+// local blob) AND a runtime ensureKnownReady override is wired. Otherwise
+// PROMPT enters directly as before. The phase exists so the UI can surface
+// a subtle "still fetching" message instead of letting the cycle start with
+// no audible prompt.
+export type Phase = 'idle' | 'buffering' | 'prompt' | 'pause' | 'voice1' | 'voice2'
 
 export interface PlaybackState {
   roundIndex: number
@@ -170,9 +190,9 @@ export class SimplePlayer {
     this.onErrorHandler = (e: Event) => {
       // Audio element fired an error during playback. Try once more,
       // then halt — silently advancing lies to the learner because the
-      // UI moves through phases while no sound came out. Pause phase
-      // and idle don't have audio in flight, so ignore those.
-      if (this.state.phase === 'pause' || this.state.phase === 'idle') return
+      // UI moves through phases while no sound came out. Pause phase,
+      // idle, and buffering don't have audio in flight, so ignore those.
+      if (this.state.phase === 'pause' || this.state.phase === 'idle' || this.state.phase === 'buffering') return
       const code = this.audio.error?.code
       console.warn(`[SimplePlayer] audio error (code=${code}) on phase=${this.state.phase}`, e)
       this.handleAudioFailure(code)
@@ -636,7 +656,7 @@ export class SimplePlayer {
   }
 
   // Private methods
-  private startPhase(phase: Phase): void {
+  private async startPhase(phase: Phase): Promise<void> {
     this.updateState({ phase })
 
     // Log what's playing
@@ -674,6 +694,37 @@ export class SimplePlayer {
         this.prefetchUrl(currentCycle?.target?.voice1Url)
         this.prefetchUrl(currentCycle?.target?.voice2Url)
         if (currentCycle?.known?.audioUrl) {
+          // Gate: don't enter PROMPT until known audio is locally cached.
+          // The cycle IS the prompt — if we start PROMPT while the audio
+          // element is still loading from network, a watchdog/safety
+          // timer can advance to PAUSE before any bytes have played and
+          // the learner hears silence where the prompt should be. Sitting
+          // in 'buffering' until ready costs at most a few hundred ms in
+          // the common case and gives the UI a phase to surface a
+          // subtle "fetching" message in the rare slow case.
+          //
+          // Skip the gate for single-audio cycles (listening / pod /
+          // bookend) — they don't carry a meaningful prompt/response
+          // structure, so a missing track is benign and the existing
+          // skip-and-advance behaviour is fine.
+          const ensureReady = this.runtimeOverrides.ensureKnownReady
+          if (ensureReady && !isSingleAudioCycle) {
+            this.updateState({ phase: 'buffering' })
+            try {
+              await ensureReady(currentCycle)
+            } catch (err) {
+              // Override rejected or timed out. Fall through to play
+              // attempt — if bytes really never arrive, the audio
+              // element's retry-once-then-halt path will produce a
+              // proper learner-visible halt instead of silent skip.
+              console.warn('[SimplePlayer] ensureKnownReady rejected; falling through to play attempt', err)
+            }
+            // Bail if we were stopped, skipped, or moved on during the
+            // wait. Anything that changes phase away from 'buffering'
+            // or pauses playback supersedes this branch.
+            if (this.state.phase !== 'buffering' || !this.state.isPlaying) return
+            this.updateState({ phase: 'prompt' })
+          }
           this.playAudio(currentCycle.known.audioUrl)
         } else {
           if (!isSingleAudioCycle) {
@@ -868,6 +919,7 @@ export class SimplePlayer {
     }
     const transitions: Record<Phase, Phase | null> = {
       idle: null,
+      buffering: null,  // No auto-advance; startPhase('prompt') handles the buffering→prompt transition explicitly
       prompt: 'pause',
       pause: 'voice1',
       voice1: 'voice2',
