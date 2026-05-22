@@ -664,6 +664,15 @@ export class SimplePlayer {
 
     switch (phase) {
       case 'prompt':
+        // Warm the SW cache for THIS cycle's voice1/voice2 during the
+        // PROMPT + PAUSE window (5-8s of dead network time). For LEGOs
+        // already in AudioCache the URL is blob: and prefetchUrl no-ops;
+        // for proxy URLs not yet covered by BundleDownloader, this lands
+        // them in the SW cache before VOICE_1 needs them — closes the
+        // weak-cellular race window where the audio element's own fetch
+        // could fail mid-cycle.
+        this.prefetchUrl(currentCycle?.target?.voice1Url)
+        this.prefetchUrl(currentCycle?.target?.voice2Url)
         if (currentCycle?.known?.audioUrl) {
           this.playAudio(currentCycle.known.audioUrl)
         } else {
@@ -687,6 +696,10 @@ export class SimplePlayer {
         }
         break
       case 'voice2':
+        // Warm the SW cache for the NEXT cycle's prompt + voice1/voice2
+        // during VOICE_2 playback (~2-3s) + the inter-cycle gap. By the
+        // time the next PROMPT phase fires, all three URLs are warm.
+        this.prefetchNextCycle()
         if (currentCycle?.target?.voice2Url) {
           this.playAudio(currentCycle.target.voice2Url, true)
         } else {
@@ -697,6 +710,46 @@ export class SimplePlayer {
         }
         break
     }
+  }
+
+  /**
+   * Fire-and-forget warm-up for a single audio URL. Hits the SW CacheFirst
+   * layer on `/api/audio/*` so the next playback request finds it warm.
+   * Blob URLs (already in AudioCache/IndexedDB) and empty strings are
+   * silently skipped — there's nothing to warm. Failures are swallowed:
+   * this is best-effort, the actual playback path still gets its own
+   * fetch + retry-once + halt-on-failure chain.
+   */
+  private prefetchUrl(url: string | undefined): void {
+    if (!url) return
+    // blob: URLs already point at local IndexedDB blobs — nothing to fetch.
+    if (url.startsWith('blob:')) return
+    // Fire-and-forget. Discard the body — we just want it in the SW cache.
+    // Catch any rejection so an unhandled promise doesn't surface as noise.
+    fetch(url).catch(() => undefined)
+  }
+
+  /**
+   * Look one cycle ahead in the rounds queue and warm its three audio URLs.
+   * Crosses round boundaries: if we're at the last cycle of round N, peeks
+   * at round N+1 cycle 0. Returns silently if there's no next cycle (end
+   * of session).
+   */
+  private prefetchNextCycle(): void {
+    const round = this.currentRound
+    if (!round) return
+    const nextCycleIdx = this.state.cycleIndex + 1
+    let nextCycle: Cycle | undefined
+    if (nextCycleIdx < round.cycles.length) {
+      nextCycle = round.cycles[nextCycleIdx]
+    } else {
+      const nextRound = this.rounds[this.state.roundIndex + 1]
+      nextCycle = nextRound?.cycles[0]
+    }
+    if (!nextCycle) return
+    this.prefetchUrl(nextCycle.known?.audioUrl)
+    this.prefetchUrl(nextCycle.target?.voice1Url)
+    this.prefetchUrl(nextCycle.target?.voice2Url)
   }
 
   private playAudio(url: string, isTarget = false): void {
