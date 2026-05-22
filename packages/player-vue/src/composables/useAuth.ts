@@ -229,10 +229,32 @@ export function useAuth(): AuthState & AuthActions {
             .update({ user_id: userId })
             .eq('id', (linkedLearner as any).id)
 
-          // Cascade user_id to related tables so dashboard queries find the right records
+          // Cascade user_id to related tables so dashboard queries find the right records.
+          // user_tags is still client-writable; govt_admins was REVOKEd
+          // by 20260521180000, so its cascade goes through /api/auth/cascade-user-id.
           if (oldUserId && oldUserId !== userId) {
-            await supabase.value.from('govt_admins').update({ user_id: userId }).eq('user_id', oldUserId)
             await supabase.value.from('user_tags').update({ user_id: userId }).eq('user_id', oldUserId)
+
+            try {
+              const { data: { session } } = await supabase.value.auth.getSession()
+              const token = session?.access_token
+              if (token) {
+                const resp = await fetch('/api/auth/cascade-user-id', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({ old_user_id: oldUserId }),
+                })
+                if (!resp.ok) {
+                  const data = await resp.json().catch(() => ({}))
+                  console.warn('[useAuth] govt_admins cascade failed (non-fatal):', data.error || resp.status)
+                }
+              }
+            } catch (cascadeErr) {
+              console.warn('[useAuth] cascade-user-id fetch failed (non-fatal):', cascadeErr)
+            }
           }
 
           const ll = linkedLearner as any
