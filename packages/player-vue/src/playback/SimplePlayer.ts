@@ -691,8 +691,11 @@ export class SimplePlayer {
         // them in the SW cache before VOICE_1 needs them — closes the
         // weak-cellular race window where the audio element's own fetch
         // could fail mid-cycle.
-        this.prefetchUrl(currentCycle?.target?.voice1Url)
-        this.prefetchUrl(currentCycle?.target?.voice2Url)
+        // Both target voices sit behind PROMPT + PAUSE — plenty of time
+        // to load. 'low' priority so they don't compete with the known
+        // audio loading right now (or the next cycle's known prefetch).
+        this.prefetchUrl(currentCycle?.target?.voice1Url, 'low')
+        this.prefetchUrl(currentCycle?.target?.voice2Url, 'low')
         if (currentCycle?.known?.audioUrl) {
           // Gate: don't enter PROMPT until known audio is locally cached.
           // The cycle IS the prompt — if we start PROMPT while the audio
@@ -771,13 +774,19 @@ export class SimplePlayer {
    * this is best-effort, the actual playback path still gets its own
    * fetch + retry-once + halt-on-failure chain.
    */
-  private prefetchUrl(url: string | undefined): void {
+  private prefetchUrl(url: string | undefined, priority: RequestPriority = 'auto'): void {
     if (!url) return
     // blob: URLs already point at local IndexedDB blobs — nothing to fetch.
     if (url.startsWith('blob:')) return
     // Fire-and-forget. Discard the body — we just want it in the SW cache.
     // Catch any rejection so an unhandled promise doesn't surface as noise.
-    fetch(url).catch(() => undefined)
+    //
+    // priority hint: known audio is time-critical (plays immediately at
+    // cycle entry, no buffer phase in front of it). Target voices have
+    // PROMPT + PAUSE (~5-8s) of buffer before they need to play, so they
+    // can be 'low'. Browsers without RequestPriority support ignore the
+    // option gracefully.
+    fetch(url, { priority }).catch(() => undefined)
   }
 
   /**
@@ -785,6 +794,11 @@ export class SimplePlayer {
    * Crosses round boundaries: if we're at the last cycle of round N, peeks
    * at round N+1 cycle 0. Returns silently if there's no next cycle (end
    * of session).
+   *
+   * Known audio is fetched with priority='high' because it plays the
+   * instant the next cycle begins — no buffer phase to absorb late
+   * arrival. Voice1 and voice2 are 'low' because they sit behind PROMPT
+   * + PAUSE (~5-8s) and can comfortably load during that window.
    */
   private prefetchNextCycle(): void {
     const round = this.currentRound
@@ -798,9 +812,9 @@ export class SimplePlayer {
       nextCycle = nextRound?.cycles[0]
     }
     if (!nextCycle) return
-    this.prefetchUrl(nextCycle.known?.audioUrl)
-    this.prefetchUrl(nextCycle.target?.voice1Url)
-    this.prefetchUrl(nextCycle.target?.voice2Url)
+    this.prefetchUrl(nextCycle.known?.audioUrl, 'high')
+    this.prefetchUrl(nextCycle.target?.voice1Url, 'low')
+    this.prefetchUrl(nextCycle.target?.voice2Url, 'low')
   }
 
   private playAudio(url: string, isTarget = false): void {
