@@ -293,7 +293,9 @@ const LANGUAGE_ENDONYMS: Record<string, string> = {
   hye: 'Հայերեն',
   bre: 'Brezhoneg',
   cor: 'Kernewek',
+  glv: 'Gaelg',
   sin: 'සිංහල',
+  nep: 'नेपाली',
   afr: 'Afrikaans',
 }
 
