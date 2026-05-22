@@ -1721,15 +1721,29 @@ async function loadGlobalLegoKnownTexts() {
   const code = courseCode.value
   if (!client || !code) return
   try {
-    // NOTE: course_legos has no target_text_native column (native script
-    // lives on course_practice_phrases). The bad SELECT was returning
-    // 400 silently — the whole global map was empty in production, which
-    // is why INFPLAY phrases were ribboning. Native-script lookups now
-    // fall back to the same romanised map; better than nothing until
-    // course_legos gains a target_text_native column.
+    // course_legos.target_text holds the NATIVE script for romanised
+    // courses (jpn/ara/kor — `target_text='話したい'`); course_legos.
+    // target_text_roman holds the romanised form when present
+    // (`'hanashitai'`). The bundle endpoint swaps these on the wire so
+    // the player's round-derived legoTargetTextMap carries the romanised
+    // form as `targetText` for those courses. The global maps here must
+    // mirror that swap or the merged textMap ends up with mixed scripts
+    // and decomposePhrase fails to bind romanised tokens to LEGOs whose
+    // global entry is native-script.
+    //
+    // Convention:
+    //   - globalLegoTargetTextMap       = romanised (target_text_roman)
+    //                                     OR target_text when no
+    //                                     romanisation exists.
+    //   - globalLegoTargetTextNativeMap = native    (target_text)
+    //                                     OR target_text_roman as a
+    //                                     last-ditch fallback so the
+    //                                     "native" path isn't empty for
+    //                                     courses where the columns
+    //                                     happen to be swapped.
     const { data, error } = await client
       .from('course_legos')
-      .select('lego_id, known_text, target_text')
+      .select('lego_id, known_text, target_text, target_text_roman')
       .eq('course_code', code)
     if (error) {
       console.warn('[LearningPlayer] Failed to load global lego texts:', error.message)
@@ -1737,10 +1751,17 @@ async function loadGlobalLegoKnownTexts() {
     }
     const knownMap = new Map<string, string>()
     const targetMap = new Map<string, string>()
+    const targetNativeMap = new Map<string, string>()
     for (const row of (data || [])) {
       if (!row.lego_id) continue
       if (row.known_text) knownMap.set(row.lego_id, row.known_text)
-      if (row.target_text) targetMap.set(row.lego_id, row.target_text)
+      // Primary (roman): prefer target_text_roman, fall back to target_text.
+      const romanish = row.target_text_roman || row.target_text
+      if (romanish) targetMap.set(row.lego_id, romanish)
+      // Native: prefer target_text (which IS native on romanised courses),
+      // fall back to target_text_roman.
+      const nativeish = row.target_text || row.target_text_roman
+      if (nativeish) targetNativeMap.set(row.lego_id, nativeish)
     }
 
     // Also pull M-LEGO component atoms course-wide. Without this the
@@ -1752,7 +1773,7 @@ async function loadGlobalLegoKnownTexts() {
     // means a real A-LEGO of the same text still dominates an atom.
     const { data: compData, error: compErr } = await client
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, target_text')
+      .select('seed_number, lego_index, target_text, target_text_roman')
       .eq('course_code', code)
       .eq('phrase_role', 'component')
       .limit(20000)
@@ -1760,16 +1781,22 @@ async function loadGlobalLegoKnownTexts() {
       console.warn('[LearningPlayer] Component atom load failed:', compErr.message)
     } else {
       for (const row of (compData || [])) {
-        if (!row.target_text) continue
+        // Mirror the romanised/native split applied to LEGOs above.
+        const romanish = row.target_text_roman || row.target_text
+        const nativeish = row.target_text || row.target_text_roman
+        if (!romanish && !nativeish) continue
         const parent = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
-        const synthId = `atom:${parent}:${row.target_text}`
-        if (!targetMap.has(synthId)) targetMap.set(synthId, row.target_text)
+        // Synth id keyed by the romanised text — keeps it stable across
+        // both maps and avoids collisions when both forms are present.
+        const synthId = `atom:${parent}:${romanish || nativeish}`
+        if (romanish && !targetMap.has(synthId)) targetMap.set(synthId, romanish)
+        if (nativeish && !targetNativeMap.has(synthId)) targetNativeMap.set(synthId, nativeish)
       }
     }
 
     globalLegoKnownTextMap.value = knownMap
     globalLegoTargetTextMap.value = targetMap
-    globalLegoTargetTextNativeMap.value = targetMap
+    globalLegoTargetTextNativeMap.value = targetNativeMap
     console.log(`[LearningPlayer] Loaded ${knownMap.size} legos + ${(compData || []).length} component atoms for ${code}`)
   } catch (err) {
     console.warn('[LearningPlayer] Global lego text load errored:', err)
@@ -4296,6 +4323,12 @@ const showTargetText = computed(() =>
 // Stable known text - updates when not transitioning (prevents flash) OR when phrase changes
 const displayedKnownText = ref('')
 const lastKnownPhrase = ref('') // Track what phrase we've displayed
+// The salient LEGO id for the phrase displayedKnownText currently reflects.
+// Must be updated in lockstep with displayedKnownText — otherwise
+// salientKnownParts compares the NEW cycle's salient against the OLD cycle's
+// known text and emits a false-positive "invariant violated" warn during
+// every transition (and silently drops the highlight).
+const displayedLegoId = ref<string | null>(null)
 watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([transitioning, newKnown]) => {
   // CRITICAL FIX: Always update if the underlying phrase changed (item transitioned)
   // This prevents showing old known text while new audio plays
@@ -4305,6 +4338,7 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
   if (!transitioning || phraseChanged) {
     displayedKnownText.value = newKnown
     lastKnownPhrase.value = newKnown
+    displayedLegoId.value = simplePlayer.currentCycle.value?.legoId ?? null
   }
 }, { immediate: true })
 
@@ -4326,7 +4360,13 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
 const salientKnownParts = computed<{ prefix: string; match: string; suffix: string } | null>(() => {
   const full = displayedKnownText.value
   if (!full) return null
-  const legoId = simplePlayer.currentCycle.value?.legoId
+  // Read the legoId from the SAME snapshot as displayedKnownText. The live
+  // simplePlayer.currentCycle advances before displayedKnownText releases
+  // during transitions; reading the live one here caused spurious
+  // "Salient LEGO's known text not found in phrase known text" warns when
+  // the new cycle's salient was being substring-checked against the prior
+  // cycle's still-displayed known text.
+  const legoId = displayedLegoId.value
   if (!legoId) return null
   // Prefer the course-wide map (authoritative LEGO known_text from DB);
   // fall back to round-derived map if the global load hasn't completed.
