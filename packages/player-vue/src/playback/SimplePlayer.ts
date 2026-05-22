@@ -51,18 +51,24 @@ export interface SimplePlayerRuntimeOverrides {
    * Turbo mid-round shortens the remaining round on the next cycle boundary. */
   shouldSkipCycle?: (cycle: Cycle) => boolean
   /**
-   * Optional pre-PROMPT gate. Resolves when this cycle's known audio is
-   * ready to play from the local cache. While we wait, the player sits
-   * in the 'buffering' phase — the UI can surface a subtle message
-   * after a brief threshold so the learner sees an explanation instead
-   * of a silent PROMPT.
+   * Optional pre-PROMPT gate. Resolves with the URL to play once this
+   * cycle's known audio is ready locally — typically a fresh blob:
+   * URL re-resolved from the cache after ensure() lands the bytes in
+   * IndexedDB. Returning the URL (rather than just void) lets us avoid
+   * handing playAudio the cycle's stale /api/audio/<id> URL, which on
+   * a slow network would re-fetch from network even though we just
+   * cached the audio locally.
    *
-   * Implementations MUST bound the wait (5s is a reasonable ceiling).
-   * If the override rejects or times out, we fall through to playAudio
-   * and the existing retry-once-then-halt machinery takes over — so a
-   * permanent network failure still surfaces as a clean halt, not a
-   * deadlocked player. */
-  ensureKnownReady?: (cycle: Cycle) => Promise<void>
+   * Sitting in the 'buffering' phase while we wait lets the UI
+   * surface a subtle message after a brief threshold so the learner
+   * sees an explanation instead of a silent PROMPT.
+   *
+   * Implementations MUST bound the wait (5s is reasonable). If the
+   * override rejects (typically a timeout), SimplePlayer halts via
+   * tripPlayError so the existing tap-to-resume affordance surfaces —
+   * better UX than falling through into a play attempt the network
+   * already won't satisfy. */
+  ensureKnownReady?: (cycle: Cycle) => Promise<string>
 }
 
 export interface Round {
@@ -698,26 +704,31 @@ export class SimplePlayer {
           // The cycle IS the prompt — if we start PROMPT while the audio
           // element is still loading from network, a watchdog/safety
           // timer can advance to PAUSE before any bytes have played and
-          // the learner hears silence where the prompt should be. Sitting
-          // in 'buffering' until ready costs at most a few hundred ms in
-          // the common case and gives the UI a phase to surface a
-          // subtle "fetching" message in the rare slow case.
+          // the learner hears silence where the prompt should be.
           //
           // Skip the gate for single-audio cycles (listening / pod /
           // bookend) — they don't carry a meaningful prompt/response
-          // structure, so a missing track is benign and the existing
-          // skip-and-advance behaviour is fine.
+          // structure, so a missing track is benign.
+          //
+          // On override rejection (typically a timeout — see the wired
+          // implementation in LearningPlayer), halt via tripPlayError
+          // instead of falling through. Falling through into playAudio
+          // on a network that already failed to deliver the bytes just
+          // produces the original silent-cycle bug, now preceded by a
+          // false "Just grabbing the next phrase…" promise. Halting
+          // surfaces the existing tap-to-resume banner — better honest
+          // UX than silent advance.
+          let resolvedUrl: string = currentCycle.known.audioUrl
           const ensureReady = this.runtimeOverrides.ensureKnownReady
           if (ensureReady && !isSingleAudioCycle) {
             this.updateState({ phase: 'buffering' })
             try {
-              await ensureReady(currentCycle)
+              resolvedUrl = await ensureReady(currentCycle)
             } catch (err) {
-              // Override rejected or timed out. Fall through to play
-              // attempt — if bytes really never arrive, the audio
-              // element's retry-once-then-halt path will produce a
-              // proper learner-visible halt instead of silent skip.
-              console.warn('[SimplePlayer] ensureKnownReady rejected; falling through to play attempt', err)
+              const msg = err instanceof Error ? err.message : 'known-audio-not-ready'
+              console.warn('[SimplePlayer] ensureKnownReady rejected; halting via tripPlayError', err)
+              this.tripPlayError(undefined, msg)
+              return
             }
             // Bail if we were stopped, skipped, or moved on during the
             // wait. Anything that changes phase away from 'buffering'
@@ -725,7 +736,7 @@ export class SimplePlayer {
             if (this.state.phase !== 'buffering' || !this.state.isPlaying) return
             this.updateState({ phase: 'prompt' })
           }
-          this.playAudio(currentCycle.known.audioUrl)
+          this.playAudio(resolvedUrl)
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
