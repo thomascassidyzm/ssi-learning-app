@@ -3423,6 +3423,15 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // ============================================
   if (podScheduler && podScheduler.isInitialized.value && !beltJustEarned.value) {
     const completedMainRound = (completedRoundIndex || 0) + 1
+
+    // Look one round ahead: if the round about to start will end with a
+    // pod, warm its audio now. The round gives ~5 min of runway —
+    // comfortable for any working network. Low priority so it doesn't
+    // compete with main-flow audio (known high-priority prefetch).
+    if (podScheduler.shouldFireLapAt(completedMainRound + 1)) {
+      podScheduler.prefetchLap()
+    }
+
     if (podScheduler.shouldFireLapAt(completedMainRound)) {
       const lap = podScheduler.nextLap()
       if (lap) {

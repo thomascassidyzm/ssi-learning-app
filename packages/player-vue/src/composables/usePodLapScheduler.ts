@@ -288,13 +288,60 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     }
   }
 
+  /**
+   * Sticky flag that forces the NEXT round to fire a lap regardless of the
+   * cadence rule. Set by deferLap() — typically when a session resumes
+   * mid-round and the remaining cycles are too few for the pod audio to
+   * pre-warm. Cleared once we actually consume the lap (markLapCompleted
+   * / skipAhead). Cadence anchor is unaffected, so the regular schedule
+   * resumes normally on the round after the deferred firing.
+   */
+  const deferredPodPending = ref(false)
+
   /** True iff pods should fire at the given main round. */
   const shouldFireLapAt = (mainRound: number): boolean => {
     if (!isInitialized.value) return false
     if (podSentences.value.length === 0) return false
     if (mainRound < podActivationRound.value) return false
+    if (deferredPodPending.value) return true
     const interval = Math.max(1, Math.floor(unwrap(options.roundInterval) ?? 1))
     return (mainRound - podActivationRound.value) % interval === 0
+  }
+
+  /**
+   * Defer the next due lap by one round. Caller invokes this when a pod is
+   * about to fire but there aren't enough cycles left to pre-warm its audio
+   * (resume mid-round). The defer flag forces shouldFireLapAt to return true
+   * on the NEXT round entry, giving a full round of runway for prefetchLap
+   * to land the audio.
+   */
+  const deferLap = (): void => {
+    deferredPodPending.value = true
+  }
+
+  /**
+   * Fire-and-forget warm-up of the next lap's audio. Pods live behind a
+   * full round (~5 min) of buffer when prefetched on round entry, so we
+   * use priority='low' — the prefetch shouldn't compete with current
+   * cycle's known audio (high) or next cycle's known prefetch (high).
+   *
+   * No-op if there's no lap to fetch. Idempotent — repeated calls just
+   * hit the SW cache layer redundantly which is harmless.
+   */
+  const prefetchLap = (): void => {
+    if (podSentences.value.length === 0) return
+    const lap = nextLap()
+    if (!lap) return
+    const ids = new Set<string>()
+    if (lap.intro?.id) ids.add(lap.intro.id)
+    if (lap.outro?.id) ids.add(lap.outro.id)
+    for (const p of lap.plays) {
+      if (p.audioId) ids.add(p.audioId)
+    }
+    for (const id of ids) {
+      const url = `/api/audio/${id}`
+      fetch(url, { priority: 'low' }).catch(() => undefined)
+    }
   }
 
   /**
@@ -366,6 +413,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
    */
   const markLapCompleted = async (): Promise<void> => {
     completedPodRounds.value += 1
+    deferredPodPending.value = false
     await persistRatchet()
   }
 
@@ -377,6 +425,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const skipAhead = async (n: number = 1): Promise<void> => {
     if (n <= 0) return
     completedPodRounds.value += n
+    deferredPodPending.value = false
     await persistRatchet()
   }
 
@@ -439,6 +488,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     initialize,
     shouldFireLapAt,
     nextLap,
+    prefetchLap,
+    deferLap,
     markLapCompleted,
     skipAhead,
     reset,
