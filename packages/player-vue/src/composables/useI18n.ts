@@ -294,6 +294,7 @@ const LANGUAGE_ENDONYMS: Record<string, string> = {
   bre: 'Brezhoneg',
   cor: 'Kernewek',
   sin: 'සිංහල',
+  afr: 'Afrikaans',
 }
 
 export const getLanguageEndonym = (langCode: string): string => {
@@ -391,6 +392,7 @@ const LANGUAGE_FLAGS: Record<string, string> = {
   hau: '🇳🇬',  // Hausa
   yor: '🇳🇬',  // Yoruba
   zul: '🇿🇦',  // Zulu
+  afr: '🇿🇦',  // Afrikaans
   // Other European
   ell: '🇬🇷',  // Greek
   kat: '🇬🇪',  // Georgian
