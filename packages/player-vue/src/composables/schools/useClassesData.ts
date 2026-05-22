@@ -605,18 +605,31 @@ export function useClassesData() {
       if (insertError) throw insertError
 
       if (newClass.student_join_code) {
-        const { error: inviteCodeError } = await client
-          .from('invite_codes')
-          .insert({
-            code: newClass.student_join_code,
-            code_type: 'student',
-            grants_class_id: newClass.id,
-            created_by: selectedUser.value,
-            is_active: true,
-          })
-        if (inviteCodeError) {
-          console.error('[ClassesData] Failed to create invite code for student join code:', inviteCodeError)
-          // Non-fatal — class still works, just won't resolve through /api/invite/validate
+        // invite_codes INSERT was REVOKEd by 20260521180000; the
+        // matching server endpoint inserts the row and authorizes
+        // the caller (teacher / school_admin / ssi_admin).
+        try {
+          const { data: { session } } = await client.auth.getSession()
+          const token = session?.access_token
+          if (token) {
+            const resp = await fetch('/api/teacher/create-class-join-code', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({ class_id: newClass.id }),
+            })
+            if (!resp.ok) {
+              const data = await resp.json().catch(() => ({}))
+              console.error('[ClassesData] Failed to create invite code for student join code:', data.error || resp.status)
+              // Non-fatal — class still works, just won't resolve through /api/invite/validate
+            }
+          } else {
+            console.warn('[ClassesData] No auth token; skipping invite_code creation for class', newClass.id)
+          }
+        } catch (codeErr) {
+          console.error('[ClassesData] invite_code fetch error:', codeErr)
         }
       }
 
