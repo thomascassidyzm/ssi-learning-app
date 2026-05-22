@@ -12015,7 +12015,11 @@ defineExpose({
   font-weight: 600;
 }
 .hero-known-context {
-  opacity: 0.72;
+  /* Tom 2026-05-22: 0.72 was still too sharp on the known side — most of
+   * the known text is context, and the salient match is usually a couple
+   * of words. Softer fade keeps the bump perceptible without making the
+   * surrounding English read as dimmed. Target side stays unchanged. */
+  opacity: 0.85;
 }
 
 /* Listening pedagogy — calmer, italic, slightly smaller. The learner is
@@ -13903,7 +13907,7 @@ button.phase-segment:active:not(.is-active) {
   color: var(--text-primary);
 }
 [data-theme="mist"] .player .hero-known-context {
-  color: rgba(44, 38, 34, 0.72);
+  color: rgba(44, 38, 34, 0.85);
 }
 
 [data-theme="mist"] .player .hero-target {

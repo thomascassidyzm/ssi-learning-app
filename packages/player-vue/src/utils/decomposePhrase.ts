@@ -26,11 +26,13 @@
  * AND emit a ghost-tile so the golden rule still holds (every audible
  * word has a visual tile).
  *
- * CJK: skipped — character-based tokenisation means the existing
- * substring path already works for those scripts. Returns null so the
- * caller can fall through.
+ * CJK: handled natively via per-character tokenisation. Chinese / Japanese
+ * kanji / Korean phrases tokenise one character per Tok; LEGO atom texts
+ * are similarly split per-char in atomTokens. Reverse-map keys for CJK
+ * LEGOs concatenate with no separator (joinKey honours the script). The
+ * salient LEGO test runs the same way for both scripts.
  *
- * Returns null when decomposition can't be attempted (CJK, empty input,
+ * Returns null when decomposition can't be attempted (empty input or
  * vocab maps not yet loaded). Caller falls back to its existing chain.
  */
 
@@ -41,15 +43,34 @@ const CJK_RE = /[　-鿿가-힯＀-￯]/
 // French "d'un" / "j'aime", English "don't", compound nouns etc. keep
 // their lexical identity. Smart-quote variants normalise to straight ASCII
 // first so "l'italiano" and "l'italiano" match the same key.
-const PUNCT_RE = /[.,!?;:¡¿"„""«»]+/g
+const PUNCT_RE = /[.,!?;:¡¿"„""«»。、！？；：]+/g
 const SMART_APOS_RE = /[‘’ʼ]/g  // ’ ‘ ʼ → '
 const MAX_WINDOW = 8  // longest M-LEGO token-count we'd reasonably look up
 
 type Atom = { known: string; target: string }
 type Tok = { lower: string; start: number; end: number }
 
+function isCjk(text: string): boolean {
+  return CJK_RE.test(text)
+}
+
+/** Tokenise the phrase for matching. Alphabetic scripts split on whitespace;
+ *  CJK has no spaces, so each character becomes its own token. Punctuation
+ *  and whitespace are dropped from both modes. Each Tok carries its
+ *  original-text char offset so the salient-span path can slice the original
+ *  string back out (preserving punctuation, casing, and spacing). */
 function tokenisePhrase(targetText: string): Tok[] {
   const tokens: Tok[] = []
+  if (isCjk(targetText)) {
+    for (let i = 0; i < targetText.length; i++) {
+      const raw = targetText[i]
+      if (/\s/.test(raw)) continue
+      const cleaned = raw.toLowerCase().replace(SMART_APOS_RE, "'").replace(PUNCT_RE, '')
+      if (cleaned.length === 0) continue
+      tokens.push({ lower: cleaned, start: i, end: i + 1 })
+    }
+    return tokens
+  }
   const re = /\S+/g
   let m: RegExpExecArray | null
   while ((m = re.exec(targetText)) !== null) {
@@ -65,8 +86,21 @@ function normaliseLegoText(text: string): string {
   return text.toLowerCase().replace(SMART_APOS_RE, "'").replace(PUNCT_RE, '').trim()
 }
 
+/** Split a LEGO's target into tokens parallel to tokenisePhrase. For
+ *  alphabetic scripts that's whitespace-split; for CJK it's per-character. */
 function atomTokens(atomTarget: string): string[] {
-  return normaliseLegoText(atomTarget).split(/\s+/).filter(Boolean)
+  const normalised = normaliseLegoText(atomTarget)
+  if (isCjk(atomTarget)) {
+    return normalised.split('').filter(ch => ch.trim() !== '')
+  }
+  return normalised.split(/\s+/).filter(Boolean)
+}
+
+/** Join a sequence of token-lowers back into a reverse-map key. CJK keys
+ *  have no separator; alphabetic keys are space-joined. Mirrors the way
+ *  buildTextToLegoIdMap normalises LEGO texts. */
+function joinKey(slice: Tok[], cjk: boolean): string {
+  return slice.map(t => t.lower).join(cjk ? '' : ' ')
 }
 
 /** Build a reverse `Map<lowercase_normalised_text, legoId>` from the
@@ -141,7 +175,9 @@ function findSalientTextSpan(
   tokens: Tok[],
   salientText: string,
 ): { startTok: number; endTokExcl: number } | null {
-  const salientToks = normaliseLegoText(salientText).split(/\s+/).filter(Boolean)
+  const salientToks = isCjk(salientText)
+    ? normaliseLegoText(salientText).split('').filter(ch => ch.trim() !== '')
+    : normaliseLegoText(salientText).split(/\s+/).filter(Boolean)
   if (salientToks.length === 0) return null
   for (let i = 0; i <= tokens.length - salientToks.length; i++) {
     let match = true
@@ -160,9 +196,9 @@ export function decomposePhrase({
   componentsByLegoId,
 }: DecomposePhraseArgs): LegoBlock[] | null {
   if (!targetText) return null
-  if (CJK_RE.test(targetText)) return null
   if (textMap.size === 0) return null  // vocab not yet loaded
 
+  const cjk = isCjk(targetText)
   const tokens = tokenisePhrase(targetText)
   if (tokens.length === 0) return null
 
@@ -229,7 +265,7 @@ export function decomposePhrase({
     for (let w = maxW; w >= 1; w--) {
       if (salientSpan && pos < salientSpan.startTok && pos + w > salientSpan.startTok) continue
       const slice = tokens.slice(pos, pos + w)
-      const key = slice.map(t => t.lower).join(' ')
+      const key = joinKey(slice, cjk)
       const legoId = reverseMap.get(key)
       if (legoId) {
         const originalText = targetText.slice(slice[0].start, slice[w - 1].end)
