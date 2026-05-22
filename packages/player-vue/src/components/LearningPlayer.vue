@@ -68,7 +68,7 @@ import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
-import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
+import type { BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 import { generateScript as generateBundleScript } from '../script/generateScript'
 
@@ -7887,16 +7887,21 @@ onMounted(async () => {
           // and fires the initial onRoundChanged for the current
           // playback position.
           audioPrefetcher.setBundle(bundle)
-          // Start BundleDownloader unconditionally. It used to be gated
-          // behind BUNDLE_BASED_INFPLAY_COURSES after a 2026-05-21
-          // incident where concurrency=4 fired ~3000 /api/audio/<id>
-          // requests for a 600-LEGO course and tripped Vercel's edge
-          // rate-limit. BundleDownloader is now polite enough by
-          // default (concurrency=1, 100–300ms jitter on cache miss,
-          // 429/503 exponential backoff with 3 retries) to run for
-          // every course without that risk — see BundleDownloader.ts.
-          bundleDownloader = createBundleDownloader({ audioCache })
-          return bundleDownloader.start(bundle)
+          // BundleDownloader (always-on full-course audio prefetch) is
+          // DISABLED. Bandwidth math says it isn't needed: ~30 KB per
+          // audio × 3 audios per cycle = 90 KB/cycle, cycles are ~15s
+          // including the speaking pause, so steady-state need is
+          // ~6 KB/s — comfortable on 3G. AudioPrefetcher's per-round
+          // JIT fetch (fired by the reactive watch below) already
+          // covers that path. Eager-bundling every course also
+          // disadvantaged casual users dipping into multiple courses
+          // — downloading several full courses for a handful of
+          // sentences is gratuitous bandwidth.
+          //
+          // The downloader class is intentionally left intact so a
+          // future "Download for offline" button (e.g. for plane
+          // journeys) can opt in. createBundleDownloader + .start
+          // still work — they're just no longer fired from bootstrap.
         })
         .catch((err) => {
           // Branch-isolated: bundle endpoint may not yet be live on this
