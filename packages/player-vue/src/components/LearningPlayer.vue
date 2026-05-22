@@ -492,10 +492,16 @@ const audioPrefetcher = createAudioPrefetcher({ audioCache })
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
 const hasRomanizedText = ref(false)
 
-// Detect romanized text early (before play) via a lightweight DB check
-watch(courseCode, async (code) => {
-  if (!code || !supabase?.value) return
-  const { count } = await supabase.value
+// Detect romanized text early (before play) via a lightweight DB check.
+// Watch BOTH courseCode and supabase as sources: supabase is injected as
+// a ref that the parent populates async, so on player mount it's often
+// null while courseCode is already set. Watching courseCode alone with
+// immediate=true fires once, hits the supabase?.value null-guard, and
+// never re-fires — leaving hasRomanizedText permanently false and the
+// script toggle hidden for jpn/kor/ara/etc. learners.
+watch([courseCode, supabase], async ([code, sb]) => {
+  if (!code || !sb) return
+  const { count } = await sb
     .from('course_legos')
     .select('id', { count: 'exact', head: true })
     .eq('course_code', code)
