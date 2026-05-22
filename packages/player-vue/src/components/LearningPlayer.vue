@@ -6708,38 +6708,23 @@ simplePlayer.setRuntimeOverrides({
   // the audio element would start loading from network during PROMPT
   // and a safety timer can advance to PAUSE before any bytes play —
   // the learner hears silence where the prompt should be. The cycle
-  // IS the prompt; we can't omit it.
-  //
-  // Returns the URL to play — re-resolved to the local blob URL after
-  // ensure() lands the bytes in IndexedDB, so playAudio reads from
-  // local cache instead of re-fetching the proxy URL across the same
-  // slow network we just waited on. Falls back to the original URL if
-  // the cache hand-off races (rare).
-  //
-  // Bounded to 5s. On timeout, the race REJECTS — SimplePlayer halts
-  // via tripPlayError and the existing tap-to-resume banner surfaces.
-  // Better than falling through into a play attempt that the network
-  // already won't satisfy.
+  // IS the prompt; we can't omit it. Bounded to 5s so a permanent
+  // network failure can't deadlock the player — after that we fall
+  // through to playAudio and the existing retry-once-then-halt path
+  // produces a clean halt instead of silent skip.
   ensureKnownReady: async (cycle) => {
-    const url = (cycle as any).known.audioUrl as string
+    const url = (cycle as any)?.known?.audioUrl as string | undefined
+    if (!url) return
     // Already a local blob — nothing to wait for.
-    if (url.startsWith('blob:')) return url
-    // Proxy URL pattern: /api/audio/<uuid>. Extract id, ensure cache.
+    if (url.startsWith('blob:')) return
+    // Proxy URL pattern: /api/audio/<uuid>. Extract id and ensure cache.
     const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
-    if (!match) return url
+    if (!match) return
     const audioId = match[1]
     await Promise.race([
       audioCache.persistent.ensure(audioId),
-      new Promise<never>((_, reject) => setTimeout(
-        () => reject(new Error('known-audio fetch timeout (5s)')),
-        5000,
-      )),
+      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
     ])
-    // Cache now has it — resolve to the blob URL so playAudio reads
-    // from IndexedDB. Falls back to original URL if the namespace
-    // hand-off races and getBlobUrl briefly returns null.
-    const blobUrl = await audioCache.persistent.getBlobUrl(audioId)
-    return blobUrl ?? url
   },
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
