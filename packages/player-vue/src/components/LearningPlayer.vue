@@ -2060,7 +2060,14 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const salientLegoId = cycle.legoId || currentRound.value?.legoId || ''
   const texts: string[] = (useNative ? cycle.componentLegoTextsNative : null) || cycle.componentLegoTexts || []
   const textMap = useNative ? legoTargetTextNativeMap.value : legoTargetTextMap.value
-  const textMapFallback = legoTargetTextMap.value
+  // Same-script fallback. textMapFallback used to be the roman map
+  // unconditionally — in native mode that produced cross-script blocks
+  // (block targetText='wakaranai', phrase tileText='分からない'), which
+  // ensureTileCoverage then fails to align ('block not found in remaining
+  // phrase'). Pull from the global map of the SAME script instead.
+  const textMapFallback = useNative
+    ? globalLegoTargetTextNativeMap.value
+    : globalLegoTargetTextMap.value
   // Show known text only during intro and debut — the M-LEGO's first
   // appearance as a standalone unit. BUILDs and USEs (including the rare
   // case where a USE happens to have target text identical to the parent
