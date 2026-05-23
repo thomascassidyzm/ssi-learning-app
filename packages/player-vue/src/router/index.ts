@@ -430,6 +430,20 @@ const router = createRouter({
   },
 })
 
+// Stale chunk recovery: after a deploy, the running tab still references
+// old hashed chunk URLs that no longer exist on the CDN. Reload to the
+// target path so the browser fetches a fresh index.html + current chunks.
+router.onError((err, to) => {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('Importing a module script failed')
+  ) {
+    window.location.assign(to.fullPath)
+  }
+})
+
 // Guard admin + methodology routes — useUserRole is the single authority.
 // Methodology pages are admin-gated initially (see metrics-architecture.md §9);
 // individual pages may be opened to all learners later as we add a per-route
