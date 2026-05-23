@@ -183,9 +183,21 @@ export default async function handler(
       const contentType = s3Response.ContentType || 'audio/mpeg'
       const contentLength = s3Response.ContentLength
 
-      // Set response headers for caching and CORS
+      // Set response headers for caching and CORS.
+      //
+      // Browser/SW may cache aggressively (immutable) — those layers serve
+      // byte-ranges from a cached full body CORRECTLY (proper 206). But
+      // Vercel's CDN does NOT: on a cache HIT it slices its stored full
+      // body to satisfy a Range header yet returns status 200 (not 206)
+      // with a Content-Range — the exact malformed shape iOS Safari
+      // rejects. So we forbid the Vercel edge from caching these and let
+      // every Range request reach this origin, which answers a clean 206
+      // below. Cross-user edge caching is sacrificed; per-device browser
+      // caching (the dominant repeat-play path) is retained.
       res.setHeader('Content-Type', contentType)
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      res.setHeader('Vercel-CDN-Cache-Control', 'no-store')
+      res.setHeader('CDN-Cache-Control', 'no-store')
       res.setHeader('Access-Control-Allow-Origin', '*')
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
