@@ -22,6 +22,21 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 10000
 
+// PostgREST URL cap is ~16KB. A UUID + comma is ~37 chars, ~39 once
+// URL-encoded, so a single .in() with all 1348 learner IDs blows past it
+// (~50KB) and the request fails. 200 IDs per chunk ≈ 7.8KB. Same cap the
+// frontend hits chunking course_enrollments.
+const EMAIL_FETCH_CHUNK_SIZE = 200
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  if (size <= 0) return [arr]
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size))
+  }
+  return out
+}
+
 interface LearnerRow {
   id: string
   user_id: string
@@ -46,25 +61,31 @@ async function loadEmails(
   const out = new Map<string, { primary: string | null; all: string[] }>()
   if (learnerIds.length === 0) return out
 
-  const { data: rows, error } = await supabase
-    .from('learner_emails')
-    .select('learner_id, email, is_primary')
-    .in('learner_id', learnerIds)
-    .order('is_primary', { ascending: false })
+  const chunks = chunk(learnerIds, EMAIL_FETCH_CHUNK_SIZE)
+  const results = await Promise.all(
+    chunks.map(ids =>
+      supabase
+        .from('learner_emails')
+        .select('learner_id, email, is_primary')
+        .in('learner_id', ids)
+        .order('is_primary', { ascending: false }),
+    ),
+  )
 
-  if (error) {
-    console.warn('[AdminUsers] loadEmails error:', error)
-    return out
-  }
-
-  for (const r of rows || []) {
-    let entry = out.get(r.learner_id)
-    if (!entry) {
-      entry = { primary: null, all: [] }
-      out.set(r.learner_id, entry)
+  for (const { data: rows, error } of results) {
+    if (error) {
+      console.warn('[AdminUsers] loadEmails chunk error:', error)
+      continue
     }
-    entry.all.push(r.email)
-    if (r.is_primary && !entry.primary) entry.primary = r.email
+    for (const r of rows || []) {
+      let entry = out.get(r.learner_id)
+      if (!entry) {
+        entry = { primary: null, all: [] }
+        out.set(r.learner_id, entry)
+      }
+      entry.all.push(r.email)
+      if (r.is_primary && !entry.primary) entry.primary = r.email
+    }
   }
   return out
 }
