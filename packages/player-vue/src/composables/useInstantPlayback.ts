@@ -710,61 +710,29 @@ export function useInstantPlayback(
   /**
    * Tier 2 — listening audio for the cycles tier 1 fetched.
    *
-   * Per the spec, listening audio (seed + pod sentences) is the big
-   * file but isn't needed for ~5 minutes. We have the entire current
-   * round to download them.
+   * 2026-05-23: DISABLED. Used to fire ~15 parallel /api/audio/<id>
+   * fetches for presentation (seed/pod) audios for the current
+   * LEGO. Listening exercises only fire ~5 min into the round, so
+   * there's no actual urgency — JIT-fetch when the listening
+   * exercise actually starts is fine. Bulk prefetching here added
+   * to iOS WebKit's parallel-request pile-up alongside tier 3 and
+   * AudioPrefetcher's own ensures.
    *
-   * The actual fetching is delegated to the service-worker
-   * `CacheFirst` strategy on `/api/audio/*` — once we hit those URLs
-   * with `fetch()`, they end up in the SW cache and stay there per
-   * the existing audio architecture. `usePrefetchManager` (the
-   * 30-min buffer) handles the LEGO short clips on the same
-   * principle; tier 2 specifically targets the *presentation* (seed
-   * sentence) audio IDs that round-end listening exercises fire.
+   * Same streaming-first principle as the other bulk-fetch no-ops.
    */
   async function prefetchTier2(): Promise<void> {
-    const lego = currentLegoId.value
-    if (!lego) return
-    const cycles = cycleBuffer.value.get(lego) ?? []
-
-    // Collect any presentation_id audio refs from the current round
-    // — those are the seed/pod sentences. If none, this tier is a
-    // no-op (round has no listening hook).
-    const audioIds = cycles
-      .map((c) => c.audio.presentation_id)
-      .filter((id): id is string => !!id)
-
-    if (audioIds.length === 0) return
-
-    const ctrl = makeAbort()
-    try {
-      await Promise.allSettled(
-        audioIds.map((id) =>
-          fetch(`/api/audio/${encodeURIComponent(id)}`, {
-            signal: ctrl.signal,
-          }).then((res) => {
-            // Consume the body so the SW CacheFirst gets a fully
-            // populated cache entry. We don't need the blob in JS —
-            // the audio controller will fetch from the SW cache.
-            return res.ok ? res.arrayBuffer() : null
-          }),
-        ),
-      )
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        console.warn('[InstantPlayback] tier-2 prefetch failed:', err)
-      }
-    } finally {
-      releaseAbort(ctrl)
-    }
+    // intentional no-op — listening audio JIT-fetched at use time
+    return
   }
 
   /**
-   * Tier 3 — cycles + listening for the NEXT round.
+   * Tier 3 — cycles for the NEXT round.
    *
-   * Round N+1 is identified by walking the round-map forward from
-   * the current round, then fetching ~15 cycles starting at that
-   * round's legoId.
+   * The cycle metadata fetch (round queue continuation) stays — it
+   * needs to land before round N+1 starts. 2026-05-23: dropped the
+   * inline ~15-audio bulk prefetch that followed it. Same reasoning
+   * as Tier 2: presentation audios don't need to land that early,
+   * AudioPrefetcher's persistentLookaheadCycles=3 + JIT covers it.
    */
   async function prefetchTier3(): Promise<void> {
     const map = roundMap.value
@@ -784,21 +752,7 @@ export function useInstantPlayback(
         map.version,
       )
       bufferCycles(response.cycles, response.next_lego_id)
-
-      // Tier 3 also covers listening for round N+1. Mirror the
-      // tier-2 logic against the freshly-fetched cycles.
-      const audioIds = response.cycles
-        .map((c) => c.audio.presentation_id)
-        .filter((id): id is string => !!id)
-      if (audioIds.length > 0) {
-        await Promise.allSettled(
-          audioIds.map((id) =>
-            fetch(`/api/audio/${encodeURIComponent(id)}`, {
-              signal: ctrl.signal,
-            }).then((res) => (res.ok ? res.arrayBuffer() : null)),
-          ),
-        )
-      }
+      // No audio prefetch here — presentation audios JIT-fetch at use time.
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {
         console.warn('[InstantPlayback] tier-3 prefetch failed:', err)
