@@ -809,23 +809,30 @@ export class SimplePlayer {
     }
   }
 
-  private prefetchUrl(_url: string | undefined, _priority: RequestPriority = 'auto'): void {
-    // 2026-05-23: DISABLED. Used to fire `fetch(url, { priority })` to
-    // warm the SW CacheFirst layer ahead of audio playback. The fetch
-    // omits Range headers, so the SW cached a full 200 response. Then
-    // the audio element later sent a Range request for the same URL,
-    // got the cached 200 back, and iOS Safari stalled (plays the
-    // buffered chunk for ~0.5s then waits forever for the "next
-    // range" it can't get because the cached entry is 200 not 206).
+  private warmedUrls = new Set<string>()
+
+  private prefetchUrl(url: string | undefined, priority: RequestPriority = 'auto'): void {
+    // Warm the BROWSER HTTP cache ahead of playback with a plain GET.
     //
-    // Streaming-first principle: the audio element IS the primary
-    // fetcher. Its Range request hits SW cache miss → origin returns
-    // 206 → SW caches 206 → subsequent plays hit cached 206. iOS
-    // Safari is happy with that flow.
+    // History: this was disabled 2026-05-23 because it warmed the SW
+    // CacheFirst layer with a full 200, which then poisoned iOS Safari's
+    // later Range request (got 200, expected 206). That hazard is gone:
+    // audio was removed from the service worker entirely (2026-05-24), so
+    // this fetch now populates the browser's own immutable HTTP cache.
+    // The audio element's later Range request is served from that cached
+    // full body as a correct 206 by the browser itself — no SW, no CDN
+    // range-mangling. Re-enabled so the 1-cycle lookahead works again.
     //
-    // Trade-off: first play of any audio waits for the network fetch
-    // (~1-2s on 4G, ~100ms on WiFi). Acceptable.
-    return
+    // Blob URLs (already local in IndexedDB) and empty strings have
+    // nothing to warm. Each URL is fetched at most once per session.
+    if (!url || url.startsWith('blob:')) return
+    if (this.warmedUrls.has(url)) return
+    this.warmedUrls.add(url)
+    try {
+      void fetch(url, { priority }).catch(() => {})
+    } catch {
+      // best-effort; never let a warm-up throw into the playback path
+    }
   }
 
   /**

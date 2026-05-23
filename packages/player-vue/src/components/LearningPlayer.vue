@@ -4158,6 +4158,26 @@ const setLoadingStage = (stage) => {
   }
 }
 
+// Warm the very first cycle's KNOWN audio into the browser HTTP cache and
+// wait for it before we flip to 'ready', so the first sound plays the
+// instant the user starts instead of after a cold network fetch. We don't
+// cache audio in the SW anymore (streaming-first), so nothing else warms
+// this. Bounded by a timeout: a slow/failed fetch must never trap the user
+// on the loading screen — it just proceeds to 'ready' and plays cold as
+// before. Only the known phrase is gated (it plays first, with no buffer
+// phase to hide a late arrival); the rest ride the 1-cycle lookahead.
+const warmFirstKnownAudio = async (timeoutMs = 2000) => {
+  try {
+    const url = cachedRounds.value?.[0]?.cycles?.[0]?.known?.audioUrl
+    if (!url || typeof url !== 'string' || url.startsWith('blob:')) return
+    const warm = fetch(url, { priority: 'high' }).then(() => {}).catch(() => {})
+    const timeout = new Promise((r) => setTimeout(r, timeoutMs))
+    await Promise.race([warm, timeout])
+  } catch {
+    // never block readiness on a warm-up
+  }
+}
+
 // Typewriter effect for loading message
 let typewriterTimeout = null
 const typeLoadingMessage = (message) => {
@@ -9101,6 +9121,8 @@ onMounted(async () => {
   // STAGE 4: READY - Splash animation done
   // Show player immediately, orchestrator inits in background
   // ============================================
+  // Warm the first known audio so the opening sound is instant (bounded).
+  await warmFirstKnownAudio()
   setLoadingStage('ready')
 
   // Preview mode: set position at startup (but defer network population to first play)
@@ -9434,7 +9456,8 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // Initialize for new course - legacy initOrchestrator removed
   // The SessionController path handles this automatically
 
-  // Mark as ready
+  // Mark as ready (warm the first known audio first, bounded — instant opening)
+  await warmFirstKnownAudio()
   setLoadingStage('ready')
   isInitialized.value = true
 
