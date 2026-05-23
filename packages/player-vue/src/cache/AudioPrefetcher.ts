@@ -48,6 +48,16 @@ export interface AudioPrefetcherOptions {
    * Default 30 (~5 minutes of playback).
    */
   persistentLookaheadCycles?: number
+  /**
+   * Cap on persistent-namespace IndexedDB usage. After each round
+   * completes, the cache is evicted (LRU, oldest-by-last-accessed
+   * first) until it sits under this budget. Aligns persistent's
+   * lifecycle with ephemeral's: cache ≈ active window + modest
+   * retention margin, instead of growing unbounded until the browser
+   * quota fires and force-evicts something we DID need.
+   * Default 50 MB.
+   */
+  persistentMaxBytes?: number
 }
 
 /** Shape of a single round in the queue (subset of SimplePlayer.Round). */
@@ -121,6 +131,7 @@ export function createAudioPrefetcher(options: AudioPrefetcherOptions): AudioPre
   const { audioCache } = options
   const lookahead = Math.max(0, options.lookahead ?? 2)
   const persistentLookaheadCycles = Math.max(0, options.persistentLookaheadCycles ?? 30)
+  const persistentMaxBytes = Math.max(0, options.persistentMaxBytes ?? 50 * 1024 * 1024)
 
   let bundle: CourseBundle | null = null
   let legoIndex: Map<string, BundleLego> = new Map()
@@ -265,6 +276,19 @@ export function createAudioPrefetcher(options: AudioPrefetcherOptions): AudioPre
         console.warn('[AudioPrefetcher] ephemeral.releaseForLego failed', {
           legoId: completedLegoId,
           err,
+        })
+      }
+
+      // Bound persistent USE-phrase audio so it doesn't grow unbounded
+      // as the learner progresses. LRU eviction in the AudioCache layer
+      // (oldest by-last-accessed first) keeps the active window fresh;
+      // older USE phrases fall off the end. Aligns persistent's
+      // lifecycle with ephemeral's: cache ≈ active window + modest
+      // retention margin. Fire-and-forget so eviction doesn't block
+      // the next round's prefetch.
+      if (persistentMaxBytes > 0) {
+        audioCache.persistent.evictToTarget(persistentMaxBytes).catch((err) => {
+          console.warn('[AudioPrefetcher] persistent.evictToTarget failed', err)
         })
       }
     },
