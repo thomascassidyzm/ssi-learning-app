@@ -188,10 +188,10 @@ describe('AudioPrefetcher', () => {
     ]
     await prefetcher.onRoundChanged(queue, 0)
 
-    // Default lookahead 2 → L01 and L02 are acquired.
-    expect(mock.acquireForLego).toHaveBeenCalledTimes(2)
+    // Default lookahead 1 (changed 2026-05-23 from 2 — streaming-first) → only L01 acquired.
+    expect(mock.acquireForLego).toHaveBeenCalledTimes(1)
     const legoIds = mock.acquireForLego.mock.calls.map((c) => c[0].legoId)
-    expect(legoIds).toEqual(['S0001L01', 'S0001L02'])
+    expect(legoIds).toEqual(['S0001L01'])
   })
 
   it('respects lookahead window (lookahead=2 acquires next 2, not 3rd)', async () => {

@@ -486,34 +486,14 @@ let audioCacheSource: AudioCacheSource | null = null
 // persistent backstop for the next ~30 cycles. Replaces the warm-up
 // surface in the existing instant-playback path (next commit removes
 // the now-redundant code).
-// Speculative-lookahead policy depends on network speed.
-//
-// Fast network (4g / wifi / unknown): lookahead=3 LEGOs ahead +
-// persistent next-30-cycles. Telemetry from 2026-05-23 Turbo runs
-// showed ~96% blob-URL hit rate under this config.
-//
-// Slow network (3g / 2g / slow-2g): lookahead=0. The 120-ish
-// parallel ensures-per-round-transition the default config triggers
-// saturates the pipe, voice1/voice2 prefetches lose the bandwidth
-// race against the speculative work, and target audio silently
-// fails to load in time (safety timer advances the phase, no
-// audio_failed event fires, learner hears nothing for the targets
-// while known plays fine). Falling back to pure JIT cycle-by-cycle
-// (SimplePlayer.prefetchNextCycle still warms next cycle's three
-// URLs in the SW layer) — confirmed by Tom's 3G stress test on the
-// same day. Trade-off accepted: spaced-rep returns and new-LEGO
-// intros lose the speculative warm, but every play actually plays.
-function isSlowNetwork(): boolean {
-  const conn = (navigator as { connection?: { effectiveType?: string } }).connection
-  if (!conn?.effectiveType) return false
-  return ['slow-2g', '2g', '3g'].includes(conn.effectiveType)
-}
-const networkSlow = isSlowNetwork()
-const audioPrefetcher = createAudioPrefetcher({
-  audioCache,
-  lookahead: networkSlow ? 0 : 3,
-  persistentLookaheadCycles: networkSlow ? 0 : 30,
-})
+// Streaming-first AudioPrefetcher — accepts the library defaults
+// (lookahead=1 LEGO, persistentLookaheadCycles=3) which warm just
+// enough to avoid races between cycle entry and audio load. The
+// SW CacheFirst layer (driven by SimplePlayer.prefetchNextCycle)
+// handles ongoing playback caching. Learners who want full course
+// caching get driving mode's chunked accumulation or the future
+// paid "Download for offline" opt-in.
+const audioPrefetcher = createAudioPrefetcher({ audioCache })
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
@@ -7163,15 +7143,36 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
 }
 
 /**
- * Phase 2 (BACKGROUND): fire-and-forget warm-up for the rest of the
- * script. Runs while phase-1 rounds are playing — by the time the
- * learner gets through 5 rounds (~25 min), the whole batch should
- * be cached. Errors swallowed; never blocks playback.
+ * Phase 2 (BACKGROUND): historically a fire-and-forget warm-up for the
+ * rest of the INF PLAY script. As of 2026-05-23 this is a deliberate
+ * no-op — see commit removing the speculative INF PLAY warm-up.
+ *
+ * Reason: the function used to walk every remaining round and fetch
+ * every cycle's three audio URLs in parallel-5 batches. On Tom's
+ * stress test with cold cache + 3G + far belt skip it produced 61,919
+ * requests / 623 MB transferred. The streaming-first architecture
+ * (AudioPrefetcher with lookahead=1 + persistentLookaheadCycles=3,
+ * plus SimplePlayer.prefetchNextCycle warming the SW CacheFirst
+ * layer per cycle) covers playback needs without speculative
+ * bulk-fetching.
+ *
+ * Callers remain wired so the historical call sites are preserved
+ * (easy to grep if we ever want to revive an opt-in version, e.g.
+ * for a paid offline-download feature). Calling this function is
+ * harmless — it does nothing.
+ *
+ * The `warmedUpAudioUrls` Set stays empty as a consequence, and the
+ * existing "empty set short-circuits to don't-skip" branch in
+ * `shouldSkipCycle` naturally disables the INF PLAY skip gate. INF
+ * PLAY cycles now play via the same JIT path as main loop — SW
+ * catches the misses, no failures observed under stress.
+ *
+ * Explicit caching for offline use is provided by driving mode's
+ * chunked accumulation (createChunkedPrefetch) or the future paid
+ * "Download for offline" opt-in.
  */
-function warmUpInfPlayRoundsBackground(rounds: any[], skipFirst: number): void {
-  const remaining = rounds.slice(skipFirst)
-  if (remaining.length === 0) return
-  void warmUpInfPlayRounds(remaining, remaining.length).catch(() => { /* silent */ })
+function warmUpInfPlayRoundsBackground(_rounds: any[], _skipFirst: number): void {
+  // intentional no-op — see docblock
 }
 
 // Pre-emptive INF PLAY warm-up — once-per-session guard. When the

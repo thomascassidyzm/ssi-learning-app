@@ -119,8 +119,27 @@ function extractAudioId(url: string | undefined | null): string | null {
 
 export function createAudioPrefetcher(options: AudioPrefetcherOptions): AudioPrefetcher {
   const { audioCache } = options
-  const lookahead = Math.max(0, options.lookahead ?? 2)
-  const persistentLookaheadCycles = Math.max(0, options.persistentLookaheadCycles ?? 30)
+  // Defaults updated 2026-05-23 to streaming-first values.
+  //
+  // Earlier defaults (lookahead=2, persistentLookaheadCycles=30) were
+  // sized for "bundle the next few minutes of audio into IDB so plays
+  // read from blob". That works on fast networks (96% blob-URL hit
+  // rate) but produces ~120 parallel fetches per round transition,
+  // which saturates 3G pipes and competes with the audio element's
+  // own fetches for current-cycle playback.
+  //
+  // Streaming-first defaults: cache the absolute minimum needed for
+  // the next cycle to enter without races. The SW CacheFirst layer
+  // (warmed by SimplePlayer.prefetchNextCycle) handles everything
+  // else — slightly slower per play (one SW round-trip) but
+  // dramatically less network noise.
+  //
+  // Learners who want full caching (plane journeys, etc.) get
+  // driving mode's chunked accumulation (createChunkedPrefetch) or
+  // the future paid "Download for offline" opt-in. Default path is
+  // streaming.
+  const lookahead = Math.max(0, options.lookahead ?? 1)
+  const persistentLookaheadCycles = Math.max(0, options.persistentLookaheadCycles ?? 3)
 
   let bundle: CourseBundle | null = null
   let legoIndex: Map<string, BundleLego> = new Map()
