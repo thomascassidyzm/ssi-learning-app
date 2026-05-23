@@ -14,6 +14,7 @@ import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 
 // Local storage keys
 const GUEST_ID_KEY = 'ssi-guest-id'
@@ -402,6 +403,14 @@ export function useAuth(): AuthState & AuthActions {
     // Register listener early so we catch any auth events during session check
     supabaseClient.auth.onAuthStateChange((_event, session) => {
       handleAuthChange(session?.user ?? null)
+      // Keep the iOS install hand-off bridge current (browser context
+      // only; writeAuthHandoff no-ops in standalone). null on sign-out
+      // clears it so a logged-out session can't leak into a new install.
+      void writeAuthHandoff(
+        session?.access_token && session?.refresh_token
+          ? { access_token: session.access_token, refresh_token: session.refresh_token }
+          : null,
+      )
     })
 
     // Check for existing Supabase Auth session with a timeout.
@@ -424,6 +433,11 @@ export function useAuth(): AuthState & AuthActions {
         // of useUserRole cache.
         learner.value = await ensureLearnerExists()
 
+        // Keep the install hand-off bridge fresh for an already-signed-in
+        // Safari session (no SIGNED_IN event fires for a restored session).
+        const s = result.data.session
+        void writeAuthHandoff({ access_token: s.access_token, refresh_token: s.refresh_token })
+
         // Check if there's guest progress to migrate
         const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
         if (hadGuestId) {
@@ -434,6 +448,33 @@ export function useAuth(): AuthState & AuthActions {
         return
       } else if (result === null) {
         console.warn('[useAuth] Session check timed out, continuing as guest')
+      }
+
+      // No local session. On a freshly-installed iOS Home Screen app the
+      // Safari session is in a storage jar we can't see — but Safari may
+      // have left tokens in the shared CacheStorage bridge. Consume them
+      // once and restore the session so the user isn't bounced to sign-in.
+      // Any failure falls through to guest + the normal sign-in flow.
+      if (isStandalone()) {
+        try {
+          const handoff = await readAndConsumeAuthHandoff()
+          if (handoff) {
+            const { data, error } = await supabaseClient.auth.setSession(handoff)
+            if (!error && data.session?.user) {
+              supabaseUser.value = data.session.user
+              learner.value = await ensureLearnerExists()
+              const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
+              if (hadGuestId) {
+                await migrateGuestProgress()
+              }
+              console.log('[useAuth] Restored session from iOS install hand-off')
+              isLoading.value = false
+              return
+            }
+          }
+        } catch (err) {
+          console.warn('[useAuth] Install hand-off restore failed, continuing as guest:', err)
+        }
       }
     } catch (err) {
       console.warn('[useAuth] Session check failed, continuing as guest:', err)

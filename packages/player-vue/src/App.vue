@@ -141,7 +141,10 @@ const invalidateStaleCaches = () => {
     // Navigation/font caches still get wiped — those benefit from a
     // fresh fetch on deploy and are tiny.
     if ('caches' in window) {
-      const PRESERVE = new Set(['workbox-precache-v2', 'ssi-audio-cache'])
+      // ssi-auth-handoff carries the session across the iOS Safari → Home
+      // Screen PWA boundary (see utils/authHandoff.ts) — wiping it on
+      // deploy would silently break the install sign-in carry-over.
+      const PRESERVE = new Set(['workbox-precache-v2', 'ssi-audio-cache', 'ssi-auth-handoff'])
       caches.keys().then(names => {
         const cleared = names.filter(n => !PRESERVE.has(n))
         cleared.forEach(name => caches.delete(name))
