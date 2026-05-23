@@ -809,19 +809,23 @@ export class SimplePlayer {
     }
   }
 
-  private prefetchUrl(url: string | undefined, priority: RequestPriority = 'auto'): void {
-    if (!url) return
-    // blob: URLs already point at local IndexedDB blobs — nothing to fetch.
-    if (url.startsWith('blob:')) return
-    // Fire-and-forget. Discard the body — we just want it in the SW cache.
-    // Catch any rejection so an unhandled promise doesn't surface as noise.
+  private prefetchUrl(_url: string | undefined, _priority: RequestPriority = 'auto'): void {
+    // 2026-05-23: DISABLED. Used to fire `fetch(url, { priority })` to
+    // warm the SW CacheFirst layer ahead of audio playback. The fetch
+    // omits Range headers, so the SW cached a full 200 response. Then
+    // the audio element later sent a Range request for the same URL,
+    // got the cached 200 back, and iOS Safari stalled (plays the
+    // buffered chunk for ~0.5s then waits forever for the "next
+    // range" it can't get because the cached entry is 200 not 206).
     //
-    // priority hint: known audio is time-critical (plays immediately at
-    // cycle entry, no buffer phase in front of it). Target voices have
-    // PROMPT + PAUSE (~5-8s) of buffer before they need to play, so they
-    // can be 'low'. Browsers without RequestPriority support ignore the
-    // option gracefully.
-    fetch(url, { priority }).catch(() => undefined)
+    // Streaming-first principle: the audio element IS the primary
+    // fetcher. Its Range request hits SW cache miss → origin returns
+    // 206 → SW caches 206 → subsequent plays hit cached 206. iOS
+    // Safari is happy with that flow.
+    //
+    // Trade-off: first play of any audio waits for the network fetch
+    // (~1-2s on 4G, ~100ms on WiFi). Acceptable.
+    return
   }
 
   /**

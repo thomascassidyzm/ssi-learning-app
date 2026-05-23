@@ -216,40 +216,28 @@ export function createAudioPrefetcher(options: AudioPrefetcherOptions): AudioPre
     },
 
     async onRoundChanged(
-      roundQueue: ReadonlyArray<PrefetcherRound>,
-      currentRoundIndex: number,
+      _roundQueue: ReadonlyArray<PrefetcherRound>,
+      _currentRoundIndex: number,
     ): Promise<void> {
-      if (!bundle) return
-      if (!Array.isArray(roundQueue) || roundQueue.length === 0) return
-      if (currentRoundIndex < 0 || currentRoundIndex >= roundQueue.length) return
-
-      // 1. Ephemeral acquire for the next `lookahead` rounds.
-      const end = Math.min(currentRoundIndex + lookahead, roundQueue.length)
-      for (let i = currentRoundIndex; i < end; i++) {
-        const legoId = roundQueue[i]?.legoId
-        if (!legoId) continue
-        const audioIds = computeEphemeralAudioIds(legoId)
-        if (audioIds.length === 0) continue
-        try {
-          await audioCache.ephemeral.acquireForLego({ legoId, audioIds })
-        } catch (err) {
-          // Never throw out of the prefetcher — audio system tolerates misses.
-          console.warn('[AudioPrefetcher] ephemeral.acquireForLego failed', { legoId, err })
-        }
-      }
-
-      // 2. Persistent backstop — fire-and-forget for the next N cycles.
-      const persistentIds = collectPersistentAudioIds(roundQueue, currentRoundIndex)
-      for (const id of persistentIds) {
-        try {
-          // Fire and forget — don't await, don't block.
-          void audioCache.persistent.ensure(id).catch((err: unknown) => {
-            console.warn('[AudioPrefetcher] persistent.ensure failed', { id, err })
-          })
-        } catch (err) {
-          console.warn('[AudioPrefetcher] persistent.ensure threw', { id, err })
-        }
-      }
+      // 2026-05-23: DISABLED. The persistent.ensure / ephemeral.acquireForLego
+      // fetches both poison the SW CacheFirst layer with 200 responses,
+      // which iOS Safari can't reconcile with its own Range requests for
+      // media playback. Audio plays ~0.5s of buffered data then stalls
+      // waiting for "next range" that never comes. 'ended' never fires.
+      //
+      // Streaming-first principle: the audio element fetches when it
+      // needs to. SW cache miss → origin returns 206 → SW caches 206 →
+      // subsequent plays of same audio hit cached 206. iOS happy.
+      //
+      // IDB is still populated when the audio element's request flows
+      // through the SW pipeline (responses can be stored downstream by
+      // explicit driving mode / offline opt-in paths). The prefetcher
+      // just doesn't proactively populate either layer anymore.
+      //
+      // Function kept as a no-op so the call-site reactive watcher
+      // (LearningPlayer.vue:1513) remains a single grep-handle in case
+      // we ever want a non-iOS-hostile prefetch mechanism.
+      return
     },
 
     async onRoundCompleted(
