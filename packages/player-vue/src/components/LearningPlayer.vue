@@ -3723,6 +3723,31 @@ watch(() => simplePlayer.phase.value, (phase) => {
   }
 })
 
+// Skip-prep dialog — same 200ms-threshold pattern as bufferingPromptVisible,
+// but at belt/round scope. When the learner taps `>` (round-skip) or `>>`
+// (belt-skip), the destination cycle's audio may not be in the local cache
+// yet — on slow networks this surfaces as a silent gap between the tap and
+// the cycle starting. prepareAndJump (below) JIT-prefetches the destination
+// audio before calling simplePlayer.jumpToRound; if the prefetch takes more
+// than 200ms the dialog surfaces a terse "fetching" note. Cleared as soon
+// as prefetch resolves OR a fresh skip supersedes this one (token bump
+// invalidates the in-flight prep — see prepareAndJump for details).
+const skipPrepVisible = ref(false)
+const skipPrepMessage = ref('')
+let skipPrepShowTimer: ReturnType<typeof setTimeout> | null = null
+// Monotonic token: each prepareAndJump call increments this, and stale
+// prefetches (a slow round-skip prefetch that resolves after the user
+// taps belt-skip) bail out instead of jumping to a now-stale target.
+let skipPrepToken = 0
+const clearSkipPrepDialog = () => {
+  if (skipPrepShowTimer) {
+    clearTimeout(skipPrepShowTimer)
+    skipPrepShowTimer = null
+  }
+  skipPrepVisible.value = false
+  skipPrepMessage.value = ''
+}
+
 // Watch SimplePlayer phase and map to UI phase (using local Phase constant)
 watch(pendingPhase, (phase) => {
   const phaseMap: Record<string, string> = {
@@ -6119,6 +6144,112 @@ const cancelInFlightLap = () => {
   audioController.value?.stop()
 }
 
+/**
+ * Extract audio IDs from a cycle's url fields (`/api/audio/<uuid>`). Used
+ * by the skip-prep prefetch path so we can warm the IndexedDB cache
+ * before jumping. Returns just the UUIDs (not full URLs); callers feed
+ * them to audioCache.persistent.ensure(). Skips blob-URL fields silently
+ * — those are already local.
+ */
+const extractAudioIdsFromCycle = (cycle: any): string[] => {
+  if (!cycle) return []
+  const ids: string[] = []
+  const urls = [cycle.known?.audioUrl, cycle.target?.voice1Url, cycle.target?.voice2Url]
+  for (const url of urls) {
+    if (!url || typeof url !== 'string') continue
+    if (url.startsWith('blob:')) continue
+    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
+    if (match) ids.push(match[1])
+  }
+  return ids
+}
+
+/**
+ * Skip-prep dialog wrapper for belt-skip / round-skip / belt-back.
+ *
+ * Sequence:
+ *   1. Bump skipPrepToken (cancels any in-flight prep so we don't jump
+ *      to a stale target).
+ *   2. Arm a 200ms timer to show the dialog with `message`. Mirrors the
+ *      bufferingPromptVisible threshold so an instant skip on a warm
+ *      cache doesn't flicker the dialog.
+ *   3. Look up the destination round, extract audio IDs from its first
+ *      cycle, race audioCache.persistent.ensure on each against a 5s
+ *      ceiling so a permanent network failure can't deadlock the skip.
+ *   4. Check the token before jumping. If a fresh skip superseded ours
+ *      (or the user navigated away), bail out — the newer skip owns
+ *      the next jumpToRound.
+ *   5. Clear the dialog, invoke `doJump()`. `doJump` is responsible for
+ *      calling simplePlayer.jumpToRound (or jumpToSeed) — the prep
+ *      itself doesn't navigate, so callers can carry side effects
+ *      (mode flips, belt anchoring, infplay regen) around the jump.
+ *
+ * Cancellation rules:
+ *   - Each new prepareAndJump increments the token; a stale prefetch
+ *     resolves but its token check fails and it returns without jumping.
+ *   - clearSkipPrepDialog() is called on success and on the token-stale
+ *     path, so the dialog never lingers.
+ *
+ * `targetRoundIndex` is what we read the destination cycle from. For
+ * belt-skip-by-seed (handleSkipToNextBelt), the caller resolves the seed
+ * to a round index via simplePlayer.findRoundIndexForSeed first.
+ */
+const prepareAndJump = async (
+  targetRoundIndex: number,
+  message: string,
+  doJump: () => void,
+): Promise<void> => {
+  // Cancel any in-flight prep — its token becomes stale.
+  skipPrepToken += 1
+  const myToken = skipPrepToken
+  // Clear any stale visibility from the previous prep before arming.
+  if (skipPrepShowTimer) {
+    clearTimeout(skipPrepShowTimer)
+    skipPrepShowTimer = null
+  }
+  // Arm dialog with new message. We set the message now (cheap) so it's
+  // ready if the timer fires — avoids a 1-frame flash of stale text.
+  skipPrepMessage.value = message
+  skipPrepShowTimer = setTimeout(() => {
+    // Only surface the dialog if this prep is still the live one.
+    if (myToken === skipPrepToken) {
+      skipPrepVisible.value = true
+    }
+    skipPrepShowTimer = null
+  }, 200)
+
+  try {
+    // Read destination from cachedRounds (the local mirror of simplePlayer's
+    // queue). If out-of-bounds we still call doJump — the caller may want
+    // to fall through to whatever path generates the missing rounds.
+    const targetRound = cachedRounds.value[targetRoundIndex]
+    const firstCycle = targetRound?.cycles?.[0]
+    const audioIds = extractAudioIdsFromCycle(firstCycle)
+    if (audioIds.length > 0) {
+      const ensurePromise = Promise.all(
+        audioIds.map((id) => audioCache.persistent.ensure(id).catch(() => { /* silent */ })),
+      )
+      // 5s ceiling so a permanent network failure can't deadlock the skip.
+      // Past the ceiling we fall through and let SimplePlayer's existing
+      // ensureKnownReady + retry-once-then-halt machinery handle it cleanly.
+      await Promise.race([
+        ensurePromise,
+        new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+      ])
+    }
+  } catch (err) {
+    console.warn('[LearningPlayer] skip-prep prefetch threw — falling through:', err)
+  }
+
+  // Token check — a newer skip may have superseded us mid-prefetch.
+  if (myToken !== skipPrepToken) {
+    return
+  }
+
+  clearSkipPrepDialog()
+  doJump()
+}
+
 const handleSkip = async () => {
   logEvent('tap_skip', {
     during: playingPodLapAudio.value ? 'pod_lap'
@@ -6160,15 +6291,21 @@ const handleSkip = async () => {
 
   console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
-  // Use SimplePlayer — jumpToRound preserves play state (paused stays paused)
+  // Use SimplePlayer — jumpToRound preserves play state (paused stays paused).
+  // Wrap in prepareAndJump so the destination cycle's audio is JIT-prefetched
+  // before we land on it; if the prefetch takes >200ms a "Next round…" dialog
+  // surfaces. Belt position update + the actual jump live inside the doJump
+  // closure so a superseded skip (token bump) skips both.
   console.log('[LearningPlayer] Using SimplePlayer jumpToRound (skip)')
   isSkipInProgress.value = true
   try {
     haltAllPlayback()
     const nextIndex = simplePlayer.roundIndex.value + 1
-    simplePlayer.jumpToRound(nextIndex)
-    // Update belt position to match (positional indicator, not just achievement)
-    updateBeltForPosition(nextIndex)
+    await prepareAndJump(nextIndex, 'Next round…', () => {
+      simplePlayer.jumpToRound(nextIndex)
+      // Update belt position to match (positional indicator, not just achievement)
+      updateBeltForPosition(nextIndex)
+    })
   } finally {
     isSkipInProgress.value = false
   }
@@ -6515,10 +6652,17 @@ const handleSkipToNextBelt = async () => {
         simplePlayer.addRounds(newRounds as any)
       }
     }
-    simplePlayer.jumpToSeed(targetSeed)
-    if (beltProgress.value) {
-      beltProgress.value.setPlayingPosition(targetSeed)
-    }
+    // Resolve the seed → round index AFTER any in-flight script-regen so the
+    // prefetch reads the round that simplePlayer.jumpToSeed will actually land
+    // on. Use the resolved index for prepareAndJump's audio extraction; the
+    // jump itself stays on jumpToSeed (single source of truth for seed→round).
+    const resolvedTargetIdx = simplePlayer.findRoundIndexForSeed(targetSeed)
+    await prepareAndJump(resolvedTargetIdx, 'Fetching next belt…', () => {
+      simplePlayer.jumpToSeed(targetSeed)
+      if (beltProgress.value) {
+        beltProgress.value.setPlayingPosition(targetSeed)
+      }
+    })
     await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
@@ -6589,14 +6733,23 @@ const handleGoBackBelt = async () => {
     }
 
     if (targetSeed <= 1) {
-      simplePlayer.jumpToRound(0)
+      await prepareAndJump(0, 'Fetching previous belt…', () => {
+        simplePlayer.jumpToRound(0)
+        if (beltProgress.value) {
+          beltProgress.value.setPlayingPosition(targetSeed)
+        }
+      })
     } else {
       await loadSeedIfNeeded(targetSeed)
-      simplePlayer.jumpToSeed(targetSeed)
-    }
-
-    if (beltProgress.value) {
-      beltProgress.value.setPlayingPosition(targetSeed)
+      // Resolve to round index AFTER load so prefetch reads the actual
+      // round jumpToSeed lands on (mirrors handleSkipToNextBelt).
+      const resolvedTargetIdx = simplePlayer.findRoundIndexForSeed(targetSeed)
+      await prepareAndJump(resolvedTargetIdx, 'Fetching previous belt…', () => {
+        simplePlayer.jumpToSeed(targetSeed)
+        if (beltProgress.value) {
+          beltProgress.value.setPlayingPosition(targetSeed)
+        }
+      })
     }
 
     // Belt-back is the canonical revisit gesture — write the cursor so
@@ -8969,6 +9122,12 @@ onUnmounted(() => {
   heroResizeObserver?.disconnect()
   heroResizeObserver = null
 
+  // Drop any in-flight skip-prep: bump the token so a still-pending
+  // prefetch's post-await jumpToRound is skipped, and clear the
+  // dialog/timer state so we don't leak on remount.
+  skipPrepToken += 1
+  clearSkipPrepDialog()
+
   // Abort any in-flight instant-playback fetches so we don't keep
   // pulling data the user just navigated away from.
   instantPlayback.cancel()
@@ -9616,6 +9775,9 @@ defineExpose({
               </p>
               <p v-else-if="isPreparingToPlay" class="hero-known loading-text preparing-text">
                 {{ preparingMessage }}<span class="loading-cursor">▌</span>
+              </p>
+              <p v-else-if="skipPrepVisible" class="hero-known loading-text preparing-text">
+                {{ skipPrepMessage }}<span class="loading-cursor">▌</span>
               </p>
               <p v-else-if="bufferingPromptVisible" class="hero-known loading-text preparing-text">
                 {{ bufferingPromptMessage }}<span class="loading-cursor">▌</span>
