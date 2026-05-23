@@ -694,22 +694,23 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // CSS VARS
   // ============================================================================
 
-  // Source from currentBelt (max of playing + highest), not playingBelt.
-  // In normal forward progression the two are equal — playingBelt rises and
-  // checkBeltPromotion lifts highestBeltIndex in lockstep, so the visible
-  // colour shifts with each belt crossing. They diverge in two cases, and
-  // currentBelt is the right choice for both:
-  //   • Belt-skip back (consolidating earlier material): pill stays at the
-  //     highest belt reached; bar should stay there too, not regress to the
-  //     seed's belt colour.
-  //   • INFPLAY: random LEGOs are sampled from across the course, so
-  //     playingBelt flickers through every belt every few rounds. Using
-  //     currentBelt keeps the bar colour stable at the learner's actual
-  //     achievement level.
+  // Source from playingBelt (current cursor position), not currentBelt.
+  //
+  // Tom 2026-05-23: the TOP progress bar (chevron+counter) shows the
+  // learner's current position in the course; manual skip back/forward
+  // should visibly change the bar's belt colour. The pill (resting-state
+  // belt badge) is the achievement view and ratchets via currentBelt.
+  // These two surfaces are intentionally different.
+  //
+  // INFPLAY stays stable automatically: visualLegoIdForRound returns
+  // lastMainLoopLegoId for infplay rounds (not the random USE), so the
+  // setPlayingPosition fed to playingBeltIndex stays anchored at the
+  // course-end belt — no flicker, even though INF PLAY samples random
+  // earlier LEGOs.
   const beltCssVars = computed(() => ({
-    '--belt-color': currentBelt.value.color,
-    '--belt-color-dark': currentBelt.value.colorDark,
-    '--belt-glow': currentBelt.value.glow,
+    '--belt-color': playingBelt.value.color,
+    '--belt-color-dark': playingBelt.value.colorDark,
+    '--belt-glow': playingBelt.value.glow,
   }))
 
   // ============================================================================
