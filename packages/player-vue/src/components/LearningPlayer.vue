@@ -486,14 +486,34 @@ let audioCacheSource: AudioCacheSource | null = null
 // persistent backstop for the next ~30 cycles. Replaces the warm-up
 // surface in the existing instant-playback path (next commit removes
 // the now-redundant code).
-// lookahead=3 (was default 2) — Turbo telemetry 2026-05-23 showed
-// new-LEGO intro/debut/build cycles missing the cache because the
-// ephemeral acquire was losing the race with cycle entry. Widening
-// to 3 LEGOs ahead gives the prefetcher a full extra round of runway
-// before the LEGO actually plays. Cost is small (each LEGO's
-// ephemeral set is ~10-15 audio files at ~30 kB each = ~400 kB more
-// held in IndexedDB at any time).
-const audioPrefetcher = createAudioPrefetcher({ audioCache, lookahead: 3 })
+// Speculative-lookahead policy depends on network speed.
+//
+// Fast network (4g / wifi / unknown): lookahead=3 LEGOs ahead +
+// persistent next-30-cycles. Telemetry from 2026-05-23 Turbo runs
+// showed ~96% blob-URL hit rate under this config.
+//
+// Slow network (3g / 2g / slow-2g): lookahead=0. The 120-ish
+// parallel ensures-per-round-transition the default config triggers
+// saturates the pipe, voice1/voice2 prefetches lose the bandwidth
+// race against the speculative work, and target audio silently
+// fails to load in time (safety timer advances the phase, no
+// audio_failed event fires, learner hears nothing for the targets
+// while known plays fine). Falling back to pure JIT cycle-by-cycle
+// (SimplePlayer.prefetchNextCycle still warms next cycle's three
+// URLs in the SW layer) — confirmed by Tom's 3G stress test on the
+// same day. Trade-off accepted: spaced-rep returns and new-LEGO
+// intros lose the speculative warm, but every play actually plays.
+function isSlowNetwork(): boolean {
+  const conn = (navigator as { connection?: { effectiveType?: string } }).connection
+  if (!conn?.effectiveType) return false
+  return ['slow-2g', '2g', '3g'].includes(conn.effectiveType)
+}
+const networkSlow = isSlowNetwork()
+const audioPrefetcher = createAudioPrefetcher({
+  audioCache,
+  lookahead: networkSlow ? 0 : 3,
+  persistentLookaheadCycles: networkSlow ? 0 : 30,
+})
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
