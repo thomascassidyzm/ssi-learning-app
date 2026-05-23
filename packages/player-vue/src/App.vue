@@ -121,11 +121,29 @@ const invalidateStaleCaches = () => {
     // Now remove them
     keysToRemove.forEach(key => localStorage.removeItem(key))
 
-    // Clear ALL Cache API caches (SW runtime caches: audio, fonts)
-    // This ensures stale 404s or wrong audio never persist across deploys
+    // Clear SW runtime caches on deploy — but PRESERVE ssi-audio-cache.
+    //
+    // 2026-05-23: audio cache wipe-on-deploy was hammering learners on
+    // slow networks. Every deploy → audio cache nuked → every <audio>
+    // play = network round-trip via SW CacheFirst miss. Tom's stress
+    // test showed 57,859 requests / 589 MB transferred over 4 min on
+    // Slow 4G after a single "Update" tap.
+    //
+    // Why the wipe was wrong:
+    //  - Audio UUIDs are content-addressed (UUID = hash of text+role),
+    //    so "wrong audio under same UUID" can't happen
+    //  - Workbox config has cacheableResponse:{statuses:[200]} so 404s
+    //    are never cached in the first place
+    //  - When audio IS regenerated (rare), `checkContentVersion()` in
+    //    useScriptCache fires `caches.delete(AUDIO_CACHE_NAME)` for
+    //    just that course's transition — the right scoped trigger
+    //
+    // Navigation/font caches still get wiped — those benefit from a
+    // fresh fetch on deploy and are tiny.
     if ('caches' in window) {
+      const PRESERVE = new Set(['workbox-precache-v2', 'ssi-audio-cache'])
       caches.keys().then(names => {
-        const cleared = names.filter(n => n !== 'workbox-precache-v2') // keep precache, workbox manages it
+        const cleared = names.filter(n => !PRESERVE.has(n))
         cleared.forEach(name => caches.delete(name))
         if (cleared.length > 0) {
           console.log(`[App] Cleared ${cleared.length} runtime caches:`, cleared)
