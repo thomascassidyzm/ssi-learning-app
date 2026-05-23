@@ -3618,10 +3618,10 @@ const resolveAudioFromCache = async (
     console.error('[resolveAudioFromCache] Invalid audioId:', audioId)
     return null
   }
-  const blobUrl = await audioCache.getBlobUrl(audioId)
-  if (blobUrl) {
-    return { type: 'url', url: blobUrl }
-  }
+  // 2026-05-23: blob URL substitution removed for the same reason as
+  // SimplePlayer.resolveAudioUrl (ed490d9c) and AudioCacheSource:
+  // iOS Safari fails to decode `audio.src = blob:...` reliably. SW
+  // CacheFirst on /api/audio/* serves cached bytes when warm.
   return {
     type: 'url',
     url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,

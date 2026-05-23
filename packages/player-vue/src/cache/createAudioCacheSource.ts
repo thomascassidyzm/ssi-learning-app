@@ -58,16 +58,28 @@ export function createAudioCacheSource(
 
   return {
     async getAudioUrl(audioRef: AudioRef): Promise<string> {
-      const blobUrl = await audioCache.getBlobUrl(audioRef.id)
-      if (blobUrl) {
-        issuedBlobUrls.add(blobUrl)
-        return blobUrl
-      }
-      // Cache miss — let the controller hit the network path.
+      // 2026-05-23: always return the network URL. Blob URLs backed by
+      // IndexedDB blobs reliably break audio playback on iOS Safari
+      // (WKWebView and proper Safari both) — the audio element opens
+      // a media session (Dynamic Island briefly shows the speaker),
+      // can't decode the blob source, and aborts. Same iOS-specific
+      // flake we fixed for SimplePlayer in ed490d9c by dropping
+      // resolveAudioUrl. This is the parallel path I missed:
+      // AudioController.play() routes through getAudioUrl for intro
+      // audio, welcome, commentary, pod laps, and dialogues.
+      //
+      // With streaming-first defaults the SW CacheFirst layer on
+      // /api/audio/* serves cached bytes anyway — same end result
+      // (fast play when warm) without the iOS blob URL drama.
+      //
+      // IDB is still populated by audioCache.persistent.ensure for
+      // driving mode's chunked accumulation + future offline opt-in.
       return audioRef.url
     },
 
     revokeAllBlobUrls(): void {
+      // No-op now that we never issue blob URLs from this source.
+      // Kept for API parity so callers don't need to know.
       for (const url of issuedBlobUrls) {
         URL.revokeObjectURL(url)
       }
