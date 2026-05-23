@@ -486,7 +486,14 @@ let audioCacheSource: AudioCacheSource | null = null
 // persistent backstop for the next ~30 cycles. Replaces the warm-up
 // surface in the existing instant-playback path (next commit removes
 // the now-redundant code).
-const audioPrefetcher = createAudioPrefetcher({ audioCache })
+// lookahead=3 (was default 2) — Turbo telemetry 2026-05-23 showed
+// new-LEGO intro/debut/build cycles missing the cache because the
+// ephemeral acquire was losing the race with cycle entry. Widening
+// to 3 LEGOs ahead gives the prefetcher a full extra round of runway
+// before the LEGO actually plays. Cost is small (each LEGO's
+// ephemeral set is ~10-15 audio files at ~30 kB each = ~400 kB more
+// held in IndexedDB at any time).
+const audioPrefetcher = createAudioPrefetcher({ audioCache, lookahead: 3 })
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
