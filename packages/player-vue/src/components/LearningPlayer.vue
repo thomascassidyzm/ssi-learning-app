@@ -1599,40 +1599,50 @@ watch(
   { immediate: true },
 )
 
-// Phase 4 — deep prefetch. After the full script lands and the eager
-// window is fed, walk the rest of the course in batches so subsequent
-// sessions / offline play have all audio already cached. audioPreloadedRounds
-// dedupes — a round only fetches once per session regardless of which
-// phase triggered it.
+// Phase 4 — deep prefetch.
+//
+// 2026-05-23: DISABLED. This used to walk EVERY remaining round of the
+// course on first load (and again on INF PLAY round append), firing
+// `preloadSimpleRoundAudio` per batch of 5 rounds. For Portuguese
+// (~1+ GB total course audio) this meant downloading basically the
+// entire course in the background after every page refresh.
+//
+// Tom's stress test post-deploy: 57,859 SW CacheFirst requests /
+// 589 MB transferred / 4.1 min of sustained fetching, almost all of
+// it from this deep walk. Same anti-pattern we already removed from
+// `warmUpInfPlayRoundsBackground` (the INF PLAY bulk warm-up) —
+// speculative bulk caching that doesn't match the streaming-first
+// architecture.
+//
+// Streaming-first reasoning (same as the INF PLAY no-op):
+//   ~30 KB × 3 audios per cycle = ~90 KB/cycle, ~15s cycle (incl.
+//   speaking pause) = ~6 KB/s steady-state. Comfortable on 3G.
+//   AudioPrefetcher's per-round JIT (persistentLookaheadCycles=3) +
+//   SimplePlayer.prefetchNextCycle priority hints cover the playback
+//   path inside that envelope.
+//
+// Explicit full-course caching for offline use is provided by
+// driving mode's chunked prefetch and the future paid "Download for
+// offline" opt-in — both opt-in, both bounded by maxBytes.
+//
+// Function kept as a no-op (rather than deleted) so the call site
+// stays in tree-shake-safe shape for the same reasons documented on
+// `warmUpInfPlayRoundsBackground`.
 let deepPrefetchRunning = false
 async function deepPrefetchRestOfCourse() {
+  // intentional no-op — see docblock above
   if (deepPrefetchRunning) return
-  deepPrefetchRunning = true
-  try {
-    const total = loadedRounds.value?.length ?? 0
-    if (!total) return
-    const startFrom = (simplePlayer.roundIndex.value ?? 0) + AUDIO_EAGER_AHEAD
-    for (let i = startFrom; i < total; i += AUDIO_DEEP_BATCH) {
-      // Serialise batches so we don't blast hundreds of concurrent fetches.
-      await preloadSimpleRoundAudio(loadedRounds.value, AUDIO_DEEP_BATCH, i)
-    }
-    console.log(`[AudioPrefetch] Deep walk complete: ${total - startFrom} rounds preloaded`)
-  } catch (err) {
-    console.warn('[AudioPrefetch] Deep walk failed:', err)
-  } finally {
-    deepPrefetchRunning = false
-  }
+  deepPrefetchRunning = false
+  return
 }
 
-// Kick off deep prefetch once loadedRounds is populated (which happens
-// when the full-script handoff lands). One-shot — re-runs are no-ops via
-// audioPreloadedRounds dedup, but the watcher won't re-fire unless the
-// total round count actually changes (e.g. new infplay rounds appended).
+// Watcher kept wired (does nothing now that the callee is a no-op).
+// Same reasoning as above — preserves a single grep handle if we ever
+// revive an opt-in version.
 watch(
   () => loadedRounds.value?.length,
   (total, prev) => {
     if (!total || total === prev) return
-    // Defer one tick so the eager preload kicks off first.
     void Promise.resolve().then(deepPrefetchRestOfCourse)
   },
 )
