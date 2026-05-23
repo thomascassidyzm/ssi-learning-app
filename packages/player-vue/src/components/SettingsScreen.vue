@@ -1422,14 +1422,21 @@ const confirmReset = async () => {
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div class="divider"></div>
-
-          <!-- Clear Cache & Reload -->
+      <!-- Troubleshooting — always visible recovery tool. 2026-05-23:
+           moved out of the admin-gated Developer section so any user
+           hitting cache-related bugs can reach it. handleClearCacheAndReload
+           preserves Supabase auth across the wipe so signed-in users stay
+           signed in (anonymous users were never signed in to start). -->
+      <section class="section">
+        <h3 class="section-title">Troubleshooting</h3>
+        <div class="card">
           <div class="setting-row clickable danger" @click="handleClearCacheAndReload">
             <div class="setting-info">
               <span class="setting-label">{{ isClearingCache ? 'Clearing...' : 'Clear Cache & Reload' }}</span>
-              <span class="setting-desc">Clear all local data, service workers, and reload</span>
+              <span class="setting-desc">Clear all local data, service workers, and reload. Stays signed in.</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
