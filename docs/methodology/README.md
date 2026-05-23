@@ -8,6 +8,7 @@
 | File | Status | Description |
 |------|--------|-------------|
 | [listening-layers.md](./listening-layers.md) | Design | Layer 1 (reactivation) and Layer 2 (acquisition) listening system |
+| [metrics-architecture.md](./metrics-architecture.md) | Design | Two-axis (difficulty × execution) metrics layer; no-ASR prosody capture; self-assessment calibration from phase-pill clicks; CEFR-via-calibration roadmap anchored on SSi's 17-year empirical baseline |
 
 ## Adding New Methodology
 

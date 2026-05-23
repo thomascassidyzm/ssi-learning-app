@@ -8,6 +8,7 @@ const TeachContainer = () => import('@/containers/TeachContainer.vue')
 const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
+const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
 const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
 // Schools views (lazy-loaded)
@@ -387,6 +388,30 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/InstallGuide.vue'),
     meta: { title: 'Install App' },
   },
+  // Methodology explainer pages — admin-gated initially. See
+  // docs/methodology/metrics-architecture.md §9 (Methodology explainer pages).
+  // Spec-by-demonstration: each page renders a working visualisation of a
+  // principle from the metrics-architecture spec using real (anonymised)
+  // learner data. Settings toggles will link here to demystify what each
+  // option measures and what the learner gets back from turning it on.
+  {
+    path: '/methodology',
+    component: MethodologyContainer,
+    children: [
+      {
+        path: '',
+        name: 'methodology',
+        component: () => import('@/views/methodology/MethodologyView.vue'),
+        meta: { title: 'Methodology', description: 'Methodology explainer pages — admin' },
+      },
+      {
+        path: 'empirical-baseline',
+        name: 'methodology-empirical-baseline',
+        component: () => import('@/views/methodology/EmpiricalBaselineView.vue'),
+        meta: { title: 'Empirical baseline', description: 'Population distribution of practice hours with 30/100-hour anchors' },
+      },
+    ],
+  },
   // Catch-all redirect to player
   {
     path: '/:pathMatch(.*)*',
@@ -405,9 +430,14 @@ const router = createRouter({
   },
 })
 
-// Guard admin routes — useUserRole is the single authority.
+// Guard admin + methodology routes — useUserRole is the single authority.
+// Methodology pages are admin-gated initially (see metrics-architecture.md §9);
+// individual pages may be opened to all learners later as we add a per-route
+// `meta.public: true` flag, but for now everything under /methodology requires
+// ssi_admin / god.
 router.beforeEach((to, _from, next) => {
-  if (!to.path.startsWith('/admin')) return next()
+  const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/methodology')
+  if (!requiresAdmin) return next()
   const { canAccessAdmin, restoreFromCache } = useUserRole()
   restoreFromCache()
   return canAccessAdmin.value ? next() : next('/')
