@@ -6902,30 +6902,39 @@ simplePlayer.setRuntimeOverrides({
     }
     return false
   },
-  // Pre-PROMPT gate: don't enter the prompt phase until the cycle's
-  // known audio is in the local cache. A cache miss at cycle-creation
-  // time leaves the URL pointing at /api/audio/<id>; without this gate
-  // the audio element would start loading from network during PROMPT
-  // and a safety timer can advance to PAUSE before any bytes play —
-  // the learner hears silence where the prompt should be. The cycle
-  // IS the prompt; we can't omit it. Bounded to 5s so a permanent
-  // network failure can't deadlock the player — after that we fall
-  // through to playAudio and the existing retry-once-then-halt path
-  // produces a clean halt instead of silent skip.
-  ensureKnownReady: async (cycle) => {
-    const url = (cycle as any)?.known?.audioUrl as string | undefined
-    if (!url) return
-    // Already a local blob — nothing to wait for.
-    if (url.startsWith('blob:')) return
-    // Proxy URL pattern: /api/audio/<uuid>. Extract id and ensure cache.
-    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
-    if (!match) return
-    const audioId = match[1]
-    await Promise.race([
-      audioCache.persistent.ensure(audioId),
-      new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-    ])
-  },
+  // ensureKnownReady: REMOVED 2026-05-23.
+  //
+  // The gate's purpose was to prevent "silent prompts" — entering PROMPT
+  // before the known audio had landed locally meant the audio element
+  // had to load from network during PROMPT and a safety timer could
+  // advance to PAUSE before any bytes played. The gate awaited
+  // audioCache.persistent.ensure(audioId) before PROMPT entry.
+  //
+  // The problem: that pre-fetch uses fetch() with no Range header. The
+  // SW intercepts it (CacheFirst on /api/audio/*) and on cache miss
+  // goes to origin, gets a full 200 response, caches it. Then the
+  // audio element later sends a Range request for that audio. The SW
+  // returns the cached 200 instead of a 206. iOS Safari can't handle
+  // 200-in-response-to-Range — plays the buffered chunk (~0.5s) then
+  // stalls forever waiting for the next range. 'ended' never fires.
+  // Safety timer advances 10s later; cycle aborts; cascade.
+  //
+  // Tom verified the failure pattern via Safari Web Inspector on iOS:
+  //   [SimplePlayer] Safety timeout — audio ended event never fired
+  //   [SimplePlayer] play() rejected: "The operation was aborted."
+  //
+  // Streaming-first principle: the audio element IS the primary
+  // fetcher. Its Range request goes direct to origin first (or SW
+  // cache miss → origin), origin returns 206, SW caches 206,
+  // subsequent plays serve cached 206. iOS happy.
+  //
+  // Trade-off: cold-cache cycles play their PROMPT audio with a
+  // brief network wait (1-2s on 4G) instead of being gated until
+  // cached. The buffering dialog in LearningPlayer (driven by
+  // SimplePlayer's 'buffering' phase) is no longer needed; the audio
+  // element's own readyState handles the wait visually as a brief
+  // pause before audio starts. Matches the pre-yesterday behaviour
+  // that worked on iOS Safari.
   // resolveAudioUrl: removed 2026-05-23.
   //
   // The override used to rewrite `/api/audio/<id>` to a `blob:...` URL
