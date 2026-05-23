@@ -42,6 +42,7 @@
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^1.0.0",
-    "vue-tsc": "^2.0.6"
+    "vue-tsc": "^2.0.6",
+    "workbox-range-requests": "^7.4.0"
   }
 }

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
+import { RangeRequestsPlugin } from 'workbox-range-requests'
 import { fileURLToPath, URL } from 'node:url'
 
 // Generate build info at build time
@@ -97,6 +98,15 @@ export default defineConfig(({ mode }) => ({
             },
           },
           // Audio proxy - primary path for audio delivery
+          //
+          // RangeRequestsPlugin is REQUIRED for iOS Safari. iOS sends
+          // `Range: bytes=0-1` (and subsequent ranges) for <audio> sources;
+          // without this plugin, CacheFirst returns the cached FULL 200
+          // body to a Range request, which iOS treats as a protocol
+          // violation — it plays the buffered head (~0.5s) then tears the
+          // media element down. Bit us 2026-05-22→23 once the blob-URL
+          // substitutions (the inadvertent workaround that kept iOS off
+          // the SW path) were stripped out.
           {
             urlPattern: /\/api\/audio\/.*/i,
             handler: 'CacheFirst',
@@ -109,6 +119,7 @@ export default defineConfig(({ mode }) => ({
               cacheableResponse: {
                 statuses: [200],  // ONLY cache 200 — never cache errors
               },
+              plugins: [new RangeRequestsPlugin()],
             },
           },
           // S3 audio direct - fallback for offline scenarios
@@ -124,6 +135,7 @@ export default defineConfig(({ mode }) => ({
               cacheableResponse: {
                 statuses: [200],  // ONLY cache 200 — never cache opaque or error responses
               },
+              plugins: [new RangeRequestsPlugin()],
             },
           },
         ],
