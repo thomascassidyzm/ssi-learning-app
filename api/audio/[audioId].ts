@@ -154,10 +154,26 @@ export default async function handler(
     }
     const sample: AudioRecord = validation.value
 
+    // Forward the client's Range header to S3. iOS Safari ALWAYS requests
+    // <audio> via Range (starts with `bytes=0-1` to probe, then real
+    // ranges). The response to a Range request MUST be `206 Partial
+    // Content` with `Content-Range` + `Accept-Ranges`. Previously this
+    // proxy ignored Range and always sent a full body with status 200;
+    // Vercel's CDN then sliced that 200 to satisfy the Range but KEPT the
+    // 200 status — a 2-byte body with a `200 OK` + `Content-Range` that
+    // claims a much larger total. iOS treats that contradiction as a
+    // broken resource, plays nothing usable, and retries in a tight loop
+    // until the player gives up. Chrome tolerates it, which is why it only
+    // failed on Safari. S3 honours Range natively and returns the right
+    // partial + ContentRange, so we just pass the header through and
+    // mirror S3's 206.
+    const rangeHeader = typeof req.headers.range === 'string' ? req.headers.range : undefined
+
     // Fetch audio from S3 using AWS SDK
     const command = new GetObjectCommand({
       Bucket: s3Bucket,
       Key: sample.s3_key,
+      ...(rangeHeader ? { Range: rangeHeader } : {}),
     })
 
     try {
@@ -173,8 +189,17 @@ export default async function handler(
       res.setHeader('Access-Control-Allow-Origin', '*')
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+      // Advertise range support so iOS issues proper byte-range requests.
+      res.setHeader('Accept-Ranges', 'bytes')
 
-      if (contentLength) {
+      // If the client asked for a range and S3 returned a partial, mirror
+      // it as a real 206. Otherwise fall through to a normal 200.
+      const isPartial = !!rangeHeader && !!s3Response.ContentRange
+      if (isPartial) {
+        res.setHeader('Content-Range', s3Response.ContentRange!)
+        if (contentLength) res.setHeader('Content-Length', contentLength.toString())
+        res.status(206)
+      } else if (contentLength) {
         res.setHeader('Content-Length', contentLength.toString())
       }
 
