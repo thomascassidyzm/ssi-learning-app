@@ -681,11 +681,33 @@ const toggleVerboseLogging = () => {
   dispatchSettingChanged('enableVerboseLogging', enableVerboseLogging.value)
 }
 
-// Clear all caches and reload (same as ?reset=1 but accessible from PWA)
+// Clear all caches and reload (less destructive than ?reset=1 — preserves
+// Supabase auth so the user stays signed in across the wipe).
+//
+// 2026-05-23: this button is gated behind sign-in (it lives in Settings),
+// so wiping the auth token alongside everything else immediately signed
+// the user out — a circular UX trap that made the recovery tool useless
+// for debugging without a re-login round-trip. Auth tokens are signed by
+// Supabase and remain valid across localStorage clear if we restore them
+// afterwards. ?reset=1 stays as the nuclear option that does wipe auth
+// too (different intent: full factory reset).
 const isClearingCache = ref(false)
 const handleClearCacheAndReload = async () => {
   isClearingCache.value = true
   console.log('[Settings] Clearing all caches and reloading...')
+
+  // Grab any Supabase auth keys before we clear — typically
+  // `sb-<project-ref>-auth-token` and friends. Restore after clear so
+  // the user stays signed in.
+  const authKeys: Array<[string, string]> = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (!key) continue
+    if (key.startsWith('sb-')) {
+      const value = localStorage.getItem(key)
+      if (value !== null) authKeys.push([key, value])
+    }
+  }
 
   try {
     // Clear localStorage
@@ -706,6 +728,11 @@ const handleClearCacheAndReload = async () => {
     ])
   } catch (err) {
     console.warn('[Settings] Error during cache clear:', err)
+  }
+
+  // Restore auth so the user doesn't get bounced to the sign-in screen.
+  for (const [key, value] of authKeys) {
+    try { localStorage.setItem(key, value) } catch { /* quota etc */ }
   }
 
   // Reload clean
