@@ -225,6 +225,12 @@ export interface BundlePodSentence {
   glueToNext: boolean
   targetAudio?: BundleAudioRef
   knownAudio?: BundleAudioRef
+  /** Tom-voiced bilingual chunk-by-chunk explainer for this sentence
+   *  ("'X' means Y. 'A' means B."). Optional — populated for sentences
+   *  Popty's pod-explainer pipeline has rendered, omitted otherwise (one-
+   *  chunk intentional skips, upstream gaps). The lap scheduler drops the
+   *  'explainer' slot from a sentence's playlist when this is missing. */
+  explainerAudio?: BundleAudioRef
 }
 
 /**

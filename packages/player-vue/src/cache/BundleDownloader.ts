@@ -308,11 +308,14 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       // this order with role/speed driven by the active stage playlist,
       // but the underlying audio file is the same — caching globalOrder
       // ascending means lap N has the cache primed for sentence k before
-      // the lap reaches it.
+      // the lap reaches it. Explainer audio (Tom-voiced bilingual
+      // breakdown) sits alongside target+known — fires in Stage 1 of
+      // the playlist and needs the same gapless availability.
       const orderedSentences = [...pod.sentences].sort((a, b) => a.globalOrder - b.globalOrder)
       for (const sentence of orderedSentences) {
         yieldRef(sentence.targetAudio)
         yieldRef(sentence.knownAudio)
+        yieldRef(sentence.explainerAudio)
       }
       yieldRef(pod.outroAudio)
     }

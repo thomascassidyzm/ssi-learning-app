@@ -123,6 +123,9 @@ interface PodSentenceRow {
   known_text: string | null
   target_audio_id: string | null
   known_audio_id: string | null
+  /** Tom-voiced bilingual chunk-by-chunk explainer audio. Optional — only
+   *  populated for sentences Popty's pod-explainer pipeline has rendered. */
+  explainer_audio_id: string | null
   glue_to_next: boolean | null
 }
 
@@ -421,7 +424,7 @@ export default async function handler(
     if (podRows.length > 0) {
       const sentencesRes = await supabase
         .from('listening_pod_sentences')
-        .select('pod_id, global_order, target_text, known_text, target_audio_id, known_audio_id, glue_to_next')
+        .select('pod_id, global_order, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next')
         .in('pod_id', podRows.map((p) => p.id))
         .order('global_order', { ascending: true })
       if (sentencesRes.error) {
@@ -446,6 +449,7 @@ export default async function handler(
     for (const row of podSentenceRows) {
       const target = buildAudioRef(row.target_audio_id, 'persistent', null)
       const known = buildAudioRef(row.known_audio_id, 'persistent', null)
+      const explainer = buildAudioRef(row.explainer_audio_id, 'persistent', null)
       const sentence: BundlePodSentence = {
         globalOrder: row.global_order,
         knownText: row.known_text ?? '',
@@ -454,6 +458,7 @@ export default async function handler(
       }
       if (target) sentence.targetAudio = target
       if (known) sentence.knownAudio = known
+      if (explainer) sentence.explainerAudio = explainer
       let bucket = sentencesByPod.get(row.pod_id)
       if (!bucket) { bucket = []; sentencesByPod.set(row.pod_id, bucket) }
       bucket.push(sentence)
