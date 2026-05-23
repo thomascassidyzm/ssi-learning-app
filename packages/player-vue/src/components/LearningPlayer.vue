@@ -3710,30 +3710,25 @@ watch(() => cyclePlaybackState.value.phase, (phase) => {
   currentPhase.value = cyclePhaseToUiPhase(phase)
 })
 
-// Buffering-prompt dialog message — surfaces a subtle "still fetching"
-// note ONLY when the gate in SimplePlayer.startPhase('prompt') has to
-// actually wait for the known audio to land in the local cache. 200ms
-// threshold so the common-case fast resolve (in-flight fetch already
-// underway from BundleDownloader) doesn't flicker the message at all;
-// only the slow-path miss surfaces it. Cleared the moment phase moves
-// off 'buffering' to anything else — prompt, idle, pause, etc.
+// Buffering-prompt dialog message — surfaces when the gate in
+// SimplePlayer.startPhase('prompt') is waiting for known audio.
+//
+// 2026-05-23: 200ms threshold removed. The threshold was meant to
+// avoid flicker on fast cache resolves, but it caused a worse UX
+// bug: jumpToRound updates currentCycle synchronously → the new
+// phrase text rendered immediately → then 200ms later the buffering
+// dialog replaced it → then the dialog disappeared and the text
+// returned for actual play. Sequence looked like "phrase ready /
+// just kidding, fetching / actually ready" — confusing.
+//
+// New behaviour: dialog shows the instant phase = 'buffering' (no
+// delay). On a fast cache resolve the dialog may flash for a few
+// ms before disappearing, but the phrase text is never exposed
+// prematurely, which is the principle that matters.
 const bufferingPromptVisible = ref(false)
 const bufferingPromptMessage = 'Just grabbing the next phrase…'
-let bufferingShowTimer: ReturnType<typeof setTimeout> | null = null
 watch(() => simplePlayer.phase.value, (phase) => {
-  if (phase === 'buffering') {
-    if (bufferingShowTimer) clearTimeout(bufferingShowTimer)
-    bufferingShowTimer = setTimeout(() => {
-      bufferingPromptVisible.value = true
-      bufferingShowTimer = null
-    }, 200)
-  } else {
-    if (bufferingShowTimer) {
-      clearTimeout(bufferingShowTimer)
-      bufferingShowTimer = null
-    }
-    bufferingPromptVisible.value = false
-  }
+  bufferingPromptVisible.value = phase === 'buffering'
 })
 
 // Skip-prep dialog — same 200ms-threshold pattern as bufferingPromptVisible,
