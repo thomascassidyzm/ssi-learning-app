@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
-import { RangeRequestsPlugin } from 'workbox-range-requests'
 import { fileURLToPath, URL } from 'node:url'
 
 // Generate build info at build time
@@ -97,47 +96,21 @@ export default defineConfig(({ mode }) => ({
               expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
-          // Audio proxy - primary path for audio delivery
+          // NOTE: audio is deliberately NOT cached by the service worker.
           //
-          // RangeRequestsPlugin is REQUIRED for iOS Safari. iOS sends
-          // `Range: bytes=0-1` (and subsequent ranges) for <audio> sources;
-          // without this plugin, CacheFirst returns the cached FULL 200
-          // body to a Range request, which iOS treats as a protocol
-          // violation — it plays the buffered head (~0.5s) then tears the
-          // media element down. Bit us 2026-05-22→23 once the blob-URL
-          // substitutions (the inadvertent workaround that kept iOS off
-          // the SW path) were stripped out.
-          {
-            urlPattern: /\/api\/audio\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'ssi-audio-cache',
-              expiration: {
-                maxEntries: 1000,
-                maxAgeSeconds: 60 * 60 * 24 * 30,  // 30 days
-              },
-              cacheableResponse: {
-                statuses: [200],  // ONLY cache 200 — never cache errors
-              },
-              plugins: [new RangeRequestsPlugin()],
-            },
-          },
-          // S3 audio direct - fallback for offline scenarios
-          {
-            urlPattern: /^https:\/\/ssi-audio.*\.s3\..*\.amazonaws\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'ssi-audio-cache',
-              expiration: {
-                maxEntries: 1000,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
-              cacheableResponse: {
-                statuses: [200],  // ONLY cache 200 — never cache opaque or error responses
-              },
-              plugins: [new RangeRequestsPlugin()],
-            },
-          },
+          // The SW intercepting /api/audio with CacheFirst was the source
+          // of a long-running iOS Safari class of bug: iOS requires a 206
+          // for <audio> Range requests, and the SW (and Vercel's edge)
+          // served cached bodies in ways that flapped working/broken across
+          // launches as the SW version cycled (prompt/skipWaiting:false).
+          //
+          // We're streaming-first now: audio goes straight to the origin
+          // proxy (which returns correct 206s) and the browser's own HTTP
+          // cache handles per-device repeat plays. Reliable OFFLINE is a
+          // separate, deliberate path — the download bundle + IndexedDB
+          // AudioCache ('ssi-audio-cache-v2'), independent of the SW. So
+          // the SW has no business in the audio path; removing it makes
+          // every launch behave identically. (2026-05-24)
         ],
       },
 
