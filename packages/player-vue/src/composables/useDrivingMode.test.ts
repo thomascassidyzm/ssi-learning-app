@@ -25,6 +25,12 @@ describe('useDrivingMode hardening', () => {
       expect(source).toContain('PLAY_RETRY_DELAY_MS = 1000')
       expect(source).toContain('PLAY_MAX_RETRIES = 2')
     })
+
+    it('defaults the chunked-prefetch size to 50 MB', () => {
+      // Tom's spec: ~50 MB per chunk so activation isn't gated on the
+      // long tail. Constant must stay in sync with the brief.
+      expect(source).toContain('DEFAULT_CHUNK_BYTES = 50 * 1024 * 1024')
+    })
   })
 
   describe('preloadGeneration pattern', () => {
@@ -68,6 +74,46 @@ describe('useDrivingMode hardening', () => {
     it('stops stall detection on cleanup', () => {
       expect(source).toMatch(/function cleanup[\s\S]*?stopStallDetection/)
       expect(source).toMatch(/function cleanup[\s\S]*?preloadGeneration = 0/)
+    })
+  })
+
+  describe('chunked prefetch (cache warm before concatenation)', () => {
+    it('declares optional prefetchAudio + getRoundAudioIds options', () => {
+      // These are the contract surface for chunked downloads — the caller
+      // (LearningPlayer) wires them to BundleDownloader.
+      expect(source).toContain('prefetchAudio?:')
+      expect(source).toContain('getRoundAudioIds?:')
+      expect(source).toContain('chunkBytes?:')
+    })
+
+    it('calls prefetchForRound before concatenateRound inside loadRound', () => {
+      // Order matters: cache warm THEN concat. Otherwise concat does its
+      // own (serial, slow) network fetches and the prefetch is wasted.
+      expect(source).toMatch(
+        /await prefetchForRound\([\s\S]*?await concatenateRound/,
+      )
+    })
+
+    it('passes maxBytes from chunkBytes option into prefetchAudio', () => {
+      // The size cap is the whole point of chunking — verify the option
+      // actually reaches the caller.
+      expect(source).toMatch(/options\.prefetchAudio\([\s\S]*?maxBytes/)
+    })
+
+    it('absorbs prefetch errors so concatenation falls back to direct fetch', () => {
+      // The brief: "Errors from prefetch are absorbed — concatenateRound
+      // has its own fallback path." Verify the try/catch is in place.
+      expect(source).toMatch(
+        /async function prefetchForRound[\s\S]*?try \{[\s\S]*?await options\.prefetchAudio[\s\S]*?\} catch/,
+      )
+    })
+
+    it('no-ops cleanly when caller did not wire chunked prefetch', () => {
+      // Backward compat: existing callers (and tests, demos) don't pass
+      // prefetchAudio/getRoundAudioIds. Source must guard against undefined.
+      expect(source).toMatch(
+        /if \(!options\.prefetchAudio \|\| !options\.getRoundAudioIds\) return/,
+      )
     })
   })
 })

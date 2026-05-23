@@ -55,7 +55,7 @@ import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
-import { simpleRoundToTypedCycles } from '../utils/drivingModeAdapter'
+import { simpleRoundToTypedCycles, audioIdsForSimpleRound, createChunkedPrefetch } from '../utils/drivingModeAdapter'
 import ContributionCounter from './learner/ContributionCounter.vue'
 import ProgressModal from './ProgressModal.vue'
 import { useContribution } from '../composables/useContribution'
@@ -68,7 +68,7 @@ import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
-import type { BundleDownloader } from '../cache/BundleDownloader'
+import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 import { generateScript as generateBundleScript } from '../script/generateScript'
 
@@ -6796,6 +6796,29 @@ const drivingMode = useDrivingMode({
   },
   getTotalRounds: () => cachedRounds.value?.length ?? 0,
   getAudioSource: resolveAudioFromCache,
+  // Chunked-prefetch wiring — driving mode now activates as soon as
+  // the current round's audio is in cache (phase 1, ~3 MB parallel),
+  // with 50 MB chunks accumulating behind the learner via
+  // BundleDownloader (phase 2). See createChunkedPrefetch.
+  getRoundAudioIds: (roundIndex: number) => {
+    const rounds = cachedRounds.value
+    if (!rounds || roundIndex < 0 || roundIndex >= rounds.length) return []
+    return audioIdsForSimpleRound(rounds[roundIndex].cycles ?? [])
+  },
+  prefetchAudio: createChunkedPrefetch({
+    audioCache,
+    getBundle: () => courseBundle.bundle.value,
+    getDownloader: () => {
+      // Lazy-init on first prefetch — by the time the learner taps the
+      // driving-mode button the bundle has typically loaded (cache-first
+      // localStorage path). Falls back to null until then; phase 1
+      // direct ensures still run, phase 2 background fill skipped.
+      if (bundleDownloader) return bundleDownloader
+      if (!courseBundle.bundle.value) return null
+      bundleDownloader = createBundleDownloader({ audioCache })
+      return bundleDownloader
+    },
+  }),
   onRoundChange: (newRoundIndex: number) => {
     if (drivingModeInitialRound === null) {
       drivingModeInitialRound = newRoundIndex
