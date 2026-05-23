@@ -349,14 +349,23 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
   /**
    * Fire-and-forget warm-up of the next lap's audio. Pods live behind a
-   * full round (~5 min) of buffer when prefetched on round entry, so we
-   * use priority='low' — the prefetch shouldn't compete with current
-   * cycle's known audio (high) or next cycle's known prefetch (high).
+   * full round (~5 min) of buffer when prefetched on round entry.
    *
-   * No-op if there's no lap to fetch. Idempotent — repeated calls just
-   * hit the SW cache layer redundantly which is harmless.
+   * If `ensureFn` is provided, audio is landed in IndexedDB via that
+   * callback (typically `audioCache.persistent.ensure`). The pod playback
+   * path resolves URLs through AudioCacheSource at play time, so once
+   * the bytes are in IndexedDB, playback uses blob URLs — no SW
+   * round-trip per play. Aligns with the "asset + program" architecture
+   * for main-flow pod laps where stage-driven gapless playback matters.
+   *
+   * Fallback (no ensureFn): warm the SW CacheFirst layer via plain
+   * fetch with priority='low'. Still cached, but goes through SW on
+   * playback.
+   *
+   * No-op if there's no lap to fetch. Idempotent — repeat calls are
+   * dedup'd by the underlying cache layer.
    */
-  const prefetchLap = (): void => {
+  const prefetchLap = (ensureFn?: (audioId: string) => Promise<void>): void => {
     if (podSentences.value.length === 0) return
     const lap = nextLap()
     if (!lap) return
@@ -366,9 +375,15 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     for (const p of lap.plays) {
       if (p.audioId) ids.add(p.audioId)
     }
-    for (const id of ids) {
-      const url = `/api/audio/${id}`
-      fetch(url, { priority: 'low' }).catch(() => undefined)
+    if (ensureFn) {
+      for (const id of ids) {
+        ensureFn(id).catch(() => undefined)
+      }
+    } else {
+      for (const id of ids) {
+        const url = `/api/audio/${id}`
+        fetch(url, { priority: 'low' }).catch(() => undefined)
+      }
     }
   }
 

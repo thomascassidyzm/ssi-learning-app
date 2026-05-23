@@ -3426,10 +3426,16 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
 
     // Look one round ahead: if the round about to start will end with a
     // pod, warm its audio now. The round gives ~5 min of runway —
-    // comfortable for any working network. Low priority so it doesn't
-    // compete with main-flow audio (known high-priority prefetch).
+    // comfortable for any working network.
+    //
+    // We land bytes in IndexedDB via audioCache.persistent.ensure so
+    // pod playback gets blob URLs through the AudioCacheSource adapter
+    // (same path the cycle player uses post-63cae57d). Skips SW
+    // round-trip per play — matters for the stage-driven gapless
+    // playback that pod laps depend on (per the asset + program
+    // architecture model).
     if (podScheduler.shouldFireLapAt(completedMainRound + 1)) {
-      podScheduler.prefetchLap()
+      podScheduler.prefetchLap((id) => audioCache.persistent.ensure(id))
     }
 
     if (podScheduler.shouldFireLapAt(completedMainRound)) {
