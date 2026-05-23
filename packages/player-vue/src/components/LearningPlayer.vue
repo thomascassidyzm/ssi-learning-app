@@ -1344,9 +1344,18 @@ simplePlayer.onCycleCompleted((cycle) => {
   // Record to session tracking (for analytics)
   const completedItem = currentPlayableItem.value
   if (completedItem) {
+    // Legacy round-based playback path — fires the full
+    // recordCycleComplete (helix engine + session checkpoint + opps bump).
     learningSession.recordCycleComplete(completedItem).catch(err => {
       console.error('[LearningPlayer] Failed to record cycle:', err)
     })
+  } else {
+    // SimplePlayer path — currentPlayableItem is never set here, so the
+    // legacy branch above no-ops. We still need the opportunities counter
+    // to advance so `learner_speaking_opportunities.opportunities` (and
+    // the contribution modal's "YOUR PHRASES") actually accumulates.
+    // 2026-05-23: fixes the long-standing "+0 phrases" display.
+    learningSession.bumpOpportunity()
   }
 
   // Persist mid-round cursor so a PWA reload / app close+open mid-round

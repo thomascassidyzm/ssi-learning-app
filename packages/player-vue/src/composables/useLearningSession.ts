@@ -429,6 +429,30 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
   }
 
   /**
+   * Lightweight cycle-complete bump for the SimplePlayer flow.
+   *
+   * `recordCycleComplete` below expects a `LearningItem` from the legacy
+   * round-based playback path (`currentPlayableItem`), which the new
+   * SimplePlayer doesn't populate. Calling it with a null item would
+   * crash the helix-engine branch.
+   *
+   * `bumpOpportunity` is the minimal counterpart — it just advances the
+   * opportunities counter so `learner_speaking_opportunities.opportunities`
+   * actually increments on SimplePlayer cycle completes. Pairs with the
+   * existing wall-clock `play_seconds` accumulation in `markPlayStop`.
+   *
+   * 2026-05-23: added to fix the "phrases = 0 forever" bug visible in the
+   * belt-progress contribution modal. SimplePlayer cycle-complete events
+   * were firing `contribution.incrementLocal()` (UI ticker) but the DB
+   * bump path was gated on the legacy `currentPlayableItem`, which never
+   * fired under SimplePlayer.
+   */
+  const bumpOpportunity = () => {
+    itemsPracticed.value++
+    pendingOppsDelta++
+  }
+
+  /**
    * Record progress for a completed cycle
    */
   const recordCycleComplete = async (item: LearningItem, wasSuccessful: boolean = true, wasSpike: boolean = false) => {
@@ -655,6 +679,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     // Methods
     getNextItem,
     recordCycleComplete,
+    bumpOpportunity,
     checkpointSession,
     saveMetrics,
     endSession,
