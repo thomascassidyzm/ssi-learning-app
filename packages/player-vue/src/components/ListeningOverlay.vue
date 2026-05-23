@@ -182,6 +182,14 @@ const isLoadingMore = ref(false)
 // Audio - use /api/audio proxy for CORS bypass
 const audioMap = ref(new Map())
 
+// Tab-open JIT prefetch — warm the first ~5 rows of the active tab so
+// click-to-play feels instant on slow networks. Cap is deliberate:
+// prefetching the whole tab would chew bandwidth for content the user
+// may never tap (Core for a course = 100s of seeds; All = 1000s of
+// USE phrases). Five rows is enough to cover "open + immediately tap
+// near the top" — which is what the visible window shows by default.
+const TAB_PREFETCH_LIMIT = 5
+
 // Session-wide iOS audio-session keepalive (shared with LearningPlayer's
 // pod/commentary path). Runs the silent loop whenever this overlay is
 // playing, so the inter-phrase 800ms gap doesn't drop the session when
@@ -310,6 +318,12 @@ const openScene = (scene) => {
   // accidentally re-enable it from this surface.
   mode.value = 'ordered'
   updateVisibleWindow()
+  // Warm-up: prefetch the first ~5 turns of the scene. usePodLapScheduler
+  // already prefetches its OWN pod laps for the active LearningPlayer
+  // session — this is independent: the listening-overlay scene is a
+  // separate, learner-driven playback path. SW CacheFirst de-dupes
+  // overlapping URLs, so any shared audio costs nothing extra.
+  prefetchTopRows()
 }
 
 /** Back from scene-teleprompter to the scene list. */
@@ -491,6 +505,13 @@ const loadPhrases = async (offset = 0) => {
       }
 
       updateVisibleWindow()
+
+      // First-page warm-up: prefetch the top ~5 rows so the first tap
+      // plays instantly. Only on the initial load (offset === 0) — later
+      // pages land via scroll/auto-advance which has its own runway.
+      if (offset === 0) {
+        prefetchTopRows()
+      }
     } else {
       hasMore.value = false
     }
@@ -565,6 +586,8 @@ const loadSeeds = async () => {
     currentIndex.value = rows.length > 0 ? 0 : -1
     if (mode.value === 'shuffled') shufflePhrases()
     updateVisibleWindow()
+    // Warm-up: prefetch the top ~5 seeds so the first tap plays instantly.
+    prefetchTopRows()
   } catch (err) {
     console.error('[ListeningOverlay] loadSeeds error:', err)
     error.value = 'Failed to load seeds'
@@ -608,6 +631,68 @@ const updateVisibleWindow = () => {
 const getAudioUrl = (audioId) => {
   if (!audioId) return null
   return `/api/audio/${audioId}?courseId=${encodeURIComponent(props.courseCode)}`
+}
+
+/**
+ * Tab-open JIT prefetch — warm the first ~5 visible-ish rows of the
+ * active tab so the first tap plays instantly on slow networks.
+ *
+ * The ListeningOverlay's playback path uses raw audio URLs through a
+ * plain `new Audio()` element — it does NOT consult IndexedDB at play
+ * time. That means the only cache layer the click-to-play tap hits is
+ * the SW CacheFirst layer for `/api/audio/*`. So we warm THAT cache by
+ * issuing the same URL (`getAudioUrl(id)`, including the `?courseId=…`
+ * query string the player will use) at low priority — matching the
+ * pattern in usePodLapScheduler.prefetchLap().
+ *
+ * priority: 'low' — these are pure bandwidth warm-ups with no urgency.
+ * They must not compete with the LearningPlayer's high-priority known-
+ * audio prefetches if a session is running (browsers without
+ * RequestPriority support ignore the option gracefully).
+ *
+ * Conservative cap (TAB_PREFETCH_LIMIT = 5) — no point prefetching the
+ * whole tab for a list of hundreds of phrases the user will scroll past.
+ * The cap also bounds the worst-case bandwidth cost of a user rapidly
+ * cycling through tabs. Repeated calls for the same URL collapse at the
+ * SW layer (CacheFirst — first request fills the cache, subsequent
+ * requests hit it).
+ */
+const prefetchTopRows = () => {
+  const rows = availablePhrases.value
+  if (!rows.length) return
+
+  const urls = []
+  for (let i = 0; i < Math.min(TAB_PREFETCH_LIMIT, rows.length); i++) {
+    const row = rows[i]
+    if (!row) continue
+    // Pod turns carry audioIds[]; phrase/seed rows carry target1AudioId.
+    // playPhrase picks one of target1/target2 randomly per cycle, but we
+    // only need to warm one to make the first tap feel instant — pick
+    // the primary (target1) since it's also the id set as audioIds[0]
+    // in pod turn mapping.
+    let id = null
+    if (Array.isArray(row.audioIds) && row.audioIds.length > 0) {
+      id = row.audioIds[0]
+    } else if (row.target1AudioId) {
+      id = row.target1AudioId
+    } else if (row.target2AudioId) {
+      id = row.target2AudioId
+    }
+    if (!id) continue
+    const url = getAudioUrl(id)
+    if (url) urls.push(url)
+  }
+
+  if (urls.length === 0) return
+
+  // Fire-and-forget. SW CacheFirst writes the response to its cache on
+  // first hit; subsequent fetches (including the player's <audio> src
+  // load) read from the cache. Discard the body — we just want the
+  // cached entry. Silent failure: prefetch errors aren't user-visible;
+  // the JIT fetch on tap will surface real problems.
+  for (const url of urls) {
+    fetch(url, { priority: 'low' }).catch(() => undefined)
+  }
 }
 
 
