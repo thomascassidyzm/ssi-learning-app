@@ -67,6 +67,11 @@ function makeMockCache(opts: {
   pressure?: number
   /** Pre-cached ids (has() returns true). */
   preCached?: string[]
+  /**
+   * Bytes per ensured id, as reported by stats(). Used to drive the
+   * maxBytes byte-cap halt. Default 0 (matches existing tests).
+   */
+  bytesPerEnsure?: number
 } = {}): MockCache {
   const mode = opts.mode ?? 'auto'
   const failIds = opts.failIds ?? new Set<string>()
@@ -77,6 +82,7 @@ function makeMockCache(opts: {
     { resolve: () => void; reject: (err: Error) => void }
   >()
   const state = { peakInFlight: 0, currentInFlight: 0, pressure: opts.pressure ?? 0 }
+  const bytesPerEnsure = opts.bytesPerEnsure ?? 0
 
   const ensure = vi.fn(async (id: string): Promise<void> => {
     ensureCalls.push(id)
@@ -126,7 +132,7 @@ function makeMockCache(opts: {
     getBlobUrl: vi.fn(async () => null),
     quotaPressure: vi.fn(async () => state.pressure),
     stats: vi.fn(async () => ({
-      persistent: { count: cachedSet.size, bytes: 0 },
+      persistent: { count: cachedSet.size, bytes: cachedSet.size * bytesPerEnsure },
       ephemeral: { count: 0, bytes: 0 },
       quotaBytes: undefined,
       usageBytes: undefined,
@@ -770,5 +776,144 @@ describe('BundleDownloader', () => {
     expect(lsStore['ssi-bundle-download-spa']).toBeUndefined()
     // Other courses are left intact.
     expect(lsStore['ssi-bundle-download-fra']).toBeDefined()
+  })
+
+  // -------------------------------------------------------------------------
+  // Chunked prefetch — maxBytes + priorityIds (driving-mode entry path)
+  // -------------------------------------------------------------------------
+
+  describe('chunked prefetch (maxBytes + priorityIds)', () => {
+    it('halts after the byte cap is crossed and reports haltedForByteCap', async () => {
+      // 10 MB per ensure, cap at 25 MB → halt after 3 ensures (30 MB > 25 MB).
+      const TEN_MB = 10 * 1024 * 1024
+      const mock = makeMockCache({ mode: 'auto', bytesPerEnsure: TEN_MB })
+      const dl = createBundleDownloader({
+        audioCache: mock.audioCache,
+        concurrency: 1,
+        sleep: async () => undefined,
+      })
+      const bundle = buildBundle()
+      await dl.start(bundle, { maxBytes: 25 * 1024 * 1024 })
+      // Cap of 25 MB at 10 MB per file: batch 1 hits 10 MB (under), batch 2
+      // hits 20 MB (under), batch 3 hits 30 MB (over) → halt before batch 4.
+      expect(mock.ensureCalls).toHaveLength(3)
+      expect(dl.getProgress().haltedForByteCap).toBe(true)
+      expect(dl.getProgress().isRunning).toBe(false)
+      expect(dl.getProgress().haltedForQuota).toBe(false)
+    })
+
+    it('does not consult stats() when maxBytes is omitted', async () => {
+      // Existing always-on callers shouldn't pay for a feature they don't use.
+      const mock = makeMockCache({ mode: 'auto' })
+      const statsSpy = mock.audioCache.stats as ReturnType<typeof vi.fn>
+      const dl = createBundleDownloader({
+        audioCache: mock.audioCache,
+        sleep: async () => undefined,
+      })
+      await dl.start(buildBundle())
+      expect(statsSpy).not.toHaveBeenCalled()
+    })
+
+    it('front-loads priorityIds before the bundle walk order', async () => {
+      const mock = makeMockCache({ mode: 'auto' })
+      const dl = createBundleDownloader({
+        audioCache: mock.audioCache,
+        concurrency: 1, // deterministic order
+        sleep: async () => undefined,
+      })
+      const bundle = buildBundle()
+      // Pick a few ids out of natural order — L3 first, then L5, then L2.
+      await dl.start(bundle, {
+        priorityIds: ['L3-k', 'L3-t1', 'L3-t2', 'L5-k', 'L5-t1', 'L5-t2', 'L2-k'],
+      })
+      // First 7 calls are the priority list in order.
+      expect(mock.ensureCalls.slice(0, 7)).toEqual([
+        'L3-k', 'L3-t1', 'L3-t2', 'L5-k', 'L5-t1', 'L5-t2', 'L2-k',
+      ])
+      // Remaining 8 are bundle order minus the 7 already-emitted ids.
+      expect(mock.ensureCalls.slice(7)).toEqual([
+        'L1-k', 'L1-t1', 'L1-t2',
+        'L2-t1', 'L2-t2',
+        'L4-k', 'L4-t1', 'L4-t2',
+      ])
+      // Total = 15 (no duplicates, no missing).
+      expect(mock.ensureCalls).toHaveLength(15)
+    })
+
+    it('dedupes priorityIds that also appear in the bundle walk', async () => {
+      const mock = makeMockCache({ mode: 'auto' })
+      const dl = createBundleDownloader({
+        audioCache: mock.audioCache,
+        concurrency: 1,
+        sleep: async () => undefined,
+      })
+      // Repeat L1-k in priorityIds and also include it via the natural
+      // walk — should be emitted exactly once, in the priority slot.
+      await dl.start(buildBundle(), { priorityIds: ['L1-k', 'L1-k'] })
+      expect(mock.ensureCalls.filter((id) => id === 'L1-k')).toHaveLength(1)
+      // It's first because it was in the priority list.
+      expect(mock.ensureCalls[0]).toBe('L1-k')
+      // Total still 15 (no duplicates from the natural walk).
+      expect(mock.ensureCalls).toHaveLength(15)
+    })
+
+    it('combines priorityIds with maxBytes — cap counts priority bytes too', async () => {
+      // 10 MB per ensure, cap at 25 MB, priority list of 4 ids → halt after
+      // the 3rd priority id (30 MB > 25 MB) before any bundle ids.
+      const TEN_MB = 10 * 1024 * 1024
+      const mock = makeMockCache({ mode: 'auto', bytesPerEnsure: TEN_MB })
+      const dl = createBundleDownloader({
+        audioCache: mock.audioCache,
+        concurrency: 1,
+        sleep: async () => undefined,
+      })
+      await dl.start(buildBundle(), {
+        priorityIds: ['L3-k', 'L4-k', 'L5-k', 'L2-k'],
+        maxBytes: 25 * 1024 * 1024,
+      })
+      // Priority is honoured in order; cap halts after 3 (30 MB).
+      expect(mock.ensureCalls).toEqual(['L3-k', 'L4-k', 'L5-k'])
+      expect(dl.getProgress().haltedForByteCap).toBe(true)
+    })
+
+    it('a follow-up start() picks up from cursor and accumulates the next chunk', async () => {
+      // Simulate the driving-mode pattern: first start() with 25 MB cap,
+      // playback begins, then a second start() pulls more.
+      const TEN_MB = 10 * 1024 * 1024
+      const mock = makeMockCache({ mode: 'auto', bytesPerEnsure: TEN_MB })
+      const dl = createBundleDownloader({
+        audioCache: mock.audioCache,
+        concurrency: 1,
+        sleep: async () => undefined,
+      })
+      const bundle = buildBundle()
+      await dl.start(bundle, { maxBytes: 25 * 1024 * 1024 })
+      const firstChunkCalls = mock.ensureCalls.length
+      expect(firstChunkCalls).toBe(3)
+
+      // Second start — fresh cap baseline, picks up where we left off.
+      await dl.start(bundle, { maxBytes: 25 * 1024 * 1024 })
+      // 3 more from chunk 2 (since each one is 10 MB and stops at 30 MB delta).
+      expect(mock.ensureCalls.length - firstChunkCalls).toBe(3)
+      expect(dl.getProgress().haltedForByteCap).toBe(true)
+    })
+
+    it('byte cap is per-run, not cumulative across start() invocations', async () => {
+      // Two separate start() calls each consume up to their own maxBytes;
+      // they don't share a single counter.
+      const TEN_MB = 10 * 1024 * 1024
+      const mock = makeMockCache({ mode: 'auto', bytesPerEnsure: TEN_MB })
+      const dl = createBundleDownloader({
+        audioCache: mock.audioCache,
+        concurrency: 1,
+        sleep: async () => undefined,
+      })
+      await dl.start(buildBundle(), { maxBytes: 25 * 1024 * 1024 })
+      const afterFirst = mock.ensureCalls.length
+      // Second call would only fire 0 ensures if the first call's count
+      // carried over. We expect it to fetch up to another 25 MB delta.
+      await dl.start(buildBundle(), { maxBytes: 25 * 1024 * 1024 })
+      expect(mock.ensureCalls.length).toBeGreaterThan(afterFirst)
+    })
   })
 })

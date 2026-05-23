@@ -72,13 +72,57 @@ export interface BundleDownloaderProgress {
   isRunning: boolean
   /** True if quota pressure stopped the loop. */
   haltedForQuota: boolean
+  /**
+   * True if a size-capped run hit its maxBytes ceiling. Distinct from
+   * haltedForQuota — this is a soft cap the caller imposed (driving-mode
+   * chunked prefetch), not a quota safety net.
+   */
+  haltedForByteCap: boolean
   /** Last error message if any. */
   lastError: string | null
 }
 
+/**
+ * Per-call options for {@link BundleDownloader.start}. Lets a caller cap a
+ * single invocation to N freshly-downloaded bytes (chunked prefetch) and/or
+ * front-load a specific set of audio ids ahead of the bundle's walk order.
+ *
+ * Both are halt/seed knobs over the existing walk — the priority list still
+ * goes through the same dedup + cursor + retry machinery as the bundle ids,
+ * and the byte cap only measures bytes newly fetched in this run (already-
+ * cached ids contribute zero to the count).
+ */
+export interface BundleDownloaderStartOptions {
+  /**
+   * Soft cap on bytes downloaded by THIS start() invocation. Pre-cached
+   * audio doesn't count — only blobs newly fetched and persisted while
+   * this run is active. Halt is checked between batches, so the actual
+   * cap is the cap + (concurrency × per-blob size) in the worst case.
+   *
+   * Use case: driving-mode wants ~50MB of cache primed before activation,
+   * with subsequent chunks fired in the background after playback starts.
+   * Each chunk is a separate start() call with maxBytes set.
+   */
+  maxBytes?: number
+  /**
+   * Audio ids to enqueue ahead of the bundle's natural walk order.
+   * Dedupes against already-cached + cursor-marked ids, so already-warm
+   * ids are skipped. Order within the list is preserved.
+   *
+   * Use case: driving-mode knows which rounds are next and wants their
+   * audio cached first, before BundleDownloader fills the long tail.
+   */
+  priorityIds?: string[]
+}
+
 export interface BundleDownloader {
-  /** Start downloading for this bundle. Idempotent — safe to call repeatedly. */
-  start(bundle: CourseBundle): Promise<void>
+  /**
+   * Start downloading for this bundle. Idempotent — safe to call
+   * repeatedly. The optional `opts` lets callers cap a single run by
+   * bytes and/or front-load specific ids (used by driving-mode chunked
+   * prefetch).
+   */
+  start(bundle: CourseBundle, opts?: BundleDownloaderStartOptions): Promise<void>
   /** Stop the loop (after current batch resolves). Resume picks up from cursor. */
   stop(): void
   /** Drop the resume cursor for a course (e.g. version bumped). */
@@ -152,6 +196,7 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
     total: 0,
     isRunning: false,
     haltedForQuota: false,
+    haltedForByteCap: false,
     lastError: null,
   }
   const handlers = new Set<(p: BundleDownloaderProgress) => void>()
@@ -334,9 +379,45 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
   // Run loop
   // -----------------------------------------------------------------------
 
-  async function runDownload(bundle: CourseBundle): Promise<void> {
+  /**
+   * Snapshot the total bytes currently in the persistent namespace. Used as
+   * a baseline for the maxBytes cap — bytes downloaded by THIS run = stats
+   * delta since runDownload started. Falls back to 0 if stats() errors;
+   * the worst case is a cap that under-counts, which just halts sooner.
+   */
+  async function readPersistentBytes(): Promise<number> {
+    try {
+      const stats = await audioCache.stats()
+      return stats.persistent.bytes
+    } catch {
+      return 0
+    }
+  }
+
+  async function runDownload(
+    bundle: CourseBundle,
+    opts: BundleDownloaderStartOptions,
+  ): Promise<void> {
     const courseCode = bundle.courseCode
-    const allIds = enumeratePersistentIds(bundle)
+    const maxBytes = opts.maxBytes
+    const priorityIds = opts.priorityIds ?? []
+
+    // Enumerate the bundle's natural walk order, then prepend the caller's
+    // priority list. Dedup is handled at queue-build time, so we just
+    // concatenate and let the filter below skip duplicates.
+    const bundleIds = enumeratePersistentIds(bundle)
+    const seenAll = new Set<string>()
+    const allIds: string[] = []
+    for (const id of priorityIds) {
+      if (seenAll.has(id)) continue
+      seenAll.add(id)
+      allIds.push(id)
+    }
+    for (const id of bundleIds) {
+      if (seenAll.has(id)) continue
+      seenAll.add(id)
+      allIds.push(id)
+    }
     const total = allIds.length
 
     // Read + validate cursor. Wipe on version mismatch.
@@ -366,6 +447,7 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       total,
       isRunning: true,
       haltedForQuota: false,
+      haltedForByteCap: false,
       lastError: null,
     })
     emit()
@@ -380,6 +462,11 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
       emit()
       return
     }
+
+    // Byte-cap baseline. Only sampled if maxBytes was set — otherwise we
+    // skip the stats() round-trip entirely (existing always-on callers
+    // don't pay for a feature they don't use).
+    const baselineBytes = maxBytes !== undefined ? await readPersistentBytes() : 0
 
     let cursorWritesSinceFlush = 0
     let queueIdx = 0
@@ -397,6 +484,23 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
         })
         emit()
         return
+      }
+
+      // Byte-cap halt. Sampled between batches so the cap is approximate
+      // by up to (concurrency × per-blob size) — fine for a soft chunk
+      // boundary. Caller fires another start() with a fresh maxBytes to
+      // accumulate the next chunk.
+      if (maxBytes !== undefined) {
+        const nowBytes = await readPersistentBytes()
+        if (nowBytes - baselineBytes >= maxBytes) {
+          updateProgress({ haltedForByteCap: true, isRunning: false })
+          writeCursor(courseCode, {
+            version: bundle.version,
+            cachedIds: Array.from(cursorSet),
+          })
+          emit()
+          return
+        }
       }
 
       // Snapshot how many ids we want this batch — `concurrency` per
@@ -483,8 +587,15 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
   // Public API
   // -----------------------------------------------------------------------
 
-  async function start(bundle: CourseBundle): Promise<void> {
+  async function start(
+    bundle: CourseBundle,
+    opts: BundleDownloaderStartOptions = {},
+  ): Promise<void> {
     // Same course already running → return the in-flight promise.
+    // Note: per-call opts on a re-entrant call are dropped — the in-flight
+    // run already owns its own (priorityIds, maxBytes). Callers wanting a
+    // distinct chunk must wait for the previous start() to settle first;
+    // driving-mode does exactly that (sequential chunk-then-next-chunk).
     if (activeRun && activeCourseCode === bundle.courseCode) {
       return activeRun
     }
@@ -501,7 +612,7 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
     }
     stopRequested = false
     activeCourseCode = bundle.courseCode
-    activeRun = runDownload(bundle).finally(() => {
+    activeRun = runDownload(bundle, opts).finally(() => {
       // Only clear the slot if no new run started in the meantime.
       if (activeCourseCode === bundle.courseCode) {
         activeRun = null

@@ -61,6 +61,53 @@ export interface DrivingModeOptions {
   onRoundChange?: (roundIndex: number) => void
   /** Called when all rounds are complete */
   onSessionComplete?: () => void
+  /**
+   * Optional: collect the audio ids needed by a round. Used together with
+   * {@link prefetchAudio} to pre-warm the IndexedDB cache before
+   * concatenation runs. Returning a complete list is best-effort —
+   * concatenation falls through to direct fetches for anything missing.
+   *
+   * When this is omitted (or returns an empty list), prepare() skips the
+   * pre-warm step and uses the legacy serial-fetch path inside
+   * concatenateRound. Behavior is unchanged from before this composable
+   * grew chunked prefetch.
+   */
+  getRoundAudioIds?: (roundIndex: number) => string[]
+  /**
+   * Optional: pre-warm the IndexedDB cache for a set of audio ids. Should
+   * resolve when the given ids are durably in cache (driving mode
+   * activates the moment this promise settles). Errors are absorbed
+   * by driving-mode — concatenation will still fall through to network
+   * fetches for any uncached id.
+   *
+   * Two-phase pattern (caller's choice, but the design driving this
+   * contract): phase 1 awaits the priority ids in parallel (fast,
+   * unblocks activation); phase 2 fires a fire-and-forget background
+   * chunk-fill bounded by `maxBytes` (slow, fills the long tail behind
+   * the learner). The Promise resolves at the end of phase 1, so each
+   * round's audio is "the first chunk that lets it start" and the 50 MB
+   * headroom continues accumulating in the background.
+   *
+   * The wiring in LearningPlayer.vue routes this through
+   * audioCache.persistent.ensure (phase 1) + BundleDownloader.start
+   * (phase 2). Driving-mode itself stays agnostic — anything that
+   * fulfils this Promise will work.
+   */
+  prefetchAudio?: (
+    audioIds: string[],
+    opts?: { maxBytes?: number },
+  ) => Promise<void>
+  /**
+   * Size cap (bytes) for each chunked cache fill. Tom's spec: ~50 MB.
+   * Large enough that one chunk covers several rounds of audio and the
+   * long-tail backstop kicks in; small enough that the chunk lands in
+   * a handful of seconds on a typical mobile connection, so activation
+   * isn't gated on the full course download.
+   *
+   * Defaults to 50 MB. Set to 0 to disable the size cap (prefetch fills
+   * until queue exhausted — falls back to BundleDownloader's old behavior).
+   */
+  chunkBytes?: number
 }
 
 interface DrivingModeReturn {
@@ -100,6 +147,13 @@ const PLAY_RETRY_DELAY_MS = 1000
 
 /** Maximum number of play() retries before giving up */
 const PLAY_MAX_RETRIES = 2
+
+/**
+ * Default size cap for chunked cache fill. ~50 MB matches Tom's spec
+ * for driving-mode activation: enough to cover the current round plus
+ * a few rounds of headroom, small enough to land in seconds on mobile.
+ */
+const DEFAULT_CHUNK_BYTES = 50 * 1024 * 1024
 
 // ============================================================================
 // Composable Implementation
@@ -288,7 +342,46 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
   // ----------------------------------------
 
   /**
-   * Concatenate a round's audio into a single blob
+   * Pre-warm the audio cache for a round before concatenation runs. This
+   * is the "first chunk lets it start" half of the chunked-download
+   * design: instead of letting concatenateRound do 60+ serial fetches
+   * on a cold cache, we feed the round's audio ids to the caller's
+   * chunked prefetch (BundleDownloader.start with maxBytes=chunkBytes).
+   *
+   * Behavior:
+   *   - If the caller didn't supply `prefetchAudio` + `getRoundAudioIds`,
+   *     this is a no-op and concatenateRound stays on the legacy path.
+   *   - The prefetch typically downloads MORE than this round's audio
+   *     (the chunk cap absorbs extra ids opportunistically), so by the
+   *     time we move to the next round its audio is already local.
+   *   - Errors from prefetch are absorbed — concatenateRound's
+   *     `getAudioSource` will fall through to the proxy URL for any
+   *     uncached id, just like before.
+   */
+  async function prefetchForRound(index: number): Promise<void> {
+    if (!options.prefetchAudio || !options.getRoundAudioIds) return
+
+    const ids = options.getRoundAudioIds(index)
+    if (!ids || ids.length === 0) return
+
+    // chunkBytes default 50 MB; 0 disables the cap (caller decides).
+    const chunkBytes = options.chunkBytes ?? DEFAULT_CHUNK_BYTES
+    const maxBytes = chunkBytes > 0 ? chunkBytes : undefined
+
+    try {
+      await options.prefetchAudio(ids, { maxBytes })
+    } catch (err) {
+      // Don't fail the round on a prefetch failure — concatenateRound
+      // has its own fallback path (proxy URL via getAudioSource).
+      console.warn(`[useDrivingMode] Cache prefetch failed for round ${index}, falling back to direct fetch:`, err)
+    }
+  }
+
+  /**
+   * Concatenate a round's audio into a single blob. Pre-warms the cache
+   * first via {@link prefetchForRound} when the caller wired it up —
+   * concatenation then reads locally instead of paying 60+ serial
+   * network fetches.
    */
   async function loadRound(
     index: number,
@@ -302,6 +395,14 @@ export function useDrivingMode(options: DrivingModeOptions): DrivingModeReturn {
       return null
     }
 
+    // Step 1: pre-warm the audio cache for this round (no-op if the
+    // caller didn't wire up prefetchAudio). Driving-mode activates as
+    // soon as this chunk lands AND concatenation runs.
+    await prefetchForRound(index)
+
+    // Step 2: concatenate. By now the audio cache is warm for most ids
+    // in the round; concatenateRound's fetches resolve from blob: URLs
+    // instead of going to the network.
     try {
       const concatenated = await concatenateRound(
         cycles,
