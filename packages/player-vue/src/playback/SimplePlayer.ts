@@ -63,6 +63,22 @@ export interface SimplePlayerRuntimeOverrides {
    * permanent network failure still surfaces as a clean halt, not a
    * deadlocked player. */
   ensureKnownReady?: (cycle: Cycle) => Promise<void>
+  /**
+   * Optional URL resolver called just before playAudio for known / target1
+   * / target2. Returns the URL to play.
+   *
+   * Typical implementation: if the audio is in IndexedDB, return a blob
+   * URL; otherwise return the original URL unchanged. Lets the audio
+   * element read directly from local cache instead of going through the
+   * service-worker layer, which:
+   *   - eliminates an SW round-trip per play
+   *   - makes the cacheHit telemetry honest (blob URL = real hit)
+   *
+   * Must resolve cheaply (sub-ms) since it sits on the critical path.
+   * If it throws or rejects, the original URL is used as a fallback —
+   * never breaks playback.
+   */
+  resolveAudioUrl?: (audioUrl: string) => Promise<string>
 }
 
 export interface Round {
@@ -728,7 +744,7 @@ export class SimplePlayer {
             if (this.state.phase !== 'buffering' || !this.state.isPlaying) return
             this.updateState({ phase: 'prompt' })
           }
-          this.playAudio(currentCycle.known.audioUrl)
+          this.playAudio(await this.resolveUrl(currentCycle.known.audioUrl))
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No prompt audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
@@ -741,7 +757,7 @@ export class SimplePlayer {
         break
       case 'voice1':
         if (currentCycle?.target?.voice1Url) {
-          this.playAudio(currentCycle.target.voice1Url, true)
+          this.playAudio(await this.resolveUrl(currentCycle.target.voice1Url), true)
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No voice1 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
@@ -755,7 +771,7 @@ export class SimplePlayer {
         // time the next PROMPT phase fires, all three URLs are warm.
         this.prefetchNextCycle()
         if (currentCycle?.target?.voice2Url) {
-          this.playAudio(currentCycle.target.voice2Url, true)
+          this.playAudio(await this.resolveUrl(currentCycle.target.voice2Url), true)
         } else {
           if (!isSingleAudioCycle) {
             console.warn(`[SimplePlayer] No voice2 audio for "${currentCycle?.known?.text}" → "${currentCycle?.target?.text}", skipping`)
@@ -774,6 +790,25 @@ export class SimplePlayer {
    * this is best-effort, the actual playback path still gets its own
    * fetch + retry-once + halt-on-failure chain.
    */
+  /**
+   * Resolve an audio URL just before playback, via the optional
+   * resolveAudioUrl runtime override. The typical implementation
+   * substitutes a blob URL when the audio is already in IndexedDB,
+   * letting the audio element bypass the service-worker layer.
+   * Falls back to the original URL on rejection — never breaks playback.
+   */
+  private async resolveUrl(url: string): Promise<string> {
+    const resolver = this.runtimeOverrides.resolveAudioUrl
+    if (!resolver) return url
+    try {
+      const resolved = await resolver(url)
+      return resolved || url
+    } catch (err) {
+      console.warn('[SimplePlayer] resolveAudioUrl threw; using original URL', err)
+      return url
+    }
+  }
+
   private prefetchUrl(url: string | undefined, priority: RequestPriority = 'auto'): void {
     if (!url) return
     // blob: URLs already point at local IndexedDB blobs — nothing to fetch.

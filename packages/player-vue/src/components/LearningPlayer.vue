@@ -6735,6 +6735,31 @@ simplePlayer.setRuntimeOverrides({
       new Promise<void>((resolve) => setTimeout(resolve, 5000)),
     ])
   },
+  /**
+   * Just-before-play URL resolver. If the audio for this URL is already
+   * in IndexedDB (AudioCache.persistent), return a blob URL so the audio
+   * element reads directly from local storage. Otherwise return the
+   * original proxy URL — the audio element fetches via SW CacheFirst as
+   * before. Net effect when warm: no SW round-trip, and the cacheHit
+   * telemetry reports honest hits.
+   *
+   * Must stay cheap — sits on the critical path before every play. The
+   * `has` check is an in-memory Set lookup; `getBlobUrl` reads IndexedDB
+   * (sub-ms when warm) and creates a blob URL. SimplePlayer falls back
+   * to the original URL if this throws.
+   */
+  resolveAudioUrl: async (url) => {
+    if (!url || url.startsWith('blob:')) return url
+    const match = url.match(/\/api\/audio\/([0-9a-f-]+)$/i)
+    if (!match) return url
+    const audioId = match[1]
+    // Check both namespaces — LEGO ephemeral audio (intros/debuts/BUILD
+    // phrases) lives in `ephemeral`, USE phrases in `persistent`. If
+    // neither has it, skip the IDB round-trip and return original URL.
+    if (!audioCache.persistent.has(audioId) && !audioCache.ephemeral.has(audioId)) return url
+    const blobUrl = await audioCache.persistent.getBlobUrl(audioId)
+    return blobUrl ?? url
+  },
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
