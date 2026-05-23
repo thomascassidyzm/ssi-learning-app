@@ -4241,15 +4241,25 @@ const showWelcomeSkip = ref(false) // Show skip button during welcome
 const welcomeText = ref('') // Text to display during welcome audio
 
 // Session-wide iOS audio-session keepalive.
-// Triggered by the play button: goes true on the user's first tap and
-// stays true until they explicitly stop the session (or the component
-// unmounts via the composable's own cleanup). Pause/resume mid-session
-// is internal — keepalive stays on through pauses since the user is
-// still engaged. Single signal beats a computed of "all the audio
-// paths" because new paths (pod laps, intros, future) keep being added
-// and we'd keep rediscovering "that path wasn't on the list".
+//
+// 2026-05-23: DISABLED for testing. Tom on mobile (iOS Safari PWA)
+// reported audio "tries to play then keeps getting cut off" —
+// pattern consistent with the silent loop's auto-restart-on-pause
+// listener (useAudioSessionKeepalive.ts:91) creating a focus
+// ping-pong with the main audio element. iOS only allows one audio
+// session: when main cycle audio plays, iOS pauses the silent
+// loop → silent loop's pause handler restarts it → iOS steals
+// focus back from main → main pauses → repeat.
+//
+// Possible the keepalive is no longer needed at all (iOS Safari
+// has matured; SimplePlayer's reused audio element holds the
+// unlock across phases). If audio works without it, drop the
+// composable. If long PAUSE phases lose the audio session, we
+// need a smarter keepalive — probably AudioContext-based rather
+// than a competing HTMLAudioElement.
 const audioEngaged = ref(false)
-useAudioSessionKeepalive(audioEngaged)
+// useAudioSessionKeepalive(audioEngaged)
+void audioEngaged // keep ref referenced for downstream consumers if any
 
 // Tick the session play-time timer whenever ANY audio path is sounding —
 // not just simplePlayer cycles, but pod laps, commentary, intros, and
