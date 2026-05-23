@@ -3635,31 +3635,32 @@ const resolveAudioFromCache = async (
 const audioPreloadedRounds = new Set<number>()
 
 /**
- * Preload audio for the first N SimpleRounds using fetch().
- * Warms the service worker's CacheFirst cache for /api/audio/* URLs.
- * Fire-and-forget: never blocks, silently ignores failures.
- * Tracks preloaded rounds to avoid duplicate fetches.
+ * 2026-05-23: DISABLED. preloadSimpleRoundAudio used to fire N rounds
+ * × ~15 cycles × 3 audio URLs = up to 135 parallel /api/audio/<id>
+ * fetches per round entry, intended to warm the SW CacheFirst layer.
+ *
+ * Desktop Chrome handles 135 parallel fetches fine (HTTP/2 streams +
+ * generous connection limits). Mobile Safari WebKit has much lower
+ * parallel limits AND serializes against the <audio> element's own
+ * fetch — so the playback path's known-audio fetch ends up queued
+ * behind the prefetch flood, the cycle gate's 5s timeout fires, and
+ * the cycle fails. Tom's mobile reproduces this exact failure mode
+ * even on WiFi because the constraint isn't bandwidth, it's
+ * WebKit's connection queue.
+ *
+ * Same anti-pattern as warmUpInfPlayRoundsBackground (no-op'd) and
+ * deepPrefetchRestOfCourse (no-op'd) — speculative bulk warming
+ * that streaming-first doesn't need. AudioPrefetcher's
+ * persistentLookaheadCycles=3 + SimplePlayer.prefetchNextCycle
+ * priority hints cover the playback path within the bandwidth
+ * envelope (~6 KB/s steady-state).
+ *
+ * Callers remain wired (line 1453, 1606, 5537) so the call sites
+ * stay greppable. The function is a no-op.
  */
-const preloadSimpleRoundAudio = (rounds: any[], maxRounds = 1, startIndex = 0): Promise<void> => {
-  const urls = new Set<string>()
-  const end = Math.min(startIndex + maxRounds, rounds.length)
-  for (let i = startIndex; i < end; i++) {
-    if (audioPreloadedRounds.has(i)) continue
-    audioPreloadedRounds.add(i)
-    const round = rounds[i]
-    for (const cycle of round.cycles || []) {
-      if (cycle.known?.audioUrl) urls.add(cycle.known.audioUrl)
-      if (cycle.target?.voice1Url) urls.add(cycle.target.voice1Url)
-      if (cycle.target?.voice2Url) urls.add(cycle.target.voice2Url)
-    }
-  }
-
-  if (urls.size === 0) return Promise.resolve()
-
-  console.log(`[preloadSimpleRoundAudio] Preloading ${urls.size} audio URLs for rounds ${startIndex}-${end - 1}`)
-
-  const fetches = Array.from(urls).map(url => fetch(url).catch(() => {}))
-  return Promise.all(fetches).then(() => {})
+const preloadSimpleRoundAudio = (_rounds: any[], _maxRounds = 1, _startIndex = 0): Promise<void> => {
+  // intentional no-op — see docblock
+  return Promise.resolve()
 }
 
 /**
