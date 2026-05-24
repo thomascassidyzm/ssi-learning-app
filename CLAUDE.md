@@ -4,18 +4,32 @@
 
 ## CRITICAL: Branch Policy
 
-**ALL work MUST go to the `staging` branch. NEVER push to `main`.**
+Three-tier promotion flow (set up 2026-05-24). **ALL work goes to `dev`. NEVER push to `staging` or `main` directly.**
+
+```
+dev  ──promote──▶  staging  ──promote──▶  main
+(rapid)            (stable soak)          (production)
+```
+
+| Branch | Purpose | Deploys to | Who |
+|--------|---------|------------|-----|
+| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions auto-merge here | `dev.saysomethingin.app` | Tom + Claude |
+| `staging` | Stable soak — frozen-ish candidate the external/Colombo test team vets | `staging.saysomethingin.app` | promoted from `dev` |
+| `main` | Production — real users | `saysomethingin.app` | promoted from `staging` |
 
 At the start of every session, run:
 ```bash
-git checkout staging
-git pull origin staging
+git checkout dev
+git pull origin dev
 ```
 
-- `staging` deploys to `staging.saysomethingin.app` (testing)
-- `main` deploys to `saysomethingin.app` (production — real users)
-- Changes are tested on staging for ~1 week, then merged to main manually by Tom
-- If you find yourself on `main`, switch to `staging` immediately before making any changes
+**Rules:**
+- `dev` is the **default branch** — new `claude/**` branches cut from it and auto-merge back to it (`.github/workflows/auto-merge-claude.yml`).
+- **Promotion is manual and deliberate** (Tom drives it): merge `dev → staging` only when green; merge `staging → main` weekly, after the external team has vetted staging.
+- Do all feature/debug work on `dev` — it's the only environment that's safe to thrash. The external team and prod never see `dev`'s churn.
+- If you find yourself on `staging` or `main`, switch to `dev` before making changes.
+
+**Hotfix lane (production emergencies only):** a critical prod bug that can't wait for the promotion train goes straight to `main` via a `hotfix/<desc>` branch off `main`, then is **back-merged into `staging` AND `dev`** so the fix isn't lost on the next promotion. Use this sparingly — normal fixes ride the dev→staging→main train.
 
 ---
 

@@ -1,9 +1,13 @@
-name: Auto-merge claude/ branches to staging
+name: Auto-merge claude/ branches to dev
 
 # SSi Learning App branch policy (see CLAUDE.md):
-#   - All work goes to staging first
-#   - staging → main merge is manual after ~1 week of testing
-# So claude/* branches from Claude Code web auto-merge to STAGING, not main.
+#   dev      → rapid integration. Tom's rapid work + all claude/* web
+#              sessions land here. Deploys to dev.saysomethingin.app.
+#   staging  → stable soak. The external/Colombo test team vets it here
+#              (staging.saysomethingin.app). Promoted from dev when green.
+#   main     → production (saysomethingin.app). Promoted from staging.
+# So claude/* branches from Claude Code web auto-merge to DEV, not staging
+# or main. Promotion dev→staging→main is manual (see CLAUDE.md).
 
 on:
   push:
@@ -14,7 +18,7 @@ permissions:
   contents: write
 
 jobs:
-  merge-to-staging:
+  merge-to-dev:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -23,20 +27,20 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Merge to staging
+      - name: Merge to dev
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Refresh in case staging moved since checkout
-          git fetch origin staging
+          # Refresh in case dev moved since checkout
+          git fetch origin dev
 
-          # Skip if branch is already an ancestor of staging
-          if git merge-base --is-ancestor origin/${{ github.ref_name }} origin/staging; then
-            echo "Branch already merged into staging — nothing to do"
+          # Skip if branch is already an ancestor of dev
+          if git merge-base --is-ancestor origin/${{ github.ref_name }} origin/dev; then
+            echo "Branch already merged into dev — nothing to do"
             exit 0
           fi
 
-          git checkout staging
+          git checkout dev
           git merge origin/${{ github.ref_name }} --no-edit
-          git push origin staging
+          git push origin dev
