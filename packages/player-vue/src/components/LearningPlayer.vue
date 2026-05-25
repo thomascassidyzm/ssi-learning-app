@@ -5568,14 +5568,8 @@ const handleResume = async () => {
   isPlaying.value = true
   localStorage.setItem('ssi-has-played', 'true')
 
-  // Play welcome audio FIRST (if needed) — blocks until done
-  // Cycle audio must not start until welcome finishes
-  await playWelcomeIfNeeded()
-
-  // If user paused during welcome, don't start cycle audio
-  if (!isPlaying.value) return
-
-  // NOW start cycle playback
+  // Welcome no longer blocks Play — it lives in its own banner in the
+  // resting state. Tom 2026-05-25.
   simplePlayer.play()
 }
 
@@ -5964,73 +5958,50 @@ let introAudioElement = null // Store reference for intro skip functionality
 let introAbortController = null // AbortController for cancelling pending intro audio
 let introEventCleanups = [] // Array of cleanup functions for intro audio event listeners
 
-const playWelcomeIfNeeded = async () => {
-  // Only check once per session
+// Welcome banner visibility — true only for the very first course a
+// learner ever opens, when the course has a welcome audio. Gates the
+// "Play course welcome" CTA in the resting state. All conditions are
+// reactive so the banner appears as soon as data resolves and
+// disappears the instant any heard-signal flips. Tom 2026-05-25.
+const welcomeBannerVisible = computed(() => {
   if (welcomeChecked.value) return false
+  if (localStorage.getItem('ssi-welcome-heard') === 'true') return false
+  if (currentRoundIndex.value > 0) return false
+  if (highestCompletedLegoId.value) return false
+  if (completedRounds.value > 0) return false
+  const w = cachedCourseWelcome.value
+  return !!(w && (w.s3_key || w.id))
+})
+
+const markWelcomeHeard = async () => {
   welcomeChecked.value = true
+  localStorage.setItem('ssi-welcome-heard', 'true')
+  if (courseDataProvider.value) {
+    try { await courseDataProvider.value.markWelcomePlayed(learnerId.value) } catch (_e) { /* ignore */ }
+  }
+}
 
+const dismissCourseWelcome = async () => {
+  console.log('[LearningPlayer] Welcome banner dismissed')
+  await markWelcomeHeard()
+}
+
+const playCourseWelcome = async () => {
+  if (welcomeChecked.value) return false
   try {
-    // Welcome only plays on the very first course a learner ever opens.
-    // After that, they know how SSi works — no need to repeat.
-    if (localStorage.getItem('ssi-welcome-heard') === 'true') {
-      console.log('[LearningPlayer] Welcome already heard on a previous course - skipping')
+    const w = cachedCourseWelcome.value
+    if (!w || (!w.s3_key && !w.id)) {
+      await markWelcomeHeard()
       return false
     }
-
-    // If resuming beyond round 1, they've obviously already heard/skipped the welcome
-    if (currentRoundIndex.value > 0) {
-      console.log('[LearningPlayer] Resuming at round', currentRoundIndex.value + 1, '- skipping welcome')
-      return false
-    }
-
-    // Returning learner: enrollment row has a non-null ceiling. The
-    // existing completedRounds check below also covers this but races
-    // beltProgress's load — highestCompletedLegoId is populated up-
-    // front by loadAllData's direct read, so it's the more reliable
-    // "they've been here before" signal on a cold ?reset=1 start.
-    if (highestCompletedLegoId.value) {
-      console.log('[LearningPlayer] Returning learner (ceiling:', highestCompletedLegoId.value, ') - skipping welcome')
-      return false
-    }
-
-    // If learner has any progress (seeds > 0), they've already done a session
-    // This covers guests who can't persist welcome_played to database
-    if (completedRounds.value > 0) {
-      console.log('[LearningPlayer] Learner has progress (', completedRounds.value, 'seeds) - skipping welcome')
-      return false
-    }
-
-    // Get welcome audio - prefer cached course welcome, fall back to database
-    let welcomeAudio = null
-
-    // Try cached course welcome first (from database via cache)
-    if (cachedCourseWelcome.value && (cachedCourseWelcome.value.s3_key || cachedCourseWelcome.value.id)) {
-      // Use s3_key if available (new format), fall back to id (legacy)
-      const s3Key = cachedCourseWelcome.value.s3_key
-      const welcomeId = cachedCourseWelcome.value.id
-      const audioUrl = s3Key
-        ? `${AUDIO_S3_BASE_URL}/${s3Key}`
-        : `${AUDIO_S3_BASE_URL}/${welcomeId.toUpperCase()}.mp3`
-      welcomeAudio = {
-        id: welcomeId,
-        url: audioUrl,
-        duration_ms: cachedCourseWelcome.value.duration || null,
-        text: cachedCourseWelcome.value.text || null,
-      }
-      console.log('[LearningPlayer] Using cached course welcome:', welcomeId || s3Key)
-    }
-    // Fall back to database lookup
-    else if (courseDataProvider.value) {
-      welcomeAudio = await courseDataProvider.value.getWelcomeAudio()
-    }
-
-    if (!welcomeAudio || !welcomeAudio.url) {
-      console.log('[LearningPlayer] No welcome audio for this course')
-      // Mark as played anyway so we don't keep checking
-      if (courseDataProvider.value) {
-        await courseDataProvider.value.markWelcomePlayed(learnerId.value)
-      }
-      return false
+    const audioUrl = w.s3_key
+      ? `${AUDIO_S3_BASE_URL}/${w.s3_key}`
+      : `${AUDIO_S3_BASE_URL}/${w.id.toUpperCase()}.mp3`
+    const welcomeAudio = {
+      id: w.id,
+      url: audioUrl,
+      duration_ms: w.duration || null,
+      text: w.text || null,
     }
 
     console.log('[LearningPlayer] Playing welcome audio:', welcomeAudio.id)
@@ -6056,11 +6027,7 @@ const playWelcomeIfNeeded = async () => {
         showWelcomeSkip.value = false
         welcomeAudioElement = null
         welcomeResolve = null
-        // Mark as played (globally — welcome only plays on first-ever course)
-        localStorage.setItem('ssi-welcome-heard', 'true')
-        if (courseDataProvider.value) {
-          await courseDataProvider.value.markWelcomePlayed(learnerId.value)
-        }
+        await markWelcomeHeard()
       }
 
       const onEnded = async () => {
@@ -6127,10 +6094,8 @@ const skipWelcome = async () => {
     welcomeResolve = null
   }
 
-  // 5. Mark as played (skipped counts as played)
-  if (courseDataProvider.value) {
-    await courseDataProvider.value.markWelcomePlayed(learnerId.value)
-  }
+  // 5. Mark as heard (skipped counts as heard — same as completion)
+  await markWelcomeHeard()
   console.log('[LearningPlayer] Welcome fully skipped and cleaned up')
 }
 
@@ -9716,6 +9681,10 @@ defineExpose({
   // entirely in INF PLAY" guard.
   currentMode,
   jumpToFurthest,
+  // Welcome banner (opt-in, only on first-ever course)
+  welcomeBannerVisible,
+  playCourseWelcome,
+  dismissCourseWelcome,
 })
 </script>
 

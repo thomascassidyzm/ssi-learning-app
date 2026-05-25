@@ -34,9 +34,13 @@ const props = defineProps({
   // estimated from the round number.
   cursorBeltColor: { type: String, default: null },
   highestBeltColor: { type: String, default: null },
+  // Welcome banner — only true on the first-ever course a learner opens
+  // when that course has welcome audio. Opt-in CTA; tapping Play below
+  // ignores it and starts cycle 1 directly.
+  showWelcomeBanner: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['start', 'change-course', 'jump-to-furthest'])
+const emit = defineEmits(['start', 'change-course', 'jump-to-furthest', 'play-welcome', 'dismiss-welcome'])
 
 const showJumpChoice = computed(() => {
   if (!props.isPlayerReady) return false
@@ -130,6 +134,27 @@ const handleChangeCourse = () => {
 <template>
   <!-- Full resting state (shown when paused) -->
   <div class="resting-state">
+    <!-- Welcome banner — first-ever course only. Opt-in: dismissing or
+         playing it both mark heard so the banner never returns. Sits
+         above the resting content so it reads as a one-time offer, not
+         part of the steady-state UI. -->
+    <div v-if="showWelcomeBanner" class="welcome-banner" @click.stop="emit('play-welcome')">
+      <div class="welcome-banner-icon">▶</div>
+      <div class="welcome-banner-text">
+        <div class="welcome-banner-title">{{ t('welcome.bannerTitle', 'Welcome — about your course') }}</div>
+        <div class="welcome-banner-subtitle">{{ t('welcome.bannerSubtitle', 'about 1 min · tap to play') }}</div>
+      </div>
+      <button
+        class="welcome-banner-dismiss"
+        :aria-label="t('welcome.dismiss', 'Dismiss welcome')"
+        @click.stop="emit('dismiss-welcome')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
     <div class="resting-content">
       <!-- Course identity -->
       <LanguageFlag :code="course?.target_lang || ''" :size="48" class="course-flag" />
@@ -250,6 +275,106 @@ const handleChangeCourse = () => {
   padding: 32px 24px;
   text-align: center;
   pointer-events: auto;
+}
+
+/* ===== Welcome banner (first-ever-course CTA) ===== */
+.welcome-banner {
+  position: absolute;
+  top: max(24px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(340px, calc(100vw - 32px));
+  padding: 12px 14px 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  color: var(--text-primary);
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s ease, transform 0.15s ease;
+  animation: welcome-banner-in 0.4s ease-out;
+}
+
+.welcome-banner:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.welcome-banner:active {
+  transform: translateX(-50%) scale(0.98);
+}
+
+.welcome-banner-icon {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 12px;
+  padding-left: 2px;
+}
+
+.welcome-banner-text {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+}
+
+.welcome-banner-title {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.welcome-banner-subtitle {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.welcome-banner-dismiss {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.welcome-banner-dismiss:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.welcome-banner-dismiss svg {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes welcome-banner-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 .course-flag {
