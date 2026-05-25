@@ -26,7 +26,6 @@ export interface ComponentBreakdown {
 const props = defineProps<{
   blocks: LegoBlock[]
   phase: string // UI phase: 'prompt' | 'speak' | 'voice1' | 'voice2'
-  voice1DurationMs?: number
   components?: ComponentBreakdown[]
   targetLang?: string // ISO 639-3 language code (e.g., 'jpn', 'zho', 'spa')
   /** Cycle type: 'use' lowers the visual mass of non-salient context tiles
@@ -257,16 +256,20 @@ function alignComponentsToFullText(
   return result
 }
 
-// Map UI phases to assembly phases.
-// Tiles appear at VOICE_1 (with short delay so learner hears before reading).
-// On stop/hidden, tiles vanish instantly (no fade) to stay in sync with audio.
-const revealDelayMs = computed(() => Math.max(1500, (props.voice1DurationMs || 2000) * 0.7))
+// VOICE_1 is ears-only — no target text. Tiles reveal at VOICE_2 with a
+// short, sharp animation so the phrase stays on screen long enough to
+// read on a ~2s voice. Constants decoupled from audio duration so a
+// laggy VOICE_1 audio start can never push text ahead of sound.
+// Tom 2026-05-25.
+const ASSEMBLE_DURATION_MS = 400
+const STAGGER_PER_BLOCK_MS = 40
+
 const assemblyPhase = ref<AssemblyPhase>('hidden')
 const instantHide = ref(false)
-let voice1Timer: ReturnType<typeof setTimeout> | null = null
+let revealTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(() => props.phase, (phase) => {
-  if (voice1Timer) { clearTimeout(voice1Timer); voice1Timer = null }
+  if (revealTimer) { clearTimeout(revealTimer); revealTimer = null }
 
   if (props.blocks.length === 0) {
     instantHide.value = true
@@ -277,39 +280,29 @@ watch(() => props.phase, (phase) => {
   switch (phase) {
     case 'prompt':
     case 'speak':
-      assemblyPhase.value = 'hidden'
-      break
     case 'voice1':
     case 'voice_1':
-      instantHide.value = false
-      voice1Timer = setTimeout(() => {
-        assemblyPhase.value = 'assembling'
-      }, revealDelayMs.value)
+      assemblyPhase.value = 'hidden'
       break
     case 'voice2':
-    case 'voice_2':
+    case 'voice_2': {
       instantHide.value = false
-      assemblyPhase.value = 'assembled'
+      assemblyPhase.value = 'assembling'
+      const totalMs = ASSEMBLE_DURATION_MS + STAGGER_PER_BLOCK_MS * Math.max(0, props.blocks.length - 1)
+      revealTimer = setTimeout(() => {
+        assemblyPhase.value = 'assembled'
+      }, totalMs)
       break
+    }
     default:
       instantHide.value = true
       assemblyPhase.value = 'hidden'
   }
 }, { immediate: true })
 
-// Animation duration for assembling — match voice1 audio
-const assembleDuration = computed(() => {
-  const ms = props.voice1DurationMs || 2000
-  return `${(ms * 0.8) / 1000}s`
-})
+const assembleDuration = `${ASSEMBLE_DURATION_MS / 1000}s`
 
-// Stagger delay per block
-const staggerDelay = (index: number): string => {
-  const total = props.blocks.length || 1
-  const ms = props.voice1DurationMs || 2000
-  const stagger = (ms * 0.5) / total
-  return `${(stagger * index) / 1000}s`
-}
+const staggerDelay = (index: number): string => `${(STAGGER_PER_BLOCK_MS * index) / 1000}s`
 
 // For intro/single-lego: compute known text from components or props
 const knownText = computed(() => {
@@ -1167,7 +1160,7 @@ const sentenceScale = computed(() => {
 
 /* --- ASSEMBLING (sequential reveal in reading order) --- */
 .lego-block-wrapper.assembling {
-  animation: block-reveal 0.6s cubic-bezier(0.25, 0.1, 0.25, 1.0) var(--stagger-delay, 0s) both;
+  animation: block-reveal 0.4s cubic-bezier(0.25, 0.1, 0.25, 1.0) var(--stagger-delay, 0s) both;
 }
 
 /* --- ASSEMBLED (static, no style change from base) --- */

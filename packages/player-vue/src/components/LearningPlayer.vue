@@ -2142,13 +2142,6 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   return result
 })
 
-// Voice1 duration for assembly timing
-const currentVoice1DurationMs = computed(() => {
-  const cycle = simplePlayer.currentCycle.value
-  // Duration not on SimplePlayer Cycle — use a reasonable default
-  return 2000
-})
-
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
 // ============================================
@@ -9841,7 +9834,6 @@ defineExpose({
       v-if="currentPhraseLegoBlocks.length > 0 && isPlaying"
       :blocks="currentPhraseLegoBlocks"
       :phase="currentPhase"
-      :voice1-duration-ms="currentVoice1DurationMs"
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
       :cycle-type="simplePlayer.currentCycle.value?.type"
