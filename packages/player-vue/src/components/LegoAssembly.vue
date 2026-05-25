@@ -261,8 +261,8 @@ function alignComponentsToFullText(
 // read on a ~2s voice. Constants decoupled from audio duration so a
 // laggy VOICE_1 audio start can never push text ahead of sound.
 // Tom 2026-05-25.
-const ASSEMBLE_DURATION_MS = 0
-const STAGGER_PER_BLOCK_MS = 350
+const ASSEMBLE_DURATION_MS = 250
+const STAGGER_PER_BLOCK_MS = 150
 
 const assemblyPhase = ref<AssemblyPhase>('hidden')
 const instantHide = ref(false)
@@ -1160,7 +1160,7 @@ const sentenceScale = computed(() => {
 
 /* --- ASSEMBLING (sequential reveal in reading order) --- */
 .lego-block-wrapper.assembling {
-  animation: block-reveal 0s linear var(--stagger-delay, 0s) both;
+  animation: block-reveal 0.25s cubic-bezier(0.25, 0.1, 0.25, 1.0) var(--stagger-delay, 0s) both;
 }
 
 /* --- ASSEMBLED (static, no style change from base) --- */
