@@ -2299,10 +2299,28 @@ const currentRound = computed(() => {
 // Flag to track if initial position has been loaded (prevents saving during initialization)
 const positionInitialized = ref(false)
 
-// Watch for position changes and persist to localStorage
-// Only saves after initial load is complete (positionInitialized is true)
-watch([currentRoundIndex, currentItemInRound], () => {
-  if (positionInitialized.value && useRoundBasedPlayback.value) {
+// Persist learner position to localStorage.
+//
+// Save trigger: simplePlayer.phase entering 'prompt'. This captures
+// "this cycle has just started playing audio" — not "the engine has
+// queued up the next cycle." Critical for the resume rule: on
+// refresh, ALWAYS restart the SAME cycle the learner was hearing,
+// never the next one. Driving the save off cycleIndex change (the
+// old behaviour) fired the instant voice2 of cycle N ended and
+// cycleIndex bumped to N+1, even before N+1's audio began — a
+// refresh in that gap saved cycleIndex=N+1 and the learner skipped
+// cycle N. Phase=prompt closes that gap. Tom 2026-05-26.
+watch(() => simplePlayer.phase.value, (phase) => {
+  if (phase === 'prompt' && positionInitialized.value && useRoundBasedPlayback.value) {
+    savePositionToLocalStorage()
+  }
+})
+
+// Save once when init completes — captures the resumed position the
+// instant it's loaded, so refreshing again immediately (before any
+// cycle plays) still has a fresh localStorage entry.
+watch(positionInitialized, (init) => {
+  if (init && useRoundBasedPlayback.value) {
     savePositionToLocalStorage()
   }
 })
@@ -6237,6 +6255,16 @@ const extractAudioIdsFromCycle = (cycle: any): string[] => {
  * or context (in-session pause vs cold restart). Tom 2026-05-25.
  */
 const saveResumeAudio = () => {
+  // Also persist the position cursor — the dormant moment is the
+  // strongest guarantee we get that the learner is about to leave,
+  // so capture position alongside audio. The watcher-driven save
+  // (phase='prompt' entry) handles steady-state; this covers the
+  // case where the user backgrounds the app mid-cycle without
+  // advancing. Tom 2026-05-26.
+  if (positionInitialized.value && useRoundBasedPlayback.value) {
+    savePositionToLocalStorage()
+  }
+
   const round = simplePlayer.currentRound.value
   if (!round) return
   const cycleIdx = simplePlayer.cycleIndex.value
