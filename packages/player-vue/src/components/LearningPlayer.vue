@@ -405,12 +405,21 @@ const activeCourseCode = courseCode
 // and renders the first cycle from the new endpoints.
 const instantPlayback = useInstantPlayback(courseCode, {
   resolveStartLegoId: async () => {
+    // localStorage is the device's last-known position — checked first
+    // for everyone (guest + signed-in). Same code path; no special-
+    // case for guests defaulting to LEGO 1. The position survives
+    // refresh / browser close / iOS app kill and reads in <1ms.
+    // Tom 2026-05-26.
+    if (courseCode.value) {
+      const localPos = loadPositionFromLocalStorage()
+      if (localPos?.legoId) return localPos.legoId
+    }
+
     if (!progressStore?.value || !learnerId.value || !courseCode.value) return null
     // Guest learner IDs have a `guest-` prefix that doesn't pass the UUID
     // column constraint on course_enrollments — Supabase returns 400 on
-    // the lookup. Guests have no enrollment row to read anyway, so skip
-    // the query entirely and let bootstrap default to round 1 (fresh
-    // learner). Mirrors the canSync() guard in useBeltProgress.
+    // the lookup. With no localStorage cursor (handled above), let
+    // bootstrap default to round 1.
     if (learnerId.value.startsWith('guest-')) return null
     try {
       const enrollment = await progressStore.value.getEnrollment(
@@ -2240,6 +2249,28 @@ const loadPositionFromLocalStorage = () => {
     console.warn('[LearningPlayer] Failed to load position from localStorage:', err)
     return null
   }
+}
+
+/**
+ * Resolve resume position from localStorage against a rounds array.
+ * Returns { roundIndex, cycleIndex } the player should jump to on cold
+ * open, or null if there's no usable local cursor (no saved position,
+ * stale, or its LEGO isn't in this course's rounds).
+ *
+ * Single source of truth for resume across guests + signed-in. The
+ * old "guest defaults to LEGO 1" path bypassed localStorage entirely
+ * — this helper makes the same lookup work for everyone, so a guest
+ * who played a session genuinely resumes where they were. Server
+ * sync (signed-in cross-device) overwrites localStorage before this
+ * runs; localStorage is the only thing playback actually reads.
+ * Tom 2026-05-26.
+ */
+const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex: number } | null => {
+  const localPos = loadPositionFromLocalStorage()
+  if (!localPos?.legoId || !Array.isArray(rounds)) return null
+  const idx = rounds.findIndex((r: any) => r?.legoId === localPos.legoId)
+  if (idx < 0) return null
+  return { roundIndex: idx, cycleIndex: Math.max(0, localPos.itemInRound || 0) }
 }
 
 /**
@@ -8312,17 +8343,12 @@ onMounted(async () => {
               loadedRounds.value = cachedScript.rounds as any
               extractComponentsToMaps(cachedScript.rounds as any, '[Components] cache-fast-path')
 
-              // Resume position: find the saved LEGO inside cached
-              // rounds. Same shape as the legacy cache-read path at
-              // 8889ish, just inlined here to avoid the legacy-path
-              // detour.
-              const localPosition = loadPositionFromLocalStorage()
-              let resumeRoundIndex = 0
-              if (localPosition?.legoId) {
-                const idx = cachedScript.rounds.findIndex(r => r.legoId === localPosition.legoId)
-                if (idx >= 0) resumeRoundIndex = idx
-              }
-              const resumeCycle = Math.max(0, savedCurrentCycleIndex.value || 0)
+              // Resume position via the shared resolveResumePosition
+              // helper — same lookup the bootstrap path uses, single
+              // source of truth (localStorage) regardless of auth.
+              const resume = resolveResumePosition(cachedScript.rounds as any[])
+              const resumeRoundIndex = resume?.roundIndex ?? 0
+              const resumeCycle = resume?.cycleIndex ?? 0
               if (resumeRoundIndex > 0 || resumeCycle > 0) {
                 simplePlayer.jumpToRound(resumeRoundIndex, resumeCycle)
               }
@@ -8415,7 +8441,15 @@ onMounted(async () => {
           //    "start at round 0 cycle 0" treatment, which is correct
           //    because they have no saved cycle state.
           const startedAtLegoId = bootstrapResult.firstCycle.lego_id
-          const resumeCycle = Math.max(0, savedCurrentCycleIndex.value || 0)
+          // Prefer localStorage cycle when it's for the LEGO bootstrap
+          // landed on (same-device resume). Fall back to the server-
+          // sourced savedCurrentCycleIndex for the new-device case
+          // where bootstrap went to next-LEGO via enrollment and we
+          // have no local cursor.
+          const localPos = loadPositionFromLocalStorage()
+          const resumeCycle = (localPos?.legoId === startedAtLegoId)
+            ? Math.max(0, localPos?.itemInRound || 0)
+            : Math.max(0, savedCurrentCycleIndex.value || 0)
           if (resumeCycle > 0) {
             console.log(`[InstantPlayback] Resuming at ${startedAtLegoId} cycle ${resumeCycle}`)
             simplePlayer.jumpToRound(0, resumeCycle)
