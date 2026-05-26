@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   AudioController,
@@ -5971,6 +5971,28 @@ const welcomeBannerVisible = computed(() => {
   if (completedRounds.value > 0) return false
   const w = cachedCourseWelcome.value
   return !!(w && (w.s3_key || w.id))
+})
+
+// Populate welcome metadata from the database when the script cache
+// doesn't have it (which is currently always — setCachedScript is
+// imported but never called, so cachedScript is always null). Bails
+// early for learners who can't see the banner anyway, so the lookup
+// only runs for true first-time-ever learners on their first course.
+// Tom 2026-05-25.
+watchEffect(async () => {
+  if (cachedCourseWelcome.value) return
+  if (!courseDataProvider.value) return
+  if (welcomeChecked.value) return
+  if (localStorage.getItem('ssi-welcome-heard') === 'true') return
+  if (highestCompletedLegoId.value) return
+  if (completedRounds.value > 0) return
+  try {
+    const w = await courseDataProvider.value.getWelcomeAudio()
+    if (w?.id) {
+      cachedCourseWelcome.value = { id: w.id, duration: w.duration_ms, text: w.text }
+      console.log('[LearningPlayer] Loaded course welcome from DB:', w.id)
+    }
+  } catch (_e) { /* ignore — banner just stays hidden */ }
 })
 
 const markWelcomeHeard = async () => {
