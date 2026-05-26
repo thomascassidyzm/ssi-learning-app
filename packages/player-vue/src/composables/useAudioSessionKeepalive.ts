@@ -1,17 +1,28 @@
 /**
- * useAudioSessionKeepalive — session-wide silent audio loop that keeps the iOS
+ * useAudioSessionKeepalive — session-wide AudioContext that keeps the iOS
  * audio session alive across gaps between separate audio elements.
  *
  * The problem this solves: iOS Safari drops the audio session (and revokes
- * the play() unlock) when no audio is sounding for a few seconds in a
- * backgrounded tab. The 4-phase cycle has multi-second PAUSE phases, and
- * inter-round handoffs to pod laps / commentary use a different audio
- * element entirely — both moments where the session would otherwise drop.
+ * the play() unlock) when no audio is sounding for a few seconds, especially
+ * when the tab is backgrounded. The 4-phase cycle has multi-second PAUSE
+ * phases, and inter-round handoffs to pod laps / commentary use a different
+ * audio element entirely — both moments where the session would otherwise
+ * drop.
  *
- * Previously each playback path managed its own silent bridge (SimplePlayer,
- * useDrivingMode, ListeningOverlay), so adding a new path meant
- * rediscovering this bug. This composable centralizes the keepalive: any
- * playback path just contributes a boolean to the `active` signal.
+ * Why AudioContext (and not a silent <audio loop>):
+ *
+ * The previous implementation ran a looping silent HTMLAudioElement. That
+ * approach competes with the main `<audio>` element for iOS's single
+ * audio-session slot: when main cycle audio plays, iOS pauses the silent
+ * loop → silent loop's pause handler restarts it → iOS steals focus back
+ * from main → main pauses → repeat. Disabled 2026-05-23 for exactly that
+ * reason.
+ *
+ * AudioContext sits one layer down — it's the audio-session holder that
+ * HTMLAudioElements ride on top of, not a competitor for the same slot. A
+ * running AudioContext keeps the session warm without grabbing focus from
+ * any playing <audio>. We feed it a silent oscillator just to keep the
+ * graph active so iOS doesn't auto-suspend it for idleness.
  *
  * Usage:
  *   const sessionAudioActive = computed(() =>
@@ -21,16 +32,15 @@
  *   )
  *   useAudioSessionKeepalive(sessionAudioActive)
  *
- * iOS gesture preservation: the silent audio's first play() is triggered by
- * a Vue watcher (default flush 'pre' = microtask). When `active` flips true
- * inside a click handler — which is the only way it CAN flip true the first
- * time, since the session is started by a tap — the microtask runs in the
- * same task as the gesture, and iOS treats the silent.play() as gestured.
- * That unlocks audio for every subsequent element on the page.
+ * iOS gesture preservation: AudioContext.resume() must be called inside a
+ * user gesture the first time. When `active` flips true inside a click
+ * handler (which is the only way it CAN flip true the first time — the
+ * session is started by a tap), Vue's watcher microtask runs in the same
+ * task as the gesture, and iOS treats the resume() call as gestured. That
+ * unlocks audio for every subsequent element on the page.
  */
 
 import { watch, onMounted, onUnmounted, type Ref, type ComputedRef } from 'vue'
-import { getSilentAudioUrl } from '../utils/silentAudio'
 
 /**
  * Window in which a transient release request is ignored. The race we're
@@ -38,7 +48,7 @@ import { getSilentAudioUrl } from '../utils/silentAudio'
  * (markLapCompleted) between playPodLap returning (clears
  * playingPodLapAudio) and simplePlayer.resume() (sets isPlaying). For
  * those few hundred ms `active` reads false, but the session is still
- * logically alive — pausing the silent loop here is what loses the iOS
+ * logically alive — suspending the context here is what loses the iOS
  * unlock. 2s comfortably covers Supabase round-trips while still
  * releasing promptly when the user actually stops.
  */
@@ -47,13 +57,14 @@ const RELEASE_DEBOUNCE_MS = 2000
 export function useAudioSessionKeepalive(
   active: Ref<boolean> | ComputedRef<boolean>
 ): void {
-  let silentAudio: HTMLAudioElement | null = null
+  let ctx: AudioContext | null = null
+  let source: OscillatorNode | null = null
   let releaseTimer: ReturnType<typeof setTimeout> | null = null
-  // True while we *want* the silent loop running. Distinct from
-  // silentAudio.paused so the auto-restart logic can tell intentional
-  // pauses (release()) apart from iOS-induced ones (interruption,
-  // backgrounding, suspended-tab quirks).
-  let shouldBePlaying = false
+  // True while we *want* the context running. Distinct from
+  // `ctx.state === 'running'` so visibilitychange handling can tell
+  // intentional suspends (release()) apart from iOS-induced ones
+  // (backgrounding, system memory pressure).
+  let shouldBeRunning = false
 
   const cancelPendingRelease = (): void => {
     if (releaseTimer) {
@@ -62,43 +73,48 @@ export function useAudioSessionKeepalive(
     }
   }
 
-  const startSilent = (): void => {
-    if (!silentAudio || !silentAudio.paused) return
-    silentAudio.play().catch((err) => {
-      console.warn('[audioSessionKeepalive] play failed:', err)
-    })
-  }
-
   const ensure = (): void => {
     cancelPendingRelease()
-    shouldBePlaying = true
-    if (!silentAudio) {
-      silentAudio = new Audio()
-      silentAudio.src = getSilentAudioUrl()
-      silentAudio.loop = true
-      silentAudio.volume = 0
-      silentAudio.setAttribute('playsinline', 'true')
-      silentAudio.setAttribute('webkit-playsinline', 'true')
+    shouldBeRunning = true
 
-      // iOS occasionally pauses our silent loop on its own (long
-      // backgrounding, audio interruptions, system memory pressure).
-      // Without auto-restart the next gap in cycle / pod-lap audio
-      // finds no silent loop to bridge it, the session unlock is lost,
-      // and subsequent main audio plays internally without sound. The
-      // 'pause' handler kicks it back on whenever we still want it
-      // running. Guard with `shouldBePlaying` so deliberate release()
-      // calls don't loop.
-      silentAudio.addEventListener('pause', () => {
-        if (shouldBePlaying) startSilent()
+    if (!ctx) {
+      const Ctx = (typeof window !== 'undefined')
+        ? ((window as any).AudioContext || (window as any).webkitAudioContext)
+        : null
+      if (!Ctx) return  // SSR / very old browser — no-op
+      try {
+        ctx = new Ctx() as AudioContext
+        // Silent oscillator → zero gain → destination. The oscillator
+        // keeps the audio graph "active" so iOS doesn't auto-suspend
+        // the context for idleness. Frequency at 0 Hz and gain at 0
+        // produces no audible output. The graph alone is enough to
+        // hold the audio session.
+        const gain = ctx.createGain()
+        gain.gain.value = 0
+        gain.connect(ctx.destination)
+        source = ctx.createOscillator()
+        source.frequency.value = 0
+        source.connect(gain)
+        source.start()
+      } catch (err) {
+        console.warn('[audioSessionKeepalive] AudioContext init failed:', err)
+        ctx = null
+        source = null
+        return
+      }
+    }
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch((err) => {
+        console.warn('[audioSessionKeepalive] resume failed:', err)
       })
     }
-    startSilent()
   }
 
   const release = (): void => {
-    shouldBePlaying = false
-    if (silentAudio && !silentAudio.paused) {
-      silentAudio.pause()
+    shouldBeRunning = false
+    if (ctx && ctx.state === 'running') {
+      ctx.suspend().catch(() => { /* best-effort */ })
     }
   }
 
@@ -115,13 +131,15 @@ export function useAudioSessionKeepalive(
   })
 
   // When a backgrounded tab returns to the foreground, defensively
-  // re-ensure. iOS Safari can suspend the silent loop while hidden
-  // even if it didn't fire a 'pause' event we caught — visibility
-  // change is the cleanest moment to restore.
+  // re-resume. iOS Safari can suspend the context while hidden even
+  // if we never asked it to — visibility change is the cleanest moment
+  // to restore.
   const handleVisibilityChange = (): void => {
     if (typeof document === 'undefined') return
-    if (document.visibilityState === 'visible' && shouldBePlaying) {
-      startSilent()
+    if (document.visibilityState === 'visible' && shouldBeRunning) {
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => { /* best-effort */ })
+      }
     }
   }
 
@@ -136,10 +154,14 @@ export function useAudioSessionKeepalive(
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-    if (silentAudio) {
-      silentAudio.pause()
-      silentAudio.src = ''
-      silentAudio = null
+    if (source) {
+      try { source.stop() } catch { /* already stopped */ }
+      try { source.disconnect() } catch { /* already disconnected */ }
+      source = null
+    }
+    if (ctx) {
+      ctx.close().catch(() => { /* best-effort */ })
+      ctx = null
     }
   })
 }

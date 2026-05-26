@@ -4287,24 +4287,18 @@ const welcomeText = ref('') // Text to display during welcome audio
 
 // Session-wide iOS audio-session keepalive.
 //
-// 2026-05-23: DISABLED for testing. Tom on mobile (iOS Safari PWA)
-// reported audio "tries to play then keeps getting cut off" —
-// pattern consistent with the silent loop's auto-restart-on-pause
-// listener (useAudioSessionKeepalive.ts:91) creating a focus
-// ping-pong with the main audio element. iOS only allows one audio
-// session: when main cycle audio plays, iOS pauses the silent
-// loop → silent loop's pause handler restarts it → iOS steals
-// focus back from main → main pauses → repeat.
+// 2026-05-23: disabled because the HTMLAudioElement-based impl
+// competed with the main <audio> for iOS's single audio-session slot,
+// causing a ping-pong (silent loop pauses when main plays → loop's
+// pause handler restarts it → iOS steals focus back from main).
 //
-// Possible the keepalive is no longer needed at all (iOS Safari
-// has matured; SimplePlayer's reused audio element holds the
-// unlock across phases). If audio works without it, drop the
-// composable. If long PAUSE phases lose the audio session, we
-// need a smarter keepalive — probably AudioContext-based rather
-// than a competing HTMLAudioElement.
+// 2026-05-26: re-enabled with the rewritten AudioContext-based impl
+// (useAudioSessionKeepalive.ts). AudioContext doesn't compete for
+// the audio-session slot — it's the session-holder that HTMLAudio
+// elements ride on top of, so a running context keeps the session
+// warm without grabbing focus from the playing <audio>. Tom 2026-05-26.
 const audioEngaged = ref(false)
-// useAudioSessionKeepalive(audioEngaged)
-void audioEngaged // keep ref referenced for downstream consumers if any
+useAudioSessionKeepalive(audioEngaged)
 
 // Tick the session play-time timer whenever ANY audio path is sounding —
 // not just simplePlayer cycles, but pod laps, commentary, intros, and
