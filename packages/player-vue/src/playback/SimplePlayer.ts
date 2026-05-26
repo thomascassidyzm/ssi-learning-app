@@ -473,21 +473,26 @@ export class SimplePlayer {
   }
 
   /**
-   * Replace every round AFTER the one currently playing with the given
-   * batch. Rounds at or before the current index are kept verbatim so
-   * the in-flight round, cycleIndex and phase are unaffected. The
-   * batch is sorted by roundNumber and only entries strictly greater
-   * than the current round's roundNumber are spliced in — anything
-   * lower is dropped (it would regress the queue) and anything matching
-   * the current is dropped (replacing the playing round would desync
-   * cycleIndex against a different cycles array).
+   * Splice a higher-quality / more-complete round batch around the one
+   * currently playing. Rounds at or before the current index are kept
+   * verbatim so the in-flight round, cycleIndex and phase are unaffected
+   * — the playing round is never swapped (that would desync cycleIndex
+   * against a different cycles array).
    *
-   * Use when a higher-quality / more-complete round source becomes
-   * available mid-session (typically: the JS full-script generator
-   * landing after the bootstrap API path has already started playback).
-   * The handoff is silent — same lego_id, same audio IDs, same phase
-   * transitions — because both sources derive from the same content
-   * tables. Round numbers must align.
+   * The batch fills in everything the queue is missing on BOTH sides:
+   *   • rounds AFTER current   → replace the forward queue (as before)
+   *   • rounds BEFORE current  → spliced in IF the queue doesn't already
+   *     have them. A cold bootstrap only loads forward from the resume
+   *     point, so the behind-rounds are absent; without them skip-back
+   *     dead-ends at the resume round. Adding them lets skip-back reach
+   *     earlier material once the full script lands. roundIndex shifts by
+   *     however many we prepend so it still points at the live round.
+   *
+   * Use when a more-complete round source becomes available mid-session
+   * (typically: the JS full-script generator landing after the bootstrap
+   * API path has already started playback). The handoff is silent — same
+   * lego_id, same audio IDs, same phase transitions — because both
+   * sources derive from the same content tables. Round numbers must align.
    */
   replaceQueueFromCurrent(newRounds: Round[]): void {
     if (newRounds.length === 0) return
@@ -502,12 +507,23 @@ export class SimplePlayer {
     }
 
     const kept = this.rounds.filter(r => r.roundNumber <= currentRoundNumber)
+    const keptNumbers = new Set(kept.map(r => r.roundNumber))
+    // Only the behind-rounds the queue is actually missing — dedupe against
+    // what we're keeping so an already-complete queue is a no-op (no shift).
+    const before = newRounds
+      .filter(r => r.roundNumber < currentRoundNumber && !keptNumbers.has(r.roundNumber))
+      .sort((a, b) => a.roundNumber - b.roundNumber)
     const future = newRounds
       .filter(r => r.roundNumber > currentRoundNumber)
       .sort((a, b) => a.roundNumber - b.roundNumber)
 
-    this.rounds = [...kept, ...future]
-    console.debug(`[SimplePlayer] Replaced queue from current (round ${currentRoundNumber}): kept ${kept.length}, future ${future.length}, total ${this.rounds.length}`)
+    this.rounds = [...before, ...kept, ...future]
+    if (before.length > 0) {
+      // Keep the cursor on the live round now that earlier rounds sit ahead
+      // of it in the array. cycleIndex + phase stay as they were.
+      this.updateState({ roundIndex: this.state.roundIndex + before.length })
+    }
+    console.debug(`[SimplePlayer] Spliced queue around current (round ${currentRoundNumber}): before ${before.length}, kept ${kept.length}, future ${future.length}, total ${this.rounds.length}`)
   }
 
   /**

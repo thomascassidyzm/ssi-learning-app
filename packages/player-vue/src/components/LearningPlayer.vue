@@ -2195,7 +2195,12 @@ const savePositionToLocalStorage = () => {
       legoId: round.legoId,
       seedId: round.seedId,
       seedNumber: extractSeedNumber(round.seedId),
-      // Item within the round (still relative, but within a known LEGO)
+      // Stable handle for the exact cycle — its id is anchored to its home
+      // LEGO (e.g. `S0069L02_debut`, `<phraseId>_3`), so it survives script
+      // regeneration that reshuffles cycle order. Preferred over itemInRound
+      // on resume; itemInRound is the positional fallback.
+      cycleId: round.cycles?.[currentItemInRound.value]?.id ?? null,
+      // Item within the round (positional fallback when cycleId can't match)
       itemInRound: currentItemInRound.value,
       // Metadata
       lastUpdated: Date.now(),
@@ -2267,7 +2272,18 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
   if (!localPos?.legoId || !Array.isArray(rounds)) return null
   const idx = rounds.findIndex((r: any) => r?.legoId === localPos.legoId)
   if (idx < 0) return null
-  return { roundIndex: idx, cycleIndex: Math.max(0, localPos.itemInRound || 0) }
+  // Resolve the exact cycle by its stable id (anchored to its home LEGO),
+  // not the positional itemInRound — regenerating a script can reshuffle a
+  // round's cycle order, so the index drifts but the id doesn't. Fall back
+  // to the saved index when there's no id match (older saved positions have
+  // no cycleId, and a reshuffled spaced-rep cycle's id may not survive).
+  let cycleIndex = Math.max(0, localPos.itemInRound || 0)
+  const cycles = rounds[idx]?.cycles
+  if (localPos.cycleId && Array.isArray(cycles)) {
+    const byId = cycles.findIndex((c: any) => c?.id === localPos.cycleId)
+    if (byId >= 0) cycleIndex = byId
+  }
+  return { roundIndex: idx, cycleIndex }
 }
 
 /**

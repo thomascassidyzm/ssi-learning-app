@@ -148,6 +148,35 @@ describe('SimplePlayer.replaceQueueFromCurrent', () => {
     expect((player as any).state.roundIndex).toBe(2)
   })
 
+  it('splices in behind-rounds the cold queue is missing, keeping the live cycle', () => {
+    // Cold bootstrap: only loaded forward from the resume round (S0001L03
+    // = roundNumber 103), so rounds 101/102 are absent. Player is mid-round
+    // on cycle 4. Full script lands with rounds 101..110. Expect the missing
+    // behind-rounds (101,102) prepended, the live round kept verbatim, and
+    // the cursor shifted to still point at it — cycleIndex untouched.
+    const bootstrap = ['S0001L03', 'S0001L04', 'S0001L05'].map(makeRound)
+    const player = new SimplePlayer(bootstrap)
+    for (const r of (player as any).rounds) r.__source = 'bootstrap'
+    ;(player as any).state.roundIndex = 0   // playing the resume round (103)
+    ;(player as any).state.cycleIndex = 4   // mid-round
+
+    const fullScript = ['S0001L01', 'S0001L02', 'S0001L03', 'S0001L04', 'S0001L05',
+                        'S0001L06', 'S0001L07', 'S0001L08', 'S0001L09', 'S0001L10'].map(makeRound)
+    for (const r of fullScript) (r as any).__source = 'fullscript'
+
+    player.replaceQueueFromCurrent(fullScript)
+
+    const after = (player as any).rounds
+    expect(after).toHaveLength(10)
+    expect(after.map((r: any) => r.roundNumber)).toEqual([101, 102, 103, 104, 105, 106, 107, 108, 109, 110])
+    // Behind-rounds came from the full script; the live round stayed verbatim
+    expect(after[0].__source).toBe('fullscript')      // 101 spliced in
+    expect(after[2].__source).toBe('bootstrap')        // 103 kept verbatim (live)
+    // Cursor followed the live round, cycle preserved
+    expect((player as any).state.roundIndex).toBe(2)   // shifted by the 2 prepended
+    expect((player as any).state.cycleIndex).toBe(4)   // untouched
+  })
+
   it('full-replaces when player has never started (idle, no current round)', () => {
     const player = new SimplePlayer([])
     const fullScript = ['S0001L01', 'S0001L02'].map(makeRound)
