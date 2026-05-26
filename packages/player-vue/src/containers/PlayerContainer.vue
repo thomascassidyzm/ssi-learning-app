@@ -228,6 +228,12 @@ const handleToggleTurbo = () => {
   }
 }
 
+const handleToggleOffline = () => {
+  if (learningPlayerRef.value?.toggleOffline) {
+    learningPlayerRef.value.toggleOffline()
+  }
+}
+
 // Handle starting at a specific seed from CourseBrowser
 const handleStartAtSeed = (seedNumber) => {
   closeLibrary()
@@ -548,6 +554,7 @@ onMounted(() => {
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :isTurboMode="learningPlayerRef?.turboActive ?? false"
+      :isOfflineMode="learningPlayerRef?.offlineActive ?? false"
       :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
@@ -558,6 +565,7 @@ onMounted(() => {
       @togglePronunciation="handleTogglePronunciation"
       @toggleScript="handleToggleScript"
       @toggleTurbo="handleToggleTurbo"
+      @toggleOffline="handleToggleOffline"
       @revisit="handleRevisit"
       @skip="handleSkip"
       @openSettings="toggleSettings"

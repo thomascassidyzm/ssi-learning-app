@@ -50,6 +50,15 @@ export function createAudioCacheSource(
   audioCache: AudioCache,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _courseId: string,
+  // Offline mode gate. When this returns true, cached audio is served as a
+  // blob: URL from IndexedDB instead of the network proxy — the playback
+  // path for a fully-downloaded offline journey. Default false preserves
+  // the streaming-first online behaviour. Blob playback was disabled
+  // 2026-05-23 while chasing a confounded iOS bug *with the SW also caching
+  // /api/audio*; the SW audio caching is now gone, so this is the proof
+  // that blob playback is fine on its own. Gated so the online path is
+  // untouched. Tom 2026-05-26.
+  shouldServeBlobs: () => boolean = () => false,
 ): AudioCacheSource {
   // Set, not Map<id, url> — AudioCache may legitimately hand out
   // different blob URLs for the same id across calls (e.g. after a
@@ -58,6 +67,16 @@ export function createAudioCacheSource(
 
   return {
     async getAudioUrl(audioRef: AudioRef): Promise<string> {
+      // Offline mode: serve the cached blob if we have it. getBlobUrl
+      // returns null on a miss, so we fall through to network. This is the
+      // local-playback path — no network involved when the blob is present.
+      if (shouldServeBlobs() && audioRef.id) {
+        const blobUrl = await audioCache.getBlobUrl(audioRef.id)
+        if (blobUrl) {
+          issuedBlobUrls.add(blobUrl)
+          return blobUrl
+        }
+      }
       // 2026-05-23: always return the network URL. Blob URLs backed by
       // IndexedDB blobs reliably break audio playback on iOS Safari
       // (WKWebView and proper Safari both) — the audio element opens

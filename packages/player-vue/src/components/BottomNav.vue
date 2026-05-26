@@ -67,6 +67,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  isOfflineMode: {
+    type: Boolean,
+    default: false
+  },
   // True when the currently playing cycle is part of a listening section
   // (LISTEN cluster, pod lap, or their bookends). Cues the skip button
   // visually so learners realise they can opt out — agency without
@@ -77,7 +81,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleOffline', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -163,6 +167,7 @@ const handleSettings = () => {
       :isListeningMode="isListeningMode"
       :isPronunciationMode="isPronunciationMode"
       :isTurboMode="isTurboMode"
+      :isOfflineMode="isOfflineMode"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :hasRomanizedText="hasRomanizedText"
@@ -172,6 +177,7 @@ const handleSettings = () => {
       @toggleListening="emit('toggleListening')"
       @togglePronunciation="emit('togglePronunciation')"
       @toggleTurbo="emit('toggleTurbo')"
+      @toggleOffline="emit('toggleOffline')"
     />
 
     <div class="nav-backdrop"></div>

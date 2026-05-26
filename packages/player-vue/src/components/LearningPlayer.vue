@@ -7587,6 +7587,19 @@ const toggleTurbo = () => {
   turboActive.value = !turboActive.value
 }
 
+// Offline mode: when on, cached audio plays from IndexedDB blobs instead of
+// the network proxy (see createAudioCacheSource's shouldServeBlobs gate).
+// Proof slice — flip it on, go offline, and pod/intro/commentary audio that's
+// already cached should keep playing. Main-loop (SimplePlayer) blob wiring +
+// span pre-download come next once this confirms iOS is happy with blobs.
+const offlineActive = ref(false)
+const toggleOffline = () => {
+  offlineActive.value = !offlineActive.value
+  console.log('[LearningPlayer] Offline mode:', offlineActive.value ? 'ON — serve cached blobs' : 'OFF — stream')
+  // Turning off: drop the blob URLs we issued so they don't leak.
+  if (!offlineActive.value) audioCacheSource?.revokeAllBlobUrls()
+}
+
 // ============================================
 // PAUSE/RESUME HANDLERS
 // ============================================
@@ -8045,7 +8058,7 @@ onMounted(async () => {
   // AudioCache; the SW cache stays as a network-level backstop for
   // anything neither layer has seen yet.
   if (courseCode.value) {
-    audioCacheSource = createAudioCacheSource(audioCache, courseCode.value)
+    audioCacheSource = createAudioCacheSource(audioCache, courseCode.value, () => offlineActive.value)
     audioController.value.setAudioSource(audioCacheSource)
     console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value)
   }
@@ -9624,6 +9637,8 @@ defineExpose({
   toggleScriptMode,
   toggleTurbo,
   turboActive,
+  toggleOffline,
+  offlineActive,
   sessionSeconds,
   // Welcome banner (opt-in, only on first-ever course)
   welcomeBannerVisible,

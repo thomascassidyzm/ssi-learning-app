@@ -5,6 +5,7 @@ const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
   isPronunciationMode: { type: Boolean, default: false },
   isTurboMode: { type: Boolean, default: false },
+  isOfflineMode: { type: Boolean, default: false },
   showListeningBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
   hasRomanizedText: { type: Boolean, default: false },
@@ -13,7 +14,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleScript'
+  'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleOffline', 'toggleScript'
 ])
 
 const isOpen = ref(false)
@@ -66,7 +67,7 @@ const activeModeIcon = computed(() => {
 
 const handleMode = (mode: string) => {
   const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
-  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo')
+  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
 }
 </script>
 
@@ -144,6 +145,28 @@ const handleMode = (mode: string) => {
             <span class="tray-desc">Faster pace, less repetition</span>
           </div>
           <div class="tray-toggle" :class="{ on: isTurboMode }">
+            <div class="tray-toggle-knob"></div>
+          </div>
+        </button>
+
+        <!-- Offline mode toggle — play from downloaded audio (no network) -->
+        <button
+          class="tray-item"
+          :class="{ active: isOfflineMode }"
+          @click="handleMode('offline')"
+        >
+          <div class="tray-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v12"/>
+              <path d="M7 10l5 5 5-5"/>
+              <path d="M5 21h14"/>
+            </svg>
+          </div>
+          <div class="tray-label">
+            <span class="tray-name">Offline mode</span>
+            <span class="tray-desc">Play from downloaded audio</span>
+          </div>
+          <div class="tray-toggle" :class="{ on: isOfflineMode }">
             <div class="tray-toggle-knob"></div>
           </div>
         </button>
