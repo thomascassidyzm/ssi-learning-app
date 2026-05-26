@@ -8394,7 +8394,7 @@ onMounted(async () => {
           // infplay when audio's missing, offline-mode-capable as the
           // audio cache fills in.
           void generateScript()
-            .then((result) => {
+            .then(async (result) => {
               const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
               if (fullRounds.length === 0) {
                 console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on API path')
@@ -8407,6 +8407,29 @@ onMounted(async () => {
               // bootstrap window.
               cachedRounds.value = fullRounds
               console.log(`[InstantPlayback] Full-script handoff: ${fullRounds.length} rounds local, no further per-round network needed`)
+
+              // Cache for warm-start. Until this commit the script cache
+              // was never written — setCachedScript was imported but
+              // never called (lost in ff6a4756's deprecation cleanup,
+              // Feb 2026). With this restored, the next cold start hits
+              // localStorage and skips the 3-8s generateScript walk,
+              // and welcome metadata + course shape are available
+              // instantly offline. The audio map is stripped on write
+              // (audioRefs live on the items already), so cache stays
+              // under the 5MB localStorage budget. Tom 2026-05-25.
+              try {
+                await setCachedScript(courseCode.value, {
+                  rounds: fullRounds,
+                  totalSeeds: fullRounds.length,
+                  totalLegos: fullRounds.length,
+                  totalCycles: result.cycleCount,
+                  estimatedMinutes: Math.round(result.cycleCount * 0.2),
+                  audioMapObj: {},
+                  courseWelcome: cachedCourseWelcome.value || undefined,
+                })
+              } catch (cacheErr) {
+                console.warn('[InstantPlayback] setCachedScript failed (non-fatal):', cacheErr)
+              }
             })
             .catch((err) => {
               console.warn('[InstantPlayback] Full-script background gen failed, API path remains the fallback:', err)
