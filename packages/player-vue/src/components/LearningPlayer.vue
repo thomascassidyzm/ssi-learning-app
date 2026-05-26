@@ -6203,6 +6203,56 @@ const extractAudioIdsFromCycle = (cycle: any): string[] => {
 }
 
 /**
+ * Save the audio for current + next cycle to IndexedDB when the app
+ * goes dormant. `audioCache.persistent.ensure(id)` fetches (if not
+ * already cached) and stores blobs in IndexedDB, which survives iOS
+ * app kills and PWA backgrounding. On cold open, the existing
+ * AudioCacheSource.getBlobUrl() automatically serves from IDB — no
+ * restore-side code needed; the read path is already wired.
+ *
+ * Idempotent: if the audio's already cached, ensure() resolves
+ * immediately. Same algorithm regardless of mode (main vs INF PLAY)
+ * or context (in-session pause vs cold restart). Tom 2026-05-25.
+ */
+const saveResumeAudio = () => {
+  const round = simplePlayer.currentRound.value
+  if (!round) return
+  const cycleIdx = simplePlayer.cycleIndex.value
+  const currentCycle = round.cycles[cycleIdx]
+  let nextCycle: any
+  if (cycleIdx + 1 < round.cycles.length) {
+    nextCycle = round.cycles[cycleIdx + 1]
+  } else {
+    const rounds = (loadedRounds.value || []) as any[]
+    const nextRound = rounds[simplePlayer.roundIndex.value + 1]
+    nextCycle = nextRound?.cycles?.[0]
+  }
+  const ids = new Set<string>()
+  for (const c of [currentCycle, nextCycle]) {
+    extractAudioIdsFromCycle(c).forEach(id => ids.add(id))
+  }
+  if (ids.size === 0) return
+  console.log(`[ResumeAudio] Persisting ${ids.size} audio ids for instant resume`)
+  for (const id of ids) {
+    void audioCache.persistent.ensure(id).catch(() => { /* silent — playback path handles misses */ })
+  }
+}
+
+// Fire on both events: visibilitychange=hidden is the most reliable
+// signal for iOS PWA backgrounding; pagehide catches true unloads.
+// Both fire close together in practice, but better to cover both than
+// miss the save window.
+const onSaveResumeVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') saveResumeAudio()
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', onSaveResumeVisibilityChange)
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', saveResumeAudio)
+}
+
+/**
  * Skip-prep dialog wrapper for belt-skip / round-skip / belt-back.
  *
  * Sequence:
@@ -9360,6 +9410,13 @@ onUnmounted(() => {
   adaptationEngine.value?.dispose()
   // Flush any pending L1 fire-count bumps
   listeningProgress.value?.dispose()
+  // Resume-audio listeners (registered top-level near extractAudioIdsFromCycle)
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', onSaveResumeVisibilityChange)
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('pagehide', saveResumeAudio)
+  }
   if (timingAnalyzer.value) {
     timingAnalyzer.value.reset()
     timingAnalyzer.value = null
