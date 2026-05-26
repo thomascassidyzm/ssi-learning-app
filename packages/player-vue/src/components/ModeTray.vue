@@ -3,11 +3,9 @@ import { ref, computed } from 'vue'
 
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
-  isDrivingMode: { type: Boolean, default: false },
   isPronunciationMode: { type: Boolean, default: false },
   isTurboMode: { type: Boolean, default: false },
   showListeningBtn: { type: Boolean, default: false },
-  showDrivingBtn: { type: Boolean, default: false },
   showPronunciationBtn: { type: Boolean, default: false },
   hasRomanizedText: { type: Boolean, default: false },
   isNativeScript: { type: Boolean, default: false },
@@ -15,7 +13,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'toggleListening', 'toggleDriving', 'togglePronunciation', 'toggleTurbo', 'toggleScript'
+  'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleScript'
 ])
 
 const isOpen = ref(false)
@@ -30,45 +28,37 @@ const closeTray = () => {
 
 // Is any mode active?
 const hasActiveMode = computed(() =>
-  props.isListeningMode || props.isDrivingMode || props.isPronunciationMode || props.isTurboMode
+  props.isListeningMode || props.isPronunciationMode || props.isTurboMode
 )
 
 // Is any experience mode (non-Standard) active?
 const hasExperienceMode = computed(() =>
-  props.isListeningMode || props.isDrivingMode || props.isPronunciationMode
+  props.isListeningMode || props.isPronunciationMode
 )
 
-// Can turbo be used? Not in listening or pronunciation (driving is fine)
+// Can turbo be used? Not in listening or pronunciation
 const turboAvailable = computed(() =>
   !props.isListeningMode && !props.isPronunciationMode
 )
 
 // Select an experience mode — deactivates others if a different one is active
-const selectExperienceMode = (mode: 'normal' | 'listening' | 'driving' | 'pronunciation') => {
+const selectExperienceMode = (mode: 'normal' | 'listening' | 'pronunciation') => {
   if (mode === 'normal') {
-    // Deactivate whichever is currently on
     if (props.isListeningMode) emit('toggleListening')
-    else if (props.isDrivingMode) emit('toggleDriving')
     else if (props.isPronunciationMode) emit('togglePronunciation')
     return
   }
-  // Clicking an already-active mode deactivates it (returns to Standard)
   if (mode === 'listening' && props.isListeningMode) return emit('toggleListening')
-  if (mode === 'driving' && props.isDrivingMode) return emit('toggleDriving')
   if (mode === 'pronunciation' && props.isPronunciationMode) return emit('togglePronunciation')
-  // Otherwise: deactivate any current mode, then activate the new one
   if (props.isListeningMode) emit('toggleListening')
-  if (props.isDrivingMode) emit('toggleDriving')
   if (props.isPronunciationMode) emit('togglePronunciation')
   if (mode === 'listening') emit('toggleListening')
-  if (mode === 'driving') emit('toggleDriving')
   if (mode === 'pronunciation') emit('togglePronunciation')
 }
 
 // Active mode icon for the trigger button
 const activeModeIcon = computed(() => {
   if (props.isListeningMode) return 'listening'
-  if (props.isDrivingMode) return 'driving'
   if (props.isPronunciationMode) return 'pronunciation'
   if (props.isTurboMode) return 'turbo'
   return null
@@ -76,7 +66,7 @@ const activeModeIcon = computed(() => {
 
 const handleMode = (mode: string) => {
   const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
-  emit(eventName as 'toggleListening' | 'toggleDriving' | 'togglePronunciation' | 'toggleTurbo')
+  emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo')
 }
 </script>
 
@@ -93,10 +83,6 @@ const handleMode = (mode: string) => {
       <svg v-if="activeModeIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
         <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
-      </svg>
-      <svg v-else-if="activeModeIcon === 'driving'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-        <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/><path d="M5 11h14"/><path d="M9 17h6"/>
       </svg>
       <svg v-else-if="activeModeIcon === 'turbo'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
@@ -201,24 +187,6 @@ const handleMode = (mode: string) => {
             <span class="tray-desc">Audio only, no speaking</span>
           </div>
           <div class="radio-indicator" :class="{ on: isListeningMode }"></div>
-        </button>
-
-        <button
-          class="tray-item tray-item--radio"
-          :class="{ active: isDrivingMode }"
-          @click="selectExperienceMode('driving')"
-        >
-          <div class="tray-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/><path d="M5 11h14"/><path d="M9 17h6"/>
-            </svg>
-          </div>
-          <div class="tray-label">
-            <span class="tray-name">Driving</span>
-            <span class="tray-desc">Background-friendly playback</span>
-          </div>
-          <div class="radio-indicator" :class="{ on: isDrivingMode }"></div>
         </button>
 
       </div>

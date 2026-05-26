@@ -12,7 +12,7 @@ import { useSharedSubscription } from '../composables/useSubscription'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 
-const emit = defineEmits(['close', 'openExplorer', 'openListening', 'openDriving', 'settingChanged'])
+const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
 const props = defineProps({
   course: {
@@ -92,7 +92,6 @@ function formatReleaseDate(iso: string): string {
 // Practice mode visibility (default: off — unlocked via settings or notification)
 const showListeningMode = ref(false)
 const showPronunciationMode = ref(false)
-const showDrivingMode = ref(false)
 
 // Speed setting
 // Interface language
@@ -603,7 +602,6 @@ onMounted(async () => {
   // Load practice mode visibility
   showListeningMode.value = localStorage.getItem('ssi-mode-listening') === 'true'
   showPronunciationMode.value = localStorage.getItem('ssi-mode-pronunciation') === 'true'
-  showDrivingMode.value = localStorage.getItem('ssi-mode-driving') === 'true'
 
   // Load saved display settings
   showFirePath.value = localStorage.getItem('ssi-show-fire-path') !== 'false'
@@ -628,12 +626,6 @@ const togglePronunciationMode = () => {
   showPronunciationMode.value = !showPronunciationMode.value
   localStorage.setItem('ssi-mode-pronunciation', showPronunciationMode.value ? 'true' : 'false')
   dispatchSettingChanged('showPronunciationMode', showPronunciationMode.value)
-}
-
-const toggleDrivingMode = () => {
-  showDrivingMode.value = !showDrivingMode.value
-  localStorage.setItem('ssi-mode-driving', showDrivingMode.value ? 'true' : 'false')
-  dispatchSettingChanged('showDrivingMode', showDrivingMode.value)
 }
 
 const toggleFirePath = () => {

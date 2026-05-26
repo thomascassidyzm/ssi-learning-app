@@ -48,14 +48,11 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
 import ListeningOverlay from './ListeningOverlay.vue'
-import DrivingModeOverlay from './DrivingModeOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
-import { useDrivingMode } from '../composables/useDrivingMode'
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
-import { simpleRoundToTypedCycles, audioIdsForSimpleRound, createChunkedPrefetch } from '../utils/drivingModeAdapter'
 import ContributionCounter from './learner/ContributionCounter.vue'
 import ProgressModal from './ProgressModal.vue'
 import { useContribution } from '../composables/useContribution'
@@ -135,7 +132,7 @@ function isBundleBasedInfplayCourse(courseCode: string): boolean {
  */
 const INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS = 3
 
-const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'drivingModeChanged', 'pronunciationModeChanged', 'cycle-started'])
+const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
 
 const router = useRouter()
 
@@ -3622,10 +3619,10 @@ const currentCycle = ref<Cycle | null>(null)
 // only IndexedDB audio cache now.
 
 /**
- * Resolve an audioId to a URL for the SimplePlayer / useCyclePlayback /
- * useDrivingMode pipelines (different surface from AudioController's
- * audioSource — these consume `{type:'url', url} | {type:'blob', blob}`
- * and call URL.createObjectURL on the blob branch).
+ * Resolve an audioId to a URL for the SimplePlayer / useCyclePlayback
+ * pipelines (different surface from AudioController's audioSource —
+ * these consume `{type:'url', url} | {type:'blob', blob}` and call
+ * URL.createObjectURL on the blob branch).
  *
  * We always return the URL branch — AudioCache hands us blob: URLs
  * when the id is cached, otherwise we fall through to the /api/audio
@@ -7055,94 +7052,13 @@ const listeningCeilingSeed = computed<number | null>(() => {
   const seed = getSeedFromLegoId(legoId)
   return seed != null ? seed + 1 : null
 })
-const isDrivingModeActive = ref(false)
-let drivingModeInitialRound: number | null = null
-
-// Driving mode composable
-const drivingMode = useDrivingMode({
-  getCyclesForRound: (roundIndex: number) => {
-    const rounds = cachedRounds.value
-    if (!rounds || roundIndex < 0 || roundIndex >= rounds.length) return []
-    return simpleRoundToTypedCycles(rounds[roundIndex].cycles)
-  },
-  getTotalRounds: () => cachedRounds.value?.length ?? 0,
-  getAudioSource: resolveAudioFromCache,
-  // Chunked-prefetch wiring — driving mode now activates as soon as
-  // the current round's audio is in cache (phase 1, ~3 MB parallel),
-  // with 50 MB chunks accumulating behind the learner via
-  // BundleDownloader (phase 2). See createChunkedPrefetch.
-  getRoundAudioIds: (roundIndex: number) => {
-    const rounds = cachedRounds.value
-    if (!rounds || roundIndex < 0 || roundIndex >= rounds.length) return []
-    return audioIdsForSimpleRound(rounds[roundIndex].cycles ?? [])
-  },
-  prefetchAudio: createChunkedPrefetch({
-    audioCache,
-    getBundle: () => courseBundle.bundle.value,
-    getDownloader: () => {
-      // Lazy-init on first prefetch — by the time the learner taps the
-      // driving-mode button the bundle has typically loaded (cache-first
-      // localStorage path). Falls back to null until then; phase 1
-      // direct ensures still run, phase 2 background fill skipped.
-      if (bundleDownloader) return bundleDownloader
-      if (!courseBundle.bundle.value) return null
-      bundleDownloader = createBundleDownloader({ audioCache })
-      return bundleDownloader
-    },
-  }),
-  onRoundChange: (newRoundIndex: number) => {
-    if (drivingModeInitialRound === null) {
-      drivingModeInitialRound = newRoundIndex
-      return // first call = initial round, nothing completed yet
-    }
-    // Previous round just completed — save progress
-    const completedIdx = newRoundIndex - 1
-    if (completedIdx >= 0 && cachedRounds.value && completedIdx < cachedRounds.value.length) {
-      const round = cachedRounds.value[completedIdx]
-      // Use visual helper — infplay rounds have a random round.legoId.
-      const visualLegoId = visualLegoIdForRound(round)
-      if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
-        beltProgress.value.setCurrentLegoId(visualLegoId)
-      }
-      if (visualLegoId && beltProgress.value?.setPlayingPosition) {
-        const seed = getSeedFromLegoId(visualLegoId)
-        if (seed !== null) beltProgress.value.setPlayingPosition(seed)
-      }
-    }
-  },
-  onSessionComplete: () => {
-    isDrivingModeActive.value = false
-    emit('drivingModeChanged', false)
-    drivingModeInitialRound = null
-  },
-})
-
-// Driving mode text tracking
-const drivingModeKnownText = computed(() => {
-  const seg = drivingMode.currentSegment.value
-  if (!seg || !cachedRounds.value) return ''
-  const round = cachedRounds.value[drivingMode.currentRoundIndex.value]
-  const cycle = round?.cycles?.[seg.cycleIndex]
-  return cycle?.known?.text ?? ''
-})
-
-const drivingModeTargetText = computed(() => {
-  const seg = drivingMode.currentSegment.value
-  if (!seg || !cachedRounds.value) return ''
-  const round = cachedRounds.value[drivingMode.currentRoundIndex.value]
-  const cycle = round?.cycles?.[seg.cycleIndex]
-  return cycle?.target?.text ?? ''
-})
-
-const drivingModeShowTarget = computed(() => {
-  return drivingMode.currentSegment.value?.phase === 'voice2'
-})
-
-const drivingModeCycleCount = computed(() => {
-  if (!cachedRounds.value) return 0
-  const round = cachedRounds.value[drivingMode.currentRoundIndex.value]
-  return round?.cycles?.length ?? 0
-})
+// Driving mode was removed 2026-05-26: with AudioContext keepalive
+// (40da47d9), normal-mode cycle-by-cycle play holds the iOS audio
+// session through PAUSE phases and backgrounding, so the
+// round-concatenation engine the old driving mode used had no job
+// left. "Driving" is now just "normal play, locked screen, Media
+// Session controls" — no separate UI, no separate engine. The paid
+// "download for offline" feature covers the deliberate no-signal case.
 
 // Mode explanation popups
 const showTurboPopup = ref(false)
@@ -7570,100 +7486,21 @@ const handlePronunciationToggle = () => {
     handleClosePronunciation()
   } else {
     if (showListeningOverlay.value) handleCloseListening()
-    if (isDrivingModeActive.value) handleExitDrivingMode()
     handlePronunciationMode()
   }
 }
-
-// ============================================
-// DRIVING MODE
-// ============================================
-
-// Driving mode explainer (always shown — audio pre-builds in background for instant start)
-const showDrivingExplainer = ref(false)
 
 // Mode toggle handlers — mutually exclusive
 const handleListeningToggle = () => {
   if (showListeningOverlay.value) {
     handleCloseListening()
   } else {
-    // Exit driving mode first if active
-    if (isDrivingModeActive.value) handleExitDrivingMode()
     handleListeningMode()
   }
 }
 
-const handleDrivingToggle = () => {
-  // If actively driving, exit fully
-  if (isDrivingModeActive.value) {
-    handleExitDrivingMode()
-    return
-  }
-  // If modal is showing, cancel it
-  if (showDrivingExplainer.value) {
-    cancelDrivingExplainer()
-    return
-  }
-  // Exit listening mode first if active
-  if (showListeningOverlay.value) handleCloseListening()
-  // Signal driving mode immediately (hides course identity, shows return arrow)
-  emit('drivingModeChanged', true)
-  // Start building audio immediately in background
-  drivingMode.prepare(simplePlayer.roundIndex.value)
-  // Always show the modal
-  showDrivingExplainer.value = true
-}
-
-const confirmDrivingMode = () => {
-  showDrivingExplainer.value = false
-  handleEnterDrivingMode()
-}
-
-const cancelDrivingExplainer = () => {
-  showDrivingExplainer.value = false
-  emit('drivingModeChanged', false)
-  // Pre-built audio stays alive — next tap will be instant
-}
-
-const handleEnterDrivingMode = async () => {
-  handlePause() // stop SimplePlayer
-  if (isPlayingIntroduction.value) skipIntroduction()
-  if (isPlayingWelcome.value) skipWelcome()
-
-  isDrivingModeActive.value = true
-  emit('drivingModeChanged', true)
-  drivingModeInitialRound = null
-
-  try {
-    await drivingMode.enter(simplePlayer.roundIndex.value)
-  } catch (err) {
-    console.error('[LearningPlayer] Failed to enter driving mode:', err)
-    isDrivingModeActive.value = false
-    emit('drivingModeChanged', false)
-  }
-}
-
-const handleExitDrivingMode = () => {
-  showDrivingExplainer.value = false
-  const position = drivingMode.exit()
-  isDrivingModeActive.value = false
-  emit('drivingModeChanged', false)
-  drivingModeInitialRound = null
-
-  if (position && position.roundIndex >= 0) {
-    simplePlayer.jumpToRound(position.roundIndex)
-  }
-  // Don't auto-resume — user taps play when ready
-}
-
 // Exit all overlays — called when navigating away via bottom nav
 const exitAllModes = () => {
-  if (isDrivingModeActive.value) {
-    drivingMode.exit()
-    isDrivingModeActive.value = false
-    emit('drivingModeChanged', false)
-    drivingModeInitialRound = null
-  }
   if (showListeningOverlay.value) {
     showListeningOverlay.value = false
     emit('listeningModeChanged', false)
@@ -9857,9 +9694,6 @@ defineExpose({
   unlockAudio,
   handleListeningMode,
   handleListeningToggle,
-  handleDrivingToggle,
-  handleEnterDrivingMode,
-  handleExitDrivingMode,
   handlePronunciationToggle,
   exitPronunciationMode,
   beltCssVars,
@@ -10465,32 +10299,6 @@ defineExpose({
       </div>
     </Transition>
 
-    <!-- Driving Mode Explanation Popup -->
-    <Transition name="fade">
-      <div v-if="showDrivingExplainer" class="mode-popup-overlay" @click.self="cancelDrivingExplainer">
-        <div class="mode-popup">
-          <div class="mode-popup-icon mode-popup-icon--driving">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M5 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM15 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z"/>
-              <path d="M5 17H3v-6l2-5h10l4 5h2v6h-2"/>
-              <path d="M5 11h14"/>
-              <path d="M9 17h6"/>
-            </svg>
-          </div>
-          <h3 class="mode-popup-title">Driving Mode</h3>
-          <p class="mode-popup-desc">
-            Audio plays continuously — switch to Maps and learn while you drive.
-            This will take a minute or two to prepare the audio.
-          </p>
-          <p class="mode-popup-hint">Use the X button or lock screen controls to exit.</p>
-          <div class="mode-popup-actions">
-            <button class="mode-popup-btn mode-popup-btn--cancel" @click="cancelDrivingExplainer">Cancel</button>
-            <button class="mode-popup-btn mode-popup-btn--confirm" @click="confirmDrivingMode">Start Driving</button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-
     <!-- Listening Mode Overlay -->
     <Transition name="listening-overlay">
       <ListeningOverlay
@@ -10511,29 +10319,6 @@ defineExpose({
         :up-to-seed="beltProgress?.playingSeedNumber?.value ?? null"
         :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
         @close="handleClosePronunciation"
-      />
-    </Transition>
-
-    <!-- Driving Mode Overlay -->
-    <Transition name="driving-overlay">
-      <DrivingModeOverlay
-        v-if="isDrivingModeActive"
-        :state="drivingMode.state.value"
-        :current-round-index="drivingMode.currentRoundIndex.value"
-        :total-rounds="cachedRounds?.length ?? 0"
-        :prep-progress="drivingMode.preparationProgress.value"
-        :current-segment="drivingMode.currentSegment.value"
-        :current-known-text="drivingModeKnownText"
-        :current-target-text="drivingModeTargetText"
-        :show-target-text="drivingModeShowTarget"
-        :cycle-count="drivingModeCycleCount"
-        :current-cycle-index="drivingMode.currentSegment.value?.cycleIndex ?? 0"
-        :belt-color="currentBelt.color"
-        :belt-name="currentBelt.name"
-        @exit="handleExitDrivingMode"
-        @toggle-play-pause="drivingMode.togglePlayPause"
-        @skip-next="drivingMode.skipToNextRound"
-        @skip-prev="drivingMode.skipToPreviousRound"
       />
     </Transition>
 
@@ -10792,7 +10577,7 @@ defineExpose({
 
   <!-- Mode buttons moved to BottomNav for Android viewport sync -->
   <Transition name="fade">
-    <div v-if="isPlaying && activeCourseCode && !isDrivingModeActive && !showDrivingExplainer" class="course-identity" :style="beltCssVars">
+    <div v-if="isPlaying && activeCourseCode" class="course-identity" :style="beltCssVars">
       <LanguageFlag :code="courseTargetLang" :size="32" class="course-identity-flag" />
       <span class="course-identity-name">{{ courseDisplayName }}</span>
     </div>

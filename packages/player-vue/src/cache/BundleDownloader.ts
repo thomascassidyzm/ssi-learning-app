@@ -74,8 +74,8 @@ export interface BundleDownloaderProgress {
   haltedForQuota: boolean
   /**
    * True if a size-capped run hit its maxBytes ceiling. Distinct from
-   * haltedForQuota — this is a soft cap the caller imposed (driving-mode
-   * chunked prefetch), not a quota safety net.
+   * haltedForQuota — this is a soft cap the caller imposed (e.g. the
+   * future paid offline-download flow), not a quota safety net.
    */
   haltedForByteCap: boolean
   /** Last error message if any. */
@@ -99,9 +99,10 @@ export interface BundleDownloaderStartOptions {
    * this run is active. Halt is checked between batches, so the actual
    * cap is the cap + (concurrency × per-blob size) in the worst case.
    *
-   * Use case: driving-mode wants ~50MB of cache primed before activation,
-   * with subsequent chunks fired in the background after playback starts.
-   * Each chunk is a separate start() call with maxBytes set.
+   * Use case: future paid offline-download wants ~50-500MB of cache
+   * primed before declaring "downloaded for offline". Each chunk is a
+   * separate start() call with maxBytes set so the UI can show
+   * progress and the user can pause/resume.
    */
   maxBytes?: number
   /**
@@ -109,8 +110,9 @@ export interface BundleDownloaderStartOptions {
    * Dedupes against already-cached + cursor-marked ids, so already-warm
    * ids are skipped. Order within the list is preserved.
    *
-   * Use case: driving-mode knows which rounds are next and wants their
-   * audio cached first, before BundleDownloader fills the long tail.
+   * Use case: offline-download knows which rounds the learner will hit
+   * next and wants their audio cached first, before BundleDownloader
+   * fills the long tail.
    */
   priorityIds?: string[]
 }
@@ -119,8 +121,8 @@ export interface BundleDownloader {
   /**
    * Start downloading for this bundle. Idempotent — safe to call
    * repeatedly. The optional `opts` lets callers cap a single run by
-   * bytes and/or front-load specific ids (used by driving-mode chunked
-   * prefetch).
+   * bytes and/or front-load specific ids (used by chunked-prefetch
+   * flows like offline-download).
    */
   start(bundle: CourseBundle, opts?: BundleDownloaderStartOptions): Promise<void>
   /** Stop the loop (after current batch resolves). Resume picks up from cursor. */
@@ -594,8 +596,8 @@ export function createBundleDownloader(options: BundleDownloaderOptions): Bundle
     // Same course already running → return the in-flight promise.
     // Note: per-call opts on a re-entrant call are dropped — the in-flight
     // run already owns its own (priorityIds, maxBytes). Callers wanting a
-    // distinct chunk must wait for the previous start() to settle first;
-    // driving-mode does exactly that (sequential chunk-then-next-chunk).
+    // distinct chunk must wait for the previous start() to settle first
+    // (sequential chunk-then-next-chunk pattern).
     if (activeRun && activeCourseCode === bundle.courseCode) {
       return activeRun
     }

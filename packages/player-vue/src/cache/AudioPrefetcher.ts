@@ -134,8 +134,7 @@ export function createAudioPrefetcher(options: AudioPrefetcherOptions): AudioPre
   // else — slightly slower per play (one SW round-trip) but
   // dramatically less network noise.
   //
-  // Learners who want full caching (plane journeys, etc.) get
-  // driving mode's chunked accumulation (createChunkedPrefetch) or
+  // Learners who want full caching (plane journeys, etc.) will get
   // the future paid "Download for offline" opt-in. Default path is
   // streaming.
   const lookahead = Math.max(0, options.lookahead ?? 1)
@@ -231,8 +230,8 @@ export function createAudioPrefetcher(options: AudioPrefetcherOptions): AudioPre
       //
       // IDB is still populated when the audio element's request flows
       // through the SW pipeline (responses can be stored downstream by
-      // explicit driving mode / offline opt-in paths). The prefetcher
-      // just doesn't proactively populate either layer anymore.
+      // explicit offline opt-in paths). The prefetcher just doesn't
+      // proactively populate either layer anymore.
       //
       // Function kept as a no-op so the call-site reactive watcher
       // (LearningPlayer.vue:1513) remains a single grep-handle in case

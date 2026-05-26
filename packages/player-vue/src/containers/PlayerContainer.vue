@@ -69,7 +69,6 @@ const learningPlayerRef = ref(null)
 const isListeningMode = ref(false)
 
 // Driving mode state (tracked for BottomNav return arrow)
-const isDrivingMode = ref(false)
 
 // Pronunciation mode state
 const isPronunciationMode = ref(false)
@@ -77,7 +76,6 @@ const isPronunciationMode = ref(false)
 // Mode button visibility (controlled by Settings, stored in localStorage)
 const showListeningBtn = ref(false)
 const showPronunciationBtn = ref(false)
-const showDrivingBtn = ref(false)
 
 
 // Script mode (romanized vs native script toggle)
@@ -223,11 +221,6 @@ const handleListeningModeChanged = (listening) => {
   isListeningMode.value = listening
 }
 
-// Handle driving mode state changes from LearningPlayer
-const handleDrivingModeChanged = (driving) => {
-  isDrivingMode.value = driving
-}
-
 // Handle exit listening mode from BottomNav (user navigated away)
 const handleExitListeningMode = () => {
   if (learningPlayerRef.value) {
@@ -235,23 +228,10 @@ const handleExitListeningMode = () => {
   }
 }
 
-// Handle exit driving mode from BottomNav
-const handleExitDrivingMode = () => {
-  if (learningPlayerRef.value) {
-    learningPlayerRef.value.handleExitDrivingMode()
-  }
-}
-
 // Handle mode toggle from BottomNav mode buttons
 const handleToggleListening = () => {
   if (learningPlayerRef.value?.handleListeningToggle) {
     learningPlayerRef.value.handleListeningToggle()
-  }
-}
-
-const handleToggleDriving = () => {
-  if (learningPlayerRef.value?.handleDrivingToggle) {
-    learningPlayerRef.value.handleDrivingToggle()
   }
 }
 
@@ -456,7 +436,6 @@ const screenParamMap = {
 const loadModeVisibility = () => {
   showListeningBtn.value = localStorage.getItem('ssi-mode-listening') === 'true'
   showPronunciationBtn.value = localStorage.getItem('ssi-mode-pronunciation') === 'true'
-  showDrivingBtn.value = localStorage.getItem('ssi-mode-driving') === 'true'
 }
 
 onMounted(() => {
@@ -543,7 +522,6 @@ onMounted(() => {
       @close="handleGoHome"
       @playStateChanged="handlePlayStateChanged"
       @listeningModeChanged="handleListeningModeChanged"
-      @drivingModeChanged="handleDrivingModeChanged"
       @pronunciationModeChanged="handlePronunciationModeChanged"
     />
 
@@ -556,7 +534,7 @@ onMounted(() => {
          name immediately, then the belt and journey populate when the
          player has finished awakening. -->
     <PlayerRestingState
-      v-if="activeCourse && currentScreen === 'player' && !isListeningMode && !isDrivingMode && !isPronunciationMode && !isPlaying"
+      v-if="activeCourse && currentScreen === 'player' && !isListeningMode && !isPronunciationMode && !isPlaying"
       :course="activeCourse"
       :completed-seeds="completedSeeds"
       :total-seeds="totalSeeds"
@@ -604,7 +582,6 @@ onMounted(() => {
       :isLearning="isLearning"
       :isPlaying="isPlaying"
       :isListeningMode="isListeningMode"
-      :isDrivingMode="isDrivingMode"
       :isPronunciationMode="isPronunciationMode"
       :showLibrary="showLibrary"
       :showSettings="showSettings"
@@ -615,17 +592,14 @@ onMounted(() => {
       :isPlayerReady="isPlayerReady"
       :showListeningBtn="showListeningBtn"
       :showPronunciationBtn="showPronunciationBtn"
-      :showDrivingBtn="showDrivingBtn"
       :isTurboMode="learningPlayerRef?.turboActive ?? false"
       :isInListeningCycle="learningPlayerRef?.isInListeningCycle ?? false"
       @navigate="handleNavigation"
       @startLearning="handleStartLearning"
       @togglePlayback="handleTogglePlayback"
       @exitListeningMode="handleExitListeningMode"
-      @exitDrivingMode="handleExitDrivingMode"
       @exitPronunciationMode="handleExitPronunciationMode"
       @toggleListening="handleToggleListening"
-      @toggleDriving="handleToggleDriving"
       @togglePronunciation="handleTogglePronunciation"
       @toggleScript="handleToggleScript"
       @toggleTurbo="handleToggleTurbo"

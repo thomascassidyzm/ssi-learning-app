@@ -19,10 +19,6 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  isDrivingMode: {
-    type: Boolean,
-    default: false
-  },
   isPronunciationMode: {
     type: Boolean,
     default: false
@@ -67,10 +63,6 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  showDrivingBtn: {
-    type: Boolean,
-    default: false
-  },
   isTurboMode: {
     type: Boolean,
     default: false
@@ -85,7 +77,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitDrivingMode', 'exitPronunciationMode', 'toggleListening', 'toggleDriving', 'togglePronunciation', 'toggleTurbo', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
+const emit = defineEmits(['navigate', 'startLearning', 'togglePlayback', 'exitListeningMode', 'exitPronunciationMode', 'toggleListening', 'togglePronunciation', 'toggleTurbo', 'toggleScript', 'revisit', 'skip', 'openSettings', 'closeOverlays', 'closeAuth'])
 
 // Tap feedback
 const tappedItem = ref(null)
@@ -95,10 +87,10 @@ const isOnPlayerScreen = computed(() => props.currentScreen === 'player')
 const hasOverlayOpen = computed(() => props.showLibrary || props.showSettings || props.showCourseSelector)
 
 const isStopMode = computed(() =>
-  props.isPlaying && !props.isListeningMode && !props.isDrivingMode
+  props.isPlaying && !props.isListeningMode
 )
 
-const hasActiveMode = computed(() => props.isListeningMode || props.isDrivingMode || props.isPronunciationMode)
+const hasActiveMode = computed(() => props.isListeningMode || props.isPronunciationMode)
 
 const isReturnMode = computed(() =>
   ((!isOnPlayerScreen.value || hasOverlayOpen.value || props.isAuthOpen) && !props.isPlaying) || hasActiveMode.value
@@ -109,7 +101,6 @@ const handleNavTap = (itemId) => {
   setTimeout(() => { tappedItem.value = null }, 150)
   if (navigator.vibrate) navigator.vibrate(10)
   if (props.isListeningMode) emit('exitListeningMode')
-  if (props.isDrivingMode) emit('exitDrivingMode')
   if (props.isPronunciationMode) emit('exitPronunciationMode')
   emit('navigate', itemId)
 }
@@ -123,13 +114,9 @@ const handlePlayTap = () => {
   playButtonPressed.value = true
   setTimeout(() => { playButtonPressed.value = false }, 200)
   if (navigator.vibrate) navigator.vibrate([10, 50, 10])
-  // Exit active mode (listening, driving, or pronunciation) — return to player
+  // Exit active mode (listening or pronunciation) — return to player
   if (props.isListeningMode) {
     emit('exitListeningMode')
-    return
-  }
-  if (props.isDrivingMode) {
-    emit('exitDrivingMode')
     return
   }
   if (props.isPronunciationMode) {
@@ -171,21 +158,18 @@ const handleSettings = () => {
 
 <template>
   <nav class="bottom-nav">
-    <!-- Mode tray — listening, driving, pronunciation, turbo, script -->
+    <!-- Mode tray — listening, pronunciation, turbo, script -->
     <ModeTray
       :isListeningMode="isListeningMode"
-      :isDrivingMode="isDrivingMode"
       :isPronunciationMode="isPronunciationMode"
       :isTurboMode="isTurboMode"
       :showListeningBtn="showListeningBtn"
-      :showDrivingBtn="showDrivingBtn"
       :showPronunciationBtn="showPronunciationBtn"
       :hasRomanizedText="hasRomanizedText"
       :isNativeScript="isNativeScript"
       :isVisible="!showSessionComplete && !showCourseSelector && isOnPlayerScreen"
       @toggleScript="emit('toggleScript')"
       @toggleListening="emit('toggleListening')"
-      @toggleDriving="emit('toggleDriving')"
       @togglePronunciation="emit('togglePronunciation')"
       @toggleTurbo="emit('toggleTurbo')"
     />
