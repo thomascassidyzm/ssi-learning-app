@@ -8201,31 +8201,104 @@ onMounted(async () => {
       // progress, paywalls, all the downstream consumers stay
       // unchanged. The only difference is WHERE the data came from.
       if (isInstantPlaybackCourse(courseCode.value)) {
-        try {
-          // Pre-check: if the learner's already in INF PLAY mode,
-          // bootstrap from /infplay-cycles instead of /cycles. Same
-          // latency budget (~150-300ms), but emits review-only content
-          // (spaced rep + random USE) instead of main-loop intros.
-          //
-          // This replaces the legacy CourseEndNoNextLego throw +
-          // generateScript fallback (5-15s on cold cache).
-          //
-          // Also pulls the learner's current infplay_round_index so
-          // bootstrap fetches from the RIGHT round (returning deep-
-          // infplay learners get spaced rep computed against their
-          // actual progress, not against round 1).
-          let inferEnrollmentMode: 'main' | 'infplay' = 'main'
-          let inferInfPlayRoundIndex = 1
-          if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
-            try {
-              const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
-              inferEnrollmentMode = (enr?.current_mode === 'infplay') ? 'infplay' : 'main'
-              inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
-            } catch (modeErr) {
-              console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
-            }
+        // Pre-check: if the learner's already in INF PLAY mode,
+        // bootstrap from /infplay-cycles instead of /cycles. Same
+        // latency budget (~150-300ms), but emits review-only content
+        // (spaced rep + random USE) instead of main-loop intros.
+        //
+        // This replaces the legacy CourseEndNoNextLego throw +
+        // generateScript fallback (5-15s on cold cache).
+        //
+        // Also pulls the learner's current infplay_round_index so
+        // bootstrap fetches from the RIGHT round (returning deep-
+        // infplay learners get spaced rep computed against their
+        // actual progress, not against round 1).
+        //
+        // Hoisted out of the bootstrap try block so the cache fast-
+        // path below can branch on mode before it skips the network
+        // bootstrap. Tom 2026-05-25.
+        let inferEnrollmentMode: 'main' | 'infplay' = 'main'
+        let inferInfPlayRoundIndex = 1
+        if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
+          try {
+            const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
+            inferEnrollmentMode = (enr?.current_mode === 'infplay') ? 'infplay' : 'main'
+            inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
+          } catch (modeErr) {
+            console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
           }
+        }
 
+        // ============================================
+        // CACHE FAST PATH (main-loop only)
+        // ============================================
+        // Returning learner with a populated script cache skips the
+        // entire bootstrap round-trip + the background full-script
+        // gen. Hydrate simplePlayer directly from cache and we're
+        // <100ms from app mount to ready-to-play.
+        //
+        // INF PLAY is excluded: its revival rounds are deliberately
+        // randomised per session (`/infplay-cycles` returns fresh
+        // sampling), so cached INF PLAY rounds would serve the same
+        // sequence every session — boring and pedagogically wrong.
+        // INF PLAY learners still pay the small bootstrap cost; the
+        // payoff is variety.
+        //
+        // Stale-content safety: useEagerScriptPreload calls
+        // checkContentVersion before LearningPlayer mounts. If the
+        // course's content_version bumped, the cache is already
+        // cleared by the time we get here, so a hit means we're on
+        // current content. Tom 2026-05-25.
+        if (inferEnrollmentMode === 'main') {
+          try {
+            const cachedScript = await getCachedScript(courseCode.value)
+            if (cachedScript && cachedScript.rounds.length > 0) {
+              console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
+              cachedRounds.value = cachedScript.rounds
+              if (cachedScript.courseWelcome) {
+                cachedCourseWelcome.value = cachedScript.courseWelcome
+              }
+              simplePlayer.initialize(cachedScript.rounds as any)
+              loadedRounds.value = cachedScript.rounds as any
+              extractComponentsToMaps(cachedScript.rounds as any, '[Components] cache-fast-path')
+
+              // Resume position: find the saved LEGO inside cached
+              // rounds. Same shape as the legacy cache-read path at
+              // 8889ish, just inlined here to avoid the legacy-path
+              // detour.
+              const localPosition = loadPositionFromLocalStorage()
+              let resumeRoundIndex = 0
+              if (localPosition?.legoId) {
+                const idx = cachedScript.rounds.findIndex(r => r.legoId === localPosition.legoId)
+                if (idx >= 0) resumeRoundIndex = idx
+              }
+              const resumeCycle = Math.max(0, savedCurrentCycleIndex.value || 0)
+              if (resumeRoundIndex > 0 || resumeCycle > 0) {
+                simplePlayer.jumpToRound(resumeRoundIndex, resumeCycle)
+              }
+
+              const startedAtLegoId = cachedScript.rounds[resumeRoundIndex]?.legoId
+              if (startedAtLegoId) {
+                instantPlayback.setCurrentLegoId(startedAtLegoId)
+                if (beltProgress.value?.setLastLegoId) {
+                  beltProgress.value.setLastLegoId(startedAtLegoId)
+                }
+                if (beltProgress.value?.setPlayingPosition) {
+                  const seed = getSeedFromLegoId(startedAtLegoId)
+                  if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+                }
+              }
+
+              positionInitialized.value = true
+              dataReady = true
+              return
+            }
+          } catch (cacheErr) {
+            console.warn('[InstantPlayback] Cache fast-path failed, falling through to bootstrap:', cacheErr)
+          }
+        }
+
+        try {
           // 1. Bootstrap — round-map + first cycle. This is the
           //    minimum to know "what round is the learner on" and to
           //    have audio ready to roll. Cold-path budget here is
