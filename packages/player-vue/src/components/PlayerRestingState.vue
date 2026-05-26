@@ -118,15 +118,6 @@ const handleChangeCourse = () => {
         <span class="belt-name">{{ beltDisplay }}</span>
       </div>
 
-      <!-- Pricing CTA — Paddle's domain-approval review wants pricing
-           accessible via navigation from the home page. Doubles as a
-           genuine product CTA for signed-out visitors landing on the
-           player. Routes to /premium where the £15/mo + 7-day-trial
-           detail, included-courses grid, and legal footer all live. -->
-      <a href="/premium" class="resting-premium-cta">
-        Try Premium — 7-day free trial
-      </a>
-
     </div>
   </div>
 </template>
@@ -399,40 +390,6 @@ const handleChangeCourse = () => {
 
 :root[data-theme="mist"] .progress-bar-track {
   background: rgba(0, 0, 0, 0.06);
-}
-
-.resting-premium-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 18px;
-  padding: 10px 22px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--text-primary, rgba(0, 0, 0, 0.85));
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(0, 0, 0, 0.18);
-  border-radius: 999px;
-  text-decoration: none;
-  pointer-events: auto;
-  transition: background 0.15s ease, transform 0.15s ease;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-}
-
-.resting-premium-cta:hover {
-  background: rgba(255, 255, 255, 0.92);
-  transform: translateY(-1px);
-}
-
-.resting-premium-cta:active {
-  transform: translateY(0);
-}
-
-:root[data-theme="mist"] .resting-premium-cta {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.25);
 }
 
 </style>
