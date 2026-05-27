@@ -7026,10 +7026,12 @@ simplePlayer.setRuntimeOverrides({
   // "operation is not supported" decode failure that got blob playback
   // dropped on 2026-05-23 (a confounded bug, not an iOS limitation).
   resolveAudioUrl: async (audioUrl: string): Promise<string> => {
-    if (!offlineActive.value) return audioUrl
+    if (!offlineActive.value) { console.log('[offline] resolveAudioUrl: offline OFF →', audioUrl); return audioUrl }
     const id = audioUrl.match(/\/api\/audio\/([^?]+)/)?.[1]
-    if (!id) return audioUrl
+    if (!id) { console.warn('[offline] resolveAudioUrl: no id parsed from', audioUrl); return audioUrl }
+    const has = audioCache.persistent.has(id)
     const blobUrl = await audioCache.getBlobUrl(id)
+    console.log(`[offline] resolveAudioUrl id=${id} has=${has} blob=${blobUrl ? 'YES' : 'NO'} → ${blobUrl ? 'BLOB' : 'network ' + audioUrl}`)
     return blobUrl || audioUrl
   },
   // ensureKnownReady: REMOVED 2026-05-23.
