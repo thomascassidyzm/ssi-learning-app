@@ -7018,6 +7018,20 @@ simplePlayer.setRuntimeOverrides({
     }
     return false
   },
+  // Offline mode ONLY: rewrite /api/audio/<id> to a local blob: URL from
+  // IndexedDB so the main loop plays with no network. Gated on offlineActive
+  // so the streaming-first online path never calls this — it's a no-op when
+  // offline mode is off, so the iOS streaming behaviour stays exactly as is.
+  // getBlobUrl now forces the stored mimeType, which fixes the iOS
+  // "operation is not supported" decode failure that got blob playback
+  // dropped on 2026-05-23 (a confounded bug, not an iOS limitation).
+  resolveAudioUrl: async (audioUrl: string): Promise<string> => {
+    if (!offlineActive.value) return audioUrl
+    const id = audioUrl.match(/\/api\/audio\/([^?]+)/)?.[1]
+    if (!id) return audioUrl
+    const blobUrl = await audioCache.getBlobUrl(id)
+    return blobUrl || audioUrl
+  },
   // ensureKnownReady: REMOVED 2026-05-23.
   //
   // The gate's purpose was to prevent "silent prompts" — entering PROMPT
@@ -7587,17 +7601,68 @@ const toggleTurbo = () => {
   turboActive.value = !turboActive.value
 }
 
-// Offline mode: when on, cached audio plays from IndexedDB blobs instead of
-// the network proxy (see createAudioCacheSource's shouldServeBlobs gate).
-// Proof slice — flip it on, go offline, and pod/intro/commentary audio that's
-// already cached should keep playing. Main-loop (SimplePlayer) blob wiring +
-// span pre-download come next once this confirms iOS is happy with blobs.
+// Offline mode: a deliberate, opt-in download of the upcoming span into
+// IndexedDB, after which playback resolves to local blob: URLs (the main
+// loop via the SimplePlayer resolveAudioUrl override; pods/intros via the
+// createAudioCacheSource gate). The streaming-first online path is untouched.
+// Bounded to the next OFFLINE_SPAN_ROUNDS so prep stays ~a minute — the user
+// opts in and waits. This is the only deliberate downloader; normal play
+// streams and caches nothing speculatively.
+const OFFLINE_SPAN_ROUNDS = 25
 const offlineActive = ref(false)
+const offlineDlState = ref<'idle' | 'downloading' | 'complete' | 'error'>('idle')
+const offlineDlDone = ref(0)
+const offlineDlTotal = ref(0)
+
+const collectOfflineSpanAudioIds = (): string[] => {
+  const rounds = cachedRounds.value || []
+  const start = Math.max(0, currentRoundIndex.value)
+  const slice = rounds.slice(start, start + OFFLINE_SPAN_ROUNDS)
+  const ids = new Set<string>()
+  const add = (url?: string) => {
+    const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
+    if (m) ids.add(m[1])
+  }
+  for (const r of slice) {
+    for (const c of ((r as any).cycles || [])) {
+      add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
+    }
+  }
+  return [...ids]
+}
+
+const downloadForOffline = async () => {
+  const ids = collectOfflineSpanAudioIds()
+  const missing = ids.filter((id) => !audioCache.persistent.has(id))
+  offlineDlTotal.value = ids.length
+  offlineDlDone.value = ids.length - missing.length
+  offlineDlState.value = 'downloading'
+  console.log(`[Offline] downloading span: ${missing.length} of ${ids.length} audio files (next ${OFFLINE_SPAN_ROUNDS} rounds)`)
+  const CONC = 4
+  try {
+    for (let i = 0; i < missing.length; i += CONC) {
+      if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
+      await Promise.all(missing.slice(i, i + CONC).map(async (id) => {
+        try { await audioCache.persistent.ensure(id) } catch { /* skip; online still falls back to network */ } finally { offlineDlDone.value++ }
+      }))
+    }
+    offlineDlState.value = 'complete'
+    console.log(`[Offline] download complete: ${offlineDlDone.value}/${offlineDlTotal.value} ready for offline play`)
+  } catch (e) {
+    offlineDlState.value = 'error'
+    console.warn('[Offline] download failed:', e)
+  }
+}
+
 const toggleOffline = () => {
   offlineActive.value = !offlineActive.value
-  console.log('[LearningPlayer] Offline mode:', offlineActive.value ? 'ON — serve cached blobs' : 'OFF — stream')
-  // Turning off: drop the blob URLs we issued so they don't leak.
-  if (!offlineActive.value) audioCacheSource?.revokeAllBlobUrls()
+  console.log('[LearningPlayer] Offline mode:', offlineActive.value ? 'ON — downloading span, then serving cached blobs' : 'OFF — stream')
+  if (offlineActive.value) {
+    void downloadForOffline()
+  } else {
+    offlineDlState.value = 'idle'
+    audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
+  }
 }
 
 // ============================================

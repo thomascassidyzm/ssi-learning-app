@@ -347,7 +347,15 @@ export class AudioCacheImpl implements AudioCache {
     const updated: AudioRow = { ...row, lastAccessedAt: Date.now() }
     void this.db.put(STORE, updated)
 
-    return URL.createObjectURL(row.blob)
+    // Guarantee the blob URL carries a decodable content-type. A blob with
+    // an empty `.type` yields a typeless blob: URL that iOS Safari's <audio>
+    // rejects with "operation is not supported" — the failure that got blob
+    // playback dropped 2026-05-23. We captured the real type as `mimeType`
+    // at fetch time; re-wrap only when the stored blob lost its own type.
+    const typed = row.blob.type
+      ? row.blob
+      : new Blob([row.blob], { type: row.mimeType || 'audio/mpeg' })
+    return URL.createObjectURL(typed)
   }
 
   // ==========================================================================
