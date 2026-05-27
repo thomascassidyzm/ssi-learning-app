@@ -7612,17 +7612,19 @@ const toggleTurbo = () => {
 const OFFLINE_SPAN_MS = 30 * 60 * 1000
 const offlineActive = ref(false)
 const offlineDlState = ref<'idle' | 'downloading' | 'complete' | 'error'>('idle')
-const offlineDlDone = ref(0)
+const offlineDlDone = ref(0)      // audio files genuinely cached (successes only)
 const offlineDlTotal = ref(0)
+const offlineDlFailed = ref(0)    // fetches that failed (e.g. bad network)
 
-// Progress banner label — empty when there's nothing to show.
+// Progress banner label — empty when there's nothing to show. `done` counts
+// ONLY files that actually landed in IndexedDB, so "Ready" can't lie.
 const offlineDownloadLabel = computed(() => {
   if (offlineDlState.value === 'downloading') {
     const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
     return `Downloading for offline… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
   }
-  if (offlineDlState.value === 'complete') return 'Ready to play offline ✓'
-  if (offlineDlState.value === 'error') return 'Offline download failed'
+  if (offlineDlState.value === 'complete') return `Ready to play offline ✓ (${offlineDlDone.value} files)`
+  if (offlineDlState.value === 'error') return `Offline download incomplete — ${offlineDlFailed.value} failed, needs better signal`
   return ''
 })
 
@@ -7651,24 +7653,29 @@ const downloadForOffline = async () => {
   const ids = collectOfflineSpanAudioIds()
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
-  offlineDlDone.value = ids.length - missing.length
+  offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
+  offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] downloading span: ${missing.length} of ${ids.length} audio files (~next 30 min)`)
   const CONC = 4
-  try {
-    for (let i = 0; i < missing.length; i += CONC) {
-      if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
-      await Promise.all(missing.slice(i, i + CONC).map(async (id) => {
-        try { await audioCache.persistent.ensure(id) } catch { /* skip; online still falls back to network */ } finally { offlineDlDone.value++ }
-      }))
-    }
-    offlineDlState.value = 'complete'
-    console.log(`[Offline] download complete: ${offlineDlDone.value}/${offlineDlTotal.value} ready for offline play`)
-    // Clear the "Ready ✓" banner after a few seconds so it doesn't sit over playback.
-    setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
-  } catch (e) {
+  for (let i = 0; i < missing.length; i += CONC) {
+    if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
+    await Promise.all(missing.slice(i, i + CONC).map(async (id) => {
+      // Count ONLY genuine cache writes. A failed fetch (bad network) must
+      // NOT tick progress — otherwise "Ready ✓" lies and offline plays
+      // silence (the train test). ensure() throws on network failure.
+      try { await audioCache.persistent.ensure(id); offlineDlDone.value++ }
+      catch { offlineDlFailed.value++ }
+    }))
+  }
+  if (offlineDlFailed.value > 0) {
+    // Stays on screen (no auto-hide) so the user knows to retry on better signal.
     offlineDlState.value = 'error'
-    console.warn('[Offline] download failed:', e)
+    console.warn(`[Offline] incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed`)
+  } else {
+    offlineDlState.value = 'complete'
+    console.log(`[Offline] complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
+    setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
   }
 }
 
