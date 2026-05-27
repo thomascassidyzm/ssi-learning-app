@@ -7605,10 +7605,11 @@ const toggleTurbo = () => {
 // IndexedDB, after which playback resolves to local blob: URLs (the main
 // loop via the SimplePlayer resolveAudioUrl override; pods/intros via the
 // createAudioCacheSource gate). The streaming-first online path is untouched.
-// Bounded to the next OFFLINE_SPAN_ROUNDS so prep stays ~a minute — the user
-// opts in and waits. This is the only deliberate downloader; normal play
-// streams and caches nothing speculatively.
-const OFFLINE_SPAN_ROUNDS = 25
+// Span = roughly the next OFFLINE_SPAN_MS of play (~30 min for now). Time-
+// based because that's the real product unit ("download the next 30 min /
+// your journey"), not an arbitrary round count. The only deliberate
+// downloader; normal play streams and caches nothing speculatively.
+const OFFLINE_SPAN_MS = 30 * 60 * 1000
 const offlineActive = ref(false)
 const offlineDlState = ref<'idle' | 'downloading' | 'complete' | 'error'>('idle')
 const offlineDlDone = ref(0)
@@ -7617,15 +7618,19 @@ const offlineDlTotal = ref(0)
 const collectOfflineSpanAudioIds = (): string[] => {
   const rounds = cachedRounds.value || []
   const start = Math.max(0, currentRoundIndex.value)
-  const slice = rounds.slice(start, start + OFFLINE_SPAN_ROUNDS)
   const ids = new Set<string>()
   const add = (url?: string) => {
     const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
     if (m) ids.add(m[1])
   }
-  for (const r of slice) {
-    for (const c of ((r as any).cycles || [])) {
+  // Walk forward from the current round, accumulating estimated wall-clock
+  // time per cycle, until we've covered ~OFFLINE_SPAN_MS of play.
+  let accMs = 0
+  for (let i = start; i < rounds.length && accMs < OFFLINE_SPAN_MS; i++) {
+    for (const c of (((rounds[i]) as any).cycles || [])) {
       add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
+      // prompt + pause + both target plays + inter-phase gaps
+      accMs += 2000 + (c?.pauseDuration ?? 0) + (c?.target1DurationMs ?? 2000) + (c?.target2DurationMs ?? 2000) + 1000
     }
   }
   return [...ids]
@@ -7637,7 +7642,7 @@ const downloadForOffline = async () => {
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length
   offlineDlState.value = 'downloading'
-  console.log(`[Offline] downloading span: ${missing.length} of ${ids.length} audio files (next ${OFFLINE_SPAN_ROUNDS} rounds)`)
+  console.log(`[Offline] downloading span: ${missing.length} of ${ids.length} audio files (~next 30 min)`)
   const CONC = 4
   try {
     for (let i = 0; i < missing.length; i += CONC) {
