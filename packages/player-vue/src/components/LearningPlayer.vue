@@ -7615,6 +7615,17 @@ const offlineDlState = ref<'idle' | 'downloading' | 'complete' | 'error'>('idle'
 const offlineDlDone = ref(0)
 const offlineDlTotal = ref(0)
 
+// Progress banner label — empty when there's nothing to show.
+const offlineDownloadLabel = computed(() => {
+  if (offlineDlState.value === 'downloading') {
+    const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
+    return `Downloading for offline… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
+  }
+  if (offlineDlState.value === 'complete') return 'Ready to play offline ✓'
+  if (offlineDlState.value === 'error') return 'Offline download failed'
+  return ''
+})
+
 const collectOfflineSpanAudioIds = (): string[] => {
   const rounds = cachedRounds.value || []
   const start = Math.max(0, currentRoundIndex.value)
@@ -7653,6 +7664,8 @@ const downloadForOffline = async () => {
     }
     offlineDlState.value = 'complete'
     console.log(`[Offline] download complete: ${offlineDlDone.value}/${offlineDlTotal.value} ready for offline play`)
+    // Clear the "Ready ✓" banner after a few seconds so it doesn't sit over playback.
+    setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
   } catch (e) {
     offlineDlState.value = 'error'
     console.warn('[Offline] download failed:', e)
@@ -9721,6 +9734,11 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
+  <!-- Offline download progress — shown while Offline mode prepares its span -->
+  <div v-if="offlineDownloadLabel" class="offline-dl-banner" :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
+    {{ offlineDownloadLabel }}
+  </div>
+
   <!-- Contribution Counter - "Part of the Solution" -->
   <ContributionCounter
     v-if="contribution.data.value && !showSessionComplete"
@@ -10717,6 +10735,29 @@ defineExpose({
   inset: 0;
   overflow: hidden;
 }
+
+/* Offline download progress banner — top-centre, above all play surfaces */
+.offline-dl-banner {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  max-width: calc(100vw - 32px);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.78);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+.offline-dl-banner.is-complete { background: rgba(22, 130, 70, 0.9); }
+.offline-dl-banner.is-error { background: rgba(150, 40, 40, 0.9); }
 
 .player {
   /* ════════════════════════════════════════════════════════════════════════════
