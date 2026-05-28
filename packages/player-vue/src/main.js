@@ -24,6 +24,15 @@ if (DEBUG_TOOLS && !window.eruda) {
       // mode controls live across the top and centre, and eruda's default
       // spot overlaps them. Still draggable if you want it elsewhere.
       window.eruda.position({ x: 6, y: window.innerHeight - 52 })
+      // The panel defaults to full-height and opaque, which hides the player
+      // during live play (Tom 2026-05-28). Shrink it to the bottom ~45% and
+      // make it semi-transparent so logs scroll underneath while the player
+      // stays visible above. Adjustable live in eruda's Settings tab.
+      const settings = window.eruda.get('settings')
+      if (settings) {
+        settings.set('displaySize', 45)
+        settings.set('transparency', 0.85)
+      }
     } catch (e) { /* noop */ }
   }
   document.head.appendChild(s)
