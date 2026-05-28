@@ -4,8 +4,8 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.0.0"
-  date: "2026-01-18"
+  version: "1.1.0"
+  date: "2026-05-28"
   author: "Tom Cassidy & Claude"
   status: "specification"
   extends: "apml/schools/ssi-schools-integration.apml"
@@ -597,6 +597,77 @@ interface GovtAdminDashboard:
       new_speakers_estimate: 2340
 
 # =============================================================================
+# ADMIN ACT-AS ("View the app as")
+# =============================================================================
+
+interface AdminActAs:
+  name: "Admin Act-As / View the app as"
+  location: "player-vue (entry on /admin/access; live experience on /schools)"
+  status: "implemented"
+
+  purpose: |
+    Lets an ssi_admin (Tom + Aran) step into a real persona — teacher,
+    school leader (school_admin), or group admin (govt_admin) — and use the
+    live, interactive /schools app exactly as that person sees it, then step
+    back out. Realises the ssi_admin "schools-dashboard (as any role)" ui_access
+    and the RoleHierarchy "can become a lower role" principle.
+
+  supersedes: |
+    The removed god-mode JWT impersonation (godMode.selectUser) that forged an
+    identity and fought RLS, AND the read-only /admin/schools/:id views for the
+    "experience it as them" use case. Read-only admin views still exist for
+    pure inspection.
+
+  mechanism:
+    kind: "Client-side context overlay — NOT JWT impersonation"
+    role_overlay: |
+      useUserRole holds an `actingAs` persona. effective-role computeds
+      (isTeacher/isSchoolAdmin/isGovtAdmin/hasSchoolRole) reflect the persona
+      so the /schools route guard passes, while platformRole stays 'ssi_admin'
+      so admin controls (incl. the exit banner) remain.
+    scope: |
+      useSchoolContext.loadAsPersona(userId) primes currentUser with the
+      persona's OWN user_id + role + scope (the same resolution as their
+      self-view). A teacher's classes are scoped by teacher_user_id, so seeing
+      their real roster requires being them. Govt scope resolves group_id /
+      group_path (canonical group-tree scope), region_code as legacy fallback.
+    queries: |
+      Run under the admin's own Supabase session (RLS off today; when it
+      returns, the ssi_admin bypass covers any scope). No forged JWT.
+    persistence: |
+      sessionStorage 'ssi-acting-as' — a reload keeps act-as within the tab,
+      and it clears when the tab closes. Restored on App mount.
+
+  safety:
+    no_stored_link: |
+      The admin's own learner row and auth session are never written to, so no
+      admin<->persona link is ever stored. Exiting just clears client context.
+    reversible: "Persistent exit banner on every screen; one tap returns to admin."
+    isolation: "Personas live in the Wales demo subtree (is_demo=true), isolated from real schools."
+
+  personas:
+    source: "packages/player-vue/src/composables/schools/actAsPersonas.ts"
+    teacher: "test_teacher_rhian (Rhian Griffiths)"
+    school_admin: "test_admin_elen (Elen Rhys)"
+    govt_admin: "test_govt_gwilym (Gwilym ap Dafydd) — scoped to the Demo/Wales group"
+
+  gating: "canActAs = isSsiAdmin (real platform role); entry panel + start are admin-only."
+
+  files:
+    - "composables/useUserRole.ts (actingAs overlay, startActingAs/stopActingAs)"
+    - "composables/schools/useSchoolContext.ts (loadAsPersona, group-aware govt resolver)"
+    - "composables/useActAs.ts (orchestration + reload restore)"
+    - "composables/schools/actAsPersonas.ts (persona list)"
+    - "views/admin/AdminAccess.vue (entry panel)"
+    - "components/ActingAsBanner.vue (exit bar)"
+    - "App.vue (banner mount + restore)"
+
+  related_fix: |
+    Govt admin school drill-down: DashboardView now renders a detail block
+    (stat strip + classes table) and fetches the school's classes when a govt
+    admin selects a school; previously the selected-school state was blank.
+
+# =============================================================================
 # DATABASE SCHEMA ADDITIONS
 # =============================================================================
 
@@ -771,6 +842,14 @@ migration RolesV1:
 # =============================================================================
 
 version_history:
+  v1.1.0:
+    date: "2026-05-28"
+    author: "Tom Cassidy & Claude"
+    changes:
+      - "Added AdminActAs interface — ssi_admin 'View the app as' a teacher / school leader / group admin via a client-side context overlay (not JWT impersonation)"
+      - "Documented govt-admin school drill-down rendering fix"
+      - "Govt scope is group-tree based (group_id/group_path); region_code is legacy fallback"
+
   v1.0.0:
     date: "2026-01-18"
     author: "Tom Cassidy & Claude"
