@@ -7,7 +7,7 @@
  * namespaces. In-memory id Sets make `has(id)` synchronous and cheap.
  */
 
-import { openDB, type IDBPDatabase, type DBSchema } from 'idb'
+import { openDB, deleteDB, type IDBPDatabase, type DBSchema } from 'idb'
 import type {
   AudioCache,
   AudioCacheStats,
@@ -108,7 +108,7 @@ export class AudioCacheImpl implements AudioCache {
   }
 
   private async doInit(): Promise<void> {
-    this.db = await openDB<CacheSchema>(DB_NAME, DB_VERSION, {
+    const open = () => openDB<CacheSchema>(DB_NAME, DB_VERSION, {
       upgrade(db) {
         if (!db.objectStoreNames.contains(STORE)) {
           const store = db.createObjectStore(STORE, { keyPath: 'id' })
@@ -119,6 +119,16 @@ export class AudioCacheImpl implements AudioCache {
         }
       },
     })
+    let db = await open()
+    // Self-heal a storeless DB (interrupted upgrade / a ?reset that opened it
+    // without recreating stores) — otherwise the very next transaction throws
+    // NotFoundError and the whole audio cache is dead. Delete and recreate.
+    if (!db.objectStoreNames.contains(STORE)) {
+      db.close()
+      await deleteDB(DB_NAME)
+      db = await open()
+    }
+    this.db = db
 
     // Populate in-memory id Sets from the lifecycle index.
     const tx = this.db.transaction(STORE, 'readonly')

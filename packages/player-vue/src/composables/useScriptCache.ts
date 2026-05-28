@@ -9,7 +9,7 @@
  */
 
 import { ref, type Ref } from 'vue'
-import { openDB, type IDBPDatabase } from 'idb'
+import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache configuration
@@ -27,11 +27,24 @@ const CONTENT_VERSION_PREFIX = 'ssi-content-version-'
 let scriptDbPromise: Promise<IDBPDatabase> | null = null
 const scriptDb = (): Promise<IDBPDatabase> => {
   if (!scriptDbPromise) {
-    scriptDbPromise = openDB(SCRIPT_DB_NAME, 1, {
+    const open = () => openDB(SCRIPT_DB_NAME, 1, {
       upgrade(db) {
         if (!db.objectStoreNames.contains(SCRIPT_STORE)) db.createObjectStore(SCRIPT_STORE)
       },
     })
+    scriptDbPromise = (async () => {
+      let db = await open()
+      // Self-heal a storeless DB: an interrupted upgrade or a ?reset that
+      // opened the DB without recreating stores can leave it at v1 with no
+      // object store → "NotFoundError: object stores was not found" on every
+      // transaction. Delete and recreate so the store exists.
+      if (!db.objectStoreNames.contains(SCRIPT_STORE)) {
+        db.close()
+        await deleteDB(SCRIPT_DB_NAME)
+        db = await open()
+      }
+      return db
+    })()
   }
   return scriptDbPromise
 }

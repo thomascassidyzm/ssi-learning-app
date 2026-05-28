@@ -24,7 +24,7 @@
  */
 
 import { ref, type Ref } from 'vue'
-import { openDB, type IDBPDatabase } from 'idb'
+import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { CourseBundle } from '../types/courseBundle'
 
 // ============================================================================
@@ -117,13 +117,25 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
 
   function getDB(): Promise<IDBPDatabase> {
     if (!dbPromise) {
-      dbPromise = openDB(dbName, 1, {
+      const open = () => openDB(dbName, 1, {
         upgrade(db) {
           if (!db.objectStoreNames.contains(STORE_NAME)) {
             db.createObjectStore(STORE_NAME, { keyPath: 'courseCode' })
           }
         },
       })
+      dbPromise = (async () => {
+        let db = await open()
+        // Self-heal a storeless DB (interrupted upgrade / a ?reset that opened
+        // it without recreating stores) → otherwise every transaction throws
+        // NotFoundError. Delete and recreate.
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.close()
+          await deleteDB(dbName)
+          db = await open()
+        }
+        return db
+      })()
     }
     return dbPromise
   }
