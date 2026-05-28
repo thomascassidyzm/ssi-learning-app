@@ -78,19 +78,24 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
   }
 
   /**
-   * Call after each round completes. Returns commentary audio if the
-   * round-cadence rule says it's time, otherwise null.
-   *
-   * Gating lives in MetaCommentaryService (every Nth round). No cycle
-   * accumulation, no performance heuristics — the previous design used
-   * those and they were either ignored or perma-stuck.
+   * Call after each round completes. Returns commentary audio if it's time
+   * (variable ~10-min interval of active play) AND `canFire` is true,
+   * otherwise null. Timing/gating lives in MetaCommentaryService; this just
+   * passes through the round's cycle count (active-time signal) and whether
+   * this boundary is a legal drop point (between two speaking rounds).
    *
    * @param roundNumber - The round that just completed (1-based)
+   * @param cyclesInRound - Cycles in that round (active-time accumulator)
+   * @param canFire - True iff the boundary is between two speaking rounds
    */
-  const onRoundComplete = (roundNumber: number): MetaCommentaryAudio | null => {
+  const onRoundComplete = (
+    roundNumber: number,
+    cyclesInRound = 0,
+    canFire = true,
+  ): MetaCommentaryAudio | null => {
     if (!service.value) return null
 
-    const commentary = service.value.onRoundComplete(roundNumber)
+    const commentary = service.value.onRoundComplete(roundNumber, cyclesInRound, canFire)
 
     if (commentary) {
       pendingCommentary.value = commentary

@@ -10,10 +10,18 @@
  *   • Encouragements — random pull from the pool, repeats fine. Kick in after
  *                    instructions are complete.
  *
- * Gating: every Nth round (default N=2 → every other round). Simple,
- * predictable, and easy to tune. Replaces the previous cycle-counting
- * approach (27–55 cycles + a "doing well" multiplier whose performance
- * inputs were hardcoded, making commentary fire roughly never).
+ * Gating (2026-05-26): a variable-interval reward — "uncertain dopamine".
+ * Fires roughly every ~10 minutes of ACTIVE learning, with ±30% jitter so the
+ * learner can't predict it, and only ever BETWEEN TWO SPEAKING ROUNDS (the
+ * caller passes `canFire` for that — see handleRoundBoundary). Consistency
+ * isn't the goal; surprise is, so people keep finding them interesting.
+ *
+ * "Active learning time" is measured in CYCLES PLAYED (~11s each), not
+ * wall-clock — a learner who pauses for 20 min shouldn't get an encouragement
+ * the instant they resume. The previous fixed round-cadence had no jitter; the
+ * one before THAT was cycle-counting crippled by a hardcoded "doing well"
+ * performance multiplier (fired roughly never). This is the plain interval
+ * with none of that baggage.
  *
  * Skip semantics: when commentary IS returned for a round, the instruction
  * index advances and global state saves immediately. If the learner stops
@@ -42,31 +50,16 @@ export interface GlobalCommentaryState {
 const GLOBAL_STORAGE_KEY = 'ssi_commentary_global_'
 
 /**
- * Cadence — early rounds are short (individual-LEGO intros, ~3 cycles
- * each), so a fixed "every other round" would fire too often at the
- * start. The early-rounds list spaces commentary out by cycle count
- * (~20 cycles ≈ 5-10 mins) while round count is still ramping up:
- *
- *   Round 5   – first full SEED has just played out
- *   Round 10  – ~20 more cycles of practice
- *   Round 14  – another ~20 cycles
- *   Round 18  – another ~20 cycles
- *   Round 20, 22, 24, …  – steady state, every 2 rounds (rounds are
- *                          longer now, so each pair ≈ 20 cycles)
- *
- * Tunable at the top so the cadence can be re-balanced without code
- * spelunking. Keep `EARLY` in ascending order.
+ * Cadence config — tune here without code spelunking.
+ *   ~11s per cycle ⇒ ~5.5 cycles/min (validated, see CLAUDE.md timing).
+ *   Base interval ~10 min of active play ≈ 55 cycles, jittered ±30%
+ *   ⇒ each gap lands somewhere in ~7–13 min. The jitter is deliberate:
+ *   an unpredictable reward keeps the encouragements feeling fresh.
  */
-const EARLY_COMMENTARY_ROUNDS = [5, 10, 14, 18] as const
-const STEADY_STATE_FROM_ROUND = 20
-const STEADY_STATE_INTERVAL = 2
-
-function shouldFireAtRound(round: number): boolean {
-  if (round <= 0) return false
-  if ((EARLY_COMMENTARY_ROUNDS as readonly number[]).includes(round)) return true
-  if (round < STEADY_STATE_FROM_ROUND) return false
-  return (round - STEADY_STATE_FROM_ROUND) % STEADY_STATE_INTERVAL === 0
-}
+const CYCLES_PER_MINUTE = 5.5
+const BASE_INTERVAL_MINUTES = 10
+const BASE_INTERVAL_CYCLES = Math.round(BASE_INTERVAL_MINUTES * CYCLES_PER_MINUTE)
+const INTERVAL_JITTER = 0.3
 
 export class MetaCommentaryService {
   private provider: CourseDataProvider
@@ -77,6 +70,11 @@ export class MetaCommentaryService {
   private encouragements: Array<AudioRef & { text: string }> = []
   private welcomeAudio: AudioRef | null = null
   private initialized = false
+
+  // Variable-interval reward state (session-scoped — a fresh session starts
+  // the clock over, which is fine: encouragements aren't progress).
+  private cyclesSinceLastFire = 0
+  private nextFireAtCycles = 0 // 0 → rolled lazily on first round
 
   constructor(provider: CourseDataProvider, learnerId: string) {
     this.provider = provider
@@ -139,13 +137,31 @@ export class MetaCommentaryService {
     }
   }
 
+  /** Roll the next interval: BASE ± INTERVAL_JITTER, in cycles. */
+  private rollIntervalCycles(): number {
+    const factor = 1 + (Math.random() * 2 - 1) * INTERVAL_JITTER
+    return Math.max(1, Math.round(BASE_INTERVAL_CYCLES * factor))
+  }
+
   /**
-   * Called after each round completes. Returns commentary if the round-count
-   * cadence says it's time, otherwise null. No cycle accounting, no
-   * performance heuristics — just the simple rule.
+   * Called after every round completes. Accumulates active play time (the
+   * round's cycle count) and fires commentary once ~the rolled interval has
+   * elapsed — but ONLY when `canFire` is true (the caller sets this when the
+   * boundary sits between two speaking rounds, so an encouragement never butts
+   * up against a listening section). When it can't fire yet, the accumulated
+   * time is kept, so the next clean boundary picks it up.
+   *
+   * @param _roundNumber  kept for caller/telemetry symmetry; timing no longer
+   *                      keys off round number.
+   * @param cyclesInRound number of cycles in the round that just completed.
+   * @param canFire       true iff this boundary is a legal place to drop one.
    */
-  onRoundComplete(roundNumber: number): MetaCommentaryAudio | null {
-    if (!shouldFireAtRound(roundNumber)) return null
+  onRoundComplete(_roundNumber: number, cyclesInRound = 0, canFire = true): MetaCommentaryAudio | null {
+    if (this.nextFireAtCycles === 0) this.nextFireAtCycles = this.rollIntervalCycles()
+    this.cyclesSinceLastFire += Math.max(0, cyclesInRound)
+
+    if (!canFire) return null
+    if (this.cyclesSinceLastFire < this.nextFireAtCycles) return null
 
     const commentary = this.getNextCommentary()
     if (!commentary) return null
@@ -159,6 +175,9 @@ export class MetaCommentaryService {
       this.saveGlobalState()
     }
 
+    // Reset the clock and re-roll so the next gap is independently uncertain.
+    this.cyclesSinceLastFire = 0
+    this.nextFireAtCycles = this.rollIntervalCycles()
     return commentary
   }
 

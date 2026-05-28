@@ -3474,15 +3474,39 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
 
   // ============================================
   // META-COMMENTARY: Instructions & Encouragements
-  // Check if it's time for audio commentary between rounds
-  // Timing is CYCLE-based (consistent ~11s), but plays at round boundaries
   // ============================================
+  // Encouragements are an UNCERTAIN reward: roughly every ~10 min of active
+  // play, jittered so they can't be predicted, and ALWAYS dropped between two
+  // speaking rounds — never adjacent to a listening section. (If one followed
+  // listening, commentary's closing resume() would restart the next round's
+  // intro over the still-resolving lap — the resume()/pause() race documented
+  // in onRoundCompleted — and a ~1-min clip butted onto a listening block is
+  // poor pacing anyway.) A boundary is a legal drop point when:
+  //   • the round that just finished is not a listening round, AND
+  //   • the round about to start is not a listening round, AND
+  //   • no runtime pod lap fires at this boundary.
+  // We call onRoundComplete EVERY round so the service can accumulate active
+  // play time (cycle count); it only RETURNS commentary when canFire is set,
+  // so the ~10-min timer naturally lands on the next clean boundary. The
+  // listening schedule is untouched; the encouragement is the flexible guest.
+  const isListeningRound = (r: { cycles?: Array<{ type?: string }> } | null | undefined): boolean =>
+    !!r?.cycles?.some(c =>
+      c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro' || c.type === 'pod'
+    )
+  const nextRound = loadedRounds.value[completedRoundIndex + 1] as { cycles?: Array<{ type?: string }> } | undefined
+  const podFiresThisBoundary = !!podScheduler
+    && podScheduler.isInitialized.value
+    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  const boundaryBetweenSpeakingRounds =
+    !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
+
   if (metaCommentary && !beltJustEarned.value) {
-    // Round-cadence gating lives in MetaCommentaryService (every Nth round).
-    // No more cycle counting or performance heuristics from the player side —
-    // the previous version had hardcoded perf inputs that pushed the cadence
-    // multiplier toward "doing well" and effectively silenced commentary.
-    const commentary = metaCommentary.onRoundComplete(completedRoundIndex + 1)
+    const cyclesInRound = completedRound?.cycles?.length ?? 0
+    const commentary = metaCommentary.onRoundComplete(
+      completedRoundIndex + 1,
+      cyclesInRound,
+      boundaryBetweenSpeakingRounds,
+    )
 
     if (commentary) {
       console.log('[LearningPlayer] Playing', commentary.type, 'commentary')

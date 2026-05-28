@@ -364,6 +364,7 @@ COMPOSABLES:
   useMetaCommentary:
     purpose: "Manage intro messages and encouragements"
     source: "packages/player-vue/src/composables/useMetaCommentary.ts"
+    invariant: "Encouragements are a variable-interval reward: ~every 10 min of ACTIVE play (cycles played, not wall-clock — pauses don't count), jittered ±30% so they're unpredictable, and ALWAYS dropped between two speaking rounds (just-finished round not listening, next round not listening, no pod lap firing at this boundary). onRoundComplete is called every round to accumulate active time but only returns commentary when the caller's canFire (clean boundary) is set, so the timer lands on the next clean boundary. The listening schedule is untouched — the encouragement is the flexible guest. Also prevents the next-round intro overlapping a lap (the resume()/pause() race)."
 
   useBeltProgress:
     purpose: "Track belt progression with localStorage + Supabase sync"
@@ -459,6 +460,13 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.1:
+    date: "2026-05-26"
+    title: "Encouragements = uncertain reward, between speaking rounds"
+    changes:
+      - "Commentary cadence is now a variable interval (~10 min of active play, ±30% jitter) instead of a fixed round count — an unpredictable reward that stays interesting. Measured in cycles played (not wall-clock) so long pauses don't trigger one on resume."
+      - "Fires only at a boundary flanked by two speaking rounds with no pod lap — keeps a ~1-min encouragement away from listening and stops the double-audio (next-round intro overlapping a lap) on skip. Listening schedule unchanged."
+
   v2.1.0:
     date: "2026-01-18"
     title: "Belt-Aware Progressive Loading"
