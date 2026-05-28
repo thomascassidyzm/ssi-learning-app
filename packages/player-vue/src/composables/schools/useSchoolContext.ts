@@ -59,14 +59,22 @@ export function useSchoolContext() {
    */
   async function loadFromAuth(authUserId: string, client?: SupabaseClient): Promise<void> {
     if (currentUser.value) return
-    const c = client ?? getSchoolsClient()
+    const user = await resolveUser(authUserId, client ?? getSchoolsClient())
+    if (user) currentUser.value = user
+  }
 
+  /**
+   * Build the full SchoolUser for a given learner user_id — their role plus
+   * the scope (school / region / group) they'd see when logged in themselves.
+   * Shared by loadFromAuth (self) and loadAsPersona (admin act-as).
+   */
+  async function resolveUser(userId: string, c: SupabaseClient): Promise<SchoolUser | null> {
     const { data: learner } = await c
       .from('learners')
       .select('id, user_id, display_name, educational_role, platform_role')
-      .eq('user_id', authUserId)
+      .eq('user_id', userId)
       .single()
-    if (!learner) return
+    if (!learner) return null
 
     const user: SchoolUser = {
       user_id: learner.user_id,
@@ -79,18 +87,31 @@ export function useSchoolContext() {
     if (learner.educational_role === 'govt_admin') {
       const { data: govt } = await c
         .from('govt_admins')
-        .select('region_code, organization_name')
-        .eq('user_id', authUserId)
+        .select('region_code, organization_name, group_id')
+        .eq('user_id', userId)
         .single()
       if (govt) {
         user.region_code = govt.region_code
         user.organization_name = govt.organization_name
+        // Group is the canonical scope (a govt admin governs a group subtree,
+        // e.g. the Wales group). region_code is a legacy fallback for admins
+        // created before the group tree existed. The schools composables
+        // prefer group_path when present.
+        if (govt.group_id) {
+          user.group_id = govt.group_id
+          const { data: group } = await c
+            .from('groups')
+            .select('path')
+            .eq('id', govt.group_id)
+            .single()
+          if (group) user.group_path = group.path
+        }
       }
     } else if (['school_admin', 'teacher'].includes(learner.educational_role || '')) {
       const { data: tag } = await c
         .from('user_tags')
         .select('tag_value')
-        .eq('user_id', authUserId)
+        .eq('user_id', userId)
         .eq('tag_type', 'school')
         .is('removed_at', null)
         .limit(1)
@@ -113,7 +134,7 @@ export function useSchoolContext() {
         const { data: school } = await c
           .from('schools')
           .select('id, school_name, region_code')
-          .eq('admin_user_id', authUserId)
+          .eq('admin_user_id', userId)
           .limit(1)
           .single()
         if (school) {
@@ -124,7 +145,24 @@ export function useSchoolContext() {
       }
     }
 
-    currentUser.value = user
+    return user
+  }
+
+  /**
+   * Act-as: prime the context as a real persona (teacher / school_admin /
+   * govt_admin) so the live /schools experience renders exactly as that
+   * person would see it. Only ssi_admins reach this (gated at the call site).
+   *
+   * Unlike loadFromSchoolId/GroupId (which keep the admin's user_id and a
+   * fixed role for read-only scope), this sets the persona's OWN user_id —
+   * a teacher's classes are scoped by teacher_user_id, so seeing their real
+   * roster requires being them. This is ephemeral client state: the admin's
+   * learner row and auth session are untouched, so no admin↔persona link is
+   * ever stored. Exiting just clears the context.
+   */
+  async function loadAsPersona(personaUserId: string, client?: SupabaseClient): Promise<void> {
+    const user = await resolveUser(personaUserId, client ?? getSchoolsClient())
+    if (user) currentUser.value = user
   }
 
   /**
@@ -245,6 +283,7 @@ export function useSchoolContext() {
     isTeacher,
     isStudent,
     loadFromAuth,
+    loadAsPersona,
     loadFromSchoolId,
     loadFromGroupId,
     loadFromLearnerId,
