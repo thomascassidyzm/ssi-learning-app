@@ -4,7 +4,7 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.1.0"
+  version: "1.2.0"
   date: "2026-05-28"
   author: "Tom Cassidy & Claude"
   status: "specification"
@@ -30,6 +30,20 @@ principle RoleHierarchy:
     A school_admin can "become" a teacher to create a class.
     A govt_admin can view school dashboards in read-only mode.
 
+  transitive_visibility:
+    statement: "An admin can drill down through their whole subtree and see what each level sees."
+    model: |
+      group (govt_admin) -> school (school_admin) -> class (teacher) -> student.
+      A govt admin drills group → school → class and sees the same per-student
+      activity the teacher sees at the leaf. Visibility is scope-based: you can
+      see everything beneath the node you administer.
+    implementation: |
+      The drill-down works because class/student data loads by id, unscoped by
+      role (fetchClassDetail(classId)). Navigation: DashboardView govt detail
+      → class rows link to /schools/classes/:id; ClassDetail back-nav returns to
+      the school for a drilled-in govt admin.
+    tension_with: "PrivacyByDesign (see its status note — the aggregates-only gate is currently NOT enforced)."
+
 principle SeparationOfConcerns:
   statement: "Content creation is separate from content delivery"
 
@@ -52,6 +66,16 @@ principle SeparationOfConcerns:
 
 principle PrivacyByDesign:
   statement: "Higher roles see aggregates, not individual data"
+
+  status: |
+    DEFERRED POLICY GATE — NOT currently enforced. The implementation grants
+    full transitive drill-down (see RoleHierarchy.transitive_visibility): a govt
+    admin can reach individual student data within their subtree. This is the
+    desired behaviour for internal/demo oversight. Before the first REAL govt
+    contract, decide whether to enforce an aggregates-only gate (e.g. hide
+    names / require an N-student minimum) for real (non-demo) govt admins.
+    Until then, treat the rules below as the eventual contract-facing policy,
+    not the current behaviour.
 
   examples:
     govt_admin:
@@ -663,9 +687,11 @@ interface AdminActAs:
     - "App.vue (banner mount + restore)"
 
   related_fix: |
-    Govt admin school drill-down: DashboardView now renders a detail block
+    Govt admin school drill-down: DashboardView renders a detail block
     (stat strip + classes table) and fetches the school's classes when a govt
-    admin selects a school; previously the selected-school state was blank.
+    admin selects a school; class rows link to /schools/classes/:id so the
+    admin drills group → school → class → per-student activity (the full
+    transitive_visibility chain). ClassDetail back-nav returns to the school.
 
 # =============================================================================
 # DATABASE SCHEMA ADDITIONS
@@ -842,6 +868,14 @@ migration RolesV1:
 # =============================================================================
 
 version_history:
+  v1.2.0:
+    date: "2026-05-28"
+    author: "Tom Cassidy & Claude"
+    changes:
+      - "Added RoleHierarchy.transitive_visibility — admins drill their whole subtree (group → school → class → student) and see what each level sees"
+      - "Wired govt drill-down to class detail (clickable class rows + context-aware back nav)"
+      - "PrivacyByDesign marked DEFERRED POLICY GATE — full drill-down currently allowed; aggregates-only gate is a decision for the first real govt contract"
+
   v1.1.0:
     date: "2026-05-28"
     author: "Tom Cassidy & Claude"

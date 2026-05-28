@@ -481,13 +481,13 @@ function handlePlayClass(cls: ClassInfo) {
             <tbody>
               <tr v-for="cls in teacherClasses" :key="cls.id">
                 <td>
-                  <div class="class-cell">
+                  <router-link :to="`/schools/classes/${cls.id}`" class="class-cell class-cell-link">
                     <BeltDot belt="white" :size="20" ring />
                     <div>
                       <div class="class-name">{{ cls.class_name }}</div>
                       <div class="schools-subtle class-meta">{{ courseDisplayName(cls.course_code) }}</div>
                     </div>
-                  </div>
+                  </router-link>
                 </td>
                 <td class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</td>
                 <td>{{ cls.student_count }}</td>
@@ -533,6 +533,18 @@ function handlePlayClass(cls: ClassInfo) {
 .breadcrumb-back:hover { background: rgba(219, 30, 23, 0.06); }
 .breadcrumb-sep { color: var(--schools-fg-3); }
 .breadcrumb-current { color: var(--schools-fg); font-weight: 500; }
+
+/* Govt drill-down: clickable class row */
+.class-cell-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+.class-cell-link:hover .class-name {
+  color: var(--schools-red);
+}
 
 /* ---------- Stat strip ---------- */
 .stat-strip {

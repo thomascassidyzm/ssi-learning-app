@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
@@ -18,8 +19,13 @@ const router = useRouter()
 const route = useRoute()
 
 const isAdminView = inject<boolean>('isAdminView', false)
-const { currentUser: selectedUser } = useSchoolContext()
+const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
+const { viewingSchool } = useSchoolData()
+
+// When a govt admin drilled group → school → class, "back" should return to
+// the school dashboard, not the (empty for them) classes list.
+const backToSchool = computed(() => isGovtAdmin.value && !!viewingSchool.value)
 
 const classReport = ref<ClassReport | null>(null)
 const copySuccess = ref(false)
@@ -186,7 +192,13 @@ watch(selectedUser, (newUser) => {
 })
 
 function handleBack() {
-  router.push({ name: 'classes' })
+  // Govt drill-down returns to the school dashboard (viewingSchool stays set),
+  // everyone else to the classes list.
+  if (backToSchool.value) {
+    router.push('/schools')
+  } else {
+    router.push({ name: 'classes' })
+  }
 }
 
 function handlePlay() {
@@ -232,7 +244,7 @@ async function handleRemoveStudent(student: { user_id: string; name: string }) {
 <template>
   <main class="detail">
     <nav class="breadcrumb">
-      <a href="#" @click.prevent="handleBack">Classes</a>
+      <a href="#" @click.prevent="handleBack">{{ backToSchool ? (viewingSchool?.school_name || 'School') : 'Classes' }}</a>
       <span class="crumb-sep">/</span>
       <span class="crumb-current">{{ classData.class_name }}</span>
     </nav>
