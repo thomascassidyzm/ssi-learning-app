@@ -6829,7 +6829,10 @@ const handleSkipToNextBelt = async () => {
           }
         }
       }
-      console.warn('[LearningPlayer] Could not enter infinite play — no revival rounds found')
+      // No revival rounds from regen (offline, or a course with none) —
+      // never stop: recycle cached USE phrases into INF PLAY.
+      console.warn('[LearningPlayer] No revival rounds found — recycling cached cycles into INF PLAY')
+      await enterInfPlayFromCache()
       return
     }
 
@@ -6850,6 +6853,12 @@ const handleSkipToNextBelt = async () => {
     // on. Use the resolved index for prepareAndJump's audio extraction; the
     // jump itself stays on jumpToSeed (single source of truth for seed→round).
     const resolvedTargetIdx = simplePlayer.findRoundIndexForSeed(targetSeed)
+    // No round for this belt's seed (course doesn't extend this far) — never
+    // stop; recycle cached USE phrases into INF PLAY instead of halting.
+    if (resolvedTargetIdx < 0) {
+      await enterInfPlayFromCache()
+      return
+    }
     await prepareAndJump(resolvedTargetIdx, 'Fetching next belt…', () => {
       simplePlayer.jumpToSeed(targetSeed)
       if (beltProgress.value) {
@@ -6972,6 +6981,12 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`)
 
     await loadSeedIfNeeded(targetSeed)
+    // No round for this belt's seed (course doesn't extend this far) — never
+    // stop; recycle cached USE phrases into INF PLAY instead of halting.
+    if (simplePlayer.findRoundIndexForSeed(targetSeed) < 0) {
+      await enterInfPlayFromCache()
+      return
+    }
     simplePlayer.jumpToSeed(targetSeed)
 
     // Update visual playing position only — belt award requires natural completion
@@ -7854,6 +7869,45 @@ const appendCachedLoopForOffline = (): number => {
   // but then just stopped" bug.
   cachedRounds.value = [...rounds, ...loopRounds] as any
   return loopRounds.length
+}
+
+// Skip / belt-jump landed past all loaded content (no round matches the
+// target seed). Tom's rule: it must NEVER stop — drop straight into INF
+// PLAY by recycling cached USE phrases. Network-independent and doesn't
+// depend on belt math or regen producing a seed-matched round. Returns
+// true if it engaged playback, false only when nothing is cached to recycle.
+const enterInfPlayFromCache = async (): Promise<boolean> => {
+  const firstNewIdx = simplePlayer.roundCount.value
+  const looped = appendCachedLoopForOffline()
+  if (looped <= 0) {
+    console.warn('[LearningPlayer] Skip past content but no cached cycles to recycle — staying put')
+    return false
+  }
+  console.log(`[LearningPlayer] Skip past content — INF PLAY from ${looped} recycled cached rounds at index ${firstNewIdx}`)
+  // Flip the mode flag so back-belt-skip exits correctly and the next
+  // session resumes in INF PLAY rather than bouncing back to the start.
+  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+    try {
+      const finalLego = await getCourseFinalLego(courseCode.value)
+      await progressStore.value.setMode(learnerId.value, courseCode.value, 'infplay', finalLego ?? undefined)
+      currentMode.value = 'infplay'
+      if (infplayRoundIndex.value === 0) infplayRoundIndex.value = 1
+    } catch (err) {
+      console.warn('[LearningPlayer] setMode(infplay) from cache fallback failed:', err)
+    }
+  }
+  // Anchor the belt to the course's final content (top reachable belt) so
+  // the display reads INF PLAY, not the empty belt we tried to skip to.
+  if (beltProgress.value) {
+    const fin = courseFinalLegoRef.value?.legoId
+    const finSeed = fin ? getSeedFromLegoId(fin) : null
+    if (finSeed != null) beltProgress.value.setPlayingPosition(finSeed)
+  }
+  // jumpToRound auto-resumes when the engine was playing (haltAllPlayback
+  // doesn't pause it), so this picks straight up at the recycled round.
+  simplePlayer.jumpToRound(firstNewIdx)
+  await persistCursorAtCurrentRound()
+  return true
 }
 
 const toggleOffline = () => {
