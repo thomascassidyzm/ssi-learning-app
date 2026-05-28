@@ -7681,13 +7681,54 @@ const collectOfflineSpanAudioIds = (): string[] => {
   return [...ids]
 }
 
+// Commentary (welcome/instructions/encouragements) and pod audio are
+// scheduled at RUNTIME — encouragements are a random pull from a pool, pod
+// laps advance on a ratchet — so we can't predict which exact clips fire in
+// the span. Both pools are small and bounded, so we cache ALL of them:
+// whatever fires offline is then guaranteed present in IndexedDB. Without
+// this, a between-round encouragement or pod clip isn't cached → offline
+// miss → it falls to the network → the 60s commentary safety timeout stalls
+// the lesson (the "plays ~10 rounds then stops dead" bug, 2026-05-28). Also
+// the reason pods can now play during an offline journey, per the model.
+const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
+  const ids = new Set<string>()
+  const provider = courseDataProvider.value
+  if (provider) {
+    try {
+      const [instructions, encouragements, welcome] = await Promise.all([
+        provider.getInstructions(),
+        provider.getEncouragements(),
+        provider.getWelcomeAudio(),
+      ])
+      for (const c of instructions ?? []) if (c?.id) ids.add(c.id)
+      for (const c of encouragements ?? []) if (c?.id) ids.add(c.id)
+      if (welcome?.id) ids.add(welcome.id)
+    } catch (e) { console.warn('[Offline] commentary enumerate failed:', e) }
+  }
+  if (podScheduler) {
+    try {
+      if (!podScheduler.isInitialized.value) await podScheduler.initialize()
+      for (const s of podScheduler.podSentences.value ?? []) {
+        if (s?.target_audio_id) ids.add(s.target_audio_id)
+        if (s?.known_audio_id) ids.add(s.known_audio_id)
+        if (s?.explainer_audio_id) ids.add(s.explainer_audio_id)
+      }
+      if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
+      if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
+    } catch (e) { console.warn('[Offline] pod enumerate failed:', e) }
+  }
+  return [...ids]
+}
+
 const downloadForOffline = async () => {
   // Build out the script first — without this we'd only download whatever
   // rounds lazy-loading happened to have in memory (the "4 LEGOs" cap).
   offlineDlState.value = 'preparing'
   await ensureOfflineSpanLoaded()
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
-  const ids = collectOfflineSpanAudioIds()
+  const cycleIds = collectOfflineSpanAudioIds()
+  const auxIds = await collectAuxiliaryAudioIds()  // commentary + pod pools
+  const ids = [...new Set([...cycleIds, ...auxIds])]
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
