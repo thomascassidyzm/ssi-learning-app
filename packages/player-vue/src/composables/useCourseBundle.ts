@@ -144,7 +144,7 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
       }
       return row.bundle
     } catch (err) {
-      console.warn('[CourseBundle] Failed to read cache:', err)
+      console.warn('[CourseBundle] Failed to read cache:', (err as any)?.name, '—', (err as any)?.message, err)
       return null
     }
   }
@@ -163,7 +163,7 @@ export function useCourseBundle(options: UseCourseBundleOptions = {}): UseCourse
       // private-browsing modes that disable persistent storage.
       // The bundle still lives in `bundle.value` for this session,
       // we just lose the warm-start benefit next time. Non-fatal.
-      console.warn('[CourseBundle] Failed to write cache:', err)
+      console.warn('[CourseBundle] Failed to write cache:', (err as any)?.name, '—', (err as any)?.message, err)
     }
   }
 

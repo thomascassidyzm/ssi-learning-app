@@ -112,7 +112,7 @@ export const getCachedScript = async (courseCode: string): Promise<CachedScript 
     console.log('[ScriptCache] Loaded from IndexedDB')
     return data
   } catch (err) {
-    console.warn('[ScriptCache] Read failed:', err)
+    console.warn('[ScriptCache] Read failed:', (err as any)?.name, '—', (err as any)?.message, err)
     return null
   }
 }
@@ -134,7 +134,7 @@ export const setCachedScript = async (
     console.log('[ScriptCache] Saved to IndexedDB')
   } catch (err) {
     // IndexedDB has GBs of room, so this should be rare (quota pressure only).
-    console.warn('[ScriptCache] Write failed:', err)
+    console.warn('[ScriptCache] Write failed:', (err as any)?.name, '—', (err as any)?.message, err)
   }
 }
 
