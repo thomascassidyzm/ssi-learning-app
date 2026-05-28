@@ -5338,10 +5338,17 @@ const handleCycleEvent = async (event) => {
           // back to the summary screen if expansion genuinely can't
           // produce any more content (no LEGOs in the course at all).
           if (currentRoundIndex.value >= cachedRounds.value.length) {
-            console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
-            await expandScript()
+            if (offlineActive.value) {
+              // Offline can't expandScript (no network). Loop the cached
+              // content instead so playback never ends. Tom 2026-05-25.
+              const looped = appendCachedLoopForOffline()
+              console.warn(`[LearningPlayer] Offline tail reached — looped ${looped} cached rounds`)
+            } else {
+              console.warn('[LearningPlayer] Ran off the tail of cached rounds — expanding now')
+              await expandScript()
+            }
             if (currentRoundIndex.value >= cachedRounds.value.length) {
-              console.error('[LearningPlayer] Expansion produced nothing — showing summary as last resort')
+              console.error('[LearningPlayer] No more content — showing summary as last resort')
               showPausedSummary()
               return
             }
@@ -7827,9 +7834,17 @@ const appendCachedLoopForOffline = (): number => {
     const j = Math.floor(Math.random() * (i + 1))
     ;[cachedOnly[i], cachedOnly[j]] = [cachedOnly[j], cachedOnly[i]]
   }
-  let num = simplePlayer.roundCount.value
+  // Fresh round numbers above every existing one so appendRounds (dedupes by
+  // roundNumber) doesn't drop them.
+  let num = Math.max(0, ...(rounds.map((r) => r?.roundNumber ?? 0)))
   const loopRounds = cachedOnly.map((r) => ({ ...r, roundNumber: ++num }))
   simplePlayer.appendRounds(loopRounds as any)
+  // CRITICAL: keep cachedRounds in lockstep with the engine queue, exactly as
+  // expandScript does. The round-advance end-check (and currentRound) read
+  // cachedRounds.length; without this the cursor runs past it and the player
+  // shows the summary even though the engine has more queued — the "looped
+  // but then just stopped" bug.
+  cachedRounds.value = [...rounds, ...loopRounds] as any
   return loopRounds.length
 }
 
