@@ -434,19 +434,39 @@ const instantPlayback = useInstantPlayback(courseCode, {
       }
 
       const lastCompleted = enrollment?.last_completed_lego_id ?? null
-      if (!lastCompleted) return null  // fresh learner → bootstrap defaults to R1
+      const ceiling = enrollment?.highest_completed_lego_id ?? null
 
-      // last_completed_lego_id means the learner FINISHED that LEGO.
-      // Resume should land on the NEXT one in script order, not replay
-      // the one they just completed. Look it up in the round-map.
+      // A returning learner is anchored by their cursor (last_completed_lego_id
+      // == "where you left off"). But if that cursor can't be located in the
+      // round-map — null on a fresh row, or stale/schema-drifted — we must
+      // NOT silently fall back to round 1. Starting at R1 makes the very next
+      // round-completion overwrite the cursor with S0001L01 (saveRoundProgress
+      // legitimately tracks current position for belt-back), permanently
+      // pinning the learner to LEGO 1: the trigger protects highest, but the
+      // cursor has no floor, and every later resume then reads S0001L01. So a
+      // learner with a known ceiling falls back to the CEILING — they resume
+      // near how far they actually got, never seed 1. Only a genuinely fresh
+      // learner (no cursor AND no ceiling) defaults to R1.
       const map = await instantPlayback.getOrFetchRoundMap()
-      const idx = map.rounds.findIndex(r => r.legoId === lastCompleted)
+      let anchor = lastCompleted
+      let idx = anchor ? map.rounds.findIndex(r => r.legoId === anchor) : -1
+      if (idx === -1 && ceiling) {
+        if (anchor) {
+          console.warn(`[InstantPlayback] cursor ${anchor} not in round-map; falling back to ceiling ${ceiling}`)
+        }
+        anchor = ceiling
+        idx = map.rounds.findIndex(r => r.legoId === ceiling)
+      }
       if (idx === -1) {
-        // LEGO not in round-map (schema drift, deleted content, etc.).
-        // Treat as fresh start rather than crashing.
-        console.warn(`[InstantPlayback] last_completed ${lastCompleted} not in round-map; starting at R1`)
+        // Neither cursor nor ceiling resolvable → genuinely fresh start.
+        if (anchor) {
+          console.warn(`[InstantPlayback] resume anchor ${anchor} not in round-map; starting at R1`)
+        }
         return null
       }
+
+      // anchor == the LEGO the learner FINISHED. Resume lands on the NEXT
+      // one in script order, not a replay, so its intro plays naturally.
       const next = map.rounds[idx + 1]
       if (!next) {
         // Course end — no further LEGOs to introduce. Auto-enter INF
@@ -665,35 +685,21 @@ const persistCursorAtCurrentRound = async () => {
   const idx = simplePlayer.roundIndex.value
   if (!round?.legoId || typeof idx !== 'number') return
 
-  // INF PLAY rounds carry a random-USE LEGO as their primary legoId
-  // (could be anywhere in the course). Writing THAT as the cursor
-  // makes the cursor point at some random earlier position, BEHIND
-  // the learner's actual highest LEGO — surfacing as "you've been
-  // further than this" in the resting state. Substitute the last
-  // main-loop LEGO (== the learner's true cursor anchor) so the
-  // cursor stays meaningful in INF PLAY.
-  //
-  // Mirrors saveRoundProgress's substitution at line 623. Both writes
-  // (round-completion AND explicit navigation) need the same logic
-  // or one path overwrites the other with a bad value.
-  let legoIdToSave = round.legoId
-  const isInfPlayRound = !!round.cycles?.length && !round.cycles.some((c: any) =>
-    c.type === 'intro' || c.type === 'debut' || c.type === 'build'
-  )
-  if (isInfPlayRound) {
-    // Prefer the session high-water; fall back to the persisted
-    // ceiling if we got here without playing any main-loop round
-    // this session (e.g. jumpToFurthest straight into INF PLAY).
-    const anchor = lastMainLoopLegoId.value ?? highestCompletedLegoId.value
-    if (anchor) legoIdToSave = anchor
-  }
+  // INF PLAY: the cursor is FROZEN at the ceiling — stamped once on entry
+  // via setMode's last_completed_lego_id ratchet. Re-persisting here would
+  // write the round's random-USE legoId and strand the cursor at an early
+  // LEGO (a high round_index paired with e.g. S0001L01 — the corruption we
+  // saw). In INF PLAY the cursor is owned by entry, so skip. Explicit exits
+  // (belt-back) flip currentMode to 'main' BEFORE calling this, so the
+  // main-loop position below is written then.
+  if (currentMode.value === 'infplay') return
 
-  await setRemoteCursor(legoIdToSave, idx)
-  liftLocalCeilingIfHigher(legoIdToSave, idx)
+  await setRemoteCursor(round.legoId, idx)
+  liftLocalCeilingIfHigher(round.legoId, idx)
   // Mirror what we just wrote to DB into the local ref so the
   // resting-state journey-bar reflects current cursor without
   // waiting for the next enrollment reload.
-  lastCompletedLegoIdRef.value = legoIdToSave
+  lastCompletedLegoIdRef.value = round.legoId
 }
 
 const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
@@ -702,45 +708,36 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
     return
   }
 
-  // For infinite-play rounds, substitute the last main-loop LEGO as
-  // the cursor. The round's primaryLegoKey is the first random-USE
-  // LEGO drawn (could be anywhere in the course); writing it as
-  // last_completed_lego_id makes the cursor meaningless as a
-  // course-progress marker. Even with the trigger fix that ratchets
-  // highest_completed_lego_id independently, the CURSOR (last_lego_id)
-  // should keep pointing at the boundary of what the learner has been
-  // introduced to, not at whatever random review LEGO came up first.
-  //
   // Use the round object passed by the caller, falling back to
   // cachedRounds for the legacy path. cachedRounds is empty on the
-  // instant-playback path — the bug that froze the ceiling at the
-  // last pre-instant-playback LEGO. See onRoundCompleted handler for
-  // the source of `round` and lastMainLoopLegoId maintenance.
-  let legoIdToSave = legoId
+  // instant-playback path.
   const r = round ?? cachedRounds.value[roundIndex]
   const isInfPlayRound = !!r?.cycles?.length && !r.cycles.some((c: any) =>
     c.type === 'intro' || c.type === 'debut' || c.type === 'build'
   )
-  if (isInfPlayRound && lastMainLoopLegoId.value) {
-    legoIdToSave = lastMainLoopLegoId.value
-  }
 
   try {
-    await progressStore.value.updateEnrollmentProgress(
-      learnerId.value,
-      courseCode.value,
-      legoIdToSave,
-      roundIndex
-    )
-    if (isInfPlayRound && legoIdToSave !== legoId) {
-      console.log(`[LearningPlayer] Saved progress: round ${roundIndex}, LEGO ${legoIdToSave} (infinite-play; substituted from round primaryLegoKey ${legoId})`)
-    } else {
-      console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoIdToSave)
+    // MAIN loop: the cursor follows the round just completed (forward-only
+    // at the persistence layer). INF PLAY: the cursor is FROZEN at the
+    // ceiling (stamped once on entry) — we must NOT write the round's
+    // random-USE legoId as the cursor. That write, when the old
+    // lastMainLoopLegoId anchor was empty, stamped an early LEGO onto a
+    // high round_index (e.g. S0001L01 @ round 103) and stranded resume at
+    // LEGO 1. So in INF PLAY skip the cursor write entirely; only advance
+    // the counter / keep mode + ceiling at "the end".
+    if (!isInfPlayRound) {
+      await progressStore.value.updateEnrollmentProgress(
+        learnerId.value,
+        courseCode.value,
+        legoId,
+        roundIndex
+      )
+      console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoId)
+      liftLocalCeilingIfHigher(legoId, roundIndex)
+      // Mirror cursor write into local ref for the resting-state
+      // journey-bar comparison (DB-canonical cursor).
+      lastCompletedLegoIdRef.value = legoId
     }
-    liftLocalCeilingIfHigher(legoIdToSave, roundIndex)
-    // Mirror cursor write into local ref for the resting-state
-    // journey-bar comparison (DB-canonical cursor).
-    lastCompletedLegoIdRef.value = legoIdToSave
     // INF PLAY auto-entry (mid-session). Crossing from the last main-
     // loop round into the first infplay round flips current_mode here
     // so we don't have to wait for a session restart for the mode flag
