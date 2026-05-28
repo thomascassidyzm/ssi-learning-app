@@ -9,14 +9,49 @@
  */
 
 import { ref, type Ref } from 'vue'
+import { openDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache configuration
-// Bump SCRIPT_KEY_PREFIX when script generation logic or database schema changes
-// This is the ONLY way to invalidate the cache - no TTL expiry
-const SCRIPT_KEY_PREFIX = 'ssi-script-v8-' // v8: fix quoted component text in M-LEGO tiles (17 courses affected)
+// Scripts live in IndexedDB. localStorage's ~5MB cap overflowed on big
+// courses (Irish = 943 LEGOs → QuotaExceededError on write, which also broke
+// cold offline reopen — no cached script to play). IndexedDB has GBs of room.
+// Bump SCRIPT_VERSION to invalidate — it's part of the key, so old entries
+// orphan and regenerate. This is the ONLY invalidation (no TTL).
+const SCRIPT_VERSION = 'v8' // v8: fix quoted component text in M-LEGO tiles
+const SCRIPT_DB_NAME = 'ssi-script-cache'
+const SCRIPT_STORE = 'scripts'
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'
 const CONTENT_VERSION_PREFIX = 'ssi-content-version-'
+
+let scriptDbPromise: Promise<IDBPDatabase> | null = null
+const scriptDb = (): Promise<IDBPDatabase> => {
+  if (!scriptDbPromise) {
+    scriptDbPromise = openDB(SCRIPT_DB_NAME, 1, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains(SCRIPT_STORE)) db.createObjectStore(SCRIPT_STORE)
+      },
+    })
+  }
+  return scriptDbPromise
+}
+
+// Versioned key so a SCRIPT_VERSION bump orphans old entries (→ regenerate).
+const idbKey = (courseCode: string): string => `${SCRIPT_VERSION}:${courseCode}`
+
+// One-time migration: scripts used to live in localStorage and overflowed the
+// 5MB quota. Purge those stale copies on load to reclaim the space.
+try {
+  if (typeof localStorage !== 'undefined') {
+    const stale: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k?.startsWith('ssi-script-v')) stale.push(k)
+    }
+    stale.forEach((k) => localStorage.removeItem(k))
+    if (stale.length) console.log('[ScriptCache] Migrated', stale.length, 'scripts off localStorage')
+  }
+} catch { /* noop */ }
 
 // Types
 export interface ScriptItem {
@@ -69,14 +104,12 @@ export interface CachedScript {
 
 export const getCachedScript = async (courseCode: string): Promise<CachedScript | null> => {
   try {
-    const key = `${SCRIPT_KEY_PREFIX}${courseCode}`
-    const stored = localStorage.getItem(key)
-    if (!stored) return null
-
-    const data = JSON.parse(stored) as CachedScript
-    // No TTL check - cache persists until version bump or explicit clear
-    // This is a PWA - the cache is the source of truth
-    console.log('[ScriptCache] Loaded from localStorage')
+    const db = await scriptDb()
+    const data = (await db.get(SCRIPT_STORE, idbKey(courseCode))) as CachedScript | undefined
+    if (!data) return null
+    // No TTL — cache persists until version bump or explicit clear (PWA: the
+    // cache is the source of truth).
+    console.log('[ScriptCache] Loaded from IndexedDB')
     return data
   } catch (err) {
     console.warn('[ScriptCache] Read failed:', err)
@@ -89,57 +122,27 @@ export const setCachedScript = async (
   data: Omit<CachedScript, 'courseCode' | 'cachedAt'>
 ): Promise<void> => {
   try {
-    const key = `${SCRIPT_KEY_PREFIX}${courseCode}`
     const fullData: CachedScript = {
       courseCode,
       ...data,
-      cachedAt: Date.now()
+      cachedAt: Date.now(),
+      // audio UUIDs live in audioRefs per item — drop the redundant map
+      audioMapObj: {},
     }
-
-    // Strip audioMapObj to save space - audio UUIDs are in audioRefs per item
-    const slimData = { ...fullData, audioMapObj: {} }
-    localStorage.setItem(key, JSON.stringify(slimData))
-    console.log('[ScriptCache] Saved to localStorage')
+    const db = await scriptDb()
+    await db.put(SCRIPT_STORE, fullData, idbKey(courseCode))
+    console.log('[ScriptCache] Saved to IndexedDB')
   } catch (err) {
-    // localStorage might be full (5MB limit)
+    // IndexedDB has GBs of room, so this should be rare (quota pressure only).
     console.warn('[ScriptCache] Write failed:', err)
-    // Try to clear old scripts to make room
-    clearOldScripts(courseCode)
-  }
-}
-
-// Clear scripts for other courses to make room
-const clearOldScripts = (keepCourseCode: string) => {
-  try {
-    const keysToRemove: string[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith(SCRIPT_KEY_PREFIX) && key !== `${SCRIPT_KEY_PREFIX}${keepCourseCode}`) {
-        keysToRemove.push(key)
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key))
-    console.log('[ScriptCache] Cleared', keysToRemove.length, 'old scripts')
-  } catch (err) {
-    console.warn('[ScriptCache] Failed to clear old scripts:', err)
   }
 }
 
 export const resetCacheState = async (): Promise<void> => {
   try {
-    // Clear all script caches from localStorage
-    const keysToRemove: string[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key?.startsWith(SCRIPT_KEY_PREFIX)) {
-        keysToRemove.push(key)
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key))
-
-    // Clear audio cache
+    const db = await scriptDb()
+    await db.clear(SCRIPT_STORE)
     await caches.delete(AUDIO_CACHE_NAME)
-
     console.log('[ScriptCache] All caches cleared')
   } catch (err) {
     console.warn('[ScriptCache] Reset failed:', err)
@@ -179,9 +182,8 @@ export const checkContentVersion = async (
     if (storedVersion && storedVersion !== currentVersion) {
       console.log(`[ScriptCache] Content version changed: ${storedVersion} → ${currentVersion} — clearing caches`)
 
-      // Clear script cache for this course
-      const scriptKey = `${SCRIPT_KEY_PREFIX}${courseCode}`
-      localStorage.removeItem(scriptKey)
+      // Clear script cache for this course (now in IndexedDB)
+      try { await (await scriptDb()).delete(SCRIPT_STORE, idbKey(courseCode)) } catch { /* noop */ }
 
       // Clear Service Worker audio cache (CacheFirst entries with old UUIDs)
       try {
