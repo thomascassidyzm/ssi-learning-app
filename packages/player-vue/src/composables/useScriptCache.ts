@@ -142,8 +142,14 @@ export const setCachedScript = async (
       // audio UUIDs live in audioRefs per item — drop the redundant map
       audioMapObj: {},
     }
+    // The script object often arrives as a Vue reactive proxy (rounds/items
+    // come straight from refs). IndexedDB's structured-clone rejects proxies
+    // with DataCloneError — localStorage's JSON.stringify silently flattened
+    // them, this doesn't. Round-trip to a plain object before the write.
+    // CachedScript is pure data (no Dates/functions), so JSON is lossless here.
+    const plain = JSON.parse(JSON.stringify(fullData)) as CachedScript
     const db = await scriptDb()
-    await db.put(SCRIPT_STORE, fullData, idbKey(courseCode))
+    await db.put(SCRIPT_STORE, plain, idbKey(courseCode))
     console.log('[ScriptCache] Saved to IndexedDB')
   } catch (err) {
     // IndexedDB has GBs of room, so this should be rare (quota pressure only).
