@@ -7613,7 +7613,7 @@ const toggleTurbo = () => {
 // downloader; normal play streams and caches nothing speculatively.
 const OFFLINE_SPAN_MS = 30 * 60 * 1000
 const offlineActive = ref(false)
-const offlineDlState = ref<'idle' | 'downloading' | 'complete' | 'error'>('idle')
+const offlineDlState = ref<'idle' | 'preparing' | 'downloading' | 'complete' | 'error'>('idle')
 const offlineDlDone = ref(0)      // audio files genuinely cached (successes only)
 const offlineDlTotal = ref(0)
 const offlineDlFailed = ref(0)    // fetches that failed (e.g. bad network)
@@ -7621,6 +7621,7 @@ const offlineDlFailed = ref(0)    // fetches that failed (e.g. bad network)
 // Progress banner label — empty when there's nothing to show. `done` counts
 // ONLY files that actually landed in IndexedDB, so "Ready" can't lie.
 const offlineDownloadLabel = computed(() => {
+  if (offlineDlState.value === 'preparing') return 'Preparing offline download…'
   if (offlineDlState.value === 'downloading') {
     const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
     return `Downloading for offline… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
@@ -7629,6 +7630,35 @@ const offlineDownloadLabel = computed(() => {
   if (offlineDlState.value === 'error') return `Offline download incomplete — ${offlineDlFailed.value} failed, needs better signal`
   return ''
 })
+
+// Estimated wall-clock (ms) of play currently sitting in cachedRounds from
+// the current round forward. Used to decide whether we've loaded enough
+// rounds to cover the offline span.
+const loadedSpanMsFromHere = (): number => {
+  const rounds = cachedRounds.value || []
+  const start = Math.max(0, currentRoundIndex.value)
+  let accMs = 0
+  for (let i = start; i < rounds.length; i++) {
+    for (const c of (((rounds[i]) as any).cycles || [])) {
+      accMs += 2000 + (c?.pauseDuration ?? 0) + (c?.target1DurationMs ?? 2000) + (c?.target2DurationMs ?? 2000) + 1000
+    }
+  }
+  return accMs
+}
+
+// Lazy loading means cachedRounds may hold only the current round (round N)
+// when offline is toggled — so collectOfflineSpanAudioIds' loop terminates on
+// rounds.length long before the 30-min budget is filled. That was the "only
+// got 4 LEGOs" bug. Expand the script (the same machinery INF PLAY uses) until
+// cachedRounds covers the span, the generator runs dry (course tail), or the
+// user cancels offline mode.
+const ensureOfflineSpanLoaded = async (): Promise<void> => {
+  let guard = 0
+  while (offlineActive.value && loadedSpanMsFromHere() < OFFLINE_SPAN_MS && guard++ < 20) {
+    const added = await expandScript()
+    if (added === 0) break  // generator exhausted — take what we have
+  }
+}
 
 const collectOfflineSpanAudioIds = (): string[] => {
   const rounds = cachedRounds.value || []
@@ -7652,6 +7682,11 @@ const collectOfflineSpanAudioIds = (): string[] => {
 }
 
 const downloadForOffline = async () => {
+  // Build out the script first — without this we'd only download whatever
+  // rounds lazy-loading happened to have in memory (the "4 LEGOs" cap).
+  offlineDlState.value = 'preparing'
+  await ensureOfflineSpanLoaded()
+  if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
   const ids = collectOfflineSpanAudioIds()
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
   offlineDlTotal.value = ids.length
