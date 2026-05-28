@@ -9,6 +9,13 @@ const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
                     process.env.GIT_COMMIT?.slice(0, 7) ||
                     `dev-${Date.now().toString(36)}`
 
+// On preview deploys (Vercel previews + local), the SW should self-update so
+// testers always run fresh code on reload. The prompt-and-wait flow leaves
+// stale bundles mixed across deploys — the exact testing nightmare we keep
+// hitting. Production stays prompt-only (see skipWaiting note below) to
+// honour the never-auto-interrupt-a-live-session rule.
+const swSelfUpdate = process.env.VERCEL_ENV !== 'production'
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
@@ -60,8 +67,11 @@ export default defineConfig(({ mode }) => ({
         // remains the only way the new SW takes control. Tom's hard rule
         // (2026-05-22, learnt the hard way during a session): NEVER
         // interrupt a playing session with an automatic update.
-        skipWaiting: false,
-        clientsClaim: false,
+        // Preview/local: self-update so testers run fresh code on reload
+        // (mixed stale bundles were the testing nightmare). PRODUCTION: both
+        // false — honour the never-auto-interrupt rule documented above.
+        skipWaiting: swSelfUpdate,
+        clientsClaim: swSelfUpdate,
 
         // Runtime caching for fonts/CDN/audio
         runtimeCaching: [
