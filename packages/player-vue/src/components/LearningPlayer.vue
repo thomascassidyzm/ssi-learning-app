@@ -2354,6 +2354,14 @@ watch(currentRoundIndex, async (index) => {
 
   const remaining = loaded - index
   if (remaining <= EXPANSION_THRESHOLD && !isExpandingScript.value) {
+    // Offline: there's no network to generate new rounds, so loop the
+    // already-cached content instead of expanding. Tom 2026-05-25: offline
+    // must always play SOMETHING — never end because we can't fetch more.
+    if (offlineActive.value) {
+      const looped = appendCachedLoopForOffline()
+      if (looped > 0) console.log(`[Offline] no network to expand — looped ${looped} cached rounds`)
+      return
+    }
     console.log(`[LearningPlayer] Approaching end (${remaining} rounds left of ${loaded}), expanding...`)
     await expandScript()
   }
@@ -7016,6 +7024,21 @@ simplePlayer.setRuntimeOverrides({
         return true
       }
     }
+
+    // OFFLINE mode: skip any cycle whose audio isn't fully in the persistent
+    // cache. With no network, trying to play a missing clip stalls the lesson
+    // (the new-LEGO intro / un-downloaded clip → 60s timeout freeze). Skipping
+    // forward to cached cycles + the end-of-rounds offline loop means it
+    // degrades to "play whatever IS cached" and never freezes. Tom 2026-05-25:
+    // never NOT play something because it can't find the exact next clip.
+    if (offlineActive.value) {
+      const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
+      const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
+      const c = cycle as any
+      if (!cachedId(c?.known?.audioUrl) || !cachedId(c?.target?.voice1Url) || !cachedId(c?.target?.voice2Url)) {
+        return true
+      }
+    }
     return false
   },
   // Offline mode ONLY: rewrite /api/audio/<id> to a local blob: URL from
@@ -7755,6 +7778,35 @@ const downloadForOffline = async () => {
     console.log(`[Offline] complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
     setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
   }
+}
+
+// Offline infinite play. With no network we can't generate new rounds, so
+// loop the already-cached content: take every fully-cached cycle from the
+// loaded rounds, regroup into fresh rounds with continuing round numbers
+// (appendRounds dedupes by roundNumber, so new numbers are required),
+// shuffled for variety. The end-of-rounds watcher re-invokes this near each
+// new end → endless cached play. Returns rounds appended (0 if nothing
+// cached). Tom 2026-05-25: offline must always play SOMETHING.
+const appendCachedLoopForOffline = (): number => {
+  const rounds = (cachedRounds.value || []) as any[]
+  if (rounds.length === 0) return 0
+  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
+  const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
+  const cachedOnly: any[] = []
+  for (const r of rounds) {
+    const cyc = ((r?.cycles) || []).filter((c: any) =>
+      cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
+    if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
+  }
+  if (cachedOnly.length === 0) return 0
+  for (let i = cachedOnly.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[cachedOnly[i], cachedOnly[j]] = [cachedOnly[j], cachedOnly[i]]
+  }
+  let num = simplePlayer.roundCount.value
+  const loopRounds = cachedOnly.map((r) => ({ ...r, roundNumber: ++num }))
+  simplePlayer.appendRounds(loopRounds as any)
+  return loopRounds.length
 }
 
 const toggleOffline = () => {
