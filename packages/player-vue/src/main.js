@@ -17,7 +17,15 @@ const DEBUG_TOOLS =
 if (DEBUG_TOOLS && !window.eruda) {
   const s = document.createElement('script')
   s.src = 'https://cdn.jsdelivr.net/npm/eruda'
-  s.onload = () => { try { window.eruda.init() } catch (e) { /* noop */ } }
+  s.onload = () => {
+    try {
+      window.eruda.init()
+      // Park the floating button bottom-left — the player's transport +
+      // mode controls live across the top and centre, and eruda's default
+      // spot overlaps them. Still draggable if you want it elsewhere.
+      window.eruda.position({ x: 6, y: window.innerHeight - 52 })
+    } catch (e) { /* noop */ }
+  }
   document.head.appendChild(s)
 }
 

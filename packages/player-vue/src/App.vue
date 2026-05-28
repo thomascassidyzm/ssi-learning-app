@@ -84,12 +84,6 @@ const { theme, toggleTheme, setTheme } = useTheme()
 // @ts-ignore - __BUILD_NUMBER__ is defined by Vite
 const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
 
-// Preview-only on-screen build stamp (same gate as the eruda console in
-// main.js) so we always know exactly which build is live on the phone —
-// no more guessing whether the SW served stale code.
-const DEBUG_TOOLS = typeof location !== 'undefined'
-  && (location.hostname.includes('vercel.app') || location.search.includes('debug'))
-
 /**
  * Cache invalidation on deploy
  * Clears stale script caches when a new build is deployed
@@ -554,7 +548,6 @@ onMounted(async () => {
 
 <template>
   <div class="app-root">
-    <div v-if="DEBUG_TOOLS" class="build-stamp">build {{ BUILD_VERSION }}</div>
     <router-view />
     <PwaUpdatePrompt />
     <InstallBanner />
@@ -572,20 +565,6 @@ onMounted(async () => {
 </style>
 
 <style scoped>
-.build-stamp {
-  position: fixed;
-  top: 2px;
-  left: 2px;
-  z-index: 99999;
-  font: 600 9px/1.4 ui-monospace, SFMono-Regular, monospace;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 1px 5px;
-  border-radius: 4px;
-  pointer-events: none;
-  letter-spacing: 0.02em;
-}
-
 .app-root {
   min-height: 100vh;
   min-height: 100dvh;
