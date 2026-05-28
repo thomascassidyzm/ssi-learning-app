@@ -465,24 +465,13 @@ const instantPlayback = useInstantPlayback(courseCode, {
         return null
       }
 
-      // anchor == the LEGO the learner FINISHED. Resume lands on the NEXT
-      // one in script order, not a replay, so its intro plays naturally.
-      const next = map.rounds[idx + 1]
-      if (!next) {
-        // Course end — no further LEGOs to introduce. Auto-enter INF
-        // PLAY so the mode flag is set for subsequent sessions (and the
-        // back-belt-skip handler can detect it). Setting the mode is
-        // idempotent — re-entering when already in infplay leaves the
-        // counter alone (see ProgressStore.setMode). Then throw to
-        // fall to the legacy path which generates the infplay content.
-        try {
-          await progressStore.value.setMode(learnerId.value, courseCode.value, 'infplay')
-        } catch (modeErr) {
-          console.warn('[InstantPlayback] setMode(infplay) failed:', modeErr)
-        }
-        throw new Error('CourseEndNoNextLego')
-      }
-      return next.legoId
+      // anchor names the round the learner is ON (position, not completion),
+      // so resume lands there directly — no "+1". The saved cycle index
+      // restores the exact mid-round spot. INF PLAY is handled by the
+      // current_mode check above (cursor frozen at the ceiling), so there's
+      // no course-end branch here: a main-mode learner sitting on the final
+      // round simply resumes onto it and enters INF PLAY when they finish it.
+      return anchor
     } catch (err) {
       if ((err as Error)?.message === 'CourseEndNoNextLego') throw err
       return null
@@ -702,6 +691,31 @@ const persistCursorAtCurrentRound = async () => {
   lastCompletedLegoIdRef.value = round.legoId
 }
 
+// Persist the LIVE cursor — the round the playhead is on right now — to the
+// DB. This is the "position, not completion" model: last_completed_* names a
+// position, so resume lands here directly (no "+1"). Fired on every round
+// advance (the roundIndex watcher) and once on init, so the DB cursor tracks
+// the current round; per-cycle refinement is handled by updateCurrentCycle.
+// setLivePosition is forward-only-by-round (lte guard) and, unlike
+// setEnrollmentCursor, sets the cycle explicitly so a mid-round resume is
+// never wiped. INF PLAY is skipped: the cursor is frozen at the ceiling.
+const persistLivePositionToDb = (cycleOverride?: number) => {
+  if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
+  if (currentMode.value === 'infplay') return
+  const round = simplePlayer.currentRound.value
+  const idx = simplePlayer.roundIndex.value
+  if (!round?.legoId || typeof idx !== 'number') return
+  // Round-advance callers pass 0 (a new round always starts at cycle 0)
+  // rather than reading simplePlayer.cycleIndex, which may be mid-reset on
+  // the advance tick. Init passes nothing → uses the live (resumed) cycle.
+  const cyc = cycleOverride ?? Math.max(0, simplePlayer.cycleIndex.value)
+  progressStore.value.setLivePosition(
+    learnerId.value, courseCode.value, round.legoId, idx, cyc,
+  ).catch(err => console.warn('[LearningPlayer] Failed to persist live position:', err))
+  liftLocalCeilingIfHigher(round.legoId, idx)
+  lastCompletedLegoIdRef.value = round.legoId
+}
+
 const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
   if (isGuestLearner.value || !progressStore?.value) {
     console.log('[LearningPlayer] Skipping progress save (guest mode)')
@@ -716,63 +730,47 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
     c.type === 'intro' || c.type === 'debut' || c.type === 'build'
   )
 
+  // MAIN loop: the cursor is the LIVE position (the round + cycle the
+  // learner is ON) and is written continuously by persistLivePositionToDb
+  // (on round advance / init) and updateCurrentCycle (per cycle) — the
+  // "position, not completion" model, so resume lands there directly with
+  // no "+1". There is nothing to persist on round COMPLETION for the main
+  // loop. INF PLAY: the cursor is frozen at the ceiling; we only advance
+  // the counter and keep mode + ceiling at "the end".
+  if (!isInfPlayRound) {
+    console.log('[LearningPlayer] Round complete (main): round', roundIndex, 'LEGO:', legoId, '— cursor tracked live')
+    return
+  }
+
+  // INF PLAY auto-entry (mid-session). Crossing from the last main-loop
+  // round into the first infplay round flips current_mode here so the mode
+  // flag lands without a session restart. setMode is idempotent (re-entry
+  // doesn't reset the counter); chained bumpInfplayRound increments per round.
   try {
-    // MAIN loop: the cursor follows the round just completed (forward-only
-    // at the persistence layer). INF PLAY: the cursor is FROZEN at the
-    // ceiling (stamped once on entry) — we must NOT write the round's
-    // random-USE legoId as the cursor. That write, when the old
-    // lastMainLoopLegoId anchor was empty, stamped an early LEGO onto a
-    // high round_index (e.g. S0001L01 @ round 103) and stranded resume at
-    // LEGO 1. So in INF PLAY skip the cursor write entirely; only advance
-    // the counter / keep mode + ceiling at "the end".
-    if (!isInfPlayRound) {
-      await progressStore.value.updateEnrollmentProgress(
-        learnerId.value,
-        courseCode.value,
-        legoId,
-        roundIndex
-      )
-      console.log('[LearningPlayer] Saved progress: round', roundIndex, 'LEGO:', legoId)
-      liftLocalCeilingIfHigher(legoId, roundIndex)
-      // Mirror cursor write into local ref for the resting-state
-      // journey-bar comparison (DB-canonical cursor).
-      lastCompletedLegoIdRef.value = legoId
-    }
-    // INF PLAY auto-entry (mid-session). Crossing from the last main-
-    // loop round into the first infplay round flips current_mode here
-    // so we don't have to wait for a session restart for the mode flag
-    // to land. setMode is idempotent (re-entry doesn't reset the
-    // counter); chained bumpInfplayRound then increments per round.
-    if (isInfPlayRound) {
-      try {
-        // Auto-entry also ratchets highest to course's final LEGO.
-        // Same semantic as explicit-tap entry — once you're playing
-        // INF PLAY rounds, your high-water mark is the end of the
-        // main loop regardless of which path got you there.
-        const finalLego = await getCourseFinalLego(courseCode.value)
-        await progressStore.value.setMode(
-          learnerId.value, courseCode.value, 'infplay',
-          finalLego ?? undefined,
-        )
-        await progressStore.value.bumpInfplayRound(
-          learnerId.value, courseCode.value,
-        )
-        // Local mirror: keep currentMode + counter in sync so the UI
-        // (purple forward button, INF round display) updates without
-        // waiting for the next enrollment reload.
-        if (currentMode.value !== 'infplay') currentMode.value = 'infplay'
-        infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value + 1)
-        if (finalLego && (!highestCompletedLegoId.value || finalLego.legoId > highestCompletedLegoId.value)) {
-          highestCompletedLegoId.value = finalLego.legoId
-          highestCompletedRoundIndex.value = finalLego.roundIndex
-        }
-      } catch (err) {
-        console.warn('[LearningPlayer] INF PLAY mode/counter update failed:', err)
-      }
+    // Auto-entry also ratchets highest to the course's final LEGO. Same
+    // semantic as explicit-tap entry — once you're playing INF PLAY rounds,
+    // your high-water mark is the end of the main loop regardless of which
+    // path got you there. This is also what pins the frozen cursor at the
+    // ceiling (setMode writes last_completed_lego_id = finalLego).
+    const finalLego = await getCourseFinalLego(courseCode.value)
+    await progressStore.value.setMode(
+      learnerId.value, courseCode.value, 'infplay',
+      finalLego ?? undefined,
+    )
+    await progressStore.value.bumpInfplayRound(
+      learnerId.value, courseCode.value,
+    )
+    // Local mirror: keep currentMode + counter in sync so the UI
+    // (purple forward button, INF round display) updates without
+    // waiting for the next enrollment reload.
+    if (currentMode.value !== 'infplay') currentMode.value = 'infplay'
+    infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value + 1)
+    if (finalLego && (!highestCompletedLegoId.value || finalLego.legoId > highestCompletedLegoId.value)) {
+      highestCompletedLegoId.value = finalLego.legoId
+      highestCompletedRoundIndex.value = finalLego.roundIndex
     }
   } catch (err) {
-    console.warn('[LearningPlayer] Failed to save progress:', err)
-    // Don't throw - continue learning even if save fails
+    console.warn('[LearningPlayer] INF PLAY mode/counter update failed:', err)
   }
 }
 
@@ -1081,6 +1079,13 @@ watch(
 // Sync state with simplePlayer
 watch(() => simplePlayer.roundIndex.value, (idx) => {
   currentRoundIndex.value = idx
+  // Persist the live cursor on every round advance, at cycle 0 (the
+  // "position, not completion" model). The positionInitialized guard is
+  // what prevents this from firing during the resume landing: the bootstrap
+  // jumpToRound happens BEFORE positionInitialized flips true, so the cursor
+  // we resumed onto is never re-stamped and its mid-round cycle never wiped.
+  // The init watcher below does the first authoritative write.
+  if (positionInitialized.value) persistLivePositionToDb(0)
   // Keep the instant-playback composable's cursor in lockstep with the
   // engine — tier-3 prefetch anchors on currentLegoId, and the
   // round-map-derived `currentRound` computed reads off it too. No-op
@@ -1362,19 +1367,30 @@ simplePlayer.onCycleCompleted((cycle) => {
   }
 
   // Persist mid-round cursor so a PWA reload / app close+open mid-round
-  // resumes from the cycle the learner was on instead of restarting
-  // the whole 20-cycle round. The cycle that JUST completed is N; the
-  // resume point is N+1 (next cycle to play). Reset to 0 happens on
-  // round_completed via saveRoundProgress.
-  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+  // resumes from the cycle the learner was on instead of restarting the
+  // whole round. The cycle that JUST completed is N; the resume point is
+  // N+1 (next cycle to play).
+  //
+  // Last cycle of the round: do NOT write N+1 — that's out of bounds for
+  // THIS round (the next cycle to play lives in the next round). The
+  // round-advance watcher (persistLivePositionToDb) writes the next round
+  // at cycle 0 instead. Skipping here avoids persisting an out-of-range
+  // cycle that would make a close-in-the-gap resume replay the last cycle.
+  // (Under the old model saveRoundProgress reset cycle to 0 on completion;
+  // that reset now lives in the round-advance write.)
+  if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value
+      && currentMode.value !== 'infplay') {
     const nextCycleIdx = simplePlayer.cycleIndex.value + 1
-    progressStore.value.updateCurrentCycle(
-      learnerId.value,
-      courseCode.value,
-      nextCycleIdx,
-    ).catch(err => {
-      console.warn('[LearningPlayer] Failed to persist current cycle:', err)
-    })
+    const roundCycleCount = simplePlayer.currentRound.value?.cycles?.length ?? 0
+    if (nextCycleIdx < roundCycleCount) {
+      progressStore.value.updateCurrentCycle(
+        learnerId.value,
+        courseCode.value,
+        nextCycleIdx,
+      ).catch(err => {
+        console.warn('[LearningPlayer] Failed to persist current cycle:', err)
+      })
+    }
   }
 })
 
@@ -2335,6 +2351,12 @@ watch(() => simplePlayer.phase.value, (phase) => {
 watch(positionInitialized, (init) => {
   if (init && useRoundBasedPlayback.value) {
     savePositionToLocalStorage()
+    // Capture the live cursor in the DB the instant init completes. For a
+    // resuming learner this just re-affirms where they already were; for a
+    // fresh learner it persists round 0 immediately (the roundIndex watcher
+    // only fires on the FIRST advance, so without this their opening round
+    // wouldn't be saved until they reached round 1).
+    persistLivePositionToDb()
   }
 })
 

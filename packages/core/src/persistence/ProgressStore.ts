@@ -380,6 +380,48 @@ export class ProgressStore implements IProgressStore {
     }
   }
 
+  /**
+   * Live-position write — the cursor IS where the playhead is right now
+   * (the round currently playing + the cycle within it). Written on every
+   * cycle during normal forward play. This is the "position, not completion"
+   * model: last_completed_* names a position, not an achievement, so resume
+   * lands here directly with no "+1".
+   *
+   * Sets all three of legoId / roundIndex / cycleIndex to the LIVE values —
+   * crucially it does NOT reset current_cycle_index (unlike setEnrollmentCursor),
+   * so a mid-round resume position is never wiped.
+   *
+   * Forward-only on round_index via `<=` so same-round cycle bumps pass while
+   * a regression to a LOWER round (e.g. a glitched in-memory index) is
+   * rejected — preserving the round-0-overwrite protection that
+   * updateEnrollmentProgress added. Intentional backward moves (belt-back,
+   * jump-to-belt) go through setEnrollmentCursor, which has no guard.
+   */
+  async setLivePosition(
+    learnerId: string,
+    courseId: string,
+    legoId: string,
+    roundIndex: number,
+    cycleIndex: number
+  ): Promise<void> {
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('course_enrollments')
+      .update({
+        last_completed_lego_id: legoId,
+        last_completed_round_index: roundIndex,
+        current_cycle_index: cycleIndex,
+        last_practiced_at: new Date().toISOString(),
+      })
+      .eq('learner_id', learnerId)
+      .eq('course_id', courseId)
+      .or(`last_completed_round_index.is.null,last_completed_round_index.lte.${roundIndex}`);
+
+    if (error) {
+      throw new Error(`Failed to set live position: ${error.message}`);
+    }
+  }
+
   async updateEnrollmentActivity(
     learnerId: string,
     courseId: string,

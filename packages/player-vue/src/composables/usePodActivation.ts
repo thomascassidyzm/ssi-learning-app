@@ -31,11 +31,10 @@ const isGuestLearner = (id: string | undefined | null): boolean => {
  * Resolve the pod activation round for this learner+course, writing the pin
  * back to course_enrollments if it was NULL and the learner is past R6.
  *
- * Reads `last_completed_round_index` directly from the enrollment — that's
- * the exact round number the player last completed (kept current by
- * ProgressStore on every round-end). Pin = next round to play =
- * last_completed_round_index + 1. Sentence #1 enters at stage 1 the moment
- * they resume.
+ * Reads `last_completed_round_index` directly from the enrollment — under
+ * the position-not-completion model that's the round the learner is ON
+ * (the live cursor), kept current by ProgressStore.setLivePosition. Pin =
+ * that round. Sentence #1 enters at stage 1 the moment they resume.
  *
  * Returns a number — the activation round to thread into listeningConfig.
  * Falls back to the default (6) on any error path so the player never blocks
@@ -74,17 +73,17 @@ export async function resolvePodActivationRound(
       return DEFAULT_POD_ACTIVATION
     }
 
-    // Pin = the next round they're about to play. If that's at or below the
-    // default activation (R6), the default already gives them everything;
+    // Pin = the round they're on now (the live cursor). If that's at or below
+    // the default activation (R6), the default already gives them everything;
     // skip writing the pin so the default path applies.
-    const nextRound = lastCompleted + 1
-    if (nextRound <= DEFAULT_POD_ACTIVATION) {
+    const pinRound = lastCompleted
+    if (pinRound <= DEFAULT_POD_ACTIVATION) {
       return DEFAULT_POD_ACTIVATION
     }
 
     const { error: writeError } = await supabase
       .from('course_enrollments')
-      .update({ pod_activation_round: nextRound })
+      .update({ pod_activation_round: pinRound })
       .eq('learner_id', learnerId)
       .eq('course_id', courseCode)
       .is('pod_activation_round', null)
@@ -93,7 +92,7 @@ export async function resolvePodActivationRound(
       console.warn('[podActivation] Write error:', writeError.message)
       return DEFAULT_POD_ACTIVATION
     }
-    return nextRound
+    return pinRound
   } catch (err) {
     console.warn('[podActivation] Unexpected:', err)
     return DEFAULT_POD_ACTIVATION
