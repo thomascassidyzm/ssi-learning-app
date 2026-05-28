@@ -59,6 +59,16 @@ watch(currentUser, (user) => {
   }
 }, { immediate: true })
 
+// Govt admin drills into a school → load that school's classes (the classes
+// composable scopes to the viewed school via activeSchoolId). Without this the
+// detail view has no class data, since govt admins don't fetch classes at the
+// group level.
+watch(viewingSchool, (school) => {
+  if (school && isGovtAdmin.value) {
+    fetchClasses().then(fetchReports)
+  }
+})
+
 onMounted(() => {
   if (currentUser.value) {
     fetchSchools()
@@ -393,7 +403,9 @@ function handlePlayClass(cls: ClassInfo) {
     <template v-else-if="isGovtAdmin">
       <Greeting
         :name="`${schoolName}`"
-        :lines="`${schools.length} schools · ${totalStudents} students · ${Math.round(totalPracticeHours)}h practised`"
+        :lines="isViewingSchool
+          ? `${totalClasses} classes · ${totalStudents} students · ${Math.round(totalPracticeHours)}h practised`
+          : `${schools.length} schools · ${totalStudents} students · ${Math.round(totalPracticeHours)}h practised`"
         :date="todayLabel"
         :dense="density === 'compact'"
       >
@@ -431,6 +443,63 @@ function handlePlayClass(cls: ClassInfo) {
           </div>
         </button>
       </div>
+
+      <!-- Drill-down: one school's detail (classes + stats) -->
+      <template v-else>
+        <div class="stat-strip">
+          <div class="stat-card">
+            <span class="arsenal stat-value">{{ totalStudents }}</span>
+            <span class="stat-label">Students</span>
+          </div>
+          <div class="stat-card">
+            <span class="arsenal stat-value">{{ totalTeachers }}</span>
+            <span class="stat-label">Teachers</span>
+          </div>
+          <div class="stat-card">
+            <span class="arsenal stat-value">{{ totalClasses }}</span>
+            <span class="stat-label">Classes</span>
+          </div>
+          <div class="stat-card">
+            <span class="arsenal stat-value">{{ Math.round(totalPracticeHours) }}h</span>
+            <span class="stat-label">Hours practised</span>
+          </div>
+        </div>
+
+        <div class="schools-card">
+          <header class="card-header-row">
+            <h3 class="arsenal card-header-title">Classes</h3>
+          </header>
+          <table class="ssi-table">
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Course</th>
+                <th>Students</th>
+                <th>Avg practice</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="cls in teacherClasses" :key="cls.id">
+                <td>
+                  <div class="class-cell">
+                    <BeltDot belt="white" :size="20" ring />
+                    <div>
+                      <div class="class-name">{{ cls.class_name }}</div>
+                      <div class="schools-subtle class-meta">{{ courseDisplayName(cls.course_code) }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</td>
+                <td>{{ cls.student_count }}</td>
+                <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
+              </tr>
+              <tr v-if="!teacherClasses.length">
+                <td colspan="4" class="empty-row">No classes in this school yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
     </template>
   </div>
 </template>
