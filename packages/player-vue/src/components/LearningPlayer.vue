@@ -2357,7 +2357,7 @@ watch(currentRoundIndex, async (index) => {
     // Offline: there's no network to generate new rounds, so loop the
     // already-cached content instead of expanding. Tom 2026-05-25: offline
     // must always play SOMETHING — never end because we can't fetch more.
-    if (offlineActive.value) {
+    if (offlinePlaybackActive()) {
       const looped = appendCachedLoopForOffline()
       if (looped > 0) console.log(`[Offline] no network to expand — looped ${looped} cached rounds`)
       return
@@ -5338,7 +5338,7 @@ const handleCycleEvent = async (event) => {
           // back to the summary screen if expansion genuinely can't
           // produce any more content (no LEGOs in the course at all).
           if (currentRoundIndex.value >= cachedRounds.value.length) {
-            if (offlineActive.value) {
+            if (offlinePlaybackActive()) {
               // Offline can't expandScript (no network). Loop the cached
               // content instead so playback never ends. Tom 2026-05-25.
               const looped = appendCachedLoopForOffline()
@@ -7062,7 +7062,7 @@ simplePlayer.setRuntimeOverrides({
     // forward to cached cycles + the end-of-rounds offline loop means it
     // degrades to "play whatever IS cached" and never freezes. Tom 2026-05-25:
     // never NOT play something because it can't find the exact next clip.
-    if (offlineActive.value) {
+    if (offlinePlaybackActive()) {
       const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
       const cachedId = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
       const c = cycle as any
@@ -7080,7 +7080,7 @@ simplePlayer.setRuntimeOverrides({
   // "operation is not supported" decode failure that got blob playback
   // dropped on 2026-05-23 (a confounded bug, not an iOS limitation).
   resolveAudioUrl: async (audioUrl: string): Promise<string> => {
-    if (!offlineActive.value) return audioUrl
+    if (!offlinePlaybackActive()) return audioUrl
     const id = audioUrl.match(/\/api\/audio\/([^?]+)/)?.[1]
     if (!id) return audioUrl
     // WAV, not the cached mp3 blob — WebKit refuses mp3 blob: URLs.
@@ -7667,6 +7667,14 @@ const toggleTurbo = () => {
 // downloader; normal play streams and caches nothing speculatively.
 const OFFLINE_SPAN_MS = 30 * 60 * 1000
 const offlineActive = ref(false)
+// Offline PLAYBACK engages on the explicit toggle OR whenever the device is
+// genuinely offline. offlineActive is an in-memory ref that resets to false on
+// any reload — and previews self-update the SW, which reloads — so airplane-mode
+// playback must NOT depend on the toggle surviving. (Tom 2026-05-28: 441 files
+// cached but none played, because offlineActive had reset after a reload, so the
+// player streamed /api/audio and every clip failed offline.) Download gates stay
+// on the explicit toggle — downloading is a deliberate, online action.
+const offlinePlaybackActive = (): boolean => offlineActive.value || !isOnline.value
 const offlineDlState = ref<'idle' | 'preparing' | 'downloading' | 'complete' | 'error'>('idle')
 const offlineDlDone = ref(0)      // audio files genuinely cached (successes only)
 const offlineDlTotal = ref(0)
@@ -8317,7 +8325,7 @@ onMounted(async () => {
   // AudioCache; the SW cache stays as a network-level backstop for
   // anything neither layer has seen yet.
   if (courseCode.value) {
-    audioCacheSource = createAudioCacheSource(audioCache, courseCode.value, () => offlineActive.value)
+    audioCacheSource = createAudioCacheSource(audioCache, courseCode.value, () => offlinePlaybackActive())
     audioController.value.setAudioSource(audioCacheSource)
     console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value)
   }
