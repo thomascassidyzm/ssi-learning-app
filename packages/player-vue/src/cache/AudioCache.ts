@@ -18,6 +18,7 @@ import type {
   PersistentNamespace,
 } from './AudioCache.types'
 import type { AudioLifecycle } from '../types/courseBundle'
+import { bytesToWavBlob } from './wav'
 
 const DB_NAME = 'ssi-audio-cache-v2'
 const DB_VERSION = 1
@@ -55,6 +56,10 @@ export class AudioCacheImpl implements AudioCache {
 
   private readonly persistentIds: Set<string> = new Set()
   private readonly ephemeralIds: Set<string> = new Set()
+
+  // Offline WAV blob URLs, keyed by audio id — decoded once and reused for
+  // repeated clips (spaced rep replays the same audio). See getWavBlobUrl.
+  private readonly wavUrlCache: Map<string, string> = new Map()
 
   /** In-flight ensure/acquire de-dupe: one Promise per id. */
   private readonly inflight: Map<string, Promise<void>> = new Map()
@@ -356,6 +361,28 @@ export class AudioCacheImpl implements AudioCache {
       ? row.blob
       : new Blob([row.blob], { type: row.mimeType || 'audio/mpeg' })
     return URL.createObjectURL(typed)
+  }
+
+  /**
+   * Offline playback URL: decode the cached (mp3) bytes and re-encode as a
+   * WAV blob URL. WebKit's <audio> plays WAV blob URLs but NOT mp3 ones
+   * ("operation is not supported"), so this is the offline-mode read path.
+   * Decoded once per id and cached — spaced rep replays the same clips, so
+   * we never decode the same audio twice. Null on miss / decode failure, so
+   * the caller falls back to the network URL.
+   */
+  async getWavBlobUrl(id: AudioId): Promise<string | null> {
+    const cached = this.wavUrlCache.get(id)
+    if (cached) return cached
+    await this.init()
+    if (!this.db) return null
+    const row = await this.db.get(STORE, id)
+    if (!row) return null
+    const wav = await bytesToWavBlob(await row.blob.arrayBuffer())
+    if (!wav) return null
+    const url = URL.createObjectURL(wav)
+    this.wavUrlCache.set(id, url)
+    return url
   }
 
   // ==========================================================================

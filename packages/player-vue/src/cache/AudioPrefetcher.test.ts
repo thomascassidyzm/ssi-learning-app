@@ -112,6 +112,7 @@ function makeMockCache() {
   const ensure = vi.fn().mockResolvedValue(undefined)
   const persistentHas = vi.fn().mockReturnValue(false)
   const getBlobUrl = vi.fn().mockResolvedValue(null)
+  const getWavBlobUrl = vi.fn().mockResolvedValue(null)
   const evictToTarget = vi.fn().mockResolvedValue(undefined)
 
   const has = vi.fn().mockReturnValue(false)
@@ -134,6 +135,7 @@ function makeMockCache() {
     },
     has,
     getBlobUrl,
+    getWavBlobUrl,
     quotaPressure,
     stats,
     clearCourse,

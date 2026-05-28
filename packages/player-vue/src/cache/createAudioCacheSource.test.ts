@@ -2,7 +2,7 @@
  * createAudioCacheSource tests
  *
  * Verifies the Wave 3 AudioCache → AudioSource adapter:
- *  - returns blob URLs from AudioCache.getBlobUrl when present
+ *  - returns blob URLs from AudioCache.getWavBlobUrl when present
  *  - falls through to audioRef.url on cache miss
  *  - revokes every URL it ever handed out, exactly once
  *  - does NOT memoise internally (trusts the cache on every call)
@@ -26,13 +26,13 @@ const mockAudioRef2: AudioRef = {
 }
 
 /**
- * Minimal AudioCache stub — the adapter only ever calls getBlobUrl().
+ * Minimal AudioCache stub — the adapter only ever calls getWavBlobUrl().
  * Cast through unknown so TS accepts the partial shape.
  */
-function createMockCache(): { audioCache: AudioCache; getBlobUrl: ReturnType<typeof vi.fn> } {
-  const getBlobUrl = vi.fn()
-  const audioCache = { getBlobUrl } as unknown as AudioCache
-  return { audioCache, getBlobUrl }
+function createMockCache(): { audioCache: AudioCache; getWavBlobUrl: ReturnType<typeof vi.fn> } {
+  const getWavBlobUrl = vi.fn()
+  const audioCache = { getWavBlobUrl } as unknown as AudioCache
+  return { audioCache, getWavBlobUrl }
 }
 
 describe('createAudioCacheSource', () => {
@@ -48,31 +48,31 @@ describe('createAudioCacheSource', () => {
     revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
   })
 
-  it('returns the blob URL from audioCache.getBlobUrl when present', async () => {
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl.mockResolvedValueOnce('blob:fake-001')
+  it('returns the blob URL from audioCache.getWavBlobUrl when present', async () => {
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl.mockResolvedValueOnce('blob:fake-001')
     const source = createAudioCacheSource(audioCache, 'spa_for_eng_v2', () => true)
 
     const url = await source.getAudioUrl(mockAudioRef)
 
     expect(url).toBe('blob:fake-001')
-    expect(getBlobUrl).toHaveBeenCalledWith('audio-001')
+    expect(getWavBlobUrl).toHaveBeenCalledWith('audio-001')
   })
 
-  it('falls through to audioRef.url when audioCache.getBlobUrl returns null', async () => {
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl.mockResolvedValueOnce(null)
+  it('falls through to audioRef.url when audioCache.getWavBlobUrl returns null', async () => {
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl.mockResolvedValueOnce(null)
     const source = createAudioCacheSource(audioCache, 'spa_for_eng_v2', () => true)
 
     const url = await source.getAudioUrl(mockAudioRef)
 
     expect(url).toBe(mockAudioRef.url)
-    expect(getBlobUrl).toHaveBeenCalledWith('audio-001')
+    expect(getWavBlobUrl).toHaveBeenCalledWith('audio-001')
   })
 
   it('revokeAllBlobUrls() revokes every URL it issued, exactly once each', async () => {
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl
       .mockResolvedValueOnce('blob:fake-001')
       .mockResolvedValueOnce('blob:fake-002')
     const source = createAudioCacheSource(audioCache, 'spa_for_eng_v2', () => true)
@@ -88,8 +88,8 @@ describe('createAudioCacheSource', () => {
   })
 
   it('does not revoke URLs that came from audioRef.url (cache miss fallthrough)', async () => {
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl.mockResolvedValueOnce(null)
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl.mockResolvedValueOnce(null)
     const source = createAudioCacheSource(audioCache, 'spa_for_eng_v2', () => true)
 
     await source.getAudioUrl(mockAudioRef)
@@ -99,8 +99,8 @@ describe('createAudioCacheSource', () => {
   })
 
   it('a second revokeAllBlobUrls() is a no-op (internal set was cleared)', async () => {
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl.mockResolvedValueOnce('blob:fake-001')
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl.mockResolvedValueOnce('blob:fake-001')
     const source = createAudioCacheSource(audioCache, 'spa_for_eng_v2', () => true)
 
     await source.getAudioUrl(mockAudioRef)
@@ -112,11 +112,11 @@ describe('createAudioCacheSource', () => {
     expect(revokeSpy).toHaveBeenCalledWith('blob:fake-001')
   })
 
-  it('does not memoise: each getAudioUrl call hits audioCache.getBlobUrl', async () => {
+  it('does not memoise: each getAudioUrl call hits audioCache.getWavBlobUrl', async () => {
     // Same id queried twice: returns whatever the cache returns each call.
     // First call hit, second call miss (e.g. eviction between calls).
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl.mockResolvedValueOnce('blob:fake-001').mockResolvedValueOnce(null)
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl.mockResolvedValueOnce('blob:fake-001').mockResolvedValueOnce(null)
     const source = createAudioCacheSource(audioCache, 'spa_for_eng_v2', () => true)
 
     const first = await source.getAudioUrl(mockAudioRef)
@@ -124,32 +124,32 @@ describe('createAudioCacheSource', () => {
 
     expect(first).toBe('blob:fake-001')
     expect(second).toBe(mockAudioRef.url)
-    expect(getBlobUrl).toHaveBeenCalledTimes(2)
+    expect(getWavBlobUrl).toHaveBeenCalledTimes(2)
   })
 
   it('ignores courseId (kept for API parity with legacy createAudioSource)', async () => {
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl.mockResolvedValueOnce('blob:fake-001')
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl.mockResolvedValueOnce('blob:fake-001')
     const source = createAudioCacheSource(audioCache, 'any-course-id-here', () => true)
 
     const url = await source.getAudioUrl(mockAudioRef)
 
     expect(url).toBe('blob:fake-001')
-    // getBlobUrl was called with the audio id only — never the course id.
-    expect(getBlobUrl).toHaveBeenCalledWith('audio-001')
-    expect(getBlobUrl).not.toHaveBeenCalledWith('any-course-id-here')
+    // getWavBlobUrl was called with the audio id only — never the course id.
+    expect(getWavBlobUrl).toHaveBeenCalledWith('audio-001')
+    expect(getWavBlobUrl).not.toHaveBeenCalledWith('any-course-id-here')
   })
 
   it('gate off (default): never touches the cache, always returns the network URL', async () => {
     // Online / streaming-first default — shouldServeBlobs omitted. The
     // blob path must stay dormant so the stabilised online path is untouched.
-    const { audioCache, getBlobUrl } = createMockCache()
-    getBlobUrl.mockResolvedValue('blob:fake-001')
+    const { audioCache, getWavBlobUrl } = createMockCache()
+    getWavBlobUrl.mockResolvedValue('blob:fake-001')
     const source = createAudioCacheSource(audioCache, 'spa_for_eng_v2')
 
     const url = await source.getAudioUrl(mockAudioRef)
 
     expect(url).toBe(mockAudioRef.url)
-    expect(getBlobUrl).not.toHaveBeenCalled()
+    expect(getWavBlobUrl).not.toHaveBeenCalled()
   })
 })

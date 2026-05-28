@@ -130,6 +130,7 @@ function makeMockCache(opts: {
     },
     has: (id: string) => cachedSet.has(id),
     getBlobUrl: vi.fn(async () => null),
+    getWavBlobUrl: vi.fn(async () => null),
     quotaPressure: vi.fn(async () => state.pressure),
     stats: vi.fn(async () => ({
       persistent: { count: cachedSet.size, bytes: cachedSet.size * bytesPerEnsure },
@@ -644,6 +645,7 @@ describe('BundleDownloader', () => {
       },
       has: (id: string) => cachedSet.has(id),
       getBlobUrl: vi.fn(async () => null),
+      getWavBlobUrl: vi.fn(async () => null),
       quotaPressure: vi.fn(async () => 0),
       stats: vi.fn(async () => ({
         persistent: { count: cachedSet.size, bytes: 0 },
@@ -703,6 +705,7 @@ describe('BundleDownloader', () => {
       },
       has: (id: string) => cachedSet.has(id),
       getBlobUrl: vi.fn(async () => null),
+      getWavBlobUrl: vi.fn(async () => null),
       quotaPressure: vi.fn(async () => 0),
       stats: vi.fn(async () => ({
         persistent: { count: cachedSet.size, bytes: 0 },

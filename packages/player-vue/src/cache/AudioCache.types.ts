@@ -153,6 +153,14 @@ export interface AudioCache {
   getBlobUrl(id: AudioId): Promise<string | null>
 
   /**
+   * `getWavBlobUrl(id)` — OFFLINE playback URL. Decodes the cached bytes and
+   * re-encodes as a WAV blob URL, because WebKit's <audio> plays WAV blob
+   * URLs but rejects mp3 ones ("operation is not supported"). Cached per id;
+   * null on miss / decode failure (caller falls back to the network URL).
+   */
+  getWavBlobUrl(id: AudioId): Promise<string | null>
+
+  /**
    * 0..1 — current storage pressure (usage / quota). Bundle downloader
    * consults this and backs off when pressure crosses a threshold
    * (e.g. 0.85) to avoid evicting useful audio just to download more.

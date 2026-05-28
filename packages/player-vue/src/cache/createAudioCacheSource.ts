@@ -67,14 +67,15 @@ export function createAudioCacheSource(
 
   return {
     async getAudioUrl(audioRef: AudioRef): Promise<string> {
-      // Offline mode: serve the cached blob if we have it. getBlobUrl
-      // returns null on a miss, so we fall through to network. This is the
-      // local-playback path — no network involved when the blob is present.
+      // Offline mode: serve a WAV blob URL decoded from the cached bytes —
+      // WebKit's <audio> rejects mp3 blob: URLs ("operation is not
+      // supported") but plays WAV ones. Null on a miss → fall through to
+      // network. No network involved when the audio is cached.
       if (shouldServeBlobs() && audioRef.id) {
-        const blobUrl = await audioCache.getBlobUrl(audioRef.id)
-        if (blobUrl) {
-          issuedBlobUrls.add(blobUrl)
-          return blobUrl
+        const wavUrl = await audioCache.getWavBlobUrl(audioRef.id)
+        if (wavUrl) {
+          issuedBlobUrls.add(wavUrl)
+          return wavUrl
         }
       }
       // 2026-05-23: always return the network URL. Blob URLs backed by
