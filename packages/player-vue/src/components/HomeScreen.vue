@@ -27,6 +27,16 @@ const emit = defineEmits(['startLearning', 'viewJourney', 'selectCourse', 'viewB
 
 const router = useRouter()
 
+// Dev-ergonomics: one-tap nuke-and-reload. Routes to App.vue's ?reset=1
+// handler, which clears localStorage / IndexedDB / caches, unregisters the
+// service worker, then reloads to the latest build. Surfaced front-and-centre
+// because the cache is painful during rapid dev changes. Hidden on production
+// (import.meta.env.PROD), so real users never see it.
+const isDevEnv = !import.meta.env.PROD
+const resetApp = () => {
+  window.location.href = `${window.location.pathname}?reset=1`
+}
+
 // Schools access — god mode for now, later checks user_tags for teacher/admin role
 const hasSchoolsAccess = computed(() => {
   try { return !!localStorage.getItem('ssi-dev-role') } catch { return false }
@@ -180,6 +190,13 @@ const brainPath = computed(() => {
       <div class="brand">
         <span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span>
       </div>
+      <!-- Dev-only: clear cache + reload latest build in one tap. -->
+      <button
+        v-if="isDevEnv"
+        class="dev-reset-btn"
+        @click="resetApp"
+        title="Clear cache + service worker and reload the latest build (dev only)"
+      >↻ Reset &amp; update</button>
     </header>
 
     <!-- Main Content -->
@@ -460,6 +477,23 @@ const brainPath = computed(() => {
 
 .logo-say, .logo-in { color: var(--accent); }
 .logo-something { color: var(--text-primary); }
+
+/* Dev-only reset control — deliberately amber + fixed colours (theme-
+   independent) so it reads unmistakably as a dev tool, never a user feature. */
+.dev-reset-btn {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  background: #f5b342;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dev-reset-btn:hover { filter: brightness(1.06); }
+.dev-reset-btn:active { transform: translateY(1px); }
 
 .header-actions {
   display: flex;
