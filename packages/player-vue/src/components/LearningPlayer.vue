@@ -6941,21 +6941,51 @@ const handleSkipToNextBelt = async () => {
  * Shared helper for belt skip operations. Uses the NEAREST >= resolver so a
  * belt whose first LEGO sits above its threshold seed (the common case) is
  * recognised as already-loaded instead of triggering a needless regen.
+ *
+ * `forceReload` bypasses the "already loaded" short-circuit. It exists for
+ * the INF-PLAY exit: when the loaded queue is only the recycled INF-PLAY
+ * set, a high random-USE round can satisfy findRoundIndexForBeltThreshold
+ * even though the actual MAIN-LOOP belt rounds aren't present — the
+ * short-circuit would then skip the regen and the back-target belt would
+ * never load. Callers exiting INF PLAY pass forceReload=true (after flipping
+ * mode to 'main', so generateScript walks the full main loop). Note
+ * generateSimpleScript always walks the WHOLE inventory (main loop + revival
+ * lookahead), so it's not mode-conditional — but flipping mode first keeps
+ * downstream state (cursor freeze, belt anchor) consistent with 'main'.
  */
-const loadSeedIfNeeded = async (targetThreshold: number) => {
-  const existingRoundIndex = simplePlayer.findRoundIndexForBeltThreshold(targetThreshold)
-  if (existingRoundIndex >= 0) return // Already loaded
+const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) => {
+  if (!forceReload) {
+    const existingRoundIndex = simplePlayer.findRoundIndexForBeltThreshold(targetThreshold)
+    if (existingRoundIndex >= 0) return // Already loaded
+  }
 
   if (!supabase?.value) return
 
   // Course-wide script is the standard now. If the target belt isn't in
   // the current load, regenerate the whole thing — narrow chunks are gone.
-  console.debug(`[progressiveLoad] Belt skip: target belt (>= seed ${targetThreshold}) not loaded, regenerating full script...`)
+  console.debug(`[progressiveLoad] Belt skip: target belt (>= seed ${targetThreshold}) ${forceReload ? 'force-loading' : 'not loaded, regenerating'} full script...`)
   const skipResult = await generateScript()
 
   if (skipResult.items.length > 0) {
     const newRounds = toSimpleRoundsWithComponents(skipResult.items)
+    // addRounds dedupes by legoId and inserts in legoId-sorted order, so
+    // main-loop belt rounds land in front of the appended INF-PLAY set —
+    // findRoundIndexForBeltThreshold then resolves the belt's first LEGO.
     simplePlayer.addRounds(newRounds as any)
+    // Keep the component's loadedRounds mirror in lockstep with the engine
+    // so cachedRounds[idx] (read by the jump) and updateBeltForPosition see
+    // the newly-added main-loop rounds. SimplePlayer.addRounds mirrors into
+    // its own roundsRef; loadedRounds is a separate array we must sync here.
+    const existingLegoIds = new Set((loadedRounds.value as any[]).map((r) => r.legoId))
+    const merged = [...(loadedRounds.value as any[])]
+    for (const r of newRounds as any[]) {
+      if (existingLegoIds.has(r.legoId)) continue
+      const insertAt = merged.findIndex((m) => m.legoId > r.legoId)
+      if (insertAt === -1) merged.push(r)
+      else merged.splice(insertAt, 0, r)
+      existingLegoIds.add(r.legoId)
+    }
+    loadedRounds.value = merged as any
     console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
   }
 }
@@ -6966,7 +6996,12 @@ const loadSeedIfNeeded = async (targetThreshold: number) => {
  */
 const handleGoBackBelt = async () => {
   const currentRound = simplePlayer.currentRound.value
-  const isInfplay = !!(currentRound && !isMainLoopRound(currentRound))
+  // INF PLAY when either the enrollment mode says so OR the current round is
+  // a revival round (no intro/debut/build). The mode flag covers the case
+  // where the bootstrap loaded only infplay rounds; the round-shape check
+  // covers in-session auto-entry before the flag round-trips.
+  const isInfplay = currentMode.value === 'infplay'
+    || !!(currentRound && !isMainLoopRound(currentRound))
 
   // Unified rule: jump to the start of the belt visually BELOW the
   // current playing belt. Mirrors backTargetBelt above. Works the
@@ -6990,38 +7025,57 @@ const handleGoBackBelt = async () => {
     haltAllPlayback()
 
     // If we're in INF PLAY, flip the mode flag back to main-loop so
-    // future resume-bootstrap doesn't bounce us back into INF PLAY.
-    // infplayRoundIndex is a lifetime counter — leave it alone.
-    if (isInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-      try {
-        await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
-        currentMode.value = 'main'
-      } catch (modeErr) {
-        console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
+    // future resume-bootstrap doesn't bounce us back into INF PLAY, and so
+    // persistCursorAtCurrentRound (which no-ops in infplay) writes the real
+    // landed position. infplayRoundIndex is a lifetime counter — leave it.
+    if (isInfplay) {
+      currentMode.value = 'main'
+      if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+        try {
+          await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
+        } catch (modeErr) {
+          console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
+        }
       }
     }
 
-    if (targetSeed <= 1) {
-      // White belt → round 0. Belt DERIVES from the landed round (no
-      // independent setPlayingPosition).
+    // Exiting INF PLAY: the loaded queue is only the recycled INF-PLAY set,
+    // so the main-loop belt we're going back to isn't present. Force a
+    // main-loop load (mode is already flipped to 'main' above) before
+    // resolving — never trust the "already loaded" short-circuit here.
+    if (isInfplay) {
+      await loadSeedIfNeeded(Math.max(targetSeed, 1), /* forceReload */ true)
+    } else if (targetSeed > 1) {
+      await loadSeedIfNeeded(targetSeed)
+    }
+
+    if (targetSeed <= 1 && !isInfplay) {
+      // White belt, staying in main loop → round 0. Belt DERIVES from the
+      // landed round (no independent setPlayingPosition).
       await prepareAndJump(0, 'Fetching previous belt…', () => {
         simplePlayer.jumpToRound(0)
         deriveBeltFromLandedRound()
       })
     } else {
-      await loadSeedIfNeeded(targetSeed)
-      // Resolve the target belt's FIRST LEGO by NEAREST >= match AFTER load,
-      // so prefetch + jump read the actual round (mirrors handleSkipToNextBelt).
-      const resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
-      // Unresolvable going BACKWARD should never happen (the belt is below
-      // the current position, so its rounds are already loaded), but guard
-      // anyway: NO-OP rather than teleport. Going back never enters INF PLAY.
+      // Resolve the target belt's FIRST LEGO by NEAREST >= match AFTER load.
+      let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(Math.max(targetSeed, 1))
+      // Still unresolvable: try one more main-loop load-then-reresolve before
+      // giving up (covers a slow first load). Only NO-OP if STILL missing —
+      // and NEVER re-enter INF PLAY on a back-skip (Tom 2026-05-29: the old
+      // guard trapped infplay learners because the main loop wasn't loaded).
       if (resolvedTargetIdx < 0) {
-        console.warn(`[LearningPlayer] handleGoBackBelt: could not resolve target belt (>= seed ${targetSeed}) — staying put`)
+        await loadSeedIfNeeded(Math.max(targetSeed, 1), /* forceReload */ true)
+        resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(Math.max(targetSeed, 1))
+      }
+      if (resolvedTargetIdx < 0) {
+        console.warn(`[LearningPlayer] handleGoBackBelt: could not resolve target belt (>= seed ${targetSeed}) even after main-loop load — staying put`)
         return
       }
       await prepareAndJump(resolvedTargetIdx, 'Fetching previous belt…', () => {
         // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
+        // Now that we've left INF PLAY, the landed round is a real main-loop
+        // round, so visualLegoIdForRound returns its own legoId (not the
+        // pinned ceiling) and the belt colour follows the target belt.
         const targetLegoId = cachedRounds.value[resolvedTargetIdx]?.legoId
         if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
         else simplePlayer.jumpToRound(resolvedTargetIdx)
@@ -7053,15 +7107,34 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   try {
     cancelInFlightLap()
     haltAllPlayback()
-    console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`)
+    // If we're currently in INF PLAY, picking an earlier content belt must
+    // EXIT to main loop. Flip mode FIRST, then force a main-loop load — the
+    // loaded queue is otherwise only the recycled INF-PLAY set and the
+    // target belt's main-loop rounds aren't present (the same trap that
+    // stranded back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
+    const inInfplay = currentMode.value === 'infplay'
+    if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
+      try {
+        await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
+        currentMode.value = 'main'
+      } catch (modeErr) {
+        console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
+      }
+    }
+    console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`, { fromInfplay: inInfplay })
 
-    await loadSeedIfNeeded(targetSeed)
-    // Resolve the picked belt's FIRST LEGO by NEAREST >= match. After
-    // loadSeedIfNeeded has regenerated the full script, a -1 here genuinely
-    // means the course doesn't extend to this belt (e.g. picking Black on a
-    // course that tops out at Brown) — the ONE legitimate course-end case
-    // for this entry point, so recycle cached cycles into INF PLAY.
-    const resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
+    await loadSeedIfNeeded(targetSeed, /* forceReload */ inInfplay)
+    // Resolve the picked belt's FIRST LEGO by NEAREST >= match.
+    let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
+    // Unresolved + we came from INF PLAY: try one more main-loop load. Only
+    // after that, a -1 genuinely means the course doesn't extend to this
+    // belt (e.g. picking Black on a Brown-capped course) — the ONE legitimate
+    // course-end case, so (re-)enter INF PLAY. We never re-enter INF PLAY for
+    // a belt the course DOES contain.
+    if (resolvedTargetIdx < 0 && inInfplay) {
+      await loadSeedIfNeeded(targetSeed, /* forceReload */ true)
+      resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
+    }
     if (resolvedTargetIdx < 0) {
       await enterInfPlayFromCache()
       return
