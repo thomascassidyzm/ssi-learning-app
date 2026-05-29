@@ -976,8 +976,19 @@ const envLabel = computed<string | null>(() => {
 // App.vue's ?reset=1 handler: clears localStorage/IndexedDB/caches,
 // unregisters the SW, reloads to the latest build. Gated by envLabel, so it
 // shows on dev/staging and is hidden on production — same rule as the badge.
-const resetApp = () => {
-  window.location.href = `${window.location.pathname}?reset=1`
+const resetApp = async () => {
+  // DEV refresh: ditch the stale service worker (the thing that serves old
+  // chunks after a deploy — the cause of the MIME/stale-chunk errors) and
+  // reload to the latest build. We deliberately do NOT nuke IndexedDB or the
+  // audio Cache API — those are hundreds of MB of offline audio, content-
+  // addressed (so they don't go stale on a code deploy), and clearing them is
+  // what made the old ?reset=1 path take ages / appear to hang. The full wipe
+  // stays available via the ?reset=1 URL for genuine corrupted-state recovery.
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? []
+    await Promise.all(regs.map(r => r.unregister()))
+  } catch { /* best-effort */ }
+  window.location.reload()
 }
 
 // Rounds storage (loaded from database, adapted for SimplePlayer)

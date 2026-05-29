@@ -44,8 +44,17 @@ const isDevEnv = (() => {
     || host === 'app.saysomethingin.com'
   return !isProduction
 })()
-const resetApp = () => {
-  window.location.href = `${window.location.pathname}?reset=1`
+const resetApp = async () => {
+  // DEV refresh: unregister the stale service worker (it serves old chunks
+  // after a deploy) and reload to the latest build. Deliberately does NOT
+  // wipe IndexedDB / the audio Cache API (hundreds of MB, content-addressed,
+  // don't go stale on a code deploy) — that wipe is what made the old
+  // ?reset=1 path take ages / hang. Full wipe stays on the ?reset=1 URL.
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? []
+    await Promise.all(regs.map(r => r.unregister()))
+  } catch { /* best-effort */ }
+  window.location.reload()
 }
 
 // Schools access — god mode for now, later checks user_tags for teacher/admin role
