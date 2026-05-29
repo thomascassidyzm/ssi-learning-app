@@ -628,15 +628,65 @@ export class SimplePlayer {
     this.updateState({ roundIndex: 0, cycleIndex: 0, phase: 'idle', isPlaying: false })
   }
 
-  // NOTE: No skipCycle() - a ROUND is the atomic learning unit
-  // Users can skip entire rounds, but not individual cycles within a round
-  //
-  // Phase-level navigation within the current cycle IS supported via
-  // skipToPhase() — lets the UI's per-cycle phase strip jump to a specific
-  // part (prompt/pause/voice1/voice2) without leaving the cycle. Round
-  // boundaries still atomic for spaced-rep integrity; this just gives the
-  // learner control inside one cycle (e.g., "skip the pause, play the
-  // answer now" or "replay the prompt").
+  // Mirror of findNextPlayableCycleIndex, walking backwards. Used by
+  // stepCycle(-1) so a Turbo-culled cycle is skipped over when stepping
+  // back rather than landing on a cycle that won't play.
+  private findPrevPlayableCycleIndex(round: Round, fromIndex: number): number {
+    const skip = this.runtimeOverrides.shouldSkipCycle
+    if (!skip) return fromIndex >= 0 ? Math.min(fromIndex, round.cycles.length - 1) : -1
+    for (let i = Math.min(fromIndex, round.cycles.length - 1); i >= 0; i--) {
+      if (!skip(round.cycles[i])) return i
+    }
+    return -1
+  }
+
+  /**
+   * CYCLE-level navigation — step one practice cycle forward (+1) or back
+   * (-1), crossing round boundaries naturally. This is the finest-grained
+   * transport control (the bottom-nav ‹ › pair); the header ‹‹ ›› handle
+   * the coarser ROUND/LEGO axis. The engine just owns the slot arithmetic.
+   *
+   * Boundary crossing:
+   *   - forward past the last cycle of round N  → round N+1, cycle 0
+   *   - back   before cycle 0 of round N        → round N-1, last cycle
+   * At the very ends (first cycle of round 0 / last cycle of last round)
+   * the step is a no-op — the caller owns what happens off the edge
+   * (the header forward enters INF PLAY; nothing precedes the start).
+   *
+   * Turbo-skipped cycles are honoured via find{Next,Prev}PlayableCycleIndex
+   * so a single tap lands on the next *playable* cycle, never a culled one.
+   * Routes through jumpToRound so play-state preservation, audio teardown
+   * and cycle clamping all reuse the audited path.
+   */
+  stepCycle(direction: 1 | -1): void {
+    const roundIdx = this.state.roundIndex
+    const round = this.rounds[roundIdx]
+    if (!round?.cycles?.length) return
+
+    if (direction === 1) {
+      const nextIdx = this.findNextPlayableCycleIndex(round, this.state.cycleIndex + 1)
+      if (nextIdx !== -1) {
+        this.jumpToRound(roundIdx, nextIdx)
+      } else if (roundIdx < this.rounds.length - 1) {
+        this.jumpToRound(roundIdx + 1, 0)
+      }
+      // else: last cycle of last round — no-op.
+    } else {
+      const prevIdx = this.findPrevPlayableCycleIndex(round, this.state.cycleIndex - 1)
+      if (prevIdx !== -1) {
+        this.jumpToRound(roundIdx, prevIdx)
+      } else if (roundIdx > 0) {
+        const prevRound = this.rounds[roundIdx - 1]
+        const lastPlayable = this.findPrevPlayableCycleIndex(prevRound, prevRound.cycles.length - 1)
+        this.jumpToRound(roundIdx - 1, lastPlayable === -1 ? 0 : lastPlayable)
+      }
+      // else: first cycle of round 0 — no-op.
+    }
+  }
+
+  // Phase-level navigation within the current cycle via skipToPhase() —
+  // lets the UI's per-cycle phase strip jump to a specific part
+  // (prompt/pause/voice1/voice2) without leaving the cycle.
   skipToPhase(phase: 'prompt' | 'pause' | 'voice1' | 'voice2'): void {
     if (!this.currentCycle) return
     this.audio.pause()

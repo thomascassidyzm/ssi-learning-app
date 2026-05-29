@@ -38,6 +38,10 @@ export interface UseSimplePlayerReturn {
   stop: () => void
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   skipRound: () => void
+  /** Step ONE practice cycle forward (+1) or back (-1), crossing round
+   * boundaries naturally. The bottom-nav ‹ › transport: the finest, most-used
+   * control. No-ops at the very ends (caller owns off-the-edge behaviour). */
+  stepCycle: (direction: 1 | -1) => void
   /** Jump to a specific phase within the current cycle (prompt/pause/voice1/voice2).
    * For the in-cycle phase strip — lets the learner skip the pause to hear the
    * answer, or replay a specific section. Does not advance round/cycle. */
@@ -191,6 +195,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   const stop = () => { clearAudioFailed(); player?.stop() }
   // NOTE: No skipCycle - a ROUND is the atomic learning unit
   const skipRound = () => player?.skipRound()
+  const stepCycle = (direction: 1 | -1) => { clearAudioFailed(); player?.stepCycle(direction) }
   const skipToPhase = (phase: 'prompt' | 'pause' | 'voice1' | 'voice2') => player?.skipToPhase(phase)
   const jumpToRound = (index: number, cycleIndex?: number) => {
     clearAudioFailed()
@@ -402,6 +407,7 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     resume,
     stop,
     skipRound,
+    stepCycle,
     skipToPhase,
     jumpToRound,
     jumpToSeed,

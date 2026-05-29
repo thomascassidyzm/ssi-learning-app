@@ -86,5 +86,52 @@ Record both.
   always write `last_completed_*`.**
 - `current_mode` (`main` | `infplay`), `infplay_round_index`.
 
+## Navigation controls — "granularity = location"
+
+Three transport controls, three POSITION levels, each unambiguous by where
+it lives. All position-keyed; the belt **DERIVES** from the landed round
+(`deriveBeltFromLandedRound`), never an independent `setPlayingPosition` and
+never a parsed seed string.
+
+| Control | Location | Axis | Engine |
+|---|---|---|---|
+| `‹ ›` | bottom nav | **CYCLE** (slot ±1) | `simplePlayer.stepCycle(±1)` |
+| `‹‹ ››` | header | **ROUND / LEGO** (introduced LEGO ±1) | `handleRoundBack` / `handleRoundForward` |
+| central pill | header | **BELT** jump (modal) + INF-PLAY readout | `handleBeltPillTap` → `handleSkipToBelt` |
+
+1. **Bottom-nav `‹ ›` = CYCLE advance/regress.** Step one practice cycle
+   (slot ±1) within the current round, crossing round boundaries naturally
+   (last cycle → next round's first cycle; first cycle → previous round's
+   last). `SimplePlayer.stepCycle(direction)` does the slot arithmetic and
+   routes through `jumpToRound` (honours Turbo-culled cycles via
+   `find{Next,Prev}PlayableCycleIndex`). Finest, most-used control. Wired
+   `BottomNav` → `handleRevisit` (-1) / `handleSkip` (+1).
+
+2. **Header `‹‹ ›› = ROUND / LEGO advance/back.**
+   - **Forward** (`handleRoundForward`): go to the NEXT introduced LEGO
+     (round +1, by LEGO id). At the FINAL LEGO, advancing ENTERS INF PLAY
+     (`enterInfPlay()`). Disabled once in INF PLAY (no further LEGO).
+   - **Back** (`handleRoundBack`): go to the PREVIOUS LEGO and REPLAY its
+     intro/debut — jump to that round's START (slot 0) so intro/debut/build
+     play again (the learner can cycle-skip them via `‹`). LOADs the previous
+     LEGO's rounds if not loaded (mirrors the belt-back load-then-resolve
+     fix). Doubles as the INF-PLAY exit (flips `current_mode` → `main`,
+     force-loads the main loop, lands on the last main-loop LEGO).
+
+3. **BELT jump = MODAL ONLY.** The header chevrons are no longer belt nav.
+   Belt jumps live in the belt-pill modal (`handleSkipToBelt`, LEGO-id-keyed).
+
+4. **Central belt-progress pill = belt readout + INF-PLAY indicator.** Tapping
+   it opens the belt modal in all states. When `current_mode === 'infplay'`
+   the pill changes colour, **throbs**, and shows an **∞ glyph with NO central
+   progress line** (`.belt-timer-unified.is-infplay`, plus its
+   `[data-theme="mist"]` counterpart — mist overrides every surface). The ∞
+   indicator lives HERE, not on the forward chevron.
+
+5. **INF PLAY entry/exit.** Entry = round-forward past the final LEGO, or the
+   belt modal picking a belt past content → `enterInfPlay()` sets
+   `current_mode='infplay'` and the pill shows ∞. Exit = belt-modal jump or
+   round-back → loads the main loop, sets `current_mode='main'`.
+
 *Owner of this model: methodology (Tom). Engine implementation: the LEGO-id
 belt/cursor rework on `dev`.*

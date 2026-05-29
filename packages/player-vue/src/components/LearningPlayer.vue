@@ -2939,40 +2939,12 @@ const hasEverEnteredInfplay = computed(() =>
   currentMode.value === 'infplay' || infplayRoundIndex.value > 0
 )
 
-const playingPrevBelt = computed(() => {
-  const idx = playingBelt.value.index - 1
-  if (idx < 0) return null
-  return { ...BELTS[idx], index: idx }
-})
-
-// Calculate which belt the "back" button will go TO.
-// Unified rule: always the belt below the current visual playing belt.
-// On White belt, stays on White (button is disabled by the template guard).
-// Works the same in main loop and INF PLAY — in INF PLAY this is "exit
-// + step down one belt from where you visually are", not "go to the
-// highest LEGO" (which would land you in the same belt because the
-// INF PLAY entry ratchets highest_lego to the course's final LEGO).
-const backTargetBelt = computed(() => {
-  return playingPrevBelt.value ?? playingBelt.value
-})
-
-// Belt skip loading state: true when target belt's first round is NOT yet loaded
-// Belt skip buttons flash until their target rounds are available
-const nextBeltLoading = computed(() => {
-  const nb = playingNextBelt.value
-  if (!nb) return false
-  // NEAREST >= match: the belt's first LEGO is the first round at/above its
-  // threshold seed, which rarely equals the threshold exactly. Exact-seed
-  // matching reported "loading" forever for those belts.
-  return simplePlayer.findRoundIndexForBeltThreshold(nb.seedsRequired) < 0
-})
-
-const prevBeltLoading = computed(() => {
-  const bt = backTargetBelt.value
-  if (!bt) return false
-  const targetSeed = bt.seedsRequired === 0 ? 1 : bt.seedsRequired
-  return simplePlayer.findRoundIndexForBeltThreshold(targetSeed) < 0
-})
+// NOTE: backTargetBelt / playingPrevBelt / nextBeltLoading / prevBeltLoading
+// were removed when the header chevrons stopped being BELT nav. The header
+// ‹‹ ›› are now ROUND/LEGO nav (handleRoundBack / handleRoundForward); belt
+// JUMPS are MODAL-only (central pill → handleSkipToBelt). playingNextBelt
+// survives because wouldEnterInfplay still uses it for the INF-PLAY-entry
+// decision that the central pill's ∞ indicator reflects.
 
 const beltProgressPercent = computed(() => beltProgress.value?.beltProgress.value ?? 0)
 const seedsToNextBelt = computed(() => beltProgress.value?.seedsToNextBelt.value ?? 8)
@@ -6585,20 +6557,33 @@ const handleSkip = async () => {
 
   console.log('[LearningPlayer] ========== SKIP REQUESTED ==========')
 
-  // Use SimplePlayer — jumpToRound preserves play state (paused stays paused).
-  // Wrap in prepareAndJump so the destination cycle's audio is JIT-prefetched
-  // before we land on it; if the prefetch takes >200ms a "Next round…" dialog
-  // surfaces. Belt position update + the actual jump live inside the doJump
-  // closure so a superseded skip (token bump) skips both.
-  console.log('[LearningPlayer] Using SimplePlayer jumpToRound (skip)')
+  // CYCLE advance (bottom-nav › — the finest, most-used control). Step one
+  // practice cycle forward (slot +1), crossing round boundaries naturally:
+  // the last cycle of a round rolls into the next round's first cycle. The
+  // header ‹‹ ›› own the coarser ROUND/LEGO axis.
+  //
+  // We JIT-prefetch the destination cycle through prepareAndJump so a cold
+  // cache doesn't stutter, then stepCycle does the slot arithmetic +
+  // jumpToRound (which preserves play state). Because the step may land in a
+  // different round, the belt READOUT derives from the round the engine
+  // actually landed on (deriveBeltFromLandedRound) — never an independent
+  // setPlayingPosition.
+  console.log('[LearningPlayer] Using SimplePlayer stepCycle(+1) (cycle advance)')
   isSkipInProgress.value = true
   try {
     haltAllPlayback()
-    const nextIndex = simplePlayer.roundIndex.value + 1
-    await prepareAndJump(nextIndex, 'Next round…', () => {
-      simplePlayer.jumpToRound(nextIndex)
-      // Update belt position to match (positional indicator, not just achievement)
-      updateBeltForPosition(nextIndex)
+    // Resolve the round the +1 step will land in so prepareAndJump can warm
+    // the right cycle: stay in this round unless we're on its last cycle.
+    const curRound = simplePlayer.currentRound.value
+    const atLastCycle = curRound
+      ? simplePlayer.cycleIndex.value >= (curRound.cycles.length - 1)
+      : false
+    const landingRoundIndex = atLastCycle
+      ? simplePlayer.roundIndex.value + 1
+      : simplePlayer.roundIndex.value
+    await prepareAndJump(landingRoundIndex, 'Next cycle…', () => {
+      simplePlayer.stepCycle(1)
+      deriveBeltFromLandedRound()
     })
   } finally {
     isSkipInProgress.value = false
@@ -6607,29 +6592,24 @@ const handleSkip = async () => {
 
 
 /**
- * REVISIT - Go back to start of current round, or previous round if already at start
- * Delegates to SimplePlayer.jumpToRound() which owns playback state.
+ * REVISIT - CYCLE regress (bottom-nav ‹ — the finest, most-used control).
+ * Step one practice cycle back (slot -1), crossing round boundaries
+ * naturally: the first cycle of a round rolls into the previous round's
+ * last cycle. The header ‹‹ ›› own the coarser ROUND/LEGO axis.
+ *
+ * Delegates the slot arithmetic to SimplePlayer.stepCycle(-1), which routes
+ * through jumpToRound (owns stop/play/state). The belt READOUT derives from
+ * the landed round so a cross-round step recolours correctly — no
+ * celebration when going back.
  */
 const handleRevisit = async () => {
   if (!useRoundBasedPlayback.value || cachedRounds.value.length === 0) return
 
-  console.log('[LearningPlayer] ========== REVISIT REQUESTED ==========')
+  console.log('[LearningPlayer] ========== CYCLE REGRESS (‹) REQUESTED ==========')
 
   haltAllPlayback()
-
-  // Determine target round: go to start of current, or previous if already at start
-  let targetIndex = currentRoundIndex.value
-  if (currentItemInRound.value <= 1 && currentRoundIndex.value > 0) {
-    targetIndex = currentRoundIndex.value - 1
-  }
-
-  console.log('[LearningPlayer] Revisit → jumping to round', targetIndex, 'LEGO:', cachedRounds.value[targetIndex]?.legoId)
-
-  // Update belt to match new position (no celebration when going back)
-  updateBeltForPosition(targetIndex)
-
-  // Delegate to SimplePlayer which handles stop/play/state correctly
-  simplePlayer.jumpToRound(targetIndex)
+  simplePlayer.stepCycle(-1)
+  deriveBeltFromLandedRound()
 }
 
 /**
@@ -6745,50 +6725,40 @@ async function enterInfPlayViaBundle(fromInfRound: number, showIntro: boolean): 
   return true
 }
 
-const handleSkipToNextBelt = async () => {
+/**
+ * Enter INF PLAY past the course's final LEGO. Called by the header
+ * forward round-nav (‹‹ ››) when the learner is at the final introduced
+ * LEGO, and by the belt modal when the picked belt is past course content.
+ *
+ * Owns: setMode('infplay'), the highest-LEGO ratchet, the lastMainLoopLegoId
+ * anchor, the first-INF-PLAY-round jump, the belt anchor (course end seed)
+ * and the cursor persist. Was previously the `enterInfplay` branch of
+ * handleSkipToNextBelt; extracted so round-forward can reuse it verbatim.
+ *
+ * The forward header pill is now ROUND/LEGO nav, not belt nav — so the
+ * belt-jump else branch that used to live here is gone (belt jumps are
+ * MODAL-only via handleSkipToBelt).
+ */
+const enterInfPlay = async () => {
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
 
-  // Already in infinite play — next-belt-skip is a no-op. Exit infplay
-  // via the back-belt button instead.
-  if (currentRound && !isMainLoopRound(currentRound)) {
-    console.log('[LearningPlayer] Already in infinite play — no next belt to skip to')
-    return
-  }
-
-  // Single source of truth for the entry decision: the template-bound
-  // computed used to morph the button into the purple "∞" pill. If the
-  // morph is visible, the click enters INF PLAY; otherwise it jumps to
-  // the next belt. Keeps the click behaviour aligned with what the
-  // learner sees on the button.
-  const enterInfplay = wouldEnterInfplay.value
-
-  // For the belt jump path we still need the next belt's first seed.
-  // playingNextBelt is the belt visually above the current one (derived
-  // from beltProgress, which is the same source the belt label uses).
-  const nextBelt = playingNextBelt.value
-  const nextBeltThreshold = nextBelt?.seedsRequired ?? 0
-
   // Visual belt anchor for INF PLAY entry: the seed of the course's
-  // final LEGO. Falls back to nextBeltThreshold then to a sensible
-  // default — the anchor is purely visual (belt label colour) so a
-  // mild miss is recoverable.
+  // final LEGO. Falls back to a sensible default — the anchor is purely
+  // visual (belt label colour) so a mild miss is recoverable.
   const courseEndSeed = (() => {
     const fin = courseFinalLegoRef.value?.legoId
     if (fin) {
       const s = getSeedFromLegoId(fin)
       if (s !== null) return s
     }
-    return nextBeltThreshold || 668
+    return 668
   })()
 
-  console.log('[LearningPlayer] handleSkipToNextBelt called', {
+  console.log('[LearningPlayer] enterInfPlay called', {
     currentLegoId: currentRound?.legoId,
     currentBelt: playingBelt.value.name,
-    nextBelt: nextBelt?.name ?? '(none)',
-    nextBeltThreshold,
     courseFinalLegoId: courseFinalLegoRef.value?.legoId ?? '(not yet loaded)',
-    enterInfplay,
     isPlaying: simplePlayer.isPlaying.value,
   })
 
@@ -6796,7 +6766,7 @@ const handleSkipToNextBelt = async () => {
   try {
     haltAllPlayback()
 
-    if (enterInfplay) {
+    {
       // Explicit tap-to-enter INF PLAY:
       //   1. setMode('infplay') — flips the mode flag so back-belt-
       //      skip exits correctly + next session resumes here
@@ -6936,45 +6906,70 @@ const handleSkipToNextBelt = async () => {
       await enterInfPlayFromCache()
       return
     }
+  } finally {
+    isSkippingBelt.value = false
+  }
+}
 
-    // Normal belt-to-belt skip.
-    //
-    // Resolve the target by POSITION (round index of the belt's FIRST LEGO),
-    // using a NEAREST >= match on the belt threshold — the first LEGO of the
-    // belt rarely sits exactly on the threshold seed, so an exact seed-string
-    // lookup silently missed and the skip overshot into INF PLAY. The belt
-    // visual is NOT set here: it DERIVES from the landed round below.
-    const targetThreshold = nextBeltThreshold
-    console.log(`[LearningPlayer] Skipping to ${nextBelt?.name ?? 'next'} belt - threshold seed ${targetThreshold}`)
-    let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetThreshold)
-    if (resolvedTargetIdx < 0 && supabase?.value) {
-      // Target belt's rounds aren't loaded yet — LOAD then re-resolve.
-      // (Load-then-jump, never teleport.)
-      console.debug(`[progressiveLoad] Belt skip: target belt (>= seed ${targetThreshold}) not loaded, regenerating full script...`)
-      const skipResult = await generateScript()
-      if (skipResult.items.length > 0) {
-        const newRounds = toSimpleRoundsWithComponents(skipResult.items)
-        simplePlayer.addRounds(newRounds as any)
+/**
+ * HEADER FORWARD ‹‹ ›› — ROUND / LEGO advance.
+ *
+ * Step to the NEXT introduced LEGO (round +1, by LEGO id). At the FINAL
+ * LEGO (or already in INF PLAY), advancing ENTERS INF PLAY via enterInfPlay().
+ *
+ * Position-keyed: lands on the next round's first LEGO via jumpToLegoId,
+ * the belt READOUT then DERIVES from the landed round
+ * (deriveBeltFromLandedRound) — no independent setPlayingPosition. If the
+ * next round isn't loaded yet, LOAD-then-resolve (never teleport).
+ */
+const handleRoundForward = async () => {
+  cancelInFlightLap()
+  const currentRound = simplePlayer.currentRound.value
+  const fromIdx = simplePlayer.roundIndex.value
+
+  // Entry to INF PLAY is keyed on the FINAL LEGO, not the final belt. We
+  // advance LEGO-by-LEGO right through the final belt; only stepping forward
+  // FROM the course's final introduced LEGO crosses into INF PLAY.
+  //   - already in INF PLAY / on a revival round → re-enter (idempotent)
+  //   - at/past the final-LEGO round index → enter
+  //   - finalLegoRoundIndex not resolved yet → fall back to wouldEnterInfplay
+  //     (belt-granular) so we never advance into empty rounds.
+  const finalLegoRoundIdx = courseFinalLegoRef.value?.roundIndex ?? null
+  const atOrPastFinalLego = finalLegoRoundIdx !== null
+    ? fromIdx >= finalLegoRoundIdx
+    : wouldEnterInfplay.value
+  if (atOrPastFinalLego || (currentRound && !isMainLoopRound(currentRound))) {
+    await enterInfPlay()
+    return
+  }
+
+  const targetIdx = fromIdx + 1
+
+  isSkippingBelt.value = true
+  try {
+    haltAllPlayback()
+
+    // Next round not loaded yet — LOAD then re-resolve (load-then-jump).
+    if (targetIdx >= cachedRounds.value.length && supabase?.value) {
+      console.debug('[LearningPlayer] Round forward: next round not loaded, regenerating script')
+      const result = await generateScript()
+      if (result.items.length > 0) {
+        simplePlayer.addRounds(toSimpleRoundsWithComponents(result.items) as any)
       }
-      resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetThreshold)
     }
-    // Still unresolvable after a load attempt. We are in the NON-infplay
-    // branch (enterInfplay was false), so the course genuinely has content
-    // in this belt and a miss means "couldn't load right now" — NO-OP rather
-    // than dumping the learner into INF PLAY (which is reserved for genuine
-    // course-end, handled by the enterInfplay branch above). Tom 2026-05-28.
-    if (resolvedTargetIdx < 0) {
-      console.warn(`[LearningPlayer] Belt skip: could not resolve target belt (>= seed ${targetThreshold}) — staying put`)
+    if (targetIdx >= cachedRounds.value.length) {
+      // Couldn't load the next round — if there genuinely is no more main-loop
+      // content this is the course end, so enter INF PLAY; otherwise stay put.
+      if (wouldEnterInfplay.value) { await enterInfPlay(); return }
+      console.warn('[LearningPlayer] Round forward: next round unavailable — staying put')
       return
     }
-    await prepareAndJump(resolvedTargetIdx, 'Fetching next belt…', () => {
-      // Move the cursor by LEGO id (POSITION) when we can read it, else by
-      // index — either way the engine lands on the same round. The belt then
-      // DERIVES from the landed round (deriveBeltFromLandedRound) — no
-      // independent setPlayingPosition, so the belt can't overshoot.
-      const targetLegoId = cachedRounds.value[resolvedTargetIdx]?.legoId
+
+    await prepareAndJump(targetIdx, 'Next LEGO…', () => {
+      // POSITION nav: prefer the LEGO id, fall back to index — same landing.
+      const targetLegoId = cachedRounds.value[targetIdx]?.legoId
       if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
-      else simplePlayer.jumpToRound(resolvedTargetIdx)
+      else simplePlayer.jumpToRound(targetIdx)
       deriveBeltFromLandedRound()
     })
     await persistCursorAtCurrentRound()
@@ -7038,44 +7033,43 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
 }
 
 /**
- * Jump back to start of current or previous belt
- * If close to current belt start, goes to previous belt
+ * HEADER BACK ‹‹ ›› — ROUND / LEGO regress, replaying the LEGO's debut.
+ *
+ * Go to the PREVIOUS introduced LEGO and REPLAY its intro/debut: land on
+ * that round's START (slot 0) so intro/debut/build play again. The learner
+ * can cycle-skip them with the bottom-nav ‹ ›.
+ *
+ * INF PLAY exit: if we're in INF PLAY, flip mode → main and FORCE a
+ * main-loop load (the loaded queue is otherwise only the recycled INF-PLAY
+ * set, so the previous main-loop LEGO isn't present) — mirrors the belt-back
+ * load-then-resolve fix. Position-keyed throughout; belt DERIVES from the
+ * landed round.
  */
-const handleGoBackBelt = async () => {
+const handleRoundBack = async () => {
+  cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   // INF PLAY when either the enrollment mode says so OR the current round is
-  // a revival round (no intro/debut/build). The mode flag covers the case
-  // where the bootstrap loaded only infplay rounds; the round-shape check
-  // covers in-session auto-entry before the flag round-trips.
+  // a revival round (no intro/debut/build). The mode flag covers a bootstrap
+  // that loaded only infplay rounds; the round-shape check covers in-session
+  // auto-entry before the flag round-trips.
   const isInfplay = currentMode.value === 'infplay'
     || !!(currentRound && !isMainLoopRound(currentRound))
 
-  // Unified rule: jump to the start of the belt visually BELOW the
-  // current playing belt. Mirrors backTargetBelt above. Works the
-  // same in main loop and INF PLAY — in INF PLAY this also exits the
-  // mode flag so subsequent sessions resume in main-loop, and it
-  // doesn't rely on highest_completed_lego_id (which the INF PLAY
-  // entry ratchets to the course's final LEGO, so using it as the
-  // back target lands the learner in the same belt they were on).
-  const target = backTargetBelt.value
-  const targetSeed = target.seedsRequired === 0 ? 1 : target.seedsRequired
-
-  console.log('[LearningPlayer] handleGoBackBelt called', {
+  console.log('[LearningPlayer] handleRoundBack called', {
     isInfplay,
-    currentSeedId: currentRound?.seedId,
-    visualBelt: playingBelt.value.name,
-    targetBelt: target.name,
-    targetSeed,
+    currentLegoId: currentRound?.legoId,
+    currentRoundIndex: simplePlayer.roundIndex.value,
   })
 
+  isSkippingBelt.value = true
   try {
     haltAllPlayback()
 
-    // If we're in INF PLAY, flip the mode flag back to main-loop so
-    // future resume-bootstrap doesn't bounce us back into INF PLAY, and so
-    // persistCursorAtCurrentRound (which no-ops in infplay) writes the real
-    // landed position. infplayRoundIndex is a lifetime counter — leave it.
     if (isInfplay) {
+      // Exiting INF PLAY: flip mode → main so future resume-bootstrap doesn't
+      // bounce back into INF PLAY and persistCursorAtCurrentRound (a no-op in
+      // infplay) writes the real landed position. infplayRoundIndex is a
+      // lifetime counter — leave it.
       currentMode.value = 'main'
       if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
         try {
@@ -7084,59 +7078,56 @@ const handleGoBackBelt = async () => {
           console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
         }
       }
-    }
-
-    // Exiting INF PLAY: the loaded queue is only the recycled INF-PLAY set,
-    // so the main-loop belt we're going back to isn't present. Force a
-    // main-loop load (mode is already flipped to 'main' above) before
-    // resolving — never trust the "already loaded" short-circuit here.
-    if (isInfplay) {
-      await loadSeedIfNeeded(Math.max(targetSeed, 1), /* forceReload */ true)
-    } else if (targetSeed > 1) {
-      await loadSeedIfNeeded(targetSeed)
-    }
-
-    if (targetSeed <= 1 && !isInfplay) {
-      // White belt, staying in main loop → round 0. Belt DERIVES from the
-      // landed round (no independent setPlayingPosition).
-      await prepareAndJump(0, 'Fetching previous belt…', () => {
-        simplePlayer.jumpToRound(0)
+      // The main-loop rounds aren't loaded (queue is the recycled INF-PLAY
+      // set). Force a full main-loop load before resolving the previous LEGO —
+      // never trust the "already loaded" short-circuit on an INF-PLAY exit.
+      await loadSeedIfNeeded(1, /* forceReload */ true)
+      // Land on the LAST main-loop LEGO the learner reached (the course's
+      // final LEGO, since INF PLAY ratchets there) and replay its debut.
+      const anchorLegoId = lastMainLoopLegoId.value || highestCompletedLegoId.value
+      let targetIdx = anchorLegoId ? simplePlayer.findRoundIndexForLegoId(anchorLegoId) : -1
+      if (targetIdx < 0) targetIdx = Math.max(0, cachedRounds.value.length - 1)
+      await prepareAndJump(targetIdx, 'Previous LEGO…', () => {
+        // slot 0 → intro/debut/build replay. Belt DERIVES from the landed
+        // round, which is now a real main-loop round.
+        simplePlayer.jumpToRound(targetIdx, 0)
         deriveBeltFromLandedRound()
       })
-    } else {
-      // Resolve the target belt's FIRST LEGO by NEAREST >= match AFTER load.
-      let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(Math.max(targetSeed, 1))
-      // Still unresolvable: try one more main-loop load-then-reresolve before
-      // giving up (covers a slow first load). Only NO-OP if STILL missing —
-      // and NEVER re-enter INF PLAY on a back-skip (Tom 2026-05-29: the old
-      // guard trapped infplay learners because the main loop wasn't loaded).
-      if (resolvedTargetIdx < 0) {
-        await loadSeedIfNeeded(Math.max(targetSeed, 1), /* forceReload */ true)
-        resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(Math.max(targetSeed, 1))
-      }
-      if (resolvedTargetIdx < 0) {
-        console.warn(`[LearningPlayer] handleGoBackBelt: could not resolve target belt (>= seed ${targetSeed}) even after main-loop load — staying put`)
-        return
-      }
-      await prepareAndJump(resolvedTargetIdx, 'Fetching previous belt…', () => {
-        // Move cursor by LEGO id (POSITION); belt DERIVES from the landed round.
-        // Now that we've left INF PLAY, the landed round is a real main-loop
-        // round, so visualLegoIdForRound returns its own legoId (not the
-        // pinned ceiling) and the belt colour follows the target belt.
-        const targetLegoId = cachedRounds.value[resolvedTargetIdx]?.legoId
-        if (targetLegoId) simplePlayer.jumpToLegoId(targetLegoId)
-        else simplePlayer.jumpToRound(resolvedTargetIdx)
-        deriveBeltFromLandedRound()
-      })
+      await persistCursorAtCurrentRound()
+      return
     }
 
-    // Belt-back is the canonical revisit gesture — write the cursor so
-    // the resting-state choice surfaces next time the player pauses.
+    // Main-loop back: previous introduced LEGO = round - 1, slot 0 (replay
+    // its debut). At round 0 there's nothing earlier — stay put (the template
+    // disables the button there anyway).
+    const fromIdx = simplePlayer.roundIndex.value
+    if (fromIdx <= 0) {
+      console.log('[LearningPlayer] Round back: already at the first LEGO — staying put')
+      return
+    }
+    const targetIdx = fromIdx - 1
+    await prepareAndJump(targetIdx, 'Previous LEGO…', () => {
+      // POSITION nav: prefer the LEGO id, fall back to index. Always slot 0 so
+      // the intro/debut/build cycles replay. Belt DERIVES from the landed round.
+      const targetLegoId = cachedRounds.value[targetIdx]?.legoId
+      if (targetLegoId) {
+        const idx = simplePlayer.findRoundIndexForLegoId(targetLegoId)
+        simplePlayer.jumpToRound(idx >= 0 ? idx : targetIdx, 0)
+      } else {
+        simplePlayer.jumpToRound(targetIdx, 0)
+      }
+      deriveBeltFromLandedRound()
+    })
+
+    // Round-back is a revisit gesture — write the cursor so the resting-state
+    // choice surfaces next time the player pauses.
     await persistCursorAtCurrentRound()
 
-    console.log(`[LearningPlayer] handleGoBackBelt: complete, now at ${target.name} belt (seed ${targetSeed})`)
+    console.log(`[LearningPlayer] handleRoundBack: complete, now at round ${targetIdx} (replaying debut)`)
   } catch (err) {
-    console.warn('[LearningPlayer] handleGoBackBelt error:', err)
+    console.warn('[LearningPlayer] handleRoundBack error:', err)
+  } finally {
+    isSkippingBelt.value = false
   }
 }
 
@@ -10716,16 +10707,20 @@ defineExpose({
         <!-- Brand -->
         <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="envLabel" class="env-reset" title="Clear cache + reload the latest build (dev/staging only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
-        <!-- Belt row: skip back + timer + skip forward -->
+        <!-- Belt row: ROUND/LEGO back ‹‹ + central belt-progress pill + ROUND/LEGO forward ››
+             Granularity = location. These header chevrons step the
+             ROUND/LEGO axis (one introduced LEGO per tap); the bottom-nav
+             ‹ › step the finer CYCLE axis. Belt JUMPS are MODAL-only (tap
+             the central pill). The ∞ INF-PLAY indicator lives on the central
+             pill, NOT on the forward chevron. -->
         <div class="belt-row">
           <button
             class="belt-header-skip belt-header-skip--back"
-            :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': prevBeltLoading }"
-            @click="handleGoBackBelt"
-            :disabled="playingBelt.index === 0 || offlinePlaybackActive()"
-            :title="offlinePlaybackActive() ? 'Belt skip disabled in offline mode' : `Back to ${backTargetBelt.name} belt`"
-            :aria-label="offlinePlaybackActive() ? 'Belt skip disabled in offline mode' : `Back to ${backTargetBelt.name} belt`"
-            :style="{ '--skip-belt-color': backTargetBelt.color }"
+            :class="{ 'is-skipping': isSkippingBelt }"
+            @click="handleRoundBack"
+            :disabled="(simplePlayer.roundIndex.value === 0 && currentMode !== 'infplay') || offlinePlaybackActive()"
+            :title="offlinePlaybackActive() ? 'Navigation disabled in offline mode' : (currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Previous LEGO (replays its intro)')"
+            :aria-label="offlinePlaybackActive() ? 'Navigation disabled in offline mode' : (currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Previous LEGO, replays its intro')"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
@@ -10733,70 +10728,64 @@ defineExpose({
             </svg>
           </button>
 
+          <!-- Central belt-progress pill: belt readout + tap → belt modal,
+               AND the INF-PLAY indicator. In INF PLAY (currentMode ===
+               'infplay') it changes colour, THROBS, and shows an ∞ glyph
+               with NO central progress line. Tapping opens the belt modal
+               in all states. -->
           <button
             class="belt-timer-unified"
-            :title="!nextBelt ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved!` : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt`"
-            :aria-label="!nextBelt ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved` : `${Math.round(beltProgressPercent)} percent to ${nextBelt.name} belt. Session time ${formattedSessionTime}`"
+            :class="{ 'is-infplay': currentMode === 'infplay' }"
+            :title="currentMode === 'infplay'
+              ? `In INF PLAY (round ${infplayRoundIndex}) — tap to jump to a belt`
+              : (!nextBelt
+                  ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved! Tap to jump to a belt`
+                  : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt — tap to jump to a belt`)"
+            :aria-label="currentMode === 'infplay'
+              ? `Infinite play, round ${infplayRoundIndex}. Tap to jump to a belt.`
+              : (!nextBelt
+                  ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved. Tap to jump to a belt.`
+                  : `${Math.round(beltProgressPercent)} percent to ${nextBelt.name} belt. Session time ${formattedSessionTime}. Tap to jump to a belt.`)"
             @click="handleBeltPillTap"
           >
-            <div class="belt-bar-track" aria-hidden="true">
+            <!-- INF PLAY: ∞ glyph, no progress line. Main loop: progress bar. -->
+            <svg v-if="currentMode === 'infplay'" class="belt-infplay-glyph"
+                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+              <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
+            </svg>
+            <div v-else class="belt-bar-track" aria-hidden="true">
               <div class="belt-bar-fill" :style="{ width: `${beltProgressPercent}%` }"></div>
             </div>
             <span class="belt-timer-label">{{ formattedSessionTime }}</span>
           </button>
 
-          <!-- Forward action: belt-skip chevron in normal mode, morphs
-               into a labelled "∞ INF PLAY" pill when forward-skip would
-               land the learner in INF PLAY (course end, no further
-               belts ahead). Same slot — the layout doesn't shift, but
-               the affordance is unambiguous about what's about to
-               happen. Tom called the morph "the skip belt button
-               BECOMES IP button". -->
-          <!-- Forward action: belt-skip chevron in normal main-loop
-               states; infinity symbol when forward-skip would land in
-               INF PLAY. Two distinct visual states for the infinity:
-                 - eligible (would-enter, not currently in)  → throbs,
-                   calling the learner to make a choice
-                 - activated (currentMode === 'infplay')     → steady,
-                   confident "you're here" state
-               Same 36×36 slot as the chevron in both cases — no layout
-               shift, the visual state carries the meaning. -->
+          <!-- Forward action: ROUND/LEGO advance chevron. At the FINAL LEGO
+               advancing ENTERS INF PLAY (handleRoundForward delegates to
+               enterInfPlay when wouldEnterInfplay). The ∞ indicator is NO
+               LONGER here — it moved to the central pill. Disabled once in
+               INF PLAY (no further LEGO to advance to). -->
           <button
             class="belt-header-skip belt-header-skip--forward"
-            :class="{
-              'is-skipping': isSkippingBelt,
-              'is-loading-target': nextBeltLoading,
-              'is-infplay-eligible': wouldEnterInfplay && currentMode !== 'infplay',
-              'is-infplay-active': currentMode === 'infplay',
-            }"
-            @click="handleSkipToNextBelt"
-            :disabled="offlinePlaybackActive() && currentMode !== 'infplay'"
+            :class="{ 'is-skipping': isSkippingBelt }"
+            @click="handleRoundForward"
+            :disabled="currentMode === 'infplay' || offlinePlaybackActive()"
             :title="currentMode === 'infplay'
               ? `In INF PLAY (round ${infplayRoundIndex})`
               : (offlinePlaybackActive()
-                  ? 'Belt skip disabled in offline mode'
+                  ? 'Navigation disabled in offline mode'
                   : (wouldEnterInfplay
                       ? 'Enter INF PLAY — random review of everything you have learned'
-                      : `Skip to ${playingNextBelt?.name ?? 'next'} belt`))"
+                      : 'Next LEGO'))"
             :aria-label="currentMode === 'infplay'
               ? `Infinite play, round ${infplayRoundIndex}`
               : (offlinePlaybackActive()
-                  ? 'Belt skip disabled in offline mode'
+                  ? 'Navigation disabled in offline mode'
                   : (wouldEnterInfplay
                       ? 'Enter INF PLAY: random review of everything you have learned'
-                      : `Skip to ${playingNextBelt?.name ?? 'next'} belt`))"
-            :style="playingNextBelt && !wouldEnterInfplay
-              ? { '--skip-belt-color': playingNextBelt.color, '--skip-belt-glow': playingNextBelt.glow }
-              : {}"
+                      : 'Next LEGO'))"
           >
-            <svg v-if="wouldEnterInfplay"
-                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 :stroke-width="currentMode === 'infplay' ? 2.4 : 2"
-                 stroke-linecap="round" stroke-linejoin="round"
-                 aria-hidden="true" focusable="false">
-              <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
-            </svg>
-            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
               <polyline points="13 17 18 12 13 7"/>
               <polyline points="6 17 11 12 6 7"/>
@@ -11966,47 +11955,11 @@ defineExpose({
   opacity: 0.5;
 }
 
-/* INF PLAY forward-button — two distinct visual states sharing the
- * 36×36 chevron slot.
- *
- *   is-infplay-eligible  →  outline purple, throbs to call the eye.
- *                           "Tap here to enter INF PLAY."
- *   is-infplay-active    →  filled purple gradient, steady, brighter
- *                           glow. "You're in INF PLAY."
- *
- * The infinity glyph stays the same; what differs is whether the
- * button is solid (active) or outlined-and-throbbing (eligible).
- */
-.belt-header-skip.is-infplay-eligible {
-  opacity: 1;
-  color: #c4b5fd;
-  border-color: rgba(167, 139, 250, 0.7);
-  background: rgba(124, 58, 237, 0.10);
-  animation: belt-infplay-throb 1.8s ease-in-out infinite;
-}
-.belt-header-skip.is-infplay-eligible:hover:not(:disabled) {
-  opacity: 1;
-  transform: scale(1.08);
-  color: #ddd6fe;
-  background: rgba(124, 58, 237, 0.18);
-}
-
-.belt-header-skip.is-infplay-active {
-  opacity: 1;
-  color: #ffffff;
-  border-color: rgba(167, 139, 250, 0.55);
-  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2),
-              0 0 14px rgba(167, 139, 250, 0.5);
-}
-.belt-header-skip.is-infplay-active:hover:not(:disabled) {
-  opacity: 1;
-  transform: scale(1.06);
-  background: linear-gradient(135deg, #8b4ff5 0%, #b69cfb 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 18px rgba(167, 139, 250, 0.65);
-}
-
+/* INF-PLAY throb keyframe — now driven by the CENTRAL belt-progress pill
+ * (.belt-timer-unified.is-infplay) rather than the forward chevron. The
+ * forward chevron is plain ROUND/LEGO nav; the ∞ indicator moved to the
+ * central pill. Keyframe shared by the default theme; mist has its own
+ * (belt-infplay-throb-mist) further down. */
 @keyframes belt-infplay-throb {
   0%, 100% {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2),
@@ -12099,6 +12052,22 @@ defineExpose({
   letter-spacing: -0.02em;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* INF-PLAY indicator state for the CENTRAL belt-progress pill.
+ * When currentMode === 'infplay' the pill changes colour (purple
+ * gradient), THROBS, and shows an ∞ glyph instead of the progress line.
+ * Tom: the ∞ indicator moved OFF the forward chevron ONTO this pill. */
+.belt-timer-unified.is-infplay {
+  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+  border-color: rgba(167, 139, 250, 0.55);
+  animation: belt-infplay-throb 1.8s ease-in-out infinite;
+}
+.belt-infplay-glyph {
+  flex: 1;
+  min-width: var(--belt-bar-width);
+  height: 20px;
+  color: #ffffff;
 }
 
 /* Legacy styles kept for backwards compatibility */
@@ -14919,34 +14888,23 @@ button.phase-segment:active:not(.is-active) {
   box-shadow: none;
 }
 
-/* --- INF PLAY button states (mist theme — must override the generic
-   white belt-skip styling above with matching specificity) --- */
-[data-theme="mist"] .player .belt-header-skip.is-infplay-eligible {
-  background: rgba(124, 58, 237, 0.10);
-  border: 1.5px solid rgba(124, 58, 237, 0.55);
-  color: #7c3aed;
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
-  animation: belt-infplay-throb-mist 1.8s ease-in-out infinite;
-}
-[data-theme="mist"] .player .belt-header-skip.is-infplay-eligible:hover:not(:disabled) {
-  background: rgba(124, 58, 237, 0.18);
-  color: #6d28d9;
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
-              0 0 14px rgba(124, 58, 237, 0.35);
-}
-[data-theme="mist"] .player .belt-header-skip.is-infplay-active {
+/* --- INF-PLAY state for the CENTRAL belt-progress pill (mist theme).
+   MUST override the generic white belt-timer-unified styling above with
+   matching specificity — mist overrides every UI surface and silently
+   wins on specificity otherwise. The ∞ indicator lives on this pill now,
+   not the forward chevron. --- */
+[data-theme="mist"] .player .belt-timer-unified.is-infplay {
   background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
   border: 1.5px solid rgba(124, 58, 237, 0.7);
-  color: #ffffff;
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.14),
               0 0 14px rgba(167, 139, 250, 0.5);
-  animation: none;
+  animation: belt-infplay-throb-mist 1.8s ease-in-out infinite;
 }
-[data-theme="mist"] .player .belt-header-skip.is-infplay-active:hover:not(:disabled) {
-  background: linear-gradient(135deg, #8b4ff5 0%, #b69cfb 100%);
+[data-theme="mist"] .player .belt-timer-unified.is-infplay .belt-timer-label {
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16),
-              0 0 18px rgba(167, 139, 250, 0.65);
+}
+[data-theme="mist"] .player .belt-infplay-glyph {
+  color: #ffffff;
 }
 
 /* Mist-theme throb keyframes — softer shadow than the dark-theme

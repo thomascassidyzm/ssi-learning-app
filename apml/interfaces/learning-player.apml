@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.0 (2026-01-18)
+# Version: 2.1.2 (2026-05-29)
 # Status: Production-ready
 
 ## ============================================================================
@@ -281,14 +281,21 @@ NETWORK_INTEGRATION:
 ## TRANSPORT CONTROLS
 ## ============================================================================
 
+## Navigation principle: "granularity = location". Three controls, three
+## POSITION levels. Bottom nav = CYCLE (finest). Header chevrons = ROUND/LEGO.
+## Central belt pill = BELT jump (modal) + INF-PLAY readout. All position-keyed;
+## the belt DERIVES from the landed round, never a parsed seed string.
+
 TRANSPORT_CONTROLS:
   location: "Bottom of screen (thumb zone)"
   visibility: "Always visible"
+  axis: "CYCLE — the finest, most-used control (slot ±1)"
 
   buttons:
     previous:
-      icon: "Skip back (⏮)"
-      action: "Go to previous item"
+      icon: "‹ (chevron back)"
+      action: "CYCLE regress — step one practice cycle back (slot -1), crossing round boundaries (first cycle → previous round's last cycle)"
+      engine: "simplePlayer.stepCycle(-1) → handleRevisit"
       size: "44px touch target"
 
     play_pause:
@@ -298,9 +305,31 @@ TRANSPORT_CONTROLS:
       color: "Accent red (#c23a3a)"
 
     next:
-      icon: "Skip forward (⏭)"
-      action: "Skip to next item"
+      icon: "› (chevron forward)"
+      action: "CYCLE advance — step one practice cycle forward (slot +1), crossing round boundaries (last cycle → next round's first cycle)"
+      engine: "simplePlayer.stepCycle(+1) → handleSkip"
       size: "44px touch target"
+
+HEADER_NAV:
+  location: "Header belt row"
+  axis: "ROUND / LEGO (introduced LEGO ±1)"
+
+  back:
+    icon: "‹‹ (double chevron back)"
+    action: "Previous introduced LEGO, jump to round START (slot 0) so intro/debut/build REPLAY. Loads previous LEGO's rounds if not loaded. Doubles as INF-PLAY exit (flips current_mode → main)."
+    engine: "handleRoundBack"
+    disabled_when: "round 0 and not in INF PLAY, or offline"
+
+  forward:
+    icon: "›› (double chevron forward)"
+    action: "Next introduced LEGO (round +1, by LEGO id). At the FINAL LEGO, advancing ENTERS INF PLAY."
+    engine: "handleRoundForward → enterInfPlay() at course end"
+    disabled_when: "already in INF PLAY, or offline"
+
+  central_belt_pill:
+    role: "Belt readout + tap → belt modal (the ONLY belt-jump path) + INF-PLAY indicator"
+    engine: "handleBeltPillTap → ProgressModal → handleSkipToBelt"
+    infplay_state: "When current_mode === 'infplay': purple, THROBS, shows ∞ glyph with NO progress line (.belt-timer-unified.is-infplay, with mist counterpart). The ∞ indicator lives here, NOT on the forward chevron."
 
 ## ============================================================================
 ## INTRO MODE
@@ -460,6 +489,14 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.2:
+    date: "2026-05-29"
+    title: "Player nav remap — granularity = location"
+    changes:
+      - "Bottom-nav ‹ › now step the CYCLE axis (slot ±1, crossing round boundaries) via new SimplePlayer.stepCycle — previously round-level skip/revisit."
+      - "Header ‹‹ ›› now ROUND/LEGO nav (handleRoundForward / handleRoundBack) — previously belt skips. Forward at the final LEGO enters INF PLAY; back replays the previous LEGO's debut (slot 0) and exits INF PLAY."
+      - "Belt JUMPS are MODAL-only (central pill → handleSkipToBelt). The ∞ INF-PLAY indicator moved OFF the forward chevron ONTO the central belt pill (throbs, ∞ glyph, no progress line; mist counterpart added)."
+
   v2.1.1:
     date: "2026-05-26"
     title: "Encouragements = uncertain reward, between speaking rounds"
