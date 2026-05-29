@@ -223,6 +223,8 @@
     <a href="#compare">Comparison</a>
     <a href="#sovereignty">Sovereignty</a>
     <a href="#frames">Frames</a>
+    <a href="#tutors">Tutors</a>
+    <a href="#ssi">For SSi</a>
     <a href="#cefr">CEFR</a>
     <a href="#ship">Roadmap</a>
     <a href="#discuss">Discuss</a>
@@ -394,9 +396,40 @@
     <p class="small">A caveat that ties them together: group-relative has a failure mode — a whole class that is collectively behind looks "fine" because everyone is off-pace together. So the group frame needs the absolute frame as a backstop (the 30/100-hour anchor now, CEFR later). All three matter.</p>
   </div></section>
 
+  <!-- TUTORS -->
+  <section id="tutors"><div class="wrap reveal">
+    <span class="sec-num">08 — The live surface</span>
+    <h2>The product shipping <em>now</em> is the tutor.</h2>
+    <p class="dek">Schools and government are demos with invented data. Tutors are real, today.</p>
+    <p>A tutor is the <strong>teacher-offer</strong> entity — a teacher who owns a solo class (no school), with their students joining by a referral code. It quietly reuses the schools machinery, so the foundation we've built — the <code>phase_skip</code> confidence signal, the behavioural events — <strong>already flows for their students.</strong> Nothing extra to capture.</p>
+    <p>A tutor has two natural dimensions, both already in the data: a <strong>region</strong> (their country — about <em>reach</em> more than pedagogy) and the <strong>courses</strong> they teach (implicit in their profile and their classes).</p>
+    <p>The tutor's question is the simple one: <em>who needs my attention this week?</em> A list of their students, each showing where they are, when they were last seen, whether they've <strong>just changed</strong> (the curvature signal), whether they've quietly <strong>stalled</strong>, and whether they're <strong>over- or under-confident</strong> (read straight from the phase-pill). Because a tutor has a handful of students, this is computed live — <strong>no rollup tables, no population machinery</strong>.</p>
+    <p>And sovereignty carries over unchanged: a tutor sees their students against the <em>course cohort</em> or <em>their region's</em> average — an aggregate, never another named learner.</p>
+    <p class="pull">Build for the tutor first. The schools-and-government apparatus waits for a <em>real</em> school.</p>
+  </div></section>
+
+  <!-- FOR SSi -->
+  <section id="ssi"><div class="wrap reveal">
+    <span class="sec-num">09 — For SSi</span>
+    <h2>The same signals, aggregated, show <em>where a course hurts.</em></h2>
+    <p class="dek">Two ends: market better, and serve better.</p>
+    <p>Pointed sideways — across learners, keyed by <em>content unit</em> rather than by person — the very same telemetry becomes SSi's own instrument:</p>
+    <ul class="clean">
+      <li><b>Market better</b> — reach by <em>region × course</em>: where the product is spreading, where the demand and the gaps are.</li>
+      <li><b>Serve better</b> — <em>friction points in a course</em>. The same rate-of-change lens, but population-wide per LEGO and per exercise: where learners consistently stall, skip back, or drop off is a friction point, surfaced not guessed.</li>
+    </ul>
+    <p>That friction signal feeds straight back to content creation (Popty) as concrete, evidence-led questions: is this <strong>LEGO</strong> mis-chosen — too big, needing a re-split or a defer? Would an <strong>alternative listening exercise</strong> land better here? Is the <strong>pod progression</strong> catching people at a particular step? It's the curriculum's own quality loop — the course tells us where it's failing its learners.</p>
+    <p>The distinction from everything earlier: those lenses are <em>learner-relative</em> (how is this person doing?). This one is <em>content-relative</em> — a LEGO whose population-wide acceleration or skip-back spikes is the unit at fault, regardless of who's playing it.</p>
+
+    <h3 style="font-family:var(--display);font-weight:700;font-size:24px;margin:34px 0 4px;">A note on asking learners directly</h3>
+    <p>It's tempting to add surveys — voluntary, optional self-report. We should be sparing. Self-reported data is seldom as valuable as behaviour:</p>
+    <p class="pull">Learners vote with their actions — and their <em>inactions</em> — not with their survey responses.</p>
+    <p>The elegant part is that SSi already captures the <em>good</em> kind of self-report: the <strong>phase pill is a tap, not a questionnaire</strong> — an in-the-moment self-assessment expressed as behaviour. That's why it's worth so much. So voluntary explicit data keeps a narrow, honest role — the small external <strong>CEFR calibration sample</strong>, where we genuinely need a few known levels — and never becomes a primary metric.</p>
+  </div></section>
+
   <!-- CEFR -->
   <section id="cefr"><div class="wrap reveal">
-    <span class="sec-num">08 — Absolute competence</span>
+    <span class="sec-num">10 — Absolute competence</span>
     <h2>CEFR as a best-fit, not a certificate.</h2>
     <p class="dek">Derivatives adapt; the level certifies. Same coordinate, opposite reading.</p>
     <p>The honest claim, and the boundary of it: SSi measures <strong>speaking-production fluency</strong> plus course coverage. A formal CEFR exam measures four skills including spontaneous interaction. So our output is a <em>speaking-fluency proxy aligned to CEFR-equivalent bands</em> — a continuous <strong>screening / progress indicator</strong>, not a certification. SSi is not an exam board. For a school that is <em>more</em> useful than a point-in-time exam: it is always-on and trend-aware.</p>
@@ -415,7 +448,7 @@
 
   <!-- SHIP -->
   <section id="ship"><div class="wrap reveal">
-    <span class="sec-num">09 — What ships when</span>
+    <span class="sec-num">11 — What ships when</span>
     <h2>Behavioural first. Prosody is paced by adoption.</h2>
     <p class="dek">~26k telemetry events exist today; prosody / VAD is near 0%.</p>
     <p>The architecture was written "prosody first". Reality is the inverse: the <strong>behavioural tier</strong> — what we infer from clicks, pauses, completion, cadence and the phase-pill self-assessment — has rich data today and can power the first dashboards and the adaptation immediately. The <strong>executional tier</strong> — prosody differentials between the learner's sound wave and the model's, once VAD matures — is the most novel part, but it grows only as fast as opt-in does.</p>
@@ -429,7 +462,7 @@
 
   <!-- DISCUSS -->
   <section id="discuss"><div class="wrap reveal">
-    <span class="sec-num">10 — For discussion</span>
+    <span class="sec-num">12 — For discussion</span>
     <h2>Open questions for us.</h2>
     <div class="qbox">
       <h3>Decisions this paper deliberately leaves open</h3>
