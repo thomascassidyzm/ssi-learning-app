@@ -44,8 +44,20 @@ export interface UseSimplePlayerReturn {
   skipToPhase: (phase: 'prompt' | 'pause' | 'voice1' | 'voice2') => void
   jumpToRound: (index: number, cycleIndex?: number) => void
   jumpToSeed: (seedNumber: number) => void
+  /** Jump to the first loaded round with this exact LEGO id. No-ops (with a
+   * warn) on a miss — POSITION navigation routes through here so the cursor
+   * moves by LEGO id, never by a parsed seed string. */
+  jumpToLegoId: (legoId: string) => void
   findRoundIndexForSeed: (seedNumber: number) => number
   findRoundIndexForLegoId: (legoId: string) => number
+  /** Resolve a belt THRESHOLD (a seed boundary, e.g. blue = 80) to the first
+   * loaded round whose seed is >= the threshold — a NEAREST (>=) match, not
+   * an exact seed-string lookup. The first LEGO of a belt rarely sits on the
+   * threshold seed exactly (the belt may start at seed 81/83/…), so an exact
+   * match silently misses and the belt-skip overshoots / falls into INF PLAY.
+   * Returns -1 only when no loaded round reaches the threshold (still loading
+   * or the course doesn't extend that far). */
+  findRoundIndexForBeltThreshold: (seedThreshold: number) => number
   addRounds: (rounds: Round[]) => void
   appendRounds: (rounds: Round[]) => void
   replaceQueueFromCurrent: (rounds: Round[]) => void
@@ -210,6 +222,28 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
   }
 
   /**
+   * Resolve a belt threshold (a seed boundary, e.g. blue belt = seed 80)
+   * to the first loaded round whose seed is >= the threshold. Belt-skip
+   * lands on the FIRST LEGO of the target belt; that LEGO's seed is the
+   * smallest seed >= the belt's seedsRequired, which may not equal the
+   * threshold (the belt could start at seed 81/83/…). Exact seed-string
+   * matching (findRoundIndexForSeed) silently misses those, so belt nav
+   * must use this nearest-match resolver instead.
+   *
+   * rounds are kept sorted by legoId (which encodes seed first, then lego
+   * index — S0001L01 < S0002L01), so a linear scan returns the first round
+   * at-or-past the threshold = the belt's first LEGO. Returns -1 when no
+   * loaded round reaches the threshold (still loading / course too short).
+   */
+  const findRoundIndexForBeltThreshold = (seedThreshold: number): number => {
+    return roundsRef.value.findIndex(r => {
+      const m = r.seedId?.match(/^S(\d{1,})$/)
+      const seed = m ? parseInt(m[1], 10) : NaN
+      return Number.isFinite(seed) && seed >= seedThreshold
+    })
+  }
+
+  /**
    * Jump to the first round of a given seed number.
    * This maps seed numbers (used by belt system) to round indices (used by player).
    */
@@ -220,6 +254,26 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
       player?.jumpToRound(roundIndex)
     } else {
       console.warn(`[useSimplePlayer] Cannot jump to seed ${seedNumber} - not found in loaded rounds`)
+    }
+  }
+
+  /**
+   * Jump to the round owning an exact LEGO id. This is the POSITION-keyed
+   * navigation primitive: belt nav resolves a target to its LEGO id and
+   * moves the cursor through here, so the belt can DERIVE from the landed
+   * round rather than being set independently off a parsed seed.
+   *
+   * No-ops (with a warn) on a miss — the caller is responsible for loading
+   * the target round first. A missing target must NEVER silently teleport
+   * the learner elsewhere.
+   */
+  const jumpToLegoId = (legoId: string) => {
+    const roundIndex = findRoundIndexForLegoId(legoId)
+    if (roundIndex >= 0) {
+      console.log(`[useSimplePlayer] Jumping to LEGO ${legoId} → round index ${roundIndex}`)
+      player?.jumpToRound(roundIndex)
+    } else {
+      console.warn(`[useSimplePlayer] Cannot jump to LEGO ${legoId} - not found in loaded rounds`)
     }
   }
 
@@ -351,8 +405,10 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
     skipToPhase,
     jumpToRound,
     jumpToSeed,
+    jumpToLegoId,
     findRoundIndexForSeed,
     findRoundIndexForLegoId,
+    findRoundIndexForBeltThreshold,
     addRounds,
     appendRounds,
     replaceQueueFromCurrent,
