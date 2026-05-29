@@ -1588,6 +1588,23 @@ simplePlayer.onSessionComplete(async () => {
     sessionEnded.value = true
     return
   }
+  // Offline: no network to expand, so loop the already-cached content —
+  // offline must NEVER end at the tail. The engine reaches THIS handler
+  // directly when a synchronous skip-burst past the ~30-min cached audio
+  // span outruns the async pre-tail expansion watcher (which carries the
+  // SAME guard at EXPANSION_THRESHOLD, line ~2445). Without this branch,
+  // offline play stops with a paused summary instead of recycling forever
+  // — the "reviewed for a while, then stopped" bug. Tom 2026-05-30.
+  if (offlinePlaybackActive()) {
+    const looped = appendCachedLoopForOffline()
+    if (looped > 0) {
+      console.log(`[Offline] session_complete reached offline — looped ${looped} cached rounds, resuming`)
+      simplePlayer.resume()
+      return
+    }
+    // Nothing survived the persistent-audio filter (empty cached set) — fall
+    // through to the summary; that's the empty-cache edge, not the recycle.
+  }
   // Infinite play: the course should never end. Try expanding the
   // script and resuming before falling through to a paused-quiet state.
   const added = await expandScript()
@@ -3675,12 +3692,20 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         //     (infinite play means the course should never end)
         //   • the learner pressed stop during the lap → stay paused
         if (sessionEnded.value) {
-          const added = await expandScript()
-          if (added > 0) {
+          // Offline: loop the cached content rather than ending (mirror of
+          // the onSessionComplete + watcher guards — offline never ends at
+          // the tail, even when session_complete fired during a pod lap).
+          if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
             sessionEnded.value = false
             simplePlayer.resume()
           } else {
-            showPausedSummary()
+            const added = await expandScript()
+            if (added > 0) {
+              sessionEnded.value = false
+              simplePlayer.resume()
+            } else {
+              showPausedSummary()
+            }
           }
         } else if (userStoppedDuringLap.value) {
           // Bookmark the lap so the next play tap re-fires it instead of
