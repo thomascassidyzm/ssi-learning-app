@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Measuring Fluency — SSi Schools Position Paper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #f4f2ec;
+    --paper-2:      #efece4;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #DB1E17;
+    --red-deep:     #900600;
+    --blue:         96, 165, 250;
+    --gold:         197, 152, 64;
+    --green:        58, 158, 96;
+    --rd:           217, 69, 69;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --measure: 38rem;
+    --wide: 60rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(var(--blue), 0.06), transparent 55%);
+    background-attachment: fixed;
+  }
+  /* faint paper grain */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    opacity: 0.4; mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- nav ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px clamp(18px, 5vw, 64px);
+    background: rgba(244, 242, 236, 0.82);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topnav { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  .topnav a {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+    color: var(--ink-3); text-decoration: none; padding: 6px 10px; border-radius: 999px;
+    transition: color .15s, background .15s;
+  }
+  .topnav a:hover, .topnav a.active { color: var(--red); background: rgba(219,30,23,0.07); }
+  @media (max-width: 880px) { .topnav { display: none; } }
+
+  /* ---------- layout ---------- */
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  .wide { max-width: var(--wide); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  section { padding: clamp(40px, 7vw, 88px) 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: clamp(56px, 11vw, 130px) 0 clamp(36px, 6vw, 64px); border-top: none; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--red); display: inline-block; margin-bottom: 22px;
+  }
+  .hero h1 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.02;
+    font-size: clamp(40px, 7.5vw, 86px); margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 25px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta-row {
+    margin-top: 38px; display: flex; gap: 26px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3);
+  }
+  .meta-row span b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- typography ---------- */
+  h2 {
+    font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08;
+    font-size: clamp(28px, 4.4vw, 44px); margin: 0 0 6px;
+  }
+  .sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display:block; margin-bottom: 14px; }
+  .dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 30px; max-width: 32rem; }
+  p { margin: 0 0 20px; }
+  p .lead-cap::first-letter { } /* reserved */
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  a.inline { color: var(--red); text-decoration: none; border-bottom: 1px solid rgba(219,30,23,0.3); }
+  .small { font-size: 16px; color: var(--ink-2); }
+  .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+
+  .pull {
+    font-family: var(--display); font-size: clamp(23px, 3.4vw, 32px); line-height: 1.28;
+    color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 34px 0;
+    font-weight: 400;
+  }
+  .pull em { color: var(--red); font-style: italic; }
+
+  ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+  ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+
+  /* ---------- figures ---------- */
+  figure.fig {
+    margin: 40px 0; background: var(--card); border: 1px solid var(--line);
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 1px 2px rgba(44,38,34,.05), 0 14px 40px rgba(44,38,34,.07), 0 40px 80px rgba(44,38,34,.05);
+  }
+  .fig-head { padding: 18px 22px 12px; border-bottom: 1px solid var(--line-soft); display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .fig-tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color:#fff; background: var(--ink); padding: 3px 8px; border-radius: 5px; }
+  .fig-title { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--ink); }
+  .fig-body { padding: 22px; }
+  figcaption { padding: 0 22px 20px; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+  figcaption b { color: var(--ink); font-weight: 600; }
+
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 18px; }
+  .seg { display: inline-flex; background: var(--paper-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg button {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.02em; border: none; background: transparent;
+    color: var(--ink-2); padding: 7px 13px; border-radius: 999px; cursor: pointer; transition: all .15s;
+  }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .seg.red button.on { background: var(--red); }
+  .ctrl-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); margin-right: 2px; }
+  .toggle {
+    font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); background: var(--card);
+    color: var(--ink-2); padding: 8px 14px; border-radius: 999px; cursor: pointer; transition: all .15s; display:inline-flex; gap:8px; align-items:center;
+  }
+  .toggle .dot { width:9px; height:9px; border-radius:50%; background: var(--ink-faint); transition: background .15s; }
+  .toggle.on { border-color: var(--red); color: var(--red); }
+  .toggle.on .dot { background: var(--red); }
+
+  .readout { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .stat { }
+  .stat .v { font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1; }
+  .stat .l { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
+  .verdict { font-family: var(--body); font-style: italic; font-size: 17px; color: var(--ink); margin-top: 14px; min-height: 1.4em; }
+  .verdict .ok { color: rgb(var(--green)); font-style: normal; font-weight: 600; }
+  .verdict .alarm { color: var(--red); font-style: normal; font-weight: 600; }
+
+  svg .grid { stroke: var(--line-soft); stroke-width: 1; }
+  svg .axis { stroke: var(--line); stroke-width: 1; }
+  svg text { font-family: var(--mono); font-size: 10px; fill: var(--ink-3); letter-spacing: 0.02em; }
+  .chart-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+
+  /* sovereignty diagram */
+  .sov-allowed { stroke: rgb(var(--green)); }
+  .sov-forbid { stroke: var(--red); }
+
+  table.tl { width: 100%; border-collapse: collapse; margin: 26px 0; font-size: 16px; }
+  table.tl th, table.tl td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  table.tl th { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+  table.tl td:first-child { font-family: var(--mono); font-size: 13px; color: var(--red); white-space: nowrap; }
+  table.tl b { font-weight: 600; }
+
+  .frames { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 30px 0; }
+  @media (max-width: 760px) { .frames { grid-template-columns: 1fr; } }
+  .frame-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; position: relative; overflow: hidden; }
+  .frame-card .n { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--ink-faint); }
+  .frame-card h4 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 8px 0 4px; }
+  .frame-card .ref { font-family: var(--mono); font-size: 11px; color: var(--red); letter-spacing: 0.06em; text-transform: uppercase; }
+  .frame-card p { font-size: 15.5px; color: var(--ink-2); margin: 12px 0 0; }
+  .frame-card .bar { position: absolute; top:0; left:0; right:0; height: 4px; }
+
+  .qbox { background: var(--paper-2); border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px; margin: 30px 0; }
+  .qbox h3 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0 0 6px; }
+  .qbox ol { margin: 14px 0 0; padding-left: 22px; }
+  .qbox li { margin-bottom: 14px; font-size: 16.5px; }
+  .qbox li b { color: var(--red); font-weight: 600; }
+
+  footer { padding: 60px 0 90px; border-top: 1px solid var(--line-soft); color: var(--ink-3); font-size: 14px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; font-family: var(--mono); letter-spacing: 0.03em; }
+
+  /* reveal */
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity:1; transform:none; transition:none; } html { scroll-behavior:auto; } }
+
+  .hero-fade > * { opacity: 0; animation: rise .9s cubic-bezier(.2,.7,.2,1) forwards; }
+  .hero-fade > *:nth-child(1){ animation-delay:.05s } .hero-fade > *:nth-child(2){ animation-delay:.18s }
+  .hero-fade > *:nth-child(3){ animation-delay:.31s } .hero-fade > *:nth-child(4){ animation-delay:.44s }
+  @keyframes rise { to { opacity:1; transform:none; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="brand"><span class="mark">S</span> SaySomethin<b>in</b> · Schools</span>
+  <nav class="topnav" id="topnav">
+    <a href="#premise">Premise</a>
+    <a href="#change">Rate of change</a>
+    <a href="#budget">Difficulty</a>
+    <a href="#proxy">Objective</a>
+    <a href="#compare">Comparison</a>
+    <a href="#sovereignty">Sovereignty</a>
+    <a href="#frames">Frames</a>
+    <a href="#cefr">CEFR</a>
+    <a href="#ship">Roadmap</a>
+    <a href="#discuss">Discuss</a>
+  </nav>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <header class="hero wrap hero-fade">
+    <span class="eyebrow">Position paper · for Tom &amp; Aran</span>
+    <h1>What we measure,<br>and <em>why</em>.</h1>
+    <p class="lede">A working draft of the metrics and adaptation model behind the SSi schools dashboard — <strong>built to be argued with</strong>, not just read. The figures are live; drag, toggle, and break them.</p>
+    <div class="meta-row">
+      <span><b>Status</b> &nbsp;Design / discussion</span>
+      <span><b>Companion</b> &nbsp;docs/methodology/metrics-architecture.md</span>
+      <span><b>Gate</b> &nbsp;better × simpler × cheaper</span>
+    </div>
+  </header>
+
+  <!-- PREMISE -->
+  <section id="premise"><div class="wrap reveal">
+    <span class="sec-num">01 — The premise</span>
+    <h2>The method already works. We are adding finesse, not replacing it.</h2>
+    <p class="dek">Seventeen years of learners give us a ground truth almost no platform has.</p>
+    <p>Across thousands of learners, SSi has observed two anchors: at roughly <strong>30 hours</strong> of in-app practice people get confidently <em>into conversations</em>; at roughly <strong>100 hours</strong> they are genuinely conversational, around B1. That is empirical fact — but it is <em>flat</em>: the same number for everyone, with no per-learner finesse and no external cross-check.</p>
+    <p>This paper describes the layer that adds the finesse while preserving everything the method already does. The objective never changes, and it is not "course coverage" or "vocabulary count":</p>
+    <p class="pull">Get people <em>into conversations</em> — as understandable as possible, as quickly as possible — where they finesse their competence.</p>
+    <p>Everything below is downstream of that one sentence. When a metric and the objective disagree, the metric is wrong.</p>
+  </div></section>
+
+  <!-- RATE OF CHANGE -->
+  <section id="change"><div class="wrap reveal">
+    <span class="sec-num">02 — Rate of change, not level</span>
+    <h2>The signal is the <em>second</em> derivative.</h2>
+    <p class="dek">The differential of the difference. Everything is about rate of change.</p>
+    <p>The absolute value of a metric carries little information. A learner who consistently takes 2.5× as long as the model voice — but says things nicely — is simply <em>where they are</em>. What matters is <strong>change</strong>, and specifically the rate of change of the rate of change.</p>
+    <p>Differentiate any signal twice and two things vanish on their own: the <strong>level</strong> (a constant offset) and the <strong>steady slope</strong> (someone improving at an even pace). What is left is only the <em>inflection</em> — the moment the trend itself turns. That is exactly the discrimination we want, and it is <strong>baseline-free</strong>: no need to store a personal baseline to subtract.</p>
+  </div>
+  <div class="wide reveal">
+    <figure class="fig">
+      <div class="fig-head"><span class="fig-tag">Figure A</span><span class="fig-title">Level · velocity · acceleration</span></div>
+      <div class="fig-body">
+        <div class="controls">
+          <span class="ctrl-label">Scenario</span>
+          <div class="seg" id="scnSeg">
+            <button data-s="steady" class="on">Consistently slow</button>
+            <button data-s="jump">Sudden jump</button>
+            <button data-s="improve">Even improvement</button>
+            <button data-s="plateau">Gains plateau</button>
+          </div>
+        </div>
+        <div class="chart-label">Response length ÷ model length, per cycle</div>
+        <svg id="chartA" viewBox="0 0 900 300" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block"></svg>
+        <div class="verdict" id="verdictA"></div>
+      </div>
+      <figcaption><b>Read it:</b> the top line is the raw metric. The blue strip is velocity (is it moving?), the red strip is acceleration (is the movement <em>turning?</em>). Notice that "consistently slow" and "even improvement" both leave acceleration flat — <b>no alarm</b> — while a sudden jump spikes it. The acceleration is what catches the <em>event</em>; the level is only context.</figcaption>
+    </figure>
+  </div></section>
+
+  <!-- BUDGET -->
+  <section id="budget"><div class="wrap reveal">
+    <span class="sec-num">03 — Contextual difficulty</span>
+    <h2>Difficulty is an interaction. Adaptation spends a budget.</h2>
+    <p class="dek">Not "is this phrase hard?" but "is this hard for <em>this</em> learner, <em>now</em>?"</p>
+    <p>Difficulty is not a property of a phrase — it is a property of <em>(this learner × this unit)</em>, and it moves as their map fills in. We read it by running the acceleration sensor <strong>locally</strong>: per LEGO, per word, and especially per <em>boundary</em> — the join between units, where retrieval-while-still-producing tends to catch people.</p>
+    <p>A session is a finite <strong>practice budget</strong>. The engine's real lever is not how hard to push a single item but how to spend that budget across three moves:</p>
+    <ul class="clean">
+      <li><b>Consolidate</b> — reinforce what they are already good at.</li>
+      <li><b>Defer</b> — reduce a hard item now; let it rest until its surrounding context is richer.</li>
+      <li><b>Drill</b> — increase a hard item.</li>
+    </ul>
+    <p class="pull">The SSi lean, against the mainstream instinct: <em>default to consolidate and defer; reserve drill for the structurally critical few.</em></p>
+    <p>Why? A hard item is usually blocked by a thin surrounding map, not by lack of exposure to itself. Grinding it in isolation produces brittle memorisation and risks the learner <em>drowning</em>. Consolidating strengths builds the confidence that keeps them in the session (the <em>bored</em> wall is affective as much as cognitive) and thickens the semantic map that makes the deferred item land almost for free on return. The whole engine is a controller with one job: keep the learner in the channel between <strong>drowning</strong> and <strong>boredom</strong>, where rate of progress is highest — and it does it invisibly, by nudging repetition counts and the pause multiplier before a struggle becomes a crash.</p>
+  </div></section>
+
+  <!-- PROXY -->
+  <section id="proxy"><div class="wrap reveal">
+    <span class="sec-num">04 — Measure the objective</span>
+    <h2>Never a convenient proxy.</h2>
+    <p class="dek">The same lesson has bitten three times.</p>
+    <p>Every time we reach for an off-the-shelf measure, it mismeasures exactly what makes SSi work:</p>
+    <ul class="clean">
+      <li><b>No ASR</b> — speech recognition scores whether a machine can <em>guess your words</em>. That is not fluency. Fluency is timing, rhythm, prosody, plausibility.</li>
+      <li><b>Not drill-the-weakness</b> — the Anki instinct optimises coverage, not rate of progress toward conversation.</li>
+      <li><b>Not frequency</b> — and this is the subtle one. The meta-communication layer we teach first ("I'm not sure how to say…", "can you say that again", "I want to try") is <em>rare</em> in any corpus, but it is the <strong>highest-impact</strong> material, because it is what lets a learner stay in a conversation and negotiate. Corpus frequency would rank it near the bottom.</li>
+    </ul>
+    <p>So "how critical is this LEGO?" is answered not by frequency but by <strong>conversational impact</strong> — and the method already encodes that, for free, in the order it introduces things. <em>Early = high impact, by design.</em> A hard early-layer LEGO therefore <em>resists</em> deferral, even though it is "rare". And the better-simpler-cheaper corollary: don't build a richer signal before the thing that consumes it exists — use introduction order now; earn the fancier version only if the data shows it failing.</p>
+  </div></section>
+
+  <!-- COMPARISON -->
+  <section id="compare"><div class="wrap reveal">
+    <span class="sec-num">05 — The comparison model</span>
+    <h2>One chart. Two clocks. A whole dashboard.</h2>
+    <p class="dek">"Is this learner / class / school on track?" — answered by comparison, shown one way.</p>
+    <p>Any two things can be compared, and the combinatorics explode quickly. The discipline is to notice it is really <strong>one display</strong>: a growth curve, drawn against a comparison band. What changes is only <em>which entity</em>, <em>which band</em>, and — crucially — <em>which clock is on the x-axis</em>.</p>
+    <p>Two clocks tell different truths. <strong>In-app minutes</strong> isolates <em>efficiency</em> — progress per hour practised; the method's own claim lives here. <strong>Wall-clock days</strong> isolates <em>efficiency × intensity</em> — the real-world outcome. A class that takes Irish seriously does not learn better per hour; it crams more hours into fewer days, so it reaches usability in fewer <em>weeks</em>. The gap between the two clocks <em>is</em> the intensity signal.</p>
+  </div>
+  <div class="wide reveal">
+    <figure class="fig">
+      <div class="fig-head"><span class="fig-tag">Figure B</span><span class="fig-title">A class against the language-wide band</span></div>
+      <div class="fig-body">
+        <div class="controls">
+          <span class="ctrl-label">Clock</span>
+          <div class="seg red" id="clockSeg">
+            <button data-c="inapp" class="on">In-app minutes</button>
+            <button data-c="wall">Wall-clock days</button>
+          </div>
+          <button class="toggle" id="seriousToggle"><span class="dot"></span> Takes it seriously</button>
+        </div>
+        <svg id="chartB" viewBox="0 0 900 340" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block"></svg>
+        <div class="readout" id="readoutB"></div>
+        <div class="verdict" id="verdictB"></div>
+      </div>
+      <figcaption><b>Try it:</b> turn on "takes it seriously", then flip the clock. On <b>in-app minutes</b> the class sits right on the band — it is learning exactly as efficiently as everyone else. On <b>wall-clock days</b> it pulls clear ahead — because it is doing more time per day. Same data, two honest stories: one for the teacher (are we learning well?), one for the school or government (look how fast we got there).</figcaption>
+    </figure>
+  </div></section>
+
+  <!-- SOVEREIGNTY -->
+  <section id="sovereignty"><div class="wrap reveal">
+    <span class="sec-num">06 — Sovereignty</span>
+    <h2>Compare to an aggregate. Never to a named peer.</h2>
+    <p class="dek">A class is a learner in its own right — it plays <em>as a class</em> — not an average of its pupils.</p>
+    <p>Every comparison is <strong>entity → the average of its level</strong>, or entity → a collective it belongs to. Never entity → a singled-out peer. An individual can see how they sit against their class, or against the average of the school; never against another named child. A class compares to the average of classes in the school; never to another class. And so on, all the way up. This protects the <strong>sovereignty</strong> of every entity — no league tables, no naming and shaming.</p>
+  </div>
+  <div class="wide reveal">
+    <figure class="fig">
+      <div class="fig-head"><span class="fig-tag">Figure C</span><span class="fig-title">What may be compared with what</span></div>
+      <div class="fig-body">
+        <svg id="chartC" viewBox="0 0 900 300" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block"></svg>
+      </div>
+      <figcaption><b>Two rules, no conflict.</b> <span style="color:rgb(var(--green));font-weight:600">Green</span>: an entity may compare to the aggregate at or above its level. <span style="color:var(--red);font-weight:600">Red</span>: head-to-head against a named peer is never shown. Note the distinction from <em>visibility</em> — a government admin can open a single school and see its real numbers (drill-down), but the <em>comparison</em> it is shown is always school-vs-regional-average. The one guard: an "average" of one or two members leaks a named peer, so a band needs a minimum membership (k-anonymity).</figcaption>
+    </figure>
+  </div></section>
+
+  <!-- FRAMES -->
+  <section id="frames"><div class="wrap reveal">
+    <span class="sec-num">07 — Three reference frames</span>
+    <h2>Self, group, world.</h2>
+    <p class="dek">Your three priorities are really three frames of comparison.</p>
+    <p>The same coordinate, read against three different references — and each maps to one of the three things we want to do, in order.</p>
+  </div>
+  <div class="wide reveal">
+    <div class="frames">
+      <div class="frame-card">
+        <div class="bar" style="background:rgb(var(--blue))"></div>
+        <div class="n">01</div>
+        <h4>Adapt</h4>
+        <div class="ref">relative to self</div>
+        <p>The engine keeps each learner in their own flow. The curvature lens — <em>did this learner change?</em> It ignores constant offsets on purpose. Invisible; the learner never feels it.</p>
+      </div>
+      <div class="frame-card">
+        <div class="bar" style="background:var(--red)"></div>
+        <div class="n">02</div>
+        <h4>Surface</h4>
+        <div class="ref">relative to the group</div>
+        <p>The teacher's view. Group-relative catches exactly the curvature's blind spot — the learner who is <em>persistently</em> behind but stable. "Who changed" + "who's off the pace", together.</p>
+      </div>
+      <div class="frame-card">
+        <div class="bar" style="background:rgb(var(--gold))"></div>
+        <div class="n">03</div>
+        <h4>Certify</h4>
+        <div class="ref">relative to the world</div>
+        <p>An absolute, externally-anchored band — best-fit CEFR. Neither self nor group, but a calibrated comparison to everyone, with explicit confidence.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wrap reveal">
+    <p class="small">A caveat that ties them together: group-relative has a failure mode — a whole class that is collectively behind looks "fine" because everyone is off-pace together. So the group frame needs the absolute frame as a backstop (the 30/100-hour anchor now, CEFR later). All three matter.</p>
+  </div></section>
+
+  <!-- CEFR -->
+  <section id="cefr"><div class="wrap reveal">
+    <span class="sec-num">08 — Absolute competence</span>
+    <h2>CEFR as a best-fit, not a certificate.</h2>
+    <p class="dek">Derivatives adapt; the level certifies. Same coordinate, opposite reading.</p>
+    <p>The honest claim, and the boundary of it: SSi measures <strong>speaking-production fluency</strong> plus course coverage. A formal CEFR exam measures four skills including spontaneous interaction. So our output is a <em>speaking-fluency proxy aligned to CEFR-equivalent bands</em> — a continuous <strong>screening / progress indicator</strong>, not a certification. SSi is not an exam board. For a school that is <em>more</em> useful than a point-in-time exam: it is always-on and trend-aware.</p>
+    <p>Two facts set the timeline. App populations are bottom-heavy, so the lower-to-mid bands calibrate years before B2+. And the <strong>school pilots are the calibration engine</strong> — they supply authority, a spread of levels, and paired external assessment. Conveniently, Welsh (National Centre for Learning Welsh), Irish (TEG) and Spanish (DELE/SIELE) all sit against CEFR-aligned frameworks already.</p>
+    <table class="tl">
+      <thead><tr><th>Window</th><th>What ships</th><th>Depends on</th></tr></thead>
+      <tbody>
+        <tr><td>2026 H2 — now</td><td><b>Flat hours band</b>, honestly caveated: ~30h ≈ entry-conversational, ~100h ≈ B1. Admin/tutor-gated.</td><td>Nothing new — the 17-year anchor, time-on-task only, no VAD.</td></tr>
+        <tr><td>2026–27 pilots</td><td>Pair each learner's coordinate with the school's CEFR-aligned judgement. Welsh first. <b>Calibration, not yet certifying.</b></td><td>The Wales &amp; Ireland pilots themselves.</td></tr>
+        <tr><td>2027 → 2028</td><td>First <b>confidence-weighted band</b>, lower-to-mid, Welsh then Spanish. "Most consistent with A2 / low B1."</td><td>Pilot pairs + maturing prosody coverage.</td></tr>
+        <tr><td>2028 +</td><td>Robust clusters, more bands and languages; possible formal-alignment conversations.</td><td>Population scale + VAD coverage.</td></tr>
+      </tbody>
+    </table>
+    <p class="small">Bottom line: a credible Welsh, lower-to-mid indicator is a <b>2027 deliverable coupled to the pilots</b> — the assessment story and the schools rollout are one roadmap, not two.</p>
+  </div></section>
+
+  <!-- SHIP -->
+  <section id="ship"><div class="wrap reveal">
+    <span class="sec-num">09 — What ships when</span>
+    <h2>Behavioural first. Prosody is paced by adoption.</h2>
+    <p class="dek">~26k telemetry events exist today; prosody / VAD is near 0%.</p>
+    <p>The architecture was written "prosody first". Reality is the inverse: the <strong>behavioural tier</strong> — what we infer from clicks, pauses, completion, cadence and the phase-pill self-assessment — has rich data today and can power the first dashboards and the adaptation immediately. The <strong>executional tier</strong> — prosody differentials between the learner's sound wave and the model's, once VAD matures — is the most novel part, but it grows only as fast as opt-in does.</p>
+    <ul class="clean">
+      <li><b>Now</b> — wire the phase-pill events; behavioural execution proxy; the "needs attention" list and group-relative comparison on data that already exists.</li>
+      <li><b>Weeks–months</b> — prosody capture in the browser (no server round-trip, no ASR); adoption driven by methodology pages like this one.</li>
+      <li><b>Months</b> — tutor &amp; schools dashboards on persisted per-learner state; the comparison chart of Figure B as a real surface.</li>
+      <li><b>Months–years</b> — population layer and CEFR calibration off the pilots.</li>
+    </ul>
+  </div></section>
+
+  <!-- DISCUSS -->
+  <section id="discuss"><div class="wrap reveal">
+    <span class="sec-num">10 — For discussion</span>
+    <h2>Open questions for us.</h2>
+    <div class="qbox">
+      <h3>Decisions this paper deliberately leaves open</h3>
+      <ol>
+        <li><b>Communication layers.</b> Do we make "conversational impact" an explicit tag in Popty, or keep leaning on introduction order as the proxy until the data forces our hand? (BSC says: order, for now.)</li>
+        <li><b>The default comparison set.</b> Confirm: every entity compares to its parent aggregate and to the language-wide band — and peer-vs-peer is never offered, not even to government. Agreed?</li>
+        <li><b>Which clock is default for whom.</b> In-app minutes for teachers/learners; wall-clock for school-leader/government framing. Does that split feel right?</li>
+        <li><b>The k-anonymity threshold.</b> What minimum membership makes an "average" safe — 5 learners? 3 classes? This is the one place sovereignty can leak.</li>
+        <li><b>Pilot calibration mechanics.</b> What exactly do the Wales/Ireland pilots hand us as external CEFR truth — teacher judgement, formal exam results, or both?</li>
+      </ol>
+    </div>
+    <p class="small">Everything here is a draft to be argued with. The companion specification — with the full schema, event types and implementation phases — lives at <code>docs/methodology/metrics-architecture.md</code>.</p>
+  </div></section>
+
+</main>
+
+<footer><div class="wrap">
+  <span>SSi Schools · Metrics &amp; Adaptation · position paper</span>
+  <span>Draft 2026-05-29 · Tom &amp; Aran</span>
+</div></footer>
+
+<script>
+(function () {
+  "use strict";
+  const $ = (s, r) => (r || document).querySelector(s);
+  const NS = "http://www.w3.org/2000/svg";
+  const ink = "#2C2622", red = "#DB1E17", inkFaint = "#b8b0a6";
+  const blue = "rgb(96,165,250)", green = "rgb(58,158,96)", gold = "rgb(197,152,64)";
+
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+  function path(pts) { return pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" "); }
+
+  // 3-point smoothing then finite differences
+  function smooth(a) {
+    return a.map((v, i) => {
+      const p = a[i - 1] != null ? a[i - 1] : v, n = a[i + 1] != null ? a[i + 1] : v;
+      return (p + v + n) / 3;
+    });
+  }
+  function diff(a) { return a.map((v, i) => i ? v - a[i - 1] : 0); }
+
+  /* ---------------- Figure A: curvature ---------------- */
+  const N = 26;
+  const scenarios = {
+    steady:  { build: () => Array.from({length:N}, (_,i)=> 2.5 + Math.sin(i*1.3)*0.06),
+      verdict: '<span class="ok">No alarm.</span> Consistent ratio — velocity and acceleration both flat. The learner is just where they are; the engine leaves them alone.' },
+    jump:    { build: () => Array.from({length:N}, (_,i)=> i<13 ? 2.5 + Math.sin(i*1.3)*0.05 : i<17 ? 2.5 + (i-12)*0.4 : 4.05 + Math.sin(i*1.1)*0.05),
+      verdict: '<span class="alarm">Event detected.</span> The level jumps and acceleration spikes — something in that combination tripped them up. <b>Dig here.</b> Once it settles at the new level, acceleration falls back to zero.' },
+    improve: { build: () => Array.from({length:N}, (_,i)=> 3.0 - i*0.055 + Math.sin(i*1.4)*0.04),
+      verdict: '<span class="ok">No alarm.</span> Steady improvement — velocity is a constant negative, acceleration stays flat. Progress, not an event. Nothing to flag.' },
+    plateau: { build: () => Array.from({length:N}, (_,i)=> { const x=i/(N-1); return 3.0 - 1.4*(1-Math.pow(1-x,2.2)); }),
+      verdict: 'A gentler signal: gains <em>level off</em> — a small acceleration blip at the inflection. Not urgent, but a cue to inject novelty before boredom sets in.' }
+  };
+
+  function drawA(key) {
+    const svg = $("#chartA"); clear(svg);
+    const W = 900, H = 300, padL = 44, padR = 16, padT = 14;
+    const mainH = 150, stripH = 44, gap = 18;
+    const raw = scenarios[key].build();
+    const sm = smooth(raw);
+    const vel = diff(sm), acc = diff(vel);
+    const n = raw.length;
+    const xAt = i => padL + (W - padL - padR) * (i / (n - 1));
+
+    // main chart scale (ratio 1..4.4)
+    const yMin = 1, yMax = 4.4;
+    const yAt = v => padT + mainH - (mainH) * ((v - yMin) / (yMax - yMin));
+
+    // gridlines + labels for main
+    [1,2,3,4].forEach(g => {
+      el("line", { class:"grid", x1:padL, x2:W-padR, y1:yAt(g), y2:yAt(g) }, svg);
+      el("text", { x: padL-8, y: yAt(g)+3, "text-anchor":"end" }, svg).textContent = g + "×";
+    });
+    // model reference (1.0×) faint
+    // main line
+    const mainPts = raw.map((v,i)=>[xAt(i), yAt(v)]);
+    el("path", { d: path(mainPts), fill:"none", stroke: ink, "stroke-width": 2.4, "stroke-linejoin":"round", "stroke-linecap":"round" }, svg);
+    // dots
+    mainPts.forEach((p,i)=> el("circle",{cx:p[0],cy:p[1],r:2.2,fill:ink,opacity:0.5},svg));
+
+    // strips
+    function strip(arr, yTop, color, label, symmetric) {
+      el("text", { x: padL, y: yTop - 5 }, svg).textContent = label;
+      const max = Math.max(0.12, ...arr.map(Math.abs));
+      const mid = yTop + stripH/2;
+      el("line",{class:"grid",x1:padL,x2:W-padR,y1:mid,y2:mid},svg);
+      arr.forEach((v,i)=>{
+        if (i===0) return;
+        const x = xAt(i), bh = (Math.abs(v)/max)*(stripH/2 - 2);
+        const up = v >= 0;
+        const big = Math.abs(v)/max > 0.55;
+        el("rect",{ x: x-3, y: up ? mid-bh : mid, width:6, height: Math.max(0.5,bh),
+          fill: big && color===red ? red : color, opacity: big ? 0.95 : 0.45, rx:1.5 }, svg);
+      });
+    }
+    strip(vel, padT + mainH + gap, blue, "Velocity — is it moving?");
+    strip(acc, padT + mainH + gap + stripH + gap, red, "Acceleration — is the movement turning?");
+
+    $("#verdictA").innerHTML = scenarios[key].verdict;
+  }
+
+  $("#scnSeg").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    $("#scnSeg").querySelectorAll("button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); drawA(b.dataset.s);
+  });
+
+  /* ---------------- Figure B: comparison ---------------- */
+  let clock = "inapp", serious = false;
+  const K = 2600; // minutes constant for saturating efficiency curve
+  function progressFromMinutes(m) { return 100 * (1 - Math.exp(-m / K)); }
+
+  function drawB() {
+    const svg = $("#chartB"); clear(svg);
+    const W = 900, H = 340, padL = 48, padR = 18, padT = 18, padB = 40;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const xMax = clock === "inapp" ? 12000 : 240; // minutes or days
+    const xLabel = clock === "inapp" ? "In-app minutes practised" : "Days since starting";
+    const STEPS = 60;
+
+    const yAt = v => padT + plotH - plotH * (v / 100);
+    const xAt = x => padL + plotW * (x / xMax);
+
+    // grid
+    [0,25,50,75,100].forEach(g=>{
+      el("line",{class:"grid",x1:padL,x2:W-padR,y1:yAt(g),y2:yAt(g)},svg);
+      el("text",{x:padL-8,y:yAt(g)+3,"text-anchor":"end"},svg).textContent=g;
+    });
+    el("text",{x:padL,y:H-12},svg).textContent="0";
+    el("text",{x:W-padR,y:H-12,"text-anchor":"end"},svg).textContent = clock==="inapp" ? (xMax/1000)+"k min" : xMax+" days";
+    el("text",{x:(padL+W-padR)/2,y:H-12,"text-anchor":"middle"},svg).textContent = xLabel;
+    el("text",{x:padL-8,y:padT+8,"text-anchor":"end",fill:inkFaint},svg).textContent="progress";
+
+    // population intensity distribution (minutes/day): median + quartiles
+    const medI = 12, q1I = 7, q3I = 20; // casual population
+    function curve(intensityMinPerDay, projectToWall) {
+      const pts = [];
+      for (let s=0; s<=STEPS; s++) {
+        let x, minutes;
+        if (clock === "inapp") { x = (s/STEPS)*xMax; minutes = x; }
+        else { x = (s/STEPS)*xMax; minutes = x * intensityMinPerDay; }
+        pts.push([xAt(x), yAt(progressFromMinutes(minutes))]);
+      }
+      return pts;
+    }
+
+    if (clock === "inapp") {
+      // everyone shares ONE efficiency curve; band is thin (efficiency varies little)
+      const mid = curve();
+      // thin ribbon ±a few % to suggest natural spread
+      const top = mid.map(p=>[p[0], p[1]-10]); const bot = mid.map(p=>[p[0], p[1]+10]);
+      const ribbon = path(top) + " " + path(bot.slice().reverse()).replace("M","L") + " Z";
+      el("path",{d:ribbon, fill:"rgba(44,38,34,0.06)", stroke:"none"},svg);
+      el("path",{d:path(mid), fill:"none", stroke:inkFaint, "stroke-width":2, "stroke-dasharray":"5 5"},svg);
+    } else {
+      // band = population intensity quartiles
+      const q1 = curve(q1I), med = curve(medI), q3 = curve(q3I);
+      const ribbon = path(q3) + " " + path(q1.slice().reverse()).replace("M","L") + " Z";
+      el("path",{d:ribbon, fill:"rgba(44,38,34,0.07)", stroke:"none"},svg);
+      el("path",{d:path(med), fill:"none", stroke:inkFaint, "stroke-width":2, "stroke-dasharray":"5 5"},svg);
+    }
+
+    // the class
+    const classI = serious ? 34 : 13;
+    const classCurve = curve(classI);
+    el("path",{d:path(classCurve), fill:"none", stroke:red, "stroke-width":3, "stroke-linecap":"round"},svg);
+    const last = classCurve[classCurve.length-1];
+    el("circle",{cx:last[0],cy:last[1],r:4,fill:red},svg);
+    el("text",{x:last[0]-6,y:last[1]-10,"text-anchor":"end",fill:red,"font-weight":600},svg).textContent="this class";
+
+    // band label
+    el("text",{x:padL+8,y:padT+plotH-6,fill:inkFaint},svg).textContent = clock==="inapp" ? "all learners (one efficiency curve)" : "all learners (by daily effort)";
+
+    // readout
+    const eff = "on the band";
+    const intensity = classI + " min/day";
+    // days to "usable" (~progress 55, i.e. ~30h = 1800 min): minutes target / intensity
+    const usableMin = 1800;
+    const classDays = Math.round(usableMin / classI);
+    const popDays = Math.round(usableMin / medI);
+    $("#readoutB").innerHTML =
+      '<div class="stat"><div class="v">'+intensity+'</div><div class="l">Intensity</div></div>' +
+      '<div class="stat"><div class="v" style="color:'+(serious?"rgb(58,158,96)":"var(--ink)")+'">'+eff+'</div><div class="l">Efficiency (per hour)</div></div>' +
+      '<div class="stat"><div class="v">~'+ (classDays) +' d</div><div class="l">Class → conversational</div></div>' +
+      '<div class="stat"><div class="v" style="color:var(--ink-3)">~'+ (popDays) +' d</div><div class="l">Typical learner</div></div>';
+
+    if (clock === "inapp") {
+      $("#verdictB").innerHTML = serious
+        ? 'On <b>in-app minutes</b> the serious class sits <em>right on the band</em> — it is learning exactly as efficiently as everyone else. Effort isn\'t the story here; per-hour the method is the method.'
+        : 'On the effort-controlled clock, everyone rides one efficiency curve. This axis answers the teacher\'s question: <em>is the learning landing per hour practised?</em>';
+    } else {
+      $("#verdictB").innerHTML = serious
+        ? '<span class="ok">The commitment story.</span> On <b>wall-clock days</b> the class pulls clear above the band — not because it learns better per hour, but because it does more hours per day. Conversational in ~'+classDays+' days vs ~'+popDays+' typical.'
+        : 'On the calendar clock, this class tracks a normal pace. Turn on <em>"takes it seriously"</em> and watch it pull ahead — that gap is intensity, and it is the pitch for a school or government.';
+    }
+  }
+
+  $("#clockSeg").addEventListener("click", e=>{
+    const b = e.target.closest("button"); if(!b) return;
+    $("#clockSeg").querySelectorAll("button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); clock = b.dataset.c; drawB();
+  });
+  $("#seriousToggle").addEventListener("click", e=>{
+    serious = !serious; e.currentTarget.classList.toggle("on", serious); drawB();
+  });
+
+  /* ---------------- Figure C: sovereignty ---------------- */
+  function drawC() {
+    const svg = $("#chartC"); clear(svg);
+    const W = 900, H = 300;
+    const levels = [
+      { x: 130, label: "Individual" },
+      { x: 360, label: "Class" },
+      { x: 590, label: "School" },
+      { x: 820, label: "Region" }
+    ];
+    const yEnt = 90, yAgg = 215;
+
+    // baseline labels
+    el("text",{x:20,y:yEnt+4,fill:inkFaint},svg).textContent="entity";
+    el("text",{x:20,y:yAgg+4,fill:inkFaint},svg).textContent="aggregate";
+
+    function node(x, y, label, agg) {
+      const w = agg ? 120 : 96, h = 38;
+      el("rect",{x:x-w/2,y:y-h/2,width:w,height:h,rx:9,
+        fill: agg ? "rgba(44,38,34,0.05)" : "#fff",
+        stroke: agg ? inkFaint : ink, "stroke-width": agg?1:1.6,
+        "stroke-dasharray": agg ? "4 4" : "0"},svg);
+      const t = el("text",{x:x,y:y+ (agg?1:4),"text-anchor":"middle",fill: agg?"#8A8078":ink,"font-weight":600},svg);
+      t.textContent = label;
+      if (agg) { const s=el("text",{x:x,y:y+13,"text-anchor":"middle",fill:inkFaint,"font-size":"8.5"},svg); s.textContent="(average, ≥ k)"; }
+    }
+
+    // allowed arrows: entity -> aggregate above it
+    levels.forEach((lv,i)=>{
+      // entity node
+      node(lv.x, yEnt, lv.label, false);
+      // aggregate node (average of this level's peers)
+      if (i>0) node(lv.x, yAgg, "avg. of "+levels[i].label.toLowerCase()+"s", true);
+    });
+    // individual compares to its class (collective) AND avg — draw green up-arrow individual->class agg? Represent: entity -> aggregate at its own level (sibling avg)
+    function arrow(x1,y1,x2,y2,color,dashed) {
+      el("line",{x1,y1,x2,y2,stroke:color,"stroke-width":2.2,"stroke-dasharray":dashed?"5 4":"0","marker-end":"url(#ah-"+(color===red?"r":"g")+")"},svg);
+    }
+    // markers
+    const defs = el("defs",{},svg);
+    [["g",green],["r",red]].forEach(([id,c])=>{
+      const m = el("marker",{id:"ah-"+id,viewBox:"0 0 10 10",refX:8,refY:5,markerWidth:7,markerHeight:7,orient:"auto-start-reverse"},defs);
+      el("path",{d:"M0 0 L10 5 L0 10 z",fill:c},m);
+    });
+
+    // ALLOWED: each entity -> the aggregate of its level (green)
+    levels.forEach((lv,i)=>{ if(i>0) arrow(lv.x, yEnt+20, lv.x, yAgg-20, green, false); });
+    // ALLOWED: individual -> its class (collective it belongs to) green diagonal
+    arrow(levels[0].x+40, yEnt, levels[1].x-52, yEnt, green, true);
+
+    // FORBIDDEN: class vs class head to head (red, crossed)
+    arrow(levels[1].x+50, yEnt, levels[2].x-50, yEnt, red, false);
+    // strike it
+    const mx=(levels[1].x+levels[2].x)/2;
+    el("line",{x1:mx-12,y1:yEnt-12,x2:mx+12,y2:yEnt+12,stroke:red,"stroke-width":3},svg);
+    el("text",{x:mx,y:yEnt-22,"text-anchor":"middle",fill:red,"font-weight":600},svg).textContent="never";
+
+    // legend
+    el("text",{x:levels[0].x, y:yEnt-30,"text-anchor":"middle",fill:green,"font-weight":600},svg).textContent="✓ to its collective";
+    el("text",{x:levels[1].x, y:yAgg+40,"text-anchor":"middle",fill:green,"font-weight":600},svg).textContent="✓ entity → aggregate";
+  }
+
+  /* ---------------- reveal + nav ---------------- */
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".reveal").forEach(r=>io.observe(r));
+
+  // active nav
+  const navLinks = [...document.querySelectorAll("#topnav a")];
+  const secs = navLinks.map(a=>document.querySelector(a.getAttribute("href")));
+  const navIo = new IntersectionObserver((entries)=>{
+    entries.forEach(en=>{
+      if(en.isIntersecting){
+        const id = "#"+en.target.id;
+        navLinks.forEach(a=>a.classList.toggle("active", a.getAttribute("href")===id));
+      }
+    });
+  }, { rootMargin: "-45% 0px -50% 0px" });
+  secs.forEach(s=> s && navIo.observe(s));
+
+  // init
+  drawA("steady"); drawB(); drawC();
+  window.addEventListener("resize", ()=>{ /* SVG is responsive via viewBox; redraw not required */ });
+})();
+</script>
+</body>
+</html>
