@@ -183,19 +183,16 @@ This is also a signal almost no other language-learning platform captures. Most 
 Two new Layer 0 event types are needed (these appear in the full schema in §8 too):
 
 ```typescript
-phase_skip_forward: {
-  cycleId, legoId,
-  fromPhase: 'PROMPT' | 'PAUSE' | 'VOICE_1',
-  toPhase:   'PAUSE'  | 'VOICE_1' | 'VOICE_2',
-  elapsed_in_phase_ms,    // how long they were in fromPhase before skipping —
-                          // shorter = more confident
-}
-
-phase_skip_back: {
-  cycleId, legoId,
-  fromPhase: 'PAUSE' | 'VOICE_1' | 'VOICE_2',
-  toPhase:   'PROMPT',    // typically to re-hear the known-language prompt
-  elapsed_in_phase_ms,
+// One event, with a direction field (implemented in A1). `forward` (toward
+// VOICE_1/2) reads as confidence; `back` (toward PROMPT) as "let me re-hear".
+// elapsed_in_phase_ms is what separates confident from gave-up.
+phase_skip: {
+  cycleId, legoId, cycleType,
+  fromPhase,              // currentPhase at the tap
+  toPhase,                // pill target: prompt | voice_1 | voice_2
+  direction,              // forward | back | replay
+  elapsed_in_phase_ms,    // shorter forward = more confident
+  pauseDuration,          // raw, so the ratio can be chosen later
 }
 ```
 
@@ -318,18 +315,17 @@ turbo_toggle:   { enabled: boolean, sessionPaceMsBefore, sessionPaceMsAfter }
 session_start:  { courseCode, deviceClass, initialSettings }
 session_end:    { sessionDurationMs, cyclesCompleted, completionReason }
 
-// New — phase-pill self-assessment events (feeds calibration metric, §5)
-phase_skip_forward: {
-  cycleId, legoId,
-  fromPhase: 'PROMPT'|'PAUSE'|'VOICE_1',
-  toPhase:   'PAUSE'|'VOICE_1'|'VOICE_2',
-  elapsed_in_phase_ms,    // shorter = more confident
-}
-phase_skip_back: {
-  cycleId, legoId,
-  fromPhase: 'PAUSE'|'VOICE_1'|'VOICE_2',
-  toPhase:   'PROMPT',
-  elapsed_in_phase_ms,
+// New — phase-pill self-assessment event (feeds calibration metric, §5).
+// One event with a direction field (decided in implementation A1) rather than
+// two named types — direction is derivable from cycle order, and one type is
+// simpler. Raw elapsed + pauseDuration are stored unnormalised.
+phase_skip: {
+  cycleId, legoId, cycleType,
+  fromPhase: 'prompt'|'speak'|'voice_1'|'voice_2',   // = currentPhase at tap
+  toPhase:   'prompt'|'voice_1'|'voice_2',           // pill targets (speak isn't tappable)
+  direction: 'forward'|'back'|'replay',              // forward = confident, back = re-hear
+  elapsed_in_phase_ms,                               // time in fromPhase before the tap
+  pauseDuration,                                     // to normalise elapsed later
 }
 
 // New — prosody per cycle (the execution-axis raw signal)

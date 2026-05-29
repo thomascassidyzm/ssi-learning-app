@@ -3929,6 +3929,13 @@ watch(() => cyclePlaybackState.value.isPlaying, (playing) => {
 
 // State
 const currentPhase = ref(Phase.PROMPT)
+
+// A1 (metrics): stamp when the current cycle phase was entered, so a phase-pill
+// skip can record how long the learner sat in a phase before tapping. Watching
+// currentPhase catches every transition regardless of which setter fired.
+let phaseEnteredAt = Date.now()
+watch(currentPhase, () => { phaseEnteredAt = Date.now() })
+
 const currentItemIndex = ref(0)
 // Note: isPlaying is now a computed from simplePlayer (defined above)
 const isSkipInProgress = ref(false) // Flag to prevent cycle_stopped from resetting isPlaying during skip
@@ -4748,6 +4755,28 @@ const showPhaseStrip = computed(() => {
 // engine which interrupts the current phase and starts the target one fresh.
 // Round / cycle boundaries unchanged — this is intra-cycle navigation only.
 function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
+  // A1 (metrics): the phase pill is a self-assessment signal. Capture it BEFORE
+  // the jump — fromPhase + toPhase + how long they sat there. Direction is the
+  // confidence read (forward = "I've got it / verify"; back = "let me re-hear").
+  // Raw elapsed + pauseDuration are stored unnormalised (decide the ratio later).
+  const toPhase = phase === 'voice1' ? Phase.VOICE_1 : phase === 'voice2' ? Phase.VOICE_2 : Phase.PROMPT
+  const fromPhase = currentPhase.value
+  const order: Record<string, number> = { [Phase.PROMPT]: 0, [Phase.SPEAK]: 1, [Phase.VOICE_1]: 2, [Phase.VOICE_2]: 3 }
+  const fromIdx = order[fromPhase] ?? 0
+  const toIdx = order[toPhase] ?? 0
+  const direction = toIdx < fromIdx ? 'back' : toIdx > fromIdx ? 'forward' : 'replay'
+  const cycle = simplePlayer.currentCycle.value
+  playerLog.event('phase_skip', {
+    fromPhase,
+    toPhase,
+    direction,
+    elapsed_in_phase_ms: Date.now() - phaseEnteredAt,
+    pauseDuration: cycle?.pauseDuration ?? null,
+    cycleId: cycle?.id ?? null,
+    cycleType: cycle?.type ?? null,
+    legoId: cycle?.legoId ?? null,
+  })
+
   simplePlayer.skipToPhase(phase)
 }
 
