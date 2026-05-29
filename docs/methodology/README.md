@@ -8,7 +8,7 @@
 | File | Status | Description |
 |------|--------|-------------|
 | [listening-layers.md](./listening-layers.md) | Design | Layer 1 (reactivation) and Layer 2 (acquisition) listening system |
-| [metrics-architecture.md](./metrics-architecture.md) | Design | Two-axis (difficulty × execution) metrics layer; no-ASR prosody capture; self-assessment calibration from phase-pill clicks; CEFR-via-calibration roadmap anchored on SSi's 17-year empirical baseline |
+| [metrics-architecture.md](./metrics-architecture.md) | Design | Two-axis (difficulty × execution) metrics layer; **rate-of-change (2nd-derivative) as the primary lens**; contextual *(learner × unit)* difficulty + consolidate/defer/drill adaptation budget; no-ASR prosody capture; self-assessment calibration from phase-pill clicks; CEFR-via-calibration with a pilot-coupled timeframe, anchored on SSi's 17-year empirical baseline |
 
 ## Adding New Methodology
 

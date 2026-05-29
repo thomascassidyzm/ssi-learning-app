@@ -3,14 +3,15 @@
 *A methodology specification for capturing, aggregating, and surfacing learner progress in the SSi platform — with a long-horizon path to language-agnostic, calibrated fluency estimates.*
 
 **Status:** Design — not yet implemented beyond the components called out as existing.
-**Date:** 2026-05-23.
-**Authors:** Tom Cassidy and Claude (Opus 4.7), in conversation.
+**Date:** 2026-05-23 (rev. 2026-05-29).
+**Authors:** Tom Cassidy and Claude (Opus 4.7; 2026-05-29 synthesis with Opus 4.8), in conversation.
+**2026-05-29 revision:** added Principles 3–4 (read curvature not level; contextual difficulty + consolidate/defer/drill budget), expanded §4 with the trajectory/controller/budget treatment, and gave §10 a realistic pilot-coupled CEFR timeframe and honest-claim boundary.
 
 ---
 
 ## Abstract
 
-This document specifies the metrics layer for SSi's learning platform. The starting position is an unusually strong one: SSi has observed, across thousands of learners over seventeen years, that learners reach conversational ability after approximately 30 hours of in-app practice and B1-level fluency after approximately 100 hours. This is empirical ground truth requiring no external validation — but it is flat, the same number for everyone, with no per-learner finesse and no external cross-check. The architecture proposed here adds that finesse, while preserving everything the method already does. It rests on three load-bearing ideas. First, learner progress is captured along **two axes**: *difficulty* (where the learner is in the course — objective, trivial to measure) and *execution* (how closely their spoken response matches the model voice — measured by classical digital signal processing of pitch, rhythm, and spectral shape). Together these axes give every learner a 2D coordinate that evolves over time. Second, we **never use automatic speech recognition (ASR)**. ASR is poor for the long-tail languages SSi serves, biased against non-native accents, and measures the wrong thing — whether a phone can guess the words — rather than the things that actually constitute fluency: timing, prosody, rhythm, and acoustic plausibility. Third, formal CEFR-style levels are **discovered from the population**, not imposed from theory: as the platform accumulates learners spanning beginner to fluent, clusters emerge in the (difficulty, execution) plane, and the SSi-internal hour-based anchors (30 hours = entry-conversational, 100 hours ≈ B1) combine with a small external calibration sample to label those clusters retrospectively. The platform never outputs a hard level — only a confidence-weighted "best fit" with explicit uncertainty. The metrics layer described here is the foundation for tutor dashboards, schools-teacher dashboards, the adaptation engine, and the long-term population-level fluency estimates — all rendered from the same underlying coordinate.
+This document specifies the metrics layer for SSi's learning platform. The starting position is an unusually strong one: SSi has observed, across thousands of learners over seventeen years, that learners reach conversational ability after approximately 30 hours of in-app practice and B1-level fluency after approximately 100 hours. This is empirical ground truth requiring no external validation — but it is flat, the same number for everyone, with no per-learner finesse and no external cross-check. The architecture proposed here adds that finesse, while preserving everything the method already does. It rests on four load-bearing ideas. First, learner progress is captured along **two axes**: *difficulty* (where the learner is in the course — objective, trivial to measure) and *execution* (how closely their spoken response matches the model voice — measured by classical digital signal processing of pitch, rhythm, and spectral shape). Together these axes give every learner a 2D coordinate that evolves over time. Second, we **never use automatic speech recognition (ASR)**. ASR is poor for the long-tail languages SSi serves, biased against non-native accents, and measures the wrong thing — whether a phone can guess the words — rather than the things that actually constitute fluency: timing, prosody, rhythm, and acoustic plausibility. Third, formal CEFR-style levels are **discovered from the population**, not imposed from theory: as the platform accumulates learners spanning beginner to fluent, clusters emerge in the (difficulty, execution) plane, and the SSi-internal hour-based anchors (30 hours = entry-conversational, 100 hours ≈ B1) combine with a small external calibration sample to label those clusters retrospectively. The platform never outputs a hard level — only a confidence-weighted "best fit" with explicit uncertainty. Fourth, the information in every signal lives in its **rate of change**, not its level: each learner is a *trajectory* whose curvature (the second derivative — the differential of the difference) is the headline, so a stable-but-slow learner reads as no signal while a turning trend is the alarm; difficulty is treated as a contextual *(learner × unit)* interaction, and the engine answers it by reallocating a finite practice budget across *consolidate / defer / drill*, leaning to consolidate. The metrics layer described here is the foundation for tutor dashboards, schools-teacher dashboards, the adaptation engine, and the long-term population-level fluency estimates — all rendered from the same underlying coordinate.
 
 ---
 
@@ -65,9 +66,9 @@ The architecture's purpose is to take a method that **demonstrably works on aver
 
 ---
 
-## 3. Two design principles that govern everything
+## 3. The design principles that govern everything
 
-Two principles do most of the work and should be referred back to whenever a design decision feels ambiguous.
+These principles do most of the work and should be referred back to whenever a design decision feels ambiguous.
 
 **Principle 1: Manual controls are the major dial. Adaptation is the elegant finesse.**
 
@@ -81,6 +82,14 @@ ASR is the wrong tool for what we want to measure. Its accuracy is poor for the 
 
 The discipline here matters. As the platform grows, contributors will be tempted to bring ASR or phoneme classifiers back in — to "improve" pronunciation feedback, to "add" word-level scoring. **This is the wrong direction.** Phoneme accuracy is not fluency. The system measures what fluency actually is: does this person sound like someone who can speak this language.
 
+**Principle 3: Read curvature, not level.**
+
+The absolute value of any metric carries little information — a learner who consistently responds at 2.5× the model's length, saying things nicely, is simply where they are. What matters is *change*, and specifically the **rate of change of the rate of change** — the second derivative, the differential of the difference. Differentiate any signal twice and two things vanish automatically: the constant (the level) and the steady slope (a learner improving at an even pace). What remains is only the *inflection* — the moment the trend itself turns. This is exactly the discrimination we want: a stable-but-slow learner reads zero (no alarm — correctly), while a learner who suddenly starts taking three or four times as long, or stops getting through the sentence in time at all, lights up. Because the second derivative is baseline-free by construction, we never need to estimate and store a per-learner baseline to subtract — a simplification as much as a sharpening. Two disciplines follow: a signal must be **smoothed before it is differentiated** (a single cycle has no curvature — this is why we measure patterns, never instances) and gated on a minimum number of cycles; and we **stop at the second order** (jerk, the third derivative, is noise for human behaviour). The level is context; the acceleration is the alarm.
+
+**Principle 4: Difficulty is contextual; adapt by reallocating the practice budget, leaning to consolidate.**
+
+Difficulty is not a property of a phrase — it is a property of *(this learner × this unit), now*, and it moves as the learner's map fills in. We discern it by running the curvature sensor (Principle 3) **locally** — per LEGO, per word, and especially per *boundary*, the join between units, where retrieval-while-still-producing tends to catch people. A session is a finite **practice budget**, and the engine's real lever is not how hard to push any single item but how to spend that budget across three moves: *consolidate* (reinforce what they are already good at), *defer* (reduce a hard item now, let it rest until its surrounding context is richer), and *drill* (increase a hard item). SSi's lean — against the mainstream drill-your-weakness instinct — is **default to consolidate and defer; reserve drill for the structurally critical few.** A hard item is usually blocked by a thin surrounding map, not by lack of exposure to itself; grinding it in isolation produces brittle memorisation and risks the *drown* wall, whereas consolidating strengths builds the confidence that keeps the learner in the session (the *bored* wall is affective as much as cognitive) and thickens the semantic map that makes the deferred item land almost for free on return. Drill earns its place only when an item is genuinely load-bearing — high-frequency, blocking much downstream — where the cost of not having it outweighs its poor transfer. The control objective is to keep the learner in the channel between *drown* and *bored*, where rate of progress is maximised.
+
 ---
 
 ## 4. The two-axis model
@@ -93,7 +102,32 @@ Every learner is described by a coordinate in a two-dimensional plane that evolv
 
 The two-axis framing is borrowed loosely from Olympic diving, where *difficulty* and *execution* are scored separately and combined. The same shape works for language learning. A learner who is far along the course and executing well is fluent. A learner who is far along but executing poorly has been clicking through. A learner who is early in the course but executing well is being thorough. A learner who is early and executing poorly is, plainly, struggling — and the dashboard should put them at the top of the tutor's "needs attention" list.
 
-This is the headline number for every learner. Every dashboard surface, every audience view, the adaptation engine itself, and the long-term CEFR estimates are all rendered from this same coordinate.
+This coordinate is the common substrate for every learner. Every dashboard surface, every audience view, the adaptation engine itself, and the long-term CEFR estimates are all rendered from it. But the coordinate is not a static point — it is a *trajectory*, and per Principle 3 the headline signal is the trajectory's **curvature**, not its position.
+
+### The trajectory, not the point
+
+The same coordinate is read three ways, and they carry very different amounts of information:
+
+- **Level** — where the learner is. Mostly context. The 2.5×-length learner is just there.
+- **Velocity** — the direction and speed they are moving. A mild signal: are they trending up or down.
+- **Acceleration** — whether that movement is itself turning. **This is the leading indicator**, and the earliest reliable warning. By the time the *level* has visibly moved you are late; by the time *velocity* changes sign they have already turned; acceleration tells you a turn is coming.
+
+Worked example. A learner sitting at 2.5× the model's response length, stable: velocity ≈ 0, acceleration ≈ 0 → no alarm, correctly. If they drift toward 4× over a handful of cycles, acceleration spikes positive → *something in that combination tripped them up — surface it.* If 4× then holds, acceleration falls back to zero → it is the new normal, the engine has likely already responded, and it is no longer an emergency. The acceleration is what catches the **event**.
+
+### Sensing difficulty locally
+
+The curvature sensor runs not just on the learner's global coordinate but **locally**, at the finest unit that carries a stable enough signal: per (learner, LEGO), per word, and per *boundary*. Boundaries are often where the real difficulty lives — a hesitation that lands on the *join* between two units (rather than on either unit itself) points to a co-articulation or retrieval-sequencing problem, which is a different intervention from "they don't know this word." The per-(learner, LEGO) row in Layer 1 (§8) is the natural home for this local difficulty estimate.
+
+This reframes the adaptation engine as a **controller whose job is to damp acceleration** — to keep each learner's local execution-vs-flow curvature near zero, nudging the pause multiplier (a ratio to model-sentence length) and the repetition schedule *before* a developing struggle becomes a crash. A well-tuned controller is exactly Principle 1's "invisible finesse": the learner never feels it. And the dashboard's "dig deeper here" is, formally, just the set of points where |acceleration| is high relative to that learner's own noise.
+
+### The defer / drill / consolidate budget
+
+When the sensor flags a hard (learner, unit), the response is not a single dial but an allocation of the finite session budget across the three Principle-4 moves, with the lean toward consolidate-and-defer. Two design cruxes make this operational — both currently open:
+
+1. **A structural-criticality signal per LEGO** (content-side, not learner-side), to gate *drill vs defer*: how load-bearing is this unit — corpus frequency, downstream dependency, centrality in the course graph? This likely lives in Popty / course data and may only partly exist today.
+2. **A return trigger for deferred items.** Deferral is timing, not abandonment. A deferred hard LEGO becomes re-eligible when its **semantic neighbourhood has consolidated** — i.e. its predicted difficulty, re-estimated from the now-mastered neighbours, has dropped below threshold. That turns "the wrap-around context is rich enough now" into a computable event rather than a guess.
+
+Because the metric layer captures all of this, the consolidate-lean is **falsifiable**: as the population and (eventually) school-pilot data accumulate, we can test whether defer-and-consolidate actually beats drill-the-weakness for rate of progress. Given seventeen years of method, the expectation is that it confirms the lean — but the architecture gets to check its own pedagogy rather than assert it.
 
 ---
 
@@ -467,6 +501,25 @@ Cost: zero engineering — these anchors emerge automatically from `learner_metr
 **Step 5 — Confidence-weighted output.** Surface the "best fit" label only when cluster membership is robust — never as a hard level, always with a range and an explicit confidence indicator that tightens with data. Never call it a CEFR assessment; always call it "speaking-pattern similarity".
 
 The crucial property: **step 1 is the only step that needs implementing now**, and it benefits every other layer of this architecture immediately. The CEFR layer is dessert. The metrics layer is the meal.
+
+### What "absolute competence" claims — and does not
+
+Everything else in this document is about *derivatives* (velocity, acceleration) and drives the **adaptation** engine. The CEFR layer is the opposite reading of the same coordinate: the *level* — the integral — and it drives the **assessment** story. Derivatives adapt; the level certifies. Both render from one coordinate.
+
+The discipline is to claim exactly what we measure and no more. SSi measures **speaking-production fluency** (timing, prosody, rhythm) plus **course coverage**. A formal CEFR assessment measures four skills, including reading, writing, listening comprehension, and spontaneous interaction. So the honest output is a **speaking-fluency proxy aligned to CEFR-equivalent bands**, surfaced as a continuous, low-friction **screening / progress indicator** — *not* a certification, and SSi is *not* an exam board. This is both legally safe and, for a school, more useful than a point-in-time exam: it is always-on and trend-aware. It also matches Principle 5's "never a hard level, always a range with confidence."
+
+### Realistic timeframe (the 2026 numbers)
+
+Grounding against reality: ~5,000 learners, mostly Welsh and Spanish, net acquisition ~100/month; VAD/execution adoption ~0% today; school pilots planned for **2026–27 in Wales and Ireland**. Two facts shape the timeline. First, app populations are bottom-heavy — the lower-to-mid bands (A1–B1) will calibrate years before B2+, which stays sparse. Second, the **school pilots are the calibration engine**: they supply institutional authority, a captive spread of learners across levels, and — crucially — *paired external assessment* (the schools' own CEFR-aligned judgements). All three pilot/target languages already sit against CEFR-aligned national frameworks (Welsh via the National Centre for Learning Welsh; Irish via TEG; Spanish via DELE/SIELE), which gives ready-made anchors.
+
+| Window | What ships | Depends on |
+|---|---|---|
+| **2026 H2 (now)** | The flat hours-based band, surfaced honestly and admin/tutor-gated: "~30h ≈ entry-conversational; ~100h ≈ ~B1." Crude but real; enough to make assessment a credible talking point with schools. | Nothing new — it is the existing 17-year anchor (§2/Step 2a), time-on-task only, no VAD. |
+| **2026–27 pilots (Wales, Ireland)** | Calibration-data collection: pair each learner's internal coordinate with the school's CEFR-aligned assessment / teacher judgement. Validate the flat anchor per cohort. Welsh first (most learners + cleanest framework). Not yet certifying. | The pilots themselves; this is Step 4 happening with authority. |
+| **2027 → 2028 (~12–24 mo)** | First calibrated, confidence-weighted band for the lower-to-mid range, Welsh then Spanish: "most consistent with A2 / low B1, confidence widening." B2+ flagged low-confidence. | Pilot pairs + maturing VAD coverage (Phase 2 adoption). |
+| **2028+** | Robust cluster discovery, sharper estimates across more bands and languages; possible formal-alignment conversations with assessment bodies. | Population scale + non-trivial VAD coverage. |
+
+The bottom line for planning: a credible, honestly-bounded CEFR-aligned indicator for **Welsh, lower-to-mid bands, is a 2027 deliverable coupled to the pilots**, with a crude hours-based version surfaceable now and multi-band/multi-language sharpening running 2028+. The pilots are simultaneously the reason to build it and the data source that makes it possible — which is why the assessment story and the schools rollout are the same roadmap, not two.
 
 ---
 
