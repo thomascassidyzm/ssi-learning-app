@@ -7842,6 +7842,35 @@ const downloadForOffline = async () => {
       catch { offlineDlFailed.value++ }
     }))
   }
+
+  // Persist the SCRIPT (round structure) to IndexedDB, not just the audio.
+  // The offline cold-reopen fast-path reads getCachedScript() to know what
+  // to play and where to resume; without it, it falls through to the
+  // network bootstrap (fetchCycles) and can't start offline — the
+  // "downloaded OK but won't play / confused where to start" bug on
+  // mid-course courses. The online background gen also writes this, but it's
+  // fire-and-forget and may not have landed before the user goes offline, so
+  // we write it here as part of the deliberate download — making "Ready ✓"
+  // mean script + audio are both present.
+  try {
+    const scriptRounds = (cachedRounds.value || []) as any[]
+    if (scriptRounds.length > 0) {
+      const totalCycles = scriptRounds.reduce((s: number, r: any) => s + (r?.cycles?.length || 0), 0)
+      await setCachedScript(courseCode.value, {
+        rounds: scriptRounds,
+        totalSeeds: scriptRounds.length,
+        totalLegos: scriptRounds.length,
+        totalCycles,
+        estimatedMinutes: Math.round(totalCycles * 0.2),
+        audioMapObj: {},
+        courseWelcome: cachedCourseWelcome.value || undefined,
+      })
+      console.log(`[Offline] Persisted ${scriptRounds.length} rounds to script cache for cold offline reopen`)
+    }
+  } catch (e) {
+    console.warn('[Offline] setCachedScript during download failed (non-fatal):', e)
+  }
+
   if (offlineDlFailed.value > 0) {
     // Stays on screen (no auto-hide) so the user knows to retry on better signal.
     offlineDlState.value = 'error'
