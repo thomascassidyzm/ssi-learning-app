@@ -73,9 +73,23 @@ Record both.
   resolved (null / not in the round set), fall to the ceiling (highest), never
   silently to round 1.
 - **INF PLAY** = a sticky mode; the cursor is **frozen at the ceiling**
-  (`cursor == highest == final LEGO`). Random USE phrases play on top of a
-  position that doesn't move; the belt pins to the final belt. Only an express
-  exit (belt-back / jump) leaves the mode and moves the cursor.
+  (`cursor == highest == final LEGO`). The belt pins to the final belt. Only an
+  express exit (belt-back / jump) leaves the mode and moves the cursor.
+- **INF PLAY content = the frozen online script run FORWARD (deterministic).**
+  It is the SAME revival rounds the belts already build: `generateScript()`'s
+  ~50-round tail — the decreasing-Fibonacci **SR drain** (`SPACED_REP_OFFSETS`,
+  multi-cycle review rounds out to `finalLegoRound + 89`) followed by a
+  **seeded random-USE steady-state**. The USE tail is **seeded-deterministic**
+  (mulberry32 keyed on course+learner via `makeInfPlayRng()` → the generator's
+  `infplayRandom` param), so the same learner at the same position gets the
+  **same stream every session and every regeneration** — back-nav returns to
+  what was just heard, and online + offline share ONE model. There is **no
+  random fork online**: the legacy `/api/courses/:code/infplay-cycles`
+  (fresh `Math.random` per request) and the `appendCachedLoopForOffline()`
+  shuffle are **offline-only** now. Online entry/resume **builds the revival
+  rounds locally before play** (build-before-play, behind the intro dialog);
+  if they somehow aren't present online it SURFACES rather than shuffling.
+  **No random encouragements / meta-commentary fire in INF PLAY.**
 
 ## DB shape
 - `course_enrollments.last_completed_lego_id` / `last_completed_round_index` =
@@ -118,8 +132,13 @@ never a parsed seed string.
      revival round at the tail (`advanceInfPlayRound`). The belt stays PINNED
      to the final belt (revival rounds carry a random USE legoId that would
      otherwise bounce the indicator); the central-pill ∞ "round N" readout
-     (`infplayRoundIndex`) bumps each step. No revival set loaded →
-     `enterInfPlayFromCache()` (never stall).
+     (`infplayRoundIndex`) bumps each step. These revival rounds are the
+     deterministic local set (SR drain + seeded USE), so round-skip steps a
+     whole revival round while bottom-nav `‹ ›` steps a cycle SLOT inside it,
+     and back-nav lands on what was just heard. No revival set loaded:
+     **online** this is a logged error (the deterministic build should always
+     produce them); **offline** it recycles cached cycles via
+     `enterInfPlayFromCache()` → `appendCachedLoopForOffline()` (never stall).
    - **Back** (`handleRoundBack`): go to the PREVIOUS LEGO and REPLAY its
      intro/debut — jump to that round's START (slot 0) so intro/debut/build
      play again (the learner can cycle-skip them via `‹`). LOADs the previous

@@ -123,6 +123,37 @@ function isBundleBasedInfplayCourse(courseCode: string): boolean {
   return BUNDLE_BASED_INFPLAY_ALL || BUNDLE_BASED_INFPLAY_COURSES.has(courseCode)
 }
 
+// ============================================================
+// Seeded RNG for the deterministic INF-PLAY USE tail
+// ============================================================
+// INF PLAY online is "the frozen online script run forward": the SR drain is
+// already deterministic (Fibonacci offsets), and the random-USE steady-state
+// AFTER the drain must ALSO be seeded-deterministic — same learner + same
+// position ⇒ same stream, every session and every regeneration. That's what
+// makes back-nav return to what was just heard, and keeps online + offline on
+// ONE model (coordinator decision 2026-05-29). The seed is derived from a
+// stable string (course + learner) so it's reproducible but distinct per
+// learner. The MAIN LOOP never consumes this — main play is unchanged.
+function mulberry32(seed: number): () => number {
+  let s = seed >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function hashStringToSeed(str: string): number {
+  // FNV-1a 32-bit — cheap, stable, well-distributed for short keys.
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
 /**
  * Near-edge top-up threshold for the instant-playback path: when the
  * learner's current round is within this many rounds of the loaded
@@ -368,7 +399,22 @@ const generateScript = (
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
+    // Seeded INF-PLAY USE tail. The whole revival tail (SR drain + the
+    // random-USE steady-state after it) is generated deterministically from a
+    // per-learner+course seed, so resume / regen reproduce the SAME stream and
+    // INF PLAY is navigable. Main loop ignores this param.
+    makeInfPlayRng(),
   )
+}
+
+// Build the seeded rng for the INF-PLAY revival tail. Keyed on course +
+// learner so it's stable across sessions/regenerations for a given learner
+// (back-nav returns to what was just heard) but distinct between learners.
+// NOT keyed on the live round index — the whole tail is one frozen stream the
+// cursor walks; re-seeding per round would re-roll the future on every step.
+const makeInfPlayRng = (): (() => number) => {
+  const key = `${courseCode.value}|${learnerId.value || 'guest'}|infplay-v1`
+  return mulberry32(hashStringToSeed(key))
 }
 
 // Auth modal for sign-in/sign-up prompts
@@ -3537,7 +3583,11 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   const boundaryBetweenSpeakingRounds =
     !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
 
-  if (metaCommentary && !beltJustEarned.value) {
+  // No random encouragements in INF PLAY — the locked model has none, and a
+  // mid-stream ~1-min clip is poor pacing in a pure-review tail. Gating here
+  // (rather than not accumulating time) keeps the main-loop timer logic
+  // untouched. Tom 2026-05-29.
+  if (metaCommentary && !beltJustEarned.value && currentMode.value !== 'infplay') {
     const cyclesInRound = completedRound?.cycles?.length ?? 0
     const commentary = metaCommentary.onRoundComplete(
       completedRoundIndex + 1,
@@ -3646,8 +3696,9 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   }
 
   // Fallback: Show visual encouragement if no audio commentary played
-  // (only if we don't have meta-commentary or it didn't return anything)
-  if (!metaCommentary || !playingCommentaryAudio.value) {
+  // (only if we don't have meta-commentary or it didn't return anything).
+  // Suppressed in INF PLAY for the same reason as the audio commentary above.
+  if ((!metaCommentary || !playingCommentaryAudio.value) && currentMode.value !== 'infplay') {
     const encouragementInterval = 3 + Math.floor(Math.random() * 3) // 3, 4, or 5
     if (roundsThisSession.value % encouragementInterval === 0 && !beltJustEarned.value) {
       // Trigger visual encouragement animation
@@ -8172,6 +8223,17 @@ const appendCachedLoopForOffline = (): number => {
 // depend on belt math or regen producing a seed-matched round. Returns
 // true if it engaged playback, false only when nothing is cached to recycle.
 const enterInfPlayFromCache = async (): Promise<boolean> => {
+  // OFFLINE-ONLY. The random Math.random()-shuffled cache recycle is the
+  // offline graceful-degradation path — it must NEVER be the online INF-PLAY
+  // fallback. Online, INF PLAY is the deterministic local revival build
+  // (generateScript's SR drain + seeded-USE tail); if those rounds somehow
+  // aren't present we SURFACE it rather than silently shuffling the cache
+  // into a per-session slot machine. Tom 2026-05-29.
+  if (!offlinePlaybackActive()) {
+    console.error('[LearningPlayer] enterInfPlayFromCache called ONLINE — refusing the random recycle. ' +
+      'INF PLAY online must use the deterministic revival build; revival rounds were expected but not present.')
+    return false
+  }
   const firstNewIdx = simplePlayer.roundCount.value
   const looped = appendCachedLoopForOffline()
   if (looped <= 0) {
@@ -8903,6 +8965,78 @@ onMounted(async () => {
           }
         }
 
+        // ============================================
+        // INF PLAY RESUME — DETERMINISTIC LOCAL BUILD (online)
+        // ============================================
+        // INF PLAY is "the frozen online script run forward": the SAME
+        // deterministic revival rounds the belts build (generateScript's
+        // 50-round SR drain + seeded-USE tail), NOT the per-session random
+        // /infplay-cycles sampling. Resuming directly into INF PLAY therefore
+        // builds the local script and jumps to the revival round keyed on the
+        // learner's infplay_round_index, so resume is STABLE per learner
+        // (back-nav returns to what was just heard) rather than freshly
+        // randomised. Offline keeps its own seeded-cache path; the random
+        // /infplay-cycles bootstrap below survives ONLY as the safety net for
+        // when the local build genuinely yields no revival rounds.
+        if (inferEnrollmentMode === 'infplay' && !offlinePlaybackActive()) {
+          try {
+            const infResult = await generateScript()
+            const fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
+            const finalLegoRoundIdx = courseFinalLegoRef.value?.roundIndex
+              ?? (await getCourseFinalLego(courseCode.value))?.roundIndex
+              ?? null
+            const mainLoopCount = finalLegoRoundIdx !== null ? finalLegoRoundIdx + 1 : -1
+            // First revival round index in the freshly-built script. The tail
+            // sits right after the main loop; infplay_round_index is 1-based
+            // within that tail.
+            const firstInfIdx = mainLoopCount > 0 && fullRounds.length > mainLoopCount
+              ? mainLoopCount
+              : -1
+            if (firstInfIdx < 0) {
+              throw new Error('Deterministic INF-PLAY build produced no revival rounds')
+            }
+            simplePlayer.initialize(fullRounds as any)
+            cachedRounds.value = fullRounds as any
+            loadedRounds.value = fullRounds as any
+            extractComponentsToMaps(fullRounds as any, '[Components] infplay-resume')
+
+            // Land on the revival round for the saved infplay_round_index,
+            // clamped to the tail. Offset is (index - 1) because the readout
+            // is 1-based.
+            const targetInfIdx = Math.min(
+              fullRounds.length - 1,
+              firstInfIdx + Math.max(0, inferInfPlayRoundIndex - 1),
+            )
+            if (targetInfIdx > 0) simplePlayer.jumpToRound(targetInfIdx)
+            currentMode.value = 'infplay'
+            if (infplayRoundIndex.value === 0) infplayRoundIndex.value = Math.max(1, inferInfPlayRoundIndex)
+
+            // Pre-cache the landed round's first cycle so play doesn't gap,
+            // then warm the rest in the background (build-before-play).
+            warmUpInfPlayRoundsBackground(fullRounds as any, targetInfIdx)
+
+            // Belt anchor: course-end seed (top reachable belt), NOT the
+            // revival round's random USE legoId. Mirrors enterInfPlay.
+            const finalLegoId = inferCeilingLegoId ?? courseFinalLegoRef.value?.legoId ?? null
+            if (finalLegoId) {
+              if (!lastMainLoopLegoId.value || finalLegoId > lastMainLoopLegoId.value) {
+                lastMainLoopLegoId.value = finalLegoId
+              }
+              if (beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(finalLegoId)
+              if (beltProgress.value?.setPlayingPosition) {
+                const finalSeed = getSeedFromLegoId(finalLegoId)
+                if (finalSeed !== null) beltProgress.value.setPlayingPosition(finalSeed)
+              }
+            }
+            console.log(`[InstantPlayback] INF-PLAY resume: deterministic build, ${fullRounds.length} rounds, landed at revival idx ${targetInfIdx} (infRound=${inferInfPlayRoundIndex})`)
+            positionInitialized.value = true
+            dataReady = true
+            return
+          } catch (infErr) {
+            console.warn('[InstantPlayback] Deterministic INF-PLAY resume failed — falling back to /infplay-cycles bootstrap:', infErr)
+          }
+        }
+
         try {
           // 1. Bootstrap — round-map + first cycle. This is the
           //    minimum to know "what round is the learner on" and to
@@ -9038,6 +9172,11 @@ onMounted(async () => {
                   refreshedMap,
                   instantPlayback.isLegoComplete,
                 )
+                // Guard: if the learner tapped ∞ while this main-loop
+                // prefetch was in flight, the queue is now the deterministic
+                // INF-PLAY revival set — a stray main-loop append would splice
+                // a LEGO-intro round into live INF PLAY. Bail.
+                if (currentMode.value === 'infplay') return
                 // appendRounds dedupes by roundNumber, so this is a
                 // safe no-op when nothing new arrived.
                 if (refreshedRounds.length > initialRounds.length) {
@@ -9105,6 +9244,18 @@ onMounted(async () => {
               const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
               if (fullRounds.length === 0) {
                 console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on API path')
+                return
+              }
+              // Guard: this main-loop handoff was kicked off while the learner
+              // was in MAIN. If they tapped ∞ during the multi-second walk,
+              // the live queue is now the deterministic INF-PLAY revival set
+              // and a replaceQueueFromCurrent here would swap a live INF-PLAY
+              // phrase for a main-loop LEGO-intro mid-stream (the "mid-stream
+              // LEGO-intro on first entry" bug). enterInfPlay has already
+              // built the revival rounds it needs, so just drop this stale
+              // handoff. Tom 2026-05-29.
+              if (currentMode.value === 'infplay') {
+                console.log('[InstantPlayback] Full-script handoff arrived after ∞ entry — dropping stale main-loop swap')
                 return
               }
               simplePlayer.replaceQueueFromCurrent(fullRounds)

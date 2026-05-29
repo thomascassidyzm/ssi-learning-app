@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.2 (2026-05-29)
+# Version: 2.1.4 (2026-05-29)
 # Status: Production-ready
 
 ## ============================================================================
@@ -414,11 +414,11 @@ COMPOSABLES:
       - "Enables skip-ahead without blocking"
 
   useOfflinePlay:
-    purpose: "Infinite play mode for offline resilience"
+    purpose: "Infinite play resilience for OFFLINE only (online INF PLAY is the deterministic revival build — see v2.1.4)"
     source: "packages/player-vue/src/composables/useOfflinePlay.ts"
     features:
       - "Automatic online/offline detection"
-      - "Shuffled playback from cached items"
+      - "Shuffled playback from cached items — OFFLINE path only; online never shuffles (appendCachedLoopForOffline / enterInfPlayFromCache refuse to run online)"
       - "Recent item avoidance (no immediate repeats)"
 
   useLegoNetwork:
@@ -490,6 +490,17 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.4:
+    date: "2026-05-29"
+    title: "INF PLAY deterministic online — frozen script run forward, no random fork"
+    changes:
+      - "Online INF PLAY now runs the SAME deterministic revival rounds the belts build (generateScript / generateLearningScript: ~50-round SR drain via SPACED_REP_OFFSETS out to finalLegoRound+89, then a SEEDED random-USE steady-state). No more random fork online."
+      - "Random-USE tail is seeded-deterministic: generateLearningScript gained an `infplayRandom` param; LearningPlayer passes mulberry32 keyed on course+learner (makeInfPlayRng / hashStringToSeed). Same learner + position ⇒ same stream every session and regeneration, so back-nav returns to what was just heard. Main loop never consumes this param — main play unchanged."
+      - "Resume directly INTO INF PLAY builds the local deterministic script and lands on the revival round keyed on infplay_round_index, instead of the per-session-random /infplay-cycles bootstrap (which survives only as a safety-net fallback)."
+      - "enterInfPlayFromCache / appendCachedLoopForOffline (Math.random shuffle of cached cycles) demoted to OFFLINE-ONLY; called online it logs an error and refuses rather than shuffling."
+      - "Stale main-loop handoffs (replaceQueueFromCurrent + tier-3 append) are now guarded by currentMode !== 'infplay' so an in-flight main-loop generateScript that resolves after the learner taps ∞ can't splice a LEGO-intro into the live INF-PLAY stream."
+      - "No random encouragements / meta-commentary in INF PLAY: both the audio-commentary block and the visual-encouragement fallback in handleRoundBoundary are gated on currentMode !== 'infplay' (fixes back-nav pulling in the next encouragement)."
+
   v2.1.3:
     date: "2026-05-29"
     title: "Belt modal redesign (colour-only + ∞ activator) + round-advance in INF PLAY"

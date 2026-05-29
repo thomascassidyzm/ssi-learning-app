@@ -188,12 +188,22 @@ export interface LearningScriptResult {
   hasRomanizedText: boolean
 }
 
-/** Sample `n` items without replacement using a partial Fisher-Yates shuffle. */
-function sampleWithoutReplacement<T>(arr: T[], n: number): T[] {
+/**
+ * Sample `n` items without replacement using a partial Fisher-Yates shuffle.
+ *
+ * `rng` is an injectable [0,1) random source. The revival / random-USE tail
+ * of INF PLAY passes a SEEDED rng (mulberry32 keyed on the learner's position)
+ * so the steady-state USE stream is deterministic: same learner + same
+ * position ⇒ same sequence, every session and every regeneration. This is what
+ * makes online INF PLAY navigable (back-nav returns to what was just heard)
+ * and matches the offline seeded model. Main-loop callers omit `rng` and get
+ * the legacy unseeded `Math.random()` — main play is unchanged.
+ */
+function sampleWithoutReplacement<T>(arr: T[], n: number, rng: () => number = Math.random): T[] {
   if (n >= arr.length) return [...arr]
   const a = [...arr]
   for (let i = 0; i < n; i++) {
-    const j = i + Math.floor(Math.random() * (a.length - i))
+    const j = i + Math.floor(rng() * (a.length - i))
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a.slice(0, n)
@@ -225,6 +235,15 @@ export async function generateLearningScript(
    * Default 1 (every round, legacy behaviour).
    */
   podRoundInterval: number = 5,
+  /**
+   * Seeded [0,1) random source for the INF-PLAY revival / random-USE tail.
+   * When supplied, the long-tail steady-state USE stream becomes deterministic
+   * for a given learner+position (so online INF PLAY is navigable and matches
+   * the offline seeded model — coordinator decision 2026-05-29). Omit for the
+   * legacy unseeded behaviour; the MAIN LOOP never consumes this, so main play
+   * is unaffected either way.
+   */
+  infplayRandom?: () => number,
 ): Promise<LearningScriptResult> {
   // Per-round shape — DB-tweakable via algorithm_config.script_shape.
   const SPACED_REP_OFFSETS = scriptShape.spacedRepOffsets
@@ -1433,7 +1452,10 @@ export async function generateLearningScript(
     const spacedRepKeys = new Set(dueForReview.map(d => d.key))
     const allKeys = [...legoState.keys()]
     const pool = allKeys.filter(k => !spacedRepKeys.has(k))
-    const chosenKeys = sampleWithoutReplacement(pool, randomUseCount)
+    // Seeded in INF PLAY (infplayRandom supplied) so the random-USE tail is a
+    // stable, navigable, reproducible stream rather than a per-session slot
+    // machine. Falls back to Math.random for any legacy caller that omits it.
+    const chosenKeys = sampleWithoutReplacement(pool, randomUseCount, infplayRandom ?? Math.random)
 
     // Phase 3: emit random USE (1 phrase per LEGO, advance round-robin
     // useIndex so phrases rotate across visits).
