@@ -8619,10 +8619,17 @@ onMounted(async () => {
               // cache-fast-path counterpart to resolveStartLegoId's fallback;
               // without it, every ?reset=1 dropped signed-in learners at LEGO 1.
               if (!resume) {
-                const anchor = inferCursorLegoId || inferCeilingLegoId
-                const idx = anchor ? (cachedScript.rounds as any[]).findIndex((r: any) => r?.legoId === anchor) : -1
+                const fastRounds = cachedScript.rounds as any[]
+                const findLego = (lego: string | null) => lego ? fastRounds.findIndex((r: any) => r?.legoId === lego) : -1
+                // Cursor first; if the cursor can't be resolved, fall to the
+                // ceiling (highest) — Tom's rule. Only a genuinely fresh learner
+                // (neither resolvable) starts at round 1.
+                let idx = findLego(inferCursorLegoId)
+                if (idx < 0) idx = findLego(inferCeilingLegoId)
                 if (idx >= 0) { resumeRoundIndex = idx; resumeCycle = 0 }
-                else if (anchor) console.warn(`[InstantPlayback] cache fast-path: DB anchor ${anchor} not in cached rounds; starting at R1`)
+                else if (inferCursorLegoId || inferCeilingLegoId) {
+                  console.warn(`[InstantPlayback] cache fast-path: neither cursor (${inferCursorLegoId}) nor ceiling (${inferCeilingLegoId}) in cached rounds; starting at R1`)
+                }
               }
               if (resumeRoundIndex > 0 || resumeCycle > 0) {
                 simplePlayer.jumpToRound(resumeRoundIndex, resumeCycle)
