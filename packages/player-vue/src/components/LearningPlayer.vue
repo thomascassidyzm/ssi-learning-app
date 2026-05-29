@@ -4803,15 +4803,22 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
   const toIdx = order[toPhase] ?? 0
   const direction = toIdx < fromIdx ? 'back' : toIdx > fromIdx ? 'forward' : 'replay'
   const cycle = simplePlayer.currentCycle.value
-  playerLog.event('phase_skip', {
+  logEvent('phase_skip', {
     fromPhase,
     toPhase,
     direction,
     elapsed_in_phase_ms: Date.now() - phaseEnteredAt,
     pauseDuration: cycle?.pauseDuration ?? null,
+    // OWNERSHIP (what's being taught): the cycle's owner LEGO + role/type.
     cycleId: cycle?.id ?? null,
     cycleType: cycle?.type ?? null,
     legoId: cycle?.legoId ?? null,
+    // POSITION (where in the script it played) — logged alongside ownership
+    // per docs/position-and-ownership-model.md; the two diverge for spaced-rep
+    // reviews. roundNumber is ABSOLUTE (never the session-relative roundIndex);
+    // slot is the cycle's index within the round.
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+    slot: simplePlayer.cycleIndex.value ?? null,
   })
 
   simplePlayer.skipToPhase(phase)

@@ -180,14 +180,16 @@ This is also a signal almost no other language-learning platform captures. Most 
 
 ### Event capture
 
-Two new Layer 0 event types are needed (these appear in the full schema in §8 too):
+One new Layer 0 event type is needed (it appears in the full schema in §8 too):
 
 ```typescript
 // One event, with a direction field (implemented in A1). `forward` (toward
 // VOICE_1/2) reads as confidence; `back` (toward PROMPT) as "let me re-hear".
-// elapsed_in_phase_ms is what separates confident from gave-up.
+// elapsed_in_phase_ms is what separates confident from gave-up. Logs BOTH
+// ownership and position axes (docs/position-and-ownership-model.md).
 phase_skip: {
-  cycleId, legoId, cycleType,
+  cycleId, legoId, cycleType,   // ownership — what's being taught
+  roundNumber, slot,            // position — where it played (roundNumber ABSOLUTE)
   fromPhase,              // currentPhase at the tap
   toPhase,                // pill target: prompt | voice_1 | voice_2
   direction,              // forward | back | replay
@@ -212,7 +214,7 @@ A value near +1 means confidence tracks execution accurately (the learner skips 
 
 This is computed from the joint distribution of phase-skip events and execution scores across recent cycles. It needs at least 30-50 cycles of data before it stabilises; before that, surface as "calibration not yet established."
 
-> **State as of May 2026:** phase-pill click events are not currently captured to telemetry. The click handlers exist (the navigation works) but they do not emit `player_events` rows. This is the single smallest piece of wiring with the largest payoff in the whole architecture — once added, the calibration signal has data behind it for every learner from day one, with no opt-in required. See §12 Phase 1a.
+> **DONE (A1, 2026-05-29):** phase-pill taps now emit a `phase_skip` event to `player_events` (verified on `nld_for_eng` — elapsed 164ms–6891ms against the pause, direction correct). The calibration signal has data behind it for every learner from day one, no opt-in required. See §12 Phase 1a.
 
 ---
 
@@ -308,24 +310,31 @@ Layer 0 events live in `player_events` (already exists, currently captures `audi
 // Existing
 audio_play: { url, role, legoId, cycleId, cycleType, playbackSpeed }
 
-// New — user actions (load-bearing for Principle 1)
-skip_forward:   { fromCycleId, toCycleId, legoId }     // whole-cycle skip
-skip_back:      { fromCycleId, toCycleId, legoId }     // whole-cycle skip
-turbo_toggle:   { enabled: boolean, sessionPaceMsBefore, sessionPaceMsAfter }
-session_start:  { courseCode, deviceClass, initialSettings }
-session_end:    { sessionDurationMs, cyclesCompleted, completionReason }
+// Behavioural signals — reality after the A2 audit (2026-05-29). Most already
+// flow: tap_skip (whole-cycle skip), tap_pause / tap_play, round_complete,
+// audio_play. turbo_toggle when used.
+tap_skip:       { during, legoId, cycleType, roundNumber, slot }
+turbo_toggle:   { enabled, sessionPaceMsBefore, sessionPaceMsAfter }
+// DERIVED, not events:
+//   • belt skip (forward/back) — read from a jump in POSITION (roundNumber, via
+//     round_complete), NOT from legoId, which the triple-helix shuffles for
+//     spaced-rep. See docs/position-and-ownership-model.md.
+//   • recency / active time — from any event's occurred_at + total elapsed.
+// DROPPED: session_start / session_end — session boundaries are irrelevant;
+//   total elapsed + occurred_at cover what we need.
 
-// New — phase-pill self-assessment event (feeds calibration metric, §5).
-// One event with a direction field (decided in implementation A1) rather than
-// two named types — direction is derivable from cycle order, and one type is
-// simpler. Raw elapsed + pauseDuration are stored unnormalised.
+// New — phase-pill self-assessment event (feeds calibration metric, §5),
+// implemented in A1. One event with a direction field (not two named types).
+// Logs BOTH axes per docs/position-and-ownership-model.md — ownership (what's
+// taught) and position (where it played) diverge for spaced-rep reviews.
 phase_skip: {
-  cycleId, legoId, cycleType,
+  cycleId, legoId, cycleType,                        // ownership
+  roundNumber, slot,                                 // position (roundNumber ABSOLUTE, not session roundIndex)
   fromPhase: 'prompt'|'speak'|'voice_1'|'voice_2',   // = currentPhase at tap
   toPhase:   'prompt'|'voice_1'|'voice_2',           // pill targets (speak isn't tappable)
   direction: 'forward'|'back'|'replay',              // forward = confident, back = re-hear
   elapsed_in_phase_ms,                               // time in fromPhase before the tap
-  pauseDuration,                                     // to normalise elapsed later
+  pauseDuration,                                     // raw; ratio chosen later
 }
 
 // New — prosody per cycle (the execution-axis raw signal)
@@ -549,15 +558,15 @@ A data inventory on 2026-05-23 gave us empirical ground for what follows:
 | Active in last 30 days | 47 | Small but real — enough to ship to. |
 | `subscriptions` rows | **0** | The Paddle bottleneck is total. Nobody has subscribed on the new app. Known; not surprising. |
 | `player_events` (all-time) | 26,813 | Telemetry pipeline is healthy. Captures `audio_play`, `tap_pause`, `tap_play`, `tap_skip`, `round_complete`, `audio_failed`, `pod_lap_start/end`, `commentary_start/end`, `session_complete`. |
-| Phase-pill click events | **None captured** | Calibration signal (§5) has zero data behind it today. Wiring gap, not a fundamental problem. |
+| Phase-pill click events | **Now captured (A1)** | `phase_skip` shipped 2026-05-29; calibration signal (§5) has data from day one. |
 | `learner_lego_metrics` rows | **0** | Either nobody has Personalised Pacing on, or the engine isn't writing. Either way, no execution data has ever flowed. Inferred VAD opt-in: ~0%. |
 | Behavioural signals (skip / pause / round_complete / audio_play) | Rich | The behavioural-tier execution proxy described in §6 has substantial existing data. |
 
 The implication for phase ordering: the doc was implicitly ordered "prosody first, behavioural as fallback." Reality is the inverse. The behavioural tier has data today and can power the first round of dashboards and explainer pages immediately. Prosody is a Phase 2 effort, paced by adoption rather than by build time.
 
-### Phase 1a — Wire the phase-pill events (days)
+### Phase 1a — Wire the phase-pill events (days) — ✅ DONE 2026-05-29
 
-Smallest unlock, biggest architectural payoff. The phase-pill component already handles clicks for navigation; we add a one-line `emit('phase_skip_forward', ...)` (and equivalent for skip-back) that posts to `/api/player-events`. Migration adds nothing — `player_events.payload` is JSONB and accepts the new event types directly.
+Smallest unlock, biggest architectural payoff. The phase-pill handler now emits a single `phase_skip` event (one type with a `direction` field; ownership + position axes) via `usePlayerLog` → `/api/player-events`. No migration — `player_events.payload` is JSONB. Verified live on `nld_for_eng`.
 
 Once landed, the calibration signal from §5 has data flowing for every learner from day one. Confidence-vs-execution correlation is computable as soon as we have a few sessions per learner.
 
