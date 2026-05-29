@@ -42,6 +42,10 @@ const props = defineProps<{
   // Whether the learner is currently in INF PLAY. The ∞ activator stays
   // tappable in this state (re-entry is idempotent) but reads as "active".
   isInfplay?: boolean
+  // Offline playback. BELT jumps are disabled offline — a belt jump leaps
+  // out of the downloaded plan to content we can't fetch. LEGO/cycle nav stays
+  // enabled (it steps within the cached plan); only this modal's belt jumps go.
+  isOffline?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -281,11 +285,12 @@ onUnmounted(() => {
                   :class="{
                     'map-chip--current': isCurrentBelt(belt),
                     'is-skipping': isSkipping,
+                    'is-offline': isOffline,
                   }"
                   :style="{ '--chip-color': belt.color }"
-                  :disabled="isCurrentBelt(belt) || isSkipping"
-                  :title="`Jump to ${belt.name} belt`"
-                  :aria-label="`Jump to ${belt.name} belt`"
+                  :disabled="isCurrentBelt(belt) || isSkipping || isOffline"
+                  :title="isOffline ? 'Belt jumps need a connection — offline you can still step LEGO by LEGO' : `Jump to ${belt.name} belt`"
+                  :aria-label="isOffline ? `${belt.name} belt — belt jumps unavailable offline` : `Jump to ${belt.name} belt`"
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
@@ -326,7 +331,9 @@ onUnmounted(() => {
               </button>
             </div>
 
-            <p class="belt-strip-hint">tap a belt to jump there, or ∞ for infinite play</p>
+            <p class="belt-strip-hint">{{ isOffline
+              ? 'offline — belt jumps need a connection; step LEGO by LEGO with ‹‹ ››'
+              : 'tap a belt to jump there, or ∞ for infinite play' }}</p>
           </section>
         </div>
       </div>
@@ -603,6 +610,14 @@ onUnmounted(() => {
 
 .map-chip:disabled {
   cursor: default;
+}
+
+/* Offline: belt jumps leap out of the downloaded plan, so they're disabled.
+   Dim them so they READ as unavailable (the bare :disabled only changes the
+   cursor — deliberately, so the always-disabled current belt stays
+   highlighted). Opacity is theme-agnostic, so one rule covers mist too. */
+.map-chip.is-offline {
+  opacity: 0.4;
 }
 
 .map-chip--current {

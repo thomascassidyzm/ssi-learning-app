@@ -10533,6 +10533,7 @@ defineExpose({
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
     :is-infplay="currentMode === 'infplay'"
+    :is-offline="offlinePlaybackActive()"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
     @enterInfPlay="handleActivateInfPlay"
@@ -10961,9 +10962,9 @@ defineExpose({
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleRoundBack"
-            :disabled="(simplePlayer.roundIndex.value === 0 && currentMode !== 'infplay') || offlinePlaybackActive()"
-            :title="offlinePlaybackActive() ? 'Navigation disabled in offline mode' : (currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Previous LEGO (replays its intro)')"
-            :aria-label="offlinePlaybackActive() ? 'Navigation disabled in offline mode' : (currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Previous LEGO, replays its intro')"
+            :disabled="simplePlayer.roundIndex.value === 0 && currentMode !== 'infplay'"
+            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Previous LEGO (replays its intro)'"
+            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Previous LEGO, replays its intro'"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
@@ -11013,21 +11014,16 @@ defineExpose({
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleRoundForward"
-            :disabled="offlinePlaybackActive()"
             :title="currentMode === 'infplay'
               ? `In INF PLAY (round ${infplayRoundIndex}) — next review round`
-              : (offlinePlaybackActive()
-                  ? 'Navigation disabled in offline mode'
-                  : (wouldEnterInfplay
-                      ? 'Enter INF PLAY — random review of everything you have learned'
-                      : 'Next LEGO'))"
+              : (wouldEnterInfplay
+                  ? 'Enter INF PLAY — random review of everything you have learned'
+                  : 'Next LEGO')"
             :aria-label="currentMode === 'infplay'
               ? `Infinite play, round ${infplayRoundIndex}. Next review round.`
-              : (offlinePlaybackActive()
-                  ? 'Navigation disabled in offline mode'
-                  : (wouldEnterInfplay
-                      ? 'Enter INF PLAY: random review of everything you have learned'
-                      : 'Next LEGO'))"
+              : (wouldEnterInfplay
+                  ? 'Enter INF PLAY: random review of everything you have learned'
+                  : 'Next LEGO')"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
