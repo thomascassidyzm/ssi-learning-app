@@ -10464,9 +10464,9 @@ defineExpose({
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt, 'is-loading-target': prevBeltLoading }"
             @click="handleGoBackBelt"
-            :disabled="playingBelt.index === 0"
-            :title="`Back to ${backTargetBelt.name} belt`"
-            :aria-label="`Back to ${backTargetBelt.name} belt`"
+            :disabled="playingBelt.index === 0 || offlinePlaybackActive()"
+            :title="offlinePlaybackActive() ? 'Belt skip disabled in offline mode' : `Back to ${backTargetBelt.name} belt`"
+            :aria-label="offlinePlaybackActive() ? 'Belt skip disabled in offline mode' : `Back to ${backTargetBelt.name} belt`"
             :style="{ '--skip-belt-color': backTargetBelt.color }"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
@@ -10512,16 +10512,21 @@ defineExpose({
               'is-infplay-active': currentMode === 'infplay',
             }"
             @click="handleSkipToNextBelt"
+            :disabled="offlinePlaybackActive() && currentMode !== 'infplay'"
             :title="currentMode === 'infplay'
               ? `In INF PLAY (round ${infplayRoundIndex})`
-              : (wouldEnterInfplay
-                  ? 'Enter INF PLAY — random review of everything you have learned'
-                  : `Skip to ${playingNextBelt?.name ?? 'next'} belt`)"
+              : (offlinePlaybackActive()
+                  ? 'Belt skip disabled in offline mode'
+                  : (wouldEnterInfplay
+                      ? 'Enter INF PLAY — random review of everything you have learned'
+                      : `Skip to ${playingNextBelt?.name ?? 'next'} belt`))"
             :aria-label="currentMode === 'infplay'
               ? `Infinite play, round ${infplayRoundIndex}`
-              : (wouldEnterInfplay
-                  ? 'Enter INF PLAY: random review of everything you have learned'
-                  : `Skip to ${playingNextBelt?.name ?? 'next'} belt`)"
+              : (offlinePlaybackActive()
+                  ? 'Belt skip disabled in offline mode'
+                  : (wouldEnterInfplay
+                      ? 'Enter INF PLAY: random review of everything you have learned'
+                      : `Skip to ${playingNextBelt?.name ?? 'next'} belt`))"
             :style="playingNextBelt && !wouldEnterInfplay
               ? { '--skip-belt-color': playingNextBelt.color, '--skip-belt-glow': playingNextBelt.glow }
               : {}"
