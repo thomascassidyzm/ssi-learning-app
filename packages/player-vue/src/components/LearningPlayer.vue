@@ -971,6 +971,15 @@ const envLabel = computed<string | null>(() => {
   return 'DEV'
 })
 
+// Dev/staging-only one-tap reset, in the player header (there's no separate
+// home screen in the live flow — rapid testing happens here). Routes to
+// App.vue's ?reset=1 handler: clears localStorage/IndexedDB/caches,
+// unregisters the SW, reloads to the latest build. Gated by envLabel, so it
+// shows on dev/staging and is hidden on production — same rule as the badge.
+const resetApp = () => {
+  window.location.href = `${window.location.pathname}?reset=1`
+}
+
 // Rounds storage (loaded from database, adapted for SimplePlayer)
 // Using any[] to allow mixed format: SimpleRound (cycles) + legacy ScriptItem (items)
 const loadedRounds = ref<any[]>([])
@@ -10510,7 +10519,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="envLabel" class="env-reset" title="Clear cache + reload the latest build (dev/staging only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: skip back + timer + skip forward -->
         <div class="belt-row">
@@ -11505,6 +11514,22 @@ defineExpose({
   background: #ff5a5f;
   color: #fff;
 }
+/* Dev/staging-only reset control, sits next to the env badge. */
+.env-reset {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 999px;
+  background: #f5b342;
+  color: #1a1a1a;
+  font-size: 0.7em;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.env-reset:active { transform: translateY(1px); }
 
 .update-dot {
   display: inline-block;
