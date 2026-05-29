@@ -349,17 +349,33 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
    */
   const replaceQueueFromCurrent = (newRounds: Round[]) => {
     if (!player || newRounds.length === 0) return
-    player.replaceQueueFromCurrent(newRounds)
+    // Capture the current round number BEFORE the engine splice — the engine
+    // emits state_changed during the call, bumping internalState.roundIndex by
+    // before.length, so reading it after would read a shifted index against
+    // the not-yet-rebuilt array (→ undefined → a bad full-replace).
     const currentRoundNumber = roundsRef.value[internalState.value.roundIndex]?.roundNumber
+    player.replaceQueueFromCurrent(newRounds)
     if (currentRoundNumber == null) {
       roundsRef.value = [...newRounds].sort((a, b) => a.roundNumber - b.roundNumber)
       return
     }
     const kept = roundsRef.value.filter(r => r.roundNumber <= currentRoundNumber)
+    const keptNumbers = new Set(kept.map(r => r.roundNumber))
+    // MIRROR SimplePlayer.replaceQueueFromCurrent EXACTLY: prepend the
+    // behind-rounds the queue is missing (deduped against kept) so roundsRef
+    // === engine.rounds = [...before, ...kept, ...future]. The engine already
+    // shifted roundIndex by before.length (via state_changed); we must NOT
+    // shift again — roundsRef just needs the `before` rounds present so the
+    // shifted index lands on the live cycle. Without this prepend, on the
+    // INF-PLAY full-script handoff the displayed text sat before.length rounds
+    // AHEAD of the playing audio — the text/audio desync.
+    const before = newRounds
+      .filter(r => r.roundNumber < currentRoundNumber && !keptNumbers.has(r.roundNumber))
+      .sort((a, b) => a.roundNumber - b.roundNumber)
     const future = newRounds
       .filter(r => r.roundNumber > currentRoundNumber)
       .sort((a, b) => a.roundNumber - b.roundNumber)
-    roundsRef.value = [...kept, ...future]
+    roundsRef.value = [...before, ...kept, ...future]
   }
 
   /**
