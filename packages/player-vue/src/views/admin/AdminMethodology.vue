@@ -1,0 +1,172 @@
+<script setup lang="ts">
+/**
+ * AdminMethodology — "Measuring progress" landing.
+ *
+ * A small, growable home for methodology papers and interactive demos that
+ * explain what the dashboards measure and why. Entries open self-contained
+ * HTML pages served from /public/docs (outside the SPA), so they're plain
+ * links with target=_blank rather than router views.
+ */
+
+interface Paper {
+  title: string
+  blurb: string
+  href: string
+  tag: string
+  status: string
+}
+
+const papers: Paper[] = [
+  {
+    title: 'Metrics & Adaptation',
+    blurb:
+      'The model behind the dashboards: rate-of-change as the signal, contextual difficulty and the consolidate / defer / drill budget, the sovereign comparison model (entity vs aggregate, never a named peer), the two clocks, and CEFR as a pilot-coupled best-fit. Three live figures; built to be argued with.',
+    href: '/docs/metrics-vision.html',
+    tag: 'Interactive · position paper',
+    status: 'Draft — for discussion',
+  },
+]
+</script>
+
+<template>
+  <div class="admin-methodology">
+    <header class="page-header">
+      <div class="title-block">
+        <span class="schools-kicker">Methodology</span>
+        <h1 class="arsenal">Measuring progress</h1>
+        <p class="subtitle">
+          How we decide what to show, what to adapt, and how competence is eventually
+          calibrated — papers and interactive demos. The companion specification lives in
+          the repo at <code>docs/methodology/metrics-architecture.md</code>.
+        </p>
+      </div>
+    </header>
+
+    <div class="paper-grid">
+      <a
+        v-for="p in papers"
+        :key="p.href"
+        :href="p.href"
+        target="_blank"
+        rel="noopener"
+        class="schools-card paper-card"
+      >
+        <div class="paper-head">
+          <span class="paper-tag">{{ p.tag }}</span>
+          <span class="paper-status">{{ p.status }}</span>
+        </div>
+        <h2 class="arsenal paper-title">{{ p.title }}</h2>
+        <p class="paper-blurb">{{ p.blurb }}</p>
+        <span class="paper-cta">
+          Open
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" />
+          </svg>
+        </span>
+      </a>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.admin-methodology { max-width: 1100px; }
+
+.page-header { margin-bottom: 28px; }
+.schools-kicker {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--schools-red, #DB1E17);
+}
+.page-header h1 {
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.04;
+  letter-spacing: -0.015em;
+  color: var(--ink-primary, #2C2622);
+  margin: 8px 0 10px;
+}
+.subtitle {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-secondary, #5b534c);
+  max-width: 60ch;
+  margin: 0;
+}
+.subtitle code {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 13px;
+  background: rgba(44, 38, 34, 0.06);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
+.paper-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.paper-card {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px 20px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--schools-radius-lg, 12px);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  cursor: pointer;
+}
+.paper-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(219, 30, 23, 0.28);
+}
+
+.paper-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.paper-tag {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--ink-primary, #2C2622);
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.paper-status {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 11px;
+  color: var(--ink-muted, #8A8078);
+}
+
+.paper-title {
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--ink-primary, #2C2622);
+  margin: 0 0 8px;
+}
+.paper-blurb {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-secondary, #5b534c);
+  margin: 0 0 20px;
+  flex: 1;
+}
+.paper-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--schools-red, #DB1E17);
+}
+.paper-card:hover .paper-cta svg { transform: translate(2px, -2px); }
+.paper-cta svg { transition: transform 160ms ease; }
+</style>

@@ -268,6 +268,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/SchoolsSetup.vue'),
         meta: { title: 'Schools Setup' },
       },
+      {
+        path: 'methodology',
+        name: 'admin-methodology',
+        component: () => import('@/views/admin/AdminMethodology.vue'),
+        meta: { title: 'Measuring progress', description: 'Methodology papers and demos' },
+      },
     ],
   },
   // Admin read-views — view a specific school's dashboard as ssi_admin
