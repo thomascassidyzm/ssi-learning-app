@@ -39,11 +39,17 @@ const props = defineProps<{
   currentRound?: number | null
   highestRound?: number | null
   isSkipping?: boolean
+  // Whether the learner is currently in INF PLAY. The ∞ activator stays
+  // tappable in this state (re-entry is idempotent) but reads as "active".
+  isInfplay?: boolean
 }>()
 
 const emit = defineEmits<{
   close: []
   skipToBelt: [belt: Belt]
+  // Deliberate, explicit entry into INF PLAY from the ∞ activator. The only
+  // intentional entry point — wired to LearningPlayer's enterInfPlay().
+  enterInfPlay: []
 }>()
 
 // --- Time / community tabs ------------------------------------
@@ -155,6 +161,12 @@ function handleBeltClick(belt: Belt) {
   emit('skipToBelt', belt)
 }
 
+function handleInfPlayClick() {
+  if (props.isSkipping) return
+  emit('close')
+  emit('enterInfPlay')
+}
+
 // --- Subtitle "for X speakers" --------------------------------
 
 const subtitle = computed(() => {
@@ -252,44 +264,69 @@ onUnmounted(() => {
               you've been as far as <strong>{{ furthestBeltName }} belt</strong>
             </p>
 
-            <div
-              class="map-row"
-              :style="{ gridTemplateColumns: `repeat(${belts.length}, 1fr)` }"
-            >
-              <button
-                v-for="belt in belts"
-                :key="belt.name"
-                class="map-chip"
-                :class="{
-                  'map-chip--current': isCurrentBelt(belt),
-                  'is-skipping': isSkipping,
-                }"
-                :style="{ '--chip-color': belt.color }"
-                :disabled="isCurrentBelt(belt) || isSkipping"
-                :title="`Jump to ${belt.name} belt`"
-                @click="handleBeltClick(belt)"
+            <div class="map-row-wrap">
+              <div
+                class="map-row"
+                :style="{ gridTemplateColumns: `repeat(${belts.length}, 1fr)` }"
               >
-                <span class="map-chip-dot"></span>
-                <span class="map-chip-label">{{ belt.name }}</span>
-              </button>
+                <!-- Colour-only belt dots. The belt NAME lives in title/aria-label
+                     (semantically present, visually gone) so the row reads as a
+                     ladder of colours; the freed vertical space is the ∞ activator's.
+                     Each dot carries a thin black ring so the WHITE belt reads on
+                     the white modal and every dot gets a crisp edge. -->
+                <button
+                  v-for="belt in belts"
+                  :key="belt.name"
+                  class="map-chip"
+                  :class="{
+                    'map-chip--current': isCurrentBelt(belt),
+                    'is-skipping': isSkipping,
+                  }"
+                  :style="{ '--chip-color': belt.color }"
+                  :disabled="isCurrentBelt(belt) || isSkipping"
+                  :title="`Jump to ${belt.name} belt`"
+                  :aria-label="`Jump to ${belt.name} belt`"
+                  @click="handleBeltClick(belt)"
+                >
+                  <span class="map-chip-dot"></span>
+                </button>
 
-              <div
-                v-if="typeof currentRound === 'number'"
-                class="map-marker map-marker--now"
-                :style="{ left: nowMarkerLeft + '%' }"
-              >
-                <span class="map-marker-label">now</span>
+                <div
+                  v-if="typeof currentRound === 'number'"
+                  class="map-marker map-marker--now"
+                  :style="{ left: nowMarkerLeft + '%' }"
+                >
+                  <span class="map-marker-label">now</span>
+                </div>
+                <div
+                  v-if="showFurthestMarker"
+                  class="map-marker map-marker--furthest"
+                  :style="{ left: furthestMarkerLeft + '%' }"
+                >
+                  <span class="map-marker-label">furthest</span>
+                </div>
               </div>
-              <div
-                v-if="showFurthestMarker"
-                class="map-marker map-marker--furthest"
-                :style="{ left: furthestMarkerLeft + '%' }"
+
+              <!-- ∞ INF-PLAY activator. A MODE activator, NOT a belt: glowing /
+                   throbbing ∞, visually distinct from the colour dots. Tapping it
+                   ENTERS infinite play — the only deliberate entry point. -->
+              <button
+                class="infplay-activator"
+                :class="{ 'is-skipping': isSkipping, 'is-active': isInfplay }"
+                :disabled="isSkipping"
+                title="Activate infinite play — random review of everything you have learned"
+                aria-label="Activate infinite play: random review of everything you have learned"
+                @click="handleInfPlayClick"
               >
-                <span class="map-marker-label">furthest</span>
-              </div>
+                <svg class="infplay-activator-glyph" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
+                </svg>
+              </button>
             </div>
 
-            <p class="belt-strip-hint">tap a belt to jump there</p>
+            <p class="belt-strip-hint">tap a belt to jump there, or ∞ for infinite play</p>
           </section>
         </div>
       </div>
@@ -523,8 +560,19 @@ onUnmounted(() => {
   text-align: center;
 }
 
+/* Colour-only belt row + ∞ activator laid out side by side. Explicit
+   dimensions: the belt row flexes to fill, the activator is a fixed 48px
+   square pinned to the end. No flex/appearance hacks. */
+.map-row-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
 .map-row {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   /* grid-template-columns set inline on the element so we don't need
      to pre-bake a fixed belt count here. */
@@ -536,6 +584,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 0.25rem;
   padding: 0.5rem 0.125rem;
   background: #fafaf6;
@@ -572,19 +621,73 @@ onUnmounted(() => {
   50% { opacity: 0.5; }
 }
 
+/* Colour-only dot with a thin black ring. The ring gives the WHITE belt an
+   edge against the white modal (never a fg indicator the same colour as its
+   bg) and crisps every other dot. The label is gone (now in title/aria). */
 .map-chip-dot {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--chip-color);
+  border: 1px solid rgba(0, 0, 0, 0.55);
   box-shadow: 0 0 4px color-mix(in srgb, var(--chip-color) 50%, transparent);
 }
 
-.map-chip-label {
-  font-size: 0.625rem;
-  text-transform: capitalize;
-  color: #6B6560;
-  letter-spacing: 0.02em;
+/* ∞ INF-PLAY activator — a mode activator, deliberately NOT a belt dot.
+   Fixed 48px square, glowing/throbbing ∞, distinct purple tint so it never
+   reads as "another belt". Reuses the central-pill ∞ glyph + throb feel. */
+.infplay-activator {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 58, 237, 0.55);
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+  color: #6d28d9;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  animation: infplay-activator-throb 1.8s ease-in-out infinite;
+}
+
+.infplay-activator-glyph {
+  width: 26px;
+  height: 26px;
+}
+
+.infplay-activator:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+}
+
+.infplay-activator:disabled {
+  cursor: default;
+}
+
+.infplay-activator.is-active {
+  border-color: rgba(124, 58, 237, 0.85);
+  color: #5b21b6;
+}
+
+.infplay-activator.is-skipping {
+  animation: chip-pulse 0.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes infplay-activator-throb {
+  0%, 100% {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12),
+                0 0 4px rgba(124, 58, 237, 0.25);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16),
+                0 0 16px rgba(124, 58, 237, 0.55);
+    transform: scale(1.06);
+  }
 }
 
 .map-marker {
@@ -612,6 +715,30 @@ onUnmounted(() => {
 .map-marker--furthest .map-marker-label::before {
   content: '▽ ';
   color: #A09A94;
+}
+
+/* Mist theme counterparts. The modal teleports to <body>, so its scoped
+   rules sit under :root[data-theme="mist"] (the attribute lives on <html>).
+   The modal surface stays light in every theme, so these keep the dot ring
+   and ∞ activator crisp + on-brand under mist rather than letting the
+   default-theme rules silently win (mist overrides every surface). */
+:root[data-theme="mist"] .map-chip-dot {
+  border-color: rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme="mist"] .infplay-activator {
+  border-color: rgba(124, 58, 237, 0.6);
+  background: linear-gradient(135deg, #ece7fb 0%, #d8cffb 100%);
+  color: #6d28d9;
+}
+
+:root[data-theme="mist"] .infplay-activator:hover:not(:disabled) {
+  background: linear-gradient(135deg, #d8cffb 0%, #c0aefb 100%);
+}
+
+:root[data-theme="mist"] .infplay-activator.is-active {
+  border-color: rgba(124, 58, 237, 0.9);
+  color: #5b21b6;
 }
 
 /* Transitions */

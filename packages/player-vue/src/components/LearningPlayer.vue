@@ -6912,10 +6912,71 @@ const enterInfPlay = async () => {
 }
 
 /**
+ * Forward ROUND advance WHILE IN INF PLAY. Rounds still exist in INF PLAY:
+ * the recycled / spaced-rep revival rounds appended after the main loop
+ * (indices >= mainLoopCount in cachedRounds). Step to the next one, wrapping
+ * back to the first revival round at the tail so forward never dead-ends.
+ *
+ * Belt stays PINNED to the course's final belt (the infplay rounds carry a
+ * random USE legoId that would otherwise bounce the belt indicator) — mirrors
+ * enterInfPlay's setPlayingPosition(courseEndSeed) anchor. Bumps the
+ * infplayRoundIndex readout (the central-pill "round N"), persists the cursor.
+ *
+ * If no revival rounds are loaded (offline / a course with none) we recycle
+ * cached cycles via enterInfPlayFromCache rather than stalling.
+ */
+const advanceInfPlayRound = async (fromIdx: number) => {
+  const mainLoopCount = (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+  const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
+    ? mainLoopCount
+    : -1
+
+  // No revival set loaded — recycle cached cycles (never stall the learner).
+  if (firstInfIdx < 0) {
+    await enterInfPlayFromCache()
+    return
+  }
+
+  // Step forward through the revival tail; wrap to the first revival round
+  // once we run off the end (or somehow sit below the tail).
+  let targetIdx = fromIdx + 1
+  if (targetIdx >= cachedRounds.value.length || targetIdx < firstInfIdx) {
+    targetIdx = firstInfIdx
+  }
+
+  const courseEndSeed = (() => {
+    const fin = courseFinalLegoRef.value?.legoId
+    if (fin) {
+      const s = getSeedFromLegoId(fin)
+      if (s !== null) return s
+    }
+    return 668
+  })()
+
+  isSkippingBelt.value = true
+  try {
+    haltAllPlayback()
+    await prepareAndJump(targetIdx, 'Next…', () => {
+      simplePlayer.jumpToRound(targetIdx)
+      // Pin the belt to the final belt rather than deriving from the
+      // revival round's random USE legoId (which would bounce the indicator).
+      if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
+    })
+    // Advance the central-pill ∞ readout ("round N").
+    infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value + 1)
+    await persistCursorAtCurrentRound()
+  } finally {
+    isSkippingBelt.value = false
+  }
+}
+
+/**
  * HEADER FORWARD ‹‹ ›› — ROUND / LEGO advance.
  *
  * Step to the NEXT introduced LEGO (round +1, by LEGO id). At the FINAL
- * LEGO (or already in INF PLAY), advancing ENTERS INF PLAY via enterInfPlay().
+ * LEGO, advancing ENTERS INF PLAY via enterInfPlay(). WHILE ALREADY IN INF
+ * PLAY, forward ADVANCES through the revival rounds (advanceInfPlayRound) —
+ * rounds still exist in INF PLAY. Round-back remains the INF-PLAY exit.
  *
  * Position-keyed: lands on the next round's first LEGO via jumpToLegoId,
  * the belt READOUT then DERIVES from the landed round
@@ -6927,10 +6988,18 @@ const handleRoundForward = async () => {
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
 
+  // ALREADY in INF PLAY (or sitting on a revival round): rounds still exist in
+  // INF PLAY — they're the recycled / spaced-rep rounds appended after the
+  // main loop. Forward STEPS THROUGH them (wrapping at the tail) rather than
+  // re-entering the mode. Round-back stays the exit/step-back (unchanged).
+  if (currentMode.value === 'infplay' || (currentRound && !isMainLoopRound(currentRound))) {
+    await advanceInfPlayRound(fromIdx)
+    return
+  }
+
   // Entry to INF PLAY is keyed on the FINAL LEGO, not the final belt. We
   // advance LEGO-by-LEGO right through the final belt; only stepping forward
   // FROM the course's final introduced LEGO crosses into INF PLAY.
-  //   - already in INF PLAY / on a revival round → re-enter (idempotent)
   //   - at/past the final-LEGO round index → enter
   //   - finalLegoRoundIndex not resolved yet → fall back to wouldEnterInfplay
   //     (belt-granular) so we never advance into empty rounds.
@@ -6938,7 +7007,7 @@ const handleRoundForward = async () => {
   const atOrPastFinalLego = finalLegoRoundIdx !== null
     ? fromIdx >= finalLegoRoundIdx
     : wouldEnterInfplay.value
-  if (atOrPastFinalLego || (currentRound && !isMainLoopRound(currentRound))) {
+  if (atOrPastFinalLego) {
     await enterInfPlay()
     return
   }
@@ -7134,6 +7203,14 @@ const handleRoundBack = async () => {
 // Belt pill tap — open the unified progress modal
 const handleBeltPillTap = () => {
   showProgressModal.value = true
+}
+
+// ∞ activator (belt modal) — the ONE deliberate entry into INF PLAY. The
+// central pill stays the ∞ INDICATOR; this button is the ACTIVATOR. The
+// modal closes itself (emits close) before this fires; just enter the mode.
+const handleActivateInfPlay = async () => {
+  showProgressModal.value = false
+  await enterInfPlay()
 }
 
 // Jump to any belt (from ProgressModal)
@@ -10291,8 +10368,10 @@ defineExpose({
     :highest-round="highestAbsoluteRound"
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
+    :is-infplay="currentMode === 'infplay'"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
+    @enterInfPlay="handleActivateInfPlay"
   />
 
   <!-- Paused Summary Overlay -->
@@ -10762,23 +10841,24 @@ defineExpose({
 
           <!-- Forward action: ROUND/LEGO advance chevron. At the FINAL LEGO
                advancing ENTERS INF PLAY (handleRoundForward delegates to
-               enterInfPlay when wouldEnterInfplay). The ∞ indicator is NO
-               LONGER here — it moved to the central pill. Disabled once in
-               INF PLAY (no further LEGO to advance to). -->
+               enterInfPlay when wouldEnterInfplay). WHILE IN INF PLAY it
+               ADVANCES through the revival rounds (rounds still exist in INF
+               PLAY) — no longer disabled. The ∞ indicator lives on the
+               central pill; round-back remains the INF-PLAY exit. -->
           <button
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleRoundForward"
-            :disabled="currentMode === 'infplay' || offlinePlaybackActive()"
+            :disabled="offlinePlaybackActive()"
             :title="currentMode === 'infplay'
-              ? `In INF PLAY (round ${infplayRoundIndex})`
+              ? `In INF PLAY (round ${infplayRoundIndex}) — next review round`
               : (offlinePlaybackActive()
                   ? 'Navigation disabled in offline mode'
                   : (wouldEnterInfplay
                       ? 'Enter INF PLAY — random review of everything you have learned'
                       : 'Next LEGO'))"
             :aria-label="currentMode === 'infplay'
-              ? `Infinite play, round ${infplayRoundIndex}`
+              ? `Infinite play, round ${infplayRoundIndex}. Next review round.`
               : (offlinePlaybackActive()
                   ? 'Navigation disabled in offline mode'
                   : (wouldEnterInfplay

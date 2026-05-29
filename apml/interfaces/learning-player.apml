@@ -322,14 +322,15 @@ HEADER_NAV:
 
   forward:
     icon: "›› (double chevron forward)"
-    action: "Next introduced LEGO (round +1, by LEGO id). At the FINAL LEGO, advancing ENTERS INF PLAY."
-    engine: "handleRoundForward → enterInfPlay() at course end"
-    disabled_when: "already in INF PLAY, or offline"
+    action: "Main loop: next introduced LEGO (round +1, by LEGO id); at the FINAL LEGO advancing ENTERS INF PLAY. WHILE IN INF PLAY: ADVANCES through the revival/spaced-rep rounds (rounds still exist in INF PLAY) — NOT a no-op; wraps at the tail; belt stays pinned to the final belt; infplayRoundIndex readout bumps."
+    engine: "handleRoundForward → enterInfPlay() at course end; advanceInfPlayRound() while in INF PLAY"
+    disabled_when: "offline (NO LONGER disabled in INF PLAY)"
 
   central_belt_pill:
-    role: "Belt readout + tap → belt modal (the ONLY belt-jump path) + INF-PLAY indicator"
-    engine: "handleBeltPillTap → ProgressModal → handleSkipToBelt"
-    infplay_state: "When current_mode === 'infplay': purple, THROBS, shows ∞ glyph with NO progress line (.belt-timer-unified.is-infplay, with mist counterpart). The ∞ indicator lives here, NOT on the forward chevron."
+    role: "Belt readout + tap → belt modal + INF-PLAY indicator"
+    engine: "handleBeltPillTap → ProgressModal → handleSkipToBelt (belt jump) / handleActivateInfPlay (∞ activator)"
+    infplay_state: "When current_mode === 'infplay': purple, THROBS, shows ∞ glyph with NO progress line (.belt-timer-unified.is-infplay, with mist counterpart). The ∞ indicator lives here; the modal's ∞ button is the ACTIVATOR."
+    belt_modal: "Belt row is COLOUR-ONLY: each belt is just its coloured dot (.map-chip-dot) with a thin black ring (so WHITE reads on the white modal); belt NAME in title/aria-label. A glowing/throbbing ∞ activator (.infplay-activator) at the row end ENTERS INF PLAY (emit enterInfPlay → handleActivateInfPlay → enterInfPlay()) — the deliberate entry point. Both have :root[data-theme=\"mist\"] counterparts (modal teleports to body)."
 
 ## ============================================================================
 ## INTRO MODE
@@ -489,6 +490,14 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.3:
+    date: "2026-05-29"
+    title: "Belt modal redesign (colour-only + ∞ activator) + round-advance in INF PLAY"
+    changes:
+      - "Belt modal belt row is now COLOUR-ONLY: dots with a thin black ring (1px rgba(0,0,0,0.55)), no text labels; belt NAME moved to title/aria-label. White belt now reads on the white modal."
+      - "Added a glowing/throbbing ∞ INF-PLAY ACTIVATOR (.infplay-activator) at the end of the belt row — the deliberate entry point into INF PLAY (emit enterInfPlay → handleActivateInfPlay → enterInfPlay()). Distinct from belt dots; mist counterpart added (modal teleports to body, keyed :root[data-theme=\"mist\"])."
+      - "handleRoundForward: WHILE IN INF PLAY, forward now ADVANCES through the revival rounds (advanceInfPlayRound) instead of being a no-op — rounds still exist in INF PLAY. Wraps at the tail, pins belt to final belt, bumps infplayRoundIndex. Round-back stays the INF-PLAY exit. Forward chevron no longer disabled in INF PLAY."
+
   v2.1.2:
     date: "2026-05-29"
     title: "Player nav remap — granularity = location"
