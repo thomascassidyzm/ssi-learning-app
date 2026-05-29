@@ -30,9 +30,20 @@ const router = useRouter()
 // Dev-ergonomics: one-tap nuke-and-reload. Routes to App.vue's ?reset=1
 // handler, which clears localStorage / IndexedDB / caches, unregisters the
 // service worker, then reloads to the latest build. Surfaced front-and-centre
-// because the cache is painful during rapid dev changes. Hidden on production
-// (import.meta.env.PROD), so real users never see it.
-const isDevEnv = !import.meta.env.PROD
+// because the cache is painful during rapid changes.
+//
+// Gated by HOSTNAME (not import.meta.env.PROD — that's true on every Vercel
+// build, dev/staging/prod alike, so it would only ever show in a local dev
+// server). Shows on dev + staging (and previews/local); hidden on the
+// production hosts. Mirrors envLabel's production detection in LearningPlayer.
+const isDevEnv = (() => {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname
+  const isProduction = host === 'saysomethingin.app'
+    || host === 'www.saysomethingin.app'
+    || host === 'app.saysomethingin.com'
+  return !isProduction
+})()
 const resetApp = () => {
   window.location.href = `${window.location.pathname}?reset=1`
 }
