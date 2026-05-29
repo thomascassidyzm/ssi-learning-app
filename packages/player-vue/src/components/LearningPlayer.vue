@@ -7005,6 +7005,7 @@ const advanceInfPlayRound = async (fromIdx: number) => {
   })()
 
   isSkippingBelt.value = true
+  isSteppingRound.value = true // round step → no belt overlay
   try {
     haltAllPlayback()
     await prepareAndJump(targetIdx, 'Next…', () => {
@@ -7018,6 +7019,7 @@ const advanceInfPlayRound = async (fromIdx: number) => {
     await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
+    isSteppingRound.value = false
   }
 }
 
@@ -7066,6 +7068,7 @@ const handleRoundForward = async () => {
   const targetIdx = fromIdx + 1
 
   isSkippingBelt.value = true
+  isSteppingRound.value = true // LEGO step → no belt overlay
   try {
     haltAllPlayback()
 
@@ -7095,6 +7098,7 @@ const handleRoundForward = async () => {
     await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
+    isSteppingRound.value = false
   }
 }
 
@@ -7182,6 +7186,7 @@ const handleRoundBack = async () => {
   })
 
   isSkippingBelt.value = true
+  isSteppingRound.value = true // LEGO step (or INF-PLAY exit) → no belt overlay
   try {
     haltAllPlayback()
 
@@ -7248,6 +7253,7 @@ const handleRoundBack = async () => {
     console.warn('[LearningPlayer] handleRoundBack error:', err)
   } finally {
     isSkippingBelt.value = false
+    isSteppingRound.value = false
   }
 }
 
@@ -7511,6 +7517,13 @@ const showTurboPopup = ref(false)
 
 // Belt skip feedback state (showBeltModal merged into showProgressModal above)
 const isSkippingBelt = ref(false)
+// ROUND/LEGO-step nav (header ‹‹ ››, and round-step within INF PLAY) sets this
+// alongside isSkippingBelt so it keeps the audio-halt/guard behaviour — but it
+// SUPPRESSES the full-screen belt-skip-overlay. A one-LEGO step is not a belt
+// jump: the brown "Jumping to next belt…" spinner is the wrong affordance (and
+// flashes even on instant cached jumps via the overlay's fade). The inline
+// skip-prep dialog ("Next LEGO…", shown only after 200ms) covers any real wait.
+const isSteppingRound = ref(false)
 
 // INF PLAY audio warm-up state. Set true while the first batch of
 // infplay rounds is being downloaded; gates the play button so the
@@ -10494,7 +10507,7 @@ defineExpose({
     <!-- Suppress overlay when the INF PLAY intro is on-screen — the
          typed message IS the loading affordance; an overlay on top
          would hide it. Audio still warms up in parallel. -->
-    <div v-if="(isSkippingBelt || isWarmingUpInfPlay) && !isShowingInfPlayIntro" class="belt-skip-overlay">
+    <div v-if="(isSkippingBelt || isWarmingUpInfPlay) && !isShowingInfPlayIntro && !isSteppingRound" class="belt-skip-overlay">
       <div class="belt-skip-spinner"></div>
       <span class="belt-skip-label">{{
         isWarmingUpInfPlay
