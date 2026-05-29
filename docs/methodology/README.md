@@ -8,6 +8,7 @@
 | File | Status | Description |
 |------|--------|-------------|
 | [listening-layers.md](./listening-layers.md) | Design | Layer 1 (reactivation) and Layer 2 (acquisition) listening system |
+| [metrics-implementation-plan.md](./metrics-implementation-plan.md) | Plan (approved) | Project plan for building the metrics architecture — workstreams A–G, dependency map + critical path (telemetry foundation is the bottleneck), parallelisation/sub-agent fan-out map, milestones M0–M5, guardrails |
 | [metrics-architecture.md](./metrics-architecture.md) | Design | Two-axis (difficulty × execution) metrics layer; **rate-of-change (2nd-derivative) as the primary lens**; contextual *(learner × unit)* difficulty + consolidate/defer/drill adaptation budget; no-ASR prosody capture; self-assessment calibration from phase-pill clicks; CEFR-via-calibration with a pilot-coupled timeframe, anchored on SSi's 17-year empirical baseline |
 
 ## Adding New Methodology
