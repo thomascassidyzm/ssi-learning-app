@@ -8557,11 +8557,18 @@ onMounted(async () => {
         // bootstrap. Tom 2026-05-25.
         let inferEnrollmentMode: 'main' | 'infplay' = 'main'
         let inferInfPlayRoundIndex = 1
+        // DB-canonical resume anchors — used by the cache fast-path below when
+        // localStorage has no position (after ?reset=1 / a new device), so a
+        // returning learner resumes at their cursor, NOT round 1.
+        let inferCursorLegoId: string | null = null
+        let inferCeilingLegoId: string | null = null
         if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
           try {
             const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
             inferEnrollmentMode = (enr?.current_mode === 'infplay') ? 'infplay' : 'main'
             inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
+            inferCursorLegoId = enr?.last_completed_lego_id ?? null
+            inferCeilingLegoId = enr?.highest_completed_lego_id ?? null
           } catch (modeErr) {
             console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
           }
@@ -8604,8 +8611,19 @@ onMounted(async () => {
               // helper — same lookup the bootstrap path uses, single
               // source of truth (localStorage) regardless of auth.
               const resume = resolveResumePosition(cachedScript.rounds as any[])
-              const resumeRoundIndex = resume?.roundIndex ?? 0
-              const resumeCycle = resume?.cycleIndex ?? 0
+              let resumeRoundIndex = resume?.roundIndex ?? 0
+              let resumeCycle = resume?.cycleIndex ?? 0
+              // localStorage had no position (cleared cache / new device). Don't
+              // strand a returning learner at round 1 — resolve from the DB
+              // cursor, then the ceiling, against the cached rounds. This is the
+              // cache-fast-path counterpart to resolveStartLegoId's fallback;
+              // without it, every ?reset=1 dropped signed-in learners at LEGO 1.
+              if (!resume) {
+                const anchor = inferCursorLegoId || inferCeilingLegoId
+                const idx = anchor ? (cachedScript.rounds as any[]).findIndex((r: any) => r?.legoId === anchor) : -1
+                if (idx >= 0) { resumeRoundIndex = idx; resumeCycle = 0 }
+                else if (anchor) console.warn(`[InstantPlayback] cache fast-path: DB anchor ${anchor} not in cached rounds; starting at R1`)
+              }
               if (resumeRoundIndex > 0 || resumeCycle > 0) {
                 simplePlayer.jumpToRound(resumeRoundIndex, resumeCycle)
               }
