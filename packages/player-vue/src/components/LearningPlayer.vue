@@ -12043,13 +12043,13 @@ defineExpose({
 @keyframes belt-infplay-throb {
   0%, 100% {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2),
-                0 0 4px rgba(167, 139, 250, 0.25);
+                0 0 3px rgba(194, 58, 58, 0.22);
     transform: scale(1);
   }
   50% {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25),
-                0 0 14px rgba(167, 139, 250, 0.55);
-    transform: scale(1.06);
+                0 0 10px rgba(194, 58, 58, 0.42);
+    transform: scale(1.03);
   }
 }
 
@@ -12139,9 +12139,12 @@ defineExpose({
  * gradient), THROBS, and shows an ∞ glyph instead of the progress line.
  * Tom: the ∞ indicator moved OFF the forward chevron ONTO this pill. */
 .belt-timer-unified.is-infplay {
-  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
-  border-color: rgba(167, 139, 250, 0.55);
-  animation: belt-infplay-throb 1.8s ease-in-out infinite;
+  /* SSi red, NOT purple — purple is the Purple-belt colour; red signals
+     "past the belts" and matches the brand. Throb softened (slower, less
+     scale + glow). */
+  background: linear-gradient(135deg, #c23a3a 0%, #d35a5a 100%);
+  border-color: rgba(194, 58, 58, 0.6);
+  animation: belt-infplay-throb 2.4s ease-in-out infinite;
 }
 .belt-infplay-glyph {
   flex: 1;
@@ -14974,11 +14977,11 @@ button.phase-segment:active:not(.is-active) {
    wins on specificity otherwise. The ∞ indicator lives on this pill now,
    not the forward chevron. --- */
 [data-theme="mist"] .player .belt-timer-unified.is-infplay {
-  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
-  border: 1.5px solid rgba(124, 58, 237, 0.7);
+  background: linear-gradient(135deg, #c23a3a 0%, #d35a5a 100%);
+  border: 1.5px solid rgba(194, 58, 58, 0.7);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.14),
-              0 0 14px rgba(167, 139, 250, 0.5);
-  animation: belt-infplay-throb-mist 1.8s ease-in-out infinite;
+              0 0 10px rgba(194, 58, 58, 0.4);
+  animation: belt-infplay-throb-mist 2.4s ease-in-out infinite;
 }
 [data-theme="mist"] .player .belt-timer-unified.is-infplay .belt-timer-label {
   color: #ffffff;
@@ -14993,13 +14996,13 @@ button.phase-segment:active:not(.is-active) {
 @keyframes belt-infplay-throb-mist {
   0%, 100% {
     box-shadow: 0 2px 4px rgba(44, 38, 34, 0.08),
-                0 0 3px rgba(124, 58, 237, 0.20);
+                0 0 3px rgba(194, 58, 58, 0.18);
     transform: scale(1);
   }
   50% {
     box-shadow: 0 2px 6px rgba(44, 38, 34, 0.12),
-                0 0 12px rgba(124, 58, 237, 0.45);
-    transform: scale(1.06);
+                0 0 9px rgba(194, 58, 58, 0.4);
+    transform: scale(1.03);
   }
 }
 

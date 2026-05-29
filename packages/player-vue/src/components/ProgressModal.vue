@@ -646,12 +646,14 @@ onUnmounted(() => {
   justify-content: center;
   padding: 0;
   border-radius: 12px;
-  border: 1px solid rgba(124, 58, 237, 0.55);
-  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
-  color: #6d28d9;
+  border: 1px solid rgba(194, 58, 58, 0.5);
+  background: linear-gradient(135deg, #fbeaea 0%, #f5d6d6 100%);
+  color: var(--ssi-red, #c23a3a);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-  animation: infplay-activator-throb 1.8s ease-in-out infinite;
+  /* SSi red, not purple (purple is a BELT colour — would read as "another
+     belt" rather than "past the belts"). Subtle throb, not a pulse. */
+  animation: infplay-activator-throb 2.4s ease-in-out infinite;
 }
 
 .infplay-activator-glyph {
@@ -660,7 +662,7 @@ onUnmounted(() => {
 }
 
 .infplay-activator:hover:not(:disabled) {
-  background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+  background: linear-gradient(135deg, #f5d6d6 0%, #eebcbc 100%);
 }
 
 .infplay-activator:disabled {
@@ -668,8 +670,8 @@ onUnmounted(() => {
 }
 
 .infplay-activator.is-active {
-  border-color: rgba(124, 58, 237, 0.85);
-  color: #5b21b6;
+  border-color: rgba(194, 58, 58, 0.8);
+  color: #9e2a2a;
 }
 
 .infplay-activator.is-skipping {
@@ -679,14 +681,14 @@ onUnmounted(() => {
 
 @keyframes infplay-activator-throb {
   0%, 100% {
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12),
-                0 0 4px rgba(124, 58, 237, 0.25);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1),
+                0 0 3px rgba(194, 58, 58, 0.2);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16),
-                0 0 16px rgba(124, 58, 237, 0.55);
-    transform: scale(1.06);
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.12),
+                0 0 9px rgba(194, 58, 58, 0.4);
+    transform: scale(1.025);
   }
 }
 
@@ -727,18 +729,18 @@ onUnmounted(() => {
 }
 
 :root[data-theme="mist"] .infplay-activator {
-  border-color: rgba(124, 58, 237, 0.6);
-  background: linear-gradient(135deg, #ece7fb 0%, #d8cffb 100%);
-  color: #6d28d9;
+  border-color: rgba(194, 58, 58, 0.55);
+  background: linear-gradient(135deg, #fbe9e9 0%, #f4d4d4 100%);
+  color: var(--ssi-red, #c23a3a);
 }
 
 :root[data-theme="mist"] .infplay-activator:hover:not(:disabled) {
-  background: linear-gradient(135deg, #d8cffb 0%, #c0aefb 100%);
+  background: linear-gradient(135deg, #f4d4d4 0%, #ecb9b9 100%);
 }
 
 :root[data-theme="mist"] .infplay-activator.is-active {
-  border-color: rgba(124, 58, 237, 0.9);
-  color: #5b21b6;
+  border-color: rgba(194, 58, 58, 0.85);
+  color: #9e2a2a;
 }
 
 /* Transitions */
