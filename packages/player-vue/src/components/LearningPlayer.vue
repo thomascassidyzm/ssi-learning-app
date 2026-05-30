@@ -4898,6 +4898,33 @@ const isReviewCycle = computed(() =>
   && simplePlayer.currentCycle.value?.type === 'spaced_rep',
 )
 
+// The LEGEND for the tint: a quiet word above the phrase naming what this is.
+// REVIEWING = a spaced-rep revisit of an earlier LEGO (gold). PRACTISING = the
+// current LEGO — meeting it, building it, and the closing "consolidate" use
+// phrases (white/default). The word teaches what the colour means; once learnt
+// the colour carries it on its own. Empty (no label) for listening pods and
+// INF PLAY (its own random state — a RANDOM label could come later).
+const phraseModeLabel = computed<'' | 'REVIEWING' | 'PRACTISING'>(() => {
+  if (currentMode.value === 'infplay') return ''
+  if (inListeningContext.value) return ''
+  const t = simplePlayer.currentCycle.value?.type
+  if (t === 'spaced_rep') return 'REVIEWING'
+  if (t === 'intro' || t === 'debut' || t === 'build' || t === 'use'
+    || t === 'component_intro' || t === 'component_practice') return 'PRACTISING'
+  return ''
+})
+
+// Only surface the label over a real phrase — not the intro typewriter or any
+// of the transient loading/prep/buffering text states.
+const showPhraseModeLabel = computed(() =>
+  !!phraseModeLabel.value
+  && !isIntroPhase.value
+  && !isAwakening.value
+  && !isPreparingToPlay.value
+  && !skipPrepVisible.value
+  && !bufferingPromptVisible.value,
+)
+
 // ============================================
 // LEARNING HINTS - Computed properties (defined after isIntroPhase)
 // ============================================
@@ -10646,6 +10673,12 @@ defineExpose({
 
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-review': isReviewCycle }">
+        <!-- Phrase-mode legend: a quiet word naming what this phrase is
+             (PRACTISING / REVIEWING), colour-matched to the dialog tint. -->
+        <div v-if="showPhraseModeLabel" class="phrase-mode-label"
+             :class="{ 'is-reviewing': phraseModeLabel === 'REVIEWING' }">
+          {{ phraseModeLabel }}
+        </div>
         <!-- Inline learning hint label -->
         <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
@@ -13128,6 +13161,25 @@ defineExpose({
 .hero-glass.is-review {
   background: rgba(212, 168, 83, 0.09);
   border-color: rgba(212, 168, 83, 0.4);
+}
+
+/* Phrase-mode legend (PRACTISING / REVIEWING). Quiet by design: small, spaced
+   caps, very low-contrast for PRACTISING so it barely registers; gold + a touch
+   more present for REVIEWING since that's the meaningful one. Eased so it shifts
+   gently between cycles. (Single theme now — light/mist — so a plain rule is
+   the live style; no dark-theme counterpart needed.) */
+.phrase-mode-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(60, 50, 40, 0.32);
+  transition: color 0.4s ease;
+  user-select: none;
+}
+.phrase-mode-label.is-reviewing {
+  color: rgba(176, 132, 50, 0.9);
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
