@@ -7320,16 +7320,21 @@ const handleRoundBack = async () => {
       return
     }
 
-    // Main-loop back: previous introduced LEGO = round - 1, slot 0 (replay
-    // its debut). At round 0 there's nothing earlier — stay put (the template
-    // disables the button there anyway).
+    // Main-loop back — "previous track" semantics (Tom 2026-05-30):
+    //   • mid-LEGO (cycle > 0)        → first back RESTARTS the current LEGO
+    //                                    (jump to its intro, slot 0).
+    //   • already at the start (cyc 0) → step to the PREVIOUS LEGO (slot 0).
+    // Both land on slot 0 so the intro/debut/build cycles replay. At the very
+    // first LEGO's start there's nothing earlier — stay put.
     const fromIdx = simplePlayer.roundIndex.value
-    if (fromIdx <= 0) {
-      console.log('[LearningPlayer] Round back: already at the first LEGO — staying put')
+    const atCurrentStart = simplePlayer.cycleIndex.value <= 0
+    const targetIdx = atCurrentStart ? fromIdx - 1 : fromIdx
+    if (targetIdx < 0) {
+      console.log('[LearningPlayer] Round back: at the first LEGO start — staying put')
       return
     }
-    const targetIdx = fromIdx - 1
-    await prepareAndJump(targetIdx, 'Previous LEGO…', () => {
+    const restartingCurrent = targetIdx === fromIdx
+    await prepareAndJump(targetIdx, restartingCurrent ? 'Start of this LEGO…' : 'Previous LEGO…', () => {
       // POSITION nav: prefer the LEGO id, fall back to index. Always slot 0 so
       // the intro/debut/build cycles replay. Belt DERIVES from the landed round.
       const targetLegoId = cachedRounds.value[targetIdx]?.legoId
@@ -7346,7 +7351,7 @@ const handleRoundBack = async () => {
     // choice surfaces next time the player pauses.
     await persistCursorAtCurrentRound()
 
-    console.log(`[LearningPlayer] handleRoundBack: complete, now at round ${targetIdx} (replaying debut)`)
+    console.log(`[LearningPlayer] handleRoundBack: complete, now at round ${targetIdx} slot 0 (${restartingCurrent ? 'restarted current' : 'previous'} LEGO)`)
   } catch (err) {
     console.warn('[LearningPlayer] handleRoundBack error:', err)
   } finally {
@@ -11084,9 +11089,9 @@ defineExpose({
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleRoundBack"
-            :disabled="simplePlayer.roundIndex.value === 0 && currentMode !== 'infplay'"
-            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Previous LEGO (replays its intro)'"
-            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Previous LEGO, replays its intro'"
+            :disabled="simplePlayer.roundIndex.value === 0 && simplePlayer.cycleIndex.value === 0 && currentMode !== 'infplay'"
+            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Restart this LEGO (again to step back)'"
+            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Restart this LEGO; press again to step back to the previous LEGO'"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
