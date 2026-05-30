@@ -180,6 +180,11 @@ export class SimplePlayer {
   // Named handlers for cleanup in dispose()
   private onEndedHandler: () => void
   private onErrorHandler: (e: Event) => void
+  // Keeps navigator.mediaSession's position state fresh as each clip plays so
+  // Android Chrome sees an active, advancing media session and is less likely
+  // to suspend the backgrounded/locked tab (the cause of "finishes the phrase
+  // then stops" online). Heuristic background-survival aid. Tom 2026-05-31.
+  private onTimeUpdateHandler: () => void
   // Generation counter: increments on every playAudio call.
   // Stale play() rejections and safety timeouts check this to avoid
   // advancing the phase machine from a superseded audio request.
@@ -216,6 +221,31 @@ export class SimplePlayer {
 
     this.audio.addEventListener('ended', this.onEndedHandler)
     this.audio.addEventListener('error', this.onErrorHandler)
+    this.onTimeUpdateHandler = () => this.updateMediaPositionState()
+    this.audio.addEventListener('timeupdate', this.onTimeUpdateHandler)
+    this.audio.addEventListener('loadedmetadata', this.onTimeUpdateHandler)
+  }
+
+  /**
+   * Refresh navigator.mediaSession's position state from the live audio
+   * element. Android Chrome is markedly more reluctant to suspend a tab whose
+   * media session reports an active, advancing position — which is what keeps
+   * background / screen-off playback alive. Guards the NaN/0 duration and
+   * out-of-range position that would make setPositionState throw. Tom
+   * 2026-05-31.
+   */
+  private updateMediaPositionState(): void {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+    if (typeof ms.setPositionState !== 'function') return
+    const duration = this.audio.duration
+    if (!Number.isFinite(duration) || duration <= 0) return
+    const position = Math.min(Math.max(this.audio.currentTime || 0, 0), duration)
+    try {
+      ms.setPositionState({ duration, position, playbackRate: this.audio.playbackRate || 1 })
+    } catch {
+      // Invalid state (e.g. position transiently > duration mid-seek) — ignore.
+    }
   }
 
   /**
@@ -1118,6 +1148,8 @@ export class SimplePlayer {
     this.stop()
     this.audio.removeEventListener('ended', this.onEndedHandler)
     this.audio.removeEventListener('error', this.onErrorHandler)
+    this.audio.removeEventListener('timeupdate', this.onTimeUpdateHandler)
+    this.audio.removeEventListener('loadedmetadata', this.onTimeUpdateHandler)
     this.listeners.clear()
   }
 }
