@@ -2285,11 +2285,20 @@ const extractSeedNumber = (seedId: string): number => {
  * Uses ABSOLUTE identifiers (LEGO ID, seed number) - not relative round indices
  * This ensures position is valid across script regeneration
  */
-const savePositionToLocalStorage = () => {
+const savePositionToLocalStorage = (cycleOverride?: number) => {
   if (!courseCode.value) return
 
   const round = currentRound.value
   if (!round) return
+
+  // Prefer the engine's LIVE cycle when the caller passes it (the dormancy
+  // flush passes simplePlayer.cycleIndex.value). The Vue mirror
+  // currentItemInRound can lag the engine by a reactive tick during
+  // pod/boundary transitions — that lag is what made a refresh resume land
+  // ~1-2 cycles behind the live audio. Tom 2026-05-30.
+  const cyc = (typeof cycleOverride === 'number' && cycleOverride >= 0)
+    ? cycleOverride
+    : currentItemInRound.value
 
   try {
     const position = {
@@ -2301,9 +2310,9 @@ const savePositionToLocalStorage = () => {
       // LEGO (e.g. `S0069L02_debut`, `<phraseId>_3`), so it survives script
       // regeneration that reshuffles cycle order. Preferred over itemInRound
       // on resume; itemInRound is the positional fallback.
-      cycleId: round.cycles?.[currentItemInRound.value]?.id ?? null,
+      cycleId: round.cycles?.[cyc]?.id ?? null,
       // Item within the round (positional fallback when cycleId can't match)
-      itemInRound: currentItemInRound.value,
+      itemInRound: cyc,
       // Metadata
       lastUpdated: Date.now(),
       courseCode: courseCode.value,
@@ -6524,7 +6533,13 @@ const saveResumeAudio = () => {
   // case where the user backgrounds the app mid-cycle without
   // advancing. Tom 2026-05-26.
   if (positionInitialized.value && useRoundBasedPlayback.value) {
-    savePositionToLocalStorage()
+    savePositionToLocalStorage(simplePlayer.cycleIndex.value)
+    // Also flush the LIVE position to the DB with the engine's EXACT cycle —
+    // the dormant moment is our strongest "about to leave" signal. A
+    // cross-device / different-origin resume reads the DB (not this origin's
+    // localStorage), so without this it lands at the round's intro. No-op for
+    // guests / INF PLAY. Tom 2026-05-30.
+    persistLivePositionToDb(simplePlayer.cycleIndex.value)
   }
 
   const round = simplePlayer.currentRound.value
@@ -8967,6 +8982,11 @@ onMounted(async () => {
         // returning learner resumes at their cursor, NOT round 1.
         let inferCursorLegoId: string | null = null
         let inferCeilingLegoId: string | null = null
+        // The DB cycle within the cursor's round — so a cold-localStorage resume
+        // (new device / different origin / after ?reset=1) lands on the exact
+        // CYCLE, not the round's intro. Only meaningful for the cursor; the
+        // ceiling fallback stays cycle 0. Fixes "main resumes at LEGO intro".
+        let inferCursorCycle = 0
         if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
           try {
             const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
@@ -8974,6 +8994,7 @@ onMounted(async () => {
             inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
             inferCursorLegoId = enr?.last_completed_lego_id ?? null
             inferCeilingLegoId = enr?.highest_completed_lego_id ?? null
+            inferCursorCycle = Math.max(0, enr?.current_cycle_index ?? 0)
           } catch (modeErr) {
             console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
           }
@@ -9029,11 +9050,23 @@ onMounted(async () => {
                 // Cursor first; if the cursor can't be resolved, fall to the
                 // ceiling (highest) — Tom's rule. Only a genuinely fresh learner
                 // (neither resolvable) starts at round 1.
-                let idx = findLego(inferCursorLegoId)
-                if (idx < 0) idx = findLego(inferCeilingLegoId)
-                if (idx >= 0) { resumeRoundIndex = idx; resumeCycle = 0 }
-                else if (inferCursorLegoId || inferCeilingLegoId) {
-                  console.warn(`[InstantPlayback] cache fast-path: neither cursor (${inferCursorLegoId}) nor ceiling (${inferCeilingLegoId}) in cached rounds; starting at R1`)
+                const cursorIdx = findLego(inferCursorLegoId)
+                if (cursorIdx >= 0) {
+                  // Resolved the CURSOR — land on its exact cycle from the DB
+                  // (current_cycle_index), not the round's intro. This is what
+                  // makes a cold-localStorage resume (new device / different
+                  // origin / after ?reset=1) match the warm-localStorage one.
+                  resumeRoundIndex = cursorIdx
+                  resumeCycle = inferCursorCycle
+                } else {
+                  const ceilingIdx = findLego(inferCeilingLegoId)
+                  if (ceilingIdx >= 0) {
+                    // Fell to the ceiling (highest) — start at its intro.
+                    resumeRoundIndex = ceilingIdx
+                    resumeCycle = 0
+                  } else if (inferCursorLegoId || inferCeilingLegoId) {
+                    console.warn(`[InstantPlayback] cache fast-path: neither cursor (${inferCursorLegoId}) nor ceiling (${inferCeilingLegoId}) in cached rounds; starting at R1`)
+                  }
                 }
               }
               if (resumeRoundIndex > 0 || resumeCycle > 0) {
