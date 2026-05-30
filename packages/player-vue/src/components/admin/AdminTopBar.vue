@@ -104,7 +104,7 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
 
 <style scoped>
 .admin-topbar {
-  height: 54px;
+  height: calc(54px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -117,7 +117,7 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
   position: sticky;
   top: 0;
   z-index: 60;
-  padding-top: env(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .left {
@@ -262,7 +262,7 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
     height: auto;
     flex-direction: column;
     align-items: stretch;
-    padding: 10px 16px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
     gap: 8px;
   }
   .tabs {
@@ -277,6 +277,6 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
 @media (max-width: 640px) {
   .back-link span { display: none; }
   .demo-pill { display: none; }
-  .admin-topbar { padding: 8px 12px; }
+  .admin-topbar { padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; }
 }
 </style>

@@ -60,11 +60,21 @@
   .topbar {
     position: sticky; top: 0; z-index: 40;
     display: flex; align-items: center; gap: 18px;
-    padding: 14px clamp(18px, 5vw, 64px);
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
     background: rgba(244, 242, 236, 0.82);
     backdrop-filter: blur(14px) saturate(1.4);
     border-bottom: 1px solid var(--line-soft);
   }
+  .backlink {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-decoration: none;
+    padding: 6px 12px 6px 9px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: color .15s, border-color .15s;
+    flex: none;
+  }
+  .backlink:hover { color: var(--red); border-color: rgba(219,30,23,0.32); }
   .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
   .brand b { color: var(--red); font-weight: 600; }
   .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
@@ -214,6 +224,10 @@
 <body>
 
 <div class="topbar">
+  <a href="/admin/methodology" class="backlink" aria-label="Back to the app">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </a>
   <span class="brand"><span class="mark">S</span> SaySomethin<b>in</b> · Schools</span>
   <nav class="topnav" id="topnav">
     <a href="#premise">Premise</a>
