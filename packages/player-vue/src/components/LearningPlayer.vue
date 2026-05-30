@@ -4888,6 +4888,16 @@ const isIntroOrDebutPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'debut'
 })
 
+// REVIEW cue: this cycle is a spaced-rep revisit of an EARLIER LEGO (the
+// ownership-vs-position distinction made visible — "you've met this before,
+// stretch for it"). Drives a subtle warm tint on the dialog box. Suppressed
+// in INF PLAY, which is its own "random review" state (the red pill already
+// signals it); a dedicated RANDOM cue can come later if we want it.
+const isReviewCycle = computed(() =>
+  currentMode.value !== 'infplay'
+  && simplePlayer.currentCycle.value?.type === 'spaced_rep',
+)
+
 // ============================================
 // LEARNING HINTS - Computed properties (defined after isIntroPhase)
 // ============================================
@@ -10635,7 +10645,7 @@ defineExpose({
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
-      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">
+      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-review': isReviewCycle }">
         <!-- Inline learning hint label -->
         <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
@@ -13107,6 +13117,17 @@ defineExpose({
   /* Fill parent width - parent handles max-width */
   width: 100%;
   overflow: hidden;
+  /* Ease the REVIEW tint in/out between cycles rather than snapping. */
+  transition: background 0.4s ease, border-color 0.4s ease;
+}
+
+/* REVIEW cue — a spaced-rep revisit of an earlier LEGO. A faint warm wash on
+   the dialog glass ("you've met this before"). Deliberately NOT a belt hue or
+   the INF-PLAY red — a neutral-warm gold so it never reads as a belt or mode.
+   Very subtle by design; tune the alphas if it wants more/less presence. */
+.hero-glass.is-review {
+  background: rgba(212, 168, 83, 0.09);
+  border-color: rgba(212, 168, 83, 0.4);
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -15067,6 +15088,13 @@ button.phase-segment:active:not(.is-active) {
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
               0 8px 24px rgba(44, 38, 34, 0.08),
               0 20px 48px rgba(44, 38, 34, 0.05);
+}
+
+/* REVIEW cue on mist (light glass): a warm cream wash + gold border, kept
+   gentle so it reads as "familiar" not "alert". Mirrors the default theme. */
+[data-theme="mist"] .player .hero-glass.is-review {
+  background: rgba(249, 241, 224, 0.97);
+  border-color: rgba(196, 152, 70, 0.55);
 }
 
 /* --- Hero text & intro — all text must be dark on white --- */
