@@ -4280,11 +4280,29 @@ const lifetimeLearningMinutes = ref(0)
 
 // ============================================
 // LEARNING HINTS - Contextual phase instructions
-// Show for first ~10 prompts per session, dismissible with X
+// The worded "you're meant to be speaking now" hint is pure onboarding — the
+// phase pill carries phase from then on. So: show it for the FIRST 3 CYCLES of
+// each course, persisted PER COURSE (lifetime, not per-session), then hard stop.
+// A brand-new course re-onboards gently. Tom 2026-05-30.
 // ============================================
-const LEARNING_HINT_PROMPT_LIMIT = 10 // Show hints for first N prompts per session
+const LEARNING_HINT_PROMPT_LIMIT = 3 // first N cycles per course, then retire
 const learningHintDismissed = ref(false) // User clicked X to dismiss
-const learningHintPromptsShown = ref(0) // Counter for this session
+const learningHintPromptsShown = ref(0) // cycles shown so far (loaded per course)
+
+// Persist the count per course so the cap is lifetime-per-course. Loaded when
+// the course resolves; written on every change.
+function learningHintCountKey(): string {
+  return `ssi-learning-hint-count-${courseCode.value || 'unknown'}`
+}
+watch(courseCode, () => {
+  try {
+    const stored = Number(localStorage.getItem(learningHintCountKey()))
+    if (Number.isFinite(stored) && stored > 0) learningHintPromptsShown.value = stored
+  } catch { /* localStorage unavailable — fall back to session-only */ }
+}, { immediate: true })
+watch(learningHintPromptsShown, (n) => {
+  try { localStorage.setItem(learningHintCountKey(), String(n)) } catch { /* ignore */ }
+})
 
 // NOTE: showLearningHint and phaseInstruction computed properties are defined
 // after isIntroPhase (around line ~1510) to avoid dependency issues
@@ -4899,18 +4917,15 @@ const isReviewCycle = computed(() =>
 )
 
 // The LEGEND for the tint: a quiet word above the phrase naming what this is.
-// REVIEWING = a spaced-rep revisit of an earlier LEGO (gold). PRACTISING = the
-// current LEGO — meeting it, building it, and the closing "consolidate" use
-// phrases (white/default). The word teaches what the colour means; once learnt
-// the colour carries it on its own. Empty (no label) for listening pods and
-// INF PLAY (its own random state — a RANDOM label could come later).
-const phraseModeLabel = computed<'' | 'REVIEWING' | 'PRACTISING'>(() => {
+// REVIEWING = a spaced-rep revisit of an earlier LEGO (gold). We only NAME the
+// review — practising the current LEGO is the default (no label needed; naming
+// it was just noise). The word teaches what the gold means; once learnt the
+// colour carries it on its own. Empty for listening pods and INF PLAY (its own
+// random state — a RANDOM label could come later).
+const phraseModeLabel = computed<'' | 'REVIEWING'>(() => {
   if (currentMode.value === 'infplay') return ''
   if (inListeningContext.value) return ''
-  const t = simplePlayer.currentCycle.value?.type
-  if (t === 'spaced_rep') return 'REVIEWING'
-  if (t === 'intro' || t === 'debut' || t === 'build' || t === 'use'
-    || t === 'component_intro' || t === 'component_practice') return 'PRACTISING'
+  if (simplePlayer.currentCycle.value?.type === 'spaced_rep') return 'REVIEWING'
   return ''
 })
 
