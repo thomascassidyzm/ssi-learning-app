@@ -39,10 +39,15 @@ const router = useRouter()
 const isDevEnv = (() => {
   if (typeof window === 'undefined') return false
   const host = window.location.hostname
-  const isProduction = host === 'saysomethingin.app'
+  // DEV host ONLY — exclude production AND staging. The reset button is a
+  // rapid-iteration tool; staging (the external team's soak build) shouldn't
+  // carry it. Tom 2026-05-30.
+  const isProdOrStaging = host === 'saysomethingin.app'
     || host === 'www.saysomethingin.app'
     || host === 'app.saysomethingin.com'
-  return !isProduction
+    || host.startsWith('staging.')
+    || host.includes('-staging')
+  return !isProdOrStaging
 })()
 const resetApp = async () => {
   // DEV refresh: unregister the stale service worker (it serves old chunks

@@ -1017,6 +1017,12 @@ const envLabel = computed<string | null>(() => {
   return 'DEV'
 })
 
+// The orange ↻ reset button is a DEV-only rapid-iteration tool — too loud for
+// the staging soak build the external team sees. The env BADGE still shows on
+// staging (it labels the deploy); only the button is dev-host-only. Tom
+// 2026-05-30.
+const showDevReset = computed(() => envLabel.value === 'DEV')
+
 // Dev/staging-only one-tap reset, in the player header (there's no separate
 // home screen in the live flow — rapid testing happens here). Routes to
 // App.vue's ?reset=1 handler: clears localStorage/IndexedDB/caches,
@@ -11032,7 +11038,7 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="envLabel" class="env-reset" title="Clear cache + reload the latest build (dev/staging only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
+        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="showDevReset" class="env-reset" title="Clear cache + reload the latest build (dev only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: ROUND/LEGO back ‹‹ + central belt-progress pill + ROUND/LEGO forward ››
              Granularity = location. These header chevrons step the
