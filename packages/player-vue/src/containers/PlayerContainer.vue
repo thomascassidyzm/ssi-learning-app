@@ -301,17 +301,22 @@ const completedSeeds = computed(() => {
   return seed ?? 0
 })
 
-// Current belt name and color from real progress
+// Belt = the LEGO the current ROUND introduced = one position, one belt. Use
+// playingBelt (the live cursor position), NOT currentBelt — currentBelt is
+// max(position, highest), a ratchet to the highest belt ever reached, which
+// the model says must NEVER be displayed (highest is a separate "you've been
+// as far as" readout). When you jump DOWN a belt, this must follow you down.
+// Fixed the resting pill + background tint showing Purple while playing Orange.
 const currentBeltName = computed(() => {
   const bp = beltProgress.value
   if (!bp) return 'white'
-  return bp.currentBelt.value.name
+  return bp.playingBelt.value.name
 })
 
 const currentBeltColor = computed(() => {
   const bp = beltProgress.value
   if (!bp) return '#ffffff'
-  return bp.currentBelt.value.color
+  return bp.playingBelt.value.color
 })
 
 // Total seeds in course (dynamic per course)
