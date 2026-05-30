@@ -438,33 +438,23 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
   // BELT INFO (your belt = highest you've engaged with, never regresses)
   //
-  // The pill belt is `max(playingBelt, highestBelt)`:
-  //   • Skip forward / natural advance → playing bumps highest, both rise
-  //   • Skip back / revisit earlier seeds → playing drops, highest stays;
-  //     pill keeps the higher value, so the learner doesn't see a demotion
-  //     when they're consolidating foundations.
-  //
-  // Where you ARE right now is on the journey bar (current cursor); the
-  // pill represents engagement *breadth*. This matches the "you've been
-  // higher than this" resume cue that already exists.
-  //
-  // Belt-skip taps to a higher belt also bump highest immediately
-  // (checkBeltPromotion fires from setLastLegoId on the new position).
-  // That's intentional — the pill marks "I have engaged with this band",
-  // not "I have mastered it"; mastery is what spaced rep tracks.
+  // The displayed belt IS the playing position — the belt of the LEGO the
+  // current round introduced. ONE position, ONE belt. Belts are a POSITION
+  // measure, NOT an award: jump-to-belt, LEGO-skip and cycle-skip give all the
+  // nav flexibility, so the old "engagement breadth" ratchet (max with highest)
+  // was unnecessary and actively confusing — when the cursor moves back, the
+  // belt follows it back. The high-water mark is still recorded (highestBelt
+  // Index) but ONLY for the separate "you've been as far as" readout, never the
+  // displayed belt. De-ratcheted with Tom 2026-05-30.
   // ============================================================================
 
   const currentBelt = computed((): Belt => {
-    const idx = Math.min(
-      Math.max(playingBeltIndex.value, highestBeltIndex.value, 0),
-      BELTS.length - 1,
-    )
+    const idx = Math.min(Math.max(playingBeltIndex.value, 0), BELTS.length - 1)
     return { ...BELTS[idx], index: idx }
   })
 
-  // next/previous are relative to the *pill* belt (not the playing
-  // cursor) so prompts like "next belt: green" stay coherent with what
-  // the user sees on the badge.
+  // next/previous are relative to currentBelt (= the playing position) so
+  // prompts like "next belt: green" stay coherent with the badge.
   const nextBelt = computed((): Belt | null => {
     const nextIndex = currentBelt.value.index + 1
     if (nextIndex >= availableBelts.value.length) return null

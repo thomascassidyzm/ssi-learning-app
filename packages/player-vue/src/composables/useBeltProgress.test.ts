@@ -74,17 +74,20 @@ describe('useBeltProgress - local only', () => {
     expect(bp.currentBelt.value.name).toBe('white')
   })
 
-  it('pill belt does not regress when revisiting earlier seeds', () => {
-    // Earned green (seed 60+) then jumped back to revisit seed 10
-    // (still in yellow band). The pill should stay green; the playing
-    // cursor moves back, but engagement breadth doesn't shrink.
+  it('displayed belt follows the playing position — belts are position, not an award', () => {
+    // Belts are a POSITION measure now (jump-to-belt / LEGO-skip / cycle-skip
+    // give the nav flexibility), NOT an award that ratchets. When the cursor
+    // moves back to an earlier seed the displayed belt follows it DOWN. The
+    // high-water mark is still recorded — but only for the separate "you've
+    // been as far as" readout, never the displayed belt.
     const bp = useBeltProgress('test_course')
     bp.initializeSync()
     bp.setLastLegoId('S0060L00')           // bumps highest to green via checkBeltPromotion
+    bp.setPlayingPosition(60)              // cursor in green band
     expect(bp.currentBelt.value.name).toBe('green')
     bp.setPlayingPosition(10)              // revisit yellow-band seed
-    expect(bp.currentBelt.value.name).toBe('green')   // pill stays
-    expect(bp.highestBeltIndex.value).toBeGreaterThanOrEqual(3) // green index
+    expect(bp.currentBelt.value.name).toBe('yellow')  // follows position DOWN
+    expect(bp.highestBeltIndex.value).toBeGreaterThanOrEqual(3) // highest still green
   })
 
   it('updates lastLegoId and highestLegoId on setLastLegoId', () => {
