@@ -13,6 +13,7 @@
 
 import { ref, computed, inject, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { resolveSupabase } from './schools/client'
 import type {
   Subscription,
   SubscriptionStatus,
@@ -140,7 +141,7 @@ export function useSubscription(): UseSubscriptionReturn {
   // ============================================================================
 
   async function getAuthToken(): Promise<string | null> {
-    const client = supabaseRef?.value
+    const client = resolveSupabase(supabaseRef)
     if (!client) return null
 
     try {
@@ -290,7 +291,7 @@ export function useSubscription(): UseSubscriptionReturn {
   }
 
   async function initialize(): Promise<void> {
-    if (supabaseRef?.value) await fetchSubscription()
+    if (resolveSupabase(supabaseRef)) await fetchSubscription()
   }
 
   // ============================================================================

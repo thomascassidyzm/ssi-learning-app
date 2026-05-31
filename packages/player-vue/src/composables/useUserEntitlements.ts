@@ -9,6 +9,7 @@
 
 import { ref, computed, inject, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { resolveSupabase } from './schools/client'
 import type { UserEntitlement } from '@ssi/core'
 
 // ============================================================================
@@ -90,7 +91,7 @@ export function useUserEntitlements(): UseUserEntitlementsReturn {
   // ============================================================================
 
   async function getAuthToken(): Promise<string | null> {
-    const client = supabaseRef?.value
+    const client = resolveSupabase(supabaseRef)
     if (!client) return null
     try {
       const { data: { session } } = await client.auth.getSession()
@@ -154,7 +155,7 @@ export function useUserEntitlements(): UseUserEntitlementsReturn {
   }
 
   async function initialize(): Promise<void> {
-    if (supabaseRef?.value) await fetchEntitlements()
+    if (resolveSupabase(supabaseRef)) await fetchEntitlements()
   }
 
   return {
