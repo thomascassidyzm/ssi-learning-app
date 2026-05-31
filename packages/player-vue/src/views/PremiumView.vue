@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
@@ -237,8 +237,23 @@ async function fetchPremiumCourses() {
   }
 }
 
+// After Paddle's success redirect this is a fresh page load, and Supabase
+// restores the session asynchronously. Wait for auth to settle before deciding
+// the user is signed out — otherwise we flash the signed-out CTA (the
+// "sign-up page" the user sees) and drop the just-completed purchase.
+function waitForAuthReady(timeoutMs = 8000): Promise<void> {
+  return new Promise((resolve) => {
+    if (!isAuthLoading.value) return resolve()
+    const stop = watch(isAuthLoading, (loading) => {
+      if (!loading) { stop(); resolve() }
+    })
+    setTimeout(() => { stop(); resolve() }, timeoutMs)
+  })
+}
+
 onMounted(async () => {
   fetchPremiumCourses()
+  await waitForAuthReady()
   if (isAuthenticated.value) {
     await fetchSubscription()
     if (route.query.just_subscribed && subscription.value?.status !== 'active') {
