@@ -266,8 +266,11 @@ export function useSubscription(): UseSubscriptionReturn {
 
       const data: PortalResponse = await response.json()
 
-      // Open portal in new tab
-      window.open(data.portalUrl, '_blank')
+      // Open portal in a new tab. The fetch above outlives the click gesture,
+      // so iOS Safari may block the popup (returns null) — fall back to a
+      // same-tab navigation so the button never silently does nothing.
+      const win = window.open(data.portalUrl, '_blank')
+      if (!win) window.location.href = data.portalUrl
     } catch (err) {
       console.error('[useSubscription] Portal error:', err)
       error.value = err instanceof Error ? err.message : 'Failed to open portal'
