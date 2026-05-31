@@ -197,6 +197,10 @@ async function startCheckout() {
       customData: {
         kind: 'premium',
         supabase_user_id: userId,
+        // The course they were unlocking when they converted — stored on the
+        // subscription for marketing attribution. Paddle echoes customData on
+        // every subscription.* webhook, so it stays consistent across renewals.
+        ...(contextCourseCode.value ? { course: contextCourseCode.value } : {}),
       },
       settings: {
         // Carry the course they were unlocking through the Paddle redirect so

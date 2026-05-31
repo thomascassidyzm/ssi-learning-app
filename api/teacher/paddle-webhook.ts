@@ -198,6 +198,8 @@ async function handlePremiumSubscription(
   const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
   const planId: string | null = firstItem?.price?.id || null
 
+  const signupCourse = (customData.course as string | undefined)?.trim() || null
+
   const { data: subRow, error: upsertErr } = await supabase
     .from('subscriptions')
     .upsert(
@@ -221,6 +223,21 @@ async function handlePremiumSubscription(
   if (upsertErr || !subRow) {
     console.error('[paddle-webhook] Failed to upsert premium subscription:', upsertErr)
     return
+  }
+
+  // Best-effort marketing attribution: record the conversion course the first
+  // time we see it. Kept SEPARATE from the upsert above so a missing column
+  // (migration not yet applied) can never break the payment write. The
+  // `is null` guard preserves the original conversion course across renewals.
+  if (signupCourse) {
+    const { error: attrErr } = await supabase
+      .from('subscriptions')
+      .update({ signup_course_code: signupCourse })
+      .eq('id', subRow.id)
+      .is('signup_course_code', null)
+    if (attrErr) {
+      console.warn('[paddle-webhook] signup_course_code not stored (migration pending?):', attrErr.message)
+    }
   }
 
   // Teacher-link mutation only runs when this checkout came via the teacher
