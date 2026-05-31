@@ -56,6 +56,8 @@ export interface UseSubscriptionReturn {
   checkout: (planId: string) => Promise<void>
   /** Open customer portal */
   openPortal: () => Promise<void>
+  /** Cancel the subscription at period end (returns the end date if known) */
+  cancelSubscription: () => Promise<{ ok: boolean; effectiveAt?: string | null; error?: string }>
   /** Refresh subscription from API */
   refresh: () => Promise<void>
   /** Clear local cache */
@@ -280,6 +282,39 @@ export function useSubscription(): UseSubscriptionReturn {
     }
   }
 
+  async function cancelSubscription(): Promise<{ ok: boolean; effectiveAt?: string | null; error?: string }> {
+    const token = await getAuthToken()
+    if (!token) return { ok: false, error: 'Please sign in' }
+
+    isLoading.value = true
+    error.value = null
+    try {
+      const response = await fetch('/api/subscription/cancel', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        const msg = data?.error || 'Failed to cancel subscription'
+        error.value = msg
+        return { ok: false, error: msg }
+      }
+      // Optimistically reflect the scheduled cancellation, then refresh from the
+      // API so the webhook-confirmed state wins once it lands.
+      if (subscription.value) {
+        subscription.value = { ...subscription.value, cancelAtPeriodEnd: true }
+      }
+      await fetchSubscription()
+      return { ok: true, effectiveAt: data?.effectiveAt ?? null }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to cancel subscription'
+      error.value = msg
+      return { ok: false, error: msg }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   // ============================================================================
   // INITIALIZATION
   // ============================================================================
@@ -307,6 +342,7 @@ export function useSubscription(): UseSubscriptionReturn {
     initialize,
     checkout,
     openPortal,
+    cancelSubscription,
     refresh,
     clearCache,
   }

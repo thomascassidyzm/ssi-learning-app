@@ -212,7 +212,15 @@ const handleSaveDisplayName = async () => {
 }
 
 // Subscription management
-const { openPortal, isLoading: isPortalLoading, error: portalError } = useSharedSubscription()
+const {
+  openPortal,
+  isLoading: isPortalLoading,
+  error: portalError,
+  subscription,
+  isSubscribed,
+  cancelSubscription,
+  refresh: refreshSubscription,
+} = useSharedSubscription()
 const portalFeedback = ref('')
 
 const handleManageSubscription = async () => {
@@ -222,6 +230,41 @@ const handleManageSubscription = async () => {
   } catch {
     portalFeedback.value = 'Unable to open billing portal. You may not have an active subscription.'
   }
+}
+
+// In-app cancellation — keeps users in the app for the common action. The
+// hosted Paddle portal is only needed for the rare card-update / invoice case.
+const showCancelConfirm = ref(false)
+const isCancelling = ref(false)
+const cancelError = ref('')
+
+const subscriptionEndsAt = computed(() => {
+  const end = subscription.value?.currentPeriodEnd
+  if (!end) return null
+  return new Date(end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+})
+const isCancelScheduled = computed(() => !!subscription.value?.cancelAtPeriodEnd)
+
+function openCancelConfirm() {
+  cancelError.value = ''
+  showCancelConfirm.value = true
+}
+function dismissCancelConfirm() {
+  showCancelConfirm.value = false
+}
+async function confirmCancel() {
+  isCancelling.value = true
+  cancelError.value = ''
+  const res = await cancelSubscription()
+  isCancelling.value = false
+  if (res.ok) {
+    showCancelConfirm.value = false
+  } else {
+    cancelError.value = res.error || 'Could not cancel. Please try Payment & invoices instead.'
+  }
+}
+function goPremium() {
+  router.push('/premium')
 }
 
 // Account management state
@@ -614,6 +657,8 @@ onMounted(async () => {
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
 
+  // Pull fresh subscription state so the panel reflects any cancel/renew change.
+  refreshSubscription()
 })
 
 const toggleListeningMode = () => {
@@ -896,6 +941,27 @@ const confirmReset = async () => {
             </button>
             <button class="reset-btn reset-btn--confirm" @click="confirmDelete" :disabled="isDeleting || !deleteConfirmMatch">
               {{ isDeleting ? 'Deleting...' : 'Delete Account' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Cancel Subscription Confirmation Dialog -->
+    <Transition name="fade">
+      <div v-if="showCancelConfirm" class="reset-overlay">
+        <div class="reset-dialog">
+          <h3 class="reset-title">Cancel subscription?</h3>
+          <p class="reset-desc">
+            You'll stay on Premium until {{ subscriptionEndsAt || 'the end of your current period' }}, then it ends and you won't be charged again. You can re-subscribe any time.
+          </p>
+          <p v-if="cancelError" class="reset-error">{{ cancelError }}</p>
+          <div class="reset-actions">
+            <button class="reset-btn reset-btn--cancel" @click="dismissCancelConfirm" :disabled="isCancelling">
+              Keep Premium
+            </button>
+            <button class="reset-btn reset-btn--confirm" @click="confirmCancel" :disabled="isCancelling">
+              {{ isCancelling ? 'Cancelling...' : 'Cancel subscription' }}
             </button>
           </div>
         </div>
@@ -1315,10 +1381,48 @@ const confirmReset = async () => {
       <section class="section" v-if="isSignedIn">
         <h3 class="section-title">Subscription</h3>
         <div class="card">
-          <div class="setting-row clickable" @click="handleManageSubscription">
+          <template v-if="isSubscribed">
+            <!-- Status -->
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ subscription?.planName || 'SSi Premium' }}</span>
+                <span class="setting-desc">
+                  <template v-if="isCancelScheduled">Ends {{ subscriptionEndsAt }} — you keep access until then</template>
+                  <template v-else-if="subscriptionEndsAt">Renews {{ subscriptionEndsAt }}</template>
+                  <template v-else>Active</template>
+                </span>
+              </div>
+            </div>
+            <!-- Cancel (in-app) — hidden once a cancellation is scheduled -->
+            <template v-if="!isCancelScheduled">
+              <div class="divider"></div>
+              <div class="setting-row clickable danger" @click="openCancelConfirm">
+                <div class="setting-info">
+                  <span class="setting-label">Cancel subscription</span>
+                  <span class="setting-desc">Stay Premium until {{ subscriptionEndsAt || 'the period ends' }}, then stop</span>
+                </div>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </div>
+            </template>
+            <div class="divider"></div>
+            <!-- Hosted portal: card updates / invoices (rare) -->
+            <div class="setting-row clickable" @click="handleManageSubscription">
+              <div class="setting-info">
+                <span class="setting-label">{{ isPortalLoading ? 'Opening...' : 'Payment & invoices' }}</span>
+                <span class="setting-desc">{{ portalFeedback || 'Update card or view invoices (opens Paddle)' }}</span>
+              </div>
+              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </template>
+          <!-- Not subscribed -->
+          <div v-else class="setting-row clickable" @click="goPremium">
             <div class="setting-info">
-              <span class="setting-label">{{ isPortalLoading ? 'Opening...' : 'Manage Subscription' }}</span>
-              <span class="setting-desc">{{ portalFeedback || 'View or cancel your subscription' }}</span>
+              <span class="setting-label">Go Premium</span>
+              <span class="setting-desc">Unlock all courses — free for 7 days</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
