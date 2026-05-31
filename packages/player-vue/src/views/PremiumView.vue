@@ -199,7 +199,11 @@ async function startCheckout() {
         supabase_user_id: userId,
       },
       settings: {
-        successUrl: `${window.location.origin}/premium?just_subscribed=1`,
+        // Carry the course they were unlocking through the Paddle redirect so
+        // the success handler can drop them straight into it (see onMounted).
+        successUrl: contextCourseCode.value
+          ? `${window.location.origin}/premium?just_subscribed=1&course=${encodeURIComponent(contextCourseCode.value)}`
+          : `${window.location.origin}/premium?just_subscribed=1`,
       },
     })
   } catch (err: any) {
@@ -239,6 +243,16 @@ onMounted(async () => {
     await fetchSubscription()
     if (route.query.just_subscribed && subscription.value?.status !== 'active') {
       await pollUntilActive()
+    }
+    // Just subscribed and now entitled — don't strand them on the paywall,
+    // which still frames their course as "Premium". Send them straight into
+    // the course they were unlocking (ideal), or the course chooser if we
+    // lost the context. Full navigation so App boot re-resolves with the
+    // now-active subscription and the ?course= entitlement gate passes.
+    if (route.query.just_subscribed && subscription.value?.status === 'active') {
+      const code = contextCourseCode.value
+      window.location.assign(code ? `/?course=${encodeURIComponent(code)}` : '/?openCourses=1')
+      return
     }
   } else {
     isLoadingSub.value = false
