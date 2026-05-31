@@ -62,6 +62,10 @@ const isOpeningCheckout = ref(false)
 const isPolling = ref(false)
 const checkoutError = ref('')
 const premiumCourses = ref<Course[]>([])
+// True from the moment we land back from Paddle until we hop into the course —
+// lets us show one calm "taking you to your course" screen instead of flashing
+// the paywall + loaders through the redirect.
+const completingSignup = ref(!!route.query.just_subscribed)
 
 const PREMIUM_PRICE = 15
 
@@ -70,6 +74,11 @@ const contextCourseCode = computed(() => (route.query.course as string | undefin
 const contextCourse = computed<Course | null>(() => {
   if (!contextCourseCode.value) return null
   return premiumCourses.value.find(c => c.course_code === contextCourseCode.value) || null
+})
+
+const completingCourseLabel = computed(() => {
+  const c = contextCourse.value
+  return c ? getLanguageName(c.target_lang) : null
 })
 
 const contextHeadline = computed(() => {
@@ -257,25 +266,31 @@ function waitForAuthReady(timeoutMs = 8000): Promise<void> {
 
 onMounted(async () => {
   fetchPremiumCourses()
+  const startedAt = Date.now()
   await waitForAuthReady()
   if (isAuthenticated.value) {
     await fetchSubscription()
     if (route.query.just_subscribed && subscription.value?.status !== 'active') {
       await pollUntilActive()
     }
-    // Just subscribed and now entitled — don't strand them on the paywall,
-    // which still frames their course as "Premium". Send them straight into
-    // the course they were unlocking (ideal), or the course chooser if we
-    // lost the context. Full navigation so App boot re-resolves with the
-    // now-active subscription and the ?course= entitlement gate passes.
+    // Just subscribed and now entitled — don't strand them on the paywall.
+    // Hold the success screen for a deliberate beat so the redirect reads as
+    // "taking you to your course" rather than a flash, then make the single
+    // hop in. Full navigation so App boot re-resolves with the now-active
+    // subscription and the ?course= entitlement gate passes.
     if (route.query.just_subscribed && subscription.value?.status === 'active') {
+      const minHold = 1500
+      const elapsed = Date.now() - startedAt
+      if (elapsed < minHold) await new Promise((r) => setTimeout(r, minHold - elapsed))
       const code = contextCourseCode.value
       window.location.assign(code ? `/?course=${encodeURIComponent(code)}` : '/?openCourses=1')
       return
     }
-  } else {
-    isLoadingSub.value = false
   }
+  // Couldn't complete (not signed in, or the subscription never went active) —
+  // drop the success screen and fall back to the normal page.
+  completingSignup.value = false
+  isLoadingSub.value = false
 })
 </script>
 
@@ -283,7 +298,17 @@ onMounted(async () => {
   <div class="premium-page schools-surface">
     <AtmosphereBackdrop />
 
-    <main class="content">
+    <!-- Post-checkout: one calm screen while we drop them into the course -->
+    <main v-if="completingSignup" class="content signup-complete">
+      <div class="signup-complete__card">
+        <div class="signup-complete__check">✓</div>
+        <h1 class="frost-display">You're in!</h1>
+        <p class="lede">Taking you to {{ completingCourseLabel || 'your course' }}…</p>
+        <div class="signup-complete__spinner" aria-hidden="true"></div>
+      </div>
+    </main>
+
+    <main v-else class="content">
       <header class="page-header">
         <span class="frost-eyebrow">SSi Premium</span>
         <template v-if="contextHeadline">
@@ -443,6 +468,44 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+}
+
+/* Post-checkout "taking you to your course" screen */
+.signup-complete {
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  text-align: center;
+}
+.signup-complete__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+.signup-complete__check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: #2e7d32;
+  background: rgba(76, 175, 80, 0.16);
+}
+.signup-complete__spinner {
+  margin-top: var(--space-2);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 3px solid currentColor;
+  border-top-color: transparent;
+  opacity: 0.45;
+  animation: signup-spin 0.8s linear infinite;
+}
+@keyframes signup-spin {
+  to { transform: rotate(360deg); }
 }
 
 .page-header {
