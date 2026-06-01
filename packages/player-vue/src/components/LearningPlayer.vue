@@ -8903,11 +8903,14 @@ onMounted(async () => {
     // buffer-model step 1b: serve cached WAV blobs ONLINE too — so warm clips
     // (staged by the rolling filler) play from cache, which survives connection
     // loss / lock mid-session, with the resolver's network fallback on a miss.
-    // URL-gated (?cacheplay) for the first device test: default build is exactly
-    // main's streaming behaviour, and the two paths compare on one build with no
-    // redeploy. offlinePlaybackActive() keeps the existing offline/airplane gate.
-    const cachePlayOnline = typeof window !== 'undefined'
-      && new URLSearchParams(window.location.search).has('cacheplay')
+    // DEFAULT ON for this feature branch: an installed PWA has no address bar, so
+    // a URL opt-in couldn't reach the real iPhone lock test. Add ?stream=1 to
+    // force the old streaming path for an A/B comparison. This branch is isolated
+    // (feat/buffer-model), so default-on only affects this preview, never main.
+    // offlinePlaybackActive() still covers the existing offline/airplane gate.
+    const cachePlayOnline = typeof window === 'undefined'
+      ? false
+      : !new URLSearchParams(window.location.search).has('stream')
     audioCacheSource = createAudioCacheSource(
       audioCache, courseCode.value,
       () => offlinePlaybackActive() || cachePlayOnline,
