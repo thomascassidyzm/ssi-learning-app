@@ -2440,6 +2440,12 @@ const positionInitialized = ref(false)
 watch(() => simplePlayer.phase.value, (phase) => {
   if (phase === 'prompt' && positionInitialized.value && useRoundBasedPlayback.value) {
     savePositionToLocalStorage()
+    // Persist the cursor to the DB every cycle, not just per round. The DB is
+    // the durable cross-session source; when it lagged at round granularity, a
+    // learner whose localStorage was gone (SW update / new device) resumed at a
+    // stale round and had to skip forward by hand. Cycle-precise here closes
+    // that gap. Single-row PK update, fire-and-forget. Tom 2026-06-01.
+    persistLivePositionToDb()
   }
 })
 
@@ -9786,7 +9792,9 @@ onMounted(async () => {
                 // timestamp (not auth restoration time) so a session that
                 // stays open for hours doesn't trigger a regression.
                 if (savedLastPracticedAt.value) {
-                  const daysSince = (Date.now() - savedLastPracticedAt.value.getTime()) / (1000 * 60 * 60 * 24)
+                  const msSince = Date.now() - savedLastPracticedAt.value.getTime()
+                  const daysSince = msSince / (1000 * 60 * 60 * 24)
+                  const minutesSince = msSince / (1000 * 60)
                   const ttl = resumeConfig.value
                   if (daysSince >= ttl.beltRegressionDays && resumeLegoId) {
                     // Belt regression: walk the cursor back to the start of
@@ -9822,8 +9830,8 @@ onMounted(async () => {
                         }
                       }
                     }
-                  } else if (daysSince >= ttl.cycleResetDays) {
-                    console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → cycle reset (round restart)`)
+                  } else if (minutesSince >= ttl.cycleResetMinutes) {
+                    console.log(`[ResumeTTL] ${Math.round(minutesSince)}m gap → cycle reset (round restart)`)
                     resumeCycle = 0
                   }
                 }

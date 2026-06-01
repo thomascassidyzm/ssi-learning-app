@@ -234,12 +234,17 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     lastSyncError.value = null
 
     try {
+      // NOTE: deliberately does NOT write last_completed_lego_id. That column is
+      // the resume cursor ("where you are"), owned solely by
+      // ProgressStore.setLivePosition. This belt sync used to write highestLegoId
+      // ("furthest reached") into the same column — two writers, two meanings —
+      // which is how the resume cursor drifted (Aran, 2026-06-01). Highest is
+      // maintained from the cursor by the ratchet trigger, so it's not lost.
       const { error } = await supabase
         .from('course_enrollments')
         .upsert({
           learner_id: learnerId,
           course_id: courseCode,
-          last_completed_lego_id: highestLegoId.value,
           last_practiced_at: new Date().toISOString(),
         }, {
           onConflict: 'learner_id,course_id',
@@ -249,7 +254,6 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         const { error: updateError } = await supabase
           .from('course_enrollments')
           .update({
-            last_completed_lego_id: highestLegoId.value,
             last_practiced_at: new Date().toISOString(),
           })
           .eq('learner_id', learnerId)
