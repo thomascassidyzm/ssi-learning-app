@@ -11849,6 +11849,10 @@ defineExpose({
   --belt-timer-width: 180px;
   --belt-bar-width: 60px;
   --belt-bar-height: 5px;
+  /* Shared pill height — belt pill + phase pill are LOCKED to one value so
+   * they're identical by construction (label 12px×1.5 + 12px pad + 3px border
+   * = 33px at mobile; 36px at ≥768px). Both pills consume it. */
+  --pill-height: 33px;
 
   /* ============ RING / TEXT ZONE ============ */
   --ring-size: 180px;
@@ -12512,7 +12516,8 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: 6px 12px 6px 16px;
+  height: var(--pill-height);
+  padding: 0 12px 0 16px;
   background: color-mix(in srgb, var(--belt-color) 70%, rgba(0,0,0,0.3));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
@@ -13619,7 +13624,8 @@ defineExpose({
   align-items: stretch;
   flex: 1;
   min-width: 0;
-  padding: 6px 0;
+  height: var(--pill-height);
+  padding: 0;
   background: #ffffff;
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   border-radius: 20px;
@@ -14931,6 +14937,7 @@ button.phase-segment:active:not(.is-active) {
     --belt-timer-width: 240px;
     --belt-bar-width: 90px;
     --belt-bar-height: 6px;
+    --pill-height: 36px;
     --control-bar-gap: 3.5rem;
     --control-group-gap: 0.625rem;
     --ring-size: 220px;
