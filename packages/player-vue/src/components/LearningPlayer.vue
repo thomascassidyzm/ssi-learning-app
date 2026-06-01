@@ -4943,39 +4943,11 @@ const isIntroOrDebutPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'debut'
 })
 
-// REVIEW cue: this cycle is a spaced-rep revisit of an EARLIER LEGO (the
-// ownership-vs-position distinction made visible — "you've met this before,
-// stretch for it"). Drives a subtle warm tint on the dialog box. Suppressed
-// in INF PLAY, which is its own "random review" state (the red pill already
-// signals it); a dedicated RANDOM cue can come later if we want it.
-const isReviewCycle = computed(() =>
-  currentMode.value !== 'infplay'
-  && simplePlayer.currentCycle.value?.type === 'spaced_rep',
-)
-
-// The LEGEND for the tint: a quiet word above the phrase naming what this is.
-// REVIEWING = a spaced-rep revisit of an earlier LEGO (gold). We only NAME the
-// review — practising the current LEGO is the default (no label needed; naming
-// it was just noise). The word teaches what the gold means; once learnt the
-// colour carries it on its own. Empty for listening pods and INF PLAY (its own
-// random state — a RANDOM label could come later).
-const phraseModeLabel = computed<'' | 'REVIEWING'>(() => {
-  if (currentMode.value === 'infplay') return ''
-  if (inListeningContext.value) return ''
-  if (simplePlayer.currentCycle.value?.type === 'spaced_rep') return 'REVIEWING'
-  return ''
-})
-
-// Only surface the label over a real phrase — not the intro typewriter or any
-// of the transient loading/prep/buffering text states.
-const showPhraseModeLabel = computed(() =>
-  !!phraseModeLabel.value
-  && !isIntroPhase.value
-  && !isAwakening.value
-  && !isPreparingToPlay.value
-  && !skipPrepVisible.value
-  && !bufferingPromptVisible.value,
-)
+// REVIEW/PRACTISING cues removed 2026-06-01: the spaced-rep tint + REVIEWING
+// legend were internal-facing clarity (which cycle is a revisit), but for the
+// learner they're just visual noise over "hear the prompt, have a go". The
+// distinction still exists in the engine (currentCycle.type === 'spaced_rep')
+// if we ever want to resurface it elsewhere.
 
 // ============================================
 // LEARNING HINTS - Computed properties (defined after isIntroPhase)
@@ -10880,13 +10852,7 @@ defineExpose({
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
-      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-review': isReviewCycle }">
-        <!-- Phrase-mode legend: a quiet word naming what this phrase is
-             (PRACTISING / REVIEWING), colour-matched to the dialog tint. -->
-        <div v-if="showPhraseModeLabel" class="phrase-mode-label"
-             :class="{ 'is-reviewing': phraseModeLabel === 'REVIEWING' }">
-          {{ phraseModeLabel }}
-        </div>
+      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">
         <!-- Inline learning hint label -->
         <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
@@ -12454,7 +12420,7 @@ defineExpose({
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
-  color: var(--skip-belt-color, var(--text-muted));
+  color: var(--text-muted);
   opacity: 0.7;
   cursor: pointer;
   display: flex;
@@ -12474,8 +12440,7 @@ defineExpose({
   opacity: 1;
   transform: scale(1.1);
   background: rgba(255, 255, 255, 0.10);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-glow)) 20%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .belt-header-skip:disabled {
@@ -13382,36 +13347,6 @@ defineExpose({
   /* Fill parent width - parent handles max-width */
   width: 100%;
   overflow: hidden;
-  /* Ease the REVIEW tint in/out between cycles rather than snapping. */
-  transition: background 0.4s ease, border-color 0.4s ease;
-}
-
-/* REVIEW cue — a spaced-rep revisit of an earlier LEGO. A faint warm wash on
-   the dialog glass ("you've met this before"). Deliberately NOT a belt hue or
-   the INF-PLAY red — a neutral-warm gold so it never reads as a belt or mode.
-   Very subtle by design; tune the alphas if it wants more/less presence. */
-.hero-glass.is-review {
-  background: rgba(212, 168, 83, 0.09);
-  border-color: rgba(212, 168, 83, 0.4);
-}
-
-/* Phrase-mode legend (PRACTISING / REVIEWING). Quiet by design: small, spaced
-   caps, very low-contrast for PRACTISING so it barely registers; gold + a touch
-   more present for REVIEWING since that's the meaningful one. Eased so it shifts
-   gently between cycles. (Single theme now — light/mist — so a plain rule is
-   the live style; no dark-theme counterpart needed.) */
-.phrase-mode-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-align: center;
-  color: rgba(60, 50, 40, 0.32);
-  transition: color 0.4s ease;
-  user-select: none;
-}
-.phrase-mode-label.is-reviewing {
-  color: rgba(176, 132, 50, 0.9);
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -15389,13 +15324,6 @@ button.phase-segment:active:not(.is-active) {
               0 20px 48px rgba(44, 38, 34, 0.05);
 }
 
-/* REVIEW cue on mist (light glass): a warm cream wash + gold border, kept
-   gentle so it reads as "familiar" not "alert". Mirrors the default theme. */
-[data-theme="mist"] .player .hero-glass.is-review {
-  background: rgba(249, 241, 224, 0.97);
-  border-color: rgba(196, 152, 70, 0.55);
-}
-
 /* --- Hero text & intro — all text must be dark on white --- */
 [data-theme="mist"] .player .hero-known {
   color: var(--text-primary);
@@ -15465,15 +15393,14 @@ button.phase-segment:active:not(.is-active) {
   background: rgba(255, 255, 255, 0.96);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   opacity: 1;
-  color: color-mix(in srgb, var(--skip-belt-color, #6B6560) 70%, #2C2622);
+  color: rgba(44, 38, 34, 0.85);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, #ffffff);
-  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
-              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, transparent);
+  background: rgba(44, 38, 34, 0.06);
+  color: rgba(44, 38, 34, 0.95);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.18);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
