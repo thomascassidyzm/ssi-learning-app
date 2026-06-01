@@ -146,16 +146,17 @@ const handleTogglePlayback = () => {
   }
 }
 
-// Handle transport controls from BottomNav (revisit/skip)
+// Bottom-nav transport now steps the LEGO axis (was CYCLE — cycle moved to the
+// phase pill, belt moved to the header). Tom 2026-06-01.
 const handleRevisit = () => {
-  if (learningPlayerRef.value?.handleRevisit) {
-    learningPlayerRef.value.handleRevisit()
+  if (learningPlayerRef.value?.handleRoundBack) {
+    learningPlayerRef.value.handleRoundBack()
   }
 }
 
 const handleSkip = () => {
-  if (learningPlayerRef.value?.handleSkip) {
-    learningPlayerRef.value.handleSkip()
+  if (learningPlayerRef.value?.handleRoundForward) {
+    learningPlayerRef.value.handleRoundForward()
   }
 }
 

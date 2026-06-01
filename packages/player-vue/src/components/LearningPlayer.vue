@@ -7449,6 +7449,27 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   }
 }
 
+// ── Header belt nav (‹‹ ››) — Tom 2026-06-01 ───────────────────────────────
+// Header double-chevrons step the BELT axis (LEGO → bottom pill, CYCLE → phase
+// pill). Forward → next belt's start, or INF PLAY at course end (reuses the
+// wouldEnterInfplay morph). Back → restart the CURRENT belt first, then the
+// PREVIOUS belt (mirrors the LEGO back's restart-current-first rule). Both wrap
+// handleSkipToBelt, so INF-PLAY exit + cursor persistence come free.
+const handleSkipToNextBelt = async () => {
+  if (wouldEnterInfplay.value) { await enterInfPlay(); return }
+  if (playingNextBelt.value) await handleSkipToBelt(playingNextBelt.value)
+}
+
+const handleSkipToPrevBelt = async () => {
+  const cur = playingBelt.value
+  const startIdx = simplePlayer.findRoundIndexForBeltThreshold(Math.max(cur.seedsRequired, 1))
+  if (startIdx >= 0 && simplePlayer.roundIndex.value > startIdx) {
+    await handleSkipToBelt(cur)                       // restart the current belt
+  } else if (cur.index > 0) {
+    await handleSkipToBelt(BELTS[cur.index - 1])      // already at start → previous belt
+  }
+}
+
 // Mode toggles
 const turboActive = ref(false)
 const turboPopupShownThisSession = ref(false)
@@ -10700,6 +10721,8 @@ defineExpose({
   handleResume,
   handleRevisit,
   handleSkip,
+  handleRoundForward,
+  handleRoundBack,
   isInListeningCycle,
   exitListeningMode,
   exitAllModes,
@@ -10922,7 +10945,19 @@ defineExpose({
            continuous shape reads as "one cycle, four stages". Sits below
            the hero glass card. pointer-events: auto overrides the
            .hero-text-pane parent's pointer-events: none. -->
-      <div v-if="showPhaseStrip" class="phase-strip" role="group" aria-label="Cycle phases">
+      <div v-if="showPhaseStrip" class="phase-row">
+        <button
+          type="button"
+          class="belt-header-skip phase-cycle-skip"
+          @click="handleRevisit"
+          title="Previous cycle"
+          aria-label="Previous cycle"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <div class="phase-strip" role="group" aria-label="Cycle phases">
         <button
           type="button"
           class="phase-segment phase-segment--prompt"
@@ -10973,6 +11008,18 @@ defineExpose({
             <path d="M5 21v-1.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5V21"/>
           </svg>
           <span class="phase-segment-num">2</span>
+        </button>
+        </div>
+        <button
+          type="button"
+          class="belt-header-skip phase-cycle-skip"
+          @click="handleSkip"
+          title="Next cycle"
+          aria-label="Next cycle"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </button>
       </div>
 
@@ -11214,10 +11261,10 @@ defineExpose({
           <button
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt }"
-            @click="handleRoundBack"
-            :disabled="simplePlayer.roundIndex.value === 0 && simplePlayer.cycleIndex.value === 0 && currentMode !== 'infplay'"
-            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Restart this LEGO (again to step back)'"
-            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Restart this LEGO; press again to step back to the previous LEGO'"
+            @click="handleSkipToPrevBelt"
+            :disabled="playingBelt.index === 0 && simplePlayer.roundIndex.value === 0 && currentMode !== 'infplay'"
+            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to your current belt' : 'Restart this belt (again for the previous belt)'"
+            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to your current belt' : 'Restart the current belt; press again to step back to the previous belt'"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
@@ -11266,17 +11313,17 @@ defineExpose({
           <button
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt }"
-            @click="handleRoundForward"
+            @click="handleSkipToNextBelt"
             :title="currentMode === 'infplay'
               ? `In INF PLAY (round ${infplayRoundIndex}) — next review round`
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY — random review of everything you have learned'
-                  : 'Next LEGO')"
+                  : 'Next belt')"
             :aria-label="currentMode === 'infplay'
               ? `Infinite play, round ${infplayRoundIndex}. Next review round.`
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY: random review of everything you have learned'
-                  : 'Next LEGO')"
+                  : 'Next belt')"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
@@ -13618,25 +13665,40 @@ defineExpose({
  * pointer-events: none — otherwise the buttons inherit pass-through
  * and clicks never reach them.
  */
+/* Phase row mirrors the belt row exactly; the phase pill takes the belt pill's
+   box (.belt-timer-unified): flex:1 width (no cap), 6px vertical padding, 20px
+   radius, content-driven height — so it's pixel-identical to the belt pill and
+   comes out that "tiny bit smaller" than the 36px buttons, just like the belt
+   pill does. Tom 2026-06-01 (rebuild). */
+.phase-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--belt-row-gap);
+  width: 100%;
+  padding: 0 var(--space-sm);
+  margin: var(--space-md) auto 0;
+}
 .phase-strip {
   display: flex;
   align-items: stretch;
-  height: 40px;
-  width: 100%;
-  max-width: 340px;
-  margin: var(--space-md) auto 0;
-  /* iOS-character white pill — matches .hero-glass and .component-tile
-   * mist treatment so the phase strip reads as part of the same family
-   * of white-card components on the page. */
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
   background: #ffffff;
   border: 1.5px solid rgba(0, 0, 0, 0.35);
-  border-radius: 999px;
+  border-radius: 20px;
   box-shadow:
     0 2px 4px rgba(44, 38, 34, 0.10),
     0 6px 16px rgba(44, 38, 34, 0.06);
   overflow: hidden;
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
+}
+/* Flanking cycle buttons sit in the same pointer-events:none pane as the strip
+   — re-enable clicks on them (else they're dead, like last time). */
+.phase-cycle-skip {
+  pointer-events: auto;
 }
 
 .phase-segment {
