@@ -8239,14 +8239,47 @@ const collectOfflineSpanAudioIds = (): string[] => collectSpanAudioIds(OFFLINE_S
 // resolver still streams online (the gate flip is step 1b) — so this cannot
 // regress lock; it only pre-stages bytes. Gentle by construction: sequential
 // (concurrency 1), missing-only, yields to the bulk offline download, no-ops
-// offline. Fetches only already-loaded rounds — no script expansion here (that
-// is heavier; lazy-loading extends rounds as play advances and we re-run each
-// round). Re-entrancy guarded so overlapping round-advances don't double-fetch.
+// offline. Expands the script ahead first (ensureLiveSpanLoaded) so the cache
+// fills DEEP, not just the ~3-round bootstrap window — that shallow cap was the
+// root cause of cold-start lock/offline failures. Re-entrancy guarded so
+// overlapping round-advances don't double-fetch.
 let rollingFillActive = false
 // A function (not an inline `=== 'downloading'`) so TS doesn't narrow the
 // reactive offlineDlState across the early return — its .value genuinely changes
 // across awaits when the bulk download starts mid-fill.
 const bulkDownloadRunning = (): boolean => offlineDlState.value === 'downloading'
+// Expand the script ahead so the cache can fill DEEP, not just the ~3-round
+// cold-start bootstrap window (the root cause of cold-start lock/offline death).
+// expandScript() is append-only (cursor-safe) + re-entrancy-guarded; one call
+// loads the whole course, then loadedSpanMsFromHere() >= spanMs short-circuits.
+// Online + visible only (generateScript needs network); yields to bulk download.
+// INF PLAY keeps its own near-edge paginator (expandScript would splice
+// main-loop intros into the seeded-USE tail) — we only warm what's loaded there.
+let rollingExpandActive = false
+const ensureLiveSpanLoaded = async (spanMs: number): Promise<void> => {
+  if (rollingExpandActive) return
+  if (currentMode.value === 'infplay') return
+  if (!isOnline.value) return
+  if (typeof document !== 'undefined' && document.hidden) return
+  if (bulkDownloadRunning()) return
+  if (loadedSpanMsFromHere() >= spanMs) return
+  rollingExpandActive = true
+  try {
+    let guard = 0
+    while (
+      isOnline.value &&
+      !(typeof document !== 'undefined' && document.hidden) &&
+      !bulkDownloadRunning() &&
+      loadedSpanMsFromHere() < spanMs &&
+      guard++ < 8
+    ) {
+      const added = await expandScript()
+      if (added === 0) break  // generator dry — course tail
+    }
+  } finally {
+    rollingExpandActive = false
+  }
+}
 // Warm the next `spanMs` of upcoming play into IndexedDB. `concurrency` workers
 // pull in parallel: 1 for the steady background fill (device-proven not to
 // contend with the live play fetch), higher for bursts at non-lock moments
@@ -8263,6 +8296,9 @@ const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
   if (bulkDownloadRunning()) return      // don't fight the bulk download
   rollingFillActive = true
   try {
+    // Grow the loaded script ahead first so we warm a DEEP cache, not just the
+    // shallow bootstrap window — the fix for cold-start lock/offline failures.
+    await ensureLiveSpanLoaded(spanMs)
     const missing = collectSpanAudioIds(spanMs).filter((id) => !audioCache.persistent.has(id))
     let next = 0
     const worker = async (): Promise<void> => {
