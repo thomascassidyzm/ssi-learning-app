@@ -2,34 +2,53 @@
 
 > **Welcome, future agent!** This document contains everything you need to work effectively on the SSi Learning App without creating chaos.
 
-## CRITICAL: Branch Policy
+## CRITICAL: Work Strategy — two lanes (updated 2026-06-01)
 
-Three-tier promotion flow (set up 2026-05-24). **ALL work goes to `dev`. NEVER push to `staging` or `main` directly.**
+Two categorically different kinds of work, two pipelines. The deciding question is
+**what kind of risk the change carries**, which dictates **where it gets verified**:
+
+- A **fix** risks *regression* — breaking something that already works. Prove that
+  **in isolation**, against live production, with nothing else moving.
+- A **feature** risks *interaction* — not playing nicely with other in-flight work.
+  Prove that **in integration**, with that work present.
+
+Isolated preview vs shared soak. That's the whole split.
 
 ```
-dev  ──promote──▶  staging  ──promote──▶  main
-(rapid)            (stable soak)          (production)
+FIX LANE      fix/<name> off main → own preview (test, test, test) → staging|main → back-merge
+FEATURE LANE  feature/<name> → dev (combine) → staging (soak) → main
 ```
 
-| Branch | Purpose | Deploys to | Who |
-|--------|---------|------------|-----|
-| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions auto-merge here | `dev.saysomethingin.app` | Tom + Claude |
-| `staging` | Stable soak — frozen-ish candidate the external/Colombo test team vets | `staging.saysomethingin.app` | promoted from `dev` |
-| `main` | Production — real users | `saysomethingin.app` | promoted from `staging` |
+| Branch | Purpose | Deploys to |
+|--------|---------|------------|
+| `main` | Production — real users. The trunk and the only production truth; **everything branches off it.** | `saysomethingin.app` |
+| `staging` | Stable soak — the candidate the external/Colombo team vets | `staging.saysomethingin.app` |
+| `dev` | Feature integration — where features combine and interactions surface. The only branch safe to thrash. | `dev.saysomethingin.app` |
+| `fix/<name>` | One isolated fix off `main`, verified on its own preview | per-branch Vercel preview |
 
-At the start of every session, run:
-```bash
-git checkout dev
-git pull origin dev
-```
+### Fix lane
+1. Branch `fix/<name>` **off `main`** — a fix must apply to *what's actually live*. **Never** branch a fix off `dev`/feature churn, or you can't ship it without shipping that churn.
+2. Verify on its **own preview deploy** — hard, in isolation. The fix's job is "don't regress," and isolation is how you prove it. Test, test, test.
+3. Pick the merge target by **urgency × blast-radius**:
+   - **urgent + small** (site down, login/payment broken) → merge to **`main`**, deploy, then **back-merge** into `staging`, `dev`, and any active feature branch. Speed; the smallness *is* the safety.
+   - **not-urgent, or delicate/wide** (touches every learner, subtle logic) → merge to **`staging`** to soak with the external team first, then promote `staging → main`. Rushing a wide fix to prod is how a fix becomes a regression.
+4. Always **back-merge** a main-landed fix into every long-lived branch so it isn't lost.
 
-**Rules:**
-- `dev` is the **default branch** — new `claude/**` branches cut from it and auto-merge back to it (`.github/workflows/auto-merge-claude.yml`).
-- **Promotion is manual and deliberate** (Tom drives it): merge `dev → staging` only when green; merge `staging → main` weekly, after the external team has vetted staging.
-- Do all feature/debug work on `dev` — it's the only environment that's safe to thrash. The external team and prod never see `dev`'s churn.
-- If you find yourself on `staging` or `main`, switch to `dev` before making changes.
+### Feature lane
+1. Branch `feature/<name>` off `main` (or work on `dev`).
+2. Integrate on **`dev`** — features combine here; it's the only branch safe to thrash. External team and prod never see its churn.
+3. Soak on **`staging`** — promoted from `dev` when green.
+4. Promote `staging → main` — manual and deliberate (Tom drives it).
 
-**Hotfix lane (production emergencies only):** a critical prod bug that can't wait for the promotion train goes straight to `main` via a `hotfix/<desc>` branch off `main`, then is **back-merged into `staging` AND `dev`** so the fix isn't lost on the next promotion. Use this sparingly — normal fixes ride the dev→staging→main train.
+### Which lane am I in?
+- Reproducing a reported bug, restoring intended behaviour, small surface → **fix lane**.
+- Building something new, larger surface, exploratory/iterable → **feature lane**.
+- Unsure? If the change must apply to *what's live right now*, it's a fix (off `main`). If it only makes sense alongside other unreleased work, it's a feature (via `dev`).
+
+### Shared rules
+- Never do feature/debug *work* directly on `staging` or `main` — they receive merges, not edits.
+- The working tree may be **shared** — `git rev-parse --abbrev-ref HEAD` to confirm your branch before committing; land work via a refspec push (`git push origin X:main`) or a `git worktree`, never by switching someone else's checkout.
+- Start a fix from fresh: `git fetch origin && git worktree add ../<dir> -b fix/<name> origin/main`.
 
 ---
 
