@@ -8114,6 +8114,14 @@ const toggleTurbo = () => {
 // your journey"), not an arbitrary round count. The only deliberate
 // downloader; normal play streams and caches nothing speculatively.
 const OFFLINE_SPAN_MS = 30 * 60 * 1000
+// Rolling online warm-ahead (buffer-model step 1a). A shallow span the filler
+// keeps cached in IndexedDB during normal online play, so playback can later
+// resolve from cache (surviving connection loss / lock mid-session) instead of
+// streaming every clip. Deliberately SHALLOW to start: speculative ahead-fetch
+// was disabled 2026-05-23 for contending with the live play fetch (the
+// pipe-hogging stalls). We re-enable it gently (sequential, missing-only) and
+// will only deepen once a device test confirms it doesn't starve playback.
+const ROLLING_SPAN_MS = 5 * 60 * 1000
 const offlineActive = ref(false)
 // Offline PLAYBACK engages on the explicit toggle OR whenever the device is
 // genuinely offline. offlineActive is an in-memory ref that resets to false on
@@ -8170,7 +8178,12 @@ const ensureOfflineSpanLoaded = async (): Promise<void> => {
   }
 }
 
-const collectOfflineSpanAudioIds = (): string[] => {
+// Walk forward from the current round, accumulating estimated wall-clock time
+// per cycle, collecting unique /api/audio ids until ~spanMs of play is covered.
+// Dedupes files (a clip reused N times in the span counts once). Shared by the
+// deliberate offline download (OFFLINE_SPAN_MS) and the rolling online filler
+// (ROLLING_SPAN_MS).
+const collectSpanAudioIds = (spanMs: number): string[] => {
   const rounds = cachedRounds.value || []
   const start = Math.max(0, currentRoundIndex.value)
   const ids = new Set<string>()
@@ -8178,10 +8191,8 @@ const collectOfflineSpanAudioIds = (): string[] => {
     const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
     if (m) ids.add(m[1])
   }
-  // Walk forward from the current round, accumulating estimated wall-clock
-  // time per cycle, until we've covered ~OFFLINE_SPAN_MS of play.
   let accMs = 0
-  for (let i = start; i < rounds.length && accMs < OFFLINE_SPAN_MS; i++) {
+  for (let i = start; i < rounds.length && accMs < spanMs; i++) {
     for (const c of (((rounds[i]) as any).cycles || [])) {
       add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
       // prompt + pause + both target plays + inter-phase gaps
@@ -8190,6 +8201,43 @@ const collectOfflineSpanAudioIds = (): string[] => {
   }
   return [...ids]
 }
+
+const collectOfflineSpanAudioIds = (): string[] => collectSpanAudioIds(OFFLINE_SPAN_MS)
+
+// Rolling filler (buffer-model step 1a): keep the next ROLLING_SPAN_MS of play
+// warm in IndexedDB during normal online play. Does NOT change playback — the
+// resolver still streams online (the gate flip is step 1b) — so this cannot
+// regress lock; it only pre-stages bytes. Gentle by construction: sequential
+// (concurrency 1), missing-only, yields to the bulk offline download, no-ops
+// offline. Fetches only already-loaded rounds — no script expansion here (that
+// is heavier; lazy-loading extends rounds as play advances and we re-run each
+// round). Re-entrancy guarded so overlapping round-advances don't double-fetch.
+let rollingFillActive = false
+// A function (not an inline `=== 'downloading'`) so TS doesn't narrow the
+// reactive offlineDlState across the early return — its .value genuinely changes
+// across awaits when the bulk download starts mid-fill.
+const bulkDownloadRunning = (): boolean => offlineDlState.value === 'downloading'
+const fillRollingBuffer = async (): Promise<void> => {
+  if (rollingFillActive) return
+  if (!isOnline.value) return            // offline: nothing to fetch
+  if (bulkDownloadRunning()) return      // don't fight the bulk download
+  rollingFillActive = true
+  try {
+    const missing = collectSpanAudioIds(ROLLING_SPAN_MS)
+      .filter((id) => !audioCache.persistent.has(id))
+    for (const id of missing) {
+      if (!isOnline.value || bulkDownloadRunning()) break
+      // Silent — the play path handles any miss by streaming.
+      await audioCache.persistent.ensure(id).catch(() => { /* keep going */ })
+    }
+  } finally {
+    rollingFillActive = false
+  }
+}
+
+// Re-warm the rolling window whenever the round advances (the natural cadence
+// during play). Fire-and-forget; never blocks the cycle.
+watch(currentRoundIndex, () => { void fillRollingBuffer() })
 
 // Commentary (welcome/instructions/encouragements) and pod audio are
 // scheduled at RUNTIME — encouragements are a random pull from a pool, pod
@@ -8852,9 +8900,20 @@ onMounted(async () => {
   // AudioCache; the SW cache stays as a network-level backstop for
   // anything neither layer has seen yet.
   if (courseCode.value) {
-    audioCacheSource = createAudioCacheSource(audioCache, courseCode.value, () => offlinePlaybackActive())
+    // buffer-model step 1b: serve cached WAV blobs ONLINE too — so warm clips
+    // (staged by the rolling filler) play from cache, which survives connection
+    // loss / lock mid-session, with the resolver's network fallback on a miss.
+    // URL-gated (?cacheplay) for the first device test: default build is exactly
+    // main's streaming behaviour, and the two paths compare on one build with no
+    // redeploy. offlinePlaybackActive() keeps the existing offline/airplane gate.
+    const cachePlayOnline = typeof window !== 'undefined'
+      && new URLSearchParams(window.location.search).has('cacheplay')
+    audioCacheSource = createAudioCacheSource(
+      audioCache, courseCode.value,
+      () => offlinePlaybackActive() || cachePlayOnline,
+    )
     audioController.value.setAudioSource(audioCacheSource)
-    console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value)
+    console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value, cachePlayOnline ? '(cache-play online: ON)' : '')
   }
 
   // Initialize belt progress (loads from localStorage, merges with Supabase)
