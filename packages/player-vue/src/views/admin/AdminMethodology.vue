@@ -25,6 +25,14 @@ const papers: Paper[] = [
     tag: 'Interactive · position paper',
     status: 'Draft — for discussion',
   },
+  {
+    title: 'The Listening Pod',
+    blurb:
+      'How Layer 2 acquisition works: a scene-based conversation that fades its own scaffolding sentence by sentence. The stage-through (breakdown → translation → 2× → eternal hold), the chunking-vs-explainer choice, and the lap that grows as you go. Three live figures; the open question for Aran is the granularity.',
+    href: '/docs/pod-methodology.html',
+    tag: 'Interactive · position paper',
+    status: 'Draft — for discussion',
+  },
 ]
 </script>
 
