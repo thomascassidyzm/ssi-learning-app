@@ -2952,6 +2952,13 @@ const useBeltLoaderPlayback = ref(false)
 
 // Online/offline state for UI indicators
 const isOnline = ref(navigator.onLine)
+// buffer-model: cache-play online (default-on on this branch; ?stream=1 to compare
+// against the old streaming path). Hoisted here so BOTH the main-cycle resolver
+// (resolveAudioUrl) and the AudioController source (createAudioCacheSource) read
+// the SAME flag — previously only the latter did, so the main 4-phase cycle kept
+// streaming /api/audio online and died when locked (iOS won't start a streamed
+// <audio> locked); airplane forced it onto the cache, which is why airplane worked.
+const cachePlayOnline = typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('stream')
 
 // Computed properties that delegate to the composable (with fallbacks for initial load)
 const completedRounds = computed(() => beltProgress.value?.completedRounds.value ?? 0)
@@ -7521,12 +7528,14 @@ simplePlayer.setRuntimeOverrides({
   // "operation is not supported" decode failure that got blob playback
   // dropped on 2026-05-23 (a confounded bug, not an iOS limitation).
   resolveAudioUrl: async (audioUrl: string): Promise<string> => {
-    if (!offlinePlaybackActive()) return audioUrl
+    // Serve the cached WAV blob when offline OR when online cache-play is on —
+    // this is what keeps the MAIN cycle off the network so it survives lock.
+    // A genuine cache miss falls through to the network URL (instant first play).
+    if (!offlinePlaybackActive() && !cachePlayOnline) return audioUrl
     const id = audioUrl.match(/\/api\/audio\/([^?]+)/)?.[1]
     if (!id) return audioUrl
     // WAV, not the cached mp3 blob — WebKit refuses mp3 blob: URLs.
     const wavUrl = await audioCache.getWavBlobUrl(id)
-    console.log(`[offline] ${id} → ${wavUrl ? 'WAV blob' : 'cache miss → network'}`)
     return wavUrl || audioUrl
   },
   // ensureKnownReady: REMOVED 2026-05-23.
@@ -8231,6 +8240,11 @@ const bulkDownloadRunning = (): boolean => offlineDlState.value === 'downloading
 const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
   if (rollingFillActive) return
   if (!isOnline.value) return            // offline: nothing to fetch
+  // Screen hidden/locked → go fully network-silent and play from the warm cache.
+  // Device-proven 2026-06-01: online+lock dies after ~4 cycles, but airplane+lock
+  // (zero network) plays indefinitely — background fetches while locked deactivate
+  // the iOS audio session. The deep steady fill warms the cache BEFORE lock.
+  if (typeof document !== 'undefined' && document.hidden) return
   if (bulkDownloadRunning()) return      // don't fight the bulk download
   rollingFillActive = true
   try {
@@ -8264,14 +8278,10 @@ watch(() => (cachedRounds.value || []).length, (n) => {
 })
 watch(currentRoundIndex, () => { void fillRollingBuffer() })
 watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
-// About-to-hide (iOS PWA backgrounding) → burst the next bundle so a backgrounded
-// or soon-locked session stays supplied even if it was still cold. Sits alongside
-// the existing resume-save visibility handler; both firing on hide is harmless.
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') void warmBurst()
-  })
-}
+// NOTE: deliberately NO on-hide burst. Firing network fetches at the moment of
+// lock is exactly what burns iOS's background grace budget and kills the audio
+// session. The deep steady span warms the cache BEFORE lock; while hidden we stay
+// network-silent (fillBuffer early-returns on document.hidden).
 
 // Commentary (welcome/instructions/encouragements) and pod audio are
 // scheduled at RUNTIME — encouragements are a random pull from a pool, pod
@@ -8942,9 +8952,6 @@ onMounted(async () => {
     // force the old streaming path for an A/B comparison. This branch is isolated
     // (feat/buffer-model), so default-on only affects this preview, never main.
     // offlinePlaybackActive() still covers the existing offline/airplane gate.
-    const cachePlayOnline = typeof window === 'undefined'
-      ? false
-      : !new URLSearchParams(window.location.search).has('stream')
     audioCacheSource = createAudioCacheSource(
       audioCache, courseCode.value,
       () => offlinePlaybackActive() || cachePlayOnline,
