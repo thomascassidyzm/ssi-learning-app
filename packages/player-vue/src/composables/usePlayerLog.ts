@@ -29,6 +29,11 @@ interface PlayerEvent {
 interface PlayerLogOptions {
   /** Reactive course code — stamped on every event. Optional; can be unresolved at session start. */
   courseCode?: Ref<string | null | undefined> | string | null
+  /** Reactive learner id (incl. `guest-<uuid>`) — merged into every event's
+   *  payload so GUEST sessions are attributable. player_events has no
+   *  learner_id column and user_id is null for guests, so without this a
+   *  guest's runs are untrackable across sessions. */
+  learnerId?: Ref<string | null | undefined> | string | null
   /** Bundle hash / git sha to stamp for triage. */
   clientVersion?: string
   /** Override flush interval (ms). */
@@ -65,6 +70,14 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     return null
   }
 
+  const resolveLearnerId = (): string | null => {
+    const v = options.learnerId
+    if (!v) return null
+    if (typeof v === 'string') return v
+    if (typeof v === 'object' && 'value' in v) return (v.value as string) ?? null
+    return null
+  }
+
   /**
    * Log a player event. Type is a short snake_case label; payload is
    * arbitrary structured context. Stamped with course + session +
@@ -74,9 +87,10 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     if (typeof type !== 'string' || type.length === 0) return
     if (buffer.length >= MAX_BUFFER) return // drop, never grow unbounded
 
+    const learnerId = resolveLearnerId()
     buffer.push({
       event_type: type,
-      payload: payload ?? null,
+      payload: learnerId ? { ...(payload ?? {}), learnerId } : (payload ?? null),
       course_code: resolveCourseCode(),
       session_id: sessionId,
       occurred_at: new Date().toISOString(),

@@ -998,7 +998,7 @@ const pairingsTelemetry = usePairingsTelemetry()
 // commentary lifecycle. Persisted in player_events; surfaced in the
 // admin user-detail page so user reports like "skip didn't work" can
 // be diagnosed without DevTools.
-const playerLog = usePlayerLog({ courseCode })
+const playerLog = usePlayerLog({ courseCode, learnerId })
 const logEvent = playerLog.event
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
