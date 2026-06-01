@@ -4943,39 +4943,11 @@ const isIntroOrDebutPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'debut'
 })
 
-// REVIEW cue: this cycle is a spaced-rep revisit of an EARLIER LEGO (the
-// ownership-vs-position distinction made visible — "you've met this before,
-// stretch for it"). Drives a subtle warm tint on the dialog box. Suppressed
-// in INF PLAY, which is its own "random review" state (the red pill already
-// signals it); a dedicated RANDOM cue can come later if we want it.
-const isReviewCycle = computed(() =>
-  currentMode.value !== 'infplay'
-  && simplePlayer.currentCycle.value?.type === 'spaced_rep',
-)
-
-// The LEGEND for the tint: a quiet word above the phrase naming what this is.
-// REVIEWING = a spaced-rep revisit of an earlier LEGO (gold). We only NAME the
-// review — practising the current LEGO is the default (no label needed; naming
-// it was just noise). The word teaches what the gold means; once learnt the
-// colour carries it on its own. Empty for listening pods and INF PLAY (its own
-// random state — a RANDOM label could come later).
-const phraseModeLabel = computed<'' | 'REVIEWING'>(() => {
-  if (currentMode.value === 'infplay') return ''
-  if (inListeningContext.value) return ''
-  if (simplePlayer.currentCycle.value?.type === 'spaced_rep') return 'REVIEWING'
-  return ''
-})
-
-// Only surface the label over a real phrase — not the intro typewriter or any
-// of the transient loading/prep/buffering text states.
-const showPhraseModeLabel = computed(() =>
-  !!phraseModeLabel.value
-  && !isIntroPhase.value
-  && !isAwakening.value
-  && !isPreparingToPlay.value
-  && !skipPrepVisible.value
-  && !bufferingPromptVisible.value,
-)
+// REVIEW/PRACTISING cues removed 2026-06-01: the spaced-rep tint + REVIEWING
+// legend were internal-facing clarity (which cycle is a revisit), but for the
+// learner they're just visual noise over "hear the prompt, have a go". The
+// distinction still exists in the engine (currentCycle.type === 'spaced_rep')
+// if we ever want to resurface it elsewhere.
 
 // ============================================
 // LEARNING HINTS - Computed properties (defined after isIntroPhase)
@@ -7446,6 +7418,27 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
+  }
+}
+
+// ── Header belt nav (‹‹ ››) — Tom 2026-06-01 ───────────────────────────────
+// Header double-chevrons step the BELT axis (LEGO → bottom pill, CYCLE → phase
+// pill). Forward → next belt's start, or INF PLAY at course end (reuses the
+// wouldEnterInfplay morph). Back → restart the CURRENT belt first, then the
+// PREVIOUS belt (mirrors the LEGO back's restart-current-first rule). Both wrap
+// handleSkipToBelt, so INF-PLAY exit + cursor persistence come free.
+const handleSkipToNextBelt = async () => {
+  if (wouldEnterInfplay.value) { await enterInfPlay(); return }
+  if (playingNextBelt.value) await handleSkipToBelt(playingNextBelt.value)
+}
+
+const handleSkipToPrevBelt = async () => {
+  const cur = playingBelt.value
+  const startIdx = simplePlayer.findRoundIndexForBeltThreshold(Math.max(cur.seedsRequired, 1))
+  if (startIdx >= 0 && simplePlayer.roundIndex.value > startIdx) {
+    await handleSkipToBelt(cur)                       // restart the current belt
+  } else if (cur.index > 0) {
+    await handleSkipToBelt(BELTS[cur.index - 1])      // already at start → previous belt
   }
 }
 
@@ -10736,6 +10729,8 @@ defineExpose({
   handleResume,
   handleRevisit,
   handleSkip,
+  handleRoundForward,
+  handleRoundBack,
   isInListeningCycle,
   exitListeningMode,
   exitAllModes,
@@ -10893,13 +10888,7 @@ defineExpose({
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
-      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-review': isReviewCycle }">
-        <!-- Phrase-mode legend: a quiet word naming what this phrase is
-             (PRACTISING / REVIEWING), colour-matched to the dialog tint. -->
-        <div v-if="showPhraseModeLabel" class="phrase-mode-label"
-             :class="{ 'is-reviewing': phraseModeLabel === 'REVIEWING' }">
-          {{ phraseModeLabel }}
-        </div>
+      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">
         <!-- Inline learning hint label -->
         <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
@@ -10958,7 +10947,19 @@ defineExpose({
            continuous shape reads as "one cycle, four stages". Sits below
            the hero glass card. pointer-events: auto overrides the
            .hero-text-pane parent's pointer-events: none. -->
-      <div v-if="showPhaseStrip" class="phase-strip" role="group" aria-label="Cycle phases">
+      <div v-if="showPhaseStrip" class="phase-row">
+        <button
+          type="button"
+          class="belt-header-skip phase-cycle-skip"
+          @click="handleRevisit"
+          title="Previous cycle"
+          aria-label="Previous cycle"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <div class="phase-strip" role="group" aria-label="Cycle phases">
         <button
           type="button"
           class="phase-segment phase-segment--prompt"
@@ -11009,6 +11010,18 @@ defineExpose({
             <path d="M5 21v-1.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5V21"/>
           </svg>
           <span class="phase-segment-num">2</span>
+        </button>
+        </div>
+        <button
+          type="button"
+          class="belt-header-skip phase-cycle-skip"
+          @click="handleSkip"
+          title="Next cycle"
+          aria-label="Next cycle"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </button>
       </div>
 
@@ -11250,10 +11263,10 @@ defineExpose({
           <button
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt }"
-            @click="handleRoundBack"
-            :disabled="simplePlayer.roundIndex.value === 0 && simplePlayer.cycleIndex.value === 0 && currentMode !== 'infplay'"
-            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Restart this LEGO (again to step back)'"
-            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Restart this LEGO; press again to step back to the previous LEGO'"
+            @click="handleSkipToPrevBelt"
+            :disabled="playingBelt.index === 0 && simplePlayer.roundIndex.value === 0 && currentMode !== 'infplay'"
+            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to your current belt' : 'Restart this belt (again for the previous belt)'"
+            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to your current belt' : 'Restart the current belt; press again to step back to the previous belt'"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
@@ -11302,17 +11315,17 @@ defineExpose({
           <button
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt }"
-            @click="handleRoundForward"
+            @click="handleSkipToNextBelt"
             :title="currentMode === 'infplay'
               ? `In INF PLAY (round ${infplayRoundIndex}) — next review round`
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY — random review of everything you have learned'
-                  : 'Next LEGO')"
+                  : 'Next belt')"
             :aria-label="currentMode === 'infplay'
               ? `Infinite play, round ${infplayRoundIndex}. Next review round.`
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY: random review of everything you have learned'
-                  : 'Next LEGO')"
+                  : 'Next belt')"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
@@ -11872,6 +11885,10 @@ defineExpose({
   --belt-timer-width: 180px;
   --belt-bar-width: 60px;
   --belt-bar-height: 5px;
+  /* Shared pill height — belt pill + phase pill are LOCKED to one value so
+   * they're identical by construction (label 12px×1.5 + 12px pad + 3px border
+   * = 33px at mobile; 36px at ≥768px). Both pills consume it. */
+  --pill-height: 33px;
 
   /* ============ RING / TEXT ZONE ============ */
   --ring-size: 180px;
@@ -12443,7 +12460,7 @@ defineExpose({
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
-  color: var(--skip-belt-color, var(--text-muted));
+  color: var(--text-muted);
   opacity: 0.7;
   cursor: pointer;
   display: flex;
@@ -12463,8 +12480,7 @@ defineExpose({
   opacity: 1;
   transform: scale(1.1);
   background: rgba(255, 255, 255, 0.10);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-glow)) 20%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .belt-header-skip:disabled {
@@ -12536,7 +12552,8 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: 6px 12px 6px 16px;
+  height: var(--pill-height);
+  padding: 0 12px 0 16px;
   background: color-mix(in srgb, var(--belt-color) 70%, rgba(0,0,0,0.3));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
@@ -13371,36 +13388,6 @@ defineExpose({
   /* Fill parent width - parent handles max-width */
   width: 100%;
   overflow: hidden;
-  /* Ease the REVIEW tint in/out between cycles rather than snapping. */
-  transition: background 0.4s ease, border-color 0.4s ease;
-}
-
-/* REVIEW cue — a spaced-rep revisit of an earlier LEGO. A faint warm wash on
-   the dialog glass ("you've met this before"). Deliberately NOT a belt hue or
-   the INF-PLAY red — a neutral-warm gold so it never reads as a belt or mode.
-   Very subtle by design; tune the alphas if it wants more/less presence. */
-.hero-glass.is-review {
-  background: rgba(212, 168, 83, 0.09);
-  border-color: rgba(212, 168, 83, 0.4);
-}
-
-/* Phrase-mode legend (PRACTISING / REVIEWING). Quiet by design: small, spaced
-   caps, very low-contrast for PRACTISING so it barely registers; gold + a touch
-   more present for REVIEWING since that's the meaningful one. Eased so it shifts
-   gently between cycles. (Single theme now — light/mist — so a plain rule is
-   the live style; no dark-theme counterpart needed.) */
-.phrase-mode-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-align: center;
-  color: rgba(60, 50, 40, 0.32);
-  transition: color 0.4s ease;
-  user-select: none;
-}
-.phrase-mode-label.is-reviewing {
-  color: rgba(176, 132, 50, 0.9);
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -13654,25 +13641,41 @@ defineExpose({
  * pointer-events: none — otherwise the buttons inherit pass-through
  * and clicks never reach them.
  */
+/* Phase row mirrors the belt row exactly; the phase pill takes the belt pill's
+   box (.belt-timer-unified): flex:1 width (no cap), 6px vertical padding, 20px
+   radius, content-driven height — so it's pixel-identical to the belt pill and
+   comes out that "tiny bit smaller" than the 36px buttons, just like the belt
+   pill does. Tom 2026-06-01 (rebuild). */
+.phase-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--belt-row-gap);
+  width: 100%;
+  padding: 0 var(--space-sm);
+  margin: var(--space-md) auto 0;
+}
 .phase-strip {
   display: flex;
   align-items: stretch;
-  height: 40px;
-  width: 100%;
-  max-width: 340px;
-  margin: var(--space-md) auto 0;
-  /* iOS-character white pill — matches .hero-glass and .component-tile
-   * mist treatment so the phase strip reads as part of the same family
-   * of white-card components on the page. */
+  flex: 1;
+  min-width: 0;
+  height: var(--pill-height);
+  padding: 0;
   background: #ffffff;
   border: 1.5px solid rgba(0, 0, 0, 0.35);
-  border-radius: 999px;
+  border-radius: 20px;
   box-shadow:
     0 2px 4px rgba(44, 38, 34, 0.10),
     0 6px 16px rgba(44, 38, 34, 0.06);
   overflow: hidden;
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
+}
+/* Flanking cycle buttons sit in the same pointer-events:none pane as the strip
+   — re-enable clicks on them (else they're dead, like last time). */
+.phase-cycle-skip {
+  pointer-events: auto;
 }
 
 .phase-segment {
@@ -14970,6 +14973,7 @@ button.phase-segment:active:not(.is-active) {
     --belt-timer-width: 240px;
     --belt-bar-width: 90px;
     --belt-bar-height: 6px;
+    --pill-height: 36px;
     --control-bar-gap: 3.5rem;
     --control-group-gap: 0.625rem;
     --ring-size: 220px;
@@ -15363,13 +15367,6 @@ button.phase-segment:active:not(.is-active) {
               0 20px 48px rgba(44, 38, 34, 0.05);
 }
 
-/* REVIEW cue on mist (light glass): a warm cream wash + gold border, kept
-   gentle so it reads as "familiar" not "alert". Mirrors the default theme. */
-[data-theme="mist"] .player .hero-glass.is-review {
-  background: rgba(249, 241, 224, 0.97);
-  border-color: rgba(196, 152, 70, 0.55);
-}
-
 /* --- Hero text & intro — all text must be dark on white --- */
 [data-theme="mist"] .player .hero-known {
   color: var(--text-primary);
@@ -15439,15 +15436,14 @@ button.phase-segment:active:not(.is-active) {
   background: rgba(255, 255, 255, 0.96);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   opacity: 1;
-  color: color-mix(in srgb, var(--skip-belt-color, #6B6560) 70%, #2C2622);
+  color: rgba(44, 38, 34, 0.85);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, #ffffff);
-  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
-              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, transparent);
+  background: #e6e1d9;
+  color: rgba(44, 38, 34, 0.95);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.18);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
