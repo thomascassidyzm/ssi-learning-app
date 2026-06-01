@@ -8193,11 +8193,16 @@ const loadedSpanMsFromHere = (): number => {
 // got 4 LEGOs" bug. Expand the script (the same machinery INF PLAY uses) until
 // cachedRounds covers the span, the generator runs dry (course tail), or the
 // user cancels offline mode.
-const ensureOfflineSpanLoaded = async (): Promise<void> => {
+const ensureOfflineSpanLoaded = async (spanMs: number = OFFLINE_SPAN_MS): Promise<void> => {
+  // The guard is a runaway backstop only — NOT the span limiter. The real stop
+  // is loadedSpanMsFromHere() >= spanMs OR expandScript() running dry (course
+  // tail). The old cap of 20 silently truncated long user-chosen spans
+  // (5h / whole course); 2000 comfortably covers a whole course while still
+  // bounding a genuine runaway. For spanMs = Infinity it relies on added===0.
   let guard = 0
-  while (offlineActive.value && loadedSpanMsFromHere() < OFFLINE_SPAN_MS && guard++ < 20) {
+  while (offlineActive.value && loadedSpanMsFromHere() < spanMs && guard++ < 2000) {
     const added = await expandScript()
-    if (added === 0) break  // generator exhausted — take what we have
+    if (added === 0) break  // generator exhausted — course tail reached
   }
 }
 
@@ -8366,13 +8371,14 @@ const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
   return [...ids]
 }
 
-const downloadForOffline = async () => {
+const downloadForOffline = async (spanMs: number = OFFLINE_SPAN_MS) => {
   // Build out the script first — without this we'd only download whatever
   // rounds lazy-loading happened to have in memory (the "4 LEGOs" cap).
+  // spanMs = the user-chosen depth (30m / 2h / 5h / Infinity = whole course).
   offlineDlState.value = 'preparing'
-  await ensureOfflineSpanLoaded()
+  await ensureOfflineSpanLoaded(spanMs)
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
-  const cycleIds = collectOfflineSpanAudioIds()
+  const cycleIds = collectSpanAudioIds(spanMs)
   const auxIds = await collectAuxiliaryAudioIds()  // commentary + pod pools
   const ids = [...new Set([...cycleIds, ...auxIds])]
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
