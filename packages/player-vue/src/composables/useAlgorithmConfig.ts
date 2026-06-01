@@ -66,7 +66,7 @@ export interface PodsConfig {
 export interface ResumeConfig {
   /** After this gap in MINUTES, ignore current_cycle_index on resume and
    *  restart the in-progress round (replays the LEGO intro). A brief pause
-   *  resumes the exact cycle; a real break restarts the round. ~2 min cutoff. */
+   *  resumes the exact cycle; a real break restarts the round. ~5 min cutoff. */
   cycleResetMinutes: number
   /** After this gap in days, walk the round cursor back to the start of
    *  the learner's current belt. Set to a very large number to disable. */
@@ -213,7 +213,7 @@ const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {
 }
 
 const DEFAULT_RESUME: ResumeConfig = {
-  cycleResetMinutes: 2,
+  cycleResetMinutes: 5,
   beltRegressionDays: 60,
 }
 
