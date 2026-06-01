@@ -8121,7 +8121,13 @@ const OFFLINE_SPAN_MS = 30 * 60 * 1000
 // was disabled 2026-05-23 for contending with the live play fetch (the
 // pipe-hogging stalls). We re-enable it gently (sequential, missing-only) and
 // will only deepen once a device test confirms it doesn't starve playback.
-const ROLLING_SPAN_MS = 5 * 60 * 1000
+// 2026-06-01: device-confirmed clean on a 3G throttle, and Afrikaans telemetry
+// showed the cold-start window (first ~10 min still streaming, cacheHit low) is
+// the only lock-fragile gap. So deepen the steady span, and add a fast BURST
+// span fired at non-lock moments (session start, about-to-hide, stop) to warm
+// the head quickly and keep a restart / backgrounded app supplied.
+const ROLLING_SPAN_MS = 20 * 60 * 1000
+const BURST_SPAN_MS = 10 * 60 * 1000
 const offlineActive = ref(false)
 // Offline PLAYBACK engages on the explicit toggle OR whenever the device is
 // genuinely offline. offlineActive is an in-memory ref that resets to false on
@@ -8217,27 +8223,55 @@ let rollingFillActive = false
 // reactive offlineDlState across the early return — its .value genuinely changes
 // across awaits when the bulk download starts mid-fill.
 const bulkDownloadRunning = (): boolean => offlineDlState.value === 'downloading'
-const fillRollingBuffer = async (): Promise<void> => {
+// Warm the next `spanMs` of upcoming play into IndexedDB. `concurrency` workers
+// pull in parallel: 1 for the steady background fill (device-proven not to
+// contend with the live play fetch), higher for bursts at non-lock moments
+// (start, hide, stop) where speed matters and there's no live playback to starve
+// — backgrounded play is from cache, so the only fetches are the filler's.
+const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
   if (rollingFillActive) return
   if (!isOnline.value) return            // offline: nothing to fetch
   if (bulkDownloadRunning()) return      // don't fight the bulk download
   rollingFillActive = true
   try {
-    const missing = collectSpanAudioIds(ROLLING_SPAN_MS)
-      .filter((id) => !audioCache.persistent.has(id))
-    for (const id of missing) {
-      if (!isOnline.value || bulkDownloadRunning()) break
-      // Silent — the play path handles any miss by streaming.
-      await audioCache.persistent.ensure(id).catch(() => { /* keep going */ })
+    const missing = collectSpanAudioIds(spanMs).filter((id) => !audioCache.persistent.has(id))
+    let next = 0
+    const worker = async (): Promise<void> => {
+      while (next < missing.length) {
+        if (!isOnline.value || bulkDownloadRunning()) return
+        const id = missing[next++]
+        // Silent — the play path handles any miss by streaming.
+        await audioCache.persistent.ensure(id).catch(() => { /* keep going */ })
+      }
     }
+    await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker))
   } finally {
     rollingFillActive = false
   }
 }
+// Steady background fill on each round advance — gentle (one at a time, deep span).
+const fillRollingBuffer = (): Promise<void> => fillBuffer(ROLLING_SPAN_MS, 1)
+// Fast burst at non-lock moments: warm the head quickly so the cold-start window
+// (the only lock-fragile gap, per Afrikaans telemetry) closes fast, and a
+// restart / backgrounded app stays supplied.
+const warmBurst = (): Promise<void> => fillBuffer(BURST_SPAN_MS, 3)
 
-// Re-warm the rolling window whenever the round advances (the natural cadence
-// during play). Fire-and-forget; never blocks the cycle.
+// First rounds load → burst the head warm fast. Each later round advance →
+// steady top-up. Stop/pause → burst the next bundle so a restart is instant.
+let firstBurstDone = false
+watch(() => (cachedRounds.value || []).length, (n) => {
+  if (n > 0 && !firstBurstDone) { firstBurstDone = true; void warmBurst() }
+})
 watch(currentRoundIndex, () => { void fillRollingBuffer() })
+watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
+// About-to-hide (iOS PWA backgrounding) → burst the next bundle so a backgrounded
+// or soon-locked session stays supplied even if it was still cold. Sits alongside
+// the existing resume-save visibility handler; both firing on hide is harmless.
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void warmBurst()
+  })
+}
 
 // Commentary (welcome/instructions/encouragements) and pod audio are
 // scheduled at RUNTIME — encouragements are a random pull from a pool, pod
