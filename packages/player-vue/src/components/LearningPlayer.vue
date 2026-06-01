@@ -15405,7 +15405,7 @@ button.phase-segment:active:not(.is-active) {
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
-  background: rgba(44, 38, 34, 0.06);
+  background: #e6e1d9;
   color: rgba(44, 38, 34, 0.95);
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.18);
 }
