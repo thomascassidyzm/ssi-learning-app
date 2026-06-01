@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.4 (2026-05-29)
+# Version: 2.1.5 (2026-06-01)
 # Status: Production-ready
 
 ## ============================================================================
@@ -331,6 +331,24 @@ HEADER_NAV:
     engine: "handleBeltPillTap → ProgressModal → handleSkipToBelt (belt jump) / handleActivateInfPlay (∞ activator)"
     infplay_state: "When current_mode === 'infplay': purple, THROBS, shows ∞ glyph with NO progress line (.belt-timer-unified.is-infplay, with mist counterpart). The ∞ indicator lives here; the modal's ∞ button is the ACTIVATOR."
     belt_modal: "Belt row is COLOUR-ONLY: each belt is just its coloured dot (.map-chip-dot) with a thin black ring (so WHITE reads on the white modal); belt NAME in title/aria-label. A glowing/throbbing ∞ activator (.infplay-activator) at the row end ENTERS INF PLAY (emit enterInfPlay → handleActivateInfPlay → enterInfPlay()) — the deliberate entry point. Both have :root[data-theme=\"mist\"] counterparts (modal teleports to body)."
+
+## ============================================================================
+## RESUME BEHAVIOR
+## ============================================================================
+
+## "Resume = where you left off", sized by how long the break was. Updated
+## 2026-06-01 (fix/resume-position).
+
+RESUME_BEHAVIOR:
+  cursor:
+    stored: "course_enrollments: last_completed_lego_id (the permalink), current_cycle_index, last_practiced_at"
+    writer: "ProgressStore.setLivePosition ONLY — fired per cycle (phase=prompt), so the DB source is cycle-precise and never lags localStorage. Single writer; useBeltProgress.syncToRemote no longer writes last_completed_lego_id (highest is lifted from the cursor by the ratchet trigger)."
+  gap_rule:
+    config: "ResumeConfig.cycleResetMinutes (default 5)"
+    under_cutoff: "gap < cutoff → resume the EXACT cycle (the Voice-2-incomplete one)"
+    over_cutoff: "gap >= cutoff → restart the in-progress ROUND (cycle 0 → the LEGO intro replays). Uniform: no practice rounds; in INF PLAY there is no intro, so it is simply the round start."
+    belt_regression: "ResumeConfig.beltRegressionDays (default 60) → walk the cursor back to the current belt's start (ceiling preserved)"
+    applied_on: "EVERY resume path — localStorage (resolveResumePosition, via the save's lastUpdated stamp) AND the DB-cursor path (via last_practiced_at). Fires only on a fresh load/reopen; pressing play in a still-live session is a continuation, not a resume."
 
 ## ============================================================================
 ## INTRO MODE
