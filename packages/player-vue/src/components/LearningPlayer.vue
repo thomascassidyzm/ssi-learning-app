@@ -2394,6 +2394,15 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
     const byId = cycles.findIndex((c: any) => c?.id === localPos.cycleId)
     if (byId >= 0) cycleIndex = byId
   }
+  // Gap rule on the localStorage path too (not just the DB path): a brief
+  // pause resumes the exact cycle; a real break restarts the round. Uses the
+  // save's OWN timestamp, so it fires even when the player was left up in rest
+  // state (DB last_practiced_at not reloaded) — the case that slipped through
+  // and kept the exact cycle no matter how long the gap. Tom 2026-06-01.
+  if (cycleIndex > 0 && typeof localPos.lastUpdated === 'number') {
+    const minutesSince = (Date.now() - localPos.lastUpdated) / 60000
+    if (minutesSince >= resumeConfig.value.cycleResetMinutes) cycleIndex = 0
+  }
   return { roundIndex: idx, cycleIndex }
 }
 
@@ -9172,6 +9181,12 @@ onMounted(async () => {
                   // origin / after ?reset=1) match the warm-localStorage one.
                   resumeRoundIndex = cursorIdx
                   resumeCycle = inferCursorCycle
+                  // Same gap rule on the DB-cursor path (cold localStorage):
+                  // a real break restarts the round rather than the exact cycle.
+                  if (resumeCycle > 0 && savedLastPracticedAt.value) {
+                    const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
+                    if (minutesSince >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
+                  }
                 } else {
                   const ceilingIdx = findLego(inferCeilingLegoId)
                   if (ceilingIdx >= 0) {
