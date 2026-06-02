@@ -2152,7 +2152,11 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
           cycleType: (cycle?.type || ''),
         },
       )
-      return [{ id: salientId || 'phrase', targetText, isSalient: false }]
+      // No salient match found → show the WHOLE phrase at full emphasis, NOT
+      // faded. The faded "context" styling only reads correctly next to a bold
+      // salient; with no salient it greys the entire sentence and nothing is
+      // the focus (the "looks dead" state). Tom 2026-06-02 row-back.
+      return [{ id: salientId || 'phrase', targetText, isSalient: true }]
     }
     // Golden rule: if audio will play, text must be present. Whatever
     // failed above (missing legoId, missing componentLegoIds, empty
@@ -2230,10 +2234,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   // which would manufacture false units like [fratello vuole].
   const result = ensureTileCoverage(rawBlocks, tileText)
 
-  // Fallback: if decomposition fails, show the full phrase as a single tile.
-  // The audio still plays — the learner must see what they hear.
+  // Fallback: if decomposition fails, show the full phrase as a single tile at
+  // FULL emphasis (not faded) — same reason as above: a lone non-salient block
+  // greys the whole sentence with nothing to contrast against. The audio still
+  // plays — the learner must see what they hear.
   if (result.length === 0 && tileText) {
-    return [{ id: salientLegoId || 'phrase', targetText: tileText, isSalient: false }]
+    return [{ id: salientLegoId || 'phrase', targetText: tileText, isSalient: true }]
   }
   return result
 })
