@@ -1367,16 +1367,13 @@ simplePlayer.onCycleCompleted((cycle) => {
         if (id && id !== cycle.legoId) firedLegoIds.push(id)
       }
     }
-    void pairingsTelemetry
-      .recordCyclePlay({
-        learnerId: learnerId.value,
-        courseCode: courseCode.value,
-        legoIds: firedLegoIds,
-      })
-      .catch((err: unknown) => {
-        // Telemetry must never break playback — log and move on.
-        console.warn('[LearningPlayer] pairings telemetry failed:', err)
-      })
+    // Accumulate locally; flushed in one batch on pause/background/unmount.
+    // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
+    pairingsTelemetry.recordCyclePlay({
+      learnerId: learnerId.value,
+      courseCode: courseCode.value,
+      legoIds: firedLegoIds,
+    })
   }
 
   // Feed per-LEGO adaptive engine. Only when we have a real latency signal
@@ -5675,6 +5672,9 @@ const handlePause = () => {
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
   }
+
+  // Flush batched co-fire telemetry on pause (accumulated per cycle).
+  void pairingsTelemetry.flush()
 }
 
 const handleResume = async () => {
@@ -6448,7 +6448,10 @@ const saveResumeAudio = () => {
 // Both fire close together in practice, but better to cover both than
 // miss the save window.
 const onSaveResumeVisibilityChange = () => {
-  if (document.visibilityState === 'hidden') saveResumeAudio()
+  if (document.visibilityState === 'hidden') {
+    saveResumeAudio()
+    void pairingsTelemetry.flush()
+  }
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', onSaveResumeVisibilityChange)
@@ -10350,6 +10353,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // Flush any batched co-fire telemetry before teardown (route change etc.).
+  void pairingsTelemetry.flush()
+
   heroResizeObserver?.disconnect()
   heroResizeObserver = null
 

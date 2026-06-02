@@ -1,29 +1,20 @@
 /**
- * usePairingsTelemetry — writes co-firing rows during play.
+ * usePairingsTelemetry - accumulates LEGO co-firing during play, flushed in
+ * batches on lifecycle boundaries (pause / background / unmount).
  *
  * Called from LearningPlayer.vue every time a cycle completes. We bump
  * fire_count for every unordered pair in the cycle's LEGO set: atoms +
  * any M-LEGO's component A-LEGOs (Agent C expands these before calling).
  *
- * IMPLEMENTATION CHOICE: single RPC call via supabase.rpc.
- *
- *   Supabase-JS .upsert() can express "insert or do-nothing" / "insert
- *   or replace", but not "insert or increment". Doing the increment
- *   client-side would require a SELECT-then-UPDATE round trip per row,
- *   which is O(N pairs * 2) round trips per cycle. With ~10 LEGOs per
- *   cycle that's 45 pairs = 90 round trips, every ~11 seconds.
- *
- *   Instead, the supporting migration ships a `record_lego_pairings`
- *   Postgres function that takes a 2D text array and does a single
- *   INSERT ... ON CONFLICT DO UPDATE for all pairs at once. One round
- *   trip per cycle. The function also canonicalises pair order
- *   (lego_a < lego_b) and dedupes within the call, so the client just
- *   passes the raw cycle's LEGO set.
- *
- * This composable is a thin wrapper around that RPC: dedupe lego ids,
- * build the unordered-pair array, call the function. No state — every
- * call is independent and fire-and-forget. Errors are logged but never
- * thrown back to the cycle loop (telemetry must NEVER block play).
+ * BATCHING (2026-06): previously this fired one `record_lego_pairings` RPC
+ * PER CYCLE (~150 RPCs / 30-min session, each an O(pairs) upsert). The
+ * `learner_lego_pairings` table has no live reader - it's substrate for a
+ * future brain-view / adaptive-selection feature - so per-cycle freshness is
+ * irrelevant. We now tally co-fire counts locally (canonicalised pair -> count)
+ * and `flush()` once per pause/background/session-end: ~150 RPCs -> ~1-3, with
+ * the counts preserved (the RPC takes a parallel `_counts` array - see
+ * 20260602_lego_pairings_batched_counts.sql). Same accumulate-and-flush shape
+ * as useLearningSession's speaking_opportunities.
  */
 
 import { inject } from 'vue'
@@ -34,8 +25,8 @@ export interface RecordCyclePlayOptions {
   courseCode: string
   /**
    * All LEGOs that fired in this cycle. M-LEGOs must be pre-expanded to
-   * include their component A-LEGOs (the caller — LearningPlayer.vue
-   * via Agent C — handles that expansion). Duplicates here are tolerated
+   * include their component A-LEGOs (the caller - LearningPlayer.vue
+   * via Agent C - handles that expansion). Duplicates here are tolerated
    * and deduped before pairing.
    */
   legoIds: string[]
@@ -44,7 +35,7 @@ export interface RecordCyclePlayOptions {
 /**
  * Build the unordered-pair array from a deduped LEGO id list. Returns a
  * 2D string array suitable for the `record_lego_pairings` RPC. Order
- * within each pair doesn't matter — the function canonicalises server-side.
+ * within each pair doesn't matter - the function canonicalises server-side.
  *
  * Exported for unit-test visibility.
  */
@@ -61,7 +52,7 @@ export function buildPairs(legoIds: string[]): string[][] {
     unique.push(id)
   }
 
-  // We need fewer than 2 unique LEGOs? No pairs to record.
+  // Fewer than 2 unique LEGOs? No pairs to record.
   if (unique.length < 2) return []
 
   // Generate every unordered pair. The RPC will canonicalise (lego_a <
@@ -78,31 +69,56 @@ export function buildPairs(legoIds: string[]): string[][] {
 export function usePairingsTelemetry() {
   const supabaseRef = inject<{ value: SupabaseClient | null }>('supabase')
 
-  async function recordCyclePlay(opts: RecordCyclePlayOptions): Promise<void> {
-    const supabase = supabaseRef?.value
-    if (!supabase) {
-      // No client yet (still wiring up) — silently skip; play continues.
-      return
-    }
+  // Local co-fire tally, keyed by canonicalised pair (lego_a < lego_b). Value
+  // is the number of cycles the pair fired together since the last flush.
+  let pendingLearnerId: string | null = null
+  let pendingCourseCode: string | null = null
+  const tally = new Map<string, { a: string; b: string; count: number }>()
 
-    // Guard against guest/anonymous flows. The schema requires a real
-    // learners.id (FK) — fake or guest ids would cause a constraint
-    // violation, and we don't want telemetry to noisy-error in that case.
-    if (!opts.learnerId || opts.learnerId.startsWith('guest-')) {
-      return
-    }
-
+  /**
+   * Accumulate one cycle's co-firings. Synchronous and fast - no network.
+   * Safe to call from the cycle loop; never throws.
+   */
+  function recordCyclePlay(opts: RecordCyclePlayOptions): void {
+    // Guard guest/anonymous flows - the schema requires a real learners.id FK.
+    if (!opts.learnerId || opts.learnerId.startsWith('guest-')) return
     const pairs = buildPairs(opts.legoIds)
     if (pairs.length === 0) return
+    pendingLearnerId = opts.learnerId
+    pendingCourseCode = opts.courseCode
+    for (const [x, y] of pairs) {
+      const a = x < y ? x : y
+      const b = x < y ? y : x
+      const key = `${a}|${b}`
+      const existing = tally.get(key)
+      if (existing) existing.count++
+      else tally.set(key, { a, b, count: 1 })
+    }
+  }
 
+  /**
+   * Flush the accumulated tally in one RPC. Clears the tally BEFORE awaiting,
+   * so cycles that fire during the in-flight call accumulate fresh for the
+   * next flush. Fire-and-forget - telemetry must never block or break play.
+   * Safe to call repeatedly; an empty tally no-ops.
+   */
+  async function flush(): Promise<void> {
+    const supabase = supabaseRef?.value
+    if (!supabase || tally.size === 0 || !pendingLearnerId || !pendingCourseCode) return
+    const entries = [...tally.values()]
+    const learnerId = pendingLearnerId
+    const courseCode = pendingCourseCode
+    tally.clear()
+    const _pairs = entries.map(e => [e.a, e.b])
+    const _counts = entries.map(e => e.count)
     try {
       const { error } = await supabase.rpc('record_lego_pairings', {
-        _learner_id: opts.learnerId,
-        _course_code: opts.courseCode,
-        _pairs: pairs,
+        _learner_id: learnerId,
+        _course_code: courseCode,
+        _pairs,
+        _counts,
       })
       if (error) {
-        // Log but do not rethrow — telemetry never blocks play.
         console.warn('[usePairingsTelemetry] record_lego_pairings failed:', error.message)
       }
     } catch (err) {
@@ -111,5 +127,5 @@ export function usePairingsTelemetry() {
     }
   }
 
-  return { recordCyclePlay }
+  return { recordCyclePlay, flush }
 }
