@@ -61,6 +61,12 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
         if (p.has('forceEncouragements') || p.has('fc')) {
           svc.forceFire = true
           console.debug('[useMetaCommentary] forceFire ON (dev cheat) — interjection on every speaking boundary')
+          // ?fc=enc → jump straight to encouragement icons (skip the ~30
+          // instructions), session-only / not persisted.
+          if (p.get('fc') === 'enc' || p.has('enc')) {
+            svc.forceEncouragementsOnly = true
+            console.debug('[useMetaCommentary] forceEncouragementsOnly ON (dev cheat) — skipping instructions, session-only')
+          }
         }
       } catch { /* no window / no search params */ }
       service.value = svc
