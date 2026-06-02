@@ -8,13 +8,13 @@
 
 ---
 
-## 1. The problem was never the data — it was the cost of a question
+## 1. The opportunity: for the first time, we can both capture *and* interrogate
 
-SSi has always had terrible data insight, and it is worth being precise about *why*, because the wrong diagnosis leads to the wrong fix. It was **not** a shortage of data. It was that **every question carried the cost of a bespoke build** — a new query, a new chart, a developer-week — so the only questions ever answered were the ones someone happened to have time to construct. Insight was rationed by engineering capacity. A small team with a question backlog loses every time.
+Real insight has always needed two things, and for most of SSi's life we had neither. We couldn't reliably **capture** what learners actually did — the telemetry wasn't there. And even where data existed, we had no way to **interrogate** it without a bespoke build for every question. Either gap alone is fatal.
 
-So the opportunity now is not "a better dashboard." A better dashboard is just a cheaper *answer* to a question someone already chose. The opportunity is to **drive the marginal cost of a new question to near zero** — to build an engine where a new insight is a *composition*, not a *project*. That single shift is the whole difference between "terrible insights" and "world-class".
+Both are now solved — and that is the genuinely new, genuinely exciting thing. We capture everything: tens of thousands of events a month, nearly every one tagged on every axis at once — content, learner, cohort, region, device, build, time. And the means to ask it *anything* is exactly what this paper builds. We are, for once, in the rare and happy position of designing the interrogation layer **from scratch, on a full data substrate.**
 
-We can do this now, and we are unusually well-placed to, for one reason established in *Measuring Progress*: **we capture everything, and nearly every event is tagged on every axis at once** — content, learner, cohort, region, device, build, time. The substrate for arbitrary questions already exists. What is missing is the engine that lets us *ask* them.
+So the opportunity is generous, and forward-looking: not "a better dashboard" (a dashboard is only a cheaper *answer* to a question someone already chose), but **driving the cost of asking a new question toward zero** — an engine where a new insight is a *composition*, not a *project*. That single shift is the whole leap to world-class. The substrate is here; what we get to build is the engine that lets us ask.
 
 ---
 

@@ -28,7 +28,7 @@ const papers: Paper[] = [
   {
     title: 'The Insight Engine',
     blurb:
-      'Why our insight has always been terrible — and the fix. The problem was never the data, it was the cost of a question: every insight a bespoke build. An engine where a new insight is a composition, not a project — a semantic substrate, a plain-language query surface, and Claude as the analyst-in-the-box (explain + discover). It reads the Measuring Progress model rather than competing with it, and is future-proof for VAD. One live figure; built to be argued with.',
+      'For the first time we can both capture the data and interrogate it — neither was possible before. An engine where a new insight is a composition, not a project: a semantic substrate, a plain-language query surface, and Claude as the analyst-in-the-box (explain + discover). It reads the Measuring Progress model rather than competing with it, and is future-proof for VAD. One live figure; built to be argued with.',
     href: '/docs/insight-engine.html',
     tag: 'Interactive · position paper',
     status: 'Draft — for discussion',
