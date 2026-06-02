@@ -11886,13 +11886,36 @@ defineExpose({
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
+  /* ============ HERO CONSTRUCTION GRID ============
+   * The whole top section is built from ONE base unit. Everything derives, so
+   * the single breakpoint just swaps --u (4px mobile → 5px desktop) and the
+   * proportions hold. Ratios:
+   *   pill height   = 8u   (belt pill, phase pill, AND the flanking round
+   *                         buttons — so each row is one clean band)
+   *   pill radius   = 4u   (= height/2 → true stadium ends; buttons are
+   *                         circles of the same radius → one family)
+   *   row h-gap     = 2u   (round button ↔ pill)
+   *   vertical rhythm = 5u (title↔belt = belt↔dialog = dialog↔phase, all equal)
+   *   title slot    = 7u   (the logo's line box)
+   * The painting is a full-bleed backdrop, so the stack can sit anywhere — we
+   * just lay it on the grid from the top. */
+  --u: 4px;
+  --pill-height: calc(8 * var(--u));     /* 32px mobile / 40px desktop */
+  --pill-radius: calc(4 * var(--u));     /* 16 / 20 — stadium + matching circles */
+  --hero-gap: calc(5 * var(--u));        /* 20 / 25 — the one vertical rhythm */
+  --title-slot: calc(7 * var(--u));      /* 28 / 35 — logo line box */
+
   /* ============ LAYOUT STRUCTURE ============ */
-  --header-height: 72px;
+  /* Header height is now an HONEST sum of its parts (top padding + title +
+   * rhythm + pill), not a hardcoded guess — so --hero-offset is the TRUE
+   * belt→dialog gap. (Old --header-height: 72px under-reported the real ~87px,
+   * which is why the gaps never matched their tokens.) */
+  --header-height: calc(var(--space-lg) + var(--title-slot) + var(--hero-gap) + var(--pill-height));
   --header-total: calc(var(--header-height) + var(--safe-area-top));
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 34px; /* gap belt pill -> text box (was 48px; evened up against the now-larger title->belt gap) */
+  --hero-offset: var(--hero-gap); /* belt pill → dialog box = one rhythm unit */
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -11938,14 +11961,13 @@ defineExpose({
 
   /* ============ HEADER ============ */
   --header-padding: var(--space-md) var(--space-lg) var(--space-sm);
-  --belt-row-gap: 0.5rem;
+  --belt-row-gap: calc(2 * var(--u)); /* round button ↔ pill = 2u (8 / 10) */
   --belt-timer-width: 180px;
   --belt-bar-width: 60px;
   --belt-bar-height: 5px;
-  /* Shared pill height — belt pill + phase pill are LOCKED to one value so
-   * they're identical by construction (label 12px×1.5 + 12px pad + 3px border
-   * = 33px at mobile; 36px at ≥768px). Both pills consume it. */
-  --pill-height: 33px;
+  /* --pill-height + --pill-radius now live in the HERO CONSTRUCTION GRID above
+   * (8u tall, 4u radius). Belt pill, phase pill, and the flanking round buttons
+   * all consume --pill-height so the rows are one band by construction. */
 
   /* ============ RING / TEXT ZONE ============ */
   --ring-size: 180px;
@@ -12260,7 +12282,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-md); /* title -> belt pill: 8px felt cramped, 12px gives the logo air */
+  gap: var(--hero-gap); /* title → belt pill — one rhythm unit (5u) */
   width: 100%;
   max-width: 400px;
 }
@@ -12273,6 +12295,12 @@ defineExpose({
   letter-spacing: -0.02em;
   white-space: nowrap;
   flex-shrink: 0;
+  /* Occupy a defined 7u band (like the pills are 8u), logo centred in it — so
+     --header-height is an exact sum of grid bands, not font-metric guesswork. */
+  height: var(--title-slot);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-say, .logo-in { color: var(--accent); }
@@ -12359,11 +12387,14 @@ defineExpose({
   padding: 0 var(--space-sm);
 }
 
-/* Belt skip buttons */
+/* Belt skip buttons — diameter LOCKED to the pill height so the round
+   buttons and the pill form one uniform-height band (was 36 vs 33px pill,
+   which made them bulge above/below). The circle's radius then equals the
+   pill's stadium radius → one family. */
 .belt-header-skip {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: var(--pill-height);
+  height: var(--pill-height);
+  min-width: var(--pill-height);
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
@@ -12465,7 +12496,7 @@ defineExpose({
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 20px;
+  border-radius: var(--pill-radius); /* stadium — matches the round buttons + phase pill */
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   flex: 1;
@@ -13436,7 +13467,7 @@ defineExpose({
   gap: var(--belt-row-gap);
   width: 100%;
   padding: 0 var(--space-sm);
-  margin: var(--space-xl) auto 0; /* gap text box -> phase pill (was --space-md/12px) */
+  margin: var(--hero-gap) auto 0; /* dialog box → phase pill — one rhythm unit (5u) */
 }
 .phase-strip {
   display: flex;
@@ -13447,7 +13478,7 @@ defineExpose({
   padding: 0;
   background: #ffffff;
   border: 1.5px solid rgba(255, 255, 255, 0.35); /* match belt pill border (default theme) */
-  border-radius: 20px;
+  border-radius: var(--pill-radius); /* stadium — matches belt pill + round buttons */
   box-shadow:
     0 2px 4px rgba(44, 38, 34, 0.10),
     0 6px 16px rgba(44, 38, 34, 0.06);
@@ -14157,11 +14188,12 @@ button.phase-segment:active:not(.is-active) {
    the space background extending to fill the viewport.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* Tablet and Desktop (768px+) - more breathing room */
+/* Tablet and Desktop (768px+) - more breathing room.
+   ONE knob: bump the base unit 4px → 5px and the whole hero grid scales
+   proportionally (pill 32→40, radius 16→20, rhythm 20→25, header derives). */
 @media (min-width: 768px) {
   .player {
-    --header-height: 84px;
-    --hero-offset: 40px;
+    --u: 5px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
@@ -14176,7 +14208,7 @@ button.phase-segment:active:not(.is-active) {
     --belt-timer-width: 240px;
     --belt-bar-width: 90px;
     --belt-bar-height: 6px;
-    --pill-height: 36px;
+    /* --pill-height now derives from --u (8u = 40px here) */
     --control-bar-gap: 3.5rem;
     --control-group-gap: 0.625rem;
     --ring-size: 220px;
@@ -14186,11 +14218,12 @@ button.phase-segment:active:not(.is-active) {
   }
 }
 
-/* Landscape phones - compact vertical spacing */
+/* Landscape phones - compact vertical spacing.
+   Same grid, smaller base unit (3px → pill 24, rhythm 15); header-height +
+   hero-offset DERIVE from it (honest), so no overlap from a hardcoded guess. */
 @media (orientation: landscape) and (max-height: 500px) {
   .player {
-    --header-height: 56px;
-    --hero-offset: 8px;
+    --u: 3px;
     --space-sm: 4px;
     --space-md: 8px;
     --space-lg: 12px;
