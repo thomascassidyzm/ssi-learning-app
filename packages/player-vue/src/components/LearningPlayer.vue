@@ -11892,7 +11892,7 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 48px; /* gap belt pill -> text box (was 24px; +8 compensates the header's bigger top padding so this gap holds) */
+  --hero-offset: 34px; /* gap belt pill -> text box (was 48px; evened up against the now-larger title->belt gap) */
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -12260,7 +12260,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md); /* title -> belt pill: 8px felt cramped, 12px gives the logo air */
   width: 100%;
   max-width: 400px;
 }
@@ -14161,7 +14161,7 @@ button.phase-segment:active:not(.is-active) {
 @media (min-width: 768px) {
   .player {
     --header-height: 84px;
-    --hero-offset: 54px;
+    --hero-offset: 40px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
@@ -14591,8 +14591,10 @@ button.phase-segment:active:not(.is-active) {
 [data-theme="mist"] .player .belt-timer-unified {
   background: color-mix(in srgb, var(--belt-color) 65%, white);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08);
+  /* Match the phase pill exactly so the two pills read as one family — the
+     belt pill's heavier 24px shadow made it look chunkier ("less sleek"). */
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 6px 16px rgba(44, 38, 34, 0.06);
 }
 
 [data-theme="mist"] .player .belt-timer-label {
