@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Insight Engine — SSi Position Paper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:        #f4f2ec;
+    --paper-2:      #efece4;
+    --card:         #ffffff;
+    --ink:          #2C2622;
+    --ink-2:        #5b534c;
+    --ink-3:        #8A8078;
+    --ink-faint:    #b8b0a6;
+    --line:         rgba(44, 38, 34, 0.12);
+    --line-soft:    rgba(44, 38, 34, 0.07);
+    --red:          #DB1E17;
+    --red-deep:     #900600;
+    --blue:         96, 165, 250;
+    --gold:         197, 152, 64;
+    --green:        58, 158, 96;
+    --rd:           217, 69, 69;
+    --display: 'Arsenal', Georgia, serif;
+    --body: 'Newsreader', Georgia, serif;
+    --mono: 'Spline Sans Mono', ui-monospace, monospace;
+    --measure: 38rem;
+    --wide: 60rem;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 19px;
+    line-height: 1.62;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold), 0.10), transparent 60%),
+      radial-gradient(900px 500px at -10% 12%, rgba(var(--blue), 0.06), transparent 55%);
+    background-attachment: fixed;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    opacity: 0.4; mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) clamp(18px, 5vw, 64px) 14px;
+    background: rgba(244, 242, 236, 0.82);
+    backdrop-filter: blur(14px) saturate(1.4);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .backlink {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em;
+    color: var(--ink-2); text-decoration: none;
+    padding: 6px 12px 6px 9px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--card);
+    transition: color .15s, border-color .15s; flex: none;
+  }
+  .backlink:hover { color: var(--red); border-color: rgba(219,30,23,0.32); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); }
+  .brand b { color: var(--red); font-weight: 600; }
+  .brand .mark { width: 22px; height: 22px; border-radius: 6px; background: var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topnav { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  .topnav a {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+    color: var(--ink-3); text-decoration: none; padding: 6px 10px; border-radius: 999px;
+    transition: color .15s, background .15s;
+  }
+  .topnav a:hover, .topnav a.active { color: var(--red); background: rgba(219,30,23,0.07); }
+  @media (max-width: 880px) { .topnav { display: none; } }
+  main { position: relative; z-index: 1; }
+  .wrap { max-width: var(--measure); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  .wide { max-width: var(--wide); margin: 0 auto; padding: 0 clamp(20px, 5vw, 28px); }
+  section { padding: clamp(40px, 7vw, 88px) 0; border-top: 1px solid var(--line-soft); }
+  section:first-of-type { border-top: none; }
+  .hero { padding: clamp(56px, 11vw, 130px) 0 clamp(36px, 6vw, 64px); border-top: none; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--red); display: inline-block; margin-bottom: 22px; }
+  .hero h1 { font-family: var(--display); font-weight: 700; letter-spacing: -0.02em; line-height: 1.02; font-size: clamp(40px, 7.5vw, 86px); margin: 0 0 22px; }
+  .hero h1 em { font-style: italic; color: var(--red); font-weight: 400; }
+  .lede { font-size: clamp(20px, 2.6vw, 25px); line-height: 1.5; color: var(--ink-2); max-width: 34rem; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta-row { margin-top: 38px; display: flex; gap: 26px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; color: var(--ink-3); }
+  .meta-row span b { color: var(--ink); font-weight: 600; }
+  h2 { font-family: var(--display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.08; font-size: clamp(28px, 4.4vw, 44px); margin: 0 0 6px; }
+  .sec-num { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--red); text-transform: uppercase; display:block; margin-bottom: 14px; }
+  .dek { font-size: 21px; color: var(--ink-2); font-style: italic; margin: 0 0 30px; max-width: 32rem; }
+  p { margin: 0 0 20px; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+  a.inline { color: var(--red); text-decoration: none; border-bottom: 1px solid rgba(219,30,23,0.3); }
+  .small { font-size: 16px; color: var(--ink-2); }
+  .kicker { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); }
+  .pull { font-family: var(--display); font-size: clamp(23px, 3.4vw, 32px); line-height: 1.28; color: var(--ink); border-left: 3px solid var(--red); padding: 4px 0 4px 24px; margin: 34px 0; font-weight: 400; }
+  .pull em { color: var(--red); font-style: italic; }
+  ul.clean { list-style: none; padding: 0; margin: 0 0 22px; }
+  ul.clean li { position: relative; padding-left: 26px; margin-bottom: 12px; }
+  ul.clean li::before { content: "—"; position: absolute; left: 0; color: var(--red); font-family: var(--mono); }
+  figure.fig { margin: 40px 0; background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(44,38,34,.05), 0 14px 40px rgba(44,38,34,.07), 0 40px 80px rgba(44,38,34,.05); }
+  .fig-head { padding: 18px 22px 12px; border-bottom: 1px solid var(--line-soft); display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .fig-tag { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color:#fff; background: var(--ink); padding: 3px 8px; border-radius: 5px; }
+  .fig-title { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--ink); }
+  .fig-body { padding: 22px; }
+  figcaption { padding: 0 22px 20px; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+  figcaption b { color: var(--ink); font-weight: 600; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .seg { display: inline-flex; background: var(--paper-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg button { font-family: var(--mono); font-size: 12px; letter-spacing: 0.02em; border: none; background: transparent; color: var(--ink-2); padding: 7px 13px; border-radius: 999px; cursor: pointer; transition: all .15s; }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .seg.red button.on { background: var(--red); }
+  .ctrl-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-3); margin-right: 2px; }
+  .readout { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--line); }
+  .stat .v { font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1; }
+  .stat .l { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-top: 6px; }
+  .compose-q { font-family: var(--display); font-size: clamp(19px, 2.6vw, 24px); line-height: 1.35; color: var(--ink); margin: 4px 0 0; }
+  .compose-q b { color: var(--red); font-weight: 700; }
+  .explain { font-style: italic; font-size: 17px; color: var(--ink); margin-top: 14px; min-height: 1.4em; }
+  .explain .own { font-style: normal; font-weight: 600; }
+  .explain .own.self { color: rgb(var(--blue)); } .explain .own.group { color: var(--red); } .explain .own.content { color: rgb(var(--green)); }
+  .frames { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 30px 0; }
+  @media (max-width: 760px) { .frames { grid-template-columns: 1fr; } }
+  .frame-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; position: relative; overflow: hidden; }
+  .frame-card .n { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--ink-faint); }
+  .frame-card h4 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 8px 0 4px; }
+  .frame-card .ref { font-family: var(--mono); font-size: 11px; color: var(--red); letter-spacing: 0.06em; text-transform: uppercase; }
+  .frame-card p { font-size: 15.5px; color: var(--ink-2); margin: 12px 0 0; }
+  .frame-card .bar { position: absolute; top:0; left:0; right:0; height: 4px; }
+  .qbox { background: var(--paper-2); border: 1px solid var(--line); border-radius: 14px; padding: 26px 28px; margin: 30px 0; }
+  .qbox h3 { font-family: var(--display); font-weight: 700; font-size: 22px; margin: 0 0 6px; }
+  .qbox ol { margin: 14px 0 0; padding-left: 22px; }
+  .qbox li { margin-bottom: 14px; font-size: 16.5px; }
+  .qbox li b { color: var(--red); font-weight: 600; }
+  footer { padding: 60px 0 90px; border-top: 1px solid var(--line-soft); color: var(--ink-3); font-size: 14px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; font-family: var(--mono); letter-spacing: 0.03em; }
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity:1; transform:none; transition:none; } html { scroll-behavior:auto; } }
+  .hero-fade > * { opacity: 0; animation: rise .9s cubic-bezier(.2,.7,.2,1) forwards; }
+  .hero-fade > *:nth-child(1){ animation-delay:.05s } .hero-fade > *:nth-child(2){ animation-delay:.18s }
+  .hero-fade > *:nth-child(3){ animation-delay:.31s } .hero-fade > *:nth-child(4){ animation-delay:.44s }
+  @keyframes rise { to { opacity:1; transform:none; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/admin/methodology" class="backlink" aria-label="Back to methodology">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </a>
+  <span class="brand"><span class="mark">S</span> SaySomethin<b>in</b> · Admin</span>
+  <nav class="topnav" id="topnav">
+    <a href="#premise">Premise</a>
+    <a href="#substrate">Same substrate</a>
+    <a href="#layers">Three layers</a>
+    <a href="#compose">Compose</a>
+    <a href="#worldclass">World-class</a>
+    <a href="#future">Future-proof</a>
+    <a href="#discipline">Discipline</a>
+    <a href="#guarantees">Guarantees</a>
+    <a href="#discuss">Discuss</a>
+  </nav>
+</div>
+
+<main>
+
+  <!-- HERO -->
+  <header class="hero wrap hero-fade">
+    <span class="eyebrow">Position paper · for Tom &amp; Aran</span>
+    <h1>The insight engine.<br>Kill the cost of <em>a question</em>.</h1>
+    <p class="lede">We've always had terrible data insight — and the reason was never the data. It was that <strong>every question carried the cost of a bespoke build</strong>. This is the delivery system that makes a new insight a <em>composition</em>, not a project — and reads the measurement model of <strong>Measuring&nbsp;Progress</strong>, not a new one.</p>
+    <div class="meta-row">
+      <span><b>Status</b> &nbsp;Vision / discussion</span>
+      <span><b>Companion</b> &nbsp;docs/methodology/insight-engine.md</span>
+      <span><b>Gate</b> &nbsp;better × simpler × cheaper</span>
+    </div>
+  </header>
+
+  <!-- PREMISE -->
+  <section id="premise"><div class="wrap reveal">
+    <span class="sec-num">01 — The premise</span>
+    <h2>The problem was the cost of a question.</h2>
+    <p class="dek">Insight was rationed by engineering capacity, not by data.</p>
+    <p>Be precise about <em>why</em> our insight has always been poor, because the wrong diagnosis buys the wrong fix. It was <strong>not</strong> a shortage of data. It was that every question meant a new query, a new chart, a developer-week — so the only questions ever answered were the ones someone had time to construct. A small team with a question backlog loses that race every time.</p>
+    <p>So the opportunity is not "a better dashboard" — a dashboard is just a cheaper <em>answer</em> to a question someone already chose. The opportunity is to drive the marginal cost of a <em>new question</em> toward zero.</p>
+    <p class="pull">Make a new insight a <em>composition</em>, not a project. That single shift is the whole distance between "terrible insights" and "world-class".</p>
+    <p>We're unusually placed to do it: we capture everything, and nearly every event is tagged on every axis at once — content, learner, cohort, region, device, build, time. The substrate for arbitrary questions already exists. What's missing is the engine that lets us <em>ask</em> them.</p>
+  </div></section>
+
+  <!-- SUBSTRATE -->
+  <section id="substrate"><div class="wrap reveal">
+    <span class="sec-num">02 — Coherence</span>
+    <h2>The same substrate as Measuring Progress — a new surface on it.</h2>
+    <p class="dek">One theory of measurement; one engine that serves it everywhere.</p>
+    <p>This paper introduces no competing theory — it would be a failure if it did. <strong>Measuring Progress</strong> defines <em>what</em> we measure: the difficulty × execution coordinate, the discipline of reading <strong>curvature not level</strong>, the self / group / world frames, the sovereign comparison rule, the layered architecture. The insight engine is the system that <em>reads that model</em>. Its whole vocabulary <em>is</em> the measurement model's:</p>
+    <ul class="clean">
+      <li>its <strong>metrics</strong> are the measured signals — retention, friction, calibration, hours, conversion;</li>
+      <li>its <strong>frames</strong> are Measuring Progress's self / group / world / content;</li>
+      <li>its <strong>order</strong> is Measuring Progress's level / velocity / acceleration.</li>
+    </ul>
+    <p>Nothing is invented. The measurement model is simply made <strong>queryable, composable, and self-interpreting</strong> — so that a number a learner sees and a number an admin sees are the <em>same definition</em> at different <code>GROUP&nbsp;BY</code> levels.</p>
+  </div></section>
+
+  <!-- LAYERS -->
+  <section id="layers"><div class="wrap reveal">
+    <span class="sec-num">03 — Architecture</span>
+    <h2>Three layers. The first changes everything; the third leads the world.</h2>
+    <div class="frames">
+      <div class="frame-card">
+        <div class="bar" style="background:rgb(var(--blue))"></div>
+        <div class="n">01</div>
+        <h4>Substrate</h4>
+        <div class="ref">the WHAT, as config</div>
+        <p>Entities × metrics × dimensions × frames × order, declared once — not buried in one-off SQL. Any question becomes a <em>row</em>: <code>{metric} × {entity} × {frame} × {order} × {window}</code>. Define a metric once, tested; two surfaces can never quietly disagree about what "retention" means.</p>
+      </div>
+      <div class="frame-card">
+        <div class="bar" style="background:var(--red)"></div>
+        <div class="n">02</div>
+        <h4>Query surface</h4>
+        <div class="ref">ask in plain language</div>
+        <p>Natural language in → mapped to a composition over the registry → an answer back. The team stops waiting for a chart and starts <em>asking</em>. Saved compositions become the boards — bookmarks, not software.</p>
+      </div>
+      <div class="frame-card">
+        <div class="bar" style="background:rgb(var(--green))"></div>
+        <div class="n">03</div>
+        <h4>Interpreter</h4>
+        <div class="ref">an analyst in the box</div>
+        <p>Every other tool hands you numbers and makes <em>you</em> the analyst. This one explains — number → meaning → action — and discovers what's worth a human's eye. A deliberate, billed-by-design model call, on aggregates, admin-gated, cached.</p>
+      </div>
+    </div>
+    <p>That registry is the thing that lets us "easily think of how to use the data" — because every new thought is <em>already expressible</em> the moment we have the words for it.</p>
+  </div></section>
+
+  <!-- COMPOSE (interactive) -->
+  <section id="compose"><div class="wide reveal">
+    <span class="sec-num">04 — The core, live</span>
+    <h2>Any question is a composition.</h2>
+    <p class="dek">Pick the pieces. The question writes itself — and the interpreter tells you whose problem it is.</p>
+    <figure class="fig">
+      <div class="fig-head"><span class="fig-tag">Figure A</span><span class="fig-title">Compose a question → get an interpreted answer</span></div>
+      <div class="fig-body">
+        <div class="controls"><span class="ctrl-label">metric</span><div class="seg red" data-dim="metric">
+          <button data-v="retention" class="on">retention</button><button data-v="friction">friction</button><button data-v="days-active">days-active</button><button data-v="trial→paid">trial→paid</button>
+        </div></div>
+        <div class="controls"><span class="ctrl-label">entity</span><div class="seg" data-dim="entity">
+          <button data-v="learner" class="on">learner</button><button data-v="course">course</button><button data-v="LEGO">LEGO</button><button data-v="region">region</button>
+        </div></div>
+        <div class="controls"><span class="ctrl-label">frame</span><div class="seg" data-dim="frame">
+          <button data-v="self">self</button><button data-v="group" class="on">group</button><button data-v="content">content</button>
+        </div></div>
+        <div class="controls"><span class="ctrl-label">window</span><div class="seg" data-dim="window">
+          <button data-v="today">today</button><button data-v="last 7 days" class="on">last 7 days</button><button data-v="last 30 days">last 30 days</button>
+        </div></div>
+        <div class="controls"><span class="ctrl-label">order</span><div class="seg" data-dim="order">
+          <button data-v="level">level</button><button data-v="trend">trend</button><button data-v="acceleration" class="on">acceleration</button>
+        </div></div>
+        <div class="readout" style="border-top:none;margin-top:8px;padding-top:18px;display:block">
+          <p class="compose-q" id="compose-q"></p>
+          <p class="explain" id="compose-explain"></p>
+        </div>
+      </div>
+      <figcaption><b>No build, just a composition.</b> Change any control and the question — and its interpretation — update instantly. The <em>frame</em> decides the owner (the friction law): <span style="color:rgb(var(--blue));font-weight:600">self → adaptation</span>, <span style="color:var(--red);font-weight:600">group → needs-attention</span>, <span style="color:rgb(var(--green));font-weight:600">content → a Popty quality question</span>. The <em>order</em> decides urgency: level is context, acceleration is the leading alarm. (Numbers here are illustrative.)</figcaption>
+    </figure>
+  </div></section>
+
+  <!-- WORLD-CLASS -->
+  <section id="worldclass"><div class="wrap reveal">
+    <span class="sec-num">05 — The claim</span>
+    <h2>Why this is world-class, and where the honesty line is.</h2>
+    <p>The claim is specific: <strong>the near-zero marginal cost of a new question, with the interpretation included.</strong> That's the thing teams with far bigger data departments still don't have — because they solved the <em>answer</em> (dashboards) and never solved the <em>question</em>. An engine plus an interpreter means the <em>thinking</em> scales without the <em>building</em> scaling — the only way a team this size out-insights teams ten times larger.</p>
+    <p>And the honesty line, stated so we never oversell it: this is an <strong>analyst in the box over our own data</strong>, not an oracle. It reasons over aggregates, proposes hypotheses, points a human at what to look at. It does not assert causation it can't see — it removes the <em>grind</em> that currently stops the judgement call from being made at all.</p>
+  </div></section>
+
+  <!-- FUTURE -->
+  <section id="future"><div class="wrap reveal">
+    <span class="sec-num">06 — Future-proof</span>
+    <h2>The vocabulary grows. The architecture doesn't.</h2>
+    <p class="dek">Every foreseeable change is additive to the registry, not a rebuild.</p>
+    <ul class="clean">
+      <li><strong>VAD lands</strong> (the execution/prosody axis) → new metrics in the registry. The engine is untouched; behavioural-first today, prosody-rich tomorrow, <em>same engine</em>.</li>
+      <li><strong>A real school arrives</strong> → a new entity and frame level; sovereignty and k-anonymity already handle it — they were designed for exactly this.</li>
+      <li><strong>A new audience</strong> — learner, tutor, admin, government — is a <em>different lens on one substrate</em>, not a new product.</li>
+      <li><strong>The interface never needs redesigning</strong> as the data grows, because the interface is <em>language</em>. The surface area can 10× and the way you interact with it does not change.</li>
+    </ul>
+  </div></section>
+
+  <!-- DISCIPLINE -->
+  <section id="discipline"><div class="wrap reveal">
+    <span class="sec-num">07 — The discipline</span>
+    <h2>A commitment, not a boil-the-ocean.</h2>
+    <p>The danger with a vision this size is that it becomes an excuse to build a platform before a feature. It must not. The discipline is Measuring Progress's Principle 5 — <strong>better × simpler × cheaper, and never build a signal before its consumer exists</strong> — turned on the engine itself.</p>
+    <ul class="clean">
+      <li><strong>Commit to the approach now.</strong> Every board from here is an <em>instance of the engine</em> — registry-defined, never a one-off page.</li>
+      <li><strong>Start tiny.</strong> Five metrics, two frames, one <code>explain</code> call, over the raw tables that already exist. The registry can be five entries on day one and fifty by VAD-time.</li>
+      <li><strong>Earn each addition.</strong> A new metric, the rollup tables, the prosody axis — each lands only when a consumer needs it.</li>
+    </ul>
+    <p class="pull">Hold the architecture firmly and the surface area loosely.</p>
+  </div></section>
+
+  <!-- GUARANTEES -->
+  <section id="guarantees"><div class="wrap reveal">
+    <span class="sec-num">08 — Inherited guarantees</span>
+    <h2>IP and sovereignty, enforced once at the substrate.</h2>
+    <p>Because every surface is an instance of one engine, the protections are enforced once and inherited everywhere.</p>
+    <ul class="clean">
+      <li><strong>IP guardrail.</strong> The telemetry is behaviour <em>over content-IDs</em>, never the generative method. <em>What</em> played, in what order, with what friction — yes; <em>why</em> (triple-helix, spaced-rep, adaptation) lives in code, and content sits behind the entitlement-gated audio proxy. Even a full export is <strong>one realised path, not the rules that generate paths</strong> — it can't reconstruct the course or the method.</li>
+      <li><strong>Sovereignty.</strong> Every comparison is entity-vs-aggregate, never a named peer, with a k-anonymity floor so a band of one or two can't leak an individual. The interpreter sees cohorts, never a name.</li>
+    </ul>
+    <p>Internally, for SSi admin, the engine is fully generous — it's our content and our learners — but built so that even an internal tool <em>cannot</em> become an external leak.</p>
+  </div></section>
+
+  <!-- DISCUSS -->
+  <section id="discuss"><div class="wrap reveal">
+    <span class="sec-num">09 — For discussion</span>
+    <h2>Open questions for Aran.</h2>
+    <div class="qbox">
+      <h3>The real forks</h3>
+      <ol>
+        <li><b>LLM-from-the-start, or substrate-first?</b> Wire an <code>explain</code> call into the very first board — proving the world-class shape immediately — or prove the substrate on two or three boards and add the interpreter once there's something worth interpreting?</li>
+        <li><b>How far beyond admin?</b> The same engine could serve the learner's self-vs-cohort view and the tutor's needs-attention list. Design for that from day one, or admin-only first and generalise later?</li>
+        <li><b>The first five metrics.</b> Which five questions matter enough to define first? (Candidate: retention, content-friction, days-active, trial→paid, audio-failed.)</li>
+        <li><b>Build vs buy the semantic layer.</b> Hand-roll a tiny metric registry, or adopt a metrics-layer convention? (Lean: hand-roll tiny — the registry's <em>content</em> is the value, not the framework.)</li>
+      </ol>
+    </div>
+    <p class="small">Everything here is a draft to be argued with. The companion specification lives at <code>docs/methodology/insight-engine.md</code>, and the measurement model it reads at <code>docs/methodology/metrics-architecture.md</code>.</p>
+  </div></section>
+
+</main>
+
+<footer><div class="wrap">
+  <span>SSi · The Insight Engine · position paper</span>
+  <span>Draft 2026-06-02 · Tom &amp; Aran</span>
+</div></footer>
+
+<script>
+(function () {
+  "use strict";
+  // reveal on scroll
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".reveal").forEach(function (n) { io.observe(n); });
+
+  // topnav active-on-scroll
+  var links = Array.prototype.slice.call(document.querySelectorAll(".topnav a"));
+  var secs = links.map(function (a) { return document.querySelector(a.getAttribute("href")); });
+  var navIo = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      var i = secs.indexOf(e.target);
+      links.forEach(function (l, j) { l.classList.toggle("active", j === i); });
+    });
+  }, { rootMargin: "-45% 0px -50% 0px" });
+  secs.forEach(function (s) { if (s) navIo.observe(s); });
+
+  // Figure A — compose a question, interpret by frame + order
+  var state = { metric: "retention", entity: "learner", frame: "group", window: "last 7 days", order: "acceleration" };
+  document.querySelectorAll(".seg[data-dim]").forEach(function (seg) {
+    var dim = seg.getAttribute("data-dim");
+    seg.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        seg.querySelectorAll("button").forEach(function (x) { x.classList.remove("on"); });
+        b.classList.add("on");
+        state[dim] = b.getAttribute("data-v");
+        render();
+      });
+    });
+  });
+  function render() {
+    var q = document.getElementById("compose-q");
+    var ex = document.getElementById("compose-explain");
+    var orderWord = state.order === "level" ? "where it stands" : state.order === "trend" ? "the trend in" : "the acceleration in";
+    q.innerHTML = '“' + cap(orderWord) + ' <b>' + state.metric + '</b> for the <b>' + state.entity + '</b>, ' + state.window +
+      ', read <b>' + state.frame + '</b>-relative.”';
+    var ownClass = state.frame, ownLabel, action;
+    if (state.frame === "self") { ownLabel = "an adaptation signal"; action = "the engine flexes for this learner — invisibly."; }
+    else if (state.frame === "content") { ownLabel = "a quality signal"; action = "a Popty question — the unit is at fault, whoever's playing it."; }
+    else { ownLabel = "a needs-attention signal"; action = "surface it to a human — the cohort is the reference, not a named peer."; }
+    var urgency = state.order === "acceleration"
+      ? " The acceleration is the leading alarm: a turn is coming before the level visibly moves."
+      : state.order === "trend" ? " The trend says direction; watch whether it's itself turning." : " The level is context — it's where they are, not an event.";
+    ex.innerHTML = 'Interpreter: this is <span class="own ' + ownClass + '">' + ownLabel + '</span> — ' + action + urgency;
+  }
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  render();
+})();
+</script>
+</body>
+</html>

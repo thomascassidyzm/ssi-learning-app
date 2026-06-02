@@ -26,6 +26,14 @@ const papers: Paper[] = [
     status: 'Draft — for discussion',
   },
   {
+    title: 'The Insight Engine',
+    blurb:
+      'Why our insight has always been terrible — and the fix. The problem was never the data, it was the cost of a question: every insight a bespoke build. An engine where a new insight is a composition, not a project — a semantic substrate, a plain-language query surface, and Claude as the analyst-in-the-box (explain + discover). It reads the Measuring Progress model rather than competing with it, and is future-proof for VAD. One live figure; built to be argued with.',
+    href: '/docs/insight-engine.html',
+    tag: 'Interactive · position paper',
+    status: 'Draft — for discussion',
+  },
+  {
     title: 'The Listening Pod',
     blurb:
       'How Layer 2 acquisition works: a scene-based conversation that fades its own scaffolding sentence by sentence. The stage-through (breakdown → translation → 2× → eternal hold), the chunking-vs-explainer choice, and the lap that grows as you go. Three live figures; the open question for Aran is the granularity.',
