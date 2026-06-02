@@ -10804,6 +10804,8 @@ defineExpose({
     v-if="contribution.data.value"
     :is-open="showProgressModal"
     :data="contribution.data.value"
+    :session-seconds="sessionSeconds"
+    :is-guest="isGuestLearner"
     :known-lang="props.course?.known_lang"
     :current-belt="playingBelt"
     :is-skipping="isSkippingBelt"
