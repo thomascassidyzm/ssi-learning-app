@@ -25,7 +25,6 @@ import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
-import { useBeltLoader, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
@@ -1089,13 +1088,6 @@ const highestCompletedLegoId = ref<string | null>(null)
 // resting state, and an INF PLAY round's legoId is a random USE that
 // doesn't represent pedagogical position.
 const lastCompletedLegoIdRef = ref<string | null>(null)
-// Current cursor (vs ceiling). Critical for infinite-play resume:
-// in infinite-play rounds the saved lastLegoId points to a LEGO
-// reviewed via random-USE, which the legoId-based resume would map to
-// that LEGO's MAIN-LOOP debut round — not the infinite-play round the
-// learner was actually on. The round index is the only unambiguous
-// position when legoIds get reused across infinite-play rounds.
-const lastCompletedRoundIndex = ref<number | null>(null)
 // Cycle cursor within the in-progress round, persisted on every cycle
 // completion. Read once on resume so a PWA reload mid-round picks up
 // from the cycle the learner was on rather than restarting cycle 0
@@ -1127,7 +1119,6 @@ watch(
       if (saved) {
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
-        lastCompletedRoundIndex.value = saved.lastCompletedRoundIndex ?? null
         lastCompletedLegoIdRef.value = saved.lastCompletedLegoId ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
@@ -1136,7 +1127,6 @@ watch(
       } else {
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
-        lastCompletedRoundIndex.value = null
         lastCompletedLegoIdRef.value = null
         savedCurrentCycleIndex.value = 0
         savedLastPracticedAt.value = null
@@ -2931,8 +2921,13 @@ const sessionMultiplier = computed(() => {
 // Uses localStorage for persistence with Supabase sync for cross-device
 const beltProgress = shallowRef(null)
 
-// Belt loader for progressive loading with priority queue
-// Loads current belt first 5 rounds (P0 blocking), then background loads next belts
+// Belt loader for progressive loading — VESTIGIAL as of 2026-06-02: its only
+// writer (initializeBeltLoader) was removed as dead code (never called; the
+// instant-playback path superseded it). This ref is now never populated, so
+// the two reads below (useOfflinePlay's getCachedItems + the clearCache guard)
+// are effectively no-ops (always null → [] / never fires). Left in place
+// because they thread into the live offline-play system; retire as part of the
+// offline/buffer rework, not here.
 const beltLoader = shallowRef(null)
 
 // Offline play composable for infinite play when offline
@@ -3094,56 +3089,6 @@ const initializeListeningProgress = async () => {
   })
   await progress.initialize()
   listeningProgress.value = progress
-}
-
-/**
- * Initialize belt loader for progressive loading
- * Call after belt progress is initialized to know starting position
- */
-const initializeBeltLoader = async () => {
-  if (!courseCode.value || !beltProgress.value || beltLoader.value) return
-
-  console.log('[LearningPlayer] Initializing belt loader...')
-
-  // Script chunk generator — preserved as a wrapper for useBeltLoader's
-  // interface, but now always returns the full course. The chunk-by-seed
-  // pattern is gone (it was the cause of the L1-listening silent-fail bug).
-  // beltLoader receives the same rounds every call; no incremental loading
-  // happens here any more. Eventually useBeltLoader should be simplified
-  // to a single load — until then this preserves the contract.
-  const generateScriptChunk = async (_startSeed: number, _count: number) => {
-    if (!supabase?.value) return { rounds: [] as any[], nextSeed: 1, hasMore: false }
-    const result = await generateScript()
-    if (result.hasRomanizedText) hasRomanizedText.value = true
-    const rounds = toSimpleRoundsWithComponents(result.items)
-    return {
-      rounds: rounds as any[],
-      nextSeed: 9999,
-      hasMore: false,
-    }
-  }
-
-  // Initialize belt loader
-  const loaderConfig: BeltLoaderConfig = {
-    supabase: supabase,
-    courseCode: computed(() => courseCode.value),
-    audioBaseUrl: AUDIO_S3_BASE_URL,
-    generateScriptChunk,
-  }
-
-  beltLoader.value = useBeltLoader(loaderConfig)
-
-  // Initialize from current progress position
-  let startSeed: number
-  if (props.classContext?.last_lego_id) {
-    const seedMatch = props.classContext.last_lego_id.match(/^S(\d{4})L/)
-    startSeed = seedMatch ? parseInt(seedMatch[1], 10) : 1
-  } else {
-    startSeed = beltProgress.value.completedRounds.value + 1
-  }
-  await beltLoader.value.initializeFromSeed(startSeed)
-
-  console.log('[LearningPlayer] Belt loader ready, starting from seed', startSeed)
 }
 
 /**
