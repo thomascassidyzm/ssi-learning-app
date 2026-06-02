@@ -36,7 +36,7 @@ const papers: Paper[] = [
   {
     title: 'Example insights',
     blurb:
-      'Six widgets the engine would produce, rendered with realistic SSi data — the company-facing patterns (course value, the content-friction queue, the trial funnel, a health strip, a Discover card) and the entity-standing celebration (anonymised top-5 + your percentile). Each is a mock-up of a Claude-emitted spec: a question, a configured widget, a one-line read, and what you could do about it.',
+      'Eight visually distinct widgets the engine would produce — value treemap, conversion funnel, curriculum-friction heatmap, course-flow Sankey, the difficulty×execution scatter, a build-health donut, a Discover card, and the entity-standing celebration — rendered with realistic SSi data, charted with ECharts and themed to the house palette. Each is a mock-up of a Claude-emitted spec: a question, a configured widget, and what you could do about it.',
     href: '/docs/insight-examples.html',
     tag: 'Interactive · gallery',
     status: 'Mock-up — for discussion',
