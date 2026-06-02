@@ -3195,6 +3195,53 @@ const beltJustEarned = ref(null)
 // Mode discovery tips (shown between rounds, one at a time)
 const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 
+// ── Interjection display (the box follows the audio) ────────────────────────
+// While a between-rounds interjection plays, the display box shows content that
+// matches the AUDIO, never the next LEGO (the engine has advanced roundIndex
+// onto it but its intro audio hasn't started). Encouragement → a wordless,
+// rotating "positive" icon (strength / power / learning / effort). Instruction →
+// a short, varied "back to the science" caption. Welcome keeps its own
+// "listen to your guide" path. Tom 2026-06-02.
+type CommentaryDisplayType = 'welcome' | 'instruction' | 'encouragement'
+const currentCommentaryType = ref<CommentaryDisplayType | null>(null)
+
+// Strength / power / learning / hard-work line icons (inner SVG markup, drawn
+// with the app's standard stroke style). One is picked at random per
+// encouragement. Kept as path data so they inherit currentColor + stroke.
+const ENCOURAGEMENT_ICONS: { key: string; paths: string[] }[] = [
+  { key: 'strength', paths: ['M6.5 6.5h2v11h-2z', 'M15.5 6.5h2v11h-2z', 'M8.5 12h7', 'M3.5 9.5h3v5h-3z', 'M17.5 9.5h3v5h-3z'] }, // dumbbell
+  { key: 'learning', paths: ['M12 3a5 5 0 0 0-5 5c0 1.7.9 3.2 2.2 4 .5.5.8 1.2.8 1.9v.6h4v-.6c0-.7.3-1.4.8-1.9A4.98 4.98 0 0 0 17 8a5 5 0 0 0-5-5z', 'M10 19h4', 'M10.5 21.5h3'] }, // lightbulb / mind
+  { key: 'power', paths: ['M13 2 4 14h7l-1 8 9-12h-7z'] }, // bolt
+  { key: 'effort', paths: ['M12 21c4-2.5 6-5.7 6-9a6 6 0 0 0-12 0c0 3.3 2 6.5 6 9z', 'M12 17c2-1.3 3-3 3-5a3 3 0 0 0-6 0c0 2 1 3.7 3 5z'] }, // flame
+  { key: 'summit', paths: ['M3 20h18', 'M5 20 11 7l4 7 2-3 3 9'] }, // mountain
+  { key: 'growth', paths: ['M12 20v-7', 'M12 13c0-3 2-5 6-5 0 3-2 5-6 5z', 'M12 15c0-2.5-1.7-4.5-5-4.5 0 2.8 1.9 4.5 5 4.5z'] }, // sprout
+  { key: 'mastery', paths: ['M7 4h10v4a5 5 0 0 1-10 0z', 'M7 6H4v1a3 3 0 0 0 3 3', 'M17 6h3v1a3 3 0 0 1-3 3', 'M9 20h6', 'M12 13v4'] }, // trophy
+  { key: 'focus', paths: ['M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0', 'M12 12m-3.5 0a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0', 'M12 12m-0.5 0a.5 .5 0 1 0 1 0a.5 .5 0 1 0-1 0'] }, // target
+]
+const encouragementIconIndex = ref(0)
+const currentEncouragementIcon = computed(() => ENCOURAGEMENT_ICONS[encouragementIconIndex.value % ENCOURAGEMENT_ICONS.length])
+
+// Short, varied captions for the ordered (sciencey) instructions — Tom's
+// "slightly fun, back to the science". No LEGO text; sets the expectation that
+// this is the meta-cognitive teaching track, distinct from the wordless icons.
+const INSTRUCTION_CAPTIONS = [
+  'Back to the science…',
+  'A bit of the science…',
+  'The science behind it…',
+  'Why this works…',
+]
+const instructionCaptionIndex = ref(0)
+const currentInstructionCaption = computed(() => INSTRUCTION_CAPTIONS[instructionCaptionIndex.value % INSTRUCTION_CAPTIONS.length])
+
+// Show the interjection block instead of the LEGO text. Welcome keeps its own
+// existing "listen to your guide" message, so only instruction/encouragement
+// flip this. Pods/L1 listening have their own overlays and don't set
+// currentCommentaryType.
+const showInterjection = computed(() =>
+  playingCommentaryAudio.value &&
+  (currentCommentaryType.value === 'instruction' || currentCommentaryType.value === 'encouragement')
+)
+
 /**
  * Play commentary audio (welcome, instruction, or encouragement)
  * Returns a promise that resolves when audio finishes
@@ -3206,6 +3253,17 @@ const playCommentaryAudio = async (commentary) => {
   }
 
   playingCommentaryAudio.value = true
+  // Drive the display box off WHAT'S PLAYING (Tom 2026-06-02): an instruction
+  // shows a "back to the science" caption, a random encouragement shows a
+  // wordless strength/learning icon — NEVER the next LEGO (the engine has
+  // already advanced roundIndex onto it, but its audio hasn't started). Pick the
+  // varied content once per interjection so it's stable for the whole clip.
+  currentCommentaryType.value = (commentary.type as CommentaryDisplayType) ?? null
+  if (commentary.type === 'encouragement') {
+    encouragementIconIndex.value = Math.floor(Math.random() * ENCOURAGEMENT_ICONS.length)
+  } else if (commentary.type === 'instruction') {
+    instructionCaptionIndex.value = Math.floor(Math.random() * INSTRUCTION_CAPTIONS.length)
+  }
   console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
   logEvent('commentary_start', {
     type: commentary.type ?? null,
@@ -3235,6 +3293,7 @@ const playCommentaryAudio = async (commentary) => {
       settled = true
       cleanup()
       playingCommentaryAudio.value = false
+      currentCommentaryType.value = null
       logEvent('commentary_end', { reason, type: commentary.type ?? null })
       resolve(success)
     }
@@ -10859,7 +10918,7 @@ defineExpose({
       <!-- Main Text Box (with integrated hint) -->
       <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">
         <!-- Inline learning hint label -->
-        <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
+        <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -10868,8 +10927,24 @@ defineExpose({
           </button>
         </div>
 
+        <!-- INTERJECTION MODE: between-rounds encouragement / instruction.
+             The display follows the AUDIO — never the next LEGO (which the
+             engine has queued but not started). Encouragement → wordless
+             rotating strength/learning icon; instruction → a short sciencey
+             caption. -->
+        <template v-if="showInterjection">
+          <div class="interjection-display" :class="`is-${currentCommentaryType}`">
+            <div v-if="currentCommentaryType === 'encouragement'" class="interjection-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path v-for="(d, i) in currentEncouragementIcon.paths" :key="i" :d="d" />
+              </svg>
+            </div>
+            <div v-else class="interjection-caption">{{ currentInstructionCaption }}</div>
+          </div>
+        </template>
+
         <!-- INTRO MODE: Typewriter-style encouraging message -->
-        <template v-if="isIntroPhase && !isAwakening">
+        <template v-else-if="isIntroPhase && !isAwakening">
           <div class="intro-display">
             <div class="intro-typewriter">
               <span class="intro-prefix">›</span>
@@ -13189,6 +13264,45 @@ defineExpose({
 @keyframes cursor-blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
+}
+
+/* Interjection display — shown while a between-rounds encouragement /
+   instruction plays. Calm, content-free reassurance keyed to the belt accent;
+   never the next LEGO's text. */
+.interjection-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem 2rem;
+  min-height: 80px;
+}
+.interjection-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--belt-color, #b08968);
+  animation: interjection-in 360ms ease-out, interjection-breathe 3.2s ease-in-out 360ms infinite;
+}
+.interjection-icon svg {
+  width: 40px;
+  height: 40px;
+}
+.interjection-caption {
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: var(--text-base);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--belt-color, #b08968);
+  opacity: 0.9;
+  animation: interjection-in 360ms ease-out;
+}
+@keyframes interjection-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes interjection-breathe {
+  0%, 100% { opacity: 0.78; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.06); }
 }
 
 .hero-text-known,
