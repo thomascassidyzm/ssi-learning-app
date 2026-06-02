@@ -33,11 +33,15 @@ export default async function handler(
   const normalizedCode = code.trim().toUpperCase()
 
   try {
-    const anonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
-    const supabaseAnon = createClient(supabaseUrl, anonKey)
+    // Service-role client (this is a server-side route). The *_code_validation
+    // views are SECURITY DEFINER and were readable by anon, which let anyone
+    // enumerate every invite/entitlement code (a privilege-escalation vector).
+    // Reading them as service-role lets us REVOKE anon/authenticated SELECT on
+    // the views without breaking validation.
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // 1. Try invite_code_validation first
-    const { data: inviteRow } = await supabaseAnon
+    const { data: inviteRow } = await supabase
       .from('invite_code_validation')
       .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, metadata, max_uses, use_count, expires_at, is_active')
       .eq('code', normalizedCode)
@@ -56,8 +60,7 @@ export default async function handler(
         return
       }
 
-      // Resolve display context using service role
-      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+      // Resolve display context (reuse the service-role client above)
       const codeType: string = inviteRow.code_type
       const context: Record<string, string | undefined> = {}
 
@@ -120,7 +123,7 @@ export default async function handler(
     }
 
     // 2. Try entitlement_code_validation
-    const { data: entitlementRow } = await supabaseAnon
+    const { data: entitlementRow } = await supabase
       .from('entitlement_code_validation')
       .select('id, code, access_type, granted_courses, duration_type, duration_days, label, max_uses, use_count, expires_at, is_active')
       .eq('code', normalizedCode)
