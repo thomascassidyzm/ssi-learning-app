@@ -989,6 +989,31 @@ const simplePlayer = useSimplePlayer()
 // learnerId + courseCode per call at the recordCyclePlay site below.
 const pairingsTelemetry = usePairingsTelemetry()
 
+// DB-01: throttle the mid-round cursor write to ~60s + flush on lifecycle
+// boundaries. Per-cycle writes were ~5-6/min/learner; only same-sitting (<5min)
+// resumes use current_cycle_index (longer gaps reset to the round intro), so 60s
+// granularity is imperceptible. CANCELLED on round-advance: the round-advance
+// write supersedes, so a stale old-round cursor must never flush after it.
+let pendingCursor: { learnerId: string; courseId: string; idx: number } | null = null
+let cursorFlushTimer: ReturnType<typeof setTimeout> | null = null
+const flushCursor = () => {
+  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
+  const p = pendingCursor
+  pendingCursor = null
+  if (!p || !progressStore?.value) return
+  void progressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
+    console.warn('[LearningPlayer] Failed to persist current cycle:', err)
+  })
+}
+const queueCursor = (learnerId: string, courseId: string, idx: number) => {
+  pendingCursor = { learnerId, courseId, idx }
+  if (!cursorFlushTimer) cursorFlushTimer = setTimeout(flushCursor, 60_000)
+}
+const cancelPendingCursor = () => {
+  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
+  pendingCursor = null
+}
+
 // Diagnostic event log — captures play/pause/skip/stop taps + lap and
 // commentary lifecycle. Persisted in player_events; surfaced in the
 // admin user-detail page so user reports like "skip didn't work" can
@@ -1441,19 +1466,18 @@ simplePlayer.onCycleCompleted((cycle) => {
     const nextCycleIdx = simplePlayer.cycleIndex.value + 1
     const roundCycleCount = simplePlayer.currentRound.value?.cycles?.length ?? 0
     if (nextCycleIdx < roundCycleCount) {
-      progressStore.value.updateCurrentCycle(
-        learnerId.value,
-        courseCode.value,
-        nextCycleIdx,
-      ).catch(err => {
-        console.warn('[LearningPlayer] Failed to persist current cycle:', err)
-      })
+      queueCursor(learnerId.value, courseCode.value, nextCycleIdx)
     }
   }
 })
 
 // Round completed - save progress and update current LEGO ID
 simplePlayer.onRoundCompleted((round) => {
+  // DB-01: discard the just-finished round's pending mid-round cursor before
+  // the round-advance write below supersedes it. Without this, a stale 60s
+  // timer could flush an old-round cycle index AFTER the new round's cursor.
+  cancelPendingCursor()
+
   const completedRoundIndex = simplePlayer.roundIndex.value
   logEvent('round_complete', {
     roundIndex: completedRoundIndex,
@@ -5675,6 +5699,8 @@ const handlePause = () => {
 
   // Flush batched co-fire telemetry on pause (accumulated per cycle).
   void pairingsTelemetry.flush()
+  // DB-01: persist any pending mid-round cursor on pause.
+  flushCursor()
 }
 
 const handleResume = async () => {
@@ -6451,6 +6477,8 @@ const onSaveResumeVisibilityChange = () => {
   if (document.visibilityState === 'hidden') {
     saveResumeAudio()
     void pairingsTelemetry.flush()
+    // DB-01: persist any pending mid-round cursor on background.
+    flushCursor()
   }
 }
 if (typeof document !== 'undefined') {
@@ -10355,6 +10383,8 @@ onMounted(() => {
 onUnmounted(() => {
   // Flush any batched co-fire telemetry before teardown (route change etc.).
   void pairingsTelemetry.flush()
+  // DB-01: persist any pending mid-round cursor before teardown.
+  flushCursor()
 
   heroResizeObserver?.disconnect()
   heroResizeObserver = null
