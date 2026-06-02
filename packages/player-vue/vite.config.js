@@ -9,12 +9,18 @@ const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
                     process.env.GIT_COMMIT?.slice(0, 7) ||
                     `dev-${Date.now().toString(36)}`
 
-// On preview deploys (Vercel previews + local), the SW should self-update so
-// testers always run fresh code on reload. The prompt-and-wait flow leaves
-// stale bundles mixed across deploys — the exact testing nightmare we keep
-// hitting. Production stays prompt-only (see skipWaiting note below) to
-// honour the never-auto-interrupt-a-live-session rule.
+// SW self-update policy by environment:
+//   dev      → auto-update on reload (rapid churn; testers want fresh code,
+//              and mixed stale bundles across deploys were a testing nightmare)
+//   staging  → prompt-only, like production (the external/Colombo team vets
+//              staging as a prod CANDIDATE, so they must experience the real
+//              tap-to-update flow — and this is the only place that flow gets
+//              exercised before it reaches live users)
+//   main/prod→ prompt-only, honouring the never-auto-interrupt-a-live-session rule
+// Vercel tags BOTH dev and staging as VERCEL_ENV='preview' (production branch is
+// `main`), so we additionally carve staging out by branch name.
 const swSelfUpdate = process.env.VERCEL_ENV !== 'production'
+  && process.env.VERCEL_GIT_COMMIT_REF !== 'staging'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
