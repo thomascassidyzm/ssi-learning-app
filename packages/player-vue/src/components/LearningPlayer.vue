@@ -7930,15 +7930,14 @@ const toggleTurbo = () => {
   turboActive.value = !turboActive.value
 }
 
-// Offline mode: a deliberate, opt-in download of the upcoming span into
-// IndexedDB, after which playback resolves to local blob: URLs (the main
+// Offline mode: a deliberate, opt-in download of the upcoming course content
+// into IndexedDB, after which playback resolves to local blob: URLs (the main
 // loop via the SimplePlayer resolveAudioUrl override; pods/intros via the
 // createAudioCacheSource gate). The streaming-first online path is untouched.
-// Span = roughly the next OFFLINE_SPAN_MS of play (~30 min for now). Time-
-// based because that's the real product unit ("download the next 30 min /
-// your journey"), not an arbitrary round count. The only deliberate
-// downloader; normal play streams and caches nothing speculatively.
-const OFFLINE_SPAN_MS = 30 * 60 * 1000
+// Depth is chosen by the learner as a % of the course (see the depth-knob note
+// further down) — NOT a time span, because offline never stops (it recycles via
+// INF PLAY). The only deliberate downloader; normal play streams and caches
+// nothing speculatively.
 // Rolling online warm-ahead (buffer-model step 1a). A shallow span the filler
 // keeps cached in IndexedDB during normal online play, so playback can later
 // resolve from cache (surviving connection loss / lock mid-session) instead of
@@ -7995,30 +7994,11 @@ const loadedSpanMsFromHere = (): number => {
   return accMs
 }
 
-// Lazy loading means cachedRounds may hold only the current round (round N)
-// when offline is toggled — so collectOfflineSpanAudioIds' loop terminates on
-// rounds.length long before the 30-min budget is filled. That was the "only
-// got 4 LEGOs" bug. Expand the script (the same machinery INF PLAY uses) until
-// cachedRounds covers the span, the generator runs dry (course tail), or the
-// user cancels offline mode.
-const ensureOfflineSpanLoaded = async (spanMs: number = OFFLINE_SPAN_MS): Promise<void> => {
-  // The guard is a runaway backstop only — NOT the span limiter. The real stop
-  // is loadedSpanMsFromHere() >= spanMs OR expandScript() running dry (course
-  // tail). The old cap of 20 silently truncated long user-chosen spans
-  // (5h / whole course); 2000 comfortably covers a whole course while still
-  // bounding a genuine runaway. For spanMs = Infinity it relies on added===0.
-  let guard = 0
-  while (offlineActive.value && loadedSpanMsFromHere() < spanMs && guard++ < 2000) {
-    const added = await expandScript()
-    if (added === 0) break  // generator exhausted — course tail reached
-  }
-}
-
 // Walk forward from the current round, accumulating estimated wall-clock time
 // per cycle, collecting unique /api/audio ids until ~spanMs of play is covered.
-// Dedupes files (a clip reused N times in the span counts once). Shared by the
-// deliberate offline download (OFFLINE_SPAN_MS) and the rolling online filler
-// (ROLLING_SPAN_MS).
+// Dedupes files (a clip reused N times in the span counts once). Used by the
+// rolling online filler (ROLLING_SPAN_MS) — the deliberate offline download
+// uses the round-based collector below (depth = % of course, not ms).
 const collectSpanAudioIds = (spanMs: number): string[] => {
   const rounds = cachedRounds.value || []
   const start = Math.max(0, currentRoundIndex.value)
@@ -8038,7 +8018,67 @@ const collectSpanAudioIds = (spanMs: number): string[] => {
   return [...ids]
 }
 
-const collectOfflineSpanAudioIds = (): string[] => collectSpanAudioIds(OFFLINE_SPAN_MS)
+// ── Offline depth knob = % OF COURSE CONTENT, not playback time ──────────────
+// Tom 2026-06-02: time is the wrong unit. Offline never *stops* — it drops into
+// INF PLAY and recycles the cache forever, so "hours offline" is infinite no
+// matter what you download. What the deliberate download actually controls is
+// how much NEW course content you carry. So the depth limiter counts ROUNDS
+// ahead of the cursor (a round ≈ one LEGO introduction), surfaced to the user
+// as a % of the whole course. The ms-based collectSpanAudioIds above stays for
+// the rolling online filler (that's a real "next N minutes warm-ahead" job).
+
+// Course total rounds = main-loop length (excludes the INF PLAY tail). The %
+// denominator. Returns 0 until getCourseFinalLego resolves (roundIndex −1).
+const courseTotalRounds = (): number => (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+
+// Rounds currently loaded ahead of (and including) the cursor.
+const roundsLoadedAhead = (): number =>
+  Math.max(0, (cachedRounds.value?.length ?? 0) - Math.max(0, currentRoundIndex.value))
+
+// Convert a fraction of the WHOLE course into a round count ahead of the cursor,
+// capped at the course tail. fraction >= 1 (or unknown total) → Infinity = take
+// everything reachable. e.g. "Next 25%" from 60% through → only the 40% that
+// remains.
+const roundsForCourseFraction = (fraction: number): number => {
+  const total = courseTotalRounds()
+  const start = Math.max(0, currentRoundIndex.value)
+  if (!(total > 0) || fraction >= 1) return Infinity
+  const remaining = total - start
+  if (remaining <= 0) return Infinity
+  return Math.max(1, Math.min(Math.ceil(total * fraction), remaining))
+}
+
+// Expand the script for the deliberate offline download (same
+// machinery INF PLAY uses) until `roundsAhead` rounds are loaded ahead of the
+// cursor, the generator runs dry (course tail), or the user cancels. Guard is a
+// runaway backstop only; the real stop is rounds-reached or added === 0.
+const ensureOfflineRoundsLoaded = async (roundsAhead: number): Promise<void> => {
+  let guard = 0
+  while (offlineActive.value && roundsLoadedAhead() < roundsAhead && guard++ < 2000) {
+    const added = await expandScript()
+    if (added === 0) break  // generator exhausted — course tail reached
+  }
+}
+
+// Walk forward `roundsAhead` rounds from the cursor, collecting unique
+// /api/audio ids. Infinity = to the end of what's loaded. Dedupes (a clip
+// reused across the span counts once) — same shape as collectSpanAudioIds.
+const collectRoundsAudioIds = (roundsAhead: number): string[] => {
+  const rounds = cachedRounds.value || []
+  const start = Math.max(0, currentRoundIndex.value)
+  const end = roundsAhead === Infinity ? rounds.length : Math.min(rounds.length, start + roundsAhead)
+  const ids = new Set<string>()
+  const add = (url?: string) => {
+    const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
+    if (m) ids.add(m[1])
+  }
+  for (let i = start; i < end; i++) {
+    for (const c of (((rounds[i]) as any).cycles || [])) {
+      add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
+    }
+  }
+  return [...ids]
+}
 
 // Rolling filler (buffer-model step 1a): keep the next ROLLING_SPAN_MS of play
 // warm in IndexedDB during normal online play. Does NOT change playback — the
@@ -8180,14 +8220,16 @@ const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
   return [...ids]
 }
 
-const downloadForOffline = async (spanMs: number = OFFLINE_SPAN_MS) => {
+const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // Build out the script first — without this we'd only download whatever
   // rounds lazy-loading happened to have in memory (the "4 LEGOs" cap).
-  // spanMs = the user-chosen depth (30m / 2h / 5h / Infinity = whole course).
+  // roundsAhead = the user-chosen depth in COURSE CONTENT (rounds ahead of the
+  // cursor); Infinity = rest of the course. Derived from a % via
+  // roundsForCourseFraction — see the offline depth-knob note above.
   offlineDlState.value = 'preparing'
-  await ensureOfflineSpanLoaded(spanMs)
+  await ensureOfflineRoundsLoaded(roundsAhead)
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
-  const cycleIds = collectSpanAudioIds(spanMs)
+  const cycleIds = collectRoundsAudioIds(roundsAhead)
   const auxIds = await collectAuxiliaryAudioIds()  // commentary + pod pools
   const ids = [...new Set([...cycleIds, ...auxIds])]
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
@@ -8195,7 +8237,7 @@ const downloadForOffline = async (spanMs: number = OFFLINE_SPAN_MS) => {
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
-  console.log(`[Offline] downloading span: ${missing.length} of ${ids.length} audio files (~next 30 min)`)
+  console.log(`[Offline] downloading ${missing.length} of ${ids.length} audio files (depth: ${roundsAhead === Infinity ? 'rest of course' : roundsAhead + ' rounds'})`)
   const CONC = 4
   for (let i = 0; i < missing.length; i += CONC) {
     if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
@@ -8334,14 +8376,102 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
   return true
 }
 
+// ── Depth picker (Spotify-style "take it with you") ─────────────────────────
+// The offline-mode tap no longer silently grabs a fixed 30 min. It opens a
+// picker so the learner chooses how much of the course to carry, each option
+// annotated with a live size estimate (MB + % of device storage).
+const showOfflinePicker = ref(false)
+interface OfflineDepthOption {
+  key: string
+  label: string        // "Next 25%", "Rest of course"
+  detail: string       // "~120 MB · 8% of device"
+  fraction: number     // 0.25 / 0.5 / 1 — fed to roundsForCourseFraction
+}
+const offlineDepthOptions = ref<OfflineDepthOption[]>([])
+const offlineEstimating = ref(false)
+
+const formatMb = (mb: number): string =>
+  mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`
+
+// Build the depth options with live size estimates. Cheap + best-effort:
+// average bytes/file from what's already cached, average files/round from the
+// loaded sample, projected over the rounds each % covers. Estimates self-refine
+// as the cache grows; they're labelled "~" and don't need to be exact (Tom: the
+// number "probably doesn't matter that much" — it's there for a sense of cost).
+const refreshOfflineEstimates = async (): Promise<void> => {
+  offlineEstimating.value = true
+  try {
+    // Resolve the course length first (cached) — without it courseTotalRounds()
+    // is 0 and the "whole course" estimate would read off the ~3 bootstrap
+    // rounds and look absurdly small.
+    if (courseTotalRounds() <= 0 && courseCode.value) {
+      try { await getCourseFinalLego(courseCode.value) } catch { /* best-effort */ }
+    }
+    const total = courseTotalRounds()
+    const start = Math.max(0, currentRoundIndex.value)
+    let avgBytesPerFile = 24 * 1024  // ~24 KB/clip fallback (CLAUDE.md: 4.8 MB / 198 files)
+    let quotaBytes: number | undefined
+    try {
+      const stats = await audioCache.stats()
+      if (stats.persistent.count > 0) avgBytesPerFile = stats.persistent.bytes / stats.persistent.count
+      quotaBytes = stats.quotaBytes
+    } catch { /* stats best-effort */ }
+    // Files per round from the loaded sample (deduped), else a sane fallback.
+    const sampleRounds = roundsLoadedAhead()
+    const sampleFiles = collectRoundsAudioIds(Infinity).length
+    const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
+
+    const remainingRounds = total > 0 ? Math.max(0, total - start) : roundsLoadedAhead()
+    const remainingFraction = total > 0 ? remainingRounds / total : 1
+
+    const estimate = (fraction: number) => {
+      const rounds = roundsForCourseFraction(fraction)
+      const estRounds = rounds === Infinity ? remainingRounds : rounds
+      const estFiles = Math.round(avgFilesPerRound * estRounds)
+      const mb = (estFiles * avgBytesPerFile) / 1e6
+      const pctDevice = quotaBytes && quotaBytes > 0 ? (mb * 1e6) / quotaBytes * 100 : null
+      let detail = `~${formatMb(mb)}`
+      if (pctDevice != null) detail += ` · ${pctDevice < 1 ? '<1' : Math.round(pctDevice)}% of device`
+      return detail
+    }
+
+    const opts: OfflineDepthOption[] = []
+    // Partial presets only when they're meaningfully less than "the rest".
+    if (total > 0 && remainingFraction > 0.27) opts.push({ key: 'p25', label: 'Next 25%', detail: estimate(0.25), fraction: 0.25 })
+    if (total > 0 && remainingFraction > 0.52) opts.push({ key: 'p50', label: 'Next 50%', detail: estimate(0.5), fraction: 0.5 })
+    opts.push({
+      key: 'rest',
+      label: start <= 0 || total <= 0 ? 'Whole course' : 'Rest of course',
+      detail: estimate(1),
+      fraction: 1,
+    })
+    offlineDepthOptions.value = opts
+  } finally {
+    offlineEstimating.value = false
+  }
+}
+
+const startOfflineDownload = (fraction: number) => {
+  showOfflinePicker.value = false
+  offlineActive.value = true
+  console.log(`[LearningPlayer] Offline ON — depth ${fraction >= 1 ? 'rest of course' : Math.round(fraction * 100) + '%'}`)
+  void downloadForOffline(roundsForCourseFraction(fraction))
+}
+
+const cancelOfflinePicker = () => { showOfflinePicker.value = false }
+
 const toggleOffline = () => {
-  offlineActive.value = !offlineActive.value
-  console.log('[LearningPlayer] Offline mode:', offlineActive.value ? 'ON — downloading span, then serving cached blobs' : 'OFF — stream')
   if (offlineActive.value) {
-    void downloadForOffline()
-  } else {
+    // Already on → turn off: stop serving blobs, revoke, reset.
+    offlineActive.value = false
+    showOfflinePicker.value = false
     offlineDlState.value = 'idle'
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
+    console.log('[LearningPlayer] Offline mode: OFF — stream')
+  } else {
+    // Off → open the depth picker (download starts only when a depth is chosen).
+    showOfflinePicker.value = true
+    void refreshOfflineEstimates()
   }
 }
 
@@ -10541,6 +10671,39 @@ defineExpose({
     {{ offlineDownloadLabel }}
   </div>
 
+  <!-- Offline depth picker — "take it with you". Choose how much of the course
+       to carry; each option shows a live size estimate. -->
+  <Teleport to="body">
+    <Transition name="offline-picker">
+      <div v-if="showOfflinePicker" class="offline-picker-backdrop" @click.self="cancelOfflinePicker">
+        <div class="offline-picker" role="dialog" aria-label="Take it offline">
+          <div class="offline-picker-head">
+            <h3 class="offline-picker-title">Take it offline</h3>
+            <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
+          </div>
+          <p class="offline-picker-sub">How much of the course do you want to carry?</p>
+
+          <div v-if="offlineEstimating && offlineDepthOptions.length === 0" class="offline-picker-loading">
+            Estimating sizes…
+          </div>
+          <div v-else class="offline-picker-options">
+            <button
+              v-for="opt in offlineDepthOptions"
+              :key="opt.key"
+              class="offline-picker-option"
+              @click="startOfflineDownload(opt.fraction)"
+            >
+              <span class="offline-opt-label">{{ opt.label }}</span>
+              <span class="offline-opt-detail">{{ opt.detail }}</span>
+            </button>
+          </div>
+
+          <p class="offline-picker-note">Plays offline forever once downloaded — it keeps going on repeat with no signal.</p>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <!-- Belt Skip Loading Overlay. Same overlay covers two states:
        1. belt-to-belt skip (Jumping to X belt...)
        2. INF PLAY warm-up (downloading first batch of audio so the
@@ -11541,6 +11704,111 @@ defineExpose({
 }
 .offline-dl-banner.is-complete { background: rgba(22, 130, 70, 0.9); }
 .offline-dl-banner.is-error { background: rgba(150, 40, 40, 0.9); }
+
+/* Offline depth picker ("take it with you") */
+.offline-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+.offline-picker {
+  width: 100%;
+  max-width: 340px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border-radius: 18px;
+  padding: 18px 18px 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+.offline-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.offline-picker-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2622;
+}
+.offline-picker-close {
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  color: #9a948e;
+  cursor: pointer;
+  padding: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+.offline-picker-sub {
+  margin: 4px 0 14px;
+  font-size: 13px;
+  color: #6b6560;
+}
+.offline-picker-loading {
+  padding: 18px 4px;
+  font-size: 13px;
+  color: #9a948e;
+  text-align: center;
+}
+.offline-picker-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.offline-picker-option {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 15px;
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.015);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.offline-picker-option:hover {
+  border-color: rgba(22, 163, 74, 0.5);
+  background: rgba(22, 163, 74, 0.06);
+}
+.offline-picker-option:active { transform: scale(0.99); }
+.offline-opt-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2b2622;
+}
+.offline-opt-detail {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8a847e;
+  white-space: nowrap;
+}
+.offline-picker-note {
+  margin: 14px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #9a948e;
+}
+.offline-picker-enter-active,
+.offline-picker-leave-active { transition: opacity 0.2s ease; }
+.offline-picker-enter-from,
+.offline-picker-leave-to { opacity: 0; }
+.offline-picker-enter-active .offline-picker,
+.offline-picker-leave-active .offline-picker { transition: transform 0.2s ease; }
+.offline-picker-enter-from .offline-picker,
+.offline-picker-leave-to .offline-picker { transform: translateY(12px) scale(0.97); }
 
 .player {
   /* ════════════════════════════════════════════════════════════════════════════
