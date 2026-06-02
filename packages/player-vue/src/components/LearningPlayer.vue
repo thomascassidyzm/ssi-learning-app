@@ -11848,7 +11848,7 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 40px; /* gap belt pill -> text box (was 24px; top third was cramped, plenty of empty space below to use) */
+  --hero-offset: 48px; /* gap belt pill -> text box (was 24px; +8 compensates the header's bigger top padding so this gap holds) */
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -12202,7 +12202,7 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(var(--space-sm) + var(--safe-area-top)) var(--space-lg) 0;
+  padding: calc(var(--space-lg) + var(--safe-area-top)) var(--space-lg) 0; /* more island -> logo clearance (was --space-sm; looked flush to the Dynamic Island) */
   pointer-events: auto;
   min-height: var(--header-height);
 }
@@ -14971,7 +14971,7 @@ button.phase-segment:active:not(.is-active) {
 @media (min-width: 768px) {
   .player {
     --header-height: 84px;
-    --hero-offset: 44px;
+    --hero-offset: 54px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
