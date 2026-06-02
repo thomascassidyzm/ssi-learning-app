@@ -26,6 +26,22 @@ const papers: Paper[] = [
     status: 'Draft — for discussion',
   },
   {
+    title: 'The Insight Engine',
+    blurb:
+      'For the first time we can both capture the data and interrogate it — neither was possible before. An engine where a new insight is a composition, not a project: a semantic substrate, a plain-language query surface, and Claude as the analyst-in-the-box (explain + discover). It reads the Measuring Progress model rather than competing with it, and is future-proof for VAD. One live figure; built to be argued with.',
+    href: '/docs/insight-engine.html',
+    tag: 'Interactive · position paper',
+    status: 'Draft — for discussion',
+  },
+  {
+    title: 'Example insights',
+    blurb:
+      'Eight visually distinct widgets the engine would produce — value treemap, conversion funnel, curriculum-friction heatmap, course-flow Sankey, the difficulty×execution scatter, a build-health donut, a Discover card, and the entity-standing celebration — rendered with realistic SSi data, charted with ECharts and themed to the house palette. Each is a mock-up of a Claude-emitted spec: a question, a configured widget, and what you could do about it.',
+    href: '/docs/insight-examples.html',
+    tag: 'Interactive · gallery',
+    status: 'Mock-up — for discussion',
+  },
+  {
     title: 'The Listening Pod',
     blurb:
       'How Layer 2 acquisition works: a scene-based conversation that fades its own scaffolding sentence by sentence. The stage-through (breakdown → translation → 2× → eternal hold), the chunking-vs-explainer choice, and the lap that grows as you go. Three live figures; the open question for Aran is the granularity.',

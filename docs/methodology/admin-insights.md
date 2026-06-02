@@ -55,13 +55,21 @@ The honest boundary, stated once: **no payers yet, and the schools rows are real
 
 The admin question — *"what can we tell about our users in terms of value to the company?"* — resolves into four families. The first three are Tom's (marketing, quality, feedback); the fourth, **health/ops**, the inventory forced onto the list (audio_failed at 3%, builds landing unevenly — the Aran incident proved this one is load-bearing).
 
-### A — Market better (reach + value)
-*Where is the product spreading, and what is each course worth?*
-- **Reach** — new learners and active learners by **region × course × time** (`ip_country` × `course_code` × `occurred_at`). Where demand is, where the gaps are.
-- **Activation** — of those who start a course, what fraction reach a real first session / first round / first return. The leak points are the funnel.
-- **Retention** — return-rate curves per course (days-active over 7/30/90d). The truest pre-revenue value signal.
-- **Hours-to-milestone** — median in-app hours to the 30h / 100h anchors, per course. A course where learners reach conversation faster is a *better product*, measurably.
-- **LTV proxy → real LTV** — today: `retention × engagement-hours` ranks courses by likely lifetime value. The day Paddle has payers, the same pivot keyed to `subscriptions` becomes real LTV by course and acquisition cohort. *"Which courses are doing well"* = activation × retention × hours, ranked.
+### A — Market better (the learner's journey through the catalogue)
+*The marketing pillar is not a scoreboard — it's a **funnel plus a flow graph**: where a learner enters, what converts them, whether they expand. Every marketing question is a stage of one journey.*
+
+**Enter** — *which course, from where.* Entry course (the sign-up-course field — or first-course-played as the proxy) × **region** (`ip_country`). The acquisition map: which course, which place, brings people in.
+
+**Engage** — *how much, before anything else happens.* Depth on the entry course. **Reach** (new/active learners by course × region × time) and **retention** (return-rate over 7/30/90d — the truest pre-revenue value signal) live here, as does **hours-to-milestone** (median in-app hours to the 30h/100h anchors per course — a course that reaches conversation faster is a measurably better product).
+
+**Convert** — *what tips them over — and it is TWO funnels, not one.* The premium model is a **7-day free trial**; free/community courses are unlimited *online* but offline-download gated. So conversion has two distinct shapes:
+  - **Trial funnel (premium).** No taster — premium is trial-or-nothing. start-trial → engage across 7 days → convert or churn at day 7. Tells: trial-start rate, **trial→paid rate**, *which day* they commit (early = strong fit), what they did in the trial, which courses retain trial users best. (The "completed the free preview" paywall in code is the *older* model — the events to instrument now are **trial-started / converted / lapsed**.)
+  - **Offline-upgrade funnel (free).** Free courses are unlimited online; the single gate, and so the single conversion moment, is **offline download** ("take it with you"). "How far into a free course before they upgrade" is exactly the metric, against that trigger (half-instrumented via `tap_listening_download`).
+  - *Which road* a course's learners take is itself a marketing signal — premium courses pull via the trial, free ones via the take-it-with-you moment.
+
+**Expand** — *do they broaden.* How many do **more than one course** (distinct enrollments per learner); paid-in → paid-switch (cross-sell within premium); and the **course-flow graph** — first → next → next (Spanish→French? Welsh→Cornish?). That graph is marketing *and* a sequencing insight at once.
+
+**Value, the through-line.** *"Which courses are doing well"* needs one honest number. Pre-revenue: **total lifetime in-app hours a course has generated**, decomposed into *reach* (learners) × *stickiness* (hours/learner) × *retention* (return-rate) — one figure that shows *why* a course ranks where it does. The day `subscriptions` has payers, real £ LTV by course and acquisition-cohort slots into the same column.
 
 ### B — Serve better (the curriculum's own quality loop)
 *Where does a course hurt everyone who meets it?* — content-relative, per Tom's law.
@@ -95,6 +103,8 @@ Don't build a learner dashboard *and* an admin dashboard. Build **one metric sub
 
 The win is that the learner's "how am I doing vs other Spanish learners" and the admin's "how is the Spanish course doing" are **the same query at different `GROUP BY` levels**. One substrate, costed once.
 
+**The IP guardrail (a standing discipline).** The telemetry is behaviour *over content-IDs*, never the generative method. *What* played, in what order, with what friction — yes. *Why* it played — the triple-helix, spaced-rep, and adaptation logic — lives in **code**, and the content itself sits behind the entitlement-gated audio proxy. So even a full data export is a record of **one realised path, not the rules that generate paths**: it cannot reconstruct the course or the method. Keeping it that way is the one discipline on everything built here — never push sequencing logic *into* queryable/exportable data, and keep every learner-facing or external view aggregate + sovereign (the no-named-peer / k-anonymity rule already enforces it). Internally, for SSi admin, we stay fully generous — it's our content.
+
 ---
 
 ## 5. What's buildable now vs earned later (sequencing)
@@ -104,6 +114,7 @@ Per Principle 5 (*don't build a signal before its consumer exists*) — and the 
 - **Now, on raw queries — no rollup tables.** Every §3 insight is a query over `player_events` + `course_enrollments` + `learner_speaking_opportunities` as they stand. Region×course reach, content-friction ranking, audio_failed/health, activation/retention, build distribution, needs-attention — all available today without building Layer 1/2. Active populations are small (tens of learners); live queries are cheap.
 - **Earned later — when query cost or the engine demands it.** The Layer 1/2 rollup tables (`learner_lego_state`, `learner_metrics`) become worth their cost when (a) live queries get slow at population scale, or (b) the **adaptation engine** needs persisted per-LEGO state — not before.
 - **Adoption-paced.** The **execution/prosody axis** stays a parallel track gated on VAD opt-in; today's admin insights run entirely on the **behavioural** tier, which is fully populated.
+- **One small build — the conversion moments.** The CONVERT funnel (§3A) is the single place inference isn't enough: make it *exact* by logging **trial-started / converted / lapsed** and **offline-prompt-shown / converted** as explicit `player_events` (the taps already fire — `tap_listening_download` — but the *shown → converted* pairing is what's missing). Cheap, and it's the moment we most want to measure: the only "do-now" here that's instrumentation rather than a query. Plus one *verify* — where the **sign-up-course** field actually lives (vs leaning on the first-play proxy).
 
 So: **admin insight views on raw queries first; promote to rollups only when something actually strains.**
 

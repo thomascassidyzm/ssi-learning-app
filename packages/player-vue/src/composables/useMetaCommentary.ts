@@ -52,6 +52,23 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
     try {
       const svc = createMetaCommentaryService(courseDataProvider, learnerId)
       await svc.initialize()
+      // Dev cheat: ?forceEncouragements=1 (or ?fc=1) fires an interjection on
+      // every eligible boundary, bypassing the ~10-min interval — so the
+      // interjection display can be tested without the wait. Instructions still
+      // come first (in order), then encouragements.
+      try {
+        const p = new URLSearchParams(window.location.search)
+        if (p.has('forceEncouragements') || p.has('fc')) {
+          svc.forceFire = true
+          console.debug('[useMetaCommentary] forceFire ON (dev cheat) — interjection on every speaking boundary')
+          // ?fc=enc → jump straight to encouragement icons (skip the ~30
+          // instructions), session-only / not persisted.
+          if (p.get('fc') === 'enc' || p.has('enc')) {
+            svc.forceEncouragementsOnly = true
+            console.debug('[useMetaCommentary] forceEncouragementsOnly ON (dev cheat) — skipping instructions, session-only')
+          }
+        }
+      } catch { /* no window / no search params */ }
       service.value = svc
       isInitialized.value = true
       console.debug('[useMetaCommentary] Initialized')

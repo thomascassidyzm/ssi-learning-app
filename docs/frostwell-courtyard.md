@@ -5,9 +5,10 @@ porting a screen, building a new admin/teach surface, or reviewing a PR,
 this is the canon. Surfaces drift; this doc doesn't.
 
 > **Scope.** Frostwell Courtyard governs everything *outside* the player.
-> The player itself (`/`, `/pods`, `LearningPlayer.vue`) is **Moonlit Dojo**
-> — dark sanctuary, belt-coloured accents — and stays that way. This doc
-> does not apply there.
+> The player itself (`/`, `/pods`, `LearningPlayer.vue`) is the **Mist theme**
+> — the single light theme, warm grey with belt-coloured accents — and has its
+> own look. This doc does not apply there. (The app no longer has a dark theme;
+> the old "Moonlit Dojo" / `cosmos` dark mode is deprecated.)
 
 ---
 
@@ -333,7 +334,7 @@ them isn't actually primary.
 | `/schools/*` | `SchoolsContainer` | yes | schools `TopNav` |
 | `/teach/*` | `TeachContainer` | should — confirm | schools `TopNav` (same as schools) |
 | `/redeem/:code`, `/try/:code`, `/with/:code`, `/demo` | view-level | yes | minimal/none |
-| `/`, `/pods` (player) | `PlayerContainer` | **NO** — this is Moonlit Dojo | own header |
+| `/`, `/pods` (player) | `PlayerContainer` | **NO** — this is the Mist player look | own header |
 
 ### 6.2 Persistent top-nav frame for desktop (target state)
 
@@ -423,7 +424,7 @@ mostly `TeachersView` and `ClassDetail`.
 (unaudited but assumed drift).
 
 **Wrong design language by design:** `SettingsScreen.vue` is in-player
-settings — stays Moonlit Dojo (dark). It's not a management surface; it
+settings — stays in the Mist player look. It's not a management surface; it
 appears in this list only because it touches user account state.
 
 ---

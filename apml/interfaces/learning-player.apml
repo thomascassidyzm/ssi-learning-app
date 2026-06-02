@@ -11,20 +11,19 @@ SPECIFICATION:
   name: "Learning Player Interface"
   purpose: "Main player UI for the 4-phase learning cycle with constellation network"
   source: "packages/player-vue/src/components/LearningPlayer.vue"
-  design_system: "Deep Space Constellation"
-  version: "2.0.0"
-  previous_version: "1.0.0 (Moonlit Dojo)"
+  design_system: "Mist (single light theme)"
+  version: "3.0.0"
+  previous_versions: "2.0.0 (Deep Space Constellation), 1.0.0 (Moonlit Dojo) — both dark, now deprecated"
 
 DESIGN_PHILOSOPHY:
-  name: "Deep Space Constellation"
-  evolution: "Evolved from Moonlit Dojo to Deep Space Constellation in January 2026"
+  name: "Mist — the single light theme"
+  history: "Dark themes (Moonlit Dojo → Deep Space Constellation) were retired; mist (light) is now forced for everyone (composables/useTheme.ts). Do NOT reintroduce dark mode."
 
   visual_principles:
-    - "Deep space gradient background with nebula effects"
-    - "Constellation network as primary visual element"
-    - "Hero-centric glass pane for text display"
-    - "Belt color accent (preserved from Moonlit Dojo)"
-    - "Star field for ambient depth"
+    - "Light: warm grey canvas (#e8e3dd), white elevated surfaces"
+    - "Hero-centric pane for text display"
+    - "Single belt-colour accent (from currentBelt)"
+    - "Restraint — one accent colour at a time"
     - "Phase strip with semantic icons (speaker/mic/eyes)"
 
   interaction_principles:
@@ -449,19 +448,18 @@ COMPOSABLES:
 
 CSS_CUSTOM_PROPERTIES:
   theme:
-    --bg-primary: "Deep space gradient"
-    --text-primary: "#ffffff"
-    --text-secondary: "#a0a0a0"
-    --accent: "#c23a3a"
+    # SINGLE theme: "mist" (light), forced for everyone via composables/useTheme.ts
+    # (data-theme="mist" pinned; toggleTheme/setTheme are no-ops; isDark()=false).
+    # The old dark theme (cosmos / "Deep Space Constellation" / "Moonlit Dojo") is
+    # deprecated — do NOT reintroduce dark mode. Tokens: styles/design-tokens.css [data-theme="mist"].
+    name: "mist (light) — the only theme"
+    --bg-primary: "#e8e3dd (warm grey canvas)"
+    --bg-elevated: "white surfaces"
+    --browser-chrome: "#D9D6D2"
 
   belt_colors:
-    --belt-color: "dynamic (from currentBelt)"
+    --belt-color: "dynamic (from currentBelt) — the single accent"
     --belt-glow: "dynamic"
-
-  glass_effects:
-    --glass-bg: "rgba(15, 15, 25, 0.8)"
-    --glass-blur: "16px"
-    --glass-border: "rgba(255, 255, 255, 0.1)"
 
 ## ============================================================================
 ## RESPONSIVE DESIGN

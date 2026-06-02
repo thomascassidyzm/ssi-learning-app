@@ -25,7 +25,6 @@ import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
-import { useBeltLoader, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
@@ -1089,13 +1088,6 @@ const highestCompletedLegoId = ref<string | null>(null)
 // resting state, and an INF PLAY round's legoId is a random USE that
 // doesn't represent pedagogical position.
 const lastCompletedLegoIdRef = ref<string | null>(null)
-// Current cursor (vs ceiling). Critical for infinite-play resume:
-// in infinite-play rounds the saved lastLegoId points to a LEGO
-// reviewed via random-USE, which the legoId-based resume would map to
-// that LEGO's MAIN-LOOP debut round — not the infinite-play round the
-// learner was actually on. The round index is the only unambiguous
-// position when legoIds get reused across infinite-play rounds.
-const lastCompletedRoundIndex = ref<number | null>(null)
 // Cycle cursor within the in-progress round, persisted on every cycle
 // completion. Read once on resume so a PWA reload mid-round picks up
 // from the cycle the learner was on rather than restarting cycle 0
@@ -1127,7 +1119,6 @@ watch(
       if (saved) {
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
-        lastCompletedRoundIndex.value = saved.lastCompletedRoundIndex ?? null
         lastCompletedLegoIdRef.value = saved.lastCompletedLegoId ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
@@ -1136,7 +1127,6 @@ watch(
       } else {
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
-        lastCompletedRoundIndex.value = null
         lastCompletedLegoIdRef.value = null
         savedCurrentCycleIndex.value = 0
         savedLastPracticedAt.value = null
@@ -2931,8 +2921,13 @@ const sessionMultiplier = computed(() => {
 // Uses localStorage for persistence with Supabase sync for cross-device
 const beltProgress = shallowRef(null)
 
-// Belt loader for progressive loading with priority queue
-// Loads current belt first 5 rounds (P0 blocking), then background loads next belts
+// Belt loader for progressive loading — VESTIGIAL as of 2026-06-02: its only
+// writer (initializeBeltLoader) was removed as dead code (never called; the
+// instant-playback path superseded it). This ref is now never populated, so
+// the two reads below (useOfflinePlay's getCachedItems + the clearCache guard)
+// are effectively no-ops (always null → [] / never fires). Left in place
+// because they thread into the live offline-play system; retire as part of the
+// offline/buffer rework, not here.
 const beltLoader = shallowRef(null)
 
 // Offline play composable for infinite play when offline
@@ -3097,56 +3092,6 @@ const initializeListeningProgress = async () => {
 }
 
 /**
- * Initialize belt loader for progressive loading
- * Call after belt progress is initialized to know starting position
- */
-const initializeBeltLoader = async () => {
-  if (!courseCode.value || !beltProgress.value || beltLoader.value) return
-
-  console.log('[LearningPlayer] Initializing belt loader...')
-
-  // Script chunk generator — preserved as a wrapper for useBeltLoader's
-  // interface, but now always returns the full course. The chunk-by-seed
-  // pattern is gone (it was the cause of the L1-listening silent-fail bug).
-  // beltLoader receives the same rounds every call; no incremental loading
-  // happens here any more. Eventually useBeltLoader should be simplified
-  // to a single load — until then this preserves the contract.
-  const generateScriptChunk = async (_startSeed: number, _count: number) => {
-    if (!supabase?.value) return { rounds: [] as any[], nextSeed: 1, hasMore: false }
-    const result = await generateScript()
-    if (result.hasRomanizedText) hasRomanizedText.value = true
-    const rounds = toSimpleRoundsWithComponents(result.items)
-    return {
-      rounds: rounds as any[],
-      nextSeed: 9999,
-      hasMore: false,
-    }
-  }
-
-  // Initialize belt loader
-  const loaderConfig: BeltLoaderConfig = {
-    supabase: supabase,
-    courseCode: computed(() => courseCode.value),
-    audioBaseUrl: AUDIO_S3_BASE_URL,
-    generateScriptChunk,
-  }
-
-  beltLoader.value = useBeltLoader(loaderConfig)
-
-  // Initialize from current progress position
-  let startSeed: number
-  if (props.classContext?.last_lego_id) {
-    const seedMatch = props.classContext.last_lego_id.match(/^S(\d{4})L/)
-    startSeed = seedMatch ? parseInt(seedMatch[1], 10) : 1
-  } else {
-    startSeed = beltProgress.value.completedRounds.value + 1
-  }
-  await beltLoader.value.initializeFromSeed(startSeed)
-
-  console.log('[LearningPlayer] Belt loader ready, starting from seed', startSeed)
-}
-
-/**
  * Initialize offline play composable
  */
 const initializeOfflinePlay = () => {
@@ -3195,6 +3140,48 @@ const beltJustEarned = ref(null)
 // Mode discovery tips (shown between rounds, one at a time)
 const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 
+// ── Interjection display (the box follows the audio) ────────────────────────
+// While a between-rounds interjection plays, the display box shows content that
+// matches the AUDIO, never the next LEGO (the engine has advanced roundIndex
+// onto it but its intro audio hasn't started). Encouragement → a wordless,
+// rotating "positive" icon (strength / power / learning / effort). Instruction →
+// a short, varied "back to the science" caption. Welcome keeps its own
+// "listen to your guide" path. Tom 2026-06-02.
+type CommentaryDisplayType = 'welcome' | 'instruction' | 'encouragement'
+const currentCommentaryType = ref<CommentaryDisplayType | null>(null)
+
+// Dev cheat flag (?fc=1 / ?forceEncouragements=1): read once. Drives both the
+// service's forceFire (drop the ~10-min interval, set in useMetaCommentary) and
+// the relaxed placement gate in handleRoundBoundary (fire at any non-pod
+// boundary). Lets the interjection display be tested without a long wait.
+const forceInterjectionsCheat = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return p.has('fc') || p.has('forceEncouragements')
+  } catch { return false }
+})()
+
+// Short, varied captions for the ordered (sciencey) instructions — Tom's
+// "slightly fun, back to the science". No LEGO text; sets the expectation that
+// this is the meta-cognitive teaching track, distinct from the wordless icons.
+const INSTRUCTION_CAPTIONS = [
+  'Back to the science…',
+  'A bit of the science…',
+  'The science behind it…',
+  'Why this works…',
+]
+const instructionCaptionIndex = ref(0)
+const currentInstructionCaption = computed(() => INSTRUCTION_CAPTIONS[instructionCaptionIndex.value % INSTRUCTION_CAPTIONS.length])
+
+// Show the interjection block instead of the LEGO text. Welcome keeps its own
+// existing "listen to your guide" message, so only instruction/encouragement
+// flip this. Pods/L1 listening have their own overlays and don't set
+// currentCommentaryType.
+const showInterjection = computed(() =>
+  playingCommentaryAudio.value &&
+  (currentCommentaryType.value === 'instruction' || currentCommentaryType.value === 'encouragement')
+)
+
 /**
  * Play commentary audio (welcome, instruction, or encouragement)
  * Returns a promise that resolves when audio finishes
@@ -3206,6 +3193,15 @@ const playCommentaryAudio = async (commentary) => {
   }
 
   playingCommentaryAudio.value = true
+  // Drive the display box off WHAT'S PLAYING (Tom 2026-06-02): an instruction
+  // shows a short "back to the science" caption (words suit the dialog box); an
+  // encouragement shows a calm throbbing ellipsis (consistent, non-distracting,
+  // "just listen") — NEVER the next LEGO (the engine has advanced roundIndex
+  // onto it, but its audio hasn't started). Pick the caption once per clip.
+  currentCommentaryType.value = (commentary.type as CommentaryDisplayType) ?? null
+  if (commentary.type === 'instruction') {
+    instructionCaptionIndex.value = Math.floor(Math.random() * INSTRUCTION_CAPTIONS.length)
+  }
   console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
   logEvent('commentary_start', {
     type: commentary.type ?? null,
@@ -3235,6 +3231,7 @@ const playCommentaryAudio = async (commentary) => {
       settled = true
       cleanup()
       playingCommentaryAudio.value = false
+      currentCommentaryType.value = null
       logEvent('commentary_end', { reason, type: commentary.type ?? null })
       resolve(success)
     }
@@ -3611,6 +3608,16 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   const boundaryBetweenSpeakingRounds =
     !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
 
+  // Dev cheat (?fc / ?forceEncouragements): relax the placement rule so an
+  // interjection can fire at ANY boundary that isn't a pod lap — otherwise a
+  // pod-/listening-heavy stretch never offers a clean speaking→speaking
+  // boundary and the forced interjections never show. Still excludes pod
+  // boundaries (firing there would overlap/race the lap). Pairs with the
+  // service's forceFire (which drops the ~10-min interval).
+  const canFireInterjection = forceInterjectionsCheat
+    ? !podFiresThisBoundary
+    : boundaryBetweenSpeakingRounds
+
   // No random encouragements in INF PLAY — the locked model has none, and a
   // mid-stream ~1-min clip is poor pacing in a pure-review tail. Gating here
   // (rather than not accumulating time) keeps the main-loop timer logic
@@ -3620,7 +3627,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     const commentary = metaCommentary.onRoundComplete(
       completedRoundIndex + 1,
       cyclesInRound,
-      boundaryBetweenSpeakingRounds,
+      canFireInterjection,
     )
 
     if (commentary) {
@@ -6988,6 +6995,29 @@ const advanceInfPlayRound = async (fromIdx: number) => {
  * next round isn't loaded yet, LOAD-then-resolve (never teleport).
  */
 const handleRoundForward = async () => {
+  // Skip pressed DURING an inter-round interjection (encouragement /
+  // instruction / pod lap): dismiss it and continue into the LEGO that's
+  // ALREADY queued — the boundary advanced roundIndex onto it and it's the
+  // text on screen, so the learner expects to land THERE, not one past it.
+  // Mirror the cycle-skip's commentary branch: cancel + let
+  // handleRoundBoundary's resume() play the queued LEGO. Do NOT fall through
+  // to cancelInFlightLap()+jump — cancelInFlightLap sets userStoppedDuringLap
+  // (which GATES that resume → dead silence) and the +1 jump overshoots the
+  // displayed LEGO. Regression from 73f357ff (3-level nav re-pointed the bottom
+  // skip here from the commentary-aware handleSkip); telemetry signature was
+  // "no tap_skip + no audio_play after commentary_end(cancelled)".
+  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    logEvent('tap_skip', {
+      during: playingPodLapAudio.value ? 'pod_lap' : 'commentary',
+      via: 'round_forward',
+      roundIndex: simplePlayer.roundIndex.value,
+      legoId: simplePlayer.currentRound.value?.legoId ?? null,
+    })
+    if (playingPodLapAudio.value) podLapSkippedByUser.value = true
+    podLapCancelled.value = true
+    audioController.value?.stop()
+    return
+  }
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
@@ -9985,10 +10015,17 @@ onMounted(async () => {
               try {
                 const savedProgress = await loadSavedProgress()
                 if (savedProgress?.lastCompletedRoundIndex !== null) {
-                  const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
+                  // Position, not completion: last_completed_round_index names the
+                  // round the playhead was ON, so resume lands there directly. The
+                  // old "+1" treated it as "last finished" and skipped a round —
+                  // the bug this rarely-fired backup path used to hide. Now matches
+                  // the main instant-playback resume. Cycle isn't restored here
+                  // (lands at the round's start), which is the same as a gap-rule
+                  // round-restart and correct for any real return.
+                  const resumeIndex = savedProgress.lastCompletedRoundIndex
                   if (resumeIndex < cachedScript.rounds.length) {
                     currentRoundIndex.value = resumeIndex
-                    currentItemInRound.value = 0 // Database only stores round, not item
+                    currentItemInRound.value = 0 // round start; per-cycle precision is the main path's job
 
                     // Also set currentPlayableItem so splash screen shows correct text
                     const resumeScriptItem = cachedScript.rounds[resumeIndex]?.items?.[0]
@@ -10827,9 +10864,9 @@ defineExpose({
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
-      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">
+      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
         <!-- Inline learning hint label -->
-        <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
+        <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -10838,8 +10875,27 @@ defineExpose({
           </button>
         </div>
 
+        <!-- INTERJECTION MODE: between-rounds encouragement / instruction.
+             The display follows the AUDIO — never the next LEGO (which the
+             engine has queued but not started). Encouragement → wordless
+             rotating strength/learning icon; instruction → a short sciencey
+             caption. -->
+        <template v-if="showInterjection">
+          <!-- "Your guide is speaking": one model for all interjections, since
+               both instruction and encouragement are Aran's voice. A synthetic
+               (NOT audio-reactive — that'd tap the element and risk lock) wave
+               that reads as live voice. Instructions also keep their short
+               caption; encouragements are wave-only. -->
+          <div class="interjection-display" :class="`is-${currentCommentaryType}`">
+            <div class="interjection-wave" aria-label="Your guide is speaking" role="img">
+              <span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span>
+            </div>
+            <div v-if="currentCommentaryType === 'instruction'" class="interjection-caption">{{ currentInstructionCaption }}</div>
+          </div>
+        </template>
+
         <!-- INTRO MODE: Typewriter-style encouraging message -->
-        <template v-if="isIntroPhase && !isAwakening">
+        <template v-else-if="isIntroPhase && !isAwakening">
           <div class="intro-display">
             <div class="intro-typewriter">
               <span class="intro-prefix">›</span>
@@ -11830,13 +11886,36 @@ defineExpose({
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
+  /* ============ HERO CONSTRUCTION GRID ============
+   * The whole top section is built from ONE base unit. Everything derives, so
+   * the single breakpoint just swaps --u (4px mobile → 5px desktop) and the
+   * proportions hold. Ratios:
+   *   pill height   = 8u   (belt pill, phase pill, AND the flanking round
+   *                         buttons — so each row is one clean band)
+   *   pill radius   = 4u   (= height/2 → true stadium ends; buttons are
+   *                         circles of the same radius → one family)
+   *   row h-gap     = 2u   (round button ↔ pill)
+   *   vertical rhythm = 5u (title↔belt = belt↔dialog = dialog↔phase, all equal)
+   *   title slot    = 7u   (the logo's line box)
+   * The painting is a full-bleed backdrop, so the stack can sit anywhere — we
+   * just lay it on the grid from the top. */
+  --u: 4px;
+  --pill-height: calc(8 * var(--u));     /* 32px mobile / 40px desktop */
+  --pill-radius: calc(4 * var(--u));     /* 16 / 20 — stadium + matching circles */
+  --hero-gap: calc(5 * var(--u));        /* 20 / 25 — the one vertical rhythm */
+  --title-slot: calc(7 * var(--u));      /* 28 / 35 — logo line box */
+
   /* ============ LAYOUT STRUCTURE ============ */
-  --header-height: 72px;
+  /* Header height is now an HONEST sum of its parts (top padding + title +
+   * rhythm + pill), not a hardcoded guess — so --hero-offset is the TRUE
+   * belt→dialog gap. (Old --header-height: 72px under-reported the real ~87px,
+   * which is why the gaps never matched their tokens.) */
+  --header-height: calc(var(--space-lg) + var(--title-slot) + var(--hero-gap) + var(--pill-height));
   --header-total: calc(var(--header-height) + var(--safe-area-top));
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 48px; /* gap belt pill -> text box (was 24px; +8 compensates the header's bigger top padding so this gap holds) */
+  --hero-offset: var(--hero-gap); /* belt pill → dialog box = one rhythm unit */
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -11882,14 +11961,13 @@ defineExpose({
 
   /* ============ HEADER ============ */
   --header-padding: var(--space-md) var(--space-lg) var(--space-sm);
-  --belt-row-gap: 0.5rem;
+  --belt-row-gap: calc(2 * var(--u)); /* round button ↔ pill = 2u (8 / 10) */
   --belt-timer-width: 180px;
   --belt-bar-width: 60px;
   --belt-bar-height: 5px;
-  /* Shared pill height — belt pill + phase pill are LOCKED to one value so
-   * they're identical by construction (label 12px×1.5 + 12px pad + 3px border
-   * = 33px at mobile; 36px at ≥768px). Both pills consume it. */
-  --pill-height: 33px;
+  /* --pill-height + --pill-radius now live in the HERO CONSTRUCTION GRID above
+   * (8u tall, 4u radius). Belt pill, phase pill, and the flanking round buttons
+   * all consume --pill-height so the rows are one band by construction. */
 
   /* ============ RING / TEXT ZONE ============ */
   --ring-size: 180px;
@@ -12204,7 +12282,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--hero-gap); /* title → belt pill — one rhythm unit (5u) */
   width: 100%;
   max-width: 400px;
 }
@@ -12217,6 +12295,12 @@ defineExpose({
   letter-spacing: -0.02em;
   white-space: nowrap;
   flex-shrink: 0;
+  /* Occupy a defined 7u band (like the pills are 8u), logo centred in it — so
+     --header-height is an exact sum of grid bands, not font-metric guesswork. */
+  height: var(--title-slot);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-say, .logo-in { color: var(--accent); }
@@ -12303,11 +12387,14 @@ defineExpose({
   padding: 0 var(--space-sm);
 }
 
-/* Belt skip buttons */
+/* Belt skip buttons — diameter LOCKED to the pill height so the round
+   buttons and the pill form one uniform-height band (was 36 vs 33px pill,
+   which made them bulge above/below). The circle's radius then equals the
+   pill's stadium radius → one family. */
 .belt-header-skip {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: var(--pill-height);
+  height: var(--pill-height);
+  min-width: var(--pill-height);
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
@@ -12409,7 +12496,7 @@ defineExpose({
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 20px;
+  border-radius: var(--pill-radius); /* stadium — matches the round buttons + phase pill */
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   flex: 1;
@@ -13161,6 +13248,71 @@ defineExpose({
   51%, 100% { opacity: 0; }
 }
 
+/* Interjection display — shown while a between-rounds encouragement /
+   instruction plays. Calm, content-free reassurance keyed to the belt accent;
+   never the next LEGO's text. */
+.interjection-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 1.5rem 2rem;
+  min-height: 80px;
+}
+/* Synthetic voice waveform — five bars with a gentle staggered rise/fall.
+   Reads as "your guide is talking", identical every time so it never becomes
+   distracting content. NOT driven by the real audio (no AnalyserNode tap on
+   the <audio> element — that risks iOS lock/background stability). */
+.interjection-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  animation: interjection-in 320ms ease-out;
+}
+.interjection-wave .wbar {
+  width: 5px;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--belt-color, #b08968);
+  opacity: 0.5;
+  transform: scaleY(0.3);
+  transform-origin: center;
+  animation: wave-bar 1.5s ease-in-out infinite;
+}
+.interjection-wave .wbar:nth-child(1) { animation-delay: 0s; }
+.interjection-wave .wbar:nth-child(2) { animation-delay: 0.18s; }
+.interjection-wave .wbar:nth-child(3) { animation-delay: 0.36s; }
+.interjection-wave .wbar:nth-child(4) { animation-delay: 0.24s; }
+.interjection-wave .wbar:nth-child(5) { animation-delay: 0.42s; }
+@keyframes wave-bar {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+  50%      { transform: scaleY(1);   opacity: 0.9; }
+}
+/* The whole box breathes softly while the guide speaks — "comes alive". */
+.hero-glass.is-interjection {
+  animation: hero-throb 3.4s ease-in-out infinite;
+}
+@keyframes hero-throb {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.015); }
+}
+.interjection-caption {
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: var(--text-base);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--belt-color, #b08968);
+  opacity: 0.9;
+  animation: interjection-in 360ms ease-out;
+}
+@keyframes interjection-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
 .hero-text-known,
 .hero-text-target {
   text-align: center;
@@ -13315,7 +13467,7 @@ defineExpose({
   gap: var(--belt-row-gap);
   width: 100%;
   padding: 0 var(--space-sm);
-  margin: var(--space-xl) auto 0; /* gap text box -> phase pill (was --space-md/12px) */
+  margin: var(--hero-gap) auto 0; /* dialog box → phase pill — one rhythm unit (5u) */
 }
 .phase-strip {
   display: flex;
@@ -13326,7 +13478,7 @@ defineExpose({
   padding: 0;
   background: #ffffff;
   border: 1.5px solid rgba(255, 255, 255, 0.35); /* match belt pill border (default theme) */
-  border-radius: 20px;
+  border-radius: var(--pill-radius); /* stadium — matches belt pill + round buttons */
   box-shadow:
     0 2px 4px rgba(44, 38, 34, 0.10),
     0 6px 16px rgba(44, 38, 34, 0.06);
@@ -14036,11 +14188,12 @@ button.phase-segment:active:not(.is-active) {
    the space background extending to fill the viewport.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* Tablet and Desktop (768px+) - more breathing room */
+/* Tablet and Desktop (768px+) - more breathing room.
+   ONE knob: bump the base unit 4px → 5px and the whole hero grid scales
+   proportionally (pill 32→40, radius 16→20, rhythm 20→25, header derives). */
 @media (min-width: 768px) {
   .player {
-    --header-height: 84px;
-    --hero-offset: 54px;
+    --u: 5px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
@@ -14055,7 +14208,7 @@ button.phase-segment:active:not(.is-active) {
     --belt-timer-width: 240px;
     --belt-bar-width: 90px;
     --belt-bar-height: 6px;
-    --pill-height: 36px;
+    /* --pill-height now derives from --u (8u = 40px here) */
     --control-bar-gap: 3.5rem;
     --control-group-gap: 0.625rem;
     --ring-size: 220px;
@@ -14065,11 +14218,12 @@ button.phase-segment:active:not(.is-active) {
   }
 }
 
-/* Landscape phones - compact vertical spacing */
+/* Landscape phones - compact vertical spacing.
+   Same grid, smaller base unit (3px → pill 24, rhythm 15); header-height +
+   hero-offset DERIVE from it (honest), so no overlap from a hardcoded guess. */
 @media (orientation: landscape) and (max-height: 500px) {
   .player {
-    --header-height: 56px;
-    --hero-offset: 8px;
+    --u: 3px;
     --space-sm: 4px;
     --space-md: 8px;
     --space-lg: 12px;
@@ -14470,8 +14624,10 @@ button.phase-segment:active:not(.is-active) {
 [data-theme="mist"] .player .belt-timer-unified {
   background: color-mix(in srgb, var(--belt-color) 65%, white);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08);
+  /* Match the phase pill exactly so the two pills read as one family — the
+     belt pill's heavier 24px shadow made it look chunkier ("less sleek"). */
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 6px 16px rgba(44, 38, 34, 0.06);
 }
 
 [data-theme="mist"] .player .belt-timer-label {
