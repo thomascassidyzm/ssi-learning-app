@@ -83,9 +83,7 @@ function formatNumber(n: number): string {
 }
 
 const globalMinutes = computed(() => props.data.global[activeTab.value].minutes)
-const speakers = computed(() => props.data.global[activeTab.value].speakers || 0)
 const userMinutes = computed(() => props.data.user[activeTab.value].minutes)
-const userPhrases = computed(() => props.data.user[activeTab.value].phrases)
 
 // --- Headline stats: Session (= belt m:ss) | All-time (your lifetime) ----
 // Session mirrors the belt pill exactly: m:ss from the shared sessionSeconds.
@@ -131,54 +129,15 @@ const MISSION_LANGUAGES = new Set([
 ])
 const isMissionLanguage = computed(() => MISSION_LANGUAGES.has(props.data.targetLanguage))
 
+// Personal slice line — shown ONLY when you have minutes in the selected
+// window. The community total + window already sit in the label above, so
+// this is purely "your share of it": no restating, and no "spoke" (the
+// figure is in-app minutes, not speaking time).
 const contextMessage = computed(() => {
-  const lang = props.data.languageName
-  const mins = formatNumber(globalMinutes.value)
-  const sp = speakers.value
   const userMins = userMinutes.value
-  const fmtUserMins = formatNumber(userMins)
-
-  switch (activeTab.value) {
-    case 'today':
-      if (userMins > 0 && sp > 1) {
-        return t('contribution.joinedTodayNeutral', 'You spoke {mins} min of {language} today, alongside {count} other learner(s).')
-          .replace('{mins}', String(userMins))
-          .replace('{count}', String(sp - 1))
-          .replace('{language}', lang)
-      }
-      if (userMins > 0) {
-        return t('contribution.spokeToday', 'You spoke {language} today.')
-          .replace('{language}', lang)
-      }
-      if (sp > 0) {
-        return t('contribution.speakersTodayNeutral', '{count} learner(s) spoke {language} today.')
-          .replace('{count}', String(sp))
-          .replace('{language}', lang)
-      }
-      return t('contribution.beFirstToday', 'Be the first to speak {language} today.')
-        .replace('{language}', lang)
-    case 'days7':
-      if (userMins > 0) {
-        return t('contribution.contributedWeek', 'You contributed {userMins} of {mins} minutes of {language} this week.')
-          .replace('{userMins}', fmtUserMins).replace('{mins}', mins).replace('{language}', lang)
-      }
-      return t('contribution.weekMinutes', 'SSi learners spoke {mins} minutes of {language} this week.')
-        .replace('{mins}', mins).replace('{language}', lang)
-    case 'days30':
-      if (userMins > 0) {
-        return t('contribution.contributedMonth', 'You contributed {userMins} of {mins} minutes of {language} this month.')
-          .replace('{userMins}', fmtUserMins).replace('{mins}', mins).replace('{language}', lang)
-      }
-      return t('contribution.monthMinutes', '{mins} minutes of {language} spoken this month by SSi learners worldwide.')
-        .replace('{mins}', mins).replace('{language}', lang)
-    case 'allTime':
-      if (userMins > 0) {
-        return t('contribution.contributedAllTime', '{mins} minutes of {language} on SSi. You contributed {userMins} of them.')
-          .replace('{mins}', mins).replace('{language}', lang).replace('{userMins}', fmtUserMins)
-      }
-      return t('contribution.allTimeMinutes', '{mins} minutes of {language} spoken on SSi so far.')
-        .replace('{mins}', mins).replace('{language}', lang)
-  }
+  if (userMins <= 0) return ''
+  return t('contribution.youContributed', 'You contributed {mins} of them.')
+    .replace('{mins}', String(userMins))
 })
 
 // --- Belt strip -----------------------------------------------
@@ -314,25 +273,13 @@ onUnmounted(() => {
             </span>
           </div>
 
-          <!-- Community context (neutral, all languages) -->
-          <p class="context-message">{{ contextMessage }}</p>
+          <!-- Your slice of the community total — only when you have minutes -->
+          <p v-if="contextMessage" class="context-message">{{ contextMessage }}</p>
 
           <!-- Mission (endangered) languages ONLY: the emotive revival line -->
           <p v-if="isMissionLanguage" class="mission-line">
             {{ t('contribution.missionLine', "You're helping keep {language} alive.").replace('{language}', data.languageName) }}
           </p>
-
-          <!-- Your contribution (only when present) -->
-          <div v-if="userMinutes > 0 || userPhrases > 0" class="user-contribution">
-            <div class="user-stat">
-              <span class="user-value">+{{ formatNumber(userMinutes) }}</span>
-              <span class="user-label">{{ t('contribution.yourMins', 'your mins') }}</span>
-            </div>
-            <div class="user-stat">
-              <span class="user-value">+{{ formatNumber(userPhrases) }}</span>
-              <span class="user-label">{{ t('contribution.yourPhrases', 'your phrases') }}</span>
-            </div>
-          </div>
 
           <!-- Belt strip -->
           <section class="belt-strip">
