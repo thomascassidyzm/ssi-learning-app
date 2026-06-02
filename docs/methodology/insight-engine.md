@@ -88,6 +88,17 @@ The app renders that instantly. One API call returns a spec; the spec **is** the
 
 So the real thing to build is **the widget library + the substrate.** Claude is the thin, spec-emitting layer between a question and a render; the feed, the ask-bar, the boards and the drill are all just *arrangements* of widgets fed by Claude-emitted specs. The one honest boundary: "show anything" is bounded by *widget vocabulary × substrate composability* — vast, but not infinite. The rare question that needs a genuinely novel visual becomes "add a widget for that" — a batched engineering task, not a per-question build. Cost stays bounded; the library grows slowly and deliberately.
 
+### 3.5 Two surfaces, never muddled — and the *standing* widget
+
+There is a duality in what the engine produces, and the one discipline that matters in presentation is to **never let the two share a screen**, because they answer different questions for different people:
+
+- **Lens A — *how is this entity doing?*** Relational and motivational: a learner (or class, or school) against an average it belongs to, in the **self / group** frame — **sovereign** (aggregate, never a named peer) and *celebratory* in tone. Audience: the entity itself, and admin when it drills into *one* entity.
+- **Lens B — *what should we do?*** Analytical and actionable: population- and content-level patterns in the **world / content** frame — the four families and the action queue. Audience: us, as a company.
+
+The line is **subject vs patterns** — an entity's *standing* (A) versus what the population and the content are telling us to *act on* (B). They share the substrate and the widget library but are *different surfaces*. The engine keeps them apart almost for free: the **frame** routes the question (self/group → A, world/content → B), and the action-owner confirms it (A: *celebrate / nudge this entity*; B: *Popty / marketing / product*).
+
+The signature Lens-A widget is **standing** — a sovereign-comparison variant that *celebrates the most-engaged*. For a chosen window (day / 7d / 30d / all-time) it shows the **top 5, anonymised** (initials, per sovereignty), the individual's own marker, the average, and the percentile — *"you're in the top 20% of Welsh learners."* It exists to honour the handful really putting the time in and to let everyone feel part of it — **never a league table to climb**. (Sovereignty handles the asymmetry: a *learner* sees the top 5 anonymised; *admin* — who has visibility, not just comparison — can see them named, useful for spotting power users to nurture.)
+
 ---
 
 ## 4. Why this is world-class, and where the honesty line is
