@@ -10864,7 +10864,7 @@ defineExpose({
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
-      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase }">
+      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
         <!-- Inline learning hint label -->
         <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
@@ -10881,13 +10881,16 @@ defineExpose({
              rotating strength/learning icon; instruction → a short sciencey
              caption. -->
         <template v-if="showInterjection">
+          <!-- "Your guide is speaking": one model for all interjections, since
+               both instruction and encouragement are Aran's voice. A synthetic
+               (NOT audio-reactive — that'd tap the element and risk lock) wave
+               that reads as live voice. Instructions also keep their short
+               caption; encouragements are wave-only. -->
           <div class="interjection-display" :class="`is-${currentCommentaryType}`">
-            <!-- Encouragement: calm chat-style ellipsis — "just listen". -->
-            <div v-if="currentCommentaryType === 'encouragement'" class="interjection-dots" aria-label="Listen" role="img">
-              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            <div class="interjection-wave" aria-label="Your guide is speaking" role="img">
+              <span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span>
             </div>
-            <!-- Instruction: short sciencey caption (words suit the dialog box). -->
-            <div v-else class="interjection-caption">{{ currentInstructionCaption }}</div>
+            <div v-if="currentCommentaryType === 'instruction'" class="interjection-caption">{{ currentInstructionCaption }}</div>
           </div>
         </template>
 
@@ -13219,34 +13222,51 @@ defineExpose({
    never the next LEGO's text. */
 .interjection-display {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 14px;
   padding: 1.5rem 2rem;
   min-height: 80px;
 }
-/* Chat-style ellipsis — three dots with a gentle staggered throb. Reads as
-   "something's being said, just listen"; identical every time so it never
-   becomes distracting "content". */
-.interjection-dots {
+/* Synthetic voice waveform — five bars with a gentle staggered rise/fall.
+   Reads as "your guide is talking", identical every time so it never becomes
+   distracting content. NOT driven by the real audio (no AnalyserNode tap on
+   the <audio> element — that risks iOS lock/background stability). */
+.interjection-wave {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
+  height: 34px;
   animation: interjection-in 320ms ease-out;
 }
-.interjection-dots .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+.interjection-wave .wbar {
+  width: 5px;
+  height: 100%;
+  border-radius: 3px;
   background: var(--belt-color, #b08968);
-  opacity: 0.45;
-  animation: interjection-dot 1.4s ease-in-out infinite;
+  opacity: 0.5;
+  transform: scaleY(0.3);
+  transform-origin: center;
+  animation: wave-bar 1.5s ease-in-out infinite;
 }
-.interjection-dots .dot:nth-child(2) { animation-delay: 0.2s; }
-.interjection-dots .dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes interjection-dot {
-  0%, 60%, 100% { opacity: 0.35; transform: translateY(0) scale(1); }
-  30%           { opacity: 1;    transform: translateY(-3px) scale(1.15); }
+.interjection-wave .wbar:nth-child(1) { animation-delay: 0s; }
+.interjection-wave .wbar:nth-child(2) { animation-delay: 0.18s; }
+.interjection-wave .wbar:nth-child(3) { animation-delay: 0.36s; }
+.interjection-wave .wbar:nth-child(4) { animation-delay: 0.24s; }
+.interjection-wave .wbar:nth-child(5) { animation-delay: 0.42s; }
+@keyframes wave-bar {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+  50%      { transform: scaleY(1);   opacity: 0.9; }
+}
+/* The whole box breathes softly while the guide speaks — "comes alive". */
+.hero-glass.is-interjection {
+  animation: hero-throb 3.4s ease-in-out infinite;
+}
+@keyframes hero-throb {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.015); }
 }
 .interjection-caption {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
