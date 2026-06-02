@@ -18,9 +18,9 @@ interface Paper {
 
 const papers: Paper[] = [
   {
-    title: 'Metrics & Adaptation',
+    title: 'Measuring progress',
     blurb:
-      'The model behind the dashboards: rate-of-change as the signal, contextual difficulty and the consolidate / defer / drill budget, the sovereign comparison model (entity vs aggregate, never a named peer), the two clocks, and CEFR as a pilot-coupled best-fit. Three live figures; built to be argued with.',
+      'Metrics & adaptation — the model behind the dashboards: rate-of-change as the signal, contextual difficulty and the consolidate / defer / drill budget, the sovereign comparison model (entity vs aggregate, never a named peer), the two clocks, and CEFR as a pilot-coupled best-fit. Three live figures; built to be argued with.',
     href: '/docs/metrics-vision.html',
     tag: 'Interactive · position paper',
     status: 'Draft — for discussion',
@@ -41,11 +41,11 @@ const papers: Paper[] = [
     <header class="page-header">
       <div class="title-block">
         <span class="schools-kicker">Methodology</span>
-        <h1 class="arsenal">Measuring progress</h1>
+        <h1 class="arsenal">Open discussions</h1>
         <p class="subtitle">
-          How we decide what to show, what to adapt, and how competence is eventually
-          calibrated — papers and interactive demos. The companion specification lives in
-          the repo at <code>docs/methodology/metrics-architecture.md</code>.
+          Components of the SSi methodology, worked through in the open between Tom and
+          Aran — papers and interactive demos, drafts built to be argued with. Each card
+          is a self-contained piece, not a single doctrine.
         </p>
       </div>
     </header>

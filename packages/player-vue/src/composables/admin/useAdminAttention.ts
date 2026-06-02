@@ -8,7 +8,7 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export interface AttentionUser {
+interface AttentionUser {
   learner_id: string
   name: string | null
   email: string | null

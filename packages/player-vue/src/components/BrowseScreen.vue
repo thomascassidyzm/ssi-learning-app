@@ -901,11 +901,6 @@ onMounted(() => {
   color: #fff;
 }
 
-.course-badge.new-badge {
-  background: var(--accent);
-  color: #fff;
-}
-
 .course-badge.premium-badge {
   background: linear-gradient(135deg, #d4a853, #b8893c);
   color: #fff;
@@ -922,10 +917,6 @@ onMounted(() => {
 .variant-card.locked {
   /* Locked courses are still fully visible — opacity stays — but the status
      "Try free →" + premium badge advertise the upgrade. */
-}
-
-.course-flag {
-  line-height: 1;
 }
 
 .course-name {

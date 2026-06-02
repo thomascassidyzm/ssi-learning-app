@@ -5,7 +5,7 @@
 import { BELTS } from '@/composables/useBeltProgress'
 import { getLanguageName } from '@/composables/useI18n'
 
-export interface ParsedCourseCode {
+interface ParsedCourseCode {
   target: string
   known: string
   label: string

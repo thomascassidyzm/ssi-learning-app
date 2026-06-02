@@ -9,9 +9,6 @@ import { t } from '@/composables/useI18n'
 // Get auth state from App
 const auth = inject('auth')
 
-// Local state for auth modal
-const showAuthModal = ref(false)
-
 const props = defineProps({
   // Stats from this learning period
   itemsPracticed: { type: Number, default: 0 },
@@ -44,12 +41,6 @@ const formattedTime = computed(() => {
   const secs = props.timeSpentSeconds % 60
   if (mins === 0) return `${secs}s`
   return `${mins}m ${secs}s`
-})
-
-// Calculate seeds until next belt
-const seedsToNextBelt = computed(() => {
-  if (!props.nextBelt) return 0
-  return props.nextBelt.seedsRequired - props.completedRounds
 })
 
 // Progress percentage within current belt tier

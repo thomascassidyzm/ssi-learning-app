@@ -184,7 +184,7 @@ async function handleRedeemCode() {
 }
 
 // Global auth modal (still needed for TopNav sign-in)
-const { open: openAuth, close: closeAuth } = useAuthModal()
+const { close: closeAuth } = useAuthModal()
 
 const handleAuthSuccess = () => {
   closeAuth()

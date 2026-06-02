@@ -28,6 +28,13 @@ type Belt = { name: string; color: string; seedsRequired: number; glow?: string 
 const props = defineProps<{
   isOpen: boolean
   data: ContributionData
+  // This session's elapsed time, in seconds — the SAME source as the belt
+  // pill's m:ss (so the modal's "session" headline == the belt). Passed in
+  // rather than recomputed so the two can never drift.
+  sessionSeconds?: number
+  // Guest learners have no stored lifetime history (the per-day table is
+  // logged-in only), so their All-time reads 0 + a "sign in to save" nudge.
+  isGuest?: boolean
   // Course identity for the "for English speakers" subtitle. The
   // ContributionData only carries the *target* language, but the
   // modal reads more cleanly if we name who the course is for too.
@@ -76,58 +83,61 @@ function formatNumber(n: number): string {
 }
 
 const globalMinutes = computed(() => props.data.global[activeTab.value].minutes)
-const speakers = computed(() => props.data.global[activeTab.value].speakers || 0)
 const userMinutes = computed(() => props.data.user[activeTab.value].minutes)
-const userPhrases = computed(() => props.data.user[activeTab.value].phrases)
 
-const contextMessage = computed(() => {
-  const lang = props.data.languageName
-  const mins = formatNumber(globalMinutes.value)
-  const sp = speakers.value
-  const userMins = userMinutes.value
-  const fmtUserMins = formatNumber(userMins)
+// --- Headline stats: Session (= belt m:ss) | All-time (your lifetime) ----
+// Session mirrors the belt pill exactly: m:ss from the shared sessionSeconds.
+const sessionTimeFormatted = computed(() => {
+  const s = Math.max(0, Math.floor(props.sessionSeconds ?? 0))
+  const m = Math.floor(s / 60)
+  const secs = s % 60
+  return `${m}:${secs.toString().padStart(2, '0')}`
+})
 
+// All-time = your lifetime minutes on this course (per-day table, summed).
+// Bigger scale than a session, so format as h/m. Guests have none → 0m.
+const allTimeMinutes = computed(() => props.data.user.allTime.minutes)
+const allTimeFormatted = computed(() => {
+  const mins = allTimeMinutes.value
+  if (mins < 60) return `${mins}m`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
+})
+
+// The selected tab as a human window for the community-total line.
+const windowLabel = computed(() => {
   switch (activeTab.value) {
-    case 'today':
-      if (userMins > 0 && sp > 1) {
-        return t('contribution.joinedToday', 'Your {mins} mins joined {count} other speaker(s) today keeping {language} alive.')
-          .replace('{mins}', String(userMins))
-          .replace('{count}', String(sp - 1))
-          .replace('{language}', lang)
-      }
-      if (userMins > 0) {
-        return t('contribution.keptAliveToday', 'You kept {language} alive today.')
-          .replace('{language}', lang)
-      }
-      if (sp > 0) {
-        return t('contribution.speakersToday', '{count} speaker(s) kept {language} alive today. Add your voice.')
-          .replace('{count}', String(sp))
-          .replace('{language}', lang)
-      }
-      return t('contribution.needsVoice', '{language} needs your voice today.')
-        .replace('{language}', lang)
-    case 'days7':
-      if (userMins > 0) {
-        return t('contribution.contributedWeek', 'You contributed {userMins} of {mins} minutes of {language} this week.')
-          .replace('{userMins}', fmtUserMins).replace('{mins}', mins).replace('{language}', lang)
-      }
-      return t('contribution.weekMinutes', 'SSi learners spoke {mins} minutes of {language} this week.')
-        .replace('{mins}', mins).replace('{language}', lang)
-    case 'days30':
-      if (userMins > 0) {
-        return t('contribution.contributedMonth', 'You contributed {userMins} of {mins} minutes of {language} this month.')
-          .replace('{userMins}', fmtUserMins).replace('{mins}', mins).replace('{language}', lang)
-      }
-      return t('contribution.monthMinutes', '{mins} minutes of {language} spoken this month by SSi learners worldwide.')
-        .replace('{mins}', mins).replace('{language}', lang)
-    case 'allTime':
-      if (userMins > 0) {
-        return t('contribution.contributedAllTime', '{mins} minutes of {language} on SSi. You contributed {userMins} of them.')
-          .replace('{mins}', mins).replace('{language}', lang).replace('{userMins}', fmtUserMins)
-      }
-      return t('contribution.allTimeMinutes', '{mins} minutes of {language} spoken on SSi so far.')
-        .replace('{mins}', mins).replace('{language}', lang)
+    case 'today': return t('contribution.windowToday', 'today')
+    case 'days7': return t('contribution.window7', 'in the last 7 days')
+    case 'days30': return t('contribution.window30', 'in the last 30 days')
+    case 'allTime': return t('contribution.windowAll', 'all-time')
   }
+})
+
+// --- Mission (endangered) languages ----------------------------------
+// The emotive "keeping {language} alive" line is for SSi's MISSION
+// languages only — not mainstream ones (Tom: mainstream langs get the
+// community totals, but not the endangered-revival framing).
+// TEMPORARY hardcoded set — Phase ② replaces this with an SSi-controlled
+// DB flag per target language so it's editable without a deploy.
+const MISSION_LANGUAGES = new Set([
+  'cym', 'cym_n', 'cym_s', // Welsh
+  'gle', 'gla', 'gd',      // Irish, Scottish Gaelic
+  'bre', 'cor', 'gv',      // Breton, Cornish, Manx
+  'eus', 'cat',            // Basque, Catalan
+])
+const isMissionLanguage = computed(() => MISSION_LANGUAGES.has(props.data.targetLanguage))
+
+// Personal slice line — shown ONLY when you have minutes in the selected
+// window. The community total + window already sit in the label above, so
+// this is purely "your share of it": no restating, and no "spoke" (the
+// figure is in-app minutes, not speaking time).
+const contextMessage = computed(() => {
+  const userMins = userMinutes.value
+  if (userMins <= 0) return ''
+  return t('contribution.youContributed', 'You contributed {mins} of them.')
+    .replace('{mins}', String(userMins))
 })
 
 // --- Belt strip -----------------------------------------------
@@ -224,6 +234,22 @@ onUnmounted(() => {
             <p v-if="subtitle" class="header-subtitle">{{ subtitle }}</p>
           </header>
 
+          <!-- Headline: Session | All-time — YOUR numbers. Session is the
+               same m:ss as the belt pill; All-time is your lifetime on this
+               course (0 + a sign-in nudge for guests, who have no store). -->
+          <div class="headline-stats">
+            <div class="headline-stat">
+              <span class="headline-number">{{ sessionTimeFormatted }}</span>
+              <span class="headline-label">{{ t('contribution.session', 'session') }}</span>
+            </div>
+            <div class="headline-divider" aria-hidden="true"></div>
+            <div class="headline-stat">
+              <span class="headline-number">{{ allTimeFormatted }}</span>
+              <span class="headline-label">{{ t('contribution.allTimeShort', 'all-time') }}</span>
+              <span v-if="isGuest" class="headline-hint">{{ t('contribution.signInToSave', 'sign in to save') }}</span>
+            </div>
+          </div>
+
           <!-- Time tabs -->
           <div class="tab-bar">
             <button
@@ -237,33 +263,61 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <!-- Global minutes -->
+          <!-- Community total for the selected window — SSi-wide, "what's
+               alive in the community right now". Shown for every language. -->
           <div class="global-total">
             <span class="total-number">{{ formatNumber(globalMinutes) }}</span>
-            <span class="total-label">{{ t('contribution.minutes', 'Minutes') }}</span>
+            <span class="total-label">
+              {{ t('contribution.minutesOfLang', 'minutes of {language}').replace('{language}', data.languageName) }}
+              {{ windowLabel }} · {{ t('contribution.theCommunity', 'the SSi community') }}
+            </span>
           </div>
 
-          <!-- Community context -->
-          <p class="context-message">{{ contextMessage }}</p>
+          <!-- Your slice of the community total — only when you have minutes -->
+          <p v-if="contextMessage" class="context-message">{{ contextMessage }}</p>
 
-          <!-- Your contribution (only when present) -->
-          <div v-if="userMinutes > 0 || userPhrases > 0" class="user-contribution">
-            <div class="user-stat">
-              <span class="user-value">+{{ formatNumber(userMinutes) }}</span>
-              <span class="user-label">{{ t('contribution.yourMins', 'your mins') }}</span>
-            </div>
-            <div class="user-stat">
-              <span class="user-value">+{{ formatNumber(userPhrases) }}</span>
-              <span class="user-label">{{ t('contribution.yourPhrases', 'your phrases') }}</span>
-            </div>
-          </div>
+          <!-- Mission revival line — SIGNED-IN learners on a mission language.
+               Guests don't count toward the totals, so they get the sign-in
+               invitation below, not the present-tense "you're helping". -->
+          <p v-if="isMissionLanguage && !isGuest" class="mission-line">
+            {{ t('contribution.missionLine', "You're helping keep {language} alive.").replace('{language}', data.languageName) }}
+          </p>
+
+          <!-- Guests don't contribute to the global totals — a gentle sign-in
+               invitation (sign-in leverage: count toward the total + the
+               mission). Plain, not salesy. -->
+          <p v-if="isGuest" class="signin-nudge">
+            {{ isMissionLanguage
+              ? t('contribution.signInContributeMission', 'Sign in to add your minutes to the global total — and help keep {language} alive.').replace('{language}', data.languageName)
+              : t('contribution.signInContribute', 'Sign in to add your minutes to the global total.') }}
+          </p>
 
           <!-- Belt strip -->
           <section class="belt-strip">
-            <p class="belt-strip-prompt">
-              you're working on
-              <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
-            </p>
+            <!-- Belt-section header: the "you're working on X belt" prompt with
+                 the ∞ infinite-play activator pinned to the right — OUT of the
+                 belt ladder below, so the ladder stays belt-only (Black belt
+                 takes the 8th slot once the course is full). -->
+            <div class="belt-strip-head">
+              <p class="belt-strip-prompt">
+                you're working on
+                <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+              </p>
+              <button
+                class="infplay-activator"
+                :class="{ 'is-skipping': isSkipping, 'is-active': isInfplay }"
+                :disabled="isSkipping"
+                title="Activate infinite play — random review of everything you have learned"
+                aria-label="Activate infinite play: random review of everything you have learned"
+                @click="handleInfPlayClick"
+              >
+                <svg class="infplay-activator-glyph" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
+                </svg>
+              </button>
+            </div>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
               you've been as far as <strong>{{ furthestBeltName }} belt</strong>
             </p>
@@ -311,24 +365,6 @@ onUnmounted(() => {
                   <span class="map-marker-label">furthest</span>
                 </div>
               </div>
-
-              <!-- ∞ INF-PLAY activator. A MODE activator, NOT a belt: glowing /
-                   throbbing ∞, visually distinct from the colour dots. Tapping it
-                   ENTERS infinite play — the only deliberate entry point. -->
-              <button
-                class="infplay-activator"
-                :class="{ 'is-skipping': isSkipping, 'is-active': isInfplay }"
-                :disabled="isSkipping"
-                title="Activate infinite play — random review of everything you have learned"
-                aria-label="Activate infinite play: random review of everything you have learned"
-                @click="handleInfPlayClick"
-              >
-                <svg class="infplay-activator-glyph" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
-                     stroke-linejoin="round" aria-hidden="true" focusable="false">
-                  <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
-                </svg>
-              </button>
             </div>
 
             <p class="belt-strip-hint">{{ isOffline
@@ -430,6 +466,76 @@ onUnmounted(() => {
   margin: 0;
   font-size: 0.875rem;
   color: #6B6560;
+}
+
+/* Headline stats — Session | All-time, the two big YOUR numbers */
+.headline-stats {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.headline-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+}
+
+.headline-number {
+  font-family: 'Space Mono', monospace;
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #2C2622;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.headline-label {
+  font-size: 0.6875rem;
+  color: #A09A94;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.headline-hint {
+  margin-top: 0.1rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: #c23a3a;
+}
+
+.headline-divider {
+  width: 1px;
+  align-self: center;
+  height: 2.6rem;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Mission (endangered) languages — emotive revival line, SSi red */
+.mission-line {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #c23a3a;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Guest sign-in invitation — subtle, informative, not salesy */
+.signin-nudge {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #6B6560;
+  text-align: center;
+  line-height: 1.45;
 }
 
 /* Tabs */
@@ -535,11 +641,22 @@ onUnmounted(() => {
   margin-top: 0.25rem;
 }
 
+/* Belt-section header — prompt centred, ∞ activator pinned to the right.
+   position:relative anchors the absolutely-placed activator. */
+.belt-strip-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+
 .belt-strip-prompt {
   margin: 0;
   font-size: 0.9375rem;
   color: #2C2622;
   text-align: center;
+  padding: 0 48px; /* keep the centred text clear of the right-pinned ∞ */
 }
 
 .belt-strip-prompt strong {
@@ -652,10 +769,13 @@ onUnmounted(() => {
    Fixed 48px square, glowing/throbbing ∞, distinct purple tint so it never
    reads as "another belt". Reuses the central-pill ∞ glyph + throb feel. */
 .infplay-activator {
-  flex: 0 0 auto;
-  align-self: flex-end;
-  width: 48px;
-  height: 48px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto 0; /* vertical-centre on the header line — transform is taken by the throb */
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -783,6 +903,9 @@ onUnmounted(() => {
   }
   .total-number {
     font-size: 2.25rem;
+  }
+  .headline-number {
+    font-size: 1.875rem;
   }
 }
 
