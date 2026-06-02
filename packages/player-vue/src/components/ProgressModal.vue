@@ -276,9 +276,20 @@ onUnmounted(() => {
           <!-- Your slice of the community total — only when you have minutes -->
           <p v-if="contextMessage" class="context-message">{{ contextMessage }}</p>
 
-          <!-- Mission (endangered) languages ONLY: the emotive revival line -->
-          <p v-if="isMissionLanguage" class="mission-line">
+          <!-- Mission revival line — SIGNED-IN learners on a mission language.
+               Guests don't count toward the totals, so they get the sign-in
+               invitation below, not the present-tense "you're helping". -->
+          <p v-if="isMissionLanguage && !isGuest" class="mission-line">
             {{ t('contribution.missionLine', "You're helping keep {language} alive.").replace('{language}', data.languageName) }}
+          </p>
+
+          <!-- Guests don't contribute to the global totals — a gentle sign-in
+               invitation (sign-in leverage: count toward the total + the
+               mission). Plain, not salesy. -->
+          <p v-if="isGuest" class="signin-nudge">
+            {{ isMissionLanguage
+              ? t('contribution.signInContributeMission', 'Sign in to add your minutes to the global total — and help keep {language} alive.').replace('{language}', data.languageName)
+              : t('contribution.signInContribute', 'Sign in to add your minutes to the global total.') }}
           </p>
 
           <!-- Belt strip -->
@@ -514,6 +525,15 @@ onUnmounted(() => {
   color: #c23a3a;
   text-align: center;
   line-height: 1.4;
+}
+
+/* Guest sign-in invitation — subtle, informative, not salesy */
+.signin-nudge {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #6B6560;
+  text-align: center;
+  line-height: 1.45;
 }
 
 /* Tabs */
