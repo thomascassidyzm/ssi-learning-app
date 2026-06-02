@@ -294,10 +294,30 @@ onUnmounted(() => {
 
           <!-- Belt strip -->
           <section class="belt-strip">
-            <p class="belt-strip-prompt">
-              you're working on
-              <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
-            </p>
+            <!-- Belt-section header: the "you're working on X belt" prompt with
+                 the ∞ infinite-play activator pinned to the right — OUT of the
+                 belt ladder below, so the ladder stays belt-only (Black belt
+                 takes the 8th slot once the course is full). -->
+            <div class="belt-strip-head">
+              <p class="belt-strip-prompt">
+                you're working on
+                <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+              </p>
+              <button
+                class="infplay-activator"
+                :class="{ 'is-skipping': isSkipping, 'is-active': isInfplay }"
+                :disabled="isSkipping"
+                title="Activate infinite play — random review of everything you have learned"
+                aria-label="Activate infinite play: random review of everything you have learned"
+                @click="handleInfPlayClick"
+              >
+                <svg class="infplay-activator-glyph" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                     stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
+                </svg>
+              </button>
+            </div>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
               you've been as far as <strong>{{ furthestBeltName }} belt</strong>
             </p>
@@ -345,24 +365,6 @@ onUnmounted(() => {
                   <span class="map-marker-label">furthest</span>
                 </div>
               </div>
-
-              <!-- ∞ INF-PLAY activator. A MODE activator, NOT a belt: glowing /
-                   throbbing ∞, visually distinct from the colour dots. Tapping it
-                   ENTERS infinite play — the only deliberate entry point. -->
-              <button
-                class="infplay-activator"
-                :class="{ 'is-skipping': isSkipping, 'is-active': isInfplay }"
-                :disabled="isSkipping"
-                title="Activate infinite play — random review of everything you have learned"
-                aria-label="Activate infinite play: random review of everything you have learned"
-                @click="handleInfPlayClick"
-              >
-                <svg class="infplay-activator-glyph" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
-                     stroke-linejoin="round" aria-hidden="true" focusable="false">
-                  <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
-                </svg>
-              </button>
             </div>
 
             <p class="belt-strip-hint">{{ isOffline
@@ -639,11 +641,22 @@ onUnmounted(() => {
   margin-top: 0.25rem;
 }
 
+/* Belt-section header — prompt centred, ∞ activator pinned to the right.
+   position:relative anchors the absolutely-placed activator. */
+.belt-strip-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+
 .belt-strip-prompt {
   margin: 0;
   font-size: 0.9375rem;
   color: #2C2622;
   text-align: center;
+  padding: 0 48px; /* keep the centred text clear of the right-pinned ∞ */
 }
 
 .belt-strip-prompt strong {
@@ -756,10 +769,13 @@ onUnmounted(() => {
    Fixed 48px square, glowing/throbbing ∞, distinct purple tint so it never
    reads as "another belt". Reuses the central-pill ∞ glyph + throb feel. */
 .infplay-activator {
-  flex: 0 0 auto;
-  align-self: flex-end;
-  width: 48px;
-  height: 48px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto 0; /* vertical-centre on the header line — transform is taken by the throb */
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
