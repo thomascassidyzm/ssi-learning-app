@@ -6988,6 +6988,29 @@ const advanceInfPlayRound = async (fromIdx: number) => {
  * next round isn't loaded yet, LOAD-then-resolve (never teleport).
  */
 const handleRoundForward = async () => {
+  // Skip pressed DURING an inter-round interjection (encouragement /
+  // instruction / pod lap): dismiss it and continue into the LEGO that's
+  // ALREADY queued — the boundary advanced roundIndex onto it and it's the
+  // text on screen, so the learner expects to land THERE, not one past it.
+  // Mirror the cycle-skip's commentary branch: cancel + let
+  // handleRoundBoundary's resume() play the queued LEGO. Do NOT fall through
+  // to cancelInFlightLap()+jump — cancelInFlightLap sets userStoppedDuringLap
+  // (which GATES that resume → dead silence) and the +1 jump overshoots the
+  // displayed LEGO. Regression from 73f357ff (3-level nav re-pointed the bottom
+  // skip here from the commentary-aware handleSkip); telemetry signature was
+  // "no tap_skip + no audio_play after commentary_end(cancelled)".
+  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    logEvent('tap_skip', {
+      during: playingPodLapAudio.value ? 'pod_lap' : 'commentary',
+      via: 'round_forward',
+      roundIndex: simplePlayer.roundIndex.value,
+      legoId: simplePlayer.currentRound.value?.legoId ?? null,
+    })
+    if (playingPodLapAudio.value) podLapSkippedByUser.value = true
+    podLapCancelled.value = true
+    audioController.value?.stop()
+    return
+  }
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
