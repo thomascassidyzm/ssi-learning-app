@@ -59,6 +59,35 @@ Every analytics tool ever built hands you numbers and makes *you* the analyst. T
 
 This layer is a **deliberate, billed-by-design runtime model call** — the same pattern as the Configuration-Economics Alexander guide, *not* the accidental-API-key trap we have been bitten by before. It is engineered cost-bounded from the first line: it reasons over **aggregates, never raw events**; it is **admin-gated**; it runs **on demand and cached**, never as an always-on firehose. (Development-time work still runs on the CLI; only this product feature calls the API.) Critically, those constraints are not a tax — they are *exactly* what §7 already requires, so the cheap design and the safe design are the same design.
 
+### 3.4 How it renders — Claude *directs*, the app *builds*
+
+The natural fear is that this needs Claude to *build* — to generate a chart, code, a UI per question. It does not, and that distinction is the hinge the whole engine turns on. Two tempting answers are both wrong: the model **cannot** construct arbitrary UI, and triggering a CLI build per question (the Popty pattern) would take a minute and a machine — defeating the zero-cost-of-a-question promise entirely.
+
+The resolution: **Claude is the director, not the builder.** The app owns a **fixed widget library** — a dozen display primitives it renders natively (stat · time-series · ranked-bar · sovereign-comparison · distribution · scatter · funnel · flow/Sankey · cohort-grid · map · table · narrative-card). Claude never writes one. Given a question (asked) or a discovery (proactive), it (a) composes the data query over the substrate, (b) **chooses and configures** the right widget, and (c) writes the story and the graded actions — returning a **declarative spec (JSON), not code**:
+
+```json
+{ "widget": "funnel",
+  "data": { "metric": "conversion", "entity": "trial-user", "course": "spa", "window": "30d" },
+  "annotate": [{ "stage": "day-4", "note": "biggest leak", "tone": "alarm" }],
+  "story": "Trial users drop hardest on day 4 — before the second session lands.",
+  "actions": [
+    { "tier": "try", "text": "Move the day-2 nudge to day-3", "owner": "growth" },
+    { "tier": "investigate", "text": "Open the day-4 cohort", "owner": "you" } ] }
+```
+
+The app renders that instantly. One API call returns a spec; the spec **is** the render — no CLI, no build step, no wait. It's a proven shape (the model emits a *chart spec*, à la Vega-Lite, never chart code), and it's what keeps "ask anything" and "zero build" true at the same time.
+
+**Four behaviours every widget inherits** — defined once, so each is an *insight* surface, not just a chart:
+
+- **Annotatable** — Claude marks the point, row, or stage that *is* the story (the alarm, the leak), so the visual carries the read.
+- **Interrogable** — every value wears a quiet "why?" → an `explain` call.
+- **Sovereign** — any comparison is entity-vs-aggregate only, k-anonymity floor baked in.
+- **Action-terminated & drillable** — each carries its graded options and re-scopes on click (same lens, narrower entity).
+
+**The graded actions** model exactly the texture we want, by *confidence × stakes*: **try this** (high-confidence, low-cost — just do it), **investigate this** (worth a look — opens a deeper directed view), **let's look at this together** (ambiguous or high-stakes — a guided walkthrough Claude talks you through). The output is a **curated recommender, never a taskmaster**: a ranked few options, each with its evidence and its owner — never a backlog. Understand exists to *Act*, so every spec terminates in something you could do, and who does it.
+
+So the real thing to build is **the widget library + the substrate.** Claude is the thin, spec-emitting layer between a question and a render; the feed, the ask-bar, the boards and the drill are all just *arrangements* of widgets fed by Claude-emitted specs. The one honest boundary: "show anything" is bounded by *widget vocabulary × substrate composability* — vast, but not infinite. The rare question that needs a genuinely novel visual becomes "add a widget for that" — a batched engineering task, not a per-question build. Cost stays bounded; the library grows slowly and deliberately.
+
 ---
 
 ## 4. Why this is world-class, and where the honesty line is

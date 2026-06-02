@@ -115,6 +115,7 @@
   .fig-body { padding: 22px; }
   figcaption { padding: 0 22px 20px; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
   figcaption b { color: var(--ink); font-weight: 600; }
+  pre.spec { background: #2a2521; color: #ded7cd; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; padding: 18px 20px; border-radius: 12px; overflow-x: auto; margin: 24px 0; white-space: pre; }
   .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
   .seg { display: inline-flex; background: var(--paper-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
   .seg button { font-family: var(--mono); font-size: 12px; letter-spacing: 0.02em; border: none; background: transparent; color: var(--ink-2); padding: 7px 13px; border-radius: 999px; cursor: pointer; transition: all .15s; }
@@ -166,6 +167,7 @@
     <a href="#substrate">Same substrate</a>
     <a href="#layers">Three layers</a>
     <a href="#compose">Compose</a>
+    <a href="#render">How it renders</a>
     <a href="#worldclass">World-class</a>
     <a href="#future">Future-proof</a>
     <a href="#discipline">Discipline</a>
@@ -275,9 +277,29 @@
     </figure>
   </div></section>
 
+  <!-- RENDER -->
+  <section id="render"><div class="wrap reveal">
+    <span class="sec-num">05 — How it renders</span>
+    <h2>Claude <em>directs</em>. The app <em>builds</em>.</h2>
+    <p class="dek">The hinge the whole engine turns on — what keeps "ask anything" and "zero build" both true.</p>
+    <p>The natural fear is that this needs Claude to <em>build</em> — a chart, code, a UI per question. It doesn't. Two tempting answers are both wrong: the model <strong>can't</strong> construct arbitrary UI, and triggering a CLI build per question would take a minute and a machine — defeating zero-cost entirely.</p>
+    <p>So the app owns a <strong>fixed widget library</strong> — a dozen primitives it renders natively: <em>stat · time-series · ranked-bar · sovereign-comparison · distribution · scatter · funnel · flow/Sankey · cohort-grid · map · table · narrative-card.</em> Claude never writes one. It <strong>composes</strong> the data, <strong>configures</strong> the right widget, and writes the story and the graded actions — returning a <strong>declarative spec, not code</strong>:</p>
+    <pre class="spec">{ "widget": "funnel",
+  "data": { "metric": "conversion", "entity": "trial-user", "course": "spa", "window": "30d" },
+  "annotate": [{ "stage": "day-4", "note": "biggest leak", "tone": "alarm" }],
+  "story": "Trial users drop hardest on day 4 — before the second session lands.",
+  "actions": [
+    { "tier": "try",         "text": "Move the day-2 nudge to day-3", "owner": "growth" },
+    { "tier": "investigate", "text": "Open the day-4 cohort",          "owner": "you" } ] }</pre>
+    <p>The app renders that instantly. One API call returns a spec; the spec <em>is</em> the render — no CLI, no build, no wait. A proven shape: the model emits a chart <em>spec</em> (à la Vega-Lite), never chart code.</p>
+    <p>Four behaviours every widget inherits, so each is an <em>insight</em> surface, not just a chart: <strong>annotatable</strong> (Claude marks the point that <em>is</em> the story), <strong>interrogable</strong> (every value wears a quiet "why?"), <strong>sovereign</strong> (comparison is entity-vs-aggregate only, k-anonymity baked in), and <strong>action-terminated &amp; drillable</strong> (each carries its options and re-scopes on click).</p>
+    <p>And the graded actions are the texture we want, by <em>confidence × stakes</em>: <strong>try this</strong> (just do it), <strong>investigate this</strong> (opens a deeper view), <strong>let's look at this together</strong> (a guided walkthrough). A <em>curated recommender, never a taskmaster</em> — a ranked few moves, each with its evidence and owner, never a backlog. Understand exists to <em>Act</em>.</p>
+    <p class="pull">The real build is the widget library and the substrate. Claude is the thin layer between a question and a render.</p>
+  </div></section>
+
   <!-- WORLD-CLASS -->
   <section id="worldclass"><div class="wrap reveal">
-    <span class="sec-num">05 — The claim</span>
+    <span class="sec-num">06 — The claim</span>
     <h2>Why this is world-class, and where the honesty line is.</h2>
     <p>The claim is specific: <strong>the near-zero marginal cost of a new question, with the interpretation included.</strong> That's the thing teams with far bigger data departments still don't have — because they solved the <em>answer</em> (dashboards) and never solved the <em>question</em>. An engine plus an interpreter means the <em>thinking</em> scales without the <em>building</em> scaling — the only way a team this size out-insights teams ten times larger.</p>
     <p>And the honesty line, stated so we never oversell it: this is an <strong>analyst in the box over our own data</strong>, not an oracle. It reasons over aggregates, proposes hypotheses, points a human at what to look at. It does not assert causation it can't see — it removes the <em>grind</em> that currently stops the judgement call from being made at all.</p>
@@ -285,7 +307,7 @@
 
   <!-- FUTURE -->
   <section id="future"><div class="wrap reveal">
-    <span class="sec-num">06 — Future-proof</span>
+    <span class="sec-num">07 — Future-proof</span>
     <h2>The vocabulary grows. The architecture doesn't.</h2>
     <p class="dek">Every foreseeable change is additive to the registry, not a rebuild.</p>
     <ul class="clean">
@@ -298,7 +320,7 @@
 
   <!-- DISCIPLINE -->
   <section id="discipline"><div class="wrap reveal">
-    <span class="sec-num">07 — The discipline</span>
+    <span class="sec-num">08 — The discipline</span>
     <h2>A commitment, not a boil-the-ocean.</h2>
     <p>The danger with a vision this size is that it becomes an excuse to build a platform before a feature. It must not. The discipline is Measuring Progress's Principle 5 — <strong>better × simpler × cheaper, and never build a signal before its consumer exists</strong> — turned on the engine itself.</p>
     <ul class="clean">
@@ -311,7 +333,7 @@
 
   <!-- GUARANTEES -->
   <section id="guarantees"><div class="wrap reveal">
-    <span class="sec-num">08 — Inherited guarantees</span>
+    <span class="sec-num">09 — Inherited guarantees</span>
     <h2>IP and sovereignty, enforced once at the substrate.</h2>
     <p>Because every surface is an instance of one engine, the protections are enforced once and inherited everywhere.</p>
     <ul class="clean">
@@ -323,7 +345,7 @@
 
   <!-- DISCUSS -->
   <section id="discuss"><div class="wrap reveal">
-    <span class="sec-num">09 — For discussion</span>
+    <span class="sec-num">10 — For discussion</span>
     <h2>Open questions for Aran.</h2>
     <div class="qbox">
       <h3>The real forks</h3>
