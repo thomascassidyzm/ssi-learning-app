@@ -10792,7 +10792,13 @@ defineExpose({
     <!-- Suppress overlay when the INF PLAY intro is on-screen — the
          typed message IS the loading affordance; an overlay on top
          would hide it. Audio still warms up in parallel. -->
-    <div v-if="(isSkippingBelt || isWarmingUpInfPlay) && !isShowingInfPlayIntro && !isSteppingRound" class="belt-skip-overlay">
+    <!-- belt-skip no longer raises this full-screen scrim — it flashed on every
+         belt-pill/chevron jump even when instant from cache. The player never
+         remounts (v-show), and the belt colour + dialog update reactively, so a
+         belt-skip is now an in-place recolour + dialog swap. Overlay kept only
+         for the real blocking wait: INF-PLAY first-batch warmup. (Mirrors the
+         isSteppingRound suppression from 5d4177e1, extended to belt skips.) -->
+    <div v-if="isWarmingUpInfPlay && !isShowingInfPlayIntro && !isSteppingRound" class="belt-skip-overlay">
       <div class="belt-skip-spinner"></div>
       <span class="belt-skip-label">{{
         isWarmingUpInfPlay
