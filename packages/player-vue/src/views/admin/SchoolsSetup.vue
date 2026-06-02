@@ -960,7 +960,7 @@ onMounted(() => {
       </div>
 
       <!-- Groups tree panel -->
-      <div class="schools-card"> 0" variant="panel" class="tree-panel">
+      <div class="schools-card tree-panel">
         <div class="panel-head">
           <span class="schools-kicker">All groups</span>
           <span class="panel-hint">Click a name to rename — hover for actions.</span>
@@ -1183,7 +1183,7 @@ onMounted(() => {
       </div>
 
       <!-- Schools list panel -->
-      <div class="schools-card"> 0" variant="panel" class="list-panel">
+      <div class="schools-card list-panel">
         <table class="list-table">
           <thead>
             <tr>
@@ -1350,7 +1350,7 @@ onMounted(() => {
       </div>
 
       <!-- Staff list panel -->
-      <div class="schools-card"> 0" variant="panel" class="list-panel">
+      <div class="schools-card list-panel">
         <table class="list-table">
           <thead>
             <tr>
