@@ -4575,6 +4575,34 @@ const formattedSessionTime = computed(() => {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 })
 
+// --- Sitting persistence -------------------------------------------------
+// The "session" timer is a SITTING (one continuous bout), not a counted
+// session. It carries on across a short away-gap and resets after a longer
+// one — reusing the SAME 5-min resume window (resumeConfig.cycleResetMinutes),
+// so one threshold governs both where you resume AND whether the sitting
+// continues. Persisted per-course so reopening within the window resumes the
+// same number. Cosmetic — never block playback. See docs/sessions-and-days-active.md
+const sittingKey = () => `ssi:sitting:${courseCode.value || 'unknown'}`
+function saveSitting(): void {
+  try {
+    localStorage.setItem(sittingKey(), JSON.stringify({ seconds: sessionSeconds.value, ts: Date.now() }))
+  } catch { /* ignore — sitting timer is cosmetic */ }
+}
+function restoreSitting(): void {
+  // Continue the sitting iff we came back within the resume window, else 0:00.
+  const windowMs = (resumeConfig.value?.cycleResetMinutes ?? 5) * 60000
+  try {
+    const raw = localStorage.getItem(sittingKey())
+    const prior = raw ? JSON.parse(raw) : null
+    if (prior && typeof prior.seconds === 'number' && typeof prior.ts === 'number'
+        && (Date.now() - prior.ts) < windowMs) {
+      sessionSeconds.value = prior.seconds   // same sitting — keep counting
+      return
+    }
+  } catch { /* fall through to fresh sitting */ }
+  sessionSeconds.value = 0                    // new sitting
+}
+
 // Computed - use round-based item when available, fallback to session items
 const currentItem = computed(() => {
   if (useRoundBasedPlayback.value && currentPlayableItem.value) {
@@ -10345,9 +10373,12 @@ onMounted(async () => {
   // Start session timer. Tick whenever the learner is engaged with audio —
   // including listening pods and commentary, not just the cycle player. A
   // 6-minute pod lap is still 6 minutes of practice and should count.
+  // Restore (or reset) the SITTING first, per the 5-min resume window.
+  restoreSitting()
   sessionTimerInterval = setInterval(() => {
     if (isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value) {
       sessionSeconds.value++
+      if (sessionSeconds.value % 5 === 0) saveSitting() // backstop for hard kills
     }
   }, 1000)
 
@@ -10437,6 +10468,7 @@ onUnmounted(() => {
   // Stop cycle playback
   stopCycle()
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
+  saveSitting() // persist the sitting so a reopen within the window resumes it
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
 
@@ -10554,7 +10586,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   cachedCourseWelcome.value = null
   // completedRounds is computed from beltProgress, which is managed separately
   totalSeedsPlayed.value = 0
-  sessionSeconds.value = 0
+  restoreSitting() // sitting for the NEW course: continue if returned within the window, else 0:00
   welcomeChecked.value = false
   isInitialized.value = false
 
