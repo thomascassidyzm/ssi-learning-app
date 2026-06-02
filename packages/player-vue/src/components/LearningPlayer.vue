@@ -5731,8 +5731,14 @@ const handleResume = async () => {
   isPlaying.value = true
   localStorage.setItem('ssi-has-played', 'true')
 
-  // Welcome no longer blocks Play — it lives in its own banner in the
-  // resting state. Tom 2026-05-25.
+  // First-ever course with a welcome: play it once, automatically, before
+  // the cycle starts. The Play tap is the user gesture that lets it sound.
+  // Streamed (not bundled); playCourseWelcome() marks it heard (localStorage
+  // + DB) so it NEVER repeats — any course, any device. Replaces the opt-in
+  // banner. Tom 2026-06-02.
+  if (welcomeBannerVisible.value) {
+    await playCourseWelcome()
+  }
   simplePlayer.play()
 }
 
@@ -6121,11 +6127,11 @@ let introAudioElement = null // Store reference for intro skip functionality
 let introAbortController = null // AbortController for cancelling pending intro audio
 let introEventCleanups = [] // Array of cleanup functions for intro audio event listeners
 
-// Welcome banner visibility — true only for the very first course a
-// learner ever opens, when the course has a welcome audio. Gates the
-// "Play course welcome" CTA in the resting state. All conditions are
-// reactive so the banner appears as soon as data resolves and
-// disappears the instant any heard-signal flips. Tom 2026-05-25.
+// First-welcome gate — true only for the very first course a learner ever
+// opens, when the course has welcome audio and it hasn't been heard. Now
+// gates the AUTO-played welcome on first Play (handleResume), not a banner —
+// the opt-in CTA was removed 2026-06-02. All conditions reactive so it flips
+// off the instant any heard-signal sets. Tom 2026-05-25 / 2026-06-02.
 const welcomeBannerVisible = computed(() => {
   if (welcomeChecked.value) return false
   if (localStorage.getItem('ssi-welcome-heard') === 'true') return false
@@ -6164,11 +6170,6 @@ const markWelcomeHeard = async () => {
   if (courseDataProvider.value) {
     try { await courseDataProvider.value.markWelcomePlayed(learnerId.value) } catch (_e) { /* ignore */ }
   }
-}
-
-const dismissCourseWelcome = async () => {
-  console.log('[LearningPlayer] Welcome banner dismissed')
-  await markWelcomeHeard()
 }
 
 const playCourseWelcome = async () => {
@@ -10659,10 +10660,6 @@ defineExpose({
   toggleOffline,
   offlineActive,
   sessionSeconds,
-  // Welcome banner (opt-in, only on first-ever course)
-  welcomeBannerVisible,
-  playCourseWelcome,
-  dismissCourseWelcome,
 })
 </script>
 
