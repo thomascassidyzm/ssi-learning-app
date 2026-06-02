@@ -53,7 +53,6 @@ import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
-import ContributionCounter from './learner/ContributionCounter.vue'
 import ProgressModal from './ProgressModal.vue'
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
@@ -10771,16 +10770,6 @@ defineExpose({
     {{ offlineDownloadLabel }}
   </div>
 
-  <!-- Contribution Counter - "Part of the Solution" -->
-  <ContributionCounter
-    v-if="contribution.data.value && !showSessionComplete"
-    :language-name="contribution.languageName.value"
-    :global-minutes="contribution.todayMinutes.value"
-    :user-phrases="contribution.userTodayPhrases.value"
-    :is-playing="simplePlayer.isPlaying.value"
-    @expand="showProgressModal = true"
-  />
-
   <!-- Belt Skip Loading Overlay. Same overlay covers two states:
        1. belt-to-belt skip (Jumping to X belt...)
        2. INF PLAY warm-up (downloading first batch of audio so the
@@ -12604,7 +12593,7 @@ defineExpose({
 
 .belt-timer-label {
   font-family: 'Space Mono', monospace;
-  font-size: clamp(0.75rem, 2vw, 0.875rem);
+  font-size: clamp(0.875rem, 2.4vw, 1.0625rem); /* slightly bigger m:ss — reads as the session stat */
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   font-variant-numeric: tabular-nums;
