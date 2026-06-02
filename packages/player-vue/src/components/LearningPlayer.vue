@@ -2030,6 +2030,33 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         ? (useNative ? legoTargetTextNativeMap.value.get(salientId) : null) || legoTargetTextMap.value.get(salientId) || ''
         : ''
 
+      // Strategy 0 (authoritative): the backend (Popty) computes the tiling at
+      // content-generation time — which token belongs to which LEGO, the salient
+      // anchored on the parent LEGO, ghost residue for inserted particles — and
+      // serves it verbatim on `decomposition`. When present we render those blocks
+      // DIRECTLY rather than re-deriving by runtime string-matching, which is the
+      // fragile path that mis-aligned short LEGOs and dropped the salient. Guard:
+      // only trust the served blocks when they exactly reassemble the displayed
+      // target (whitespace-normalised) — otherwise (e.g. roman-script display vs
+      // native-script decomposition) fall through to the runtime cascade below.
+      const served = (cycle as any).decomposition as
+        | Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+        | undefined
+      if (Array.isArray(served) && served.length > 0) {
+        const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+        if (norm(served.map((b) => b.target).join('')) === norm(targetText)) {
+          const blocks = served.map((b, i) => ({
+            id: b.legoId || `ghost_${i}`,
+            targetText: b.target,
+            ...(b.known && !b.isGhost ? { knownText: b.known } : {}),
+            isSalient: !!b.isSalient || (!!b.legoId && b.legoId === salientId),
+          }))
+          // Safety: never emit a fully-faded sentence. If nothing is marked
+          // salient (stale data), fall through to the runtime cascade.
+          if (blocks.some((b) => b.isSalient)) return blocks
+        }
+      }
+
       // First try: client-side decomposition against the learner's known
       // vocab. Walks every phrase token and binds each to a previously-
       // introduced LEGO. Produces N tiles (one per LEGO) — chunked

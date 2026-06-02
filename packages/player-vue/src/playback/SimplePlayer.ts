@@ -17,6 +17,11 @@ export interface Cycle {
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
   componentLegoTextsNative?: string[]
+  /** Authoritative content-level tiling from the backend (Popty), served
+   * verbatim on course_practice_phrases.decomposition. When present the player
+   * renders these blocks directly instead of re-deriving by runtime alignment. */
+  decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+
   /** M-LEGO component breakdown for visual display */
   components?: Array<{ known: string; target: string }>
   componentsNative?: Array<{ known: string; target: string }>

@@ -42,6 +42,10 @@ export interface ScriptItem {
   componentLegoTexts?: string[]
   /** Native script variants — only set when romanized text exists */
   componentLegoTextsNative?: string[]
+  /** Authoritative content-level tiling from course_practice_phrases.decomposition,
+   * carried verbatim for phrase-sourced items. Player renders it directly. */
+  decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+
   /** M-LEGO component breakdown: [{known: "with", target: "con"}, ...] */
   components?: Array<{ known: string; target: string }>
   /** Native script variant of components */
@@ -294,7 +298,7 @@ export async function generateLearningScript(
       .limit(5000),
     supabase
       .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce')
+      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce, decomposition')
       .eq('course_code', courseCode)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
@@ -649,6 +653,7 @@ export async function generateLearningScript(
     target1_duration_ms?: number
     target2_duration_ms?: number
     introduce?: boolean
+    decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }> | null
   }
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[]; practice: Phrase[] }>()
   // Collect M-LEGO component breakdowns: legoKey → [{known, target}, ...]
@@ -1097,8 +1102,20 @@ export async function generateLearningScript(
   const courseHasRomanized = legoIdToTextNative.size > 0
 
   // Helper: returns native text fields when romanized text exists
-  const nativeFields = (item: { target_text?: string; target_text_roman?: string }) =>
-    item.target_text_roman ? { targetTextNative: item.target_text } : {}
+  // Spread onto every emitted item. Carries the native-script variant AND, for
+  // phrase-sourced items, the authoritative content-level tiling served verbatim
+  // on course_practice_phrases.decomposition (LEGO/seed callers lack the field,
+  // so it's simply omitted there). The player renders it directly when present.
+  const nativeFields = (item: {
+    target_text?: string
+    target_text_roman?: string
+    decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }> | null
+  }) => ({
+    ...(item.target_text_roman ? { targetTextNative: item.target_text } : {}),
+    ...(Array.isArray(item.decomposition) && item.decomposition.length > 0
+      ? { decomposition: item.decomposition }
+      : {}),
+  })
 
   // Process each seed
   for (const seedNum of sortedSeedNums) {

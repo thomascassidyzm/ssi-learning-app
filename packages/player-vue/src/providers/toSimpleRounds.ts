@@ -211,6 +211,7 @@ export function toSimpleRounds(
         ...(i.componentLegoIds ? { componentLegoIds: i.componentLegoIds } : {}),
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
         ...(i.componentLegoTextsNative ? { componentLegoTextsNative: i.componentLegoTextsNative } : {}),
+        ...(i.decomposition ? { decomposition: i.decomposition } : {}),
         ...(i.components ? { components: i.components } : {}),
         ...(i.componentsNative ? { componentsNative: i.componentsNative } : {}),
         ...(speed !== 1.0 ? { playbackSpeed: speed } : {})
