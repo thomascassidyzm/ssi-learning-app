@@ -280,7 +280,7 @@ app SSiLearningApp:
     target_platform: "Vue 3 + TypeScript"
     core_framework: "Framework-agnostic TypeScript"
     ui_adapter: "Vue 3 Composition API"
-    styling: "Scoped CSS (Moonlit Dojo theme)"
+    styling: "Scoped CSS (Mist theme — single light theme; dark mode deprecated)"
     compilation_guarantee: "Specification-driven development"
 
   build_configuration:
