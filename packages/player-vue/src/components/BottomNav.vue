@@ -455,67 +455,6 @@ const handleSettings = () => {
   color: var(--text-primary);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   MODE BUTTONS — anchored to the pill, always in sync
-   ═══════════════════════════════════════════════════════════════ */
-.mode-btn {
-  position: absolute;
-  bottom: calc(100% + 12px);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  background: rgba(10, 10, 18, 0.82);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-  color: var(--text-muted);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.5),
-    0 8px 20px rgba(0, 0, 0, 0.25);
-  z-index: 103;
-}
-
-.mode-btn--left {
-  left: 16px;
-}
-
-.mode-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.mode-btn:active {
-  transform: scale(0.9);
-}
-
-.mode-btn.active {
-  background: rgba(10, 18, 14, 0.92);
-  border-color: rgba(74, 222, 128, 0.5);
-  color: #4ade80;
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.5),
-    0 0 12px rgba(74, 222, 128, 0.15);
-}
-
-.mode-btn.disabled {
-  opacity: 0.3;
-  pointer-events: none;
-}
-
-.script-toggle-label {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  user-select: none;
-}
-
 /* Safe area — not needed for floating pill (bottom offset includes safe area) */
 .safe-area-spacer {
   display: none;
@@ -604,26 +543,5 @@ const handleSettings = () => {
 
 :root[data-theme="mist"] .center-btn.is-return .center-btn-inner {
   color: #2C2622;
-}
-
-/* Mode buttons on mist — match white pill */
-:root[data-theme="mist"] .mode-btn {
-  background: rgba(255, 255, 255, 0.96);
-  border: 1.5px solid rgba(0, 0, 0, 0.35);
-  color: #6B6560;
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
-              0 8px 20px rgba(44, 38, 34, 0.08);
-}
-
-:root[data-theme="mist"] .mode-btn.active {
-  background: rgba(240, 253, 244, 0.96);
-  border-color: rgba(34, 197, 94, 0.5);
-  color: #16a34a;
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.14),
-              0 0 12px rgba(34, 197, 94, 0.12);
-}
-
-:root[data-theme="mist"] .script-toggle-label {
-  color: inherit;
 }
 </style>

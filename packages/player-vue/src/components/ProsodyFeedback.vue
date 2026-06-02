@@ -23,20 +23,6 @@ const props = defineProps({
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const showScore = ref(false)
 
-const scoreColor = computed(() => {
-  const s = props.result.score.overall
-  if (s >= 80) return '#4ade80'
-  if (s >= 50) return '#fbbf24'
-  return '#f87171'
-})
-
-const scoreBgColor = computed(() => {
-  const s = props.result.score.overall
-  if (s >= 80) return 'rgba(74, 222, 128, 0.15)'
-  if (s >= 50) return 'rgba(251, 191, 36, 0.15)'
-  return 'rgba(248, 113, 113, 0.15)'
-})
-
 const CANVAS_PADDING = 16
 
 function draw() {

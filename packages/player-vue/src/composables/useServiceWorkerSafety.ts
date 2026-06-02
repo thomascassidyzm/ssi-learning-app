@@ -237,24 +237,3 @@ export async function getServiceWorkerStatus(): Promise<{
     return { supported: true, registered: false, active: false, waiting: false }
   }
 }
-
-// ============================================================================
-// COMPOSABLE
-// ============================================================================
-
-export function useServiceWorkerSafety() {
-  return {
-    // State
-    isCheckingKillSwitch,
-    killSwitchError,
-
-    // Actions
-    checkKillSwitch,
-    unregisterAllServiceWorkers,
-    clearAllCaches,
-    triggerServiceWorkerUpdate,
-    getServiceWorkerStatus,
-  }
-}
-
-export type ServiceWorkerSafetyComposable = ReturnType<typeof useServiceWorkerSafety>

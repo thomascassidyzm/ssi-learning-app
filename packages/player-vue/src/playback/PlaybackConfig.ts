@@ -34,24 +34,6 @@ export const DEFAULT_PLAYBACK_CONFIG: PlaybackConfig = {
 }
 
 /**
- * Turbo mode preset: for experienced learners who want fast drilling
- */
-export const TURBO_CONFIG: Partial<PlaybackConfig> = {
-  turboMode: true,
-  pauseMultiplier: 0.75,
-  adaptivePause: false,
-}
-
-/**
- * Beginner mode preset: slower pace, full intros
- */
-export const BEGINNER_CONFIG: Partial<PlaybackConfig> = {
-  turboMode: false,
-  pauseMultiplier: 1.25,
-  adaptivePause: true,
-}
-
-/**
  * Create a config by merging overrides with defaults
  */
 export function createPlaybackConfig(overrides?: Partial<PlaybackConfig>): PlaybackConfig {

@@ -5,7 +5,7 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export interface ActivitySession {
+interface ActivitySession {
   id: string
   learner_id: string
   course_id: string

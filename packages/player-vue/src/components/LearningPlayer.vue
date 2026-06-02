@@ -21,11 +21,11 @@ import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
-import { INITIAL_PRELOAD_SEEDS, LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
+import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
-import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
+import { useBeltLoader, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
@@ -64,7 +64,7 @@ import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
-import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
+import { type BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 import { generateScript as generateBundleScript } from '../script/generateScript'
 
@@ -608,13 +608,10 @@ const isGuestLearner = computed(() => {
 })
 
 // Developer settings (can be toggled in Settings > Developer)
-const showFragileProgressWarning = ref(true)
 const enableQaMode = ref(false)
 const showDebugOverlay = ref(false)
-const enableVerboseLogging = ref(false)
 
 // Computed properties for conditional rendering
-const shouldShowProgressWarning = computed(() => false /* disabled during light theme work */)
 const shouldShowQaMode = computed(() => enableQaMode.value || isQaMode.value) // Either setting or URL param
 
 // Class session tracking
@@ -1242,7 +1239,6 @@ const cachedRounds = loadedRounds  // Legacy alias
 const effectiveRoundIndex = currentRoundIndex
 const effectiveItemInRound = currentItemInRound
 
-const playbackGeneration = ref(0)  // Counter for playback generation tracking
 const scriptBaseOffset = ref(0)  // Base offset for script loading
 
 // ============================================
@@ -1700,7 +1696,6 @@ watch(
 // fire-and-forget. Future: respect navigator.connection.saveData / type.
 
 const AUDIO_EAGER_AHEAD = 3   // rounds (current + next 2) loaded on round entry
-const AUDIO_DEEP_BATCH = 5    // rounds per batch in the deep background walk
 
 // Phase 3 — eager prefetch on round entry. immediate: true catches session
 // start / resume so the FIRST round of a session is preloaded before its
@@ -2254,13 +2249,9 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
 // ============================================
 const INITIAL_ROUNDS = 20           // Fast initial load
 const EXPANSION_THRESHOLD = 5       // Expand when within 5 rounds of end
-const MAX_EXPANSION_BATCH = 200     // Cap each expansion batch
-const ROUNDS_TO_FETCH = 50          // Legacy: rounds to fetch in skip operations (deprecated code)
 const isExpandingScript = ref(false)
-const allPlayableItems = ref<any[]>([])  // Legacy: all script items for backwards compat
 const totalSeedsPlayed = ref(0)     // Legacy: total seeds played in current session
 const isInitialized = ref(false)    // Legacy: whether component is fully initialized
-const prebuiltNetwork = { clear: () => {} }  // Legacy: stub for network operations
 
 // ============================================
 // LOCAL STORAGE PERSISTENCE - Works for all users (guests + logged-in)
@@ -2663,23 +2654,6 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   return playable
 }
 
-// Current script item (from round)
-const currentScriptItem = computed(() => {
-  if (!currentRound.value || !currentRound.value.items) return null
-  return currentRound.value.items[currentItemInRound.value] || null
-})
-
-// Round progress tracking
-const isRoundComplete = computed(() => {
-  if (!currentRound.value) return false
-  return currentItemInRound.value >= currentRound.value.items.length
-})
-
-const roundProgress = computed(() => {
-  if (!currentRound.value || !currentRound.value.items.length) return 0
-  return (currentItemInRound.value / currentRound.value.items.length) * 100
-})
-
 // Initialize learning session composable
 const learningSession = useLearningSession({
   progressStore: progressStore,
@@ -2960,9 +2934,6 @@ const beltLoader = shallowRef(null)
 // Offline play composable for infinite play when offline
 // Seamlessly cycles through cached content when network is unavailable
 const offlinePlay = shallowRef(null)
-
-// Track if we're using belt loader for playback
-const useBeltLoaderPlayback = ref(false)
 
 // Online/offline state for UI indicators
 const isOnline = ref(navigator.onLine)
@@ -3920,8 +3891,6 @@ const startCyclePlayback = async (itemOrPlayable: any) => {
   const getAudioSource = resolveAudioFromCache
 
   // Emit fire-path event for network visualization
-  // Extract LEGO IDs from the cycle for brain animation
-  const legoIds = [cycle.legoId]  // Primary LEGO being taught
   const cycleDuration = cycle.known.durationMs + cycle.pauseDurationMs + cycle.target.voice1DurationMs + cycle.target.voice2DurationMs
 
   // Emit event that Brain3DView can listen to
@@ -4295,18 +4264,6 @@ if (typeof navigator !== 'undefined') {
 
 // Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
 const layoutMode = ref('subtitle')  // Try subtitle mode by default
-const layoutModes = ['default', 'subtitle', 'floating', 'minimal'] as const
-const layoutModeLabels: Record<string, string> = {
-  default: 'Card',
-  subtitle: 'Strip',
-  floating: 'Float',
-  minimal: 'Text'
-}
-function cycleLayoutMode() {
-  const currentIndex = layoutModes.indexOf(layoutMode.value as typeof layoutModes[number])
-  const nextIndex = (currentIndex + 1) % layoutModes.length
-  layoutMode.value = layoutModes[nextIndex]
-}
 const itemsPracticed = ref(0)
 const phrasesSpokenCount = ref(0) // Cycles where VAD detected learner speech
 const showSessionComplete = ref(false)
@@ -4467,17 +4424,6 @@ const introductionPhase = ref(false) // True during introduction phase (shows di
 const ringContainerRef = ref(null)
 const networkTheaterRef = ref<HTMLElement | null>(null)
 
-// Network visualization removed — see archive/brain-views branch
-// Stub variables for code that still references network state
-const networkViewRef = ref(null)
-const networkViewProps = { nodes: ref([]), edges: ref([]), currentPath: ref([]) }
-const networkCenter = ref({ x: 0, y: 0 })
-const isFullNetworkLoaded = ref(false)
-const introducedLegoIds = computed(() => {
-  const ids = new Set<string>()
-  return ids
-})
-
 // Additional state for resonance effect (M-LEGOs with partial word overlap)
 const resonatingNodes = ref([])
 
@@ -4506,15 +4452,6 @@ const isPlayingNodePhrases = ref(false)
 const playingNodeId = ref<string | null>(null)
 const currentPlayingPhraseIndex = ref(0)
 const nodePhraseItems = ref<any[]>([])
-
-// Hero node scaling - fewer nodes = bigger nodes (for ring visual)
-const heroNodeScale = computed(() => {
-  const count = dbNetworkNodes.value.length
-  if (count <= 3) return 2.5
-  if (count <= 8) return 1.8
-  if (count <= 15) return 1.3
-  return 1
-})
 
 // Welcome audio state (plays once on first course load)
 const welcomeChecked = ref(false) // True after we've checked welcome status
@@ -4625,62 +4562,6 @@ const sessionProgress = computed(() => {
 // Track item transitions to prevent text glitch
 // This flag is set TRUE 500ms before VOICE_2 ends, cleared when next PROMPT begins
 const isTransitioningItem = ref(false)
-
-// ============================================
-// DURATION ESTIMATION
-// Build running average from observed data to estimate missing durations
-// Uses CHARACTER count (not words) - works across all languages including
-// character-based scripts like Chinese/Japanese where each char ≈ 1 syllable
-// ============================================
-const durationObservations = ref<Array<{ charCount: number; durationMs: number }>>([])
-const avgMsPerChar = computed(() => {
-  if (durationObservations.value.length === 0) return 120 // Default ~120ms/char (~3 chars/syllable at 400ms/syllable)
-  const totalMs = durationObservations.value.reduce((sum, o) => sum + o.durationMs, 0)
-  const totalChars = durationObservations.value.reduce((sum, o) => sum + o.charCount, 0)
-  return totalChars > 0 ? totalMs / totalChars : 120
-})
-
-/**
- * Record an observed duration to improve future estimates
- */
-const recordDurationObservation = (targetText: string, durationMs: number) => {
-  const charCount = targetText?.length || 0
-  if (charCount > 0 && durationMs > 100) {
-    durationObservations.value.push({ charCount, durationMs })
-    // Keep last 50 observations for rolling average
-    if (durationObservations.value.length > 50) {
-      durationObservations.value.shift()
-    }
-  }
-}
-
-/**
- * Get duration for an item - uses actual duration if available, estimates from character count otherwise
- * Character count is language-agnostic and approximates syllable count across all scripts
- */
-const getEstimatedDuration = (item: any, audioType: 'target1' | 'target2'): number | null => {
-  const actualDuration = item?.audioDurations?.[audioType]
-  const targetText = item?.phrase?.target || item?.targetText || ''
-
-  if (actualDuration && actualDuration > 0) {
-    // Record for future estimates
-    if (targetText) {
-      recordDurationObservation(targetText, actualDuration * 1000)
-    }
-    return actualDuration * 1000 // Convert to ms
-  }
-
-  // Estimate from character count (language-agnostic proxy for syllables)
-  const charCount = targetText.length
-  if (charCount > 0) {
-    return charCount * avgMsPerChar.value
-  }
-
-  return null // No data to estimate from
-}
-
-// During transition, fade ALL text (known + target together)
-const showAllText = computed(() => !isTransitioningItem.value)
 
 // Detect listening cycles (passive whole-sentence replay at speed)
 const isListeningCycle = computed(() => {
@@ -5032,22 +4913,6 @@ const visibleTexts = computed(() => {
   return {
     known: currentItem.value?.phrase?.phrase?.known || '',
     target: currentItem.value?.phrase?.phrase?.target || '',
-  }
-})
-
-// Phase symbols/icons - CORRECT ORDER
-const phaseInfo = computed(() => {
-  switch (currentPhase.value) {
-    case Phase.PROMPT:
-      return { icon: 'speaker', label: 'Listen', instruction: 'Hear the phrase' }
-    case Phase.SPEAK:
-      return { icon: 'mic', label: 'Speak', instruction: 'Say it in the target language' }
-    case Phase.VOICE_1:
-      return { icon: 'ear', label: 'Listen', instruction: 'Listen to the answer' }
-    case Phase.VOICE_2:
-      return { icon: 'eye', label: 'Read', instruction: 'See and hear the answer' }
-    default:
-      return { icon: 'speaker', label: '', instruction: '' }
   }
 })
 
@@ -5578,22 +5443,13 @@ const handleCycleEvent = async (event) => {
           return
         }
 
-        // Capture current generation - if it changes (user jumped), this callback becomes stale
-        const generationAtStart = playbackGeneration.value
-
         // Start next item after delay (ensure text transitions complete)
         // CSS transition is 300ms, so wait 350ms to be safe
         // Set transition flag to prevent watcher from setting isPlaying = false
         isCycleTransitioning.value = true
         console.log('[LearningPlayer] Scheduling next item, nextScriptItem:', nextScriptItem?.type, nextScriptItem?.legoId)
         setTimeout(async () => {
-          console.log('[LearningPlayer] setTimeout fired, isPlaying:', isPlaying.value, 'generation:', playbackGeneration.value, '===', generationAtStart)
-          // CRITICAL: Check if we've jumped since this callback was queued
-          if (playbackGeneration.value !== generationAtStart) {
-            console.log('[LearningPlayer] Stale callback detected (generation mismatch), skipping')
-            isCycleTransitioning.value = false
-            return
-          }
+          console.log('[LearningPlayer] setTimeout fired, isPlaying:', isPlaying.value)
           if (!isPlaying.value) {
             console.log('[LearningPlayer] Not playing, aborting next item')
             isCycleTransitioning.value = false
@@ -5611,22 +5467,12 @@ const handleCycleEvent = async (event) => {
               // Clear transition flag for intro playback
               isCycleTransitioning.value = false
               const introPlayable = await scriptItemToPlayableItem(nextScriptItem)
-              // CRITICAL: Check generation after async - user may have skipped during conversion
-              if (playbackGeneration.value !== generationAtStart) {
-                console.log('[LearningPlayer] Stale after introPlayable conversion, aborting')
-                return
-              }
               if (introPlayable) {
                 currentPlayableItem.value = introPlayable
 
                 // Both intro and component_intro: play presentation audio sequence
                 // Component intros now have presentation audio ("The X for 'word', as in 'phrase', is:")
                 const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
-                // CRITICAL: Check generation after async intro audio
-                if (playbackGeneration.value !== generationAtStart) {
-                  console.log('[LearningPlayer] Stale after intro audio, aborting')
-                  return
-                }
                 if (introPlayed) {
                   console.log('[LearningPlayer]', nextScriptItem.type, 'complete, advancing to next item')
                 } else if (nextScriptItem.type === 'component_intro') {
@@ -5650,11 +5496,6 @@ const handleCycleEvent = async (event) => {
                 const followingItem = currentRound.value?.items[currentItemInRound.value]
                 if (followingItem && isPlaying.value) {
                   const followingPlayable = await scriptItemToPlayableItem(followingItem)
-                  // CRITICAL: Check generation after async conversion
-                  if (playbackGeneration.value !== generationAtStart) {
-                    console.log('[LearningPlayer] Stale after followingPlayable conversion, aborting')
-                    return
-                  }
                   if (followingPlayable) {
                     currentPlayableItem.value = followingPlayable
                     await startCyclePlayback(followingItem)
@@ -5666,12 +5507,6 @@ const handleCycleEvent = async (event) => {
 
             console.log('[LearningPlayer] Converting next script item to playable...')
             const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
-            // CRITICAL: Check generation after async - user may have skipped during conversion
-            if (playbackGeneration.value !== generationAtStart) {
-              console.log('[LearningPlayer] Stale after nextPlayable conversion, aborting')
-              isCycleTransitioning.value = false
-              return
-            }
             if (nextPlayable) {
               // Store for currentItem computed
               currentPlayableItem.value = nextPlayable
@@ -5709,17 +5544,9 @@ const handleCycleEvent = async (event) => {
         }
         currentItemIndex.value = nextIndex
 
-        // Capture generation for stale callback detection
-        const genAtStart = playbackGeneration.value
-
         // Start next item (with introduction if needed)
         // CSS transition is 300ms, wait 350ms to ensure text fades complete
         setTimeout(async () => {
-          // Check if we've jumped since this callback was queued
-          if (playbackGeneration.value !== genAtStart) {
-            console.log('[LearningPlayer] Stale session callback (generation mismatch), skipping')
-            return
-          }
           if (isPlaying.value) {
             // Stop any previous audio
             stopCycle()
@@ -7651,58 +7478,12 @@ const isSteppingRound = ref(false)
 // runs in the background and doesn't gate playback.
 const isWarmingUpInfPlay = ref(false)
 
-/**
- * Phase 1 (BLOCKING): download all audio for the next `count` rounds.
- * Tom's design 2026-05-20 — INF PLAY's random sampling defeats the
- * linear 30-min prefetch, so we batch-load a chunk of rounds before
- * playback starts and then top up in the background while the
- * learner plays through.
- *
- * Walks each round's cycles, collects unique audio URLs (known +
- * target1 + target2 + any presentation/listening clips), fires
- * fetch() against /api/audio/* — service-worker CacheFirst absorbs
- * the responses into the audio cache. Subsequent <audio> playback
- * hits the cache, no network roundtrip.
- *
- * Parallel-limited at 5 to saturate 4G without thrashing. Errors
- * are swallowed — partial cache is better than blocking forever.
- */
 // Tracks URLs the warm-up has successfully cached. Drives the
 // shouldSkipCycle gate in INF PLAY so cycles with uncached audio are
 // silently dropped (rather than stalling / playing silently) —
 // because INF PLAY doesn't need any particular cycle, only that
 // SOMETHING with audio plays in each slot.
 const warmedUpAudioUrls = ref<Set<string>>(new Set())
-
-async function warmUpInfPlayRounds(rounds: any[], count: number): Promise<void> {
-  const slice = rounds.slice(0, Math.max(0, count))
-  const urls = new Set<string>()
-  for (const r of slice) {
-    if (!Array.isArray(r?.cycles)) continue
-    for (const c of r.cycles) {
-      if (c?.known?.audioUrl) urls.add(c.known.audioUrl)
-      if (c?.target?.voice1Url) urls.add(c.target.voice1Url)
-      if (c?.target?.voice2Url) urls.add(c.target.voice2Url)
-    }
-  }
-  const list = [...urls]
-  if (list.length === 0) return
-
-  const parallel = 5
-  for (let i = 0; i < list.length; i += parallel) {
-    const batch = list.slice(i, i + parallel)
-    const results = await Promise.allSettled(batch.map(url =>
-      fetch(url).then(r => r.ok ? r.arrayBuffer().then(() => url) : null).catch(() => null)
-    ))
-    // Mark every URL that resolved successfully — it's now in the SW
-    // CacheFirst store, safe for the shouldSkipCycle gate to trust.
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        warmedUpAudioUrls.value.add(r.value)
-      }
-    }
-  }
-}
 
 /**
  * Bootstrap-style INF PLAY entry — fetch JUST the first cycle's
@@ -8566,10 +8347,6 @@ const showPausedSummary = () => {
 }
 
 
-// Network loading removed — see archive/brain-views branch
-const ensureNetworkLoaded = () => {}
-
-
 const handleResumeLearning = async () => {
   // Hide summary and resume via the standard play path
   showSessionComplete.value = false
@@ -8623,7 +8400,6 @@ const expandScript = async (): Promise<number> => {
     // queued — using its length here would lead to an under-sized
     // neededEnd and miss the infinite-play threshold entirely.
     const loadedCount = simplePlayer.roundCount.value
-    const neededEnd = scriptBaseOffset.value + loadedCount + EXPANSION_BATCH
     const result = await generateScript()
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
     if (expandedRounds.length > loadedCount) {
@@ -8666,8 +8442,6 @@ const expandScript = async (): Promise<number> => {
 const highlightNetworkNode = (_legoId: any) => {}
 const strengthenPhrasePath = (_legoIds: any) => {}
 const handleNetworkNodeTap = async (node: any) => {
-  console.debug('[Network] Node tapped:', node.id, node.targetText)
-
   // If already playing phrases for a node, stop it
   if (isPlayingNodePhrases.value) {
     stopNodePhrasePlayback()
@@ -8684,7 +8458,6 @@ const handleNetworkNodeTap = async (node: any) => {
   // Get all practice items for this LEGO
   const roundIndex = cachedRounds.value.findIndex(r => r.legoId === node.id)
   if (roundIndex < 0) {
-    console.log('[Network] No round found for LEGO:', node.id)
     return
   }
 
@@ -8697,12 +8470,10 @@ const handleNetworkNodeTap = async (node: any) => {
   )
 
   if (practiceItems.length === 0) {
-    console.log('[Network] No practice phrases for LEGO:', node.id)
     return
   }
 
   // Start playback
-  console.log(`[Network] Playing ${practiceItems.length} phrases for ${node.targetText}`)
   isPlayingNodePhrases.value = true
   playingNodeId.value = node.id
   nodePhraseItems.value = practiceItems
@@ -8884,27 +8655,6 @@ const findResonatingNodes = (item, exactMatches) => {
 }
 
 // ============================================
-// NETWORK REVEAL HELPER
-// ============================================
-
-/**
- * Calculate how many nodes to reveal based on highestLegoId (LEGO-granular high-water mark).
- * Falls back to belt-granular completedRounds if highestLegoId not available.
- */
-const getRevealUpTo = (rounds: Array<{ legoId: string }>): number => {
-  const highestLego = beltProgress.value?.highestLegoId?.value
-  if (highestLego && rounds.length > 0) {
-    const idx = rounds.findIndex(r => r.legoId === highestLego)
-    if (idx >= 0) return Math.max(idx, currentRoundIndex.value)
-    // If exact match not found, find last node that sorts before highestLego
-    const lastBefore = rounds.reduce((best, r, i) => r.legoId <= highestLego ? i : best, -1)
-    if (lastBefore >= 0) return Math.max(lastBefore, currentRoundIndex.value)
-  }
-  // Fallback: belt-granular
-  return Math.max(completedRounds.value, currentRoundIndex.value)
-}
-
-// ============================================
 // LIFECYCLE
 // ============================================
 
@@ -8936,10 +8686,8 @@ onMounted(async () => {
   }
 
   // Load developer settings
-  showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false'
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
-  enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
 
   // Listen for developer settings changes (from Settings screen)
   settingChangedHandler = (e: Event) => {
@@ -8947,17 +8695,11 @@ onMounted(async () => {
     if (!detail?.key) return
     
     switch (detail.key) {
-      case 'showFragileProgressWarning':
-        showFragileProgressWarning.value = detail.value
-        break
       case 'enableQaMode':
         enableQaMode.value = detail.value
         break
       case 'showDebugOverlay':
         showDebugOverlay.value = detail.value
-        break
-      case 'enableVerboseLogging':
-        enableVerboseLogging.value = detail.value
         break
       case 'adaptationConsent':
         handleAdaptationConsent(detail.value)
@@ -10295,7 +10037,6 @@ onMounted(async () => {
       // Expand script if preview index exceeds cached rounds
       if (targetIndex >= absoluteEnd && supabase?.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
-        const neededEnd = absoluteEnd + (targetIndex - absoluteEnd) + 10
         const expandResult = await generateScript()
         const expandedRounds = toSimpleRoundsWithComponents(expandResult.items)
         if (expandedRounds.length > cachedRounds.value.length) {
@@ -10548,8 +10289,6 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // 2. Reset all state
   currentRoundIndex.value = 0
   currentItemInRound.value = 0
-  // Legacy items array for deprecated code paths
-  allPlayableItems.value = []
   cachedRounds.value = []
   cachedCourseWelcome.value = null
   // completedRounds is computed from beltProgress, which is managed separately
@@ -11391,38 +11130,6 @@ defineExpose({
 
     <!-- NETWORK THEATER - The brain visualization fills this space -->
     <section ref="networkTheaterRef" class="network-theater">
-      <!-- Session Points Counter - HIDDEN (belt progression system is used instead) -->
-      <!-- Points are still calculated internally for reward words but not shown to users -->
-      <!--
-      <div v-if="sessionPoints > 0" class="session-points-display" :class="{ 'has-multiplier': sessionMultiplier > 1 }">
-        <span v-if="sessionMultiplier > 1" class="session-multiplier-indicator" title="Turbo bonus active">×</span>
-        <span class="session-points-value">{{ sessionPoints }}</span>
-        <span class="session-points-label">pts</span>
-      </div>
-      -->
-
-      <!-- Progress Warning Overlay - shown for guest users (can be toggled in Settings > Developer) -->
-      <div v-if="shouldShowProgressWarning" class="progress-warning-overlay">
-        <div class="progress-warning-content">
-          <div class="progress-warning-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </div>
-          <h3 class="progress-warning-title">Your progress is fragile</h3>
-          <p class="progress-warning-text">
-            Create an account or sign-in to store your progress in our database.
-          </p>
-          <div class="progress-warning-actions">
-            <button class="progress-warning-btn progress-warning-btn--primary" @click="openAuth()">
-              Sign in to save
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- Debug Overlay - shows current phase, round, LEGO info (can be toggled in Settings > Developer) -->
       <div v-if="showDebugOverlay" class="debug-overlay">
         <div class="debug-info">
@@ -11626,17 +11333,6 @@ defineExpose({
       :current-target="visibleTexts.target"
       :qa-mode="shouldShowQaMode"
     />
-
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: `${sessionProgress * 100}%` }"></div>
-      </div>
-      <div class="footer-stats">
-        <span>{{ itemsPracticed }} / {{ sessionItems.length }}</span>
-        <span v-if="learningSession.isDemoMode.value" class="demo-badge">Demo Mode</span>
-      </div>
-    </footer>
 
   </div>
 
@@ -12290,160 +11986,10 @@ defineExpose({
   50% { opacity: 0.4; }
 }
 
-.session-timer {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: 'Space Mono', monospace;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border-radius: 100px;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.session-timer:hover {
-  background: var(--bg-elevated);
-  border-color: var(--accent);
-  color: var(--text-primary);
-}
-
-.session-timer:hover .timer-end-icon {
-  opacity: 1;
-  color: var(--accent);
-}
-
-.timer-end-icon {
-  width: 14px;
-  height: 14px;
-  opacity: 0.5;
-  transition: all 0.2s ease;
-}
-
-.timer-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.theme-toggle {
-  width: 48px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: var(--bg-card);
-  border-radius: 100px;
-  cursor: pointer;
-  position: relative;
-  border: 1px solid var(--border-subtle);
-}
-
-.toggle-track {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--accent);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.toggle-thumb.light {
-  transform: translateX(20px);
-  background: var(--gold);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* ============ BELT NAVIGATION HEADER ============ */
-.belt-nav-header {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.belt-nav-header-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  padding: 0;
-}
-
-.belt-nav-header-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.belt-nav-header-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--belt-color, var(--text-primary));
-}
-
-.belt-nav-header-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Forward button shows next belt color */
-.belt-nav-header-btn--forward {
-  color: var(--next-belt-color, var(--text-muted));
-}
-
-.belt-nav-header-btn--forward:hover:not(:disabled) {
-  color: var(--next-belt-color, var(--text-primary));
-}
-
-/* Back button shows target belt color */
-.belt-nav-header-btn--back {
-  color: var(--back-belt-color, var(--text-muted));
-}
-
-.belt-nav-header-btn--back:hover:not(:disabled) {
-  color: var(--back-belt-color, var(--text-primary));
-}
-
 /* Belt skip processing animation */
 @keyframes belt-skip-flash {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
-}
-
-.belt-nav-header-btn.is-skipping {
-  animation: belt-skip-flash 0.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.belt-nav-header-btn--forward.is-skipping {
-  color: var(--next-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.belt-nav-header-btn--back.is-skipping {
-  color: var(--back-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ============ BELT ROW ============ */
@@ -12623,19 +12169,6 @@ defineExpose({
   color: #ffffff;
 }
 
-/* Legacy styles kept for backwards compatibility */
-.belt-progress-btn {
-  display: none; /* Hidden - replaced by belt-timer-unified */
-}
-
-.belt-bar-label {
-  display: none; /* Hidden - replaced by belt-timer-label */
-}
-
-.belt-inline-timer {
-  display: none; /* Hidden - timer now always visible in belt-timer-label */
-}
-
 /* ============ FULLSCREEN NETWORK LAYOUT ============ */
 /* Network fills the whole screen, controls float on top */
 
@@ -12718,14 +12251,6 @@ defineExpose({
   margin: 0 0 12px 0;
 }
 
-.progress-warning-cta {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: #e8a87c;
-  margin: 0 0 28px 0;
-  font-weight: 500;
-}
-
 .progress-warning-actions {
   display: flex;
   flex-direction: column;
@@ -12758,22 +12283,6 @@ defineExpose({
 
 .progress-warning-btn--primary:active {
   transform: translateY(0);
-}
-
-.progress-warning-btn--secondary {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.progress-warning-btn--secondary:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.progress-warning-btn--secondary:active {
-  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Debug Overlay - Developer tool for showing current state */
@@ -12825,57 +12334,6 @@ defineExpose({
   margin-top: 0;
   padding-top: 0;
   border-top: none;
-}
-
-/* Layout Mode Toggle Button */
-.layout-toggle-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.layout-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0.35);
-}
-
-.layout-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.layout-toggle-btn .layout-icon {
-  font-size: 14px;
-  opacity: 0.7;
-}
-
-.layout-toggle-btn .layout-label {
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Adjust toggle position based on layout mode to avoid overlap */
-.player:has(.control-pane.layout-subtitle) .layout-toggle-btn,
-.player:has(.control-pane.layout-floating) .layout-toggle-btn,
-.player:has(.control-pane.layout-minimal) .layout-toggle-btn {
-  bottom: 80px;
 }
 
 .control-pane {
@@ -13296,49 +12754,6 @@ defineExpose({
   letter-spacing: 0.3em;
 }
 
-/* Component breakdown tiles for M-type LEGOs */
-.pane-components {
-  margin-top: 1rem;
-}
-
-.components-tiles {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.component-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.component-tile-target {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--belt-color, rgba(251, 191, 36, 0.9));
-  line-height: 1.3;
-}
-
-.component-tile-known {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.3;
-}
-
-.component-plus {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.3);
-  font-weight: 300;
-}
-
 /* Hidden ring reference (for backwards compatibility) */
 .ring-reference {
   position: absolute;
@@ -13509,64 +12924,6 @@ defineExpose({
 }
 
 /* Voice 2 phase: known text stays visible, target appears below */
-
-/* Timing ring - REMOVED (keeping CSS for cleanup later) */
-.hero-timing-ring {
-  display: none; /* Removed - distracting */
-  position: absolute;
-  inset: -8px;
-  width: calc(100% + 16px);
-  height: calc(100% + 16px);
-  pointer-events: none;
-}
-
-.timing-ring-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.06);
-  stroke-width: 2;
-}
-
-.timing-ring-progress {
-  fill: none;
-  stroke: var(--belt-color, #c23a3a);
-  stroke-width: 2;
-  stroke-dasharray: 688; /* Perimeter of rounded rect */
-  stroke-dashoffset: 688; /* Start hidden */
-  stroke-linecap: round;
-  opacity: 0.6;
-  transition: stroke-dashoffset 0.3s ease;
-}
-
-/* Phase-based progress animation */
-.timing-ring-progress.prompt {
-  stroke-dashoffset: 516; /* 25% visible */
-  animation: timing-pulse 2s ease-in-out;
-}
-
-.timing-ring-progress.speak {
-  stroke-dashoffset: 344; /* 50% visible */
-  animation: timing-fill 4s linear forwards;
-}
-
-.timing-ring-progress.voice_1 {
-  stroke-dashoffset: 172; /* 75% visible */
-}
-
-.timing-ring-progress.voice_2 {
-  stroke-dashoffset: 0; /* 100% visible */
-  stroke: var(--belt-color, #c23a3a);
-  opacity: 0.8;
-}
-
-@keyframes timing-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
-}
-
-@keyframes timing-fill {
-  from { stroke-dashoffset: 516; }
-  to { stroke-dashoffset: 172; }
-}
 
 /* ============ INLINE HINT LABEL (inside hero-glass) ============ */
 .hero-hint-label {
@@ -13814,117 +13171,6 @@ button.phase-segment:active:not(.is-active) {
   z-index: 0;
 }
 
-/* ============ PHASE STRIP (legacy section helpers — .phase-section,
- * NOT .phase-strip; kept because some other code may still reference
- * .phase-section). The duplicate .phase-strip rule that lived here was
- * deleted: it was applying `gap: 6px` to the new segmented pill,
- * forcing visible whitespace between every segment. */
-.phase-section {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  opacity: 0.35;
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.phase-section.active {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* SVG icon styling */
-.phase-icon-svg {
-  width: 22px;
-  height: 22px;
-  color: rgba(255, 255, 255, 0.6);
-  transition: all 0.3s ease;
-}
-
-.phase-section.active .phase-icon-svg {
-  color: rgba(255, 255, 255, 0.95);
-}
-
-/* Emoji icon styling */
-.phase-icon-emoji {
-  font-size: 22px;
-  line-height: 1;
-  opacity: 0.6;
-  transition: all 0.3s ease;
-}
-
-.phase-section.active .phase-icon-emoji {
-  opacity: 1;
-  transform: scale(1.15);
-}
-
-/* Speaker sections - pulse when active */
-.phase-section.speaker-section.active {
-  animation: speaker-pulse 0.8s ease-in-out infinite;
-}
-
-.phase-section.speaker-section.active .phase-icon-svg {
-  color: var(--belt-color, #c23a3a);
-}
-
-@keyframes speaker-pulse {
-  0%, 100% {
-    box-shadow: 0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.3));
-  }
-  50% {
-    box-shadow: 0 0 16px var(--belt-glow, rgba(194, 58, 58, 0.6));
-  }
-}
-
-/* Mic section - red recording indicator when active */
-.phase-section.mic-section {
-  position: relative;
-  overflow: hidden;
-}
-
-.phase-section.mic-section.active {
-  background: rgba(220, 38, 38, 0.25);
-  box-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
-}
-
-.phase-section.mic-section.active .phase-icon-svg {
-  color: #ef4444;
-  animation: mic-pulse 1s ease-in-out infinite;
-}
-
-@keyframes mic-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-.speak-timer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 0 0 8px 8px;
-  overflow: hidden;
-}
-
-.speak-timer-fill {
-  height: 100%;
-  background: #ef4444;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
-  transition: width 0.1s linear;
-}
-
-/* Eyes section - appears clearly on final phase */
-.phase-section.eyes-section.active {
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.5));
-}
-
 /* Intro phase: NO TEXT AT ALL - pure listen mode */
 .hero-text-pane.is-intro .hero-text-known,
 .hero-text-pane.is-intro .hero-text-target {
@@ -13937,24 +13183,6 @@ button.phase-segment:active:not(.is-active) {
    Core sizing handled by clamp() in --text-*, --space-*, etc.
    Only special cases (landscape compact mode) need media queries.
    ═══════════════════════════════════════════════════════════════ */
-
-/* Legacy responsive .phase-section sizing (NOT .phase-strip — that
- * duplicate rule was deleted; it was overriding the new segmented pill
- * with `gap: clamp(...)` and reintroducing visible whitespace). */
-.phase-section {
-  width: clamp(28px, 6vmin, 64px);
-  height: clamp(28px, 6vmin, 64px);
-  border-radius: clamp(6px, 1.5vmin, 16px);
-}
-
-.phase-icon-svg {
-  width: clamp(14px, 3vmin, 32px);
-  height: clamp(14px, 3vmin, 32px);
-}
-
-.phase-icon-emoji {
-  font-size: clamp(14px, 3vmin, 32px);
-}
 
 /* Session points display - floating above transport controls, centered */
 .session-points-display {
@@ -14023,35 +13251,7 @@ button.phase-segment:active:not(.is-active) {
   pointer-events: none;
 }
 
-/* ============ MAIN - FIXED LAYOUT (legacy, may be removed) ============ */
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem 1.5rem;
-  position: relative;
-  z-index: 10;
-  gap: 1.5rem;
-}
-
-
 /* Text Zones - FIXED HEIGHT */
-.text-zone {
-  width: 100%;
-  max-width: 600px;
-  min-height: var(--text-zone-min-height);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.text-zone--known {
-  /* Known language styling */
-}
-
 .known-text {
   font-size: var(--known-text-size);
   font-weight: 500;
@@ -14073,173 +13273,6 @@ button.phase-segment:active:not(.is-active) {
   border-radius: 4px;
   margin-left: 0.5em;
   vertical-align: middle;
-}
-
-.text-zone--target {
-  min-height: 80px; /* Always reserve space */
-}
-
-.target-text {
-  font-size: var(--target-text-size);
-  font-weight: 600;
-  color: var(--gold);
-  line-height: 1.3;
-}
-
-.target-placeholder {
-  height: 1.75rem; /* Match target text height */
-  opacity: 0;
-}
-
-/* ============ HERO NODE - Brain Network Center ============ */
-.ring-container {
-  position: relative;
-  width: var(--ring-size);
-  height: var(--ring-size);
-  cursor: pointer;
-  transition: transform 0.2s ease;
-  z-index: 10; /* Above network edges */
-}
-
-.ring-container:hover {
-  transform: scale(1.02);
-}
-
-.ring-container:active {
-  transform: scale(0.98);
-}
-
-/* Multi-layer glow for node effect */
-.ring-ambient {
-  position: absolute;
-  inset: -40px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--belt-glow, var(--accent-soft)) 0%, transparent 70%);
-  opacity: 0.4;
-  transition: opacity 0.5s ease;
-}
-
-/* Outer constellation glow - belt colored */
-.ring-container::before {
-  content: '';
-  position: absolute;
-  inset: -80px;
-  border-radius: 50%;
-  background: radial-gradient(circle,
-    var(--belt-glow, rgba(194, 58, 58, 0.15)) 0%,
-    transparent 50%
-  );
-  animation: node-breathe 4s ease-in-out infinite;
-  pointer-events: none;
-}
-
-/* Inner pulse ring */
-.ring-container::after {
-  content: '';
-  position: absolute;
-  inset: -20px;
-  border-radius: 50%;
-  border: 1px solid var(--belt-color, var(--accent));
-  opacity: 0.3;
-  animation: node-pulse-ring 3s ease-out infinite;
-  pointer-events: none;
-}
-
-@keyframes node-breathe {
-  0%, 100% { opacity: 0.3; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.1); }
-}
-
-@keyframes node-pulse-ring {
-  0% { transform: scale(0.9); opacity: 0.5; }
-  50% { transform: scale(1.2); opacity: 0; }
-  100% { transform: scale(0.9); opacity: 0; }
-}
-
-.ring-container.is-speak .ring-ambient {
-  opacity: 1;
-  animation: ambient-breathe 3s ease-in-out infinite;
-}
-
-@keyframes ambient-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.1); opacity: 1; }
-}
-
-.ring-svg {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.4)));
-}
-
-.ring-track {
-  stroke: var(--belt-color, var(--accent));
-  opacity: 0.2;
-}
-
-.ring-progress {
-  stroke: var(--belt-color, var(--accent));
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.05s linear;
-  filter: drop-shadow(0 0 8px var(--belt-glow, var(--accent-glow)));
-}
-
-.ring-inner {
-  stroke: var(--belt-color, var(--accent));
-  opacity: 0.15;
-}
-
-.ring-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: var(--ring-center-size);
-  height: var(--ring-center-size);
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%,
-    var(--bg-elevated) 0%,
-    var(--bg-card) 50%,
-    rgba(10, 10, 15, 0.95) 100%
-  );
-  /* Center always uses SSi red accent - belt colors on outer rings only */
-  border: 2px solid var(--accent);
-  box-shadow:
-    0 0 20px rgba(194, 58, 58, 0.3),
-    inset 0 0 30px rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-/* Hero node when paused - ready to start */
-.ring-container.is-paused .ring-center {
-  /* Center always stays SSi red accent - belt colors only on outer rings */
-  background: radial-gradient(circle at 30% 30%,
-    var(--accent) 0%,
-    color-mix(in srgb, var(--accent) 70%, black) 100%
-  );
-  border-color: var(--accent);
-  box-shadow:
-    0 0 40px rgba(194, 58, 58, 0.5),
-    inset 0 0 20px rgba(255, 255, 255, 0.1);
-}
-
-.play-indicator {
-  color: white;
-  opacity: 0.3;
-  transition: opacity 0.5s ease;
-}
-
-.play-indicator.fade-in {
-  opacity: 1;
-}
-
-.play-indicator svg {
-  width: 40px;
-  height: 40px;
-  margin-left: 4px; /* Optical centering */
 }
 
 /* Loading state styles */
@@ -14270,32 +13303,6 @@ button.phase-segment:active:not(.is-active) {
 @keyframes cursor-blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
-}
-
-/* Ring during loading - subtle appearance */
-.ring-center.is-loading {
-  background: rgba(0, 0, 0, 0.3);
-  border-color: transparent;
-}
-
-.phase-icon {
-  color: var(--text-secondary);
-  transition: all 0.3s ease;
-}
-
-.phase-icon svg {
-  width: 36px;
-  height: 36px;
-}
-
-.phase-icon.speak {
-  color: var(--accent);
-  animation: icon-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes icon-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
 }
 
 /* ============ WELCOME OVERLAY ============ */
@@ -14357,48 +13364,6 @@ button.phase-segment:active:not(.is-active) {
 @keyframes pulse {
   0%, 100% { opacity: 0.6; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.05); }
-}
-
-/* ============ COMING SOON LABEL ============ */
-
-.mode-btn.coming-soon {
-  position: relative;
-}
-
-.coming-soon-label {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  font-size: 0.625rem;
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
-  white-space: nowrap;
-  animation: fade-in-out 2s ease-out;
-}
-
-@keyframes fade-in-out {
-  0% { opacity: 0; transform: translateX(-50%) translateY(4px); }
-  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
-  80% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-.ring-label {
-  position: absolute;
-  bottom: -32px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  transition: opacity 0.3s ease;
-}
-
-.ring-container.is-paused .ring-label {
-  opacity: 0.5;
 }
 
 /* ============ INK SPIRIT REWARDS ============ */
@@ -14522,98 +13487,12 @@ button.phase-segment:active:not(.is-active) {
   opacity: 0;
 }
 
-/* ============ CONTROLS ============ */
-.control-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: var(--control-bar-gap);
-  padding: var(--control-bar-padding);
-  position: absolute;
-  bottom: var(--control-bar-bottom);
-  left: 50%;
-  transform: translateX(-50%);
-  /* Above BottomNav backdrop (z:100) but below BottomNav play button (z:110) */
-  z-index: 105;
-  pointer-events: auto;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border-radius: var(--control-bar-radius);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  /* Belt glow accent */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
-              0 8px 24px rgba(0, 0, 0, 0.3),
-              0 0 16px color-mix(in srgb, var(--belt-glow) 12%, transparent);
-  /* Fixed phone-like width - matches other content */
-  width: calc(100% - 2rem);
-  max-width: 400px;
-  transition: opacity 0.3s ease;
-}
-
-/* Hide control bar when player is resting (not playing) */
-.control-bar--hidden {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-
-/* Control groups for 3+3 layout */
-.control-group {
-  display: flex;
-  align-items: center;
-  gap: var(--control-group-gap);
-}
-
 /* QA Report button - positioned in header area */
 .qa-report-btn {
   position: fixed;
   top: calc(1rem + env(safe-area-inset-top, 0px));
   right: 1rem;
   z-index: 100;
-}
-
-.mode-btn {
-  width: var(--mode-btn-size);
-  height: var(--mode-btn-size);
-  min-width: var(--btn-touch-target);
-  min-height: var(--btn-touch-target);
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.mode-btn svg {
-  width: var(--mode-btn-icon);
-  height: var(--mode-btn-icon);
-}
-
-.mode-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-primary);
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
-}
-
-.mode-btn.active {
-  background: rgba(74, 222, 128, 0.15);
-  border-color: var(--success);
-  color: var(--success);
-  box-shadow: 0 0 16px rgba(74, 222, 128, 0.3);
-}
-
-.mode-btn--turbo.active {
-  background: var(--gold-soft);
-  border-color: var(--gold);
-  color: var(--gold);
-  box-shadow: 0 0 16px rgba(212, 168, 83, 0.4);
 }
 
 /* Mode Explanation Popups */
@@ -14735,108 +13614,6 @@ button.phase-segment:active:not(.is-active) {
 
 .mode-popup-btn--confirm:hover {
   filter: brightness(1.1);
-}
-
-/* Belt Navigation Buttons - Double chevrons for belt jumps */
-.belt-nav-btn {
-  width: var(--belt-nav-btn-size);
-  height: var(--belt-nav-btn-size);
-  min-width: var(--btn-touch-target);
-  min-height: var(--btn-touch-target);
-  border-radius: 50%;
-  border: 1.5px solid;
-  background: rgba(255, 255, 255, 0.06);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.belt-nav-btn svg {
-  width: var(--belt-nav-btn-icon);
-  height: var(--belt-nav-btn-icon);
-}
-
-.belt-nav-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(1.05);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 20%, transparent);
-}
-
-.belt-nav-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Forward button shows next belt color - always visible border */
-.belt-nav-btn--forward {
-  color: var(--next-belt-color, var(--text-muted));
-  border-color: var(--next-belt-color, var(--text-muted));
-}
-
-.belt-nav-btn--forward:hover:not(:disabled) {
-  color: var(--next-belt-color, var(--text-primary));
-  box-shadow: 0 0 12px var(--next-belt-glow, transparent);
-}
-
-/* Back button shows target belt color - always visible border */
-.belt-nav-btn--back {
-  color: var(--back-belt-color, var(--text-muted));
-  border-color: var(--back-belt-color, var(--text-muted));
-}
-
-.belt-nav-btn--back:hover:not(:disabled) {
-  color: var(--back-belt-color, var(--text-primary));
-}
-
-/* Belt skip processing animation for bottom nav */
-.belt-nav-btn.is-skipping {
-  animation: belt-skip-flash 0.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.belt-nav-btn--forward.is-skipping {
-  color: var(--next-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.15);
-  border-color: var(--next-belt-color, var(--accent));
-  box-shadow: 0 0 12px var(--next-belt-glow, transparent);
-}
-
-.belt-nav-btn--back.is-skipping {
-  color: var(--back-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.15);
-  border-color: var(--back-belt-color, var(--accent));
-}
-
-/* Transport buttons (Revisit, Skip) */
-.transport-btn {
-  width: var(--transport-btn-size);
-  height: var(--transport-btn-size);
-  min-width: var(--btn-touch-target);
-  min-height: var(--btn-touch-target);
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.transport-btn svg {
-  width: var(--transport-btn-icon);
-  height: var(--transport-btn-icon);
-}
-
-.transport-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-primary);
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
 }
 
 /* ============ FOOTER ============ */
@@ -15280,33 +14057,6 @@ button.phase-segment:active:not(.is-active) {
   transform: translateY(20px);
 }
 
-/* Mode button active states */
-.mode-btn--modes.active--listening {
-  background: var(--gold-glow, rgba(212, 168, 83, 0.15));
-  border-color: var(--gold, #d4a853);
-  color: var(--gold, #d4a853);
-}
-
-.mode-btn--modes.active--driving {
-  background: rgba(96, 165, 250, 0.15);
-  border-color: #60a5fa;
-  color: #60a5fa;
-}
-
-/* Driving overlay transition */
-.driving-overlay-enter-active {
-  transition: opacity 0.3s ease;
-}
-
-.driving-overlay-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.driving-overlay-enter-from,
-.driving-overlay-leave-to {
-  opacity: 0;
-}
-
 
 </style>
 
@@ -15330,11 +14080,6 @@ button.phase-segment:active:not(.is-active) {
 [data-theme="mist"] .player .space-nebula {
   background: transparent;
   animation: none;
-}
-
-@keyframes mist-drift {
-  0%, 100% { opacity: 1; transform: translateY(0); }
-  50% { opacity: 0.7; transform: translateY(-8px); }
 }
 
 [data-theme="mist"] .player .bg-noise {
@@ -15512,12 +14257,6 @@ button.phase-segment:active:not(.is-active) {
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16);
 }
 
-[data-theme="mist"] .player .mode-btn.active {
-  background: #ffffff;
-  color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16);
-}
-
 /* --- Belt celebration overlay --- */
 [data-theme="mist"] .player .belt-celebration-overlay {
   background: rgba(232, 227, 221, 0.8);
@@ -15556,35 +14295,11 @@ button.phase-segment:active:not(.is-active) {
               0 0 16px rgba(194, 58, 58, 0.08);
 }
 
-[data-theme="mist"] .player .pause-timer-bar {
-  background: rgba(0, 0, 0, 0.06);
-}
-
 [data-theme="mist"] .player .hint-dismiss {
   background: rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="mist"] .player .hint-dismiss svg {
-  color: var(--text-muted);
-}
-
-/* --- Component breakdown tiles → White elevated --- */
-[data-theme="mist"] .player .component-tile {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.35);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
-              0 6px 16px rgba(44, 38, 34, 0.06);
-}
-
-[data-theme="mist"] .player .component-tile-target {
-  color: #2C2622;
-}
-
-[data-theme="mist"] .player .component-tile-known {
-  color: var(--text-muted);
-}
-
-[data-theme="mist"] .player .component-plus {
   color: var(--text-muted);
 }
 

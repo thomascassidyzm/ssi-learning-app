@@ -28,6 +28,3 @@ export function useAuthModal() {
     close,
   }
 }
-
-// Alias for clarity - same function, same shared state
-export const useGlobalAuthModal = useAuthModal

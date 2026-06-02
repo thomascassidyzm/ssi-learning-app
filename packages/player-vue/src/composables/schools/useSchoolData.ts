@@ -20,7 +20,7 @@ interface GroupSummary {
   total_practice_hours: number
 }
 
-export type SchoolHealth = 'excellent' | 'good' | 'needs-attention' | 'inactive'
+type SchoolHealth = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 export interface School {
   id: string

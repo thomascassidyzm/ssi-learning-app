@@ -47,10 +47,3 @@ export function loadConfig(): AppConfig {
 export function isSupabaseConfigured(config: AppConfig): boolean {
   return Boolean(config.supabase.url && config.supabase.anonKey)
 }
-
-/**
- * Check if S3 is configured
- */
-export function isS3Configured(config: AppConfig): boolean {
-  return Boolean(config.s3.audioBaseUrl)
-}

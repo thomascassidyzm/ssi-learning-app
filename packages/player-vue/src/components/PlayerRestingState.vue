@@ -50,21 +50,6 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((props.completedSeeds / props.totalSeeds) * 100))
 })
 
-// `greeting` is defined but not currently rendered in this template; it's
-// kept so a future revision can reuse the band-stage messaging here. The
-// active loading copy lives in LearningPlayer.vue's awakening typewriter
-// (AWAKENING_MESSAGES + COURSE_AWAKENING_TEMPLATES), which is what fills
-// the hero-known slot during cold-start.
-const greeting = computed(() => {
-  if (!props.isPlayerReady) return t('resting.loading', 'Loading...')
-  if (props.completedSeeds === 0) return t('resting.readyWhenYouAre', 'Ready when you are')
-  if (props.completedSeeds < 10) return t('resting.greatStart', 'Great start — keep going')
-  if (props.completedSeeds < 50) return t('resting.buildingMomentum', 'Building momentum')
-  if (props.completedSeeds < 150) return t('resting.youreOnARoll', "You're on a roll")
-  if (props.completedSeeds < 300) return t('resting.impressiveProgress', 'Impressive progress')
-  return t('resting.nearlyThere', 'Nearly there')
-})
-
 const handleChangeCourse = () => {
   emit('change-course')
 }
@@ -351,28 +336,6 @@ const handleChangeCourse = () => {
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-}
-
-.greeting {
-  font-family: var(--font-body);
-  font-size: 16px;
-  color: var(--text-secondary);
-  margin: 8px 0 0;
-  font-style: italic;
-}
-
-.tap-hint {
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: var(--text-muted);
-  margin: 16px 0 0;
-  opacity: 0.6;
-  animation: hint-pulse 2s ease-in-out infinite;
-}
-
-@keyframes hint-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
 }
 </style>
 

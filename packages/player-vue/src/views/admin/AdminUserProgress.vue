@@ -124,13 +124,6 @@ watch(() => route.params.learnerId, (id) => { if (id) loadContext(id as string) 
   min-width: 0;
 }
 
-.title-block .frost-display {
-  font-size: var(--text-3xl);
-  letter-spacing: -0.015em;
-  margin: 0;
-  color: var(--schools-fg);
-}
-
 /* ---------- Status panels (loading / error) ---------- */
 .status-panel {
   padding: var(--space-8) var(--space-6);

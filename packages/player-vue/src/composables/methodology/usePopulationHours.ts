@@ -29,7 +29,7 @@ export interface HourBucket {
   count: number
 }
 
-export interface PopulationStats {
+interface PopulationStats {
   totalLearners: number
   learnersWithAnyPractice: number
   medianHours: number
@@ -41,7 +41,7 @@ export interface PopulationStats {
   maxHours: number
 }
 
-export interface UsePopulationHoursReturn {
+interface UsePopulationHoursReturn {
   isLoading: Ref<boolean>
   error: Ref<string | null>
   perLearnerHours: Ref<number[]>          // sorted ascending

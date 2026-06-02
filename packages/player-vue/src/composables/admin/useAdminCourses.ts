@@ -5,7 +5,7 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export interface CourseInfo {
+interface CourseInfo {
   course_code: string
   known_lang: string
   target_lang: string
@@ -14,7 +14,7 @@ export interface CourseInfo {
   is_community?: boolean
 }
 
-export interface CourseStats {
+interface CourseStats {
   course_code: string
   enrolled_count: number
   active_30d: number

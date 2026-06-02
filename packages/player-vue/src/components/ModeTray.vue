@@ -407,16 +407,6 @@ const handleMode = (mode: string) => {
   transform: translateX(16px);
 }
 
-/* Active dot for exclusive modes */
-.tray-active-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #16a34a;
-  flex-shrink: 0;
-  box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
-}
-
 /* Radio indicator for mutually exclusive modes */
 .radio-indicator {
   width: 18px;
