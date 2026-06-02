@@ -3161,22 +3161,6 @@ const forceInterjectionsCheat = (() => {
   } catch { return false }
 })()
 
-// Strength / power / learning / hard-work line icons (inner SVG markup, drawn
-// with the app's standard stroke style). One is picked at random per
-// encouragement. Kept as path data so they inherit currentColor + stroke.
-const ENCOURAGEMENT_ICONS: { key: string; paths: string[] }[] = [
-  { key: 'strength', paths: ['M6.5 6.5h2v11h-2z', 'M15.5 6.5h2v11h-2z', 'M8.5 12h7', 'M3.5 9.5h3v5h-3z', 'M17.5 9.5h3v5h-3z'] }, // dumbbell
-  { key: 'learning', paths: ['M12 3a5 5 0 0 0-5 5c0 1.7.9 3.2 2.2 4 .5.5.8 1.2.8 1.9v.6h4v-.6c0-.7.3-1.4.8-1.9A4.98 4.98 0 0 0 17 8a5 5 0 0 0-5-5z', 'M10 19h4', 'M10.5 21.5h3'] }, // lightbulb / mind
-  { key: 'power', paths: ['M13 2 4 14h7l-1 8 9-12h-7z'] }, // bolt
-  { key: 'effort', paths: ['M12 21c4-2.5 6-5.7 6-9a6 6 0 0 0-12 0c0 3.3 2 6.5 6 9z', 'M12 17c2-1.3 3-3 3-5a3 3 0 0 0-6 0c0 2 1 3.7 3 5z'] }, // flame
-  { key: 'summit', paths: ['M3 20h18', 'M5 20 11 7l4 7 2-3 3 9'] }, // mountain
-  { key: 'growth', paths: ['M12 20v-7', 'M12 13c0-3 2-5 6-5 0 3-2 5-6 5z', 'M12 15c0-2.5-1.7-4.5-5-4.5 0 2.8 1.9 4.5 5 4.5z'] }, // sprout
-  { key: 'mastery', paths: ['M7 4h10v4a5 5 0 0 1-10 0z', 'M7 6H4v1a3 3 0 0 0 3 3', 'M17 6h3v1a3 3 0 0 1-3 3', 'M9 20h6', 'M12 13v4'] }, // trophy
-  { key: 'focus', paths: ['M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0', 'M12 12m-3.5 0a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0', 'M12 12m-0.5 0a.5 .5 0 1 0 1 0a.5 .5 0 1 0-1 0'] }, // target
-]
-const encouragementIconIndex = ref(0)
-const currentEncouragementIcon = computed(() => ENCOURAGEMENT_ICONS[encouragementIconIndex.value % ENCOURAGEMENT_ICONS.length])
-
 // Short, varied captions for the ordered (sciencey) instructions — Tom's
 // "slightly fun, back to the science". No LEGO text; sets the expectation that
 // this is the meta-cognitive teaching track, distinct from the wordless icons.
@@ -3210,14 +3194,12 @@ const playCommentaryAudio = async (commentary) => {
 
   playingCommentaryAudio.value = true
   // Drive the display box off WHAT'S PLAYING (Tom 2026-06-02): an instruction
-  // shows a "back to the science" caption, a random encouragement shows a
-  // wordless strength/learning icon — NEVER the next LEGO (the engine has
-  // already advanced roundIndex onto it, but its audio hasn't started). Pick the
-  // varied content once per interjection so it's stable for the whole clip.
+  // shows a short "back to the science" caption (words suit the dialog box); an
+  // encouragement shows a calm throbbing ellipsis (consistent, non-distracting,
+  // "just listen") — NEVER the next LEGO (the engine has advanced roundIndex
+  // onto it, but its audio hasn't started). Pick the caption once per clip.
   currentCommentaryType.value = (commentary.type as CommentaryDisplayType) ?? null
-  if (commentary.type === 'encouragement') {
-    encouragementIconIndex.value = Math.floor(Math.random() * ENCOURAGEMENT_ICONS.length)
-  } else if (commentary.type === 'instruction') {
+  if (commentary.type === 'instruction') {
     instructionCaptionIndex.value = Math.floor(Math.random() * INSTRUCTION_CAPTIONS.length)
   }
   console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
@@ -10900,11 +10882,11 @@ defineExpose({
              caption. -->
         <template v-if="showInterjection">
           <div class="interjection-display" :class="`is-${currentCommentaryType}`">
-            <div v-if="currentCommentaryType === 'encouragement'" class="interjection-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path v-for="(d, i) in currentEncouragementIcon.paths" :key="i" :d="d" />
-              </svg>
+            <!-- Encouragement: calm chat-style ellipsis — "just listen". -->
+            <div v-if="currentCommentaryType === 'encouragement'" class="interjection-dots" aria-label="Listen" role="img">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
             </div>
+            <!-- Instruction: short sciencey caption (words suit the dialog box). -->
             <div v-else class="interjection-caption">{{ currentInstructionCaption }}</div>
           </div>
         </template>
@@ -13242,16 +13224,29 @@ defineExpose({
   padding: 1.5rem 2rem;
   min-height: 80px;
 }
-.interjection-icon {
+/* Chat-style ellipsis — three dots with a gentle staggered throb. Reads as
+   "something's being said, just listen"; identical every time so it never
+   becomes distracting "content". */
+.interjection-dots {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--belt-color, #b08968);
-  animation: interjection-in 360ms ease-out, interjection-breathe 3.2s ease-in-out 360ms infinite;
+  gap: 8px;
+  animation: interjection-in 320ms ease-out;
 }
-.interjection-icon svg {
-  width: 40px;
-  height: 40px;
+.interjection-dots .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--belt-color, #b08968);
+  opacity: 0.45;
+  animation: interjection-dot 1.4s ease-in-out infinite;
+}
+.interjection-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+.interjection-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes interjection-dot {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0) scale(1); }
+  30%           { opacity: 1;    transform: translateY(-3px) scale(1.15); }
 }
 .interjection-caption {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
@@ -13265,10 +13260,6 @@ defineExpose({
 @keyframes interjection-in {
   from { opacity: 0; transform: translateY(6px) scale(0.96); }
   to   { opacity: 1; transform: none; }
-}
-@keyframes interjection-breathe {
-  0%, 100% { opacity: 0.78; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.06); }
 }
 
 .hero-text-known,
