@@ -8258,7 +8258,6 @@ const ensureLiveSpanLoaded = async (spanMs: number): Promise<void> => {
   if (rollingExpandActive) return
   if (currentMode.value === 'infplay') return
   if (!isOnline.value) return
-  if (typeof document !== 'undefined' && document.hidden) return
   if (bulkDownloadRunning()) return
   if (loadedSpanMsFromHere() >= spanMs) return
   rollingExpandActive = true
@@ -8266,7 +8265,6 @@ const ensureLiveSpanLoaded = async (spanMs: number): Promise<void> => {
     let guard = 0
     while (
       isOnline.value &&
-      !(typeof document !== 'undefined' && document.hidden) &&
       !bulkDownloadRunning() &&
       loadedSpanMsFromHere() < spanMs &&
       guard++ < 8
@@ -8285,12 +8283,14 @@ const ensureLiveSpanLoaded = async (spanMs: number): Promise<void> => {
 // — backgrounded play is from cache, so the only fetches are the filler's.
 const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
   if (rollingFillActive) return
-  if (!isOnline.value) return            // offline: nothing to fetch
-  // Screen hidden/locked → go fully network-silent and play from the warm cache.
-  // Device-proven 2026-06-01: online+lock dies after ~4 cycles, but airplane+lock
-  // (zero network) plays indefinitely — background fetches while locked deactivate
-  // the iOS audio session. The deep steady fill warms the cache BEFORE lock.
-  if (typeof document !== 'undefined' && document.hidden) return
+  if (!isOnline.value) return            // offline: nothing to fetch (offline mode owns true-offline)
+  // KEEP warming even while hidden/locked. We briefly went network-silent on lock
+  // (theory: background fetch deactivates the iOS audio session) — but a 63-min
+  // screen-locked run streamed over the network the WHOLE time and never died, so
+  // that theory was wrong. Going silent just DRAINED the buffer → playback then
+  // streamed every clip anyway (defeating the entire point of a buffer). Warming
+  // while locked keeps playback on cache blobs (more lock-stable than streaming)
+  // and removes the needless streaming bandwidth. (Tom 2026-06-02.)
   if (bulkDownloadRunning()) return      // don't fight the bulk download
   rollingFillActive = true
   try {
@@ -8327,10 +8327,11 @@ watch(() => (cachedRounds.value || []).length, (n) => {
 })
 watch(currentRoundIndex, () => { void fillRollingBuffer() })
 watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
-// NOTE: deliberately NO on-hide burst. Firing network fetches at the moment of
-// lock is exactly what burns iOS's background grace budget and kills the audio
-// session. The deep steady span warms the cache BEFORE lock; while hidden we stay
-// network-silent (fillBuffer early-returns on document.hidden).
+// NOTE: no special on-hide burst needed — the steady fillRollingBuffer keeps
+// warming on every round advance INCLUDING while hidden/locked (fillBuffer no
+// longer early-returns on document.hidden; see its comment for why). So the
+// buffer stays topped up through a lock instead of draining and falling back to
+// streaming every clip.
 
 // Commentary (welcome/instructions/encouragements) and pod audio are
 // scheduled at RUNTIME — encouragements are a random pull from a pool, pod
