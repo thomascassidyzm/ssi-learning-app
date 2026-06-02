@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Example Insights — SSi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:#f4f2ec; --paper-2:#efece4; --card:#ffffff; --ink:#2C2622; --ink-2:#5b534c; --ink-3:#8A8078; --ink-faint:#b8b0a6;
+    --line:rgba(44,38,34,0.12); --line-soft:rgba(44,38,34,0.07);
+    --red:#DB1E17; --blue:96,165,250; --gold:197,152,64; --green:58,158,96;
+    --display:'Arsenal',Georgia,serif; --body:'Newsreader',Georgia,serif; --mono:'Spline Sans Mono',ui-monospace,monospace;
+    --wide:62rem;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--body); font-size:18px; line-height:1.6; -webkit-font-smoothing:antialiased;
+    background-image: radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold),0.10), transparent 60%), radial-gradient(900px 500px at -10% 12%, rgba(var(--blue),0.06), transparent 55%); background-attachment:fixed; }
+  .topbar { position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:18px; padding:calc(14px + env(safe-area-inset-top,0px)) clamp(18px,5vw,64px) 14px; background:rgba(244,242,236,0.82); backdrop-filter:blur(14px) saturate(1.4); border-bottom:1px solid var(--line-soft); }
+  .backlink { display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:12px; color:var(--ink-2); text-decoration:none; padding:6px 12px 6px 9px; border-radius:999px; border:1px solid var(--line); background:var(--card); }
+  .backlink:hover { color:var(--red); border-color:rgba(219,30,23,0.32); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-2); }
+  .brand b { color:var(--red); font-weight:600; } .brand .mark { width:22px; height:22px; border-radius:6px; background:var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  main { position:relative; z-index:1; }
+  .wrap { max-width:var(--wide); margin:0 auto; padding:0 clamp(20px,5vw,28px); }
+  .hero { padding:clamp(48px,9vw,96px) 0 clamp(20px,4vw,40px); }
+  .eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--red); display:inline-block; margin-bottom:18px; }
+  h1 { font-family:var(--display); font-weight:700; letter-spacing:-0.02em; line-height:1.03; font-size:clamp(36px,6.5vw,68px); margin:0 0 18px; }
+  h1 em { font-style:italic; color:var(--red); font-weight:400; }
+  .lede { font-size:clamp(18px,2.4vw,22px); line-height:1.5; color:var(--ink-2); max-width:42rem; }
+  .lens-head { font-family:var(--mono); font-size:12px; letter-spacing:0.16em; text-transform:uppercase; color:var(--red); margin:clamp(40px,6vw,72px) 0 6px; }
+  .lens-sub { font-style:italic; color:var(--ink-2); margin:0 0 24px; font-size:19px; }
+  /* figure card */
+  .fig { margin:22px 0; background:var(--card); border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 1px 2px rgba(44,38,34,.05), 0 14px 40px rgba(44,38,34,.07); }
+  .fig-head { padding:16px 22px 12px; border-bottom:1px solid var(--line-soft); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .fig-q { font-family:var(--display); font-weight:700; font-size:17px; color:var(--ink); }
+  .fig-tag { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#fff; background:var(--ink); padding:3px 8px; border-radius:5px; margin-left:auto; }
+  .fig-tag.b { background:var(--red); } .fig-tag.a { background:rgb(var(--blue)); }
+  .fig-body { padding:20px 22px; }
+  .read { padding:0 22px 18px; font-size:15px; line-height:1.5; color:var(--ink-2); }
+  .read b { color:var(--ink); font-weight:600; }
+  /* bar rows */
+  .bars { display:flex; flex-direction:column; gap:11px; }
+  .bar-row { display:grid; grid-template-columns:130px 1fr 86px; align-items:center; gap:14px; }
+  .bar-row .lbl { font-size:15px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .bar-row .lbl small { color:var(--ink-3); }
+  .track { height:18px; background:var(--paper-2); border-radius:6px; overflow:hidden; }
+  .fill { height:100%; border-radius:6px; background:var(--ink); }
+  .fill.red { background:var(--red); } .fill.gold { background:rgb(var(--gold)); } .fill.blue { background:rgb(var(--blue)); } .fill.faint { background:var(--ink-faint); }
+  .bar-row .val { font-family:var(--mono); font-size:13px; color:var(--ink); text-align:right; }
+  .bar-row .val small { color:var(--ink-3); }
+  .chip { font-family:var(--mono); font-size:10px; letter-spacing:0.04em; text-transform:uppercase; padding:2px 7px; border-radius:999px; white-space:nowrap; }
+  .chip.popty { background:rgba(58,158,96,.14); color:rgb(var(--green)); } .chip.growth { background:rgba(219,30,23,.1); color:var(--red); } .chip.you { background:rgba(96,165,250,.16); color:#2563eb; }
+  /* funnel */
+  .funnel { display:flex; flex-direction:column; gap:8px; }
+  .stage { display:grid; grid-template-columns:120px 1fr 110px; align-items:center; gap:14px; }
+  .stage .lbl { font-size:14px; color:var(--ink-2); }
+  .stage .ftrack { height:30px; background:var(--paper-2); border-radius:7px; position:relative; }
+  .stage .ffill { height:100%; background:linear-gradient(90deg, rgba(var(--blue),.85), rgba(var(--blue),.5)); border-radius:7px; }
+  .stage.leak .ffill { background:linear-gradient(90deg, var(--red), #e9696b); }
+  .stage .v { font-family:var(--mono); font-size:13px; color:var(--ink); }
+  .stage .v .drop { color:var(--red); }
+  /* standing */
+  .standing { display:flex; flex-direction:column; gap:9px; }
+  .srow { display:grid; grid-template-columns:26px 56px 1fr 70px; align-items:center; gap:12px; padding:5px 8px; border-radius:8px; }
+  .srow.you { background:rgba(96,165,250,.1); outline:1px solid rgba(96,165,250,.4); }
+  .srow .rank { font-family:var(--mono); font-size:13px; color:var(--ink-3); }
+  .srow .who { font-family:var(--mono); font-size:13px; color:var(--ink); letter-spacing:0.05em; }
+  .srow.you .who { color:#2563eb; font-weight:600; }
+  .srow .strack { height:13px; background:var(--paper-2); border-radius:5px; overflow:hidden; }
+  .srow .sfill { height:100%; background:rgb(var(--gold)); border-radius:5px; }
+  .srow.you .sfill { background:rgb(var(--blue)); }
+  .srow .sv { font-family:var(--mono); font-size:12px; color:var(--ink-2); text-align:right; }
+  .avg-line { display:flex; align-items:center; gap:10px; margin-top:6px; padding-top:12px; border-top:1px dashed var(--line); font-size:14px; color:var(--ink-2); }
+  .pct { font-family:var(--display); font-weight:700; color:rgb(var(--green)); font-size:17px; }
+  /* health stat grid */
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+  .stat-tile { background:var(--paper-2); border:1px solid var(--line-soft); border-radius:12px; padding:16px 18px; }
+  .stat-tile .v { font-family:var(--display); font-weight:700; font-size:30px; line-height:1; color:var(--ink); }
+  .stat-tile .v.warn { color:var(--red); } .stat-tile .v.ok { color:rgb(var(--green)); }
+  .stat-tile .l { font-family:var(--mono); font-size:10.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); margin-top:8px; }
+  .stat-tile .d { font-size:13px; color:var(--ink-2); margin-top:6px; }
+  /* discover card */
+  .disc { display:flex; flex-direction:column; gap:6px; }
+  .disc .moved { font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--red); }
+  .disc .story { font-family:var(--display); font-weight:700; font-size:21px; line-height:1.25; color:var(--ink); margin:2px 0 4px; }
+  .disc .why { font-size:15.5px; color:var(--ink-2); margin:0 0 14px; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; }
+  .act { display:flex; align-items:center; gap:9px; border:1px solid var(--line); background:var(--card); border-radius:10px; padding:9px 13px; font-size:14px; color:var(--ink); }
+  .act .tier { font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; padding:2px 7px; border-radius:999px; }
+  .act .tier.try { background:rgba(58,158,96,.16); color:rgb(var(--green)); }
+  .act .tier.invest { background:rgba(197,152,64,.18); color:#9a7320; }
+  .act .tier.together { background:rgba(96,165,250,.16); color:#2563eb; }
+  .act .own { font-family:var(--mono); font-size:10px; color:var(--ink-3); }
+  .why-btn { font-family:var(--mono); font-size:11px; color:var(--ink-3); border:1px solid var(--line); background:transparent; border-radius:999px; padding:2px 9px; cursor:default; }
+  footer { padding:50px 0 80px; color:var(--ink-3); font-size:13px; font-family:var(--mono); letter-spacing:0.03em; }
+  .reveal { opacity:0; transform:translateY(14px); transition:opacity .6s cubic-bezier(.2,.7,.2,1), transform .6s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ .reveal{opacity:1;transform:none;transition:none} html{scroll-behavior:auto} }
+  @media (max-width:560px){ .bar-row{grid-template-columns:104px 1fr 64px} .stage{grid-template-columns:90px 1fr 92px} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/admin/methodology" class="backlink"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back</a>
+  <span class="brand"><span class="mark">S</span> SaySomethin<b>in</b> · Admin</span>
+</div>
+
+<main>
+  <header class="hero wrap">
+    <span class="eyebrow">Insight engine · worked examples</span>
+    <h1>The sort of thing<br>you'd <em>actually look at</em>.</h1>
+    <p class="lede">Six widgets the engine would produce, rendered with realistic SSi data — the company-facing patterns (Lens&nbsp;B) and the entity-standing celebration (Lens&nbsp;A). Each is a mock-up of a Claude-emitted spec: a question, a configured widget, a one-line read, and — where it matters — what you could <em>do</em> about it.</p>
+  </header>
+
+  <div class="wrap">
+
+    <div class="lens-head">Lens B — what should we do?</div>
+    <p class="lens-sub">Population &amp; content patterns, for content · reach · value.</p>
+
+    <!-- 1. Course scoreboard -->
+    <div class="fig reveal">
+      <div class="fig-head"><span class="fig-q">Which courses are doing well?</span><span class="fig-tag b">ranked bar · value</span></div>
+      <div class="fig-body"><div class="bars">
+        <div class="bar-row"><span class="lbl">Spanish</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="val">9,140 <small>hrs</small></span></div>
+        <div class="bar-row"><span class="lbl">Welsh <small>· mission</small></span><div class="track"><div class="fill gold" style="width:71%"></div></div><span class="val">6,480</span></div>
+        <div class="bar-row"><span class="lbl">Italian</span><div class="track"><div class="fill" style="width:44%"></div></div><span class="val">4,020</span></div>
+        <div class="bar-row"><span class="lbl">Afrikaans</span><div class="track"><div class="fill" style="width:31%"></div></div><span class="val">2,830</span></div>
+        <div class="bar-row"><span class="lbl">Croatian <small>· test↑</small></span><div class="track"><div class="fill faint" style="width:26%"></div></div><span class="val"><small>~2,360</small></span></div>
+        <div class="bar-row"><span class="lbl">Dutch</span><div class="track"><div class="fill" style="width:18%"></div></div><span class="val">1,610</span></div>
+      </div></div>
+      <p class="read">Ranked by the value proxy — <b>reach × stickiness × retention</b> (lifetime in-app hours). Spanish leads on reach; Welsh punches above it on stickiness. <b>Croatian is greyed</b> because its figure is still inflated by schools test accounts — the engine flags the contaminated source rather than ranking it straight.</p>
+    </div>
+
+    <!-- 2. Content friction queue -->
+    <div class="fig reveal">
+      <div class="fig-head"><span class="fig-q">Where does a course hurt everyone?</span><span class="fig-tag b">ranked bar · quality</span></div>
+      <div class="fig-body"><div class="bars">
+        <div class="bar-row"><span class="lbl">cym · S0014L02 <small>“mae gen i”</small></span><div class="track"><div class="fill red" style="width:100%"></div></div><span class="chip popty">→ popty: re-split</span></div>
+        <div class="bar-row"><span class="lbl">spa · S0009L03 <small>pod step 3</small></span><div class="track"><div class="fill red" style="width:74%"></div></div><span class="chip popty">→ popty: pod flow</span></div>
+        <div class="bar-row"><span class="lbl">afr · S0021L01 <small>audio</small></span><div class="track"><div class="fill red" style="width:61%"></div></div><span class="chip popty">→ popty: clip fails iOS</span></div>
+        <div class="bar-row"><span class="lbl">cym · S0030L04</span><div class="track"><div class="fill red" style="width:38%"></div></div><span class="chip popty">→ popty: re-sequence</span></div>
+      </div></div>
+      <p class="read">Top units by <b>population-wide skip-back</b> — friction that stays <em>with the LEGO, not the learner</em>, so it's a content problem, and every row already carries its <b>Popty</b> action. The third is a broken clip on iOS — the cheapest, most unambiguous fix of all.</p>
+    </div>
+
+    <!-- 3. Trial funnel -->
+    <div class="fig reveal">
+      <div class="fig-head"><span class="fig-q">Where do trial users fall away?</span><span class="fig-tag b">funnel · convert</span></div>
+      <div class="fig-body"><div class="funnel">
+        <div class="stage"><span class="lbl">Trial started</span><div class="ftrack"><div class="ffill" style="width:100%"></div></div><span class="v">412</span></div>
+        <div class="stage"><span class="lbl">Day-1 session</span><div class="ftrack"><div class="ffill" style="width:78%"></div></div><span class="v">322 <span class="drop">−22%</span></span></div>
+        <div class="stage leak"><span class="lbl">Day-4 return</span><div class="ftrack"><div class="ffill" style="width:41%"></div></div><span class="v">169 <span class="drop">−47%</span></span></div>
+        <div class="stage"><span class="lbl">Day-7 active</span><div class="ftrack"><div class="ffill" style="width:33%"></div></div><span class="v">136</span></div>
+        <div class="stage"><span class="lbl">Converted</span><div class="ftrack"><div class="ffill" style="width:24%"></div></div><span class="v">99</span></div>
+      </div></div>
+      <p class="read">The <b>day-4 return</b> is the leak — the drop happens <em>before the second real session lands</em>. That's a single, testable lever (move the day-2 nudge to day-3), not a vague "improve onboarding". <b>premium = 7-day trial</b>, so this funnel is the whole premium conversion story.</p>
+    </div>
+
+    <!-- 4. Health strip -->
+    <div class="fig reveal">
+      <div class="fig-head"><span class="fig-q">Is the machine healthy — and is my fix live?</span><span class="fig-tag b">stats · ops</span></div>
+      <div class="fig-body"><div class="stat-grid">
+        <div class="stat-tile"><div class="v warn">3.1%</div><div class="l">audio-failed</div><div class="d">↑ from 2.4% — one clip on iOS Safari</div></div>
+        <div class="stat-tile"><div class="v ok">94%</div><div class="l">cache-hit</div><div class="d">healthy buffer; lock-safe</div></div>
+        <div class="stat-tile"><div class="v">28%</div><div class="l">on latest build</div><div class="d">72% still on a stale cached build</div></div>
+        <div class="stat-tile"><div class="v">2,140</div><div class="l">active · 30d</div><div class="d">+90 net this month</div></div>
+      </div></div>
+      <p class="read">The <b>build-sha gauge</b> is the "did the fix actually reach people" answer straight from the data — 72% are still on a stale cached build, so a change you shipped isn't live for most until their service worker swaps. (This is exactly the Aran-reset question, answerable now.)</p>
+    </div>
+
+    <!-- 5. Discover card -->
+    <div class="fig reveal">
+      <div class="fig-head"><span class="fig-q">What's worth a human's eye this week?</span><span class="fig-tag b">narrative · discover</span></div>
+      <div class="fig-body"><div class="disc">
+        <span class="moved">▲ moved this week · acceleration</span>
+        <p class="story">Welsh skip-back on S0014L02 jumped 40% — across 18 different learners.</p>
+        <p class="why">It's <em>content-relative</em> (it follows the LEGO, not any one person), so it's a quality signal, not adaptation — most likely the LEGO is too big and needs a split. <button class="why-btn">why? ↗</button></p>
+        <div class="actions">
+          <span class="act"><span class="tier try">try</span> Re-split into two <span class="own">· popty</span></span>
+          <span class="act"><span class="tier invest">investigate</span> Open the 18 learners <span class="own">· you</span></span>
+          <span class="act"><span class="tier together">together</span> Walk the pod step with me <span class="own">· you + claude</span></span>
+        </div>
+      </div></div>
+      <p class="read">The engine's signature output: a thing you <b>didn't know to ask</b>, named, interpreted, and terminated in a small menu of <b>graded options with owners</b> — try / investigate / together. A curated recommender, never a backlog.</p>
+    </div>
+
+    <div class="lens-head">Lens A — how is this entity doing?</div>
+    <p class="lens-sub">Relational &amp; sovereign — celebrate, never shame.</p>
+
+    <!-- 6. Standing -->
+    <div class="fig reveal">
+      <div class="fig-head"><span class="fig-q">Welsh learners — last 30 days</span><span class="fig-tag a">standing · self/group</span></div>
+      <div class="fig-body"><div class="standing">
+        <div class="srow"><span class="rank">1</span><span class="who">A·R</span><div class="strack"><div class="sfill" style="width:100%"></div></div><span class="sv">21h 40m</span></div>
+        <div class="srow"><span class="rank">2</span><span class="who">K·M</span><div class="strack"><div class="sfill" style="width:86%"></div></div><span class="sv">18h 35m</span></div>
+        <div class="srow"><span class="rank">3</span><span class="who">D·L</span><div class="strack"><div class="sfill" style="width:74%"></div></div><span class="sv">16h 02m</span></div>
+        <div class="srow"><span class="rank">4</span><span class="who">S·P</span><div class="strack"><div class="sfill" style="width:65%"></div></div><span class="sv">14h 10m</span></div>
+        <div class="srow"><span class="rank">5</span><span class="who">H·W</span><div class="strack"><div class="sfill" style="width:58%"></div></div><span class="sv">12h 35m</span></div>
+        <div class="srow you"><span class="rank">··</span><span class="who">you</span><div class="strack"><div class="sfill" style="width:44%"></div></div><span class="sv">9h 30m</span></div>
+      </div>
+      <div class="avg-line">Average Welsh learner this month: <b>3h 05m</b> &nbsp;·&nbsp; <span class="pct">You're in the top 20%</span></div></div>
+      <p class="read">The top 5 are <b>anonymised</b> (initials only) — it celebrates the handful really putting the time in without naming or shaming anyone. You see <em>your</em> standing and a percentile, not a ladder to climb. <b>Admin</b> — who has visibility, not just comparison — would see these named, to spot power users to nurture.</p>
+    </div>
+
+  </div>
+
+  <footer class="wrap">SSi · Insight engine — worked examples · mock-ups of Claude-emitted specs · 2026-06-02</footer>
+</main>
+
+<script>
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { threshold: 0.1 });
+  document.querySelectorAll(".reveal").forEach(function (n) { io.observe(n); });
+</script>
+</body>
+</html>

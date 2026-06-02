@@ -34,6 +34,14 @@ const papers: Paper[] = [
     status: 'Draft — for discussion',
   },
   {
+    title: 'Example insights',
+    blurb:
+      'Six widgets the engine would produce, rendered with realistic SSi data — the company-facing patterns (course value, the content-friction queue, the trial funnel, a health strip, a Discover card) and the entity-standing celebration (anonymised top-5 + your percentile). Each is a mock-up of a Claude-emitted spec: a question, a configured widget, a one-line read, and what you could do about it.',
+    href: '/docs/insight-examples.html',
+    tag: 'Interactive · gallery',
+    status: 'Mock-up — for discussion',
+  },
+  {
     title: 'The Listening Pod',
     blurb:
       'How Layer 2 acquisition works: a scene-based conversation that fades its own scaffolding sentence by sentence. The stage-through (breakdown → translation → 2× → eternal hold), the chunking-vs-explainer choice, and the lap that grows as you go. Three live figures; the open question for Aran is the granularity.',
