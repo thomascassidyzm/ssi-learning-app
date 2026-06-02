@@ -994,7 +994,11 @@ const pairingsTelemetry = usePairingsTelemetry()
 // commentary lifecycle. Persisted in player_events; surfaced in the
 // admin user-detail page so user reports like "skip didn't work" can
 // be diagnosed without DevTools.
-const playerLog = usePlayerLog({ courseCode, learnerId })
+// Stamp the RUNNING bundle's build sha on every event so telemetry can tell
+// which build a user is actually on (incl. a stale SW-cached one). Mirrors the
+// __BUILD_NUMBER__ pattern used in App.vue / SettingsScreen.vue.
+const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
+const playerLog = usePlayerLog({ courseCode, learnerId, clientVersion: BUILD_VERSION })
 const logEvent = playerLog.event
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
