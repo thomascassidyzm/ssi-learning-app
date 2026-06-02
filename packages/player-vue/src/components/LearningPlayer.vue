@@ -3150,6 +3150,17 @@ const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 type CommentaryDisplayType = 'welcome' | 'instruction' | 'encouragement'
 const currentCommentaryType = ref<CommentaryDisplayType | null>(null)
 
+// Dev cheat flag (?fc=1 / ?forceEncouragements=1): read once. Drives both the
+// service's forceFire (drop the ~10-min interval, set in useMetaCommentary) and
+// the relaxed placement gate in handleRoundBoundary (fire at any non-pod
+// boundary). Lets the interjection display be tested without a long wait.
+const forceInterjectionsCheat = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return p.has('fc') || p.has('forceEncouragements')
+  } catch { return false }
+})()
+
 // Strength / power / learning / hard-work line icons (inner SVG markup, drawn
 // with the app's standard stroke style). One is picked at random per
 // encouragement. Kept as path data so they inherit currentColor + stroke.
@@ -3615,6 +3626,16 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   const boundaryBetweenSpeakingRounds =
     !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
 
+  // Dev cheat (?fc / ?forceEncouragements): relax the placement rule so an
+  // interjection can fire at ANY boundary that isn't a pod lap — otherwise a
+  // pod-/listening-heavy stretch never offers a clean speaking→speaking
+  // boundary and the forced interjections never show. Still excludes pod
+  // boundaries (firing there would overlap/race the lap). Pairs with the
+  // service's forceFire (which drops the ~10-min interval).
+  const canFireInterjection = forceInterjectionsCheat
+    ? !podFiresThisBoundary
+    : boundaryBetweenSpeakingRounds
+
   // No random encouragements in INF PLAY — the locked model has none, and a
   // mid-stream ~1-min clip is poor pacing in a pure-review tail. Gating here
   // (rather than not accumulating time) keeps the main-loop timer logic
@@ -3624,7 +3645,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     const commentary = metaCommentary.onRoundComplete(
       completedRoundIndex + 1,
       cyclesInRound,
-      boundaryBetweenSpeakingRounds,
+      canFireInterjection,
     )
 
     if (commentary) {
