@@ -10008,10 +10008,17 @@ onMounted(async () => {
               try {
                 const savedProgress = await loadSavedProgress()
                 if (savedProgress?.lastCompletedRoundIndex !== null) {
-                  const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
+                  // Position, not completion: last_completed_round_index names the
+                  // round the playhead was ON, so resume lands there directly. The
+                  // old "+1" treated it as "last finished" and skipped a round —
+                  // the bug this rarely-fired backup path used to hide. Now matches
+                  // the main instant-playback resume. Cycle isn't restored here
+                  // (lands at the round's start), which is the same as a gap-rule
+                  // round-restart and correct for any real return.
+                  const resumeIndex = savedProgress.lastCompletedRoundIndex
                   if (resumeIndex < cachedScript.rounds.length) {
                     currentRoundIndex.value = resumeIndex
-                    currentItemInRound.value = 0 // Database only stores round, not item
+                    currentItemInRound.value = 0 // round start; per-cycle precision is the main path's job
 
                     // Also set currentPlayableItem so splash screen shows correct text
                     const resumeScriptItem = cachedScript.rounds[resumeIndex]?.items?.[0]
