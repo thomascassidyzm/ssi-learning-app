@@ -11848,7 +11848,7 @@ defineExpose({
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 24px;
+  --hero-offset: 40px; /* gap belt pill -> text box (was 24px; top third was cramped, plenty of empty space below to use) */
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -13666,7 +13666,7 @@ defineExpose({
   gap: var(--belt-row-gap);
   width: 100%;
   padding: 0 var(--space-sm);
-  margin: var(--space-md) auto 0;
+  margin: var(--space-xl) auto 0; /* gap text box -> phase pill (was --space-md/12px) */
 }
 .phase-strip {
   display: flex;
@@ -13676,7 +13676,7 @@ defineExpose({
   height: var(--pill-height);
   padding: 0;
   background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  border: 1.5px solid rgba(255, 255, 255, 0.35); /* match belt pill border (default theme) */
   border-radius: 20px;
   box-shadow:
     0 2px 4px rgba(44, 38, 34, 0.10),
@@ -14971,7 +14971,7 @@ button.phase-segment:active:not(.is-active) {
 @media (min-width: 768px) {
   .player {
     --header-height: 84px;
-    --hero-offset: 28px;
+    --hero-offset: 44px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
@@ -15439,6 +15439,11 @@ button.phase-segment:active:not(.is-active) {
 
 [data-theme="mist"] .player .belt-timer-label {
   color: #2C2622;
+}
+
+/* Phase pill border matches the belt pill per-theme: white on default, dark on mist */
+[data-theme="mist"] .player .phase-strip {
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
 }
 
 /* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */
