@@ -76,6 +76,12 @@ export class MetaCommentaryService {
   private cyclesSinceLastFire = 0
   private nextFireAtCycles = 0 // 0 → rolled lazily on first round
 
+  // Dev cheat (?forceEncouragements=1): fire on EVERY eligible (speaking)
+  // boundary, bypassing the ~10-min interval, so the interjection display can
+  // be tested without a long wait. Instructions still come first (in order),
+  // then encouragements. Off in normal play.
+  forceFire = false
+
   constructor(provider: CourseDataProvider, learnerId: string) {
     this.provider = provider
     this.courseId = provider.getCourseId()
@@ -161,7 +167,7 @@ export class MetaCommentaryService {
     this.cyclesSinceLastFire += Math.max(0, cyclesInRound)
 
     if (!canFire) return null
-    if (this.cyclesSinceLastFire < this.nextFireAtCycles) return null
+    if (!this.forceFire && this.cyclesSinceLastFire < this.nextFireAtCycles) return null
 
     const commentary = this.getNextCommentary()
     if (!commentary) return null
