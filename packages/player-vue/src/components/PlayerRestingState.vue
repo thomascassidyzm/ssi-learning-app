@@ -10,13 +10,9 @@ const props = defineProps({
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
   isPlayerReady: { type: Boolean, default: false },
-  // Welcome banner — only true on the first-ever course a learner opens
-  // when that course has welcome audio. Opt-in CTA; tapping Play below
-  // ignores it and starts cycle 1 directly.
-  showWelcomeBanner: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['start', 'change-course', 'play-welcome', 'dismiss-welcome'])
+const emit = defineEmits(['start', 'change-course'])
 
 const courseName = computed(() => {
   // Defensive fallback for the brief window before course resolves —
@@ -58,27 +54,6 @@ const handleChangeCourse = () => {
 <template>
   <!-- Full resting state (shown when paused) -->
   <div class="resting-state">
-    <!-- Welcome banner — first-ever course only. Opt-in: dismissing or
-         playing it both mark heard so the banner never returns. Sits
-         above the resting content so it reads as a one-time offer, not
-         part of the steady-state UI. -->
-    <div v-if="showWelcomeBanner" class="welcome-banner" @click.stop="emit('play-welcome')">
-      <div class="welcome-banner-icon">▶</div>
-      <div class="welcome-banner-text">
-        <div class="welcome-banner-title">{{ t('welcome.bannerTitle', 'Welcome — about your course') }}</div>
-        <div class="welcome-banner-subtitle">{{ t('welcome.bannerSubtitle', 'about 1 min · tap to play') }}</div>
-      </div>
-      <button
-        class="welcome-banner-dismiss"
-        :aria-label="t('welcome.dismiss', 'Dismiss welcome')"
-        @click.stop="emit('dismiss-welcome')"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-
     <div class="resting-content">
       <!-- Course identity -->
       <LanguageFlag :code="course?.target_lang || ''" :size="48" class="course-flag" />

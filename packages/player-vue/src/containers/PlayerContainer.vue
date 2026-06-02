@@ -160,20 +160,6 @@ const handleSkip = () => {
   }
 }
 
-// Welcome banner — visibility comes from LearningPlayer's computed,
-// surfaced via defineExpose. Reading through the ref keeps reactivity
-// because the exposed value is a ref/computed.
-const showWelcomeBanner = computed(() => {
-  return !!learningPlayerRef.value?.welcomeBannerVisible
-})
-
-const handlePlayWelcome = () => {
-  learningPlayerRef.value?.playCourseWelcome?.()
-}
-
-const handleDismissWelcome = () => {
-  learningPlayerRef.value?.dismissCourseWelcome?.()
-}
 
 // Handle play state changes from LearningPlayer
 const handlePlayStateChanged = (playing) => {
@@ -515,11 +501,8 @@ onMounted(() => {
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
       :is-player-ready="isPlayerReady"
-      :show-welcome-banner="showWelcomeBanner"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
-      @play-welcome="handlePlayWelcome"
-      @dismiss-welcome="handleDismissWelcome"
     />
 
     <!-- Library overlay (slide-up modal, same pattern as Settings) -->
