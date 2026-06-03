@@ -30,59 +30,11 @@ function emptyTimeframe(): ContributionTimeframe {
 }
 
 // --- Community all-time OFFSET --------------------------------------------
-// The raw historical all-time in daily_contributions is dominated by SCHOOLS
-// TEST entities (real activity, fake schools/teachers/students), so it isn't a
-// meaningful "community" figure. We discard it and start all-time from a
-// recent-tester-grounded number = 2 × last-30-days per target language as of
-// the snapshot, then grow it from post-snapshot rows. The live today/7d/30d
-// windows are treated as accurate and shown as-is. Testing-phase approximation
-// — regenerate with scripts/compute-community-offsets.cjs. See
-// docs/sessions-and-days-active.md.
-const OFFSET_SNAPSHOT_DATE = '2026-06-02'
-const COMMUNITY_OFFSETS: Record<string, { minutes: number; phrases: number }> = {
-  afr: { minutes: 4794, phrases: 426 },
-  ara: { minutes: 10, phrases: 0 },
-  bul: { minutes: 920, phrases: 2806 },
-  cat: { minutes: 16, phrases: 76 },
-  ces: { minutes: 32, phrases: 18 },
-  cym_s: { minutes: 106, phrases: 0 },
-  dan: { minutes: 66, phrases: 0 },
-  deu: { minutes: 790, phrases: 26 },
-  ell: { minutes: 2194, phrases: 1252 },
-  eng: { minutes: 4, phrases: 4 },
-  est: { minutes: 14, phrases: 0 },
-  eus: { minutes: 334, phrases: 16 },
-  fas: { minutes: 10, phrases: 0 },
-  fra: { minutes: 222, phrases: 232 },
-  gle: { minutes: 270, phrases: 102 },
-  heb: { minutes: 1026, phrases: 0 },
-  hin: { minutes: 104, phrases: 0 },
-  hrv: { minutes: 12790, phrases: 4326 },
-  hun: { minutes: 152, phrases: 292 },
-  hye: { minutes: 804, phrases: 278 },
-  isl: { minutes: 514, phrases: 1186 },
-  ita: { minutes: 1630, phrases: 414 },
-  jpn: { minutes: 258, phrases: 150 },
-  kor: { minutes: 4, phrases: 0 },
-  lav: { minutes: 488, phrases: 510 },
-  lit: { minutes: 1088, phrases: 636 },
-  nep: { minutes: 14, phrases: 12 },
-  nld: { minutes: 256, phrases: 434 },
-  nor: { minutes: 88, phrases: 36 },
-  pol: { minutes: 32, phrases: 0 },
-  por: { minutes: 616, phrases: 40 },
-  por_br: { minutes: 2, phrases: 0 },
-  ron: { minutes: 2338, phrases: 1270 },
-  rus: { minutes: 206, phrases: 156 },
-  spa: { minutes: 278, phrases: 146 },
-  srp: { minutes: 34, phrases: 0 },
-  swa: { minutes: 2752, phrases: 352 },
-  swe: { minutes: 2084, phrases: 796 },
-  tha: { minutes: 4, phrases: 0 },
-  tur: { minutes: 178, phrases: 14 },
-  ukr: { minutes: 1054, phrases: 1224 },
-  zho: { minutes: 644, phrases: 176 },
-}
+// All-time community = the real sum of every daily_contributions row, read live.
+// (Previously a frozen per-language OFFSET: raw all-time was once schools-test-
+// polluted AND the table wasn't anon-readable, so we showed an approximation.
+// The pollution is no longer dominant and the SELECT grant is in — so we read
+// the true number. See docs/sessions-and-days-active.md.)
 
 export function useContribution(client: Ref<SupabaseClient | null>) {
   const data = ref<ContributionData | null>(null)
@@ -182,17 +134,10 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
         }
       }
 
-      // All-time community = frozen per-language OFFSET (2× last-30d as of the
-      // snapshot — raw historical all-time is dominated by schools TEST entities)
-      // + everything accrued AFTER the snapshot. Recent windows stay live.
-      const allOffset = COMMUNITY_OFFSETS[targetLang] ?? { minutes: 0, phrases: 0 }
-      const globalAllTime = { minutes: allOffset.minutes, phrases: allOffset.phrases, speakers: 0 }
-      for (const r of allRows) {
-        if ((r.contribution_date as string) > OFFSET_SNAPSHOT_DATE) {
-          globalAllTime.minutes += r.minutes_practiced || 0
-          globalAllTime.phrases += r.phrases_count || 0
-        }
-      }
+      // All-time community = the true sum of every daily row (read live now that
+      // the table is anon-readable; no more frozen offset).
+      const allSum = sumRows(allRows)
+      const globalAllTime = { minutes: allSum.minutes, phrases: allSum.phrases, speakers: 0 }
 
       data.value = {
         global: {
