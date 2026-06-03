@@ -24,6 +24,7 @@ import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
+import { useLayer1Scheduler } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
@@ -2753,6 +2754,22 @@ const podScheduler = supabase?.value
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
     })
   : null
+
+// ============================================
+// LAYER-1 LISTENING SCHEDULER (drained-seed fluency maintenance)
+// Sibling of podScheduler but simpler: no stages, no ratchet. Fires every
+// ~50 main rounds (DEFAULT_LAYER1_CONFIG) once seeds have fully drained from
+// spaced rep; the lap is a pure function of (catalogue, round, learner) so
+// it's resume-safe with no persisted state. See useLayer1Scheduler.ts.
+// ============================================
+const l1Scheduler = supabase?.value
+  ? useLayer1Scheduler({
+      supabase: supabase as any,
+      courseCode: courseCode,
+      learnerId: learnerId,
+    })
+  : null
+
 const playingPodLapAudio = ref(false)
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
@@ -2786,6 +2803,7 @@ watch(
   () => [courseCode.value, learnerId.value],
   async () => {
     if (podScheduler) await podScheduler.initialize()
+    if (l1Scheduler) await l1Scheduler.initialize()
   },
   { immediate: true }
 )
@@ -3659,8 +3677,17 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   const podFiresThisBoundary = !!podScheduler
     && podScheduler.isInitialized.value
     && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  // Layer-1 fires only on a clean boundary with no pod (pod wins priority).
+  // Listening items must sit between main rounds, so an encouragement adjacent
+  // to an L1 lap is suppressed too — boundaryBetweenSpeakingRounds excludes it.
+  const l1FiresThisBoundary = !!l1Scheduler
+    && l1Scheduler.isInitialized.value
+    && currentMode.value !== 'infplay'
+    && !podFiresThisBoundary
+    && l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
   const boundaryBetweenSpeakingRounds =
-    !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
+    !isListeningRound(completedRound) && !isListeningRound(nextRound)
+    && !podFiresThisBoundary && !l1FiresThisBoundary
 
   // Dev cheat (?fc / ?forceEncouragements): relax the placement rule so an
   // interjection can fire at ANY boundary that isn't a pod lap — otherwise a
@@ -3669,7 +3696,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // boundaries (firing there would overlap/race the lap). Pairs with the
   // service's forceFire (which drops the ~10-min interval).
   const canFireInterjection = forceInterjectionsCheat
-    ? !podFiresThisBoundary
+    ? (!podFiresThisBoundary && !l1FiresThisBoundary)
     : boundaryBetweenSpeakingRounds
 
   // No random encouragements in INF PLAY — the locked model has none, and a
@@ -3789,6 +3816,75 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           simplePlayer.resume()
         }
       }
+    }
+  }
+
+  // ============================================
+  // LAYER-1 LISTENING (runtime — drained-seed fluency maintenance)
+  // Fires every ~50 main rounds once seeds have fully drained from spaced
+  // rep. Plays the bucket (each drained seed's target sentence) at normal
+  // speed, then the whole list again at 2×. No ratchet: the lap is a pure
+  // function of (catalogue, round, learner), so it's resume-safe with nothing
+  // to persist. l1FiresThisBoundary already gated it on a clean, pod-free
+  // boundary (pod wins priority); a due-but-empty bucket no-ops via nextLap.
+  // ============================================
+  if (l1Scheduler && l1FiresThisBoundary && !beltJustEarned.value) {
+    const completedMainRound = (completedRoundIndex || 0) + 1
+
+    // Warm the NEXT L1 lap's audio if the upcoming round ends in one and no
+    // pod pre-empts it (mirror of the pod look-ahead prefetch above).
+    if (l1Scheduler.shouldFireLapAt(completedMainRound + 1)
+        && !(podScheduler?.shouldFireLapAt(completedMainRound + 1))) {
+      l1Scheduler.prefetchLap(completedMainRound + 1, (id) => audioCache.persistent.ensure(id))
+    }
+
+    const l1Lap = l1Scheduler.nextLap(completedMainRound)
+    if (l1Lap) {
+      console.log(`[LearningPlayer] Playing L1 listening lap @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
+      simplePlayer.pause()
+
+      // Reuse the proven pod playback path — shape the L1 lap into a PodLap.
+      // L1 plays are seed target sentences (no glued chunks → glueToNextChunk
+      // false). omitIntro=false: an L1 lap is standalone (it never co-fires
+      // with a pod — l1FiresThisBoundary requires !podFiresThisBoundary).
+      const l1AsPodLap: PodLap = {
+        podRound: completedMainRound,
+        intro: l1Lap.intro,
+        outro: l1Lap.outro,
+        plays: l1Lap.plays.map((p): PodPlay => ({
+          sentenceIdx: p.seedNumber,
+          stage: 0,
+          playRole: p.playbackSpeed >= 2 ? 'ps2x' : 'ps',
+          audioId: p.audioId,
+          text: p.text,
+          playbackSpeed: p.playbackSpeed,
+          glueToNextChunk: false,
+        })),
+      }
+      await playPodLap(l1AsPodLap, false) // L1 has no ratchet — nothing to persist.
+
+      // Resume handling mirrors the pod block: keep the course rolling unless
+      // the session ended (offline loop / expand) or the learner stopped.
+      if (sessionEnded.value) {
+        if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+          sessionEnded.value = false
+          simplePlayer.resume()
+        } else {
+          const added = await expandScript()
+          if (added > 0) {
+            sessionEnded.value = false
+            simplePlayer.resume()
+          } else {
+            showPausedSummary()
+          }
+        }
+      } else if (userStoppedDuringLap.value) {
+        userStoppedDuringLap.value = false
+        pendingLapResume.value = l1AsPodLap
+      } else {
+        simplePlayer.resume()
+      }
+      podLapSkippedByUser.value = false
     }
   }
 
