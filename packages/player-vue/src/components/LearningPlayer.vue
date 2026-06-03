@@ -906,6 +906,13 @@ let courseFinalLegoCacheKey: string | null = null
 // loadAllData so it's ready by the time the learner can press
 // forward-skip.
 const courseFinalLegoRef = ref<{ legoId: string; roundIndex: number } | null>(null)
+// INF-PLAY main-loop boundary (the round index where the revival tail begins),
+// taken from the GENERATOR's own playable output — the single source of truth.
+// Set whenever we (re)generate the INF-PLAY script. Boundary checks prefer this
+// over the DB is_new count (`getCourseFinalLego`), which counts every defined
+// LEGO incl. unbuilt/no-audio ones and so diverges from what the generator
+// actually emits — the cause of the "produced no revival rounds" stall.
+const infplayMainLoopCount = ref<number | null>(null)
 const getCourseFinalLego = async (course: string): Promise<{ legoId: string; roundIndex: number } | null> => {
   if (courseFinalLegoRef.value && courseFinalLegoCacheKey === course) {
     return courseFinalLegoRef.value
@@ -6899,7 +6906,7 @@ const enterInfPlay = async () => {
       // main-loop rounds matching the same shape as an INF PLAY round.
       // The user would then click ∞ and land on S0001L02 instead of an
       // actual revival round. Tom 2026-05-21.
-      const mainLoopCount = (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+      const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
       const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
         ? mainLoopCount
         : -1
@@ -6959,11 +6966,13 @@ const enterInfPlay = async () => {
           const newRounds = toSimpleRoundsWithComponents(skipResult.items) as any[]
           cachedRounds.value = newRounds
           simplePlayer.appendRounds(newRounds)
-          // Same mainLoopCount-based boundary as above — see comment at
-          // first firstInfIdx for why we stopped trusting the cycle-type
-          // predicate.
-          const refoundIdx = mainLoopCount > 0 && newRounds.length > mainLoopCount
-            ? mainLoopCount
+          // Boundary from the script we JUST generated (its own playable
+          // main-loop count) — not the DB is_new count, which diverges for
+          // partially-built courses and was the cause of the stall.
+          const regenMainLoopCount = skipResult.mainLoopRoundCount
+          infplayMainLoopCount.value = regenMainLoopCount
+          const refoundIdx = regenMainLoopCount > 0 && newRounds.length > regenMainLoopCount
+            ? regenMainLoopCount
             : -1
           if (refoundIdx >= 0) {
             simplePlayer.jumpToRound(refoundIdx)
@@ -6999,7 +7008,7 @@ const enterInfPlay = async () => {
  * cached cycles via enterInfPlayFromCache rather than stalling.
  */
 const advanceInfPlayRound = async (fromIdx: number) => {
-  const mainLoopCount = (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+  const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
   const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
     ? mainLoopCount
     : -1
@@ -9283,13 +9292,17 @@ onMounted(async () => {
           try {
             const infResult = await generateScript()
             const fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
-            const finalLegoRoundIdx = courseFinalLegoRef.value?.roundIndex
-              ?? (await getCourseFinalLego(courseCode.value))?.roundIndex
-              ?? null
-            const mainLoopCount = finalLegoRoundIdx !== null ? finalLegoRoundIdx + 1 : -1
-            // First revival round index in the freshly-built script. The tail
-            // sits right after the main loop; infplay_round_index is 1-based
-            // within that tail.
+            // Where the revival tail begins = the generator's OWN main-loop
+            // boundary over its PLAYABLE output (the true current course size,
+            // sparse-LEGO-aware, unbuilt/no-audio seeds already excluded). This
+            // replaces deriving it from a DB count of is_new LEGOs, which
+            // diverges from what the generator actually emits (skips/insertions)
+            // and made the build wrongly conclude "no revival rounds". Single
+            // source of truth: the script that was just generated.
+            const mainLoopCount = infResult.mainLoopRoundCount
+            infplayMainLoopCount.value = mainLoopCount
+            // First revival round index. The tail sits right after the main loop;
+            // infplay_round_index is 1-based within that tail.
             const firstInfIdx = mainLoopCount > 0 && fullRounds.length > mainLoopCount
               ? mainLoopCount
               : -1

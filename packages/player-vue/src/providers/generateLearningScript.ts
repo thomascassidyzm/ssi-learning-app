@@ -189,6 +189,15 @@ export interface LearningScriptResult {
   items: ScriptItem[]
   cycleCount: number
   roundCount: number
+  /**
+   * Number of MAIN-LOOP rounds in the playable output (i.e. where the INF-PLAY
+   * revival tail begins, as a 0-based index into the rounds). Derived from the
+   * generator's OWN boundary (mainLoopLastRound) over the PLAYABLE items — so it
+   * is the true current course size (sparse LEGO ordinal, unbuilt/no-audio seeds
+   * already excluded). The single source of truth for "where INF PLAY starts";
+   * callers must NOT re-derive it from a DB count, which diverges.
+   */
+  mainLoopRoundCount: number
   hasRomanizedText: boolean
 }
 
@@ -1659,10 +1668,18 @@ export async function generateLearningScript(
 
   // Recount rounds from playable items
   const playableRoundCount = new Set(playableItems.map(i => i.roundNumber)).size
+  // Where the INF-PLAY revival tail begins = count of PLAYABLE main-loop rounds.
+  // mainLoopLastRound is the generator's own boundary (set right before the
+  // revival loop); counting distinct playable roundNumbers at-or-below it gives
+  // the true current course size, with unbuilt/no-audio rounds already filtered
+  // out. This is what the player must use to find the tail — never a DB count.
+  const mainLoopRoundCount = new Set(
+    playableItems.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
+  ).size
   const listeningItemCount = playableItems.filter(i => i.type === 'listening').length
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
     : ''
   console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteByAudio.size > 0 ? `, ${incompleteByAudio.size} no-audio rounds` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
-  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, hasRomanizedText: courseHasRomanized }
+  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
 }
