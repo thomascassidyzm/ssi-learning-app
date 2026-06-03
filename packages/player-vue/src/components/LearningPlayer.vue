@@ -24,7 +24,7 @@ import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
-import { useLayer1Scheduler } from '../composables/useLayer1Scheduler'
+import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
@@ -2762,11 +2762,31 @@ const podScheduler = supabase?.value
 // spaced rep; the lap is a pure function of (catalogue, round, learner) so
 // it's resume-safe with no persisted state. See useLayer1Scheduler.ts.
 // ============================================
+// Dev cheat (?l1test): make Layer-1 listening fire early + often so it can be
+// verified without playing ~100 rounds. Default config (activation@100, every
+// 50 rounds, 90-round graduation offset) is correct for real learners but
+// untestable by hand. ?l1test → first lap at round 2, every 3 rounds, offset 0
+// (every already-debuted seed is immediately eligible, so the bucket is full
+// from the start). Optional ?l1every=N overrides the interval. Mirrors ?fc.
+const l1TestConfig = ((): Partial<Layer1Config> | undefined => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    if (!p.has('l1test')) return undefined
+    const every = parseInt(p.get('l1every') || '', 10)
+    return {
+      activationRound: 2,
+      interval: Number.isFinite(every) && every > 0 ? every : 3,
+      offset: 0,
+    }
+  } catch { return undefined }
+})()
+
 const l1Scheduler = supabase?.value
   ? useLayer1Scheduler({
       supabase: supabase as any,
       courseCode: courseCode,
       learnerId: learnerId,
+      config: l1TestConfig,
     })
   : null
 
