@@ -1505,10 +1505,8 @@ simplePlayer.onRoundCompleted((round) => {
   // already started the next round's prompt audio, causing the pod intro
   // to overlap with main-player audio. Pausing here, in the same tick as
   // the round-completed event, beats that race.
-  const willFirePod = !!podScheduler
-    && podScheduler.isInitialized.value
-    && !beltJustEarned.value
-    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  const willFirePod = !beltJustEarned.value
+    && podCadenceFiresAtRound(completedRoundIndex)
   if (willFirePod) {
     simplePlayer.pause()
   }
@@ -3626,6 +3624,30 @@ const deriveBeltFromLandedRound = () => {
   beltProgress.value.setPlayingPosition(seed)
 }
 
+// Pod-lap cadence, INF-PLAY-aware (B4, Tom 2026-06-03: listening fires every 5
+// ROUNDS, not cycles). `completedRoundIndex` is the 0-based flat queue index of
+// the round that just finished.
+//   • Main loop → defer to the scheduler's own activation+interval math, keyed
+//     on the absolute round number (unchanged behaviour).
+//   • INF PLAY → count the REVIVAL-TAIL ordinal (position past the main loop)
+//     and fire every `roundInterval` (normal config = 5) INF PLAY rounds. We use
+//     the position ordinal, NOT the bumped infplayRoundIndex, because the
+//     pre-pause check (onRoundCompleted) runs BEFORE saveRoundProgress bumps the
+//     counter and the fire check (here) runs AFTER — the position ordinal is the
+//     one value both see identically, so pause and fire never desync.
+const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
+  if (!podScheduler || !podScheduler.isInitialized.value) return false
+  if (currentMode.value === 'infplay') {
+    const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+    if (mainLoopCount < 0) return false
+    const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
+    if (infOrdinal <= 0) return false
+    const interval = Math.max(1, Math.floor(podsConfig.value.roundInterval ?? 5))
+    return infOrdinal % interval === 0
+  }
+  return podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+}
+
 // Handle round boundary - called when a round completes
 const handleRoundBoundary = async (completedRoundIndex, completedLegoId, completedRound = null) => {
   roundsThisSession.value++
@@ -3663,9 +3685,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro' || c.type === 'pod'
     )
   const nextRound = loadedRounds.value[completedRoundIndex + 1] as { cycles?: Array<{ type?: string }> } | undefined
-  const podFiresThisBoundary = !!podScheduler
-    && podScheduler.isInitialized.value
-    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
   const boundaryBetweenSpeakingRounds =
     !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
 
@@ -3718,8 +3738,6 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // the ratchet when the lap plays to completion.
   // ============================================
   if (podScheduler && podScheduler.isInitialized.value && !beltJustEarned.value) {
-    const completedMainRound = (completedRoundIndex || 0) + 1
-
     // Look one round ahead: if the round about to start will end with a
     // pod, warm its audio now. The round gives ~5 min of runway —
     // comfortable for any working network.
@@ -3730,11 +3748,14 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     // round-trip per play — matters for the stage-driven gapless
     // playback that pod laps depend on (per the asset + program
     // architecture model).
-    if (podScheduler.shouldFireLapAt(completedMainRound + 1)) {
+    //
+    // Cadence via podCadenceFiresAtRound so INF PLAY counts revival-tail rounds
+    // (every 5), not the absolute flat queue index (B4).
+    if (podCadenceFiresAtRound(completedRoundIndex + 1)) {
       podScheduler.prefetchLap((id) => audioCache.persistent.ensure(id))
     }
 
-    if (podScheduler.shouldFireLapAt(completedMainRound)) {
+    if (podCadenceFiresAtRound(completedRoundIndex)) {
       const lap = podScheduler.nextLap()
       if (lap) {
         console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
@@ -7245,33 +7266,41 @@ const handleRoundBack = async () => {
     haltAllPlayback()
 
     if (isInfplay) {
-      // Exiting INF PLAY: flip mode → main so future resume-bootstrap doesn't
-      // bounce back into INF PLAY and persistCursorAtCurrentRound (a no-op in
-      // infplay) writes the real landed position. infplayRoundIndex is a
-      // lifetime counter — leave it.
-      currentMode.value = 'main'
-      if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-        try {
-          await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
-        } catch (modeErr) {
-          console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
-        }
+      // Step BACK one INF PLAY round (Tom 2026-06-03). The bottom-nav back arrow
+      // is the ROUND axis, so in INF PLAY it walks the revival tail backwards —
+      // it does NOT exit the mode. Exiting INF PLAY is owned by the header ‹‹
+      // chevron (handleSkipToPrevBelt) and the belt modal. This is the mirror
+      // image of advanceInfPlayRound: queue index −1, clamp at the first revival
+      // round, decrement the central-pill ∞ readout, belt pinned to the
+      // course-final belt, stay in 'infplay'. The counter bump is local-only,
+      // symmetric with the forward button (the DB infplay_round_index only
+      // ratchets on natural round completion via saveRoundProgress).
+      const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+      const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
+        ? mainLoopCount
+        : -1
+      const fromIdx = simplePlayer.roundIndex.value
+      // No revival set loaded, or already at the first revival round → nothing
+      // earlier to step to; stay put (use the header ‹‹ chevron / belt modal to
+      // leave INF PLAY). Mirrors main-loop back staying put at the first LEGO.
+      if (firstInfIdx < 0 || fromIdx <= firstInfIdx) {
+        console.log('[LearningPlayer] Round back in INF PLAY: at the first revival round — staying put')
+        return
       }
-      // The main-loop rounds aren't loaded (queue is the recycled INF-PLAY
-      // set). Force a full main-loop load before resolving the previous LEGO —
-      // never trust the "already loaded" short-circuit on an INF-PLAY exit.
-      await loadSeedIfNeeded(1, /* forceReload */ true)
-      // Land on the LAST main-loop LEGO the learner reached (the course's
-      // final LEGO, since INF PLAY ratchets there) and replay its debut.
-      const anchorLegoId = lastMainLoopLegoId.value || highestCompletedLegoId.value
-      let targetIdx = anchorLegoId ? simplePlayer.findRoundIndexForLegoId(anchorLegoId) : -1
-      if (targetIdx < 0) targetIdx = Math.max(0, cachedRounds.value.length - 1)
-      await prepareAndJump(targetIdx, 'Previous LEGO…', () => {
-        // slot 0 → intro/debut/build replay. Belt DERIVES from the landed
-        // round, which is now a real main-loop round.
-        simplePlayer.jumpToRound(targetIdx, 0)
-        deriveBeltFromLandedRound()
+      const targetIdx = fromIdx - 1
+      const courseEndSeed = (() => {
+        const fin = courseFinalLegoRef.value?.legoId
+        if (fin) { const s = getSeedFromLegoId(fin); if (s !== null) return s }
+        return 668
+      })()
+      await prepareAndJump(targetIdx, 'Previous review round…', () => {
+        simplePlayer.jumpToRound(targetIdx)
+        // Pin belt to the final belt — a revival round's random-USE legoId would
+        // otherwise bounce the indicator (mirrors advanceInfPlayRound).
+        if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
       })
+      // Step the central-pill ∞ readout back (floor at 1).
+      infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value - 1)
       await persistCursorAtCurrentRound()
       return
     }
@@ -7399,6 +7428,13 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
 // PREVIOUS belt (mirrors the LEGO back's restart-current-first rule). Both wrap
 // handleSkipToBelt, so INF-PLAY exit + cursor persistence come free.
 const handleSkipToNextBelt = async () => {
+  // Already in INF PLAY → there is nothing past the revival tail to skip
+  // forward to, so the belt-forward chevron is a NO-OP (B3). Without this guard
+  // wouldEnterInfplay is true in INF PLAY, so this re-ran the full enterInfPlay
+  // entry (ratchet + jump-to-first-revival + warm-up overlay) = the whole-screen
+  // flash. Stepping THROUGH revival rounds is the bottom-nav forward arrow
+  // (handleRoundForward → advanceInfPlayRound), not the belt axis.
+  if (currentMode.value === 'infplay') return
   if (wouldEnterInfplay.value) { await enterInfPlay(); return }
   if (playingNextBelt.value) await handleSkipToBelt(playingNextBelt.value)
 }
@@ -7657,14 +7693,18 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
   ].filter(Boolean) as string[]
   if (urls.length === 0) return
 
-  const results = await Promise.allSettled(urls.map(url =>
-    fetch(url).then(r => r.ok ? r.arrayBuffer().then(() => url) : null).catch(() => null)
+  // Fetch to warm the SW CacheFirst layer so the first cycle plays instantly.
+  // We deliberately do NOT record these URLs in `warmedUpAudioUrls`: doing so
+  // made the set non-empty, which ACTIVATED the shouldSkipCycle INF-PLAY cull
+  // gate and skipped every cycle except this warmed first one — the cause of
+  // "phase/cycle-back works on the first cycle only" (B2). With the set left
+  // empty the gate self-disables (its own `size > 0` guard) and INF PLAY
+  // cycles play via the same JIT/SW path as the main loop — exactly what the
+  // warmUpInfPlayRoundsBackground docblock already assumes. Offline still
+  // culls via its own persistent-cache branch in shouldSkipCycle.
+  await Promise.allSettled(urls.map(url =>
+    fetch(url).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)
   ))
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) {
-      warmedUpAudioUrls.value.add(r.value)
-    }
-  }
 }
 
 /**
@@ -11471,13 +11511,14 @@ defineExpose({
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleSkipToNextBelt"
+            :disabled="currentMode === 'infplay'"
             :title="currentMode === 'infplay'
-              ? `In INF PLAY (round ${infplayRoundIndex}) — next review round`
+              ? 'INF PLAY is the end of the course — there is no next belt'
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY — random review of everything you have learned'
                   : 'Next belt')"
             :aria-label="currentMode === 'infplay'
-              ? `Infinite play, round ${infplayRoundIndex}. Next review round.`
+              ? 'Infinite play is the end of the course. There is no next belt.'
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY: random review of everything you have learned'
                   : 'Next belt')"

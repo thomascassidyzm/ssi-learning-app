@@ -1423,7 +1423,11 @@ export async function generateLearningScript(
   // where the learner is — the script is one-shot whole-course; the
   // player consumes from wherever its cursor lands.
 
-  const TARGET_ROUND_CYCLES = 20
+  // Canonical INF PLAY round (Tom's spec): 10 random USE + the full spaced
+  // review (N-1×3, then N-2,N-3,N-5…N-89, capped at MAX_SPACED_REP_PHRASES=12)
+  // = ~22 cycles. randomUseCount tops the random bucket back up to hold 22 as
+  // spaced offsets drain (e.g. N-1 dropping off → +3 random), floored at 10.
+  const TARGET_ROUND_CYCLES = 22
   const MIN_RANDOM_USE = 10
   const mainLoopLastRound = roundNumber
   const revivalCap = mainLoopLastRound + infinitePlayLookahead
