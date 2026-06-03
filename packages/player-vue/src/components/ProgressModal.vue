@@ -129,16 +129,8 @@ const MISSION_LANGUAGES = new Set([
 ])
 const isMissionLanguage = computed(() => MISSION_LANGUAGES.has(props.data.targetLanguage))
 
-// Personal slice line — shown ONLY when you have minutes in the selected
-// window. The community total + window already sit in the label above, so
-// this is purely "your share of it": no restating, and no "spoke" (the
-// figure is in-app minutes, not speaking time).
-const contextMessage = computed(() => {
-  const userMins = userMinutes.value
-  if (userMins <= 0) return ''
-  return t('contribution.youContributed', 'You contributed {mins} of them.')
-    .replace('{mins}', String(userMins))
-})
+// (Your slice is now shown inline as the YOUR / community pair in the headline
+// total — see the .global-total block — so the old prose line is retired.)
 
 // --- Belt strip -----------------------------------------------
 
@@ -263,18 +255,25 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <!-- Community total for the selected window — SSi-wide, "what's
-               alive in the community right now". Shown for every language. -->
+          <!-- Community total for the selected window. When you've contributed,
+               show it as a pair — YOUR minutes (belt-accented) / the community —
+               so your own figure is instantly findable, not buried in prose.
+               Guests / zero-minute windows fall back to the community number. -->
           <div class="global-total">
-            <span class="total-number">{{ formatNumber(globalMinutes) }}</span>
+            <span class="total-number">
+              <template v-if="userMinutes > 0"><span class="you-share">{{ formatNumber(userMinutes) }}</span><span class="slash"> / </span>{{ formatNumber(globalMinutes) }}</template>
+              <template v-else>{{ formatNumber(globalMinutes) }}</template>
+            </span>
             <span class="total-label">
-              {{ t('contribution.minutesOfLang', 'minutes of {language}').replace('{language}', data.languageName) }}
-              {{ windowLabel }} · {{ t('contribution.theCommunity', 'the SSi community') }}
+              <template v-if="userMinutes > 0">
+                {{ t('contribution.youSlashCommunity', 'you / the SSi community') }} · {{ windowLabel }}
+              </template>
+              <template v-else>
+                {{ t('contribution.minutesOfLang', 'minutes of {language}').replace('{language}', data.languageName) }}
+                {{ windowLabel }} · {{ t('contribution.theCommunity', 'the SSi community') }}
+              </template>
             </span>
           </div>
-
-          <!-- Your slice of the community total — only when you have minutes -->
-          <p v-if="contextMessage" class="context-message">{{ contextMessage }}</p>
 
           <!-- Mission revival line — SIGNED-IN learners on a mission language.
                Guests don't count toward the totals, so they get the sign-in
@@ -582,6 +581,15 @@ onUnmounted(() => {
   font-weight: 700;
   color: #2C2622;
   line-height: 1.05;
+}
+
+/* Your share — belt-accented so your own figure is the thing the eye lands on. */
+.you-share {
+  color: var(--belt-color);
+}
+.slash {
+  color: #C9C3BC;
+  font-weight: 400;
 }
 
 .total-label {
