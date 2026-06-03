@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-02
+# Last Updated: 2026-06-03
 
 spec audio_caching_architecture:
   version: "1.0.0"
@@ -139,12 +139,25 @@ spec audio_caching_architecture:
         material you carry, not how long you can listen.
 
     flow:
-      - "Tapping 'Offline mode' opens the 'Take it offline' picker (showOfflinePicker)"
+      - "Tapping 'Offline mode' closes the mode tray (handleOffline) and opens the 'Take it offline' picker (showOfflinePicker)"
       - "Picker lists depth options, each with a live size estimate"
       - "Choosing a depth → startOfflineDownload(fraction) → sets offlineActive, downloads"
       - "Turning offline off revokes blob URLs and resets state"
 
+    single_popup_rule:
+      requirement: "The input dialog must ALWAYS be accessible — one popup at a time."
+      why: >
+        The mode tray lives inside the bottom-nav's z-index:3000 stacking context;
+        the picker teleports to <body>. Two things keep the dialog reachable:
+      how:
+        - "ModeTray.handleOffline closes the tray on the offline tap, so the picker is the only popup"
+        - "offline-picker-backdrop z-index 3100 — above the nav/belt-skip/paywall layer (3000), below system prompts (PWA update/install)"
+        - "Dialog capped at max-height calc(100dvh - 48px): header + note pinned, options scroll → every control reachable on short/landscape screens"
+        - "Dismiss via ✕, backdrop tap, or Escape (matches the app's other modals)"
+
     depth_options:
+      - label: "Next 10%"
+        fraction: 0.10   # smallest, lowest-commitment entry point
       - label: "Next 25%"
         fraction: 0.25
       - label: "Next 50%"
@@ -152,9 +165,10 @@ spec audio_caching_architecture:
       - label: "Rest of course"
         fraction: 1   # Infinity rounds = to the course tail
       note: >
-        Relative to current position, capped at the course end. Partial options
-        that would equal 'the rest' are hidden (near the end only 'Rest of
-        course' shows).
+        Relative to current position, capped at the course end. Each partial
+        option shows only when that much course actually remains (10%>0.12,
+        25%>0.27, 50%>0.52 of the course), so a partial is never ~equal to 'the
+        rest' (near the end only 'Rest of course' shows).
 
     size_estimate:
       shown_per_option: "~MB and % of device storage"

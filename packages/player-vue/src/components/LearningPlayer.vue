@@ -8500,9 +8500,9 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
 const showOfflinePicker = ref(false)
 interface OfflineDepthOption {
   key: string
-  label: string        // "Next 25%", "Rest of course"
+  label: string        // "Next 10%", "Rest of course"
   detail: string       // "~120 MB · 8% of device"
-  fraction: number     // 0.25 / 0.5 / 1 — fed to roundsForCourseFraction
+  fraction: number     // 0.10 / 0.25 / 0.5 / 1 — fed to roundsForCourseFraction
 }
 const offlineDepthOptions = ref<OfflineDepthOption[]>([])
 const offlineEstimating = ref(false)
@@ -8554,6 +8554,11 @@ const refreshOfflineEstimates = async (): Promise<void> => {
 
     const opts: OfflineDepthOption[] = []
     // Partial presets only when they're meaningfully less than "the rest".
+    // "Next 10%" is the smallest, lowest-commitment carry — the entry point for
+    // someone who just wants a little ahead without a big download (Tom: 25% was
+    // too big a first step). Each preset is shown only when that much course
+    // actually remains, with a small margin so it isn't ~the same as "the rest".
+    if (total > 0 && remainingFraction > 0.12) opts.push({ key: 'p10', label: 'Next 10%', detail: estimate(0.10), fraction: 0.10 })
     if (total > 0 && remainingFraction > 0.27) opts.push({ key: 'p25', label: 'Next 25%', detail: estimate(0.25), fraction: 0.25 })
     if (total > 0 && remainingFraction > 0.52) opts.push({ key: 'p50', label: 'Next 50%', detail: estimate(0.5), fraction: 0.5 })
     opts.push({
@@ -8576,6 +8581,19 @@ const startOfflineDownload = (fraction: number) => {
 }
 
 const cancelOfflinePicker = () => { showOfflinePicker.value = false }
+
+// Escape-to-close, matching every other modal in the app (ProgressModal,
+// AuthModal, …). The listener is attached only while the picker is open so it
+// never competes with the player's own keys. Keeps the input dialog dismissable
+// from the keyboard (desktop/testing), not only by the ✕ / backdrop tap.
+const onOfflinePickerKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && showOfflinePicker.value) cancelOfflinePicker()
+}
+watch(showOfflinePicker, (open) => {
+  if (open) document.addEventListener('keydown', onOfflinePickerKeydown)
+  else document.removeEventListener('keydown', onOfflinePickerKeydown)
+})
+onUnmounted(() => document.removeEventListener('keydown', onOfflinePickerKeydown))
 
 const toggleOffline = () => {
   if (offlineActive.value) {
@@ -11857,7 +11875,12 @@ defineExpose({
 .offline-picker-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 320;
+  /* Above the bottom-nav / belt-skip / paywall layer (all z-index:3000) so the
+     input dialog is ALWAYS reachable — even if some nav-layer surface is open,
+     it can never paint over the picker. Stays below the deliberately top-most
+     system prompts (PWA update, install banner). The mode tray also closes
+     itself on the offline tap, so in practice the picker is the only popup. */
+  z-index: 3100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11874,11 +11897,19 @@ defineExpose({
   border-radius: 18px;
   padding: 18px 18px 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  /* Never taller than the viewport. The header (title + ✕) and the note stay
+     pinned; only the options list scrolls — so on a short/landscape screen every
+     control, including the close button, stays reachable. Requirement: the input
+     dialog must ALWAYS be accessible. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
 }
 .offline-picker-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 .offline-picker-title {
   margin: 0;
@@ -11900,6 +11931,7 @@ defineExpose({
   margin: 4px 0 14px;
   font-size: 13px;
   color: #6b6560;
+  flex-shrink: 0;
 }
 .offline-picker-loading {
   padding: 18px 4px;
@@ -11911,6 +11943,10 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* The scrollable region when the dialog is height-constrained (min-height:0
+     lets it shrink inside the flex column instead of overflowing the viewport). */
+  overflow-y: auto;
+  min-height: 0;
 }
 .offline-picker-option {
   display: flex;
@@ -11948,6 +11984,7 @@ defineExpose({
   font-size: 11.5px;
   line-height: 1.4;
   color: #9a948e;
+  flex-shrink: 0;
 }
 .offline-picker-enter-active,
 .offline-picker-leave-active { transition: opacity 0.2s ease; }

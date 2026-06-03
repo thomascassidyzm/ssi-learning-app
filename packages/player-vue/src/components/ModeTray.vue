@@ -69,6 +69,16 @@ const handleMode = (mode: string) => {
   const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
   emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
 }
+
+// Offline is special: tapping it hands off to the full-screen depth picker
+// ("how much of the course to carry"). Close the tray first so the picker is
+// never left stacked behind it — the tray lives inside the bottom-nav's
+// z-index:3000 layer, so a still-open tray would paint over the body-teleported
+// picker. One popup at a time; the dialog requesting input stays accessible.
+const handleOffline = () => {
+  emit('toggleOffline')
+  closeTray()
+}
 </script>
 
 <template>
@@ -153,7 +163,7 @@ const handleMode = (mode: string) => {
         <button
           class="tray-item"
           :class="{ active: isOfflineMode }"
-          @click="handleMode('offline')"
+          @click="handleOffline"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
