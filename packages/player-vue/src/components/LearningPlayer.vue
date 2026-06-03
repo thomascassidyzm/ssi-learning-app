@@ -989,6 +989,31 @@ const simplePlayer = useSimplePlayer()
 // learnerId + courseCode per call at the recordCyclePlay site below.
 const pairingsTelemetry = usePairingsTelemetry()
 
+// DB-01: throttle the mid-round cursor write to ~60s + flush on lifecycle
+// boundaries. Per-cycle writes were ~5-6/min/learner; only same-sitting (<5min)
+// resumes use current_cycle_index (longer gaps reset to the round intro), so 60s
+// granularity is imperceptible. CANCELLED on round-advance: the round-advance
+// write supersedes, so a stale old-round cursor must never flush after it.
+let pendingCursor: { learnerId: string; courseId: string; idx: number } | null = null
+let cursorFlushTimer: ReturnType<typeof setTimeout> | null = null
+const flushCursor = () => {
+  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
+  const p = pendingCursor
+  pendingCursor = null
+  if (!p || !progressStore?.value) return
+  void progressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
+    console.warn('[LearningPlayer] Failed to persist current cycle:', err)
+  })
+}
+const queueCursor = (learnerId: string, courseId: string, idx: number) => {
+  pendingCursor = { learnerId, courseId, idx }
+  if (!cursorFlushTimer) cursorFlushTimer = setTimeout(flushCursor, 60_000)
+}
+const cancelPendingCursor = () => {
+  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
+  pendingCursor = null
+}
+
 // Diagnostic event log — captures play/pause/skip/stop taps + lap and
 // commentary lifecycle. Persisted in player_events; surfaced in the
 // admin user-detail page so user reports like "skip didn't work" can
@@ -1367,16 +1392,13 @@ simplePlayer.onCycleCompleted((cycle) => {
         if (id && id !== cycle.legoId) firedLegoIds.push(id)
       }
     }
-    void pairingsTelemetry
-      .recordCyclePlay({
-        learnerId: learnerId.value,
-        courseCode: courseCode.value,
-        legoIds: firedLegoIds,
-      })
-      .catch((err: unknown) => {
-        // Telemetry must never break playback — log and move on.
-        console.warn('[LearningPlayer] pairings telemetry failed:', err)
-      })
+    // Accumulate locally; flushed in one batch on pause/background/unmount.
+    // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
+    pairingsTelemetry.recordCyclePlay({
+      learnerId: learnerId.value,
+      courseCode: courseCode.value,
+      legoIds: firedLegoIds,
+    })
   }
 
   // Feed per-LEGO adaptive engine. Only when we have a real latency signal
@@ -1444,19 +1466,18 @@ simplePlayer.onCycleCompleted((cycle) => {
     const nextCycleIdx = simplePlayer.cycleIndex.value + 1
     const roundCycleCount = simplePlayer.currentRound.value?.cycles?.length ?? 0
     if (nextCycleIdx < roundCycleCount) {
-      progressStore.value.updateCurrentCycle(
-        learnerId.value,
-        courseCode.value,
-        nextCycleIdx,
-      ).catch(err => {
-        console.warn('[LearningPlayer] Failed to persist current cycle:', err)
-      })
+      queueCursor(learnerId.value, courseCode.value, nextCycleIdx)
     }
   }
 })
 
 // Round completed - save progress and update current LEGO ID
 simplePlayer.onRoundCompleted((round) => {
+  // DB-01: discard the just-finished round's pending mid-round cursor before
+  // the round-advance write below supersedes it. Without this, a stale 60s
+  // timer could flush an old-round cycle index AFTER the new round's cursor.
+  cancelPendingCursor()
+
   const completedRoundIndex = simplePlayer.roundIndex.value
   logEvent('round_complete', {
     roundIndex: completedRoundIndex,
@@ -2009,6 +2030,33 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
         ? (useNative ? legoTargetTextNativeMap.value.get(salientId) : null) || legoTargetTextMap.value.get(salientId) || ''
         : ''
 
+      // Strategy 0 (authoritative): the backend (Popty) computes the tiling at
+      // content-generation time — which token belongs to which LEGO, the salient
+      // anchored on the parent LEGO, ghost residue for inserted particles — and
+      // serves it verbatim on `decomposition`. When present we render those blocks
+      // DIRECTLY rather than re-deriving by runtime string-matching, which is the
+      // fragile path that mis-aligned short LEGOs and dropped the salient. Guard:
+      // only trust the served blocks when they exactly reassemble the displayed
+      // target (whitespace-normalised) — otherwise (e.g. roman-script display vs
+      // native-script decomposition) fall through to the runtime cascade below.
+      const served = (cycle as any).decomposition as
+        | Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+        | undefined
+      if (Array.isArray(served) && served.length > 0) {
+        const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+        if (norm(served.map((b) => b.target).join('')) === norm(targetText)) {
+          const blocks = served.map((b, i) => ({
+            id: b.legoId || `ghost_${i}`,
+            targetText: b.target,
+            ...(b.known && !b.isGhost ? { knownText: b.known } : {}),
+            isSalient: !!b.isSalient || (!!b.legoId && b.legoId === salientId),
+          }))
+          // Safety: never emit a fully-faded sentence. If nothing is marked
+          // salient (stale data), fall through to the runtime cascade.
+          if (blocks.some((b) => b.isSalient)) return blocks
+        }
+      }
+
       // First try: client-side decomposition against the learner's known
       // vocab. Walks every phrase token and binds each to a previously-
       // introduced LEGO. Produces N tiles (one per LEGO) — chunked
@@ -2152,7 +2200,11 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
           cycleType: (cycle?.type || ''),
         },
       )
-      return [{ id: salientId || 'phrase', targetText, isSalient: false }]
+      // No salient match found → show the WHOLE phrase at full emphasis, NOT
+      // faded. The faded "context" styling only reads correctly next to a bold
+      // salient; with no salient it greys the entire sentence and nothing is
+      // the focus (the "looks dead" state). Tom 2026-06-02 row-back.
+      return [{ id: salientId || 'phrase', targetText, isSalient: true }]
     }
     // Golden rule: if audio will play, text must be present. Whatever
     // failed above (missing legoId, missing componentLegoIds, empty
@@ -2230,10 +2282,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   // which would manufacture false units like [fratello vuole].
   const result = ensureTileCoverage(rawBlocks, tileText)
 
-  // Fallback: if decomposition fails, show the full phrase as a single tile.
-  // The audio still plays — the learner must see what they hear.
+  // Fallback: if decomposition fails, show the full phrase as a single tile at
+  // FULL emphasis (not faded) — same reason as above: a lone non-salient block
+  // greys the whole sentence with nothing to contrast against. The audio still
+  // plays — the learner must see what they hear.
   if (result.length === 0 && tileText) {
-    return [{ id: salientLegoId || 'phrase', targetText: tileText, isSalient: false }]
+    return [{ id: salientLegoId || 'phrase', targetText: tileText, isSalient: true }]
   }
   return result
 })
@@ -5657,6 +5711,11 @@ const handlePause = () => {
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
   }
+
+  // Flush batched co-fire telemetry on pause (accumulated per cycle).
+  void pairingsTelemetry.flush()
+  // DB-01: persist any pending mid-round cursor on pause.
+  flushCursor()
 }
 
 const handleResume = async () => {
@@ -6430,7 +6489,12 @@ const saveResumeAudio = () => {
 // Both fire close together in practice, but better to cover both than
 // miss the save window.
 const onSaveResumeVisibilityChange = () => {
-  if (document.visibilityState === 'hidden') saveResumeAudio()
+  if (document.visibilityState === 'hidden') {
+    saveResumeAudio()
+    void pairingsTelemetry.flush()
+    // DB-01: persist any pending mid-round cursor on background.
+    flushCursor()
+  }
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', onSaveResumeVisibilityChange)
@@ -10332,6 +10396,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // Flush any batched co-fire telemetry before teardown (route change etc.).
+  void pairingsTelemetry.flush()
+  // DB-01: persist any pending mid-round cursor before teardown.
+  flushCursor()
+
   heroResizeObserver?.disconnect()
   heroResizeObserver = null
 

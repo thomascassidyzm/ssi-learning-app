@@ -162,6 +162,7 @@ export interface BundlePhrase {
     target: string
     known: string
     isGhost: boolean
+    isSalient?: boolean
   }>
   audio: {
     known?: BundleAudioRef

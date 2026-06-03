@@ -588,29 +588,42 @@ const sentenceScale = computed(() => {
            its full text, even if multi-word. Text wraps naturally at
            word boundaries inside the tile when needed; the tile
            outline stays continuous because it IS one chunk. -->
-      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents, 'is-cjk': hasCjk(blocks[0]?.targetText) }">
-        <template v-if="mLegoComponents">
+      <!-- M-LEGO with components: target tiles (row 1, in the box) and the
+           known gloss (row 2) live in ONE grid, sharing column tracks, so each
+           gloss centres under its tile. The gloss cells are zero-width
+           (justify-self:center, overflow visible) so the COLUMNS are sized by
+           the tiles — tiles keep natural widths, glosses centre under them.
+           (They used to be two separate flex rows — natural-width tiles vs
+           equal-third glosses — which could only line up by coincidence.) -->
+      <div
+        v-if="mLegoComponents"
+        class="tile-grid"
+        :class="{ 'is-cjk': hasCjk(blocks[0]?.targetText), 'show-known': isIntroOrDebut && mLegoComponents.some(c => c.known) }"
+        :style="{ '--cols': mLegoComponents.length }"
+      >
+        <span
+          v-for="(comp, i) in mLegoComponents"
+          :key="'t' + i"
+          class="comp"
+          :class="{ 'is-inserter': comp.isInserter }"
+          :style="{ gridColumn: i + 1, gridRow: 1 }"
+        >{{ softHyphenate(comp.target) }}</span>
+        <template v-if="isIntroOrDebut && mLegoComponents.some(c => c.known)">
           <span
             v-for="(comp, i) in mLegoComponents"
-            :key="i"
-            class="comp"
-            :class="{ 'is-inserter': comp.isInserter }"
-          >{{ softHyphenate(comp.target) }}</span>
-        </template>
-        <span v-else class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
-      </div>
-      <!-- Known row: only during intro/debut. Once the salient LEGO
-           appears alongside other LEGOs, the English subtitle gets
-           dropped — target tiles stand alone. -->
-      <template v-if="isIntroOrDebut">
-        <div v-if="mLegoComponents && mLegoComponents.some(c => c.known)" class="tile-known-row">
-          <span
-            v-for="(comp, i) in mLegoComponents"
-            :key="i"
+            :key="'k' + i"
             class="tile-known-comp"
+            :style="{ gridColumn: i + 1, gridRow: 2 }"
           >{{ comp.known || '' }}</span>
+        </template>
+      </div>
+
+      <!-- Single A-LEGO (no components): the simple box + gloss underneath. -->
+      <template v-else>
+        <div class="tile-target" :class="{ 'is-cjk': hasCjk(blocks[0]?.targetText) }">
+          <span class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
         </div>
-        <div v-else-if="knownText" class="tile-known">{{ knownText }}</div>
+        <div v-if="isIntroOrDebut && knownText" class="tile-known">{{ knownText }}</div>
       </template>
     </div>
 
@@ -852,6 +865,71 @@ const sentenceScale = computed(() => {
   text-align: center;
   flex: 1;
   padding: 0 0.35em;
+}
+
+/* ── M-LEGO shared grid: tiles (row 1) + gloss (row 2) in one grid so each
+   gloss centres under its tile (replaces the two separate flex rows). ── */
+.tile-grid {
+  display: inline-grid;
+  grid-template-columns: repeat(var(--cols), auto); /* columns sized by the TILES */
+  align-items: center;
+  justify-items: center;
+  row-gap: 0.4em;        /* tile row → gloss row */
+  position: relative;
+  max-width: 100%;
+}
+/* The bordered box sits behind the tile row only (row 1, all columns). */
+.tile-grid::before {
+  content: '';
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  justify-self: stretch;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  z-index: 0;
+}
+.tile-grid .comp {
+  z-index: 1;
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 1.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 0.02em;
+  padding: 0.55em 0.7em;   /* vertical → box height; horizontal → tile breathing */
+  position: relative;
+  hyphens: manual;
+}
+/* Divider stubs between adjacent tiles (short top + bottom lines). */
+.tile-grid .comp + .comp::before,
+.tile-grid .comp + .comp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 1.5px;
+  height: 27%;
+  background: rgba(255, 255, 255, 0.4);
+  z-index: 2;
+  pointer-events: none;
+}
+.tile-grid .comp + .comp::before { top: 0; }
+.tile-grid .comp + .comp::after { bottom: 0; }
+/* Gloss cells contribute ZERO width so the columns stay sized by the tiles;
+   the text overflows centred on the column (= under the tile centre). */
+.tile-grid .tile-known-comp {
+  width: 0;
+  min-width: 0;
+  justify-self: center;
+  overflow: visible;
+  white-space: nowrap;
+  padding: 0;
+}
+/* Salient (intro/debut) box emphasis — mirrors .tile-target.salient. */
+.lego-tile.salient .tile-grid::before {
+  border-color: rgba(255, 255, 255, 0.3);
+  border-width: 2px;
 }
 
 /* Salient (intro/debut) — neutral glow, consistent across phases */
@@ -1371,6 +1449,35 @@ const sentenceScale = computed(() => {
 :root[data-theme="mist"] .lego-tile.salient .tile-target {
   border-color: rgba(0, 0, 0, 0.35);
   background: #ffffff;
+}
+
+/* M-LEGO shared-grid mist overrides — mirror .tile-target so the new grid
+   renders white-box/dark-text like the rest (mist is the only live theme). */
+:root[data-theme="mist"] .tile-grid::before {
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 8px 20px rgba(44, 38, 34, 0.06);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme="mist"] .tile-grid .comp {
+  color: var(--text-primary);
+}
+:root[data-theme="mist"] .tile-grid .comp + .comp::before,
+:root[data-theme="mist"] .tile-grid .comp + .comp::after {
+  background: rgba(44, 38, 34, 0.2);
+}
+:root[data-theme="mist"] .lego-tile.salient .tile-grid::before {
+  border-color: rgba(0, 0, 0, 0.35);
+}
+:root[data-theme="mist"] .tile-grid.is-cjk .comp {
+  font-size: 2.2rem;
+}
+@media (max-width: 600px) {
+  :root[data-theme="mist"] .tile-grid.is-cjk .comp {
+    font-size: 1.9rem;
+  }
 }
 
 /* Carriage mist overrides */

@@ -86,6 +86,18 @@ interface PhraseRow {
   target2_audio_id: string | null
   target1_duration_ms: number | null
   target2_duration_ms: number | null
+  decomposition: DecompositionBlock[] | null
+}
+
+// Authoritative content-level tiling, computed in Popty and stored on
+// course_practice_phrases.decomposition. Served verbatim so the player renders
+// it directly instead of re-deriving by runtime string-alignment.
+interface DecompositionBlock {
+  legoId: string | null
+  target: string
+  known: string
+  isGhost: boolean
+  isSalient?: boolean
 }
 
 interface Cycle {
@@ -107,6 +119,7 @@ interface Cycle {
   }
   is_new: false
   inf_round: number       // 1-based within INF PLAY
+  decomposition?: DecompositionBlock[]
 }
 
 function buildLegoId(seed: number, lego: number): string {
@@ -173,7 +186,7 @@ export default async function handler(
         .limit(5000),
       supabase
         .from('course_practice_phrases')
-        .select('seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms')
+        .select('seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms, decomposition')
         .eq('course_code', code)
         .in('phrase_role', ['use', 'eternal_eligible'])
         .order('seed_number', { ascending: true })
@@ -314,6 +327,11 @@ export default async function handler(
             },
             is_new: false,
             inf_round: infRound,
+            // Authoritative tiling, served verbatim when present (null → player
+            // falls back to runtime alignment). Closes the INFPLAY serving gap.
+            ...(Array.isArray(phrase.decomposition) && phrase.decomposition.length > 0
+              ? { decomposition: phrase.decomposition }
+              : {}),
           })
         }
       }
@@ -344,6 +362,11 @@ export default async function handler(
           },
           is_new: false,
           inf_round: infRound,
+          // Authoritative tiling, served verbatim when present (null → player
+          // falls back to runtime alignment). Closes the INFPLAY serving gap.
+          ...(Array.isArray(phrase.decomposition) && phrase.decomposition.length > 0
+            ? { decomposition: phrase.decomposition }
+            : {}),
         })
       }
     }

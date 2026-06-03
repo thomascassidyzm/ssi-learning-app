@@ -262,6 +262,10 @@ export function toPlayerCycle(bc: BackendCycle): Cycle | null {
     ...(componentLegoTexts ? { componentLegoTexts } : {}),
     // Native-script variant — same fallback rationale as componentsNative.
     ...(componentLegoTexts ? { componentLegoTextsNative: componentLegoTexts } : {}),
+    // Authoritative tiling, passed through VERBATIM (not just the derived
+    // componentLegoIds) so the player can render it directly — exact LEGO
+    // spans, ghost residue, and the anchored salient.
+    ...(Array.isArray(bc.decomposition) && bc.decomposition.length > 0 ? { decomposition: bc.decomposition } : {}),
   }
 
   return cycle
