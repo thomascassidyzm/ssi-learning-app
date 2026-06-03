@@ -8224,19 +8224,6 @@ const courseTotalRounds = (): number => (courseFinalLegoRef.value?.roundIndex ??
 const roundsLoadedAhead = (): number =>
   Math.max(0, (cachedRounds.value?.length ?? 0) - Math.max(0, currentRoundIndex.value))
 
-// Convert a fraction of the WHOLE course into a round count ahead of the cursor,
-// capped at the course tail. fraction >= 1 (or unknown total) → Infinity = take
-// everything reachable. e.g. "Next 25%" from 60% through → only the 40% that
-// remains.
-const roundsForCourseFraction = (fraction: number): number => {
-  const total = courseTotalRounds()
-  const start = Math.max(0, currentRoundIndex.value)
-  if (!(total > 0) || fraction >= 1) return Infinity
-  const remaining = total - start
-  if (remaining <= 0) return Infinity
-  return Math.max(1, Math.min(Math.ceil(total * fraction), remaining))
-}
-
 // Expand the script for the deliberate offline download (same
 // machinery INF PLAY uses) until `roundsAhead` rounds are loaded ahead of the
 // cursor, the generator runs dry (course tail), or the user cancels. Guard is a
@@ -8413,8 +8400,8 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // Build out the script first — without this we'd only download whatever
   // rounds lazy-loading happened to have in memory (the "4 LEGOs" cap).
   // roundsAhead = the user-chosen depth in COURSE CONTENT (rounds ahead of the
-  // cursor); Infinity = rest of the course. Derived from a % via
-  // roundsForCourseFraction — see the offline depth-knob note above.
+  // cursor); Infinity = rest of the course. Derived from the depth slider via
+  // offlineSelectedRounds (a fraction of the REMAINING course).
   offlineDlState.value = 'preparing'
   await ensureOfflineRoundsLoaded(roundsAhead)
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
@@ -8570,29 +8557,63 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
 // picker so the learner chooses how much of the course to carry, each option
 // annotated with a live size estimate (MB + % of device storage).
 const showOfflinePicker = ref(false)
-interface OfflineDepthOption {
-  key: string
-  label: string        // "Next 10%", "Rest of course"
-  detail: string       // "~120 MB · 8% of device"
-  fraction: number     // 0.10 / 0.25 / 0.5 / 1 — fed to roundsForCourseFraction
-}
-const offlineDepthOptions = ref<OfflineDepthOption[]>([])
 const offlineEstimating = ref(false)
+
+// Notched slider: each notch is a fraction of the REMAINING course (from the
+// cursor to the tail), not of the whole course. So the top notch (100%) always
+// means "the rest of the course" no matter how far through you are, and the
+// notches never collapse into each other. Thumb starts at the smallest.
+const OFFLINE_NOTCHES = [0.02, 0.05, 0.10, 0.25, 0.50, 1] as const
+const offlineNotchIndex = ref(0)
+const offlineSelectedFraction = computed(() => OFFLINE_NOTCHES[offlineNotchIndex.value])
+const offlineSelectedLabel = computed(() => {
+  const pct = Math.round(offlineSelectedFraction.value * 100)
+  if (offlineSelectedFraction.value >= 1) return offlineAtTail.value ? 'the whole course' : 'the rest of the course'
+  return offlineAtTail.value ? `${pct}% of the course` : `${pct}% of what's left`
+})
 
 const formatMb = (mb: number): string =>
   mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`
 
-// Build the depth options with live size estimates. Cheap + best-effort:
-// average bytes/file from what's already cached, average files/round from the
-// loaded sample, projected over the rounds each % covers. Estimates self-refine
-// as the cache grows; they're labelled "~" and don't need to be exact (Tom: the
-// number "probably doesn't matter that much" — it's there for a sense of cost).
+// Estimate basis, gathered ONCE when the picker opens (course length + cache
+// stats). The per-notch MB/bar then derive synchronously as the slider moves —
+// no re-fetch per drag. Best-effort + labelled "≈"; a sense of cost, not a
+// promise (Tom: the number "probably doesn't matter that much").
+interface OfflineEstBasis {
+  total: number; start: number
+  avgBytesPerFile: number; avgFilesPerRound: number
+  quotaBytes: number | undefined; ready: boolean
+}
+const offlineEst = ref<OfflineEstBasis>({
+  total: 0, start: 0,
+  avgBytesPerFile: 24 * 1024, avgFilesPerRound: 12, quotaBytes: undefined, ready: false,
+})
+
+// At/past the main-loop tail = INF PLAY / course finished: there's no NEW content
+// ahead (courseTotalRounds is the main-loop length, which the cursor reaches and
+// then exceeds as INF PLAY recycles). For that learner the download isn't "carry
+// the next chunk of new learning" — it's "keep the (whole) course offline to
+// recycle", so the slider, bar and labels switch to that framing.
+const offlineAtTail = computed(() => {
+  const { total, start, ready } = offlineEst.value
+  return ready && total > 0 && start >= total
+})
+// The pool of rounds the chosen fraction draws from. Mid-course: the NEW content
+// remaining ahead (total − start). Finished/INF-PLAY: the whole course. Length
+// unknown: whatever's loaded ahead. NEVER collapses to 0 while total > 0 — that
+// was the bug that made every notch a single round for the furthest-through user.
+const offlinePoolRounds = computed((): number => {
+  const { total, start } = offlineEst.value
+  if (!(total > 0)) return Math.max(1, roundsLoadedAhead())
+  return start >= total ? total : total - start
+})
+
 const refreshOfflineEstimates = async (): Promise<void> => {
   offlineEstimating.value = true
+  offlineNotchIndex.value = 0   // every open starts at the smallest, lowest-commitment notch
   try {
     // Resolve the course length first (cached) — without it courseTotalRounds()
-    // is 0 and the "whole course" estimate would read off the ~3 bootstrap
-    // rounds and look absurdly small.
+    // is 0 and the bar/estimate would read off the ~3 bootstrap rounds.
     if (courseTotalRounds() <= 0 && courseCode.value) {
       try { await getCourseFinalLego(courseCode.value) } catch { /* best-effort */ }
     }
@@ -8609,47 +8630,58 @@ const refreshOfflineEstimates = async (): Promise<void> => {
     const sampleRounds = roundsLoadedAhead()
     const sampleFiles = collectRoundsAudioIds(Infinity).length
     const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
-
-    const remainingRounds = total > 0 ? Math.max(0, total - start) : roundsLoadedAhead()
-    const remainingFraction = total > 0 ? remainingRounds / total : 1
-
-    const estimate = (fraction: number) => {
-      const rounds = roundsForCourseFraction(fraction)
-      const estRounds = rounds === Infinity ? remainingRounds : rounds
-      const estFiles = Math.round(avgFilesPerRound * estRounds)
-      const mb = (estFiles * avgBytesPerFile) / 1e6
-      const pctDevice = quotaBytes && quotaBytes > 0 ? (mb * 1e6) / quotaBytes * 100 : null
-      let detail = `~${formatMb(mb)}`
-      if (pctDevice != null) detail += ` · ${pctDevice < 1 ? '<1' : Math.round(pctDevice)}% of device`
-      return detail
-    }
-
-    const opts: OfflineDepthOption[] = []
-    // Partial presets only when they're meaningfully less than "the rest".
-    // "Next 10%" is the smallest, lowest-commitment carry — the entry point for
-    // someone who just wants a little ahead without a big download (Tom: 25% was
-    // too big a first step). Each preset is shown only when that much course
-    // actually remains, with a small margin so it isn't ~the same as "the rest".
-    if (total > 0 && remainingFraction > 0.12) opts.push({ key: 'p10', label: 'Next 10%', detail: estimate(0.10), fraction: 0.10 })
-    if (total > 0 && remainingFraction > 0.27) opts.push({ key: 'p25', label: 'Next 25%', detail: estimate(0.25), fraction: 0.25 })
-    if (total > 0 && remainingFraction > 0.52) opts.push({ key: 'p50', label: 'Next 50%', detail: estimate(0.5), fraction: 0.5 })
-    opts.push({
-      key: 'rest',
-      label: start <= 0 || total <= 0 ? 'Whole course' : 'Rest of course',
-      detail: estimate(1),
-      fraction: 1,
-    })
-    offlineDepthOptions.value = opts
+    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, quotaBytes, ready: true }
   } finally {
     offlineEstimating.value = false
   }
 }
 
-const startOfflineDownload = (fraction: number) => {
+// Rounds the selected fraction maps to (≥1; the top notch = the whole pool).
+const offlineSelectedRounds = computed((): number => {
+  if (offlineSelectedFraction.value >= 1) return offlinePoolRounds.value
+  return Math.max(1, Math.ceil(offlinePoolRounds.value * offlineSelectedFraction.value))
+})
+
+// Live MB / device-storage readout for the current notch.
+const offlineSelectedEstimate = computed(() => {
+  const { avgFilesPerRound, avgBytesPerFile, quotaBytes, ready } = offlineEst.value
+  if (!ready) return { size: '', device: '' }
+  const files = Math.round(avgFilesPerRound * offlineSelectedRounds.value)
+  const mb = (files * avgBytesPerFile) / 1e6
+  const pctDevice = quotaBytes && quotaBytes > 0 ? (mb * 1e6) / quotaBytes * 100 : null
+  return {
+    size: `≈ ${formatMb(mb)}`,
+    device: pctDevice != null ? `${pctDevice < 1 ? '<1' : Math.round(pctDevice)}% of device` : '',
+  }
+})
+
+// Course-depth bar (% of the WHOLE course): how far you've already come, then the
+// new chunk this download carries forward. Whatever's left after that is where
+// INF PLAY recycling lives — shown by the bar's untinted remainder. This is the
+// "pre-INF-PLAY new learning" made visible, without a misleading time number.
+const offlineCourseBar = computed(() => {
+  const { total, start } = offlineEst.value
+  const frac = offlineSelectedFraction.value
+  if (!(total > 0)) {
+    return { donePct: 0, newPct: frac >= 1 ? 100 : Math.round(frac * 100), finished: false }
+  }
+  if (start >= total) {
+    // Finished / INF PLAY: nothing "ahead" — the bar shows how much of the WHOLE
+    // course you're keeping offline (fill from the start), not a position.
+    const newPct = frac >= 1 ? 100 : Math.min(100, Math.round((offlineSelectedRounds.value / total) * 100))
+    return { donePct: 0, newPct, finished: true }
+  }
+  const donePct = Math.min(100, (start / total) * 100)
+  const newPct = Math.min(100 - donePct, (offlineSelectedRounds.value / total) * 100)
+  return { donePct, newPct, finished: false }
+})
+
+const startOfflineDownload = (): void => {
   showOfflinePicker.value = false
   offlineActive.value = true
-  console.log(`[LearningPlayer] Offline ON — depth ${fraction >= 1 ? 'rest of course' : Math.round(fraction * 100) + '%'}`)
-  void downloadForOffline(roundsForCourseFraction(fraction))
+  const frac = offlineSelectedFraction.value
+  console.log(`[LearningPlayer] Offline ON — depth ${frac >= 1 ? 'rest of course' : Math.round(frac * 100) + '% of remaining'}`)
+  void downloadForOffline(frac >= 1 ? Infinity : offlineSelectedRounds.value)
 }
 
 const cancelOfflinePicker = () => { showOfflinePicker.value = false }
@@ -10919,21 +10951,60 @@ defineExpose({
             <h3 class="offline-picker-title">Take it offline</h3>
             <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
           </div>
-          <p class="offline-picker-sub">How much of the course do you want to carry?</p>
+          <p class="offline-picker-sub">{{ offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?" }}</p>
 
-          <div v-if="offlineEstimating && offlineDepthOptions.length === 0" class="offline-picker-loading">
-            Estimating sizes…
-          </div>
-          <div v-else class="offline-picker-options">
-            <button
-              v-for="opt in offlineDepthOptions"
-              :key="opt.key"
-              class="offline-picker-option"
-              @click="startOfflineDownload(opt.fraction)"
+          <div class="offline-depth">
+            <!-- Notched slider — fraction of the REMAINING course -->
+            <input
+              type="range"
+              class="offline-depth-slider"
+              min="0"
+              :max="OFFLINE_NOTCHES.length - 1"
+              step="1"
+              v-model.number="offlineNotchIndex"
+              :aria-valuetext="offlineSelectedLabel"
+              aria-label="How much of the remaining course to download"
+            />
+            <!-- Tick labels stay tappable for mouse/touch, but the slider above is
+                 the single canonical control: aria-hidden + tabindex -1 keeps them
+                 out of the keyboard/SR traversal so the value isn't announced twice. -->
+            <div class="offline-depth-ticks" aria-hidden="true">
+              <button
+                v-for="(n, i) in OFFLINE_NOTCHES"
+                :key="i"
+                type="button"
+                tabindex="-1"
+                class="offline-depth-tick"
+                :class="{ active: i === offlineNotchIndex }"
+                @click="offlineNotchIndex = i"
+              >{{ Math.round(n * 100) }}%</button>
+            </div>
+
+            <!-- Live cost readout for the selected notch -->
+            <p class="offline-depth-size">
+              <span class="offline-depth-size-mb">{{ offlineSelectedEstimate.size || 'Working out size…' }}</span>
+              <span v-if="offlineSelectedEstimate.device" class="offline-depth-size-device"> · {{ offlineSelectedEstimate.device }}</span>
+            </p>
+
+            <!-- Course-depth bar: mid-course = where you are + the new chunk you'd
+                 carry; finished/INF-PLAY = how much of the course you're keeping. -->
+            <div
+              class="offline-depth-bar"
+              role="img"
+              :aria-label="offlineCourseBar.finished
+                ? (offlineSelectedFraction >= 1 ? 'Keeps the whole course offline' : `Keeps about ${Math.round(offlineCourseBar.newPct)} percent of the course offline`)
+                : (offlineSelectedFraction >= 1 ? 'Carries everything left to learn' : `Carries you about ${Math.round(offlineCourseBar.newPct)} percent further through the course`)"
             >
-              <span class="offline-opt-label">{{ opt.label }}</span>
-              <span class="offline-opt-detail">{{ opt.detail }}</span>
-            </button>
+              <div class="offline-depth-bar-done" :style="{ width: offlineCourseBar.donePct + '%' }"></div>
+              <div class="offline-depth-bar-new" :style="{ left: offlineCourseBar.donePct + '%', width: offlineCourseBar.newPct + '%' }"></div>
+            </div>
+            <p class="offline-depth-caption">
+              {{ offlineCourseBar.finished
+                ? (offlineSelectedFraction >= 1 ? 'The whole course, kept offline' : `~${Math.round(offlineCourseBar.newPct)}% of the course, kept offline`)
+                : (offlineSelectedFraction >= 1 ? 'Everything left to learn' : `New learning — carries you ~${Math.round(offlineCourseBar.newPct)}% further`) }}
+            </p>
+
+            <button class="offline-depth-download" @click="startOfflineDownload">Download</button>
           </div>
 
           <p class="offline-picker-note">Plays offline forever once downloaded — it keeps going on repeat with no signal.</p>
@@ -12077,52 +12148,124 @@ defineExpose({
   color: #6b6560;
   flex-shrink: 0;
 }
-.offline-picker-loading {
-  padding: 18px 4px;
-  font-size: 13px;
-  color: #9a948e;
-  text-align: center;
-}
-.offline-picker-options {
+/* Offline depth — notched slider + course-depth bar (replaces the option list) */
+.offline-depth {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  /* The scrollable region when the dialog is height-constrained (min-height:0
-     lets it shrink inside the flex column instead of overflowing the viewport). */
+  gap: 10px;
+  /* Stay scrollable inside the height-capped dialog (close button + note remain
+     pinned; this region scrolls if it ever overflows a short/landscape screen). */
   overflow-y: auto;
   min-height: 0;
 }
-.offline-picker-option {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+.offline-depth-slider {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  padding: 13px 15px;
-  border: 1.5px solid rgba(0, 0, 0, 0.12);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.015);
+  height: 22px;             /* comfortable hit area around the 4px track */
+  margin: 2px 0 0;
+  background: transparent;
   cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.offline-depth-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.offline-depth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;         /* centre the 22px thumb on the 4px track */
+  border-radius: 50%;
+  background: #16a34a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.offline-depth-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.offline-depth-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.offline-depth-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); }
+.offline-depth-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); }
+.offline-depth-ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin-top: -2px;
+}
+.offline-depth-tick {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9a948e;
+  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.offline-picker-option:hover {
-  border-color: rgba(22, 163, 74, 0.5);
-  background: rgba(22, 163, 74, 0.06);
-}
-.offline-picker-option:active { transform: scale(0.99); }
-.offline-opt-label {
+.offline-depth-tick.active { color: #16a34a; }
+.offline-depth-size {
+  margin: 2px 0 0;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: #2b2622;
+  text-align: center;
 }
-.offline-opt-detail {
-  font-size: 12px;
-  font-weight: 500;
-  color: #8a847e;
-  white-space: nowrap;
+.offline-depth-size-device { font-weight: 500; color: #8a847e; }
+.offline-depth-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
 }
+.offline-depth-bar-done {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.22);   /* already learned / behind the cursor */
+}
+.offline-depth-bar-new {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #16a34a;               /* the new chunk this download carries */
+  transition: left 0.15s ease, width 0.15s ease;
+}
+.offline-depth-caption {
+  margin: 0;
+  font-size: 11.5px;
+  color: #9a948e;
+  text-align: center;
+}
+.offline-depth-download {
+  margin-top: 2px;
+  width: 100%;
+  padding: 13px 15px;
+  border: none;
+  border-radius: 12px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.offline-depth-download:hover { background: #15903f; }
+.offline-depth-download:active { transform: scale(0.99); }
 .offline-picker-note {
   margin: 14px 2px 0;
   font-size: 11.5px;
