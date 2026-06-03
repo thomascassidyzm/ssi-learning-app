@@ -8702,8 +8702,8 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
 
 // ── Depth picker (Spotify-style "take it with you") ─────────────────────────
 // The offline-mode tap no longer silently grabs a fixed 30 min. It opens a
-// picker so the learner chooses how much of the course to carry, each option
-// annotated with a live size estimate (MB + % of device storage).
+// picker so the learner chooses how much of the course to carry, annotated with
+// a live size estimate (MB; plus a "running low" warning only when near the cap).
 const showOfflinePicker = ref(false)
 const offlineEstimating = ref(false)
 
@@ -8730,11 +8730,11 @@ const formatMb = (mb: number): string =>
 interface OfflineEstBasis {
   total: number; start: number
   avgBytesPerFile: number; avgFilesPerRound: number
-  quotaBytes: number | undefined; ready: boolean
+  lowSpace: boolean; ready: boolean
 }
 const offlineEst = ref<OfflineEstBasis>({
   total: 0, start: 0,
-  avgBytesPerFile: 24 * 1024, avgFilesPerRound: 12, quotaBytes: undefined, ready: false,
+  avgBytesPerFile: 24 * 1024, avgFilesPerRound: 12, lowSpace: false, ready: false,
 })
 
 // At/past the main-loop tail = INF PLAY / course finished: there's no NEW content
@@ -8768,17 +8768,22 @@ const refreshOfflineEstimates = async (): Promise<void> => {
     const total = courseTotalRounds()
     const start = Math.max(0, currentRoundIndex.value)
     let avgBytesPerFile = 24 * 1024  // ~24 KB/clip fallback (CLAUDE.md: 4.8 MB / 198 files)
-    let quotaBytes: number | undefined
     try {
       const stats = await audioCache.stats()
       if (stats.persistent.count > 0) avgBytesPerFile = stats.persistent.bytes / stats.persistent.count
-      quotaBytes = stats.quotaBytes
     } catch { /* stats best-effort */ }
+    // "Running low" = the usage/quota RATIO is near full. We use the ratio (not
+    // the absolute quota) deliberately: navigator.storage.estimate().quota is
+    // unreliable on iOS Safari (a large, fuzzy disk-derived number), so a
+    // "% of device" reading is misleading — but the ratio still tells us when
+    // we're genuinely close to the cap regardless of what that cap reports.
+    let lowSpace = false
+    try { lowSpace = (await audioCache.quotaPressure()) > 0.9 } catch { /* best-effort */ }
     // Files per round from the loaded sample (deduped), else a sane fallback.
     const sampleRounds = roundsLoadedAhead()
     const sampleFiles = collectRoundsAudioIds(Infinity).length
     const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
-    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, quotaBytes, ready: true }
+    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true }
   } finally {
     offlineEstimating.value = false
   }
@@ -8790,17 +8795,16 @@ const offlineSelectedRounds = computed((): number => {
   return Math.max(1, Math.ceil(offlinePoolRounds.value * offlineSelectedFraction.value))
 })
 
-// Live MB / device-storage readout for the current notch.
+// Live size readout for the current notch — MB only (the honest, reliable
+// number). The old "% of device" was dropped: it divided by an iOS-unreliable
+// storage quota and read as a meaningless sliver. lowSpace surfaces a plain
+// warning only when the cache is genuinely near the cap.
 const offlineSelectedEstimate = computed(() => {
-  const { avgFilesPerRound, avgBytesPerFile, quotaBytes, ready } = offlineEst.value
-  if (!ready) return { size: '', device: '' }
+  const { avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
+  if (!ready) return { size: '', lowSpace: false }
   const files = Math.round(avgFilesPerRound * offlineSelectedRounds.value)
   const mb = (files * avgBytesPerFile) / 1e6
-  const pctDevice = quotaBytes && quotaBytes > 0 ? (mb * 1e6) / quotaBytes * 100 : null
-  return {
-    size: `≈ ${formatMb(mb)}`,
-    device: pctDevice != null ? `${pctDevice < 1 ? '<1' : Math.round(pctDevice)}% of device` : '',
-  }
+  return { size: `≈ ${formatMb(mb)}`, lowSpace }
 })
 
 // Course-depth bar (% of the WHOLE course): how far you've already come, then the
@@ -11110,7 +11114,7 @@ defineExpose({
             <!-- Live cost readout for the selected notch -->
             <p class="offline-depth-size">
               <span class="offline-depth-size-mb">{{ offlineSelectedEstimate.size || 'Working out size…' }}</span>
-              <span v-if="offlineSelectedEstimate.device" class="offline-depth-size-device"> · {{ offlineSelectedEstimate.device }}</span>
+              <span v-if="offlineSelectedEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
             </p>
 
             <!-- Course-depth bar: mid-course = where you are + the new chunk you'd
@@ -12274,7 +12278,7 @@ defineExpose({
   color: #2b2622;
   text-align: center;
 }
-.offline-depth-size-device { font-weight: 500; color: #8a847e; }
+.offline-depth-size-low { font-weight: 600; color: #c2410c; }
 .offline-depth-bar {
   position: relative;
   height: 8px;
