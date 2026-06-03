@@ -24,6 +24,7 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminCourses } from '@/composables/admin/useAdminCourses'
 import { resolveMetric } from '../registry'
 import InsightWidget from '../InsightWidget.vue'
+import { isInsightDemo, demoCourseList, demoFriction } from '../data/demo'
 import type {
   CohortGridData,
   RankedBarData,
@@ -39,16 +40,19 @@ const { getClient } = useAdminClient()
 const client = getClient()
 
 // ---- course picker ---------------------------------------------------------
+const demoMode = isInsightDemo()
 const coursesComposable = useAdminCourses(client)
 const selectedCourse = ref<string>('')
 
 const courseOptions = computed(() =>
-  coursesComposable.courses.value.map(c => ({
-    value: c.course_code,
-    label: c.display_name
-      ? `${c.display_name} (${c.course_code})`
-      : c.course_code,
-  }))
+  demoMode
+    ? demoCourseList()
+    : coursesComposable.courses.value.map(c => ({
+        value: c.course_code,
+        label: c.display_name
+          ? `${c.display_name} (${c.course_code})`
+          : c.course_code,
+      }))
 )
 
 // ---- resolved state --------------------------------------------------------
@@ -61,6 +65,12 @@ async function fetchFriction(courseCode: string) {
   isLoading.value = true
   fetchError.value = null
   gridData.value = null
+  // ── DEMO MODE (?demo): synthetic friction grid, no resolver/RPC call. ──
+  if (demoMode) {
+    gridData.value = demoFriction(courseCode)
+    isLoading.value = false
+    return
+  }
   try {
     const result = await resolveMetric(client, {
       metric: 'contentFriction',
@@ -284,6 +294,15 @@ const narrativeResolved = computed((): ResolvedInsight => ({
 
 // ---- lifecycle -------------------------------------------------------------
 onMounted(async () => {
+  if (demoMode) {
+    // No Supabase course fetch — seed straight from the in-memory demo list.
+    const opts = demoCourseList()
+    if (opts.length > 0 && !selectedCourse.value) {
+      selectedCourse.value = opts[0].value
+      await fetchFriction(selectedCourse.value)
+    }
+    return
+  }
   await coursesComposable.fetchCourses()
   if (coursesComposable.courses.value.length > 0 && !selectedCourse.value) {
     selectedCourse.value = coursesComposable.courses.value[0].course_code

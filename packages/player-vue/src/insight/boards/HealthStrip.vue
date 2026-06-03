@@ -28,6 +28,7 @@ import type {
   Tone,
 } from '../spec'
 import InsightWidget from '../InsightWidget.vue'
+import { isInsightDemo, demoHealth } from '../data/demo'
 
 // ---- window selector -------------------------------------------------------
 const WINDOWS = ['7d', '14d', '30d'] as const
@@ -44,6 +45,13 @@ const { getClient } = useAdminClient()
 async function fetch(win: W = selectedWindow.value) {
   isLoading.value = true
   fetchError.value = null
+  // ── DEMO MODE (?demo): synthetic health payload, no Supabase call. ──
+  if (isInsightDemo()) {
+    const days = parseInt(win, 10) || 30
+    payload.value = demoHealth(days)
+    isLoading.value = false
+    return
+  }
   try {
     const client = getClient()
     payload.value = await resolveHealthFull(client, { metric: 'health', window: win })

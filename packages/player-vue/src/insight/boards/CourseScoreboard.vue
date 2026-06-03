@@ -33,6 +33,7 @@ import type {
   DataQuery,
 } from '../spec'
 import type { CourseValueData } from '../data/courseValue'
+import { isInsightDemo, demoCourseValue, demoRetention, demoGrowthRows } from '../data/demo'
 
 // ── Supabase client ─────────────────────────────────────────────────────────
 const { getClient } = useAdminClient()
@@ -368,6 +369,16 @@ function zeroStat(label: string): StatData {
 
 // ── Data fetch on mount ──────────────────────────────────────────────────────
 onMounted(async () => {
+  // ── DEMO MODE (?demo): populate the same refs from in-memory synthetic data.
+  // Never calls Supabase. Real path below is untouched without the flag.
+  if (isInsightDemo()) {
+    courseValueData.value = demoCourseValue()
+    retentionTsData.value = demoRetention() as unknown as TimeSeriesData
+    growthRows.value = demoGrowthRows()
+    isLoading.value = false
+    return
+  }
+
   try {
     const client = getClient()
 
