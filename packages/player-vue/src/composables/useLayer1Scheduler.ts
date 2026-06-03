@@ -179,6 +179,7 @@ export interface L1SeedRow {
   target_text_roman: string | null
   known_audio_id: string | null
   target1_audio_id: string | null
+  target2_audio_id: string | null
 }
 
 export interface L1BookendAudio {
@@ -189,7 +190,8 @@ export interface L1BookendAudio {
 
 export interface L1Play {
   seedNumber: number
-  /** Always the seed's target sentence audio (target1_audio_id). */
+  /** The seed's target sentence audio — voice 1 or voice 2, picked per play
+   *  by the seeded RNG so laps stay resume-safe (target1 when voice 2 absent). */
   audioId: string
   /** Target text (roman variant when present). */
   text: string
@@ -243,7 +245,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
       const [seedsResult, catalogueResult, bookendsResult] = await Promise.all([
         supabase
           .from('course_seeds')
-          .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id')
+          .select('seed_number, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
           .eq('course_code', courseCode)
           .order('seed_number', { ascending: true })
           .limit(5000),
@@ -324,14 +326,19 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const playable = bucket.filter((sNum) => seedMap.get(sNum)?.target1_audio_id)
     if (playable.length === 0) return null
 
+    // Seeds always play in bucket order (graduation order); only the VOICE is
+    // varied — each play picks voice 1 or 2 via the same seeded RNG, so the lap
+    // is mixed yet identical on every replay/resume. Falls back to voice 1 when
+    // a seed has no voice-2 audio.
     const plays: L1Play[] = []
     for (const role of ['ps', 'ps2x'] as const) {
       const speed = L1_ROLE_SPEED[role]
       for (const sNum of playable) {
         const seed = seedMap.get(sNum)!
+        const useVoice2 = !!seed.target2_audio_id && rng() < 0.5
         plays.push({
           seedNumber: sNum,
-          audioId: seed.target1_audio_id!,
+          audioId: useVoice2 ? seed.target2_audio_id! : seed.target1_audio_id!,
           text: seed.target_text_roman || seed.target_text,
           playbackSpeed: speed,
         })
