@@ -8531,14 +8531,36 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] downloading ${missing.length} of ${ids.length} audio files (depth: ${roundsAhead === Infinity ? 'rest of course' : roundsAhead + ' rounds'})`)
-  const CONC = 4
-  for (let i = 0; i < missing.length; i += CONC) {
+  // Concurrency: aggressive when nothing is playing (the download is the only
+  // network user), polite when a session is live (protect the live next-clip
+  // fetch). Re-evaluated EACH batch — the learner can hit play mid-download.
+  // 12 is past the point where the bottleneck is network latency (these clips
+  // are ~24KB); going higher mainly raises backend cold-start/throttle risk for
+  // little speed gain.
+  const concNow = () => (isPlaying.value ? 4 : 12)
+  // Retry a clip a few times with backoff before counting it failed, so a
+  // transient backend throttle (429 under burst) doesn't become a permanent
+  // "download incomplete". ensure() dedupes in-flight, so retries never
+  // double-fetch.
+  const ensureWithRetry = async (id: string): Promise<void> => {
+    for (let attempt = 0; ; attempt++) {
+      try { await audioCache.persistent.ensure(id); return }
+      catch (err) {
+        if (attempt >= 2) throw err                                   // 3 tries total
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))  // 300ms, 600ms backoff
+      }
+    }
+  }
+  let i = 0
+  while (i < missing.length) {
     if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
-    await Promise.all(missing.slice(i, i + CONC).map(async (id) => {
-      // Count ONLY genuine cache writes. A failed fetch (bad network) must
-      // NOT tick progress — otherwise "Ready ✓" lies and offline plays
-      // silence (the train test). ensure() throws on network failure.
-      try { await audioCache.persistent.ensure(id); offlineDlDone.value++ }
+    const batch = missing.slice(i, i + concNow())
+    i += batch.length
+    await Promise.all(batch.map(async (id) => {
+      // Count ONLY genuine cache writes. A clip that still fails after retries
+      // must NOT tick progress — otherwise "Ready ✓" lies and offline plays
+      // silence (the train test).
+      try { await ensureWithRetry(id); offlineDlDone.value++ }
       catch { offlineDlFailed.value++ }
     }))
   }
