@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
+// Offline-download status (shared with the mode-button ring in ModeTray)
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
   AudioController,
   CyclePhase,
@@ -24,6 +26,7 @@ import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
+import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
@@ -1505,10 +1508,8 @@ simplePlayer.onRoundCompleted((round) => {
   // already started the next round's prompt audio, causing the pod intro
   // to overlap with main-player audio. Pausing here, in the same tick as
   // the round-completed event, beats that race.
-  const willFirePod = !!podScheduler
-    && podScheduler.isInitialized.value
-    && !beltJustEarned.value
-    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  const willFirePod = !beltJustEarned.value
+    && podCadenceFiresAtRound(completedRoundIndex)
   if (willFirePod) {
     simplePlayer.pause()
   }
@@ -1545,13 +1546,19 @@ simplePlayer.onRoundCompleted((round) => {
       // Belt visuals follow the main-loop LEGO this round is "for" —
       // for infplay rounds that's the last main-loop LEGO reached, NOT
       // the random USE drawn first (which would make the belt jump).
-      const visualLegoId = visualLegoIdForRound(round)
-      if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
-        beltProgress.value.setCurrentLegoId(visualLegoId)
-      }
-      if (visualLegoId && beltProgress.value?.setPlayingPosition) {
-        const seed = getSeedFromLegoId(visualLegoId)
-        if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+      // In INF PLAY skip the belt write entirely — the belt is the locked red
+      // ∞ (beltCssVars red override) and visualLegoIdForRound falls back to the
+      // random USE legoId for guests (no main-loop ceiling recorded), which is
+      // exactly the cycle-to-cycle belt flip Tom flagged.
+      if (!isInfPlayActive.value) {
+        const visualLegoId = visualLegoIdForRound(round)
+        if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
+          beltProgress.value.setCurrentLegoId(visualLegoId)
+        }
+        if (visualLegoId && beltProgress.value?.setPlayingPosition) {
+          const seed = getSeedFromLegoId(visualLegoId)
+          if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+        }
       }
     }
   }
@@ -2760,6 +2767,42 @@ const podScheduler = supabase?.value
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
     })
   : null
+
+// ============================================
+// LAYER-1 LISTENING SCHEDULER (drained-seed fluency maintenance)
+// Sibling of podScheduler but simpler: no stages, no ratchet. Fires every
+// ~50 main rounds (DEFAULT_LAYER1_CONFIG) once seeds have fully drained from
+// spaced rep; the lap is a pure function of (catalogue, round, learner) so
+// it's resume-safe with no persisted state. See useLayer1Scheduler.ts.
+// ============================================
+// Dev cheat (?l1test): make Layer-1 listening fire early + often so it can be
+// verified without playing ~100 rounds. Default config (activation@100, every
+// 50 rounds, 90-round graduation offset) is correct for real learners but
+// untestable by hand. ?l1test → first lap at round 2, every 3 rounds, offset 0
+// (every already-debuted seed is immediately eligible, so the bucket is full
+// from the start). Optional ?l1every=N overrides the interval. Mirrors ?fc.
+const l1TestConfig = ((): Partial<Layer1Config> | undefined => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    if (!p.has('l1test')) return undefined
+    const every = parseInt(p.get('l1every') || '', 10)
+    return {
+      activationRound: 2,
+      interval: Number.isFinite(every) && every > 0 ? every : 3,
+      offset: 0,
+    }
+  } catch { return undefined }
+})()
+
+const l1Scheduler = supabase?.value
+  ? useLayer1Scheduler({
+      supabase: supabase as any,
+      courseCode: courseCode,
+      learnerId: learnerId,
+      config: l1TestConfig,
+    })
+  : null
+
 const playingPodLapAudio = ref(false)
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
@@ -2793,6 +2836,7 @@ watch(
   () => [courseCode.value, learnerId.value],
   async () => {
     if (podScheduler) await podScheduler.initialize()
+    if (l1Scheduler) await l1Scheduler.initialize()
   },
   { immediate: true }
 )
@@ -3082,7 +3126,30 @@ const timeToNextBelt = computed(() => beltProgress.value?.timeToNextBelt.value ?
 const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 
 // CSS custom properties for belt theming
+// Are we POSITIONED in INF PLAY right now? INF PLAY is a POSITION/STATE, not a
+// property of the LEGO under the cursor — once you're in it, you stay in it on
+// whatever round you're on, and the belt is the red ∞ until you deliberately
+// EXIT via the header belt chevrons. Detected by the mode flag OR (crucially for
+// GUESTS, who never get the persisted 'infplay' mode — setMode is gated on a real
+// account) by the current round being a revival round (no intro/debut/build).
+// Single source of truth for the belt indicator, the accent colour, the forward-
+// belt-skip null, and the listening cadence. Tom 2026-06-03.
+const isInfPlayActive = computed(() =>
+  currentMode.value === 'infplay'
+  || (!!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+)
+
 const beltCssVars = computed(() => {
+  // In INF PLAY the accent LOCKS to SSi red (matches the .is-infplay pill) so the
+  // whole UI stays red regardless of which LEGO each random-USE phrase draws from
+  // — never the flipping belt colour of the current cycle's LEGO.
+  if (isInfPlayActive.value) {
+    return {
+      '--belt-color': '#c23a3a',
+      '--belt-color-dark': '#9e2f2f',
+      '--belt-glow': 'rgba(194, 58, 58, 0.35)',
+    }
+  }
   return beltProgress.value?.beltCssVars.value ?? {
     '--belt-color': '#ffffff',
     '--belt-color-dark': '#e0e0e0',
@@ -3618,12 +3685,42 @@ const updateBeltForPosition = (roundIndex) => {
  */
 const deriveBeltFromLandedRound = () => {
   if (!beltProgress.value) return
+  // In INF PLAY the belt is the locked red ∞ — never derive it from the landed
+  // round (each revival round's legoId is a random USE that would flip the belt
+  // colour cycle-to-cycle). The accent comes from beltCssVars' red override.
+  // Exit paths flip OUT of INF PLAY (land on a main-loop round) before calling
+  // this, so the real belt colour resumes there.
+  if (isInfPlayActive.value) return
   const round = simplePlayer.currentRound.value
   const legoId = visualLegoIdForRound(round)
   if (!legoId) return
   const seed = getSeedFromLegoId(legoId)
   if (seed === null) return
   beltProgress.value.setPlayingPosition(seed)
+}
+
+// Pod-lap cadence, INF-PLAY-aware (B4, Tom 2026-06-03: listening fires every 5
+// ROUNDS, not cycles). `completedRoundIndex` is the 0-based flat queue index of
+// the round that just finished.
+//   • Main loop → defer to the scheduler's own activation+interval math, keyed
+//     on the absolute round number (unchanged behaviour).
+//   • INF PLAY → count the REVIVAL-TAIL ordinal (position past the main loop)
+//     and fire every `roundInterval` (normal config = 5) INF PLAY rounds. We use
+//     the position ordinal, NOT the bumped infplayRoundIndex, because the
+//     pre-pause check (onRoundCompleted) runs BEFORE saveRoundProgress bumps the
+//     counter and the fire check (here) runs AFTER — the position ordinal is the
+//     one value both see identically, so pause and fire never desync.
+const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
+  if (!podScheduler || !podScheduler.isInitialized.value) return false
+  if (isInfPlayActive.value) {
+    const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+    if (mainLoopCount < 0) return false
+    const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
+    if (infOrdinal <= 0) return false
+    const interval = Math.max(1, Math.floor(podsConfig.value.roundInterval ?? 5))
+    return infOrdinal % interval === 0
+  }
+  return podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
 }
 
 // Handle round boundary - called when a round completes
@@ -3663,11 +3760,20 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro' || c.type === 'pod'
     )
   const nextRound = loadedRounds.value[completedRoundIndex + 1] as { cycles?: Array<{ type?: string }> } | undefined
-  const podFiresThisBoundary = !!podScheduler
-    && podScheduler.isInitialized.value
-    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  // Pod cadence uses the INF-PLAY-aware helper (dev): main-loop defers to the
+  // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
+  const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
+  // Layer-1 fires only on a clean boundary with no pod (pod wins priority).
+  // Listening items must sit between main rounds, so an encouragement adjacent
+  // to an L1 lap is suppressed too — boundaryBetweenSpeakingRounds excludes it.
+  const l1FiresThisBoundary = !!l1Scheduler
+    && l1Scheduler.isInitialized.value
+    && currentMode.value !== 'infplay'
+    && !podFiresThisBoundary
+    && l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
   const boundaryBetweenSpeakingRounds =
-    !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
+    !isListeningRound(completedRound) && !isListeningRound(nextRound)
+    && !podFiresThisBoundary && !l1FiresThisBoundary
 
   // Dev cheat (?fc / ?forceEncouragements): relax the placement rule so an
   // interjection can fire at ANY boundary that isn't a pod lap — otherwise a
@@ -3676,7 +3782,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // boundaries (firing there would overlap/race the lap). Pairs with the
   // service's forceFire (which drops the ~10-min interval).
   const canFireInterjection = forceInterjectionsCheat
-    ? !podFiresThisBoundary
+    ? (!podFiresThisBoundary && !l1FiresThisBoundary)
     : boundaryBetweenSpeakingRounds
 
   // No random encouragements in INF PLAY — the locked model has none, and a
@@ -3718,8 +3824,6 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // the ratchet when the lap plays to completion.
   // ============================================
   if (podScheduler && podScheduler.isInitialized.value && !beltJustEarned.value) {
-    const completedMainRound = (completedRoundIndex || 0) + 1
-
     // Look one round ahead: if the round about to start will end with a
     // pod, warm its audio now. The round gives ~5 min of runway —
     // comfortable for any working network.
@@ -3730,11 +3834,14 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     // round-trip per play — matters for the stage-driven gapless
     // playback that pod laps depend on (per the asset + program
     // architecture model).
-    if (podScheduler.shouldFireLapAt(completedMainRound + 1)) {
+    //
+    // Cadence via podCadenceFiresAtRound so INF PLAY counts revival-tail rounds
+    // (every 5), not the absolute flat queue index (B4).
+    if (podCadenceFiresAtRound(completedRoundIndex + 1)) {
       podScheduler.prefetchLap((id) => audioCache.persistent.ensure(id))
     }
 
-    if (podScheduler.shouldFireLapAt(completedMainRound)) {
+    if (podCadenceFiresAtRound(completedRoundIndex)) {
       const lap = podScheduler.nextLap()
       if (lap) {
         console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
@@ -3796,6 +3903,75 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           simplePlayer.resume()
         }
       }
+    }
+  }
+
+  // ============================================
+  // LAYER-1 LISTENING (runtime — drained-seed fluency maintenance)
+  // Fires every ~50 main rounds once seeds have fully drained from spaced
+  // rep. Plays the bucket (each drained seed's target sentence) at normal
+  // speed, then the whole list again at 2×. No ratchet: the lap is a pure
+  // function of (catalogue, round, learner), so it's resume-safe with nothing
+  // to persist. l1FiresThisBoundary already gated it on a clean, pod-free
+  // boundary (pod wins priority); a due-but-empty bucket no-ops via nextLap.
+  // ============================================
+  if (l1Scheduler && l1FiresThisBoundary && !beltJustEarned.value) {
+    const completedMainRound = (completedRoundIndex || 0) + 1
+
+    // Warm the NEXT L1 lap's audio if the upcoming round ends in one and no
+    // pod pre-empts it (mirror of the pod look-ahead prefetch above).
+    if (l1Scheduler.shouldFireLapAt(completedMainRound + 1)
+        && !(podScheduler?.shouldFireLapAt(completedMainRound + 1))) {
+      l1Scheduler.prefetchLap(completedMainRound + 1, (id) => audioCache.persistent.ensure(id))
+    }
+
+    const l1Lap = l1Scheduler.nextLap(completedMainRound)
+    if (l1Lap) {
+      console.log(`[LearningPlayer] Playing L1 listening lap @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
+      simplePlayer.pause()
+
+      // Reuse the proven pod playback path — shape the L1 lap into a PodLap.
+      // L1 plays are seed target sentences (no glued chunks → glueToNextChunk
+      // false). omitIntro=false: an L1 lap is standalone (it never co-fires
+      // with a pod — l1FiresThisBoundary requires !podFiresThisBoundary).
+      const l1AsPodLap: PodLap = {
+        podRound: completedMainRound,
+        intro: l1Lap.intro,
+        outro: l1Lap.outro,
+        plays: l1Lap.plays.map((p): PodPlay => ({
+          sentenceIdx: p.seedNumber,
+          stage: 0,
+          playRole: p.playbackSpeed >= 2 ? 'ps2x' : 'ps',
+          audioId: p.audioId,
+          text: p.text,
+          playbackSpeed: p.playbackSpeed,
+          glueToNextChunk: false,
+        })),
+      }
+      await playPodLap(l1AsPodLap, false) // L1 has no ratchet — nothing to persist.
+
+      // Resume handling mirrors the pod block: keep the course rolling unless
+      // the session ended (offline loop / expand) or the learner stopped.
+      if (sessionEnded.value) {
+        if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+          sessionEnded.value = false
+          simplePlayer.resume()
+        } else {
+          const added = await expandScript()
+          if (added > 0) {
+            sessionEnded.value = false
+            simplePlayer.resume()
+          } else {
+            showPausedSummary()
+          }
+        }
+      } else if (userStoppedDuringLap.value) {
+        userStoppedDuringLap.value = false
+        pendingLapResume.value = l1AsPodLap
+      } else {
+        simplePlayer.resume()
+      }
+      podLapSkippedByUser.value = false
     }
   }
 
@@ -7245,33 +7421,41 @@ const handleRoundBack = async () => {
     haltAllPlayback()
 
     if (isInfplay) {
-      // Exiting INF PLAY: flip mode → main so future resume-bootstrap doesn't
-      // bounce back into INF PLAY and persistCursorAtCurrentRound (a no-op in
-      // infplay) writes the real landed position. infplayRoundIndex is a
-      // lifetime counter — leave it.
-      currentMode.value = 'main'
-      if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-        try {
-          await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
-        } catch (modeErr) {
-          console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
-        }
+      // Step BACK one INF PLAY round (Tom 2026-06-03). The bottom-nav back arrow
+      // is the ROUND axis, so in INF PLAY it walks the revival tail backwards —
+      // it does NOT exit the mode. Exiting INF PLAY is owned by the header ‹‹
+      // chevron (handleSkipToPrevBelt) and the belt modal. This is the mirror
+      // image of advanceInfPlayRound: queue index −1, clamp at the first revival
+      // round, decrement the central-pill ∞ readout, belt pinned to the
+      // course-final belt, stay in 'infplay'. The counter bump is local-only,
+      // symmetric with the forward button (the DB infplay_round_index only
+      // ratchets on natural round completion via saveRoundProgress).
+      const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+      const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
+        ? mainLoopCount
+        : -1
+      const fromIdx = simplePlayer.roundIndex.value
+      // No revival set loaded, or already at the first revival round → nothing
+      // earlier to step to; stay put (use the header ‹‹ chevron / belt modal to
+      // leave INF PLAY). Mirrors main-loop back staying put at the first LEGO.
+      if (firstInfIdx < 0 || fromIdx <= firstInfIdx) {
+        console.log('[LearningPlayer] Round back in INF PLAY: at the first revival round — staying put')
+        return
       }
-      // The main-loop rounds aren't loaded (queue is the recycled INF-PLAY
-      // set). Force a full main-loop load before resolving the previous LEGO —
-      // never trust the "already loaded" short-circuit on an INF-PLAY exit.
-      await loadSeedIfNeeded(1, /* forceReload */ true)
-      // Land on the LAST main-loop LEGO the learner reached (the course's
-      // final LEGO, since INF PLAY ratchets there) and replay its debut.
-      const anchorLegoId = lastMainLoopLegoId.value || highestCompletedLegoId.value
-      let targetIdx = anchorLegoId ? simplePlayer.findRoundIndexForLegoId(anchorLegoId) : -1
-      if (targetIdx < 0) targetIdx = Math.max(0, cachedRounds.value.length - 1)
-      await prepareAndJump(targetIdx, 'Previous LEGO…', () => {
-        // slot 0 → intro/debut/build replay. Belt DERIVES from the landed
-        // round, which is now a real main-loop round.
-        simplePlayer.jumpToRound(targetIdx, 0)
-        deriveBeltFromLandedRound()
+      const targetIdx = fromIdx - 1
+      const courseEndSeed = (() => {
+        const fin = courseFinalLegoRef.value?.legoId
+        if (fin) { const s = getSeedFromLegoId(fin); if (s !== null) return s }
+        return 668
+      })()
+      await prepareAndJump(targetIdx, 'Previous review round…', () => {
+        simplePlayer.jumpToRound(targetIdx)
+        // Pin belt to the final belt — a revival round's random-USE legoId would
+        // otherwise bounce the indicator (mirrors advanceInfPlayRound).
+        if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
       })
+      // Step the central-pill ∞ readout back (floor at 1).
+      infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value - 1)
       await persistCursorAtCurrentRound()
       return
     }
@@ -7399,6 +7583,14 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
 // PREVIOUS belt (mirrors the LEGO back's restart-current-first rule). Both wrap
 // handleSkipToBelt, so INF-PLAY exit + cursor persistence come free.
 const handleSkipToNextBelt = async () => {
+  // Already in INF PLAY → there is nothing past the revival tail to skip
+  // forward to, so the belt-forward chevron is a NO-OP (B3). Without this guard
+  // wouldEnterInfplay is true in INF PLAY, so this re-ran the full enterInfPlay
+  // entry (ratchet + jump-to-first-revival + warm-up overlay) = the whole-screen
+  // flash. Stepping THROUGH revival rounds is the bottom-nav forward arrow
+  // (handleRoundForward → advanceInfPlayRound), not the belt axis. Position-based
+  // (isInfPlayActive) so it also nulls for GUESTS, who never get the mode flag.
+  if (isInfPlayActive.value) return
   if (wouldEnterInfplay.value) { await enterInfPlay(); return }
   if (playingNextBelt.value) await handleSkipToBelt(playingNextBelt.value)
 }
@@ -7657,14 +7849,18 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
   ].filter(Boolean) as string[]
   if (urls.length === 0) return
 
-  const results = await Promise.allSettled(urls.map(url =>
-    fetch(url).then(r => r.ok ? r.arrayBuffer().then(() => url) : null).catch(() => null)
+  // Fetch to warm the SW CacheFirst layer so the first cycle plays instantly.
+  // We deliberately do NOT record these URLs in `warmedUpAudioUrls`: doing so
+  // made the set non-empty, which ACTIVATED the shouldSkipCycle INF-PLAY cull
+  // gate and skipped every cycle except this warmed first one — the cause of
+  // "phase/cycle-back works on the first cycle only" (B2). With the set left
+  // empty the gate self-disables (its own `size > 0` guard) and INF PLAY
+  // cycles play via the same JIT/SW path as the main loop — exactly what the
+  // warmUpInfPlayRoundsBackground docblock already assumes. Offline still
+  // culls via its own persistent-cache branch in shouldSkipCycle.
+  await Promise.allSettled(urls.map(url =>
+    fetch(url).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)
   ))
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) {
-      warmedUpAudioUrls.value.add(r.value)
-    }
-  }
 }
 
 /**
@@ -8078,23 +8274,16 @@ const offlineActive = ref(false)
 // player streamed /api/audio and every clip failed offline.) Download gates stay
 // on the explicit toggle — downloading is a deliberate, online action.
 const offlinePlaybackActive = (): boolean => offlineActive.value || !isOnline.value
-const offlineDlState = ref<'idle' | 'preparing' | 'downloading' | 'complete' | 'error'>('idle')
-const offlineDlDone = ref(0)      // audio files genuinely cached (successes only)
-const offlineDlTotal = ref(0)
-const offlineDlFailed = ref(0)    // fetches that failed (e.g. bad network)
-
-// Progress banner label — empty when there's nothing to show. `done` counts
-// ONLY files that actually landed in IndexedDB, so "Ready" can't lie.
-const offlineDownloadLabel = computed(() => {
-  if (offlineDlState.value === 'preparing') return 'Preparing offline download…'
-  if (offlineDlState.value === 'downloading') {
-    const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
-    return `Downloading for offline… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
-  }
-  if (offlineDlState.value === 'complete') return `Ready to play offline ✓ (${offlineDlDone.value} files)`
-  if (offlineDlState.value === 'error') return `Offline download incomplete — ${offlineDlFailed.value} failed, needs better signal`
-  return ''
-})
+// Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
+// from useOfflineDownloadStatus and written by downloadForOffline below. The UI
+// for it now lives on the mode button (the ring) + the Offline row in ModeTray,
+// not a floating banner here. Because those refs are page-lifetime singletons,
+// a fresh player instance must start them clean, and on teardown we drop
+// offlineActive so any in-flight downloadForOffline loop (whose cancel-guard is
+// this instance's offlineActive) stops writing the shared refs for the next
+// course's ring.
+onMounted(() => { resetOfflineDownloadStatus() })
+onUnmounted(() => { offlineActive.value = false })
 
 // Estimated wall-clock (ms) of play currently sitting in cachedRounds from
 // the current round forward. Used to decide whether we've loaded enough
@@ -8151,19 +8340,6 @@ const courseTotalRounds = (): number => (courseFinalLegoRef.value?.roundIndex ??
 // Rounds currently loaded ahead of (and including) the cursor.
 const roundsLoadedAhead = (): number =>
   Math.max(0, (cachedRounds.value?.length ?? 0) - Math.max(0, currentRoundIndex.value))
-
-// Convert a fraction of the WHOLE course into a round count ahead of the cursor,
-// capped at the course tail. fraction >= 1 (or unknown total) → Infinity = take
-// everything reachable. e.g. "Next 25%" from 60% through → only the 40% that
-// remains.
-const roundsForCourseFraction = (fraction: number): number => {
-  const total = courseTotalRounds()
-  const start = Math.max(0, currentRoundIndex.value)
-  if (!(total > 0) || fraction >= 1) return Infinity
-  const remaining = total - start
-  if (remaining <= 0) return Infinity
-  return Math.max(1, Math.min(Math.ceil(total * fraction), remaining))
-}
 
 // Expand the script for the deliberate offline download (same
 // machinery INF PLAY uses) until `roundsAhead` rounds are loaded ahead of the
@@ -8341,8 +8517,8 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // Build out the script first — without this we'd only download whatever
   // rounds lazy-loading happened to have in memory (the "4 LEGOs" cap).
   // roundsAhead = the user-chosen depth in COURSE CONTENT (rounds ahead of the
-  // cursor); Infinity = rest of the course. Derived from a % via
-  // roundsForCourseFraction — see the offline depth-knob note above.
+  // cursor); Infinity = rest of the course. Derived from the depth slider via
+  // offlineSelectedRounds (a fraction of the REMAINING course).
   offlineDlState.value = 'preparing'
   await ensureOfflineRoundsLoaded(roundsAhead)
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
@@ -8413,6 +8589,14 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
 // shuffled for variety. The end-of-rounds watcher re-invokes this near each
 // new end → endless cached play. Returns rounds appended (0 if nothing
 // cached). Tom 2026-05-25: offline must always play SOMETHING.
+// INF PLAY plays USE PHRASES ONLY (Tom 2026-06-03) — never intro/debut/BUILD
+// (BLD phrases only ever play in a LEGO's debut round) nor component/listening
+// cycles. 'use' and 'spaced_rep' are both USE-phrase plays (the generator draws
+// spaced_rep from the same usePhrases pool). Filtering to these also means the
+// recycled rounds carry NO intro/debut/build → isMainLoopRound is false →
+// isInfPlayActive true → the belt correctly shows the red ∞ for offline INF PLAY.
+const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
+
 const appendCachedLoopForOffline = (): number => {
   const rounds = (cachedRounds.value || []) as any[]
   if (rounds.length === 0) return 0
@@ -8421,7 +8605,8 @@ const appendCachedLoopForOffline = (): number => {
   const cachedOnly: any[] = []
   for (const r of rounds) {
     const cyc = ((r?.cycles) || []).filter((c: any) =>
-      cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
+      INF_PLAY_USE_TYPES.has(c?.type)
+      && cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
     if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
   }
   if (cachedOnly.length === 0) return 0
@@ -8498,29 +8683,63 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
 // picker so the learner chooses how much of the course to carry, each option
 // annotated with a live size estimate (MB + % of device storage).
 const showOfflinePicker = ref(false)
-interface OfflineDepthOption {
-  key: string
-  label: string        // "Next 25%", "Rest of course"
-  detail: string       // "~120 MB · 8% of device"
-  fraction: number     // 0.25 / 0.5 / 1 — fed to roundsForCourseFraction
-}
-const offlineDepthOptions = ref<OfflineDepthOption[]>([])
 const offlineEstimating = ref(false)
+
+// Notched slider: each notch is a fraction of the REMAINING course (from the
+// cursor to the tail), not of the whole course. So the top notch (100%) always
+// means "the rest of the course" no matter how far through you are, and the
+// notches never collapse into each other. Thumb starts at the smallest.
+const OFFLINE_NOTCHES = [0.02, 0.05, 0.10, 0.25, 0.50, 1] as const
+const offlineNotchIndex = ref(0)
+const offlineSelectedFraction = computed(() => OFFLINE_NOTCHES[offlineNotchIndex.value])
+const offlineSelectedLabel = computed(() => {
+  const pct = Math.round(offlineSelectedFraction.value * 100)
+  if (offlineSelectedFraction.value >= 1) return offlineAtTail.value ? 'the whole course' : 'the rest of the course'
+  return offlineAtTail.value ? `${pct}% of the course` : `${pct}% of what's left`
+})
 
 const formatMb = (mb: number): string =>
   mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`
 
-// Build the depth options with live size estimates. Cheap + best-effort:
-// average bytes/file from what's already cached, average files/round from the
-// loaded sample, projected over the rounds each % covers. Estimates self-refine
-// as the cache grows; they're labelled "~" and don't need to be exact (Tom: the
-// number "probably doesn't matter that much" — it's there for a sense of cost).
+// Estimate basis, gathered ONCE when the picker opens (course length + cache
+// stats). The per-notch MB/bar then derive synchronously as the slider moves —
+// no re-fetch per drag. Best-effort + labelled "≈"; a sense of cost, not a
+// promise (Tom: the number "probably doesn't matter that much").
+interface OfflineEstBasis {
+  total: number; start: number
+  avgBytesPerFile: number; avgFilesPerRound: number
+  quotaBytes: number | undefined; ready: boolean
+}
+const offlineEst = ref<OfflineEstBasis>({
+  total: 0, start: 0,
+  avgBytesPerFile: 24 * 1024, avgFilesPerRound: 12, quotaBytes: undefined, ready: false,
+})
+
+// At/past the main-loop tail = INF PLAY / course finished: there's no NEW content
+// ahead (courseTotalRounds is the main-loop length, which the cursor reaches and
+// then exceeds as INF PLAY recycles). For that learner the download isn't "carry
+// the next chunk of new learning" — it's "keep the (whole) course offline to
+// recycle", so the slider, bar and labels switch to that framing.
+const offlineAtTail = computed(() => {
+  const { total, start, ready } = offlineEst.value
+  return ready && total > 0 && start >= total
+})
+// The pool of rounds the chosen fraction draws from. Mid-course: the NEW content
+// remaining ahead (total − start). Finished/INF-PLAY: the whole course. Length
+// unknown: whatever's loaded ahead. NEVER collapses to 0 while total > 0 — that
+// was the bug that made every notch a single round for the furthest-through user.
+const offlinePoolRounds = computed((): number => {
+  const { total, start } = offlineEst.value
+  if (!(total > 0)) return Math.max(1, roundsLoadedAhead())
+  return start >= total ? total : total - start
+})
+
 const refreshOfflineEstimates = async (): Promise<void> => {
   offlineEstimating.value = true
+  offlineNotchIndex.value = 0   // every open starts at the smallest, lowest-commitment notch
   try {
     // Resolve the course length first (cached) — without it courseTotalRounds()
-    // is 0 and the "whole course" estimate would read off the ~3 bootstrap
-    // rounds and look absurdly small.
+    // is 0 and the bar/estimate would read off the ~3 bootstrap rounds.
     if (courseTotalRounds() <= 0 && courseCode.value) {
       try { await getCourseFinalLego(courseCode.value) } catch { /* best-effort */ }
     }
@@ -8537,45 +8756,74 @@ const refreshOfflineEstimates = async (): Promise<void> => {
     const sampleRounds = roundsLoadedAhead()
     const sampleFiles = collectRoundsAudioIds(Infinity).length
     const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
-
-    const remainingRounds = total > 0 ? Math.max(0, total - start) : roundsLoadedAhead()
-    const remainingFraction = total > 0 ? remainingRounds / total : 1
-
-    const estimate = (fraction: number) => {
-      const rounds = roundsForCourseFraction(fraction)
-      const estRounds = rounds === Infinity ? remainingRounds : rounds
-      const estFiles = Math.round(avgFilesPerRound * estRounds)
-      const mb = (estFiles * avgBytesPerFile) / 1e6
-      const pctDevice = quotaBytes && quotaBytes > 0 ? (mb * 1e6) / quotaBytes * 100 : null
-      let detail = `~${formatMb(mb)}`
-      if (pctDevice != null) detail += ` · ${pctDevice < 1 ? '<1' : Math.round(pctDevice)}% of device`
-      return detail
-    }
-
-    const opts: OfflineDepthOption[] = []
-    // Partial presets only when they're meaningfully less than "the rest".
-    if (total > 0 && remainingFraction > 0.27) opts.push({ key: 'p25', label: 'Next 25%', detail: estimate(0.25), fraction: 0.25 })
-    if (total > 0 && remainingFraction > 0.52) opts.push({ key: 'p50', label: 'Next 50%', detail: estimate(0.5), fraction: 0.5 })
-    opts.push({
-      key: 'rest',
-      label: start <= 0 || total <= 0 ? 'Whole course' : 'Rest of course',
-      detail: estimate(1),
-      fraction: 1,
-    })
-    offlineDepthOptions.value = opts
+    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, quotaBytes, ready: true }
   } finally {
     offlineEstimating.value = false
   }
 }
 
-const startOfflineDownload = (fraction: number) => {
+// Rounds the selected fraction maps to (≥1; the top notch = the whole pool).
+const offlineSelectedRounds = computed((): number => {
+  if (offlineSelectedFraction.value >= 1) return offlinePoolRounds.value
+  return Math.max(1, Math.ceil(offlinePoolRounds.value * offlineSelectedFraction.value))
+})
+
+// Live MB / device-storage readout for the current notch.
+const offlineSelectedEstimate = computed(() => {
+  const { avgFilesPerRound, avgBytesPerFile, quotaBytes, ready } = offlineEst.value
+  if (!ready) return { size: '', device: '' }
+  const files = Math.round(avgFilesPerRound * offlineSelectedRounds.value)
+  const mb = (files * avgBytesPerFile) / 1e6
+  const pctDevice = quotaBytes && quotaBytes > 0 ? (mb * 1e6) / quotaBytes * 100 : null
+  return {
+    size: `≈ ${formatMb(mb)}`,
+    device: pctDevice != null ? `${pctDevice < 1 ? '<1' : Math.round(pctDevice)}% of device` : '',
+  }
+})
+
+// Course-depth bar (% of the WHOLE course): how far you've already come, then the
+// new chunk this download carries forward. Whatever's left after that is where
+// INF PLAY recycling lives — shown by the bar's untinted remainder. This is the
+// "pre-INF-PLAY new learning" made visible, without a misleading time number.
+const offlineCourseBar = computed(() => {
+  const { total, start } = offlineEst.value
+  const frac = offlineSelectedFraction.value
+  if (!(total > 0)) {
+    return { donePct: 0, newPct: frac >= 1 ? 100 : Math.round(frac * 100), finished: false }
+  }
+  if (start >= total) {
+    // Finished / INF PLAY: nothing "ahead" — the bar shows how much of the WHOLE
+    // course you're keeping offline (fill from the start), not a position.
+    const newPct = frac >= 1 ? 100 : Math.min(100, Math.round((offlineSelectedRounds.value / total) * 100))
+    return { donePct: 0, newPct, finished: true }
+  }
+  const donePct = Math.min(100, (start / total) * 100)
+  const newPct = Math.min(100 - donePct, (offlineSelectedRounds.value / total) * 100)
+  return { donePct, newPct, finished: false }
+})
+
+const startOfflineDownload = (): void => {
   showOfflinePicker.value = false
   offlineActive.value = true
-  console.log(`[LearningPlayer] Offline ON — depth ${fraction >= 1 ? 'rest of course' : Math.round(fraction * 100) + '%'}`)
-  void downloadForOffline(roundsForCourseFraction(fraction))
+  const frac = offlineSelectedFraction.value
+  console.log(`[LearningPlayer] Offline ON — depth ${frac >= 1 ? 'rest of course' : Math.round(frac * 100) + '% of remaining'}`)
+  void downloadForOffline(frac >= 1 ? Infinity : offlineSelectedRounds.value)
 }
 
 const cancelOfflinePicker = () => { showOfflinePicker.value = false }
+
+// Escape-to-close, matching every other modal in the app (ProgressModal,
+// AuthModal, …). The listener is attached only while the picker is open so it
+// never competes with the player's own keys. Keeps the input dialog dismissable
+// from the keyboard (desktop/testing), not only by the ✕ / backdrop tap.
+const onOfflinePickerKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && showOfflinePicker.value) cancelOfflinePicker()
+}
+watch(showOfflinePicker, (open) => {
+  if (open) document.addEventListener('keydown', onOfflinePickerKeydown)
+  else document.removeEventListener('keydown', onOfflinePickerKeydown)
+})
+onUnmounted(() => document.removeEventListener('keydown', onOfflinePickerKeydown))
 
 const toggleOffline = () => {
   if (offlineActive.value) {
@@ -10795,10 +11043,8 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
-  <!-- Offline download progress — shown while Offline mode prepares its span -->
-  <div v-if="offlineDownloadLabel" class="offline-dl-banner" :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
-    {{ offlineDownloadLabel }}
-  </div>
+  <!-- Offline download progress is shown as a ring on the mode button + the
+       Offline row in ModeTray (where offline was switched on), not a banner. -->
 
   <!-- Offline depth picker — "take it with you". Choose how much of the course
        to carry; each option shows a live size estimate. -->
@@ -10810,21 +11056,60 @@ defineExpose({
             <h3 class="offline-picker-title">Take it offline</h3>
             <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
           </div>
-          <p class="offline-picker-sub">How much of the course do you want to carry?</p>
+          <p class="offline-picker-sub">{{ offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?" }}</p>
 
-          <div v-if="offlineEstimating && offlineDepthOptions.length === 0" class="offline-picker-loading">
-            Estimating sizes…
-          </div>
-          <div v-else class="offline-picker-options">
-            <button
-              v-for="opt in offlineDepthOptions"
-              :key="opt.key"
-              class="offline-picker-option"
-              @click="startOfflineDownload(opt.fraction)"
+          <div class="offline-depth">
+            <!-- Notched slider — fraction of the REMAINING course -->
+            <input
+              type="range"
+              class="offline-depth-slider"
+              min="0"
+              :max="OFFLINE_NOTCHES.length - 1"
+              step="1"
+              v-model.number="offlineNotchIndex"
+              :aria-valuetext="offlineSelectedLabel"
+              aria-label="How much of the remaining course to download"
+            />
+            <!-- Tick labels stay tappable for mouse/touch, but the slider above is
+                 the single canonical control: aria-hidden + tabindex -1 keeps them
+                 out of the keyboard/SR traversal so the value isn't announced twice. -->
+            <div class="offline-depth-ticks" aria-hidden="true">
+              <button
+                v-for="(n, i) in OFFLINE_NOTCHES"
+                :key="i"
+                type="button"
+                tabindex="-1"
+                class="offline-depth-tick"
+                :class="{ active: i === offlineNotchIndex }"
+                @click="offlineNotchIndex = i"
+              >{{ Math.round(n * 100) }}%</button>
+            </div>
+
+            <!-- Live cost readout for the selected notch -->
+            <p class="offline-depth-size">
+              <span class="offline-depth-size-mb">{{ offlineSelectedEstimate.size || 'Working out size…' }}</span>
+              <span v-if="offlineSelectedEstimate.device" class="offline-depth-size-device"> · {{ offlineSelectedEstimate.device }}</span>
+            </p>
+
+            <!-- Course-depth bar: mid-course = where you are + the new chunk you'd
+                 carry; finished/INF-PLAY = how much of the course you're keeping. -->
+            <div
+              class="offline-depth-bar"
+              role="img"
+              :aria-label="offlineCourseBar.finished
+                ? (offlineSelectedFraction >= 1 ? 'Keeps the whole course offline' : `Keeps about ${Math.round(offlineCourseBar.newPct)} percent of the course offline`)
+                : (offlineSelectedFraction >= 1 ? 'Carries everything left to learn' : `Carries you about ${Math.round(offlineCourseBar.newPct)} percent further through the course`)"
             >
-              <span class="offline-opt-label">{{ opt.label }}</span>
-              <span class="offline-opt-detail">{{ opt.detail }}</span>
-            </button>
+              <div class="offline-depth-bar-done" :style="{ width: offlineCourseBar.donePct + '%' }"></div>
+              <div class="offline-depth-bar-new" :style="{ left: offlineCourseBar.donePct + '%', width: offlineCourseBar.newPct + '%' }"></div>
+            </div>
+            <p class="offline-depth-caption">
+              {{ offlineCourseBar.finished
+                ? (offlineSelectedFraction >= 1 ? 'The whole course, kept offline' : `~${Math.round(offlineCourseBar.newPct)}% of the course, kept offline`)
+                : (offlineSelectedFraction >= 1 ? 'Everything left to learn' : `New learning — carries you ~${Math.round(offlineCourseBar.newPct)}% further`) }}
+            </p>
+
+            <button class="offline-depth-download" @click="startOfflineDownload">Download</button>
           </div>
 
           <p class="offline-picker-note">Plays offline forever once downloaded — it keeps going on repeat with no signal.</p>
@@ -10877,7 +11162,7 @@ defineExpose({
     :highest-round="highestAbsoluteRound"
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
-    :is-infplay="currentMode === 'infplay'"
+    :is-infplay="isInfPlayActive"
     :is-offline="offlinePlaybackActive()"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
@@ -11350,9 +11635,9 @@ defineExpose({
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleSkipToPrevBelt"
-            :disabled="playingBelt.index === 0 && simplePlayer.roundIndex.value === 0 && currentMode !== 'infplay'"
-            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to your current belt' : 'Restart this belt (again for the previous belt)'"
-            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to your current belt' : 'Restart the current belt; press again to step back to the previous belt'"
+            :disabled="playingBelt.index === 0 && simplePlayer.roundIndex.value === 0 && !isInfPlayActive"
+            :title="isInfPlayActive ? 'Leave INF PLAY — back to your current belt' : 'Restart this belt (again for the previous belt)'"
+            :aria-label="isInfPlayActive ? 'Leave infinite play, back to your current belt' : 'Restart the current belt; press again to step back to the previous belt'"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
@@ -11367,13 +11652,13 @@ defineExpose({
                in all states. -->
           <button
             class="belt-timer-unified"
-            :class="{ 'is-infplay': currentMode === 'infplay' }"
-            :title="currentMode === 'infplay'
+            :class="{ 'is-infplay': isInfPlayActive }"
+            :title="isInfPlayActive
               ? `In INF PLAY (round ${infplayRoundIndex}) — tap to jump to a belt`
               : (!nextBelt
                   ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved! Tap to jump to a belt`
                   : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt — tap to jump to a belt`)"
-            :aria-label="currentMode === 'infplay'
+            :aria-label="isInfPlayActive
               ? `Infinite play, round ${infplayRoundIndex}. Tap to jump to a belt.`
               : (!nextBelt
                   ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved. Tap to jump to a belt.`
@@ -11381,7 +11666,7 @@ defineExpose({
             @click="handleBeltPillTap"
           >
             <!-- INF PLAY: ∞ glyph, no progress line. Main loop: progress bar. -->
-            <svg v-if="currentMode === 'infplay'" class="belt-infplay-glyph"
+            <svg v-if="isInfPlayActive" class="belt-infplay-glyph"
                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
@@ -11402,13 +11687,14 @@ defineExpose({
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt }"
             @click="handleSkipToNextBelt"
-            :title="currentMode === 'infplay'
-              ? `In INF PLAY (round ${infplayRoundIndex}) — next review round`
+            :disabled="isInfPlayActive"
+            :title="isInfPlayActive
+              ? 'INF PLAY is the end of the course — there is no next belt'
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY — random review of everything you have learned'
                   : 'Next belt')"
-            :aria-label="currentMode === 'infplay'
-              ? `Infinite play, round ${infplayRoundIndex}. Next review round.`
+            :aria-label="isInfPlayActive
+              ? 'Infinite play is the end of the course. There is no next belt.'
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY: random review of everything you have learned'
                   : 'Next belt')"
@@ -11830,34 +12116,16 @@ defineExpose({
   overflow: hidden;
 }
 
-/* Offline download progress banner — top-centre, above all play surfaces */
-.offline-dl-banner {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 200;
-  max-width: calc(100vw - 32px);
-  padding: 8px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
-}
-.offline-dl-banner.is-complete { background: rgba(22, 130, 70, 0.9); }
-.offline-dl-banner.is-error { background: rgba(150, 40, 40, 0.9); }
-
 /* Offline depth picker ("take it with you") */
 .offline-picker-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 320;
+  /* Above the bottom-nav / belt-skip / paywall layer (all z-index:3000) so the
+     input dialog is ALWAYS reachable — even if some nav-layer surface is open,
+     it can never paint over the picker. Stays below the deliberately top-most
+     system prompts (PWA update, install banner). The mode tray also closes
+     itself on the offline tap, so in practice the picker is the only popup. */
+  z-index: 3100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -11874,11 +12142,19 @@ defineExpose({
   border-radius: 18px;
   padding: 18px 18px 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  /* Never taller than the viewport. The header (title + ✕) and the note stay
+     pinned; only the options list scrolls — so on a short/landscape screen every
+     control, including the close button, stays reachable. Requirement: the input
+     dialog must ALWAYS be accessible. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
 }
 .offline-picker-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 .offline-picker-title {
   margin: 0;
@@ -11900,54 +12176,132 @@ defineExpose({
   margin: 4px 0 14px;
   font-size: 13px;
   color: #6b6560;
+  flex-shrink: 0;
 }
-.offline-picker-loading {
-  padding: 18px 4px;
-  font-size: 13px;
+/* Offline depth — notched slider + course-depth bar (replaces the option list) */
+.offline-depth {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Stay scrollable inside the height-capped dialog (close button + note remain
+     pinned; this region scrolls if it ever overflows a short/landscape screen). */
+  overflow-y: auto;
+  min-height: 0;
+}
+.offline-depth-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;             /* comfortable hit area around the 4px track */
+  margin: 2px 0 0;
+  background: transparent;
+  cursor: pointer;
+}
+.offline-depth-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.offline-depth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;         /* centre the 22px thumb on the 4px track */
+  border-radius: 50%;
+  background: #16a34a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.offline-depth-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.offline-depth-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.offline-depth-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); }
+.offline-depth-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); }
+.offline-depth-ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin-top: -2px;
+}
+.offline-depth-tick {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9a948e;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.offline-depth-tick.active { color: #16a34a; }
+.offline-depth-size {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2b2622;
+  text-align: center;
+}
+.offline-depth-size-device { font-weight: 500; color: #8a847e; }
+.offline-depth-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+.offline-depth-bar-done {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.22);   /* already learned / behind the cursor */
+}
+.offline-depth-bar-new {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #16a34a;               /* the new chunk this download carries */
+  transition: left 0.15s ease, width 0.15s ease;
+}
+.offline-depth-caption {
+  margin: 0;
+  font-size: 11.5px;
   color: #9a948e;
   text-align: center;
 }
-.offline-picker-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.offline-picker-option {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+.offline-depth-download {
+  margin-top: 2px;
   width: 100%;
   padding: 13px 15px;
-  border: 1.5px solid rgba(0, 0, 0, 0.12);
+  border: none;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.015);
+  background: #16a34a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s ease, background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.1s ease;
 }
-.offline-picker-option:hover {
-  border-color: rgba(22, 163, 74, 0.5);
-  background: rgba(22, 163, 74, 0.06);
-}
-.offline-picker-option:active { transform: scale(0.99); }
-.offline-opt-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2b2622;
-}
-.offline-opt-detail {
-  font-size: 12px;
-  font-weight: 500;
-  color: #8a847e;
-  white-space: nowrap;
-}
+.offline-depth-download:hover { background: #15903f; }
+.offline-depth-download:active { transform: scale(0.99); }
 .offline-picker-note {
   margin: 14px 2px 0;
   font-size: 11.5px;
   line-height: 1.4;
   color: #9a948e;
+  flex-shrink: 0;
 }
 .offline-picker-enter-active,
 .offline-picker-leave-active { transition: opacity 0.2s ease; }
@@ -12630,7 +12984,7 @@ defineExpose({
 }
 
 /* INF-PLAY indicator state for the CENTRAL belt-progress pill.
- * When currentMode === 'infplay' the pill changes colour (purple
+ * When isInfPlayActive the pill changes colour (purple
  * gradient), THROBS, and shows an ∞ glyph instead of the progress line.
  * Tom: the ∞ indicator moved OFF the forward chevron ONTO this pill. */
 .belt-timer-unified.is-infplay {

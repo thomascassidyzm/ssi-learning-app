@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import {
+  offlineDlState,
+  offlineDownloadPct,
+  offlineDownloadVisible,
+  offlineDownloadActive,
+  offlineDownloadLabel,
+} from '../composables/useOfflineDownloadStatus'
 
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
@@ -22,6 +29,23 @@ const isOpen = ref(false)
 const toggleTray = () => {
   isOpen.value = !isOpen.value
 }
+
+// ── Offline-download ring around the mode button ────────────────────────────
+// Offline was switched on from here, so its progress lives here too: a ring
+// around the trigger while downloading, green when ready, red on error. The full
+// "Downloading… N% (x/y)" detail shows on the Offline row inside the tray.
+const MODE_RING_CIRCUMFERENCE = 2 * Math.PI * 26   // viewBox 60, r=26 (a halo OUTSIDE the 44px button)
+const offlineRingIndeterminate = computed(() => offlineDlState.value === 'preparing')
+const modeRingStyle = computed(() => {
+  const c = MODE_RING_CIRCUMFERENCE
+  if (offlineDlState.value === 'complete' || offlineDlState.value === 'error') {
+    return { strokeDasharray: `${c}`, strokeDashoffset: '0' }                    // full ring
+  }
+  if (offlineDownloadPct.value !== null) {
+    return { strokeDasharray: `${c}`, strokeDashoffset: `${c * (1 - offlineDownloadPct.value / 100)}` }
+  }
+  return undefined   // preparing → CSS-driven indeterminate spin
+})
 
 const closeTray = () => {
   isOpen.value = false
@@ -69,11 +93,37 @@ const handleMode = (mode: string) => {
   const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
   emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
 }
+
+// Offline is special: tapping it hands off to the full-screen depth picker
+// ("how much of the course to carry"). Close the tray first so the picker is
+// never left stacked behind it — the tray lives inside the bottom-nav's
+// z-index:3000 layer, so a still-open tray would paint over the body-teleported
+// picker. One popup at a time; the dialog requesting input stays accessible.
+const handleOffline = () => {
+  emit('toggleOffline')
+  closeTray()
+}
 </script>
 
 <template>
   <div v-show="isVisible" class="mode-tray-container">
-    <!-- Trigger button -->
+    <!-- Trigger button (with the offline-download progress ring around it) -->
+    <div class="mode-trigger-wrap">
+    <svg
+      v-if="offlineDownloadVisible"
+      class="mode-trigger-ring"
+      :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }"
+      viewBox="0 0 60 60"
+      aria-hidden="true"
+    >
+      <circle class="mode-trigger-ring-track" cx="30" cy="30" r="26" />
+      <circle
+        class="mode-trigger-ring-fill"
+        :class="{ 'is-indeterminate': offlineRingIndeterminate }"
+        cx="30" cy="30" r="26"
+        :style="modeRingStyle"
+      />
+    </svg>
     <button
       class="mode-trigger"
       :class="{ active: hasActiveMode, open: isOpen }"
@@ -97,6 +147,7 @@ const handleMode = (mode: string) => {
         <line x1="17" y1="16" x2="23" y2="16"/>
       </svg>
     </button>
+    </div>
 
     <!-- Tray popover -->
     <Transition name="tray">
@@ -153,7 +204,7 @@ const handleMode = (mode: string) => {
         <button
           class="tray-item"
           :class="{ active: isOfflineMode }"
-          @click="handleMode('offline')"
+          @click="handleOffline"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -164,7 +215,7 @@ const handleMode = (mode: string) => {
           </div>
           <div class="tray-label">
             <span class="tray-name">Offline mode</span>
-            <span class="tray-desc">Play from downloaded audio</span>
+            <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">{{ offlineDownloadVisible ? offlineDownloadLabel : 'Play from downloaded audio' }}</span>
           </div>
           <div class="tray-toggle" :class="{ on: isOfflineMode }">
             <div class="tray-toggle-knob"></div>
@@ -232,7 +283,54 @@ const handleMode = (mode: string) => {
   z-index: 103;
 }
 
-/* Trigger button */
+/* Trigger button + offline-download ring */
+.mode-trigger-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+}
+.mode-trigger-ring {
+  position: absolute;
+  /* A 60px halo CLEARLY OUTSIDE the 44px button (r=26 sits ~4px beyond the
+     button edge) so the button doesn't paint over the inner half of the stroke —
+     that was the bug that made it nearly invisible. */
+  inset: -8px;
+  width: 60px;
+  height: 60px;
+  transform: rotate(-90deg);   /* arc grows clockwise from 12 o'clock */
+  pointer-events: none;        /* never block the button tap */
+  overflow: visible;
+}
+.mode-trigger-ring-track {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.12);
+  stroke-width: 4;
+}
+.mode-trigger-ring-fill {
+  fill: none;
+  stroke: #16a34a;             /* downloading — green = heading offline */
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dashoffset: 163.36;   /* empty by default (= circumference 2π·26); no unwind flash */
+  transition: stroke-dashoffset 0.3s ease;
+  filter: drop-shadow(0 0 3px rgba(22, 163, 74, 0.55));   /* glow → prominent */
+}
+.mode-trigger-ring.is-complete .mode-trigger-ring-fill { stroke: #16a34a; }
+.mode-trigger-ring.is-error .mode-trigger-ring-fill {
+  stroke: #ef4444;
+  filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.55));
+}
+.mode-trigger-ring-fill.is-indeterminate {
+  stroke-dasharray: 41 123;    /* short arc (~25% of the circle) */
+  stroke-dashoffset: 0;        /* sit the arc cleanly at the start, then spin */
+  transform-origin: 30px 30px;
+  animation: mode-ring-spin 0.9s linear infinite;
+}
+@keyframes mode-ring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .mode-trigger-ring-fill.is-indeterminate { animation: none; }
+}
+
 .mode-trigger {
   width: 44px;
   height: 44px;
@@ -374,6 +472,17 @@ const handleMode = (mode: string) => {
   color: #A09A94;
   line-height: 1.3;
   margin-top: 1px;
+}
+/* While a download is in progress, the Offline row's desc shows the live detail
+   ("Downloading… N% (x/y)") in the accent colour. */
+.tray-desc.is-downloading {
+  color: #16a34a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tray-desc.is-error {
+  color: #ef4444;
+  font-weight: 600;
 }
 
 /* Toggle switch for Turbo */

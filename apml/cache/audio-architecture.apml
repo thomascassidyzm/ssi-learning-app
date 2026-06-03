@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-02
+# Last Updated: 2026-06-03 (offline depth = notched slider; download progress = ring on the mode button)
 
 spec audio_caching_architecture:
   version: "1.0.0"
@@ -139,27 +139,53 @@ spec audio_caching_architecture:
         material you carry, not how long you can listen.
 
     flow:
-      - "Tapping 'Offline mode' opens the 'Take it offline' picker (showOfflinePicker)"
-      - "Picker lists depth options, each with a live size estimate"
-      - "Choosing a depth → startOfflineDownload(fraction) → sets offlineActive, downloads"
+      - "Tapping 'Offline mode' closes the mode tray (handleOffline) and opens the 'Take it offline' picker (showOfflinePicker)"
+      - "Picker = a notched SLIDER (how much of what's left to carry) + a live MB readout + a course-depth bar"
+      - "Tapping Download → startOfflineDownload() → sets offlineActive, downloads the selected depth"
       - "Turning offline off revokes blob URLs and resets state"
 
-    depth_options:
-      - label: "Next 25%"
-        fraction: 0.25
-      - label: "Next 50%"
-        fraction: 0.5
-      - label: "Rest of course"
-        fraction: 1   # Infinity rounds = to the course tail
-      note: >
-        Relative to current position, capped at the course end. Partial options
-        that would equal 'the rest' are hidden (near the end only 'Rest of
-        course' shows).
+    single_popup_rule:
+      requirement: "The input dialog must ALWAYS be accessible — one popup at a time."
+      why: >
+        The mode tray lives inside the bottom-nav's z-index:3000 stacking context;
+        the picker teleports to <body>. Two things keep the dialog reachable:
+      how:
+        - "ModeTray.handleOffline closes the tray on the offline tap, so the picker is the only popup"
+        - "offline-picker-backdrop z-index 3100 — above the nav/belt-skip/paywall layer (3000), below system prompts (PWA update/install)"
+        - "Dialog capped at max-height calc(100dvh - 48px): header + note pinned, options scroll → every control reachable on short/landscape screens"
+        - "Dismiss via ✕, backdrop tap, or Escape (matches the app's other modals)"
+
+    depth_slider:
+      control: "notched <input type=range> (offlineNotchIndex 0..5) + tappable tick labels"
+      notches: "[0.02, 0.05, 0.10, 0.25, 0.50, 1]  # OFFLINE_NOTCHES"
+      unit: >
+        Fraction of the REMAINING course (cursor → tail), NOT of the whole course.
+        So the top notch (100%) always means 'the rest of the course' regardless
+        of how far through you are, and notches never collapse into each other —
+        no per-notch hiding needed. Thumb starts at the smallest (2%) on each open.
+      mapping: "offlineSelectedRounds = frac>=1 ? poolRounds : ceil(poolRounds·frac), min 1"
+      pool: >
+        offlinePoolRounds: mid-course = total − start (new content ahead);
+        finished/INF-PLAY (start >= total, cursor at/past the main-loop tail) =
+        the whole course (no new content left — download = keep it offline to
+        recycle); unknown length = roundsLoadedAhead. NEVER 0 while total>0
+        (was the bug: courseTotalRounds is main-loop-only, so a finished learner
+        had remaining=0 → every notch collapsed to one round). offlineAtTail flips
+        the slider/bar/labels to the 'keep N% of the course offline' framing.
+      why_not_time: >
+        Time is misleading twice: INF PLAY makes total offline time infinite, and
+        the 'new' portion stretches with turbo/replay. So the readout is MB (real
+        cost) + a course-depth bar (the pre-INF-PLAY new learning made visible),
+        never a duration.
+      course_depth_bar: >
+        offlineCourseBar — donePct (start/total, already learned) + newPct
+        (selectedRounds/total, the new chunk carried). Untinted remainder = where
+        INF PLAY recycling lives. % is of the WHOLE course here (for honest depth).
 
     size_estimate:
-      shown_per_option: "~MB and % of device storage"
+      shown_for_selected_notch: "≈MB and % of device storage (offlineSelectedEstimate); basis gathered once on open (offlineEst), derives synchronously as the slider moves"
       bytes_per_file: "avg from audioCache.stats() (persistent.bytes / count), fallback ~24KB"
-      files_projection: "avg files/round from loaded sample × rounds the % covers"
+      files_projection: "avg files/round from loaded sample × rounds the notch covers"
       device_quota: "navigator.storage.estimate() via audioCache.stats().quotaBytes"
       accuracy: "best-effort, labelled '~'; self-refines as the cache grows"
 
@@ -173,7 +199,21 @@ spec audio_caching_architecture:
     progress:
       state: "offlineDlState: idle | preparing | downloading | complete | error"
       counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done)"
-      banner: "offlineDownloadLabel — top-centre pill"
+      shared_state: >
+        useOfflineDownloadStatus.ts — module-level refs (offlineDlState/Done/Total/
+        Failed) + computeds (offlineDownloadVisible/Active/Pct/Label), written by
+        LearningPlayer.downloadForOffline, read by ModeTray. Same shared-singleton
+        pattern as usePwaUpdate (no prop-drilling to the mode button). LearningPlayer
+        resetOfflineDownloadStatus() onMounted + offlineActive=false onUnmounted so a
+        course-change remount can't leave a stale ring or an orphaned write loop.
+      indicator: >
+        A progress RING around the mode-tray trigger button (where offline is
+        switched on), NOT a floating banner. Shown when offlineDownloadVisible
+        (state≠idle): determinate arc = offlineDownloadPct while downloading, green
+        full ring on complete (~4s then idle), red on error, indeterminate spin while
+        preparing. pointer-events:none so it never blocks the button. The granular
+        "Downloading… N% (x/y)" detail shows on the tray's Offline row (open the tray
+        for it) — green while active, red on error.
 
     deferred:
       premium_gate: "useEntitlement.canDownload exists but NOT wired to download (no premium users yet)"
