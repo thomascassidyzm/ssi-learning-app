@@ -7307,9 +7307,18 @@ const handleRoundBack = async () => {
   }
 }
 
-// Belt pill tap — open the unified progress modal
-const handleBeltPillTap = () => {
+// Belt pill tap — open the unified progress modal. Persist the in-flight
+// play-seconds first (await the write so the read sees it), without stopping
+// playback, then refetch — so the modal shows your CURRENT total, not the
+// last-flushed snapshot from your last pause.
+const handleBeltPillTap = async () => {
   showProgressModal.value = true
+  if (!courseCode.value || !supabase?.value) return
+  const learnerId = (auth as any)?.learnerId?.value || null
+  try {
+    await learningSession.flushTelemetryDelta()
+  } catch { /* flush is best-effort */ }
+  contribution.fetch(courseCode.value, learnerId).catch(() => {})
 }
 
 // ∞ activator (belt modal) — the ONE deliberate entry into INF PLAY. The
