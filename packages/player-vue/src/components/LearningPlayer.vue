@@ -8096,6 +8096,38 @@ const offlineDownloadLabel = computed(() => {
   return ''
 })
 
+// The download banner can collapse to a small progress-ring dot so it stays out
+// of the way while you keep playing — you DON'T have to wait for the download to
+// finish. Tap the dot to expand to the full pill; tap the pill to shrink it back.
+// A new download starts collapsed (a quiet dot); completion/error always pop the
+// pill so the result is seen.
+const offlineBannerExpanded = ref(false)
+// Download progress as a whole number, or null while 'preparing' (no total yet →
+// the ring spins indeterminately).
+const offlineDownloadPct = computed(() =>
+  offlineDlState.value === 'downloading' && offlineDlTotal.value > 0
+    ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100)
+    : null,
+)
+// Collapsed-to-dot only while actively fetching; complete/error stay as the pill.
+const offlineBannerIsDot = computed(() =>
+  !offlineBannerExpanded.value &&
+  (offlineDlState.value === 'preparing' || offlineDlState.value === 'downloading'),
+)
+// Progress-ring geometry (viewBox 36, r=15 → circumference 2πr). The arc grows
+// clockwise from 12 o'clock (the <svg> is rotated -90°). Indeterminate state is
+// driven purely by CSS, so we hand back undefined and let the stylesheet own it.
+const OFFLINE_RING_CIRCUMFERENCE = 2 * Math.PI * 15
+const offlineRingStyle = computed(() => {
+  if (offlineDownloadPct.value === null) return undefined
+  const c = OFFLINE_RING_CIRCUMFERENCE
+  return { strokeDasharray: `${c}`, strokeDashoffset: `${c * (1 - offlineDownloadPct.value / 100)}` }
+})
+watch(offlineDlState, (s) => {
+  if (s === 'preparing') offlineBannerExpanded.value = false                       // new download → start as a quiet dot
+  else if (s === 'complete' || s === 'error') offlineBannerExpanded.value = true   // always surface the result
+})
+
 // Estimated wall-clock (ms) of play currently sitting in cachedRounds from
 // the current round forward. Used to decide whether we've loaded enough
 // rounds to cover the offline span.
@@ -10813,10 +10845,29 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
-  <!-- Offline download progress — shown while Offline mode prepares its span -->
-  <div v-if="offlineDownloadLabel" class="offline-dl-banner" :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
-    {{ offlineDownloadLabel }}
-  </div>
+  <!-- Offline download progress. Collapses to a small progress-ring dot while
+       downloading (you can keep playing) — tap to expand to the full pill; tap
+       again to shrink. complete/error surface the pill automatically. -->
+  <button
+    v-if="offlineDownloadLabel"
+    type="button"
+    class="offline-dl-banner"
+    :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error', 'is-dot': offlineBannerIsDot }"
+    :aria-label="offlineDownloadLabel"
+    :title="offlineDownloadLabel"
+    @click="offlineBannerExpanded = !offlineBannerExpanded"
+  >
+    <svg v-if="offlineBannerIsDot" class="offline-dl-ring" viewBox="0 0 36 36" aria-hidden="true">
+      <circle class="offline-dl-ring-track" cx="18" cy="18" r="15" />
+      <circle
+        class="offline-dl-ring-fill"
+        :class="{ 'is-indeterminate': offlineDownloadPct === null }"
+        cx="18" cy="18" r="15"
+        :style="offlineRingStyle"
+      />
+    </svg>
+    <span v-else class="offline-dl-text">{{ offlineDownloadLabel }}</span>
+  </button>
 
   <!-- Offline depth picker — "take it with you". Choose how much of the course
        to carry; each option shows a live size estimate. -->
@@ -11848,7 +11899,8 @@ defineExpose({
   overflow: hidden;
 }
 
-/* Offline download progress banner — top-centre, above all play surfaces */
+/* Offline download progress banner — top-centre, above all play surfaces.
+   Tappable (it's a <button>) so it can collapse to a dot and expand back. */
 .offline-dl-banner {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 12px);
@@ -11857,7 +11909,9 @@ defineExpose({
   z-index: 200;
   max-width: calc(100vw - 32px);
   padding: 8px 16px;
+  border: none;
   border-radius: 999px;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -11866,10 +11920,59 @@ defineExpose({
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: padding 0.2s ease, background 0.2s ease;
 }
 .offline-dl-banner.is-complete { background: rgba(22, 130, 70, 0.9); }
 .offline-dl-banner.is-error { background: rgba(150, 40, 40, 0.9); }
+
+/* Collapsed dot — a small progress ring instead of the full pill. The hit area
+   is a touch larger than the visible 28px ring (still clears the right-of-centre
+   brand buttons) so the dot isn't a fiddly tap; missing it just keeps you
+   playing, which is the whole point. */
+.offline-dl-banner.is-dot {
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+.offline-dl-ring {
+  width: 28px;
+  height: 28px;
+  transform: rotate(-90deg);     /* arc starts at 12 o'clock */
+}
+.offline-dl-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 3.5;
+}
+.offline-dl-ring-fill {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  /* Default to an EMPTY ring (offset == circumference 2π·15). Without this the
+     CSS default offset is 0 = a full ring, so the preparing→downloading handoff
+     would animate a whole circle unwinding down to the first few %. The
+     determinate inline style overrides this with C·(1−pct/100); at 0% it equals
+     this base, so there's no jump. */
+  stroke-dashoffset: 94.248;
+  transition: stroke-dashoffset 0.3s ease;
+}
+/* Preparing (no total yet): a short arc that spins. */
+.offline-dl-ring-fill.is-indeterminate {
+  stroke-dasharray: 22 70;
+  transform-origin: 18px 18px;
+  animation: offline-dl-spin 0.9s linear infinite;
+}
+@keyframes offline-dl-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .offline-dl-ring-fill.is-indeterminate { animation: none; }
+}
 
 /* Offline depth picker ("take it with you") */
 .offline-picker-backdrop {

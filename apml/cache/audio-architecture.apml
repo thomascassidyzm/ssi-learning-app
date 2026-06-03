@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-03
+# Last Updated: 2026-06-03 (offline download banner: collapsible dot↔pill)
 
 spec audio_caching_architecture:
   version: "1.0.0"
@@ -187,7 +187,13 @@ spec audio_caching_architecture:
     progress:
       state: "offlineDlState: idle | preparing | downloading | complete | error"
       counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done)"
-      banner: "offlineDownloadLabel — top-centre pill"
+      banner: >
+        offlineDownloadLabel — top-centre chip. Collapses to a small progress-ring
+        dot while preparing/downloading (you can keep playing; you DON'T wait for
+        the download); tap the dot to expand to the full pill, tap again to shrink.
+        A new download starts as a dot (offlineBannerExpanded=false); complete/error
+        auto-expand to the pill so the result is seen (complete still auto-hides ~4s).
+        Ring: determinate arc = offlineDownloadPct; 'preparing' spins indeterminately.
 
     deferred:
       premium_gate: "useEntitlement.canDownload exists but NOT wired to download (no premium users yet)"
