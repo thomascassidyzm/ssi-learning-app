@@ -79,7 +79,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     const learnerId = getLearnerId()
     const courseId = getCourseId()
     if (!supabase || !learnerId || !courseId || isGuestLearner(learnerId)) return
-    void supabase.rpc('bump_speaking_opportunities', {
+    // Return the promise so callers that need the write to land before reading
+    // (e.g. opening the stats modal) can await it; fire-and-forget callers ignore it.
+    return supabase.rpc('bump_speaking_opportunities', {
       p_learner_id: learnerId,
       p_course_code: courseId,
       p_opps_delta: oppsDelta,
@@ -162,7 +164,7 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     if (oppsDelta <= 0 && secondsDelta <= 0) return
     lastPersistedPlaySeconds = totalSeconds
     pendingOppsDelta = 0
-    bumpOpportunities(oppsDelta, secondsDelta)
+    return bumpOpportunities(oppsDelta, secondsDelta)
   }
 
   // TripleHelixEngine for ROUND-based learning
@@ -680,6 +682,9 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
     getNextItem,
     recordCycleComplete,
     bumpOpportunity,
+    // Persist accumulated play-seconds WITHOUT ending the play segment — used to
+    // bring the stats modal current on open (markPlayStop would stop the timer).
+    flushTelemetryDelta,
     checkpointSession,
     saveMetrics,
     endSession,
