@@ -34,7 +34,7 @@ const toggleTray = () => {
 // Offline was switched on from here, so its progress lives here too: a ring
 // around the trigger while downloading, green when ready, red on error. The full
 // "Downloading… N% (x/y)" detail shows on the Offline row inside the tray.
-const MODE_RING_CIRCUMFERENCE = 2 * Math.PI * 22   // viewBox 50, r=22
+const MODE_RING_CIRCUMFERENCE = 2 * Math.PI * 26   // viewBox 60, r=26 (a halo OUTSIDE the 44px button)
 const offlineRingIndeterminate = computed(() => offlineDlState.value === 'preparing')
 const modeRingStyle = computed(() => {
   const c = MODE_RING_CIRCUMFERENCE
@@ -113,14 +113,14 @@ const handleOffline = () => {
       v-if="offlineDownloadVisible"
       class="mode-trigger-ring"
       :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }"
-      viewBox="0 0 50 50"
+      viewBox="0 0 60 60"
       aria-hidden="true"
     >
-      <circle class="mode-trigger-ring-track" cx="25" cy="25" r="22" />
+      <circle class="mode-trigger-ring-track" cx="30" cy="30" r="26" />
       <circle
         class="mode-trigger-ring-fill"
         :class="{ 'is-indeterminate': offlineRingIndeterminate }"
-        cx="25" cy="25" r="22"
+        cx="30" cy="30" r="26"
         :style="modeRingStyle"
       />
     </svg>
@@ -291,32 +291,39 @@ const handleOffline = () => {
 }
 .mode-trigger-ring {
   position: absolute;
-  inset: -3px;                 /* 50px ring around the 44px button */
-  width: 50px;
-  height: 50px;
+  /* A 60px halo CLEARLY OUTSIDE the 44px button (r=26 sits ~4px beyond the
+     button edge) so the button doesn't paint over the inner half of the stroke —
+     that was the bug that made it nearly invisible. */
+  inset: -8px;
+  width: 60px;
+  height: 60px;
   transform: rotate(-90deg);   /* arc grows clockwise from 12 o'clock */
   pointer-events: none;        /* never block the button tap */
   overflow: visible;
 }
 .mode-trigger-ring-track {
   fill: none;
-  stroke: rgba(0, 0, 0, 0.1);
-  stroke-width: 3;
+  stroke: rgba(0, 0, 0, 0.12);
+  stroke-width: 4;
 }
 .mode-trigger-ring-fill {
   fill: none;
   stroke: #16a34a;             /* downloading — green = heading offline */
-  stroke-width: 3;
+  stroke-width: 4;
   stroke-linecap: round;
-  stroke-dashoffset: 138.23;   /* empty by default (= circumference); no unwind flash */
+  stroke-dashoffset: 163.36;   /* empty by default (= circumference 2π·26); no unwind flash */
   transition: stroke-dashoffset 0.3s ease;
+  filter: drop-shadow(0 0 3px rgba(22, 163, 74, 0.55));   /* glow → prominent */
 }
 .mode-trigger-ring.is-complete .mode-trigger-ring-fill { stroke: #16a34a; }
-.mode-trigger-ring.is-error .mode-trigger-ring-fill { stroke: #ef4444; }
+.mode-trigger-ring.is-error .mode-trigger-ring-fill {
+  stroke: #ef4444;
+  filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.55));
+}
 .mode-trigger-ring-fill.is-indeterminate {
-  stroke-dasharray: 34 105;    /* short arc (~25% of the circle) */
+  stroke-dasharray: 41 123;    /* short arc (~25% of the circle) */
   stroke-dashoffset: 0;        /* sit the arc cleanly at the start, then spin */
-  transform-origin: 25px 25px;
+  transform-origin: 30px 30px;
   animation: mode-ring-spin 0.9s linear infinite;
 }
 @keyframes mode-ring-spin { to { transform: rotate(360deg); } }
