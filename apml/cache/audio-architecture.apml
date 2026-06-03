@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-03 (offline depth = notched slider, % of remaining; collapsible download dot)
+# Last Updated: 2026-06-03 (offline depth = notched slider; download progress = ring on the mode button)
 
 spec audio_caching_architecture:
   version: "1.0.0"
@@ -199,13 +199,21 @@ spec audio_caching_architecture:
     progress:
       state: "offlineDlState: idle | preparing | downloading | complete | error"
       counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done)"
-      banner: >
-        offlineDownloadLabel — top-centre chip. Collapses to a small progress-ring
-        dot while preparing/downloading (you can keep playing; you DON'T wait for
-        the download); tap the dot to expand to the full pill, tap again to shrink.
-        A new download starts as a dot (offlineBannerExpanded=false); complete/error
-        auto-expand to the pill so the result is seen (complete still auto-hides ~4s).
-        Ring: determinate arc = offlineDownloadPct; 'preparing' spins indeterminately.
+      shared_state: >
+        useOfflineDownloadStatus.ts — module-level refs (offlineDlState/Done/Total/
+        Failed) + computeds (offlineDownloadVisible/Active/Pct/Label), written by
+        LearningPlayer.downloadForOffline, read by ModeTray. Same shared-singleton
+        pattern as usePwaUpdate (no prop-drilling to the mode button). LearningPlayer
+        resetOfflineDownloadStatus() onMounted + offlineActive=false onUnmounted so a
+        course-change remount can't leave a stale ring or an orphaned write loop.
+      indicator: >
+        A progress RING around the mode-tray trigger button (where offline is
+        switched on), NOT a floating banner. Shown when offlineDownloadVisible
+        (state≠idle): determinate arc = offlineDownloadPct while downloading, green
+        full ring on complete (~4s then idle), red on error, indeterminate spin while
+        preparing. pointer-events:none so it never blocks the button. The granular
+        "Downloading… N% (x/y)" detail shows on the tray's Offline row (open the tray
+        for it) — green while active, red on error.
 
     deferred:
       premium_gate: "useEntitlement.canDownload exists but NOT wired to download (no premium users yet)"

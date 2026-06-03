@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
+// Offline-download status (shared with the mode-button ring in ModeTray)
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
   AudioController,
   CyclePhase,
@@ -8272,55 +8274,16 @@ const offlineActive = ref(false)
 // player streamed /api/audio and every clip failed offline.) Download gates stay
 // on the explicit toggle — downloading is a deliberate, online action.
 const offlinePlaybackActive = (): boolean => offlineActive.value || !isOnline.value
-const offlineDlState = ref<'idle' | 'preparing' | 'downloading' | 'complete' | 'error'>('idle')
-const offlineDlDone = ref(0)      // audio files genuinely cached (successes only)
-const offlineDlTotal = ref(0)
-const offlineDlFailed = ref(0)    // fetches that failed (e.g. bad network)
-
-// Progress banner label — empty when there's nothing to show. `done` counts
-// ONLY files that actually landed in IndexedDB, so "Ready" can't lie.
-const offlineDownloadLabel = computed(() => {
-  if (offlineDlState.value === 'preparing') return 'Preparing offline download…'
-  if (offlineDlState.value === 'downloading') {
-    const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
-    return `Downloading for offline… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
-  }
-  if (offlineDlState.value === 'complete') return `Ready to play offline ✓ (${offlineDlDone.value} files)`
-  if (offlineDlState.value === 'error') return `Offline download incomplete — ${offlineDlFailed.value} failed, needs better signal`
-  return ''
-})
-
-// The download banner can collapse to a small progress-ring dot so it stays out
-// of the way while you keep playing — you DON'T have to wait for the download to
-// finish. Tap the dot to expand to the full pill; tap the pill to shrink it back.
-// A new download starts collapsed (a quiet dot); completion/error always pop the
-// pill so the result is seen.
-const offlineBannerExpanded = ref(false)
-// Download progress as a whole number, or null while 'preparing' (no total yet →
-// the ring spins indeterminately).
-const offlineDownloadPct = computed(() =>
-  offlineDlState.value === 'downloading' && offlineDlTotal.value > 0
-    ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100)
-    : null,
-)
-// Collapsed-to-dot only while actively fetching; complete/error stay as the pill.
-const offlineBannerIsDot = computed(() =>
-  !offlineBannerExpanded.value &&
-  (offlineDlState.value === 'preparing' || offlineDlState.value === 'downloading'),
-)
-// Progress-ring geometry (viewBox 36, r=15 → circumference 2πr). The arc grows
-// clockwise from 12 o'clock (the <svg> is rotated -90°). Indeterminate state is
-// driven purely by CSS, so we hand back undefined and let the stylesheet own it.
-const OFFLINE_RING_CIRCUMFERENCE = 2 * Math.PI * 15
-const offlineRingStyle = computed(() => {
-  if (offlineDownloadPct.value === null) return undefined
-  const c = OFFLINE_RING_CIRCUMFERENCE
-  return { strokeDasharray: `${c}`, strokeDashoffset: `${c * (1 - offlineDownloadPct.value / 100)}` }
-})
-watch(offlineDlState, (s) => {
-  if (s === 'preparing') offlineBannerExpanded.value = false                       // new download → start as a quiet dot
-  else if (s === 'complete' || s === 'error') offlineBannerExpanded.value = true   // always surface the result
-})
+// Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
+// from useOfflineDownloadStatus and written by downloadForOffline below. The UI
+// for it now lives on the mode button (the ring) + the Offline row in ModeTray,
+// not a floating banner here. Because those refs are page-lifetime singletons,
+// a fresh player instance must start them clean, and on teardown we drop
+// offlineActive so any in-flight downloadForOffline loop (whose cancel-guard is
+// this instance's offlineActive) stops writing the shared refs for the next
+// course's ring.
+onMounted(() => { resetOfflineDownloadStatus() })
+onUnmounted(() => { offlineActive.value = false })
 
 // Estimated wall-clock (ms) of play currently sitting in cachedRounds from
 // the current round forward. Used to decide whether we've loaded enough
@@ -11080,29 +11043,8 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
-  <!-- Offline download progress. Collapses to a small progress-ring dot while
-       downloading (you can keep playing) — tap to expand to the full pill; tap
-       again to shrink. complete/error surface the pill automatically. -->
-  <button
-    v-if="offlineDownloadLabel"
-    type="button"
-    class="offline-dl-banner"
-    :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error', 'is-dot': offlineBannerIsDot }"
-    :aria-label="offlineDownloadLabel"
-    :title="offlineDownloadLabel"
-    @click="offlineBannerExpanded = !offlineBannerExpanded"
-  >
-    <svg v-if="offlineBannerIsDot" class="offline-dl-ring" viewBox="0 0 36 36" aria-hidden="true">
-      <circle class="offline-dl-ring-track" cx="18" cy="18" r="15" />
-      <circle
-        class="offline-dl-ring-fill"
-        :class="{ 'is-indeterminate': offlineDownloadPct === null }"
-        cx="18" cy="18" r="15"
-        :style="offlineRingStyle"
-      />
-    </svg>
-    <span v-else class="offline-dl-text">{{ offlineDownloadLabel }}</span>
-  </button>
+  <!-- Offline download progress is shown as a ring on the mode button + the
+       Offline row in ModeTray (where offline was switched on), not a banner. -->
 
   <!-- Offline depth picker — "take it with you". Choose how much of the course
        to carry; each option shows a live size estimate. -->
@@ -12172,81 +12114,6 @@ defineExpose({
   position: fixed;
   inset: 0;
   overflow: hidden;
-}
-
-/* Offline download progress banner — top-centre, above all play surfaces.
-   Tappable (it's a <button>) so it can collapse to a dot and expand back. */
-.offline-dl-banner {
-  position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 200;
-  max-width: calc(100vw - 32px);
-  padding: 8px 16px;
-  border: none;
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: padding 0.2s ease, background 0.2s ease;
-}
-.offline-dl-banner.is-complete { background: rgba(22, 130, 70, 0.9); }
-.offline-dl-banner.is-error { background: rgba(150, 40, 40, 0.9); }
-
-/* Collapsed dot — a small progress ring instead of the full pill. The hit area
-   is a touch larger than the visible 28px ring (still clears the right-of-centre
-   brand buttons) so the dot isn't a fiddly tap; missing it just keeps you
-   playing, which is the whole point. */
-.offline-dl-banner.is-dot {
-  padding: 0;
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-}
-.offline-dl-ring {
-  width: 28px;
-  height: 28px;
-  transform: rotate(-90deg);     /* arc starts at 12 o'clock */
-}
-.offline-dl-ring-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.28);
-  stroke-width: 3.5;
-}
-.offline-dl-ring-fill {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  /* Default to an EMPTY ring (offset == circumference 2π·15). Without this the
-     CSS default offset is 0 = a full ring, so the preparing→downloading handoff
-     would animate a whole circle unwinding down to the first few %. The
-     determinate inline style overrides this with C·(1−pct/100); at 0% it equals
-     this base, so there's no jump. */
-  stroke-dashoffset: 94.248;
-  transition: stroke-dashoffset 0.3s ease;
-}
-/* Preparing (no total yet): a short arc that spins. */
-.offline-dl-ring-fill.is-indeterminate {
-  stroke-dasharray: 22 70;
-  transform-origin: 18px 18px;
-  animation: offline-dl-spin 0.9s linear infinite;
-}
-@keyframes offline-dl-spin {
-  to { transform: rotate(360deg); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .offline-dl-ring-fill.is-indeterminate { animation: none; }
 }
 
 /* Offline depth picker ("take it with you") */

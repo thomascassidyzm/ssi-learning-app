@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import {
+  offlineDlState,
+  offlineDownloadPct,
+  offlineDownloadVisible,
+  offlineDownloadActive,
+  offlineDownloadLabel,
+} from '../composables/useOfflineDownloadStatus'
 
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
@@ -22,6 +29,23 @@ const isOpen = ref(false)
 const toggleTray = () => {
   isOpen.value = !isOpen.value
 }
+
+// ── Offline-download ring around the mode button ────────────────────────────
+// Offline was switched on from here, so its progress lives here too: a ring
+// around the trigger while downloading, green when ready, red on error. The full
+// "Downloading… N% (x/y)" detail shows on the Offline row inside the tray.
+const MODE_RING_CIRCUMFERENCE = 2 * Math.PI * 22   // viewBox 50, r=22
+const offlineRingIndeterminate = computed(() => offlineDlState.value === 'preparing')
+const modeRingStyle = computed(() => {
+  const c = MODE_RING_CIRCUMFERENCE
+  if (offlineDlState.value === 'complete' || offlineDlState.value === 'error') {
+    return { strokeDasharray: `${c}`, strokeDashoffset: '0' }                    // full ring
+  }
+  if (offlineDownloadPct.value !== null) {
+    return { strokeDasharray: `${c}`, strokeDashoffset: `${c * (1 - offlineDownloadPct.value / 100)}` }
+  }
+  return undefined   // preparing → CSS-driven indeterminate spin
+})
 
 const closeTray = () => {
   isOpen.value = false
@@ -83,7 +107,23 @@ const handleOffline = () => {
 
 <template>
   <div v-show="isVisible" class="mode-tray-container">
-    <!-- Trigger button -->
+    <!-- Trigger button (with the offline-download progress ring around it) -->
+    <div class="mode-trigger-wrap">
+    <svg
+      v-if="offlineDownloadVisible"
+      class="mode-trigger-ring"
+      :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }"
+      viewBox="0 0 50 50"
+      aria-hidden="true"
+    >
+      <circle class="mode-trigger-ring-track" cx="25" cy="25" r="22" />
+      <circle
+        class="mode-trigger-ring-fill"
+        :class="{ 'is-indeterminate': offlineRingIndeterminate }"
+        cx="25" cy="25" r="22"
+        :style="modeRingStyle"
+      />
+    </svg>
     <button
       class="mode-trigger"
       :class="{ active: hasActiveMode, open: isOpen }"
@@ -107,6 +147,7 @@ const handleOffline = () => {
         <line x1="17" y1="16" x2="23" y2="16"/>
       </svg>
     </button>
+    </div>
 
     <!-- Tray popover -->
     <Transition name="tray">
@@ -174,7 +215,7 @@ const handleOffline = () => {
           </div>
           <div class="tray-label">
             <span class="tray-name">Offline mode</span>
-            <span class="tray-desc">Play from downloaded audio</span>
+            <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">{{ offlineDownloadVisible ? offlineDownloadLabel : 'Play from downloaded audio' }}</span>
           </div>
           <div class="tray-toggle" :class="{ on: isOfflineMode }">
             <div class="tray-toggle-knob"></div>
@@ -242,7 +283,47 @@ const handleOffline = () => {
   z-index: 103;
 }
 
-/* Trigger button */
+/* Trigger button + offline-download ring */
+.mode-trigger-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+}
+.mode-trigger-ring {
+  position: absolute;
+  inset: -3px;                 /* 50px ring around the 44px button */
+  width: 50px;
+  height: 50px;
+  transform: rotate(-90deg);   /* arc grows clockwise from 12 o'clock */
+  pointer-events: none;        /* never block the button tap */
+  overflow: visible;
+}
+.mode-trigger-ring-track {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.1);
+  stroke-width: 3;
+}
+.mode-trigger-ring-fill {
+  fill: none;
+  stroke: #16a34a;             /* downloading — green = heading offline */
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dashoffset: 138.23;   /* empty by default (= circumference); no unwind flash */
+  transition: stroke-dashoffset 0.3s ease;
+}
+.mode-trigger-ring.is-complete .mode-trigger-ring-fill { stroke: #16a34a; }
+.mode-trigger-ring.is-error .mode-trigger-ring-fill { stroke: #ef4444; }
+.mode-trigger-ring-fill.is-indeterminate {
+  stroke-dasharray: 34 105;    /* short arc (~25% of the circle) */
+  stroke-dashoffset: 0;        /* sit the arc cleanly at the start, then spin */
+  transform-origin: 25px 25px;
+  animation: mode-ring-spin 0.9s linear infinite;
+}
+@keyframes mode-ring-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .mode-trigger-ring-fill.is-indeterminate { animation: none; }
+}
+
 .mode-trigger {
   width: 44px;
   height: 44px;
@@ -384,6 +465,17 @@ const handleOffline = () => {
   color: #A09A94;
   line-height: 1.3;
   margin-top: 1px;
+}
+/* While a download is in progress, the Offline row's desc shows the live detail
+   ("Downloading… N% (x/y)") in the accent colour. */
+.tray-desc.is-downloading {
+  color: #16a34a;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tray-desc.is-error {
+  color: #ef4444;
+  font-weight: 600;
 }
 
 /* Toggle switch for Turbo */
