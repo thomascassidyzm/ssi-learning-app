@@ -222,6 +222,54 @@ function sampleWithoutReplacement<T>(arr: T[], n: number, rng: () => number = Ma
   return a.slice(0, n)
 }
 
+const PRACTICE_PHRASE_COLUMNS =
+  'seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce, decomposition'
+
+/**
+ * Fetch ALL course_practice_phrases for a course, paginated.
+ *
+ * A single `.limit(N)` is silently capped by PostgREST's server-side max-rows
+ * (>=10000 here). Big courses carry 15-17k phrase rows, so the old single
+ * `.limit(10000)` query dropped every phrase past ~seed 405 — the back 40-56%
+ * of the course had NO build/use phrases, which starved INF PLAY's random-USE
+ * pool AND the SR-drain (revival rounds came out as ~4-16 cycles of mostly the
+ * front of the course, never the canonical 22, and the spaced review of the
+ * final LEGOs played nothing). Count first, then fetch every page in parallel
+ * (PAGE well under any server cap, so the slices are complete and ordered).
+ */
+async function fetchAllPracticePhrases(
+  supabase: SupabaseClient,
+  courseCode: string,
+): Promise<{ data: any[] | null; error: any }> {
+  const PAGE = 1000
+  const { count, error: countError } = await supabase
+    .from('course_practice_phrases')
+    .select('*', { count: 'exact', head: true })
+    .eq('course_code', courseCode)
+  if (countError) return { data: null, error: countError }
+  const total = count ?? 0
+  if (total === 0) return { data: [], error: null }
+  const pageCount = Math.ceil(total / PAGE)
+  const pages = await Promise.all(
+    Array.from({ length: pageCount }, (_, i) =>
+      supabase
+        .from('course_practice_phrases')
+        .select(PRACTICE_PHRASE_COLUMNS)
+        .eq('course_code', courseCode)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
+        .order('position', { ascending: true })
+        .range(i * PAGE, i * PAGE + PAGE - 1),
+    ),
+  )
+  const all: any[] = []
+  for (const p of pages) {
+    if (p.error) return { data: null, error: p.error }
+    if (p.data) all.push(...p.data)
+  }
+  return { data: all, error: null }
+}
+
 export async function generateLearningScript(
   supabase: SupabaseClient,
   courseCode: string,
@@ -305,14 +353,9 @@ export async function generateLearningScript(
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .limit(5000),
-    supabase
-      .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce, decomposition')
-      .eq('course_code', courseCode)
-      .order('seed_number', { ascending: true })
-      .order('lego_index', { ascending: true })
-      .order('position', { ascending: true })
-      .limit(10000),
+    // Paginated — a single .limit() is capped by PostgREST max-rows and big
+    // courses have 15-17k phrase rows; truncation starved INF PLAY (see helper).
+    fetchAllPracticePhrases(supabase, courseCode),
     // Seed sentences for L1 listening (whole-sentence replay after graduation).
     listeningConfig.enabled
       ? supabase
