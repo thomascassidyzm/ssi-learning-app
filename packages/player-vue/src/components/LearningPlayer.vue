@@ -8626,6 +8626,14 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
 // shuffled for variety. The end-of-rounds watcher re-invokes this near each
 // new end → endless cached play. Returns rounds appended (0 if nothing
 // cached). Tom 2026-05-25: offline must always play SOMETHING.
+// INF PLAY plays USE PHRASES ONLY (Tom 2026-06-03) — never intro/debut/BUILD
+// (BLD phrases only ever play in a LEGO's debut round) nor component/listening
+// cycles. 'use' and 'spaced_rep' are both USE-phrase plays (the generator draws
+// spaced_rep from the same usePhrases pool). Filtering to these also means the
+// recycled rounds carry NO intro/debut/build → isMainLoopRound is false →
+// isInfPlayActive true → the belt correctly shows the red ∞ for offline INF PLAY.
+const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
+
 const appendCachedLoopForOffline = (): number => {
   const rounds = (cachedRounds.value || []) as any[]
   if (rounds.length === 0) return 0
@@ -8634,7 +8642,8 @@ const appendCachedLoopForOffline = (): number => {
   const cachedOnly: any[] = []
   for (const r of rounds) {
     const cyc = ((r?.cycles) || []).filter((c: any) =>
-      cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
+      INF_PLAY_USE_TYPES.has(c?.type)
+      && cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
     if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
   }
   if (cachedOnly.length === 0) return 0
