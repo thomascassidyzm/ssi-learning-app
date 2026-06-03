@@ -60,3 +60,28 @@ export const offlineDownloadLabel = computed(() => {
       return ''
   }
 })
+
+// Two STABLE pieces for the tray's Offline row, rendered as fixed separate lines
+// so the layout never reflows between 1 and 2 lines as the numbers tick (that
+// reflow was the flicker). Headline carries the state; count is its own line.
+export const offlineDownloadHeadline = computed(() => {
+  switch (offlineDlState.value) {
+    case 'preparing':
+      return 'Preparing download…'
+    case 'downloading': {
+      const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
+      return `Downloading… ${pct}%`
+    }
+    case 'complete':
+      return 'Ready to play offline ✓'
+    case 'error':
+      return 'Download incomplete — needs better signal'
+    default:
+      return ''
+  }
+})
+export const offlineDownloadCount = computed(() =>
+  offlineDlState.value === 'downloading' && offlineDlTotal.value > 0
+    ? `${offlineDlDone.value} / ${offlineDlTotal.value}`
+    : '',
+)
