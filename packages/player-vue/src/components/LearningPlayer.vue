@@ -60,7 +60,7 @@ import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
-import { useInstantPlayback } from '../composables/useInstantPlayback'
+import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
@@ -360,6 +360,27 @@ const {
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
+// ── INF PLAY revival-tail sizing ───────────────────────────────────────────
+// The revival tail must run at LEAST max(spacedRepOffsets) rounds so the FINAL
+// main-loop LEGO completes its full N-1 … N-89 spaced-rep drain. Anything
+// shorter (the old hard-coded 50) leaves the last LEGOs under-trained — a
+// methodology requirement, not a perf knob. Beyond that floor the tail GROWS in
+// batches as the learner walks it (expandScript bumps infPlayLookahead while in
+// INF PLAY), so play is genuinely unbounded: every revival round is ~22 cycles
+// of the drained-out spaced review plus uniform-random USE across the whole
+// course, and the deterministic seeded stream just keeps extending forward.
+const INF_PLAY_BATCH = 50
+// Revival-tail length fed to the generator. 0 = "not yet sized" → the floor
+// applies; expandScript raises it in INF PLAY so each regen yields new rounds.
+const infPlayLookahead = ref(0)
+const infPlayLookaheadFloor = (): number => {
+  const offsets = scriptShapeConfig.value?.spacedRepOffsets
+  const maxOffset = offsets && offsets.length ? Math.max(...offsets) : 89
+  // +1 of headroom so the final LEGO's longest-offset review sits comfortably
+  // inside the tail rather than exactly on the last generated round.
+  return maxOffset + 1
+}
+
 /**
  * Wrapper for generateSimpleScript that threads the live algorithm_config
  * triple (listening, scriptShape, turbo cull) into every script-generation
@@ -386,10 +407,15 @@ const generateScript = (
   // Full-course one-shot generation. The script generator walks the
   // whole inventory; the player consumes from wherever its cursor is
   // (resume-by-lego-id). No seed-range chunking; no emit windowing.
+  //
+  // infinitePlayLookahead = current revival-tail length, never below the floor
+  // (so the final LEGO always drains fully). expandScript grows it in batches
+  // during INF PLAY so the tail keeps extending — genuinely infinite.
+  const infinitePlayLookahead = Math.max(infPlayLookahead.value, infPlayLookaheadFloor())
   return generateSimpleScript(
     supabase.value,
     courseCode.value,
-    50,  // infinitePlayLookahead — revival rounds after the main loop
+    infinitePlayLookahead,  // revival rounds after the main loop (≥ max SR offset, grows in INF PLAY)
     listening,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
@@ -909,13 +935,57 @@ let courseFinalLegoCacheKey: string | null = null
 // loadAllData so it's ready by the time the learner can press
 // forward-skip.
 const courseFinalLegoRef = ref<{ legoId: string; roundIndex: number } | null>(null)
-// INF-PLAY main-loop boundary (the round index where the revival tail begins),
-// taken from the GENERATOR's own playable output — the single source of truth.
-// Set whenever we (re)generate the INF-PLAY script. Boundary checks prefer this
-// over the DB is_new count (`getCourseFinalLego`), which counts every defined
-// LEGO incl. unbuilt/no-audio ones and so diverges from what the generator
-// actually emits — the cause of the "produced no revival rounds" stall.
-const infplayMainLoopCount = ref<number | null>(null)
+
+// ── THE single source of truth for the main-loop sequence ──────────────────
+// The LEGO-ID-ordered round map (course_round_index), fetched once on load via
+// the SAME cached /round-map the instant-playback path uses (getOrFetchRoundMap).
+// course_round_index is already the SERVER-SIDE authority — the cursor-repair
+// migration caps reach at MAX(round_index) FROM course_round_index, and
+// course_stats.lego_count counts it. We hold it in its OWN stable ref, NOT
+// instantPlayback.roundMap (which bootstrapInfPlay overwrites with a synthetic
+// infplay map — the "messy" one we must never read as the boundary).
+//
+// EVERY main-loop boundary / position read goes through the two helpers below.
+// No round-index arithmetic (pods, encouragements and listening rounds get
+// spliced into the live index and pollute it), no DB is_new estimate, no
+// per-source generator guess. Up to the boundary the position is known purely
+// by LEGO ID; only PAST the boundary (INF PLAY, no more LEGOs) does a counter
+// take over (infplayRoundIndex, bumped per round in saveRoundProgress).
+const mainLoopMap = ref<RoundMap | null>(null)
+
+// Number of main-loop rounds = the 0-based array index of the FIRST revival
+// round in the full script (round N+1 in 1-based terms). The ONE boundary used
+// everywhere. While the canonical map is still loading (or for a course whose
+// course_round_index view isn't materialised) we fall back to the final-LEGO
+// round index so entry/cadence degrade gracefully rather than reading 0 — this
+// is a load-time safety net, NOT a parallel source.
+const mainLoopBoundary = (): number => {
+  const mapLen = mainLoopMap.value?.rounds.length ?? 0
+  if (mapLen > 0) return mapLen
+  return (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+}
+
+// 0-based main-loop position of a LEGO BY ITS ID (its index in the ordered
+// sequence), or -1 if it isn't a main-loop LEGO. Never a play counter.
+const mainLoopIndexForLegoId = (legoId: string | null | undefined): number => {
+  if (!legoId) return -1
+  const rounds = mainLoopMap.value?.rounds
+  if (!rounds) return -1
+  return rounds.findIndex(r => r.legoId === legoId)
+}
+
+// Populate the canonical map once (idempotent; getOrFetchRoundMap is
+// localStorage-cached and version-revalidated). Non-fatal: on failure the
+// boundary helper falls back to the final-LEGO index.
+const ensureMainLoopMap = async (): Promise<void> => {
+  if (mainLoopMap.value && mainLoopMap.value.course_code === courseCode.value) return
+  try {
+    const map = await instantPlayback.getOrFetchRoundMap()
+    if (map?.course_code === courseCode.value) mainLoopMap.value = map
+  } catch (err) {
+    console.warn('[LearningPlayer] canonical round-map fetch failed; boundary falls back to final-LEGO index:', err)
+  }
+}
 const getCourseFinalLego = async (course: string): Promise<{ legoId: string; roundIndex: number } | null> => {
   if (courseFinalLegoRef.value && courseFinalLegoCacheKey === course) {
     return courseFinalLegoRef.value
@@ -1212,7 +1282,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
         void instantPlayback.prefetchNextInfPlayBatch().then(() => {
           const mapForInf = instantPlayback.roundMap.value
           if (!mapForInf) return
-          const mainLoopCount = mapForInf.rounds[0] ? mapForInf.rounds[0].r - 1 : 0
+          const mainLoopCount = mainLoopBoundary()
           const refreshed = infPlayCyclesToRounds(
             instantPlayback.infPlayCycles.value as any,
             mainLoopCount,
@@ -1635,13 +1705,18 @@ simplePlayer.onSessionComplete(async () => {
     // Nothing survived the persistent-audio filter (empty cached set) — fall
     // through to the summary; that's the empty-cache edge, not the recycle.
   }
-  // Infinite play: the course should never end. Try expanding the
-  // script and resuming before falling through to a paused-quiet state.
+  // Infinite play / main loop: the course should never end. expandScript()
+  // GROWS the revival tail by a batch in INF PLAY (genuinely infinite — fresh
+  // deterministic rounds), or loads more main-loop rounds; then resume.
   const added = await expandScript()
   if (added > 0) {
     simplePlayer.resume()
     return
   }
+  // Generation produced nothing (transient online failure; offline was handled
+  // above). Last resort in INF PLAY: wrap to the first revival round so play
+  // never dead-ends instead of dropping to the paused summary.
+  if (wrapInfPlayAtTail()) return
   sessionEnded.value = true
   showPausedSummary()
 })
@@ -3713,7 +3788,7 @@ const deriveBeltFromLandedRound = () => {
 const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
   if (!podScheduler || !podScheduler.isInitialized.value) return false
   if (isInfPlayActive.value) {
-    const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+    const mainLoopCount = mainLoopBoundary()
     if (mainLoopCount < 0) return false
     const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
     if (infOrdinal <= 0) return false
@@ -3885,10 +3960,17 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
             sessionEnded.value = false
             simplePlayer.resume()
           } else {
+            // session_complete fired during this pod lap (the cadence lands a
+            // lap near the tail). expandScript() grows the revival tail by a
+            // batch in INF PLAY so play continues into genuinely new rounds.
             const added = await expandScript()
             if (added > 0) {
               sessionEnded.value = false
               simplePlayer.resume()
+            } else if (wrapInfPlayAtTail()) {
+              // Growth couldn't run (transient online failure) — wrap so INF
+              // PLAY never dead-ends right after a listening pod.
+              // (wrapInfPlayAtTail clears sessionEnded + resumes.)
             } else {
               showPausedSummary()
             }
@@ -7082,7 +7164,7 @@ const enterInfPlay = async () => {
       // main-loop rounds matching the same shape as an INF PLAY round.
       // The user would then click ∞ and land on S0001L02 instead of an
       // actual revival round. Tom 2026-05-21.
-      const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+      const mainLoopCount = mainLoopBoundary()
       const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
         ? mainLoopCount
         : -1
@@ -7142,13 +7224,12 @@ const enterInfPlay = async () => {
           const newRounds = toSimpleRoundsWithComponents(skipResult.items) as any[]
           cachedRounds.value = newRounds
           simplePlayer.appendRounds(newRounds)
-          // Boundary from the script we JUST generated (its own playable
-          // main-loop count) — not the DB is_new count, which diverges for
-          // partially-built courses and was the cause of the stall.
-          const regenMainLoopCount = skipResult.mainLoopRoundCount
-          infplayMainLoopCount.value = regenMainLoopCount
-          const refoundIdx = regenMainLoopCount > 0 && newRounds.length > regenMainLoopCount
-            ? regenMainLoopCount
+          // Boundary from the canonical round-map (the single source of truth)
+          // — the SAME value the forward/back nav and the tail wrap read, so
+          // they all agree on where the revival tail starts.
+          const regenBoundary = mainLoopBoundary()
+          const refoundIdx = regenBoundary > 0 && newRounds.length > regenBoundary
+            ? regenBoundary
             : -1
           if (refoundIdx >= 0) {
             simplePlayer.jumpToRound(refoundIdx)
@@ -7184,7 +7265,7 @@ const enterInfPlay = async () => {
  * cached cycles via enterInfPlayFromCache rather than stalling.
  */
 const advanceInfPlayRound = async (fromIdx: number) => {
-  const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+  const mainLoopCount = mainLoopBoundary()
   const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
     ? mainLoopCount
     : -1
@@ -7282,13 +7363,16 @@ const handleRoundForward = async () => {
 
   // Entry to INF PLAY is keyed on the FINAL LEGO, not the final belt. We
   // advance LEGO-by-LEGO right through the final belt; only stepping forward
-  // FROM the course's final introduced LEGO crosses into INF PLAY.
-  //   - at/past the final-LEGO round index → enter
-  //   - finalLegoRoundIndex not resolved yet → fall back to wouldEnterInfplay
+  // FROM the course's final introduced LEGO crosses into INF PLAY. Position is
+  // read BY LEGO ID off the canonical map — the final main-loop LEGO is at
+  // index boundary-1 (0-based).
+  //   - current LEGO at/past it → enter
+  //   - LEGO/map not resolved yet → fall back to wouldEnterInfplay
   //     (belt-granular) so we never advance into empty rounds.
-  const finalLegoRoundIdx = courseFinalLegoRef.value?.roundIndex ?? null
-  const atOrPastFinalLego = finalLegoRoundIdx !== null
-    ? fromIdx >= finalLegoRoundIdx
+  const forwardBoundary = mainLoopBoundary()
+  const curMainLoopIdx = mainLoopIndexForLegoId(currentRound?.legoId)
+  const atOrPastFinalLego = (forwardBoundary > 0 && curMainLoopIdx >= 0)
+    ? curMainLoopIdx >= forwardBoundary - 1
     : wouldEnterInfplay.value
   if (atOrPastFinalLego) {
     await enterInfPlay()
@@ -7430,7 +7514,7 @@ const handleRoundBack = async () => {
       // course-final belt, stay in 'infplay'. The counter bump is local-only,
       // symmetric with the forward button (the DB infplay_round_index only
       // ratchets on natural round completion via saveRoundProgress).
-      const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+      const mainLoopCount = mainLoopBoundary()
       const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
         ? mainLoopCount
         : -1
@@ -8335,7 +8419,7 @@ const collectSpanAudioIds = (spanMs: number): string[] => {
 
 // Course total rounds = main-loop length (excludes the INF PLAY tail). The %
 // denominator. Returns 0 until getCourseFinalLego resolves (roundIndex −1).
-const courseTotalRounds = (): number => (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+const courseTotalRounds = (): number => mainLoopBoundary()
 
 // Rounds currently loaded ahead of (and including) the cursor.
 const roundsLoadedAhead = (): number =>
@@ -8930,6 +9014,53 @@ const addNetworkNode = (_legoId: any, _targetText: any, _knownText: any, _beltCo
 const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 
 // ============================================
+// INF PLAY — continuous-play tail wrap (SAFETY NET)
+// ============================================
+// Primary path is GROWTH: expandScript() raises infPlayLookahead by a batch
+// while in INF PLAY, so the deterministic revival tail keeps extending forward
+// and the learner gets genuinely new rounds — the course never repeats itself.
+// The approaching-the-end watcher fires that growth ~5 rounds before the tail,
+// so in the common case continuous play never even reaches session_complete.
+//
+// This wrap is the LAST RESORT for when growth can't run: a transient online
+// generateScript failure (network blip) returns 0 rounds. Rather than dropping
+// to the paused summary, jump back to the first revival round and keep playing
+// — the auto-play analogue of the forward button's tail wrap
+// (advanceInfPlayRound). No overlay/flash — a silent continuation. (Offline is
+// handled separately/earlier by appendCachedLoopForOffline; this never runs
+// before expandScript at the call sites.)
+//
+// Historically this was the ONLY fix and ran BEFORE expandScript, because the
+// lookahead was a fixed 50 that expandScript could never grow — so the tail
+// dead-ended at the last revival round, which (since the pod cadence lands a lap
+// on that final round) showed up as "stuck right after a listening pod". With
+// growth in place that dead-end no longer happens; the wrap only catches the
+// generation-failure edge.
+//
+// Returns true if it wrapped (caller must NOT fall through to showPausedSummary).
+// No-ops (returns false) outside INF PLAY or when no revival set is loaded.
+const wrapInfPlayAtTail = (): boolean => {
+  if (currentMode.value !== 'infplay') return false
+  const mainLoopCount = mainLoopBoundary()
+  // First revival round = first index past the main loop. Guard against a
+  // not-yet-loaded main-loop count and an unloaded revival set.
+  const firstInfIdx = mainLoopCount > 0 && simplePlayer.roundCount.value > mainLoopCount
+    ? mainLoopCount
+    : -1
+  if (firstInfIdx < 0) return false
+  console.log(`[LearningPlayer] INF PLAY tail reached — wrapping to first revival round (idx ${firstInfIdx}) so play never dead-ends`)
+  // jumpToRound lands on cycle 0 with isPlaying=false (we're paused at the
+  // tail); resume() then starts the 4-phase cycle from PROMPT. The infplay
+  // round counter is bumped per round by saveRoundProgress, so we don't touch
+  // it here (advanceInfPlayRound bumps it because the button bypasses a round
+  // completion; this path doesn't).
+  sessionEnded.value = false
+  simplePlayer.jumpToRound(firstInfIdx)
+  simplePlayer.resume()
+  return true
+}
+
+// ============================================
 // PROGRESSIVE SCRIPT EXPANSION
 // The course never ends. As the learner approaches the tail of
 // cachedRounds we regenerate with a bigger endSeed — generateLearningScript
@@ -8949,6 +9080,24 @@ const expandScript = async (): Promise<number> => {
     // queued — using its length here would lead to an under-sized
     // neededEnd and miss the infinite-play threshold entirely.
     const loadedCount = simplePlayer.roundCount.value
+    // INF PLAY: extend the revival tail by a batch so this regen yields NEW
+    // rounds. The generator otherwise reproduces the SAME fixed-length tail
+    // (the deterministic seeded stream), so without growing the lookahead the
+    // expansion would add nothing and play would dead-end at the tail.
+    //
+    // A simple growing COUNTER (base + batch), not a function of mainLoopCount:
+    // each expansion adds INF_PLAY_BATCH more revival rounds than the last,
+    // independent of how the generator counts its own main loop. The
+    // approaching-the-end watcher fires this ~5 rounds before the tail, so the
+    // batch lands before the learner reaches it. The first ≥ floor rounds are
+    // the SR drain (phase 1: the final LEGO's full N-1…N-89 review); everything
+    // past the drain is pure random USE (phase 2), so the tail is genuinely
+    // unbounded. Main loop leaves the lookahead at its floor — once the whole
+    // course is loaded its expandScript no-ops as before.
+    if (currentMode.value === 'infplay') {
+      const base = infPlayLookahead.value > 0 ? infPlayLookahead.value : infPlayLookaheadFloor()
+      infPlayLookahead.value = base + INF_PLAY_BATCH
+    }
     const result = await generateScript()
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
     if (expandedRounds.length > loadedCount) {
@@ -9360,6 +9509,12 @@ onMounted(async () => {
       // this is in flight.
       void getCourseFinalLego(courseCode.value)
 
+      // Warm the canonical main-loop round map (THE boundary source) as early
+      // as possible. Cached + shared with the instant-playback bootstrap, so
+      // this is usually a no-op cache hit. The INF-PLAY build below awaits it
+      // explicitly before reading the boundary.
+      void ensureMainLoopMap()
+
       void courseBundle.load(courseCode.value)
         .then((bundle) => {
           console.log(`[BundleLoad] Loaded bundle for ${bundle.courseCode} v${bundle.version}: ${bundle.legos.length} LEGOs, ${bundle.phrases.length} phrases`)
@@ -9564,17 +9719,16 @@ onMounted(async () => {
         // when the local build genuinely yields no revival rounds.
         if (inferEnrollmentMode === 'infplay' && !offlinePlaybackActive()) {
           try {
+            // The boundary (mainLoopBoundary) must be resolved before we index
+            // into the built script — await the canonical map here.
+            await ensureMainLoopMap()
             const infResult = await generateScript()
             const fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
-            // Where the revival tail begins = the generator's OWN main-loop
-            // boundary over its PLAYABLE output (the true current course size,
-            // sparse-LEGO-aware, unbuilt/no-audio seeds already excluded). This
-            // replaces deriving it from a DB count of is_new LEGOs, which
-            // diverges from what the generator actually emits (skips/insertions)
-            // and made the build wrongly conclude "no revival rounds". Single
-            // source of truth: the script that was just generated.
-            const mainLoopCount = infResult.mainLoopRoundCount
-            infplayMainLoopCount.value = mainLoopCount
+            // Where the revival tail begins = the canonical round-map boundary
+            // (the single source of truth, the SAME value the forward/back nav
+            // and tail wrap read). Must agree with nav or resume lands on a
+            // different "first revival round" than forward/back think it is.
+            const mainLoopCount = mainLoopBoundary()
             // First revival round index. The tail sits right after the main loop;
             // infplay_round_index is 1-based within that tail.
             const firstInfIdx = mainLoopCount > 0 && fullRounds.length > mainLoopCount
@@ -9659,7 +9813,7 @@ onMounted(async () => {
           const initialRounds = inferEnrollmentMode === 'infplay'
             ? infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
-                map.rounds[0] ? map.rounds[0].r - 1 : 0,  // mainLoopCount = absolute round - infRound
+                mainLoopBoundary(),  // boundary from the canonical round-map (single source of truth)
               )
             : backendCyclesToRounds(
                 instantPlayback.getBufferedCyclesForLego,
@@ -9789,7 +9943,7 @@ onMounted(async () => {
             void instantPlayback.prefetchNextInfPlayBatch().then(() => {
               const mapForInf = instantPlayback.roundMap.value
               if (!mapForInf) return
-              const mainLoopCount = mapForInf.rounds[0] ? mapForInf.rounds[0].r - 1 : 0
+              const mainLoopCount = mainLoopBoundary()
               const refreshedRounds = infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopCount,

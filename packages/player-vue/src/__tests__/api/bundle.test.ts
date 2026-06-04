@@ -388,8 +388,11 @@ describe('GET /api/courses/:code/bundle', () => {
     expect(phraseBuild2).toBeDefined()
     expect(phraseBuild2.role).toBe('build')
     expect(phraseBuild2.audio.known.lifecycle).toBe('ephemeral')
-    // decomposition no longer in bundle (column lives in dashboard repo only).
-    expect(phraseBuild2.decomposition).toBeUndefined()
+    // decomposition is served verbatim when present — parity with
+    // cycles.ts / infplay-cycles.ts (the player's tile-rendering path).
+    expect(phraseBuild2.decomposition).toEqual([
+      { legoId: 'S0001L01', target: 'hola', known: 'hello', isGhost: false },
+    ])
 
     // eternal_eligible becomes a use with persistent lifecycle.
     const phraseUse2 = bundle.phrases.find((p: any) => p.legoId === 'S0002L01')

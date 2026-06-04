@@ -506,6 +506,19 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.5:
+    date: "2026-06-04"
+    title: "INF PLAY: complete the SR drain (≥89 rounds) + genuinely unbounded play"
+    changes:
+      - "Revival-tail FLOOR raised from a hard-coded 50 to max(spacedRepOffsets)+1 (=90). At 50 the final main-loop LEGO never received its N-55 / N-89 reviews — the last LEGOs were under-trained. The floor now guarantees the full N-1…N-89 spaced-rep drain completes for the final LEGO (methodology requirement). Floor derives from scriptShapeConfig.spacedRepOffsets, not a magic number (infPlayLookaheadFloor)."
+      - "INF PLAY is now genuinely unbounded: expandScript() GROWS the revival lookahead by INF_PLAY_BATCH each expansion (a simple growing counter, infPlayLookahead), so the deterministic seeded stream keeps emitting new revival rounds (phase 1: the ≤89-round drain; phase 2 past the drain: pure random USE filling each ~22-cycle round). Previously the fixed 50 made expandScript a no-op in INF PLAY → dead-end at the tail."
+      - "wrapInfPlayAtTail() retained as a SAFETY NET only (was the sole fix in the first cut): if a transient online generateScript failure returns 0 rounds, jump back to the first revival round instead of dropping to the paused summary — the auto-play analogue of advanceInfPlayRound's wrap. Growth is the primary path; the approaching-end watcher fires it ~5 rounds before the tail so play never reaches session_complete in the common case."
+      - "Surfaced as 'stuck after a listening pod': the pod cadence lands a lap on the final revival round (lookahead was a multiple of the interval), so the old dead-end coincided with the end of a pod lap; only the bottom-nav forward (which already wraps) recovered."
+      - "Continuation wired at onSessionComplete and the post-pod-lap branch in handleRoundBoundary: expandScript (growth) first, wrap as fallback. Offline still loops via appendCachedLoopForOffline (runs first), matching the partial-content 'straight to random, no drain' behaviour."
+      - "Main-loop-boundary SINGLE SOURCE OF TRUTH (done): every divergent computation (infplayMainLoopCount ?? courseFinalLegoRef.roundIndex+1 ×6, roundMap.rounds[0].r-1 ×3, courseTotalRounds, the deterministic-build + regen generator counts) now routes through mainLoopBoundary() — the canonical /round-map (course_round_index) LEGO-ID-ordered map, held in its OWN stable ref (mainLoopMap), fetched once on load via getOrFetchRoundMap and never overwritten (unlike instantPlayback.roundMap, which bootstrapInfPlay clobbers with a synthetic infplay map). course_round_index is already the server-side authority (cursor-repair caps at MAX(round_index); course_stats.lego_count counts it)."
+      - "infplayMainLoopCount ref DELETED. courseFinalLegoRef retained only for the final-LEGO id/seed (belt anchor, ratchet) + as a load-time fallback inside mainLoopBoundary() until the map resolves. mainLoopIndexForLegoId() gives main-loop position BY LEGO ID; handleRoundForward's INF-PLAY-entry test now reads position by LEGO ID, not the round array index. No counter up to the boundary; only infplayRoundIndex (per-round, in saveRoundProgress) counts PAST it. Also fixes a latent bug where the three roundMap.rounds[0].r-1 derivations mis-computed the boundary for deep (fromRound>1) infplay bootstraps."
+      - "BEHAVIOUR NOTE for courses with unbuilt/no-audio LEGOs (e.g. German/Croatian): the round-map (is_new count) and the generator's PLAYABLE count can differ; the client now matches the server (round-map) instead of the generator's playable count. For fully-built courses the two agree exactly. Verify INF PLAY entry/boundary on a missing-audio course."
+
   v2.1.4:
     date: "2026-05-29"
     title: "INF PLAY deterministic online — frozen script run forward, no random fork"
