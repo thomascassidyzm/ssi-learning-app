@@ -1635,8 +1635,14 @@ simplePlayer.onSessionComplete(async () => {
     // Nothing survived the persistent-audio filter (empty cached set) — fall
     // through to the summary; that's the empty-cache edge, not the recycle.
   }
-  // Infinite play: the course should never end. Try expanding the
-  // script and resuming before falling through to a paused-quiet state.
+  // Infinite play online: the fixed revival tail can't be grown by
+  // expandScript, so wrap back to the first revival round instead of
+  // dead-ending at the tail (the continuous-play analogue of the forward
+  // button's wrap). See wrapInfPlayAtTail for the full rationale.
+  if (wrapInfPlayAtTail()) return
+  // Main loop (or no revival set loaded): the course should never end —
+  // try expanding the script and resuming before falling through to a
+  // paused-quiet state.
   const added = await expandScript()
   if (added > 0) {
     simplePlayer.resume()
@@ -3884,6 +3890,13 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
             sessionEnded.value = false
             simplePlayer.resume()
+          } else if (wrapInfPlayAtTail()) {
+            // INF PLAY online: a pod lap fires on the FINAL revival round
+            // (cadence divides the fixed lookahead), so session_complete
+            // fired during this lap. expandScript can't grow the tail — wrap
+            // back to the first revival round so play continues instead of
+            // stopping right after the listening exercise. This was the
+            // "stuck after listening pods, only forward-skip recovers" bug.
           } else {
             const added = await expandScript()
             if (added > 0) {
@@ -8928,6 +8941,53 @@ const handleExit = () => {
 const ensureNetworkInitialized = () => {}
 const addNetworkNode = (_legoId: any, _targetText: any, _knownText: any, _beltColor = 'white') => {}
 const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
+
+// ============================================
+// INF PLAY — continuous-play tail wrap
+// ============================================
+// In INF PLAY the revival tail is a FIXED lookahead (infinitePlayLookahead,
+// hard-coded at script generation). expandScript() regenerates the SAME number
+// of rounds, so it can never grow the tail — it returns 0. That makes the
+// generic "approaching the end → expandScript() → resume" continuation a no-op
+// in INF PLAY, so continuous auto-play would dead-end at the LAST revival round
+// and fall through to the paused summary.
+//
+// The forward button already wraps at the tail (advanceInfPlayRound: step off
+// the end → jump back to the first revival round). This is the auto-play
+// analogue: when continuous play reaches the tail, seamlessly jump back to the
+// first revival round and keep going, instead of stopping. No overlay/flash —
+// it's a silent continuation, not a user-driven jump.
+//
+// Why this surfaced "after a listening pod": the pod cadence (every N revival
+// rounds) lands a lap on the FINAL revival round (lookahead is a multiple of
+// the interval), so the tail dead-end coincided exactly with the end of a pod
+// lap — play stopped right after the listening exercise. Hitting the bottom-nav
+// forward (advanceInfPlayRound) recovered because that path DOES wrap.
+//
+// Returns true if it wrapped (caller must NOT fall through to expandScript /
+// showPausedSummary). No-ops (returns false) outside INF PLAY or when no
+// revival set is loaded — offline INF PLAY is handled separately by
+// appendCachedLoopForOffline at the same call sites.
+const wrapInfPlayAtTail = (): boolean => {
+  if (currentMode.value !== 'infplay') return false
+  const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
+  // First revival round = first index past the main loop. Guard against a
+  // not-yet-loaded main-loop count and an unloaded revival set.
+  const firstInfIdx = mainLoopCount > 0 && simplePlayer.roundCount.value > mainLoopCount
+    ? mainLoopCount
+    : -1
+  if (firstInfIdx < 0) return false
+  console.log(`[LearningPlayer] INF PLAY tail reached — wrapping to first revival round (idx ${firstInfIdx}) so play never dead-ends`)
+  // jumpToRound lands on cycle 0 with isPlaying=false (we're paused at the
+  // tail); resume() then starts the 4-phase cycle from PROMPT. The infplay
+  // round counter is bumped per round by saveRoundProgress, so we don't touch
+  // it here (advanceInfPlayRound bumps it because the button bypasses a round
+  // completion; this path doesn't).
+  sessionEnded.value = false
+  simplePlayer.jumpToRound(firstInfIdx)
+  simplePlayer.resume()
+  return true
+}
 
 // ============================================
 // PROGRESSIVE SCRIPT EXPANSION

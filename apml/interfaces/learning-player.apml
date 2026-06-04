@@ -506,6 +506,15 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.5:
+    date: "2026-06-04"
+    title: "INF PLAY auto-play tail wrap — never dead-ends after a listening pod"
+    changes:
+      - "Continuous INF PLAY now WRAPS at the revival tail during auto-play, mirroring the forward button (advanceInfPlayRound). New wrapInfPlayAtTail() jumps the player back to the first revival round and resumes when session_complete fires at the end of the fixed lookahead."
+      - "Root cause: the revival tail is a FIXED lookahead (infinitePlayLookahead=50) so expandScript() regenerates the same rounds and returns 0 — the generic 'approaching end → expand → resume' continuation was a silent no-op in INF PLAY. Auto-play therefore dead-ended at the LAST revival round and fell through to the paused summary."
+      - "Surfaced as 'stuck after a listening pod': the pod cadence lands a lap on the final revival round (lookahead is a multiple of the interval), so the dead-end coincided with the end of a pod lap. Only the bottom-nav forward (which already wraps) recovered."
+      - "Wired into both continuation points: onSessionComplete and the post-pod-lap sessionEnded branch in handleRoundBoundary. Offline still loops via appendCachedLoopForOffline (runs first); main loop still uses expandScript."
+
   v2.1.4:
     date: "2026-05-29"
     title: "INF PLAY deterministic online — frozen script run forward, no random fork"
