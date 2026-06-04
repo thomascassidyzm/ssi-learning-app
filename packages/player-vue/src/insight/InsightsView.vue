@@ -17,6 +17,7 @@
 // and the centralised ECharts theme.
 // ============================================================================
 import { ref, computed, defineAsyncComponent, type Component } from 'vue'
+import DiscoveryFeed from './DiscoveryFeed.vue'
 
 // Lazy board imports — keep the ECharts widget graph out of the initial admin chunk
 // until a board is selected.
@@ -81,6 +82,9 @@ function selectBoard(id: BoardId) {
         </p>
       </div>
     </header>
+
+    <!-- ── Discovery feed (nightly deep-run) — sits above the boards ── -->
+    <DiscoveryFeed />
 
     <!-- ── Board switcher (segmented) ── -->
     <nav class="board-switch" role="tablist" aria-label="Insight boards">
