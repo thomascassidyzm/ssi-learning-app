@@ -5,7 +5,8 @@ import {
   offlineDownloadPct,
   offlineDownloadVisible,
   offlineDownloadActive,
-  offlineDownloadLabel,
+  offlineDownloadHeadline,
+  offlineDownloadCount,
 } from '../composables/useOfflineDownloadStatus'
 
 const props = defineProps({
@@ -31,20 +32,19 @@ const toggleTray = () => {
 }
 
 // ── Offline-download ring around the mode button ────────────────────────────
-// Offline was switched on from here, so its progress lives here too: a ring
-// around the trigger while downloading, green when ready, red on error. The full
-// "Downloading… N% (x/y)" detail shows on the Offline row inside the tray.
-const MODE_RING_CIRCUMFERENCE = 2 * Math.PI * 26   // viewBox 60, r=26 (a halo OUTSIDE the 44px button)
-const offlineRingIndeterminate = computed(() => offlineDlState.value === 'preparing')
-const modeRingStyle = computed(() => {
-  const c = MODE_RING_CIRCUMFERENCE
-  if (offlineDlState.value === 'complete' || offlineDlState.value === 'error') {
-    return { strokeDasharray: `${c}`, strokeDashoffset: '0' }                    // full ring
-  }
-  if (offlineDownloadPct.value !== null) {
-    return { strokeDasharray: `${c}`, strokeDashoffset: `${c * (1 - offlineDownloadPct.value / 100)}` }
-  }
-  return undefined   // preparing → CSS-driven indeterminate spin
+// Offline was switched on from here, so its progress lives here too. The ring is
+// a conic-gradient on a child of the button itself (anchored via inset to the
+// button's own box → can NEVER drift off-centre, unlike an overlaid sibling SVG).
+// Drive it with CSS vars: --dl-pct fills the green arc; --dl-color sets green
+// (downloading/complete) or red (error). complete/error show a full ring.
+const offlineRingVars = computed(() => {
+  let pct = 0
+  let color = '#16a34a'
+  if (offlineDlState.value === 'complete') pct = 100
+  else if (offlineDlState.value === 'error') { pct = 100; color = '#ef4444' }
+  else if (offlineDownloadPct.value !== null) pct = offlineDownloadPct.value
+  else if (offlineDlState.value === 'preparing') pct = 12   // small green arc + pulse (no total yet)
+  return { '--dl-pct': pct, '--dl-color': color }
 })
 
 const closeTray = () => {
@@ -107,29 +107,21 @@ const handleOffline = () => {
 
 <template>
   <div v-show="isVisible" class="mode-tray-container">
-    <!-- Trigger button (with the offline-download progress ring around it) -->
-    <div class="mode-trigger-wrap">
-    <svg
-      v-if="offlineDownloadVisible"
-      class="mode-trigger-ring"
-      :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }"
-      viewBox="0 0 60 60"
-      aria-hidden="true"
-    >
-      <circle class="mode-trigger-ring-track" cx="30" cy="30" r="26" />
-      <circle
-        class="mode-trigger-ring-fill"
-        :class="{ 'is-indeterminate': offlineRingIndeterminate }"
-        cx="30" cy="30" r="26"
-        :style="modeRingStyle"
-      />
-    </svg>
+    <!-- Trigger button. The offline-download progress ring is a child of the
+         button, anchored to its own box so it stays perfectly concentric. -->
     <button
       class="mode-trigger"
       :class="{ active: hasActiveMode, open: isOpen }"
+      :style="offlineDownloadVisible ? offlineRingVars : undefined"
       @click="toggleTray"
       title="Modes"
     >
+      <span
+        v-if="offlineDownloadVisible"
+        class="mode-dl-ring"
+        :class="{ 'is-preparing': offlineDlState === 'preparing' }"
+        aria-hidden="true"
+      ></span>
       <!-- Show active mode icon, or default sliders icon -->
       <svg v-if="activeModeIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
@@ -147,7 +139,6 @@ const handleOffline = () => {
         <line x1="17" y1="16" x2="23" y2="16"/>
       </svg>
     </button>
-    </div>
 
     <!-- Tray popover -->
     <Transition name="tray">
@@ -215,7 +206,13 @@ const handleOffline = () => {
           </div>
           <div class="tray-label">
             <span class="tray-name">Offline mode</span>
-            <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">{{ offlineDownloadVisible ? offlineDownloadLabel : 'Play from downloaded audio' }}</span>
+            <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
+              <template v-if="offlineDownloadVisible">
+                <span class="tray-desc-line">{{ offlineDownloadHeadline }}</span>
+                <span v-if="offlineDownloadCount" class="tray-desc-line tray-desc-count">{{ offlineDownloadCount }}</span>
+              </template>
+              <template v-else>Play from downloaded audio</template>
+            </span>
           </div>
           <div class="tray-toggle" :class="{ on: isOfflineMode }">
             <div class="tray-toggle-knob"></div>
@@ -284,54 +281,34 @@ const handleOffline = () => {
 }
 
 /* Trigger button + offline-download ring */
-.mode-trigger-wrap {
-  position: relative;
-  width: 44px;
-  height: 44px;
-}
-.mode-trigger-ring {
+/* Offline-download progress ring — a conic-gradient masked into a ring, as a
+   CHILD of the button anchored to its own box (inset). It can never drift
+   off-centre the way the old overlaid SVG did. --dl-pct (0–100) fills the green
+   arc clockwise from 12 o'clock; --dl-color is green (downloading/complete) or
+   red (error). complete/error pass pct=100 → full ring. */
+.mode-dl-ring {
   position: absolute;
-  /* A 60px halo CLEARLY OUTSIDE the 44px button (r=26 sits ~4px beyond the
-     button edge) so the button doesn't paint over the inner half of the stroke —
-     that was the bug that made it nearly invisible. */
-  inset: -8px;
-  width: 60px;
-  height: 60px;
-  transform: rotate(-90deg);   /* arc grows clockwise from 12 o'clock */
-  pointer-events: none;        /* never block the button tap */
-  overflow: visible;
+  inset: -5px;                 /* a halo just OUTSIDE the 44px button */
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(var(--dl-color, #16a34a) calc(var(--dl-pct, 0) * 1%), rgba(0, 0, 0, 0.13) 0);
+  /* cut a 4px ring out of the conic disc (Safari needs -webkit-mask). No
+     filter:drop-shadow here — drop-shadow + CSS mask is a known iOS Safari
+     rendering quirk; the green + 4px thickness carry the visibility. */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  transition: background 0.3s ease;
 }
-.mode-trigger-ring-track {
-  fill: none;
-  stroke: rgba(0, 0, 0, 0.12);
-  stroke-width: 4;
+.mode-dl-ring.is-preparing {
+  animation: mode-dl-pulse 1s ease-in-out infinite;   /* no total yet → gentle pulse */
 }
-.mode-trigger-ring-fill {
-  fill: none;
-  stroke: #16a34a;             /* downloading — green = heading offline */
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-dashoffset: 163.36;   /* empty by default (= circumference 2π·26); no unwind flash */
-  transition: stroke-dashoffset 0.3s ease;
-  filter: drop-shadow(0 0 3px rgba(22, 163, 74, 0.55));   /* glow → prominent */
-}
-.mode-trigger-ring.is-complete .mode-trigger-ring-fill { stroke: #16a34a; }
-.mode-trigger-ring.is-error .mode-trigger-ring-fill {
-  stroke: #ef4444;
-  filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.55));
-}
-.mode-trigger-ring-fill.is-indeterminate {
-  stroke-dasharray: 41 123;    /* short arc (~25% of the circle) */
-  stroke-dashoffset: 0;        /* sit the arc cleanly at the start, then spin */
-  transform-origin: 30px 30px;
-  animation: mode-ring-spin 0.9s linear infinite;
-}
-@keyframes mode-ring-spin { to { transform: rotate(360deg); } }
+@keyframes mode-dl-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .mode-trigger-ring-fill.is-indeterminate { animation: none; }
+  .mode-dl-ring.is-preparing { animation: none; }
 }
 
 .mode-trigger {
+  position: relative;          /* positioning context for .mode-dl-ring */
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -474,11 +451,22 @@ const handleOffline = () => {
   margin-top: 1px;
 }
 /* While a download is in progress, the Offline row's desc shows the live detail
-   ("Downloading… N% (x/y)") in the accent colour. */
+   in the accent colour, as TWO fixed lines (headline + count) so the layout
+   never reflows between 1 and 2 lines as the numbers tick — that reflow was the
+   flicker. tabular-nums keeps digit width steady so the count doesn't jitter. */
 .tray-desc.is-downloading {
   color: #16a34a;
   font-weight: 600;
+}
+.tray-desc-line {
+  display: block;
+}
+/* Only the count stays on one line (numbers shouldn't wrap mid-value); the
+   headline may wrap so the long 'Download incomplete…' error doesn't overflow. */
+.tray-desc-count {
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  opacity: 0.85;
 }
 .tray-desc.is-error {
   color: #ef4444;

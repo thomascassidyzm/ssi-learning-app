@@ -1,0 +1,206 @@
+# APML Interface: Insight Engine Specification
+# SSI Learning App
+# Version: 1.0.0 (2026-06-02)
+# Status: Integrated — typecheck-green, admin chunk builds
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Insight Engine"
+  purpose: "Claude-directed admin analytics over a fixed widget library. A new insight is a composition (widget + data + story + graded actions), not a project."
+  source: "packages/player-vue/src/insight/"
+  surface: "/admin/insights (admin-gated: ssi_admin / god)"
+  design_system: "Frostwell Courtyard (schools-surface), ECharts charts themed to the house palette"
+  vision_doc: "docs/methodology/insight-engine.md ; gallery public/docs/insight-examples.html"
+
+DESIGN_PHILOSOPHY:
+  one_line: "The app renders from a declarative spec; Claude (or a board) emits the spec — no chart code per insight."
+  principles:
+    - "Spec is the contract: a question, a configured widget, the resolved data, and what you could do about it."
+    - "Host fetches, wrapper is pure: a board resolves data and hands { data, isLoading, error } to a render-only wrapper."
+    - "Two lenses never share a screen: frame routes Lens A (self/group — learner) vs Lens B (world/content — company); boards filter on frame."
+    - "No hardcoded hex in components — Frostwell tokens + a centralised ECharts theme (theme.ts) carry every colour."
+
+## ============================================================================
+## THE SPEC CONTRACT (spec.ts — frozen spine)
+## ============================================================================
+
+SPEC_CONTRACT:
+  source: "packages/player-vue/src/insight/spec.ts"
+  note: "No runtime dependencies — typechecks alone. Imported read-only by every widget, resolver, and board."
+
+  shared_vocabulary:
+    Frame: "self | group | world | content   (self/group => Lens A · world/content => Lens B)"
+    Order: "level | velocity | acceleration  (read curvature, not just level)"
+    Tone:  "neutral | good | warn | alarm     (maps to a Frostwell tonal triplet in theme.ts; never a hex on the spec)"
+    Entity: "string (open: learner | course | lego | seed | cohort | region | class | build | a concrete id)"
+    Window: "string (open: 1d | 7d | 30d | 90d | all — parsed in the resolver)"
+
+  DataQuery:
+    description: "The composition Claude emits ({metric}×{entity}×{dims}×{frame}×{order}×{filter})."
+    fields: "metric (registered MetricId), entity?, entityId?, frame?, order?, course?, window?, dimensions?, filter?"
+
+  InsightSpec:
+    generic: "InsightSpec<K extends WidgetKind> — widget + data co-vary at the board call-site (AnyInsightSpec is the tagged union)."
+    fields:
+      widget: "WidgetKind"
+      query: "DataQuery — resolved by the registry to DataForKind<K>"
+      frame: "routes Lens A vs Lens B"
+      title: "the question"
+      story: "the one-line read"
+      annotate: "Annotation[] — the marks that ARE the story"
+      actions: "Action[] — graded, owned, terminating footer"
+      sovereignty: "required when widget==='sovereign-comparison' OR frame is self/group"
+      tag: "widget label for the .fig-tag"
+
+  Annotation:
+    description: "Discriminated union by `at` — the WRONG target shape for a widget is a compile error."
+    variants: "point | datum | stage | node | cell | row | region | band"
+
+  Action:
+    tier: "try | investigate | together   (graded by confidence × stakes)"
+    owner: "popty | growth | product | marketing | you | you+claude"
+    drill: "optional DataQuery — click re-scopes the SAME lens to a narrower entity"
+
+  ResolvedInsight:
+    shape: "{ data: WidgetData; isLoading: boolean; error: string | null }"
+    note: "The bundle the host hands the wrapper. Every WidgetData variant is renderable-from-zero; a resolver NEVER throws."
+
+## ============================================================================
+## WIDGET LIBRARY (13 widgets + Stat)
+## ============================================================================
+
+WIDGET_LIBRARY:
+  source: "packages/player-vue/src/insight/widgets/"
+  contract: "props { data: <variant>, annotations?: Annotation[] }. Emits nothing. Renders ONLY the chart + annotation marks — the wrapper owns all chrome. Lazy-imports echarts in onMounted; ResizeObserver -> chart.resize(); colours from theme.ts."
+  kinds:
+    - "stat            — KPI tile (+ optional donut variant, e.g. build-SHA spread)"
+    - "time-series     — line trend"
+    - "ranked-bar      — horizontal/vertical ranked bars (standing-style)"
+    - "sovereign-comparison — the 'standing' widget (Lens A; entity vs aggregate, k-floor)"
+    - "distribution    — histogram bins"
+    - "scatter         — difficulty × execution plane (scatter + effectScatter)"
+    - "funnel          — staged funnel (e.g. trial → paid)"
+    - "flow            — Sankey nodes + links"
+    - "cohort-grid     — heatmap (retention cohorts OR friction map)"
+    - "map             — choropleth by ISO country (ip_country)"
+    - "table           — typed columns + tone rows"
+    - "narrative-card  — the Discover card (pure HTML, no chart)"
+    - "treemap         — course-value tiles (LTV-proxy)"
+  charting: "ECharts ^5.5.0 (player-vue dependency, lazy-loaded, admin-only). Configs ported near-verbatim from public/docs/insight-examples.html."
+
+## ============================================================================
+## THE SEMANTIC SUBSTRATE — REGISTRY + RESOLVERS
+## ============================================================================
+
+REGISTRY:
+  source: "packages/player-vue/src/insight/registry.ts"
+  purpose: "metric id -> { def, resolver }. A metric is DEFINED + TESTED ONCE; two surfaces can never disagree about 'retention'. def.widget === K binds the resolver to Resolver<K> (a mismatched resolver is a compile error)."
+  helpers:
+    metricDef: "look up a MetricDef without loading the resolver chunk"
+    resolveMetric: "resolve a DataQuery to a renderable WidgetData variant (lazy-imports data/<metric>.ts)"
+  metrics:
+    courseValue:      "treemap — LTV-proxy = reach × stickiness × retention, per course (data/courseValue.ts)"
+    contentFriction:  "cohort-grid — per-unit skip-back + stall + drop-off + audio_failed; reuses analytics_friction_map (data/contentFriction.ts)"
+    retention:        "time-series — days-active + return-rate 7/30/90d; reuses analytics_retention_cohorts (data/retention.ts)"
+    health:           "stat — audio_failed rate, cacheHit, client_version + device spread; reuses analytics_overview (data/health.ts)"
+    trialConversion:  "funnel — trial → paid; subscriptions has 0 rows today -> returns a well-formed zero-stage funnel (data/trialConversion.ts)"
+
+RESOLVER_CONTRACT:
+  source: "packages/player-vue/src/insight/data/<metric>.ts"
+  rules:
+    - "Read-only. PREFER the analytics_* RPCs (SECURITY DEFINER, is_god_user-gated, anon-callable)."
+    - "Mirror the proven useAnalytics* idiom: client.rpc(...), data || [], graceful catch."
+    - "Return zeros/empties on no-data or a blocked read. NEVER throw."
+    - "Client = useAdminClient().getClient() (anon-key reads suffice). NEVER write data from the app."
+    - "A new raw read that PostgREST blocks -> author a NEW SECURITY DEFINER RPC as an UNAPPLIED migration file in supabase/migrations/."
+
+## ============================================================================
+## THE FOUR BEHAVIOURS (owned by the wrapper, not each widget)
+## ============================================================================
+
+INSIGHT_WIDGET_WRAPPER:
+  source: "packages/player-vue/src/insight/InsightWidget.vue"
+  props: "exactly two — spec: AnyInsightSpec, resolved: ResolvedInsight"
+  dispatch: "import.meta.glob('./widgets/*.vue') + PascalCase naming. Dropping widgets/<Name>.vue makes a kind dispatchable with NO edit to the wrapper, registry, or spec."
+  never: "touches Supabase. Renders loading/error/empty so widgets only ever see good data."
+
+  behaviour_1_annotatable:
+    what: "Claude marks the point/row/stage that IS the story (spec.annotate[]); the widget renders the marks, the wrapper also renders each note as a tone-coloured caption so the read travels even when a widget can't call out a mark."
+
+  behaviour_2_interrogable:
+    what: "A quiet 'why?' affordance that emits an 'interrogate' event."
+    status: "Emits today; Phase 4 wires it to an explain call."
+
+  behaviour_3_sovereign:
+    what: "Any comparison is entity-vs-aggregate + a k-anonymity floor (default 5). NEVER a named peer in learner-facing data."
+    gates: "resolver is the first gate (sets named only for admin identified-visibility); the wrapper is the second gate (suppresses any band below kFloor; renders names only when visibility==='identified' AND data.named)."
+
+  behaviour_4_action_terminated_drillable:
+    what: "A graded-actions footer (try / investigate / together + an owner). Action.drill re-scopes on click; the wrapper emits 'drill' / 'act' for the host to re-fetch & swap the spec."
+
+## ============================================================================
+## BOARDS (hand-authored compositions — no LLM call yet)
+## ============================================================================
+
+BOARDS:
+  source: "packages/player-vue/src/insight/boards/"
+  pattern: "Each board fetches its data on mount, builds InsightSpec literals (story + annotate + actions authored from the shape of the data), and renders <InsightWidget :spec :resolved> panels in a Frostwell grid. The board owns the page header + course/window pickers; the wrapper owns all widget chrome."
+  CourseScoreboard:
+    lens: "Lens B · company"
+    question: "Which courses are creating real learner value, and where is growth coming from?"
+    widgets: "2× stat (KPI) + treemap (course value) + ranked-bar (lifetime hours) + time-series (new learners / week)"
+    data: "courseValue + retention metrics + analytics_growth RPC"
+  ContentFrictionBoard:
+    lens: "Lens B · quality"
+    question: "Where does the curriculum hurt everyone?"
+    widgets: "cohort-grid (friction heatmap, full width) + ranked-bar (top friction bands) + narrative-card (the editorial read + actions to Popty)"
+    data: "contentFriction metric (per selected course)"
+    law: "unit-concentrated hot cells = a quality problem, not a learner problem -> action terminates in Popty (re-split the LEGO)"
+  HealthStrip:
+    lens: "Lens B · ops"
+    question: "Is audio breaking? Is my fix live?"
+    widgets: "stat (audio_failed rate + cache-hit) + stat (build-SHA spread donut) + time-series (failure-rate trend)"
+    data: "health metric (resolveHealthFull, per selected window 7d/14d/30d)"
+
+## ============================================================================
+## THE HOST + INTEGRATION
+## ============================================================================
+
+INSIGHTS_VIEW:
+  source: "packages/player-vue/src/insight/InsightsView.vue"
+  purpose: "The /admin/insights host — a board switcher rendering the three board components."
+  layout: "Frostwell page header (schools-kicker + Arsenal h1 + subtitle) + a segmented board switcher + a lazily-mounted active board."
+  lazy: "Boards are defineAsyncComponent imports, so the ECharts widget graph stays out of the initial admin chunk until a board is shown."
+
+ROUTE:
+  source: "packages/player-vue/src/router/index.ts"
+  entry: "{ path: 'insights', name: 'admin-insights', component: () => import('@/insight/InsightsView.vue') } under the /admin parent (AdminContainer)."
+  guard: "router.beforeEach gates everything under /admin via useUserRole().canAccessAdmin (ssi_admin / god)."
+
+TOPBAR_TAB:
+  source: "packages/player-vue/src/components/admin/AdminTopBar.vue"
+  entry: "{ label: 'Insights', to: '/admin/insights', match: p => p.startsWith('/admin/insights') } — placed after Methodology."
+
+## ============================================================================
+## STATUS / NOT-YET
+## ============================================================================
+
+STATUS:
+  built:
+    - "spec.ts spine (frozen contract) + registry.ts + theme.ts"
+    - "13 widgets + Stat, all render-only, ECharts lazy-loaded"
+    - "5 resolvers (courseValue, contentFriction, retention, health, trialConversion) — RPC-first, zero-safe"
+    - "InsightWidget wrapper owning the four behaviours"
+    - "3 boards (CourseScoreboard, ContentFrictionBoard, HealthStrip)"
+    - "InsightsView host + /admin/insights route + AdminTopBar tab"
+  verified:
+    - "pnpm --filter player-vue typecheck — PASSES (0 errors)"
+    - "pnpm --filter player-vue build — admin chunk builds (InsightsView, all boards, widgets, InsightWidget, resolvers code-split)"
+  not_yet:
+    - "Phase 4 — interrogate ('why?') wired to a live explain call (today it only emits)"
+    - "drill re-fetch + spec swap in the host (boards log/emit drill payloads today)"
+    - "Claude-as-director emitting specs at runtime (boards hand-author specs today; no LLM call)"
+    - "Lens A (self/group) learner-facing boards"

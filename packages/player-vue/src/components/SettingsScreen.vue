@@ -12,6 +12,7 @@ import { getLanguageName, getLanguageEndonym, setLocale } from '../composables/u
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
+import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -1182,11 +1183,26 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
-      <!-- Build Info -->
-      <div class="build-card">
-        <span class="build-sha">{{ buildNumber || 'dev' }}</span>
-        <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
-      </div>
+      <!-- Build / version — tappable: runs the staged "get the latest version"
+           flow (the prominent update affordance). Badges when a new version is
+           waiting. The "what's new" changelog sits right below. -->
+      <button
+        type="button"
+        class="build-card clickable"
+        :class="{ 'has-update': pwaUpdateAvailable }"
+        :aria-label="pwaUpdateAvailable ? 'Update available — tap to update' : 'Tap to update to the latest version'"
+        @click="handleUpdateToLatest"
+      >
+        <span class="build-card-version">
+          <span class="build-sha">{{ buildNumber || 'dev' }}</span>
+          <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
+        </span>
+        <span class="build-card-action">
+          <span v-if="pwaUpdateAvailable" class="build-update-badge">Update available</span>
+          <span v-else class="build-update-hint">Tap to update</span>
+          <svg class="build-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+      </button>
 
       <!-- What's New — admin-curated release notes (see /admin/release-notes) -->
       <section v-if="releaseNotes.length > 0" class="section whats-new">
@@ -1903,15 +1919,39 @@ const confirmReset = async () => {
 .build-card {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.5rem 1rem;
+  width: 100%;
+  padding: 0.625rem 1rem;
   margin-bottom: 1rem;
   background: var(--bg-card);
   border-radius: 12px;
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
+.build-card:hover { border-color: var(--border-medium); }
+.build-card:active { transform: scale(0.995); }
+.build-card.has-update { border-color: #16a34a; }
+.build-card-version { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.build-card-action { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+.build-update-hint { font-size: 0.78rem; color: var(--text-muted); }
+.build-update-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: #16a34a;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  animation: build-update-pulse 1.6s ease-in-out infinite;
+}
+@keyframes build-update-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .build-update-badge { animation: none; } }
+.build-card-chevron { width: 16px; height: 16px; color: var(--text-muted); }
 
 .build-sha {
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;

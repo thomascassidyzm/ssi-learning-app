@@ -57,6 +57,11 @@ const tabs: AdminTab[] = [
     to: '/admin/methodology',
     match: (p) => p.startsWith('/admin/methodology'),
   },
+  {
+    label: 'Insights',
+    to: '/admin/insights',
+    match: (p) => p.startsWith('/admin/insights'),
+  },
 ]
 
 function isActive(tab: AdminTab): boolean {
