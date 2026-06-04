@@ -360,6 +360,27 @@ const {
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
+// ── INF PLAY revival-tail sizing ───────────────────────────────────────────
+// The revival tail must run at LEAST max(spacedRepOffsets) rounds so the FINAL
+// main-loop LEGO completes its full N-1 … N-89 spaced-rep drain. Anything
+// shorter (the old hard-coded 50) leaves the last LEGOs under-trained — a
+// methodology requirement, not a perf knob. Beyond that floor the tail GROWS in
+// batches as the learner walks it (expandScript bumps infPlayLookahead while in
+// INF PLAY), so play is genuinely unbounded: every revival round is ~22 cycles
+// of the drained-out spaced review plus uniform-random USE across the whole
+// course, and the deterministic seeded stream just keeps extending forward.
+const INF_PLAY_BATCH = 50
+// Revival-tail length fed to the generator. 0 = "not yet sized" → the floor
+// applies; expandScript raises it in INF PLAY so each regen yields new rounds.
+const infPlayLookahead = ref(0)
+const infPlayLookaheadFloor = (): number => {
+  const offsets = scriptShapeConfig.value?.spacedRepOffsets
+  const maxOffset = offsets && offsets.length ? Math.max(...offsets) : 89
+  // +1 of headroom so the final LEGO's longest-offset review sits comfortably
+  // inside the tail rather than exactly on the last generated round.
+  return maxOffset + 1
+}
+
 /**
  * Wrapper for generateSimpleScript that threads the live algorithm_config
  * triple (listening, scriptShape, turbo cull) into every script-generation
@@ -386,10 +407,15 @@ const generateScript = (
   // Full-course one-shot generation. The script generator walks the
   // whole inventory; the player consumes from wherever its cursor is
   // (resume-by-lego-id). No seed-range chunking; no emit windowing.
+  //
+  // infinitePlayLookahead = current revival-tail length, never below the floor
+  // (so the final LEGO always drains fully). expandScript grows it in batches
+  // during INF PLAY so the tail keeps extending — genuinely infinite.
+  const infinitePlayLookahead = Math.max(infPlayLookahead.value, infPlayLookaheadFloor())
   return generateSimpleScript(
     supabase.value,
     courseCode.value,
-    50,  // infinitePlayLookahead — revival rounds after the main loop
+    infinitePlayLookahead,  // revival rounds after the main loop (≥ max SR offset, grows in INF PLAY)
     listening,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
@@ -1635,19 +1661,18 @@ simplePlayer.onSessionComplete(async () => {
     // Nothing survived the persistent-audio filter (empty cached set) — fall
     // through to the summary; that's the empty-cache edge, not the recycle.
   }
-  // Infinite play online: the fixed revival tail can't be grown by
-  // expandScript, so wrap back to the first revival round instead of
-  // dead-ending at the tail (the continuous-play analogue of the forward
-  // button's wrap). See wrapInfPlayAtTail for the full rationale.
-  if (wrapInfPlayAtTail()) return
-  // Main loop (or no revival set loaded): the course should never end —
-  // try expanding the script and resuming before falling through to a
-  // paused-quiet state.
+  // Infinite play / main loop: the course should never end. expandScript()
+  // GROWS the revival tail by a batch in INF PLAY (genuinely infinite — fresh
+  // deterministic rounds), or loads more main-loop rounds; then resume.
   const added = await expandScript()
   if (added > 0) {
     simplePlayer.resume()
     return
   }
+  // Generation produced nothing (transient online failure; offline was handled
+  // above). Last resort in INF PLAY: wrap to the first revival round so play
+  // never dead-ends instead of dropping to the paused summary.
+  if (wrapInfPlayAtTail()) return
   sessionEnded.value = true
   showPausedSummary()
 })
@@ -3890,18 +3915,18 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
             sessionEnded.value = false
             simplePlayer.resume()
-          } else if (wrapInfPlayAtTail()) {
-            // INF PLAY online: a pod lap fires on the FINAL revival round
-            // (cadence divides the fixed lookahead), so session_complete
-            // fired during this lap. expandScript can't grow the tail — wrap
-            // back to the first revival round so play continues instead of
-            // stopping right after the listening exercise. This was the
-            // "stuck after listening pods, only forward-skip recovers" bug.
           } else {
+            // session_complete fired during this pod lap (the cadence lands a
+            // lap near the tail). expandScript() grows the revival tail by a
+            // batch in INF PLAY so play continues into genuinely new rounds.
             const added = await expandScript()
             if (added > 0) {
               sessionEnded.value = false
               simplePlayer.resume()
+            } else if (wrapInfPlayAtTail()) {
+              // Growth couldn't run (transient online failure) — wrap so INF
+              // PLAY never dead-ends right after a listening pod.
+              // (wrapInfPlayAtTail clears sessionEnded + resumes.)
             } else {
               showPausedSummary()
             }
@@ -8943,31 +8968,31 @@ const addNetworkNode = (_legoId: any, _targetText: any, _knownText: any, _beltCo
 const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 
 // ============================================
-// INF PLAY — continuous-play tail wrap
+// INF PLAY — continuous-play tail wrap (SAFETY NET)
 // ============================================
-// In INF PLAY the revival tail is a FIXED lookahead (infinitePlayLookahead,
-// hard-coded at script generation). expandScript() regenerates the SAME number
-// of rounds, so it can never grow the tail — it returns 0. That makes the
-// generic "approaching the end → expandScript() → resume" continuation a no-op
-// in INF PLAY, so continuous auto-play would dead-end at the LAST revival round
-// and fall through to the paused summary.
+// Primary path is GROWTH: expandScript() raises infPlayLookahead by a batch
+// while in INF PLAY, so the deterministic revival tail keeps extending forward
+// and the learner gets genuinely new rounds — the course never repeats itself.
+// The approaching-the-end watcher fires that growth ~5 rounds before the tail,
+// so in the common case continuous play never even reaches session_complete.
 //
-// The forward button already wraps at the tail (advanceInfPlayRound: step off
-// the end → jump back to the first revival round). This is the auto-play
-// analogue: when continuous play reaches the tail, seamlessly jump back to the
-// first revival round and keep going, instead of stopping. No overlay/flash —
-// it's a silent continuation, not a user-driven jump.
+// This wrap is the LAST RESORT for when growth can't run: a transient online
+// generateScript failure (network blip) returns 0 rounds. Rather than dropping
+// to the paused summary, jump back to the first revival round and keep playing
+// — the auto-play analogue of the forward button's tail wrap
+// (advanceInfPlayRound). No overlay/flash — a silent continuation. (Offline is
+// handled separately/earlier by appendCachedLoopForOffline; this never runs
+// before expandScript at the call sites.)
 //
-// Why this surfaced "after a listening pod": the pod cadence (every N revival
-// rounds) lands a lap on the FINAL revival round (lookahead is a multiple of
-// the interval), so the tail dead-end coincided exactly with the end of a pod
-// lap — play stopped right after the listening exercise. Hitting the bottom-nav
-// forward (advanceInfPlayRound) recovered because that path DOES wrap.
+// Historically this was the ONLY fix and ran BEFORE expandScript, because the
+// lookahead was a fixed 50 that expandScript could never grow — so the tail
+// dead-ended at the last revival round, which (since the pod cadence lands a lap
+// on that final round) showed up as "stuck right after a listening pod". With
+// growth in place that dead-end no longer happens; the wrap only catches the
+// generation-failure edge.
 //
-// Returns true if it wrapped (caller must NOT fall through to expandScript /
-// showPausedSummary). No-ops (returns false) outside INF PLAY or when no
-// revival set is loaded — offline INF PLAY is handled separately by
-// appendCachedLoopForOffline at the same call sites.
+// Returns true if it wrapped (caller must NOT fall through to showPausedSummary).
+// No-ops (returns false) outside INF PLAY or when no revival set is loaded.
 const wrapInfPlayAtTail = (): boolean => {
   if (currentMode.value !== 'infplay') return false
   const mainLoopCount = infplayMainLoopCount.value ?? ((courseFinalLegoRef.value?.roundIndex ?? -1) + 1)
@@ -9009,6 +9034,24 @@ const expandScript = async (): Promise<number> => {
     // queued — using its length here would lead to an under-sized
     // neededEnd and miss the infinite-play threshold entirely.
     const loadedCount = simplePlayer.roundCount.value
+    // INF PLAY: extend the revival tail by a batch so this regen yields NEW
+    // rounds. The generator otherwise reproduces the SAME fixed-length tail
+    // (the deterministic seeded stream), so without growing the lookahead the
+    // expansion would add nothing and play would dead-end at the tail.
+    //
+    // A simple growing COUNTER (base + batch), not a function of mainLoopCount:
+    // each expansion adds INF_PLAY_BATCH more revival rounds than the last,
+    // independent of how the generator counts its own main loop. The
+    // approaching-the-end watcher fires this ~5 rounds before the tail, so the
+    // batch lands before the learner reaches it. The first ≥ floor rounds are
+    // the SR drain (phase 1: the final LEGO's full N-1…N-89 review); everything
+    // past the drain is pure random USE (phase 2), so the tail is genuinely
+    // unbounded. Main loop leaves the lookahead at its floor — once the whole
+    // course is loaded its expandScript no-ops as before.
+    if (currentMode.value === 'infplay') {
+      const base = infPlayLookahead.value > 0 ? infPlayLookahead.value : infPlayLookaheadFloor()
+      infPlayLookahead.value = base + INF_PLAY_BATCH
+    }
     const result = await generateScript()
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
     if (expandedRounds.length > loadedCount) {

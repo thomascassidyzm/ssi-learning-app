@@ -508,12 +508,14 @@ ACCESSIBILITY:
 VERSION_HISTORY:
   v2.1.5:
     date: "2026-06-04"
-    title: "INF PLAY auto-play tail wrap — never dead-ends after a listening pod"
+    title: "INF PLAY: complete the SR drain (≥89 rounds) + genuinely unbounded play"
     changes:
-      - "Continuous INF PLAY now WRAPS at the revival tail during auto-play, mirroring the forward button (advanceInfPlayRound). New wrapInfPlayAtTail() jumps the player back to the first revival round and resumes when session_complete fires at the end of the fixed lookahead."
-      - "Root cause: the revival tail is a FIXED lookahead (infinitePlayLookahead=50) so expandScript() regenerates the same rounds and returns 0 — the generic 'approaching end → expand → resume' continuation was a silent no-op in INF PLAY. Auto-play therefore dead-ended at the LAST revival round and fell through to the paused summary."
-      - "Surfaced as 'stuck after a listening pod': the pod cadence lands a lap on the final revival round (lookahead is a multiple of the interval), so the dead-end coincided with the end of a pod lap. Only the bottom-nav forward (which already wraps) recovered."
-      - "Wired into both continuation points: onSessionComplete and the post-pod-lap sessionEnded branch in handleRoundBoundary. Offline still loops via appendCachedLoopForOffline (runs first); main loop still uses expandScript."
+      - "Revival-tail FLOOR raised from a hard-coded 50 to max(spacedRepOffsets)+1 (=90). At 50 the final main-loop LEGO never received its N-55 / N-89 reviews — the last LEGOs were under-trained. The floor now guarantees the full N-1…N-89 spaced-rep drain completes for the final LEGO (methodology requirement). Floor derives from scriptShapeConfig.spacedRepOffsets, not a magic number (infPlayLookaheadFloor)."
+      - "INF PLAY is now genuinely unbounded: expandScript() GROWS the revival lookahead by INF_PLAY_BATCH each expansion (a simple growing counter, infPlayLookahead), so the deterministic seeded stream keeps emitting new revival rounds (phase 1: the ≤89-round drain; phase 2 past the drain: pure random USE filling each ~22-cycle round). Previously the fixed 50 made expandScript a no-op in INF PLAY → dead-end at the tail."
+      - "wrapInfPlayAtTail() retained as a SAFETY NET only (was the sole fix in the first cut): if a transient online generateScript failure returns 0 rounds, jump back to the first revival round instead of dropping to the paused summary — the auto-play analogue of advanceInfPlayRound's wrap. Growth is the primary path; the approaching-end watcher fires it ~5 rounds before the tail so play never reaches session_complete in the common case."
+      - "Surfaced as 'stuck after a listening pod': the pod cadence lands a lap on the final revival round (lookahead was a multiple of the interval), so the old dead-end coincided with the end of a pod lap; only the bottom-nav forward (which already wraps) recovered."
+      - "Continuation wired at onSessionComplete and the post-pod-lap branch in handleRoundBoundary: expandScript (growth) first, wrap as fallback. Offline still loops via appendCachedLoopForOffline (runs first), matching the partial-content 'straight to random, no drain' behaviour."
+      - "FOLLOW-UP (in progress): purge the ~6 divergent main-loop-boundary computations (infplayMainLoopCount ?? courseFinalLegoRef.roundIndex+1, roundMap.rounds[0].r-1, courseTotalRounds, getCourseMainLoopRoundCount) onto a single canonical source — the /round-map (course_round_index) LEGO-ID-ordered map, which is already the server-side authority. Boundary = map length; main-loop position = LEGO-ID index; a counter only past the boundary."
 
   v2.1.4:
     date: "2026-05-29"
