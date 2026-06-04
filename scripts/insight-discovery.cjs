@@ -173,8 +173,9 @@ ${JSON.stringify(digest, null, 1)}
   const digest = DEMO ? buildDemoDigest() : await buildRealDigest()
 
   const childEnv = { ...process.env }
-  delete childEnv.ANTHROPIC_API_KEY
+  delete childEnv.ANTHROPIC_API_KEY      // never bill — use the Max subscription
   delete childEnv.ANTHROPIC_AUTH_TOKEN
+  delete childEnv.CLAUDECODE             // required for nested claude --print calls
 
   let raw
   try {
