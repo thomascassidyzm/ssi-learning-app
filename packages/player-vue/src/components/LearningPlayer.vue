@@ -8408,6 +8408,80 @@ const collectSpanAudioIds = (spanMs: number): string[] => {
   return [...ids]
 }
 
+// How many rounds the rolling span (re)covers ahead of the cursor — same
+// per-cycle wall-clock estimate collectSpanAudioIds uses, counted in ROUNDS so
+// we can ask the pod / Layer-1 schedulers which laps fire in that window.
+// Lower-bounded at 1 so we always look at least one round ahead even when the
+// loaded rounds are long. Used ONLY to bound the extras enumeration; it never
+// gates cycle warming (cycles are collected by ms span as before).
+const roundsCoveredBySpan = (spanMs: number): number => {
+  const rounds = cachedRounds.value || []
+  const start = Math.max(0, currentRoundIndex.value)
+  let accMs = 0
+  let n = 0
+  for (let i = start; i < rounds.length && accMs < spanMs; i++) {
+    n++
+    for (const c of (((rounds[i]) as any).cycles || [])) {
+      accMs += 2000 + (c?.pauseDuration ?? 0) + (c?.target1DurationMs ?? 2000) + (c?.target2DurationMs ?? 2000) + 1000
+    }
+  }
+  return Math.max(1, n)
+}
+
+// Pod-lap audio ids that WILL play within the next `spanMs` of cycle play.
+//
+// Pods advance on a ratchet (completed_pod_rounds), not on a round number, so
+// nextLap() composes only the IMMEDIATELY-NEXT lap (it reads the live ratchet).
+// That's exactly what's needed: pods fire at most once per played lap, each lap
+// reuses a slice of the same small bounded sentence pool, and the per-boundary
+// handler advances the ratchet as laps play. So warming the next due lap keeps
+// the upcoming pod cached even across a backgrounded span that crosses several
+// boundaries — the ratchet hasn't moved for laps not yet played, and once one
+// plays the next round-advance re-warms. Returns [] when no pod is due anywhere
+// in the span (cheap no-op — same shape as collectSpanAudioIds: bare audio ids).
+const collectPodSpanAudioIds = (spanMs: number): string[] => {
+  if (!podScheduler || !podScheduler.isInitialized.value) return []
+  const cursor = Math.max(0, currentRoundIndex.value)
+  const lastRound = cursor + roundsCoveredBySpan(spanMs)
+  // mainRound passed to shouldFireLapAt is 1-based (cursor+1 = current round).
+  // Cheap scan bounded by the span's round count.
+  let firesInSpan = false
+  for (let mr = cursor + 1; mr <= lastRound + 1; mr++) {
+    if (podScheduler.shouldFireLapAt(mr)) { firesInSpan = true; break }
+  }
+  if (!firesInSpan) return []
+  const lap = podScheduler.nextLap()
+  if (!lap) return []
+  const ids = new Set<string>()
+  if (lap.intro?.id) ids.add(lap.intro.id)
+  if (lap.outro?.id) ids.add(lap.outro.id)
+  for (const p of lap.plays) if (p.audioId) ids.add(p.audioId)
+  return [...ids]
+}
+
+// Layer-1 listening audio ids that WILL play within the next `spanMs`. Unlike
+// pods, an L1 lap is a PURE function of (catalogue, round, learner) —
+// nextLap(mainRound) is fully deterministic — so we enumerate every L1 lap due
+// in the round window ahead of the cursor and warm all their audio. Skips rounds
+// where a pod pre-empts L1 (same priority rule the boundary handler enforces:
+// pod > L1). Returns [] when no L1 lap falls in the span (cheap no-op).
+const collectLayer1SpanAudioIds = (spanMs: number): string[] => {
+  if (!l1Scheduler || !l1Scheduler.isInitialized.value) return []
+  const cursor = Math.max(0, currentRoundIndex.value)
+  const lastRound = cursor + roundsCoveredBySpan(spanMs)
+  const ids = new Set<string>()
+  for (let mr = cursor + 1; mr <= lastRound + 1; mr++) {
+    if (!l1Scheduler.shouldFireLapAt(mr)) continue
+    if (podScheduler?.shouldFireLapAt(mr)) continue // pod pre-empts L1 this round
+    const lap = l1Scheduler.nextLap(mr)
+    if (!lap) continue
+    if (lap.intro?.id) ids.add(lap.intro.id)
+    if (lap.outro?.id) ids.add(lap.outro.id)
+    for (const p of lap.plays) if (p.audioId) ids.add(p.audioId)
+  }
+  return [...ids]
+}
+
 // ── Offline depth knob = % OF COURSE CONTENT, not playback time ──────────────
 // Tom 2026-06-02: time is the wrong unit. Offline never *stops* — it drops into
 // INF PLAY and recycles the cache forever, so "hours offline" is infinite no
@@ -8522,7 +8596,25 @@ const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
     // Grow the loaded script ahead first so we warm a DEEP cache, not just the
     // shallow bootstrap window — the fix for cold-start lock/offline failures.
     await ensureLiveSpanLoaded(spanMs)
-    const missing = collectSpanAudioIds(spanMs).filter((id) => !audioCache.persistent.has(id))
+    // PRIORITY ORDER is structural (Tom's "fill faster than we consume; never
+    // starve cycles" invariant, satisfied without rate measurement): build ONE
+    // ordered missing-list as [cycles…, pods…, L1…]. The sequential
+    // missing-only worker(s) drain it front-to-back, so every uncached cycle is
+    // warmed before any pod, and every pod before any L1 listening clip. Pods
+    // and L1 are the EXTRAS that ride the same gentle filler — they only get
+    // bytes once the cycle buffer ahead is already warm. dedupe across all
+    // three so a clip shared by a cycle and a lap is fetched once.
+    const ordered = [
+      ...collectSpanAudioIds(spanMs),
+      ...collectPodSpanAudioIds(spanMs),
+      ...collectLayer1SpanAudioIds(spanMs),
+    ]
+    const seen = new Set<string>()
+    const missing = ordered.filter((id) => {
+      if (seen.has(id) || audioCache.persistent.has(id)) return false
+      seen.add(id)
+      return true
+    })
     let next = 0
     const worker = async (): Promise<void> => {
       while (next < missing.length) {
@@ -8593,6 +8685,25 @@ const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
       if (podScheduler.introAudio.value?.id) ids.add(podScheduler.introAudio.value.id)
       if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
     } catch (e) { console.warn('[Offline] pod enumerate failed:', e) }
+  }
+  // Layer-1 listening (drained-seed fluency maintenance). Same treatment as
+  // pods: the seed-level target audio is a small bounded pool and L1 laps are
+  // chosen at RUNTIME (every ~50 rounds, from whatever's drained at that
+  // position), so we can't predict the exact clips in advance — cache the whole
+  // pool so any lap that fires offline is guaranteed present. Tom's rule:
+  // listening must load in EVERY offline plan, encouragements are the first
+  // thing to cut, never the listening tracks. Bookends overlap with the pod
+  // intro/outro above; the Set dedupes.
+  if (l1Scheduler) {
+    try {
+      if (!l1Scheduler.isInitialized.value) await l1Scheduler.initialize()
+      for (const seed of (l1Scheduler.seeds.value ?? new Map()).values()) {
+        if (seed?.target1_audio_id) ids.add(seed.target1_audio_id)
+        if (seed?.target2_audio_id) ids.add(seed.target2_audio_id)
+      }
+      if (l1Scheduler.introAudio.value?.id) ids.add(l1Scheduler.introAudio.value.id)
+      if (l1Scheduler.outroAudio.value?.id) ids.add(l1Scheduler.outroAudio.value.id)
+    } catch (e) { console.warn('[Offline] L1 enumerate failed:', e) }
   }
   return [...ids]
 }
