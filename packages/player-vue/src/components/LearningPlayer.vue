@@ -9031,6 +9031,217 @@ const startOfflineDownload = (): void => {
   void downloadForOffline(frac >= 1 ? Infinity : offlineSelectedRounds.value)
 }
 
+// ── INF PLAY single-option offline: USE-only, longest-3-per-LEGO download ─────
+// INF PLAY only ever recycles USE content (and spaced_rep, which the generator
+// draws from the SAME USE pool — verified against api/courses/[code]/infplay-
+// cycles.ts). So for the INF-PLAY / at-tail learner the deliberate download
+// doesn't need the whole course's intro/debut/build clips — only the USE-phrase
+// audio. To keep it small we cap each LEGO to its LONGEST 3 USE phrases (by
+// target-text character count): the richest review, and INF PLAY samples USE
+// per-LEGO anyway. This is the single "Download for unlimited offline" option
+// (offlineSingleOption); the mid-course % slider is left untouched.
+//
+// The `|| offlineAtTail` is REQUIRED: guests never get the persisted 'infplay'
+// mode flag (no enrollment row), but they DO reach the tail by position — this
+// catches them into the same single-option download.
+const offlineSingleOption = computed(
+  () => currentMode.value === 'infplay' || offlineAtTail.value,
+)
+
+// Cap of USE phrases kept per LEGO (the longest by target-text chars).
+const INF_PLAY_USE_KEEP_PER_LEGO = 3
+
+// Course-wide USE-only audio id set for INF PLAY offline. Per LEGO, keep the 3
+// USE phrases with the MOST characters in the target phrase text, and collect
+// each kept phrase's known/target1/target2 audio ids. PAGINATED (mirrors
+// fetchAllPracticePhrases in generateLearningScript.ts) — a single .limit(N) is
+// silently truncated by PostgREST on big courses (banked lesson). Returns [] if
+// the course/client can't be resolved (caller still has the aux pools).
+const collectInfPlayUseAudioIds = async (): Promise<string[]> => {
+  const client = supabase.value
+  const code = courseCode.value
+  if (!client || !code) return []
+  // Length-sort key = the target phrase TEXT. course_practice_phrases carries
+  // both target_text (native) and target_text_roman; prefer roman where present
+  // (what INF PLAY displays/plays), else native. Length = character count.
+  // Roles 'use' + 'eternal_eligible' mirror infplay-cycles.ts's USE pool.
+  type UseRow = {
+    seed_number: number
+    lego_index: number
+    target_text: string | null
+    target_text_roman: string | null
+    known_audio_id: string | null
+    target1_audio_id: string | null
+    target2_audio_id: string | null
+  }
+  const PAGE = 1000
+  let allRows: UseRow[] = []
+  try {
+    const { count, error: countErr } = await client
+      .from('course_practice_phrases')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_code', code)
+      .in('phrase_role', ['use', 'eternal_eligible'])
+    if (countErr) {
+      console.warn('[Offline] INF PLAY USE count failed:', countErr.message)
+      return []
+    }
+    const total = count ?? 0
+    if (total === 0) return []
+    const pageCount = Math.ceil(total / PAGE)
+    const pages = await Promise.all(
+      Array.from({ length: pageCount }, (_, i) =>
+        client
+          .from('course_practice_phrases')
+          .select('seed_number, lego_index, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
+          .eq('course_code', code)
+          .in('phrase_role', ['use', 'eternal_eligible'])
+          .order('seed_number', { ascending: true })
+          .order('lego_index', { ascending: true })
+          .order('position', { ascending: true })
+          .range(i * PAGE, i * PAGE + PAGE - 1),
+      ),
+    )
+    for (const p of pages) {
+      if (p.error) {
+        console.warn('[Offline] INF PLAY USE page failed:', p.error.message)
+        return []
+      }
+      if (p.data) allRows = allRows.concat(p.data as UseRow[])
+    }
+  } catch (e) {
+    console.warn('[Offline] INF PLAY USE query errored:', e)
+    return []
+  }
+
+  // Bucket by LEGO id (S{seed}L{lego}). Skip any phrase missing one of the 3 ids
+  // (partial-import safety) BEFORE the cap, so the cap counts only fully-playable
+  // phrases. Per LEGO keep the longest 3 by target-text char length (desc) and
+  // collect their 3 audio ids each.
+  const byLego = new Map<string, UseRow[]>()
+  for (const row of allRows) {
+    if (!row.known_audio_id || !row.target1_audio_id || !row.target2_audio_id) continue
+    const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+    const list = byLego.get(legoId)
+    if (list) list.push(row)
+    else byLego.set(legoId, [row])
+  }
+  const textLen = (r: UseRow): number => (r.target_text_roman || r.target_text || '').length
+  const ids = new Set<string>()
+  for (const list of byLego.values()) {
+    list.sort((a, b) => textLen(b) - textLen(a))
+    for (const r of list.slice(0, INF_PLAY_USE_KEEP_PER_LEGO)) {
+      ids.add(r.known_audio_id!)
+      ids.add(r.target1_audio_id!)
+      ids.add(r.target2_audio_id!)
+    }
+  }
+  return [...ids]
+}
+
+// MB estimate for the single INF-PLAY option — same avg-bytes-per-file basis as
+// the slider, but the file count is the REAL USE-only id set (longest-3/LEGO +
+// aux pools), gathered once when the picker opens. Best-effort + "≈".
+const offlineSingleEstimate = ref<{ size: string; lowSpace: boolean; ready: boolean }>(
+  { size: '', lowSpace: false, ready: false },
+)
+const refreshOfflineSingleEstimate = async (): Promise<void> => {
+  offlineSingleEstimate.value = { size: '', lowSpace: false, ready: false }
+  try {
+    const [useIds, auxIds] = await Promise.all([
+      collectInfPlayUseAudioIds(),
+      collectAuxiliaryAudioIds(),
+    ])
+    const fileCount = new Set([...useIds, ...auxIds]).size
+    const avgBytesPerFile = offlineEst.value.avgBytesPerFile || 24 * 1024
+    const mb = (fileCount * avgBytesPerFile) / 1e6
+    offlineSingleEstimate.value = {
+      size: fileCount > 0 ? `≈ ${formatMb(mb)}` : '',
+      lowSpace: offlineEst.value.lowSpace,
+      ready: true,
+    }
+  } catch (e) {
+    console.warn('[Offline] INF PLAY single estimate failed:', e)
+    offlineSingleEstimate.value = { size: '', lowSpace: false, ready: true }
+  }
+}
+
+// Single "Download for unlimited offline" — caches only USE audio (longest 3 per
+// LEGO) + the aux pools (pods + commentary, KEPT because INF PLAY still plays
+// pods + encouragements), then flips offline on. Reuses the EXISTING download
+// machinery: the same retry/batch loop and the cold-reopen script-cache write.
+// For INF PLAY cachedRounds is already the USE-only revival tail, so that write
+// stays correct. Mirrors downloadForOffline's structure with a different id set.
+const startOfflineDownloadInfPlay = async (): Promise<void> => {
+  showOfflinePicker.value = false
+  offlineActive.value = true
+  console.log('[LearningPlayer] Offline ON — INF PLAY USE-only (longest 3/LEGO)')
+  offlineDlState.value = 'preparing'
+  const [useIds, auxIds] = await Promise.all([
+    collectInfPlayUseAudioIds(),
+    collectAuxiliaryAudioIds(),
+  ])
+  if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
+  const ids = [...new Set([...useIds, ...auxIds])]
+  const missing = ids.filter((id) => !audioCache.persistent.has(id))
+  offlineDlTotal.value = ids.length
+  offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
+  offlineDlFailed.value = 0
+  offlineDlState.value = 'downloading'
+  console.log(`[Offline] INF PLAY USE-only: downloading ${missing.length} of ${ids.length} audio files`)
+  const concNow = () => (isPlaying.value ? 4 : 12)
+  const ensureWithRetry = async (id: string): Promise<void> => {
+    for (let attempt = 0; ; attempt++) {
+      try { await audioCache.persistent.ensure(id); return }
+      catch (err) {
+        if (attempt >= 2) throw err
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
+      }
+    }
+  }
+  let i = 0
+  while (i < missing.length) {
+    if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
+    const batch = missing.slice(i, i + concNow())
+    i += batch.length
+    await Promise.all(batch.map(async (id) => {
+      try { await ensureWithRetry(id); offlineDlDone.value++ }
+      catch { offlineDlFailed.value++ }
+    }))
+  }
+
+  // Persist the SCRIPT for the cold-reopen fast-path — identical to
+  // downloadForOffline. For INF PLAY cachedRounds is already the USE-only
+  // revival tail, so the cached script resumes into INF PLAY correctly.
+  try {
+    const scriptRounds = (cachedRounds.value || []) as any[]
+    if (scriptRounds.length > 0) {
+      const totalCycles = scriptRounds.reduce((s: number, r: any) => s + (r?.cycles?.length || 0), 0)
+      await setCachedScript(courseCode.value, {
+        rounds: scriptRounds,
+        totalSeeds: scriptRounds.length,
+        totalLegos: scriptRounds.length,
+        totalCycles,
+        estimatedMinutes: Math.round(totalCycles * 0.2),
+        audioMapObj: {},
+        courseWelcome: cachedCourseWelcome.value || undefined,
+      })
+      console.log(`[Offline] INF PLAY: persisted ${scriptRounds.length} rounds to script cache for cold offline reopen`)
+    }
+  } catch (e) {
+    console.warn('[Offline] INF PLAY setCachedScript during download failed (non-fatal):', e)
+  }
+
+  if (offlineDlFailed.value > 0) {
+    offlineDlState.value = 'error'
+    console.warn(`[Offline] INF PLAY incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed`)
+  } else {
+    offlineDlState.value = 'complete'
+    console.log(`[Offline] INF PLAY complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
+    setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+  }
+}
+
 const cancelOfflinePicker = () => { showOfflinePicker.value = false }
 
 // Escape-to-close, matching every other modal in the app (ProgressModal,
@@ -9057,7 +9268,12 @@ const toggleOffline = () => {
   } else {
     // Off → open the depth picker (download starts only when a depth is chosen).
     showOfflinePicker.value = true
-    void refreshOfflineEstimates()
+    // Refresh the slider basis FIRST (sets avgBytesPerFile), then the single
+    // INF-PLAY option's USE-only estimate which reuses that avg. Both are
+    // best-effort; the single-option estimate only surfaces when offlineSingleOption.
+    void refreshOfflineEstimates().then(() => {
+      if (offlineSingleOption.value) void refreshOfflineSingleEstimate()
+    })
   }
 }
 
@@ -11347,9 +11563,21 @@ defineExpose({
             <h3 class="offline-picker-title">Take it offline</h3>
             <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
           </div>
-          <p class="offline-picker-sub">{{ offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?" }}</p>
+          <p class="offline-picker-sub">{{ offlineSingleOption ? 'Take the whole thing with you for endless offline play.' : (offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?") }}</p>
 
-          <div class="offline-depth">
+          <!-- INF PLAY (or at-tail / guest-at-tail): a single download. INF PLAY
+               only recycles USE phrases, so we cache USE audio only (the longest
+               3 per LEGO) + pods/encouragements — small, and it plays forever. -->
+          <div v-if="offlineSingleOption" class="offline-single">
+            <p class="offline-depth-size">
+              <span class="offline-depth-size-mb">{{ offlineSingleEstimate.size || 'Working out size…' }}</span>
+              <span v-if="offlineSingleEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
+            </p>
+            <p class="offline-single-caption">Caches the course's key phrases so it plays on endless repeat with no signal.</p>
+            <button class="offline-depth-download" @click="startOfflineDownloadInfPlay">Download for unlimited offline</button>
+          </div>
+
+          <div v-else class="offline-depth">
             <!-- Notched slider — fraction of the REMAINING course -->
             <input
               type="range"
@@ -12568,6 +12796,20 @@ defineExpose({
 .offline-depth-caption {
   margin: 0;
   font-size: 11.5px;
+  color: #9a948e;
+  text-align: center;
+}
+/* INF PLAY single "Download for unlimited offline" — same column layout as the
+   depth picker, minus the slider/bar. */
+.offline-single {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.offline-single-caption {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
   color: #9a948e;
   text-align: center;
 }
