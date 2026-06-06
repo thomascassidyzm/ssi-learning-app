@@ -139,8 +139,13 @@ const belts = computed<Belt[]>(() => props.availableBelts ?? (BELTS as Belt[]))
 const currentIdx = computed(() => props.currentBeltIndex ?? 0)
 const highestIdx = computed(() => props.highestBeltIndex ?? 0)
 
+// Belt-dot centre as a % of the ladder width. The grid is `belts.length`
+// equal (1fr) belt columns PLUS a terminal 0.85fr ∞ column, so the total
+// fractional width is belts.length + 0.85 — divide by that (not just the
+// belt count) or the now/furthest markers drift right of their dots.
+const INFPLAY_COL_FR = 0.85
 const chipCenterPercent = (idx: number) => {
-  const total = belts.value.length || 1
+  const total = (belts.value.length || 1) + INFPLAY_COL_FR
   return ((idx + 0.5) / total) * 100
 }
 
@@ -293,29 +298,21 @@ onUnmounted(() => {
 
           <!-- Belt strip -->
           <section class="belt-strip">
-            <!-- Belt-section header: the "you're working on X belt" prompt with
-                 the ∞ infinite-play activator pinned to the right — OUT of the
-                 belt ladder below, so the ladder stays belt-only (Black belt
-                 takes the 8th slot once the course is full). -->
+            <!-- Belt-section header: the "you're working on X belt" prompt.
+                 The ∞ infinite-play option is the TERMINAL entry IN the belt
+                 ladder below (after the last belt that HAS content), so every
+                 course — however far it's built — can reach INF PLAY by skip.
+                 Tom 2026-06-07. -->
             <div class="belt-strip-head">
               <p class="belt-strip-prompt">
-                you're working on
-                <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+                <template v-if="isInfplay">
+                  you're in <strong :style="{ color: 'var(--ssi-red, #c23a3a)' }">infinite play</strong>
+                </template>
+                <template v-else>
+                  you're working on
+                  <strong :style="{ color: currentBelt.color }">{{ currentBelt.name }} belt</strong>
+                </template>
               </p>
-              <button
-                class="infplay-activator"
-                :class="{ 'is-skipping': isSkipping, 'is-active': isInfplay }"
-                :disabled="isSkipping"
-                title="Activate infinite play — random review of everything you have learned"
-                aria-label="Activate infinite play: random review of everything you have learned"
-                @click="handleInfPlayClick"
-              >
-                <svg class="infplay-activator-glyph" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
-                     stroke-linejoin="round" aria-hidden="true" focusable="false">
-                  <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
-                </svg>
-              </button>
             </div>
             <p v-if="showFurthestMarker && furthestBeltName" class="belt-strip-furthest-note">
               you've been as far as <strong>{{ furthestBeltName }} belt</strong>
@@ -324,11 +321,11 @@ onUnmounted(() => {
             <div class="map-row-wrap">
               <div
                 class="map-row"
-                :style="{ gridTemplateColumns: `repeat(${belts.length}, 1fr)` }"
+                :style="{ gridTemplateColumns: `repeat(${belts.length}, 1fr) 0.85fr` }"
               >
                 <!-- Colour-only belt dots. The belt NAME lives in title/aria-label
                      (semantically present, visually gone) so the row reads as a
-                     ladder of colours; the freed vertical space is the ∞ activator's.
+                     ladder of colours; the freed vertical space is the ∞ chip's.
                      Each dot carries a thin black ring so the WHITE belt reads on
                      the white modal and every dot gets a crisp edge. -->
                 <button
@@ -349,8 +346,29 @@ onUnmounted(() => {
                   <span class="map-chip-dot"></span>
                 </button>
 
+                <!-- ∞ INF-PLAY — the TERMINAL ladder entry, after the last belt
+                     that has content. Selecting it lands at the live content end
+                     (mainLoopBoundary) and enters INF PLAY, identical to reaching
+                     it by playing forward. NOT a belt: distinct SSi-red glyph chip
+                     so it reads as "past the belts". Stays tappable OFFLINE (INF
+                     PLAY recycles cached phrases), unlike belt jumps. -->
+                <button
+                  class="map-chip map-chip--infplay"
+                  :class="{ 'map-chip--current': isInfplay, 'is-skipping': isSkipping }"
+                  :disabled="isSkipping"
+                  title="Infinite play — random review of everything you've learned"
+                  aria-label="Infinite play: random review of everything you've learned"
+                  @click="handleInfPlayClick"
+                >
+                  <svg class="map-chip-inf-glyph" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                       stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
+                  </svg>
+                </button>
+
                 <div
-                  v-if="typeof currentRound === 'number'"
+                  v-if="typeof currentRound === 'number' && !isInfplay"
                   class="map-marker map-marker--now"
                   :style="{ left: nowMarkerLeft + '%' }"
                 >
@@ -367,8 +385,8 @@ onUnmounted(() => {
             </div>
 
             <p class="belt-strip-hint">{{ isOffline
-              ? 'offline — belt jumps need a connection; step LEGO by LEGO with ‹‹ ››'
-              : 'tap a belt to jump there, or ∞ for infinite play' }}</p>
+              ? 'offline — belt jumps need a connection; tap ∞ at the end for infinite play'
+              : 'tap a belt to jump there, or ∞ at the end for infinite play' }}</p>
           </section>
         </div>
       </div>
@@ -649,14 +667,13 @@ onUnmounted(() => {
   margin-top: 0.25rem;
 }
 
-/* Belt-section header — prompt centred, ∞ activator pinned to the right.
-   position:relative anchors the absolutely-placed activator. */
+/* Belt-section header — prompt centred. The ∞ now lives as the terminal
+   chip in the ladder, so the header no longer reserves right-edge space. */
 .belt-strip-head {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: 28px;
 }
 
 .belt-strip-prompt {
@@ -664,7 +681,6 @@ onUnmounted(() => {
   font-size: 0.9375rem;
   color: #2C2622;
   text-align: center;
-  padding: 0 48px; /* keep the centred text clear of the right-pinned ∞ */
 }
 
 .belt-strip-prompt strong {
@@ -692,22 +708,17 @@ onUnmounted(() => {
   text-align: center;
 }
 
-/* Colour-only belt row + ∞ activator laid out side by side. Explicit
-   dimensions: the belt row flexes to fill, the activator is a fixed 48px
-   square pinned to the end. No flex/appearance hacks. */
+/* Colour-only belt ladder + the terminal ∞ chip — ONE grid row now (the ∞
+   is the last column), so the wrapper is a plain full-width block. */
 .map-row-wrap {
-  display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
+  display: block;
 }
 
 .map-row {
   position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
   display: grid;
-  /* grid-template-columns set inline on the element so we don't need
-     to pre-bake a fixed belt count here. */
+  /* grid-template-columns set inline on the element (N belt 1fr cols + a
+     terminal 0.85fr ∞ col) so we don't pre-bake a fixed belt count here. */
   gap: 0.25rem;
   padding-top: 22px; /* room for markers */
 }
@@ -773,65 +784,44 @@ onUnmounted(() => {
   box-shadow: 0 0 4px color-mix(in srgb, var(--chip-color) 50%, transparent);
 }
 
-/* ∞ INF-PLAY activator — a mode activator, deliberately NOT a belt dot.
-   Fixed 48px square, glowing/throbbing ∞, distinct purple tint so it never
-   reads as "another belt". Reuses the central-pill ∞ glyph + throb feel. */
-.infplay-activator {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  margin: auto 0; /* vertical-centre on the header line — transform is taken by the throb */
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border-radius: 12px;
-  border: 1px solid rgba(194, 58, 58, 0.5);
+/* ∞ INF-PLAY — the TERMINAL ladder chip, deliberately NOT a belt dot.
+   Same chip footprint as a belt so it sits flush at the end of the ladder,
+   but an SSi-red ∞ glyph + red tint + subtle throb so it reads as "past the
+   belts" (red, not purple — purple is a BELT colour). Reuses the central-pill
+   ∞ glyph + throb feel. Stays enabled offline (INF PLAY recycles cache). */
+.map-chip--infplay {
+  border-color: rgba(194, 58, 58, 0.5);
   background: linear-gradient(135deg, #fbeaea 0%, #f5d6d6 100%);
   color: var(--ssi-red, #c23a3a);
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-  /* SSi red, not purple (purple is a BELT colour — would read as "another
-     belt" rather than "past the belts"). Subtle throb, not a pulse. */
-  animation: infplay-activator-throb 2.4s ease-in-out infinite;
+  animation: infplay-chip-throb 2.4s ease-in-out infinite;
 }
 
-.infplay-activator-glyph {
-  width: 26px;
-  height: 26px;
+.map-chip-inf-glyph {
+  width: 22px;
+  height: 22px;
 }
 
-.infplay-activator:hover:not(:disabled) {
+.map-chip--infplay:hover:not(:disabled) {
   background: linear-gradient(135deg, #f5d6d6 0%, #eebcbc 100%);
+  border-color: var(--ssi-red, #c23a3a);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ssi-red, #c23a3a) 30%, transparent);
+  transform: translateY(-1px);
 }
 
-.infplay-activator:disabled {
-  cursor: default;
-}
-
-.infplay-activator.is-active {
-  border-color: rgba(194, 58, 58, 0.8);
+.map-chip--infplay.map-chip--current {
+  border-color: rgba(194, 58, 58, 0.85);
   color: #9e2a2a;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--ssi-red, #c23a3a) 40%, transparent);
 }
 
-.infplay-activator.is-skipping {
-  animation: chip-pulse 0.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes infplay-activator-throb {
+@keyframes infplay-chip-throb {
   0%, 100% {
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1),
                 0 0 3px rgba(194, 58, 58, 0.2);
-    transform: scale(1);
   }
   50% {
     box-shadow: 0 2px 7px rgba(0, 0, 0, 0.12),
                 0 0 9px rgba(194, 58, 58, 0.4);
-    transform: scale(1.025);
   }
 }
 
@@ -871,17 +861,17 @@ onUnmounted(() => {
   border-color: rgba(0, 0, 0, 0.55);
 }
 
-:root[data-theme="mist"] .infplay-activator {
+:root[data-theme="mist"] .map-chip--infplay {
   border-color: rgba(194, 58, 58, 0.55);
   background: linear-gradient(135deg, #fbe9e9 0%, #f4d4d4 100%);
   color: var(--ssi-red, #c23a3a);
 }
 
-:root[data-theme="mist"] .infplay-activator:hover:not(:disabled) {
+:root[data-theme="mist"] .map-chip--infplay:hover:not(:disabled) {
   background: linear-gradient(135deg, #f4d4d4 0%, #ecb9b9 100%);
 }
 
-:root[data-theme="mist"] .infplay-activator.is-active {
+:root[data-theme="mist"] .map-chip--infplay.map-chip--current {
   border-color: rgba(194, 58, 58, 0.85);
   color: #9e2a2a;
 }
