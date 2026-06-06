@@ -140,10 +140,11 @@ const currentIdx = computed(() => props.currentBeltIndex ?? 0)
 const highestIdx = computed(() => props.highestBeltIndex ?? 0)
 
 // Belt-dot centre as a % of the ladder width. The grid is `belts.length`
-// equal (1fr) belt columns PLUS a terminal 0.85fr ∞ column, so the total
-// fractional width is belts.length + 0.85 — divide by that (not just the
+// equal (1fr) belt columns PLUS a terminal ∞ column at the SAME 1fr width
+// (so the ∞ chip matches the belt chips — distinct by colour, not size), giving
+// a total fractional width of belts.length + 1 — divide by that (not just the
 // belt count) or the now/furthest markers drift right of their dots.
-const INFPLAY_COL_FR = 0.85
+const INFPLAY_COL_FR = 1
 const chipCenterPercent = (idx: number) => {
   const total = (belts.value.length || 1) + INFPLAY_COL_FR
   return ((idx + 0.5) / total) * 100
@@ -321,7 +322,7 @@ onUnmounted(() => {
             <div class="map-row-wrap">
               <div
                 class="map-row"
-                :style="{ gridTemplateColumns: `repeat(${belts.length}, minmax(32px, 1fr)) minmax(27px, 0.85fr)` }"
+                :style="{ gridTemplateColumns: `repeat(${belts.length}, minmax(32px, 1fr)) minmax(32px, 1fr)` }"
               >
                 <!-- Colour-only belt dots. The belt NAME lives in title/aria-label
                      (semantically present, visually gone) so the row reads as a
