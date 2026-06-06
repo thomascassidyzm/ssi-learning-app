@@ -49,6 +49,7 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
+import { applyDualScript } from '../utils/alignRomanToNative'
 import ListeningOverlay from './ListeningOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useScriptMode } from '../composables/useScriptMode'
@@ -2074,10 +2075,19 @@ const soloComponentIds = computed<Set<string>>(() => {
 })
 
 // Current phrase's LEGO blocks for the assembly view
-const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
+// Raw tiling — ALWAYS segmented on the romanised script (the side that chunks
+// cleanly into 2-3-unit tiles). The native script is derived from this single
+// tiling in currentPhraseLegoBlocks below, so the native side is never
+// re-segmented on its own (which used to collapse whole CJK phrases into one
+// giant tile). For non-romanised courses the romanised form IS the only form,
+// so this is unchanged for them.
+const currentPhraseLegoBlocksRaw = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  const useNative = isNativeScript.value && hasRomanizedText.value
+  // Segmentation runs on the romanised script unconditionally; the script
+  // toggle now only controls whether the romanisation is *shown* (as a ruby
+  // line), not which script the tiles are built from.
+  const useNative = false
   if (!cycle.componentLegoIds?.length) {
     // Detect intro/debut/component cycles from the cycle.type field —
     // authoritative and works for both the legacy script-generator
@@ -2398,6 +2408,30 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   }
   return result
 })
+
+// Final tiling consumed by the template. Takes the romanised raw tiling above
+// and, for courses that have a romanisation, promotes each tile to native-script
+// primary text with the romanisation carried as a ruby annotation
+// (block.romanText). The tile BOUNDARIES are identical across scripts — only the
+// glyphs change — so toggling the script can never re-collapse a phrase. For
+// non-romanised courses (no native/roman split) the raw tiling passes through
+// unchanged.
+const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
+  const raw = currentPhraseLegoBlocksRaw.value
+  if (!hasRomanizedText.value || raw.length === 0) return raw
+  const cycle = simplePlayer.currentCycle.value
+  const nativePhrase = (cycle?.target as any)?.textNative || ''
+  if (!nativePhrase) return raw // no native text available — keep romanised tiling
+  return applyDualScript(raw, nativePhrase)
+})
+
+// The script toggle now governs only whether the romanisation ruby is shown.
+// Native-script glyphs are always the primary text on romanised courses; this
+// flag adds/removes the pronunciation crutch above each tile. Default-on
+// (scriptMode 'roman'); the learner drops it as character recognition builds.
+const showRomanization = computed(
+  () => hasRomanizedText.value && scriptMode.value === 'roman',
+)
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
@@ -4912,7 +4946,9 @@ const currentPhrase = computed(() => {
   }
   // Read from currentCycle to ensure text/audio are locked together
   if (currentCycle.value) {
-    const useNative = isNativeScript.value && hasRomanizedText.value
+    // Native script is always the primary glyph on romanised courses — the
+    // toggle only controls the ruby annotation, not which script is shown here.
+    const useNative = hasRomanizedText.value
     const targetText = useNative
       ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
       : (currentCycle.value.target.text || '')
@@ -5119,7 +5155,9 @@ function extractComponentsToMaps(rounds: PlayerRound[], logPrefix = '[Components
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  if (isNativeScript.value && hasRomanizedText.value) {
+  // Native components are the primary breakdown on romanised courses; the
+  // romanisation rides as a ruby line on the tile, not in the component text.
+  if (hasRomanizedText.value) {
     return _componentsByCycleIdNative.get(cycle.id) || _componentsByCycleId.get(cycle.id) || []
   }
   return _componentsByCycleId.get(cycle.id) || []
@@ -5276,7 +5314,9 @@ const introMessage = computed(() => {
 // Read from currentCycle to ensure text/audio are locked together
 const visibleTexts = computed(() => {
   if (currentCycle.value) {
-    const useNative = isNativeScript.value && hasRomanizedText.value
+    // Native script is always the primary glyph on romanised courses — the
+    // toggle only controls the ruby annotation, not which script is shown here.
+    const useNative = hasRomanizedText.value
     const targetText = useNative
       ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
       : (currentCycle.value.target.text || '')
@@ -11896,6 +11936,7 @@ defineExpose({
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
       :cycle-type="simplePlayer.currentCycle.value?.type"
+      :show-romanization="showRomanization"
     />
 
 

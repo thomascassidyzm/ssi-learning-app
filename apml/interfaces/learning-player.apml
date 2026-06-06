@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.5 (2026-06-01)
+# Version: 2.1.6 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -188,6 +188,41 @@ HERO_TEXT_PANE:
         phase_strip: "Horizontal 4-section strip with icons"
         known_text: "Known language text (always visible)"
         target_text: "Target language text (voice_2 only)"
+
+## ============================================================================
+## TILE ASSEMBLY & SCRIPT DISPLAY (June 2026)
+## ============================================================================
+
+TILE_ASSEMBLY:
+  description: "Phrase decomposed into per-LEGO tiles (LegoAssembly.vue)"
+  source: "packages/player-vue/src/components/LegoAssembly.vue"
+
+  single_tiling_principle: |
+    ONE decomposition drives every script. The tiling is computed once on the
+    ROMANISED script (whitespace-segmented → clean 2-3-unit chunks). The native
+    script is DERIVED from that single tiling, never re-segmented on its own —
+    which previously collapsed CJK phrases (no word spaces) into one giant tile.
+    Tile BOUNDARIES are identical across scripts; only the glyphs change.
+
+  derivation:
+    mechanism: "utils/alignRomanToNative.ts — applyDualScript / sliceNativeByRoman"
+    rule: "Mandarin: 1 hanzi = 1 pinyin syllable. Each tile consumes its
+           syllable-count of hanzi from the native phrase (incl. erhua 儿 and
+           the apostrophe syllable boundary). 99.9% aligned on zho_for_eng."
+    fallback: "On count mismatch (rare data defects) the romanised tiling is
+               kept unchanged — correct chunking over a mis-sliced native render."
+    scope: "Mandarin-specific; Japanese romaji↔kanji is not 1-mora-1-char and
+            relies on lego-level pairing instead."
+
+  script_toggle:
+    composable: "composables/useScriptMode.ts (per-course localStorage)"
+    semantics: |
+      Native-script glyphs are ALWAYS the primary text on romanised courses.
+      The toggle only shows/hides the romanisation as a ruby line (block.romanText)
+      above each tile — a pronunciation crutch the learner drops as character
+      recognition builds from exposure. Default ON (scriptMode 'roman').
+    control: "ModeTray.vue — Aa (guide shown) / 文 (characters only)"
+    prop: "LegoAssembly :show-romanization (LearningPlayer showRomanization computed)"
 
 ## ============================================================================
 ## PHASE STRIP

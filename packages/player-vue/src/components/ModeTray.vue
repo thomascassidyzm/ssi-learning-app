@@ -149,21 +149,21 @@ const handleOffline = () => {
             <span class="script-icon">{{ isNativeScript ? '文' : 'Aa' }}</span>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Script</span>
-            <span class="tray-desc">Writing system</span>
+            <span class="tray-name">Pronunciation</span>
+            <span class="tray-desc">Show guide above characters</span>
           </div>
-          <div class="segmented-control" role="group" aria-label="Script selection">
+          <div class="segmented-control" role="group" aria-label="Pronunciation guide">
             <button
               class="segment"
               :class="{ active: !isNativeScript }"
               @click.stop="isNativeScript && emit('toggleScript')"
-              aria-label="Romanized"
+              aria-label="Show pronunciation guide"
             >Aa</button>
             <button
               class="segment"
               :class="{ active: isNativeScript }"
               @click.stop="!isNativeScript && emit('toggleScript')"
-              aria-label="Native script"
+              aria-label="Characters only"
             >文</button>
           </div>
         </div>
