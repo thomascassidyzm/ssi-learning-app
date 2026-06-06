@@ -176,6 +176,69 @@ export function sliceNativeByRoman(
   return out
 }
 
+export interface WordTileOptions {
+  /** Native-script text(s) of the salient LEGO(s). Word tiles whose characters
+   *  fall inside one of these get isSalient=true (visually emphasised). When
+   *  none are supplied / matched, every tile is salient (full emphasis) rather
+   *  than fading the whole phrase. */
+  salientNativeTexts?: string[]
+  /** Stable id prefix for the generated tiles. */
+  idPrefix?: string
+}
+
+/**
+ * Tile a phrase by PINYIN WORD rather than by LEGO.
+ *
+ * A LEGO can be an entire clause (e.g. 你想什么时候开始 — "when do you want to
+ * start"), which is unparseable as a single hanzi tile. Pinyin, by contrast, is
+ * whitespace-segmented into 1-3-syllable words — exactly the chunking a learner
+ * can read. So for Mandarin we build one tile per pinyin word, slice the native
+ * phrase to match each word's syllable count, and carry the pinyin as the ruby.
+ * The LEGO decomposition is used only to decide which word tiles are salient.
+ *
+ * Returns null when the native phrase can't be aligned to the pinyin words
+ * (rare data defects) so the caller can fall back.
+ */
+export function buildWordTiles(
+  romanPhrase: string,
+  nativePhrase: string,
+  opts: WordTileOptions = {},
+): LegoBlock[] | null {
+  const words = romanPhrase.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return null
+  const natives = sliceNativeByRoman(words, nativePhrase)
+  if (!natives) return null
+
+  // Character offset of each word's native slice within the concatenation, so a
+  // salient LEGO's hanzi span can be mapped back onto word tiles.
+  const offsets: Array<[number, number]> = []
+  let pos = 0
+  for (const n of natives) { offsets.push([pos, pos + n.length]); pos += n.length }
+  const concat = natives.join('')
+
+  const salientRanges: Array<[number, number]> = []
+  for (const s of opts.salientNativeTexts || []) {
+    if (!s) continue
+    const idx = concat.indexOf(s)
+    if (idx >= 0) salientRanges.push([idx, idx + s.length])
+  }
+  const anySalient = salientRanges.length > 0
+  const overlapsSalient = (a: number, b: number) =>
+    salientRanges.some(([s, e]) => a < e && b > s)
+
+  const prefix = opts.idPrefix || 'w'
+  return words.map((w, i) => {
+    const [a, b] = offsets[i]
+    return {
+      id: `${prefix}_${i}`,
+      targetText: natives[i] || w,
+      romanText: w,
+      // No salient info → emphasise everything (never fade the whole phrase).
+      isSalient: anySalient ? overlapsSalient(a, b) : true,
+    }
+  })
+}
+
 /**
  * Promote a romanised-script tiling to dual-script tiles.
  *

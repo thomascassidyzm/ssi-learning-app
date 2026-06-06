@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript } from './alignRomanToNative'
+import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript, buildWordTiles } from './alignRomanToNative'
 
 describe('pinyinSyllableCount', () => {
   it('counts vowel nuclei per pinyin word', () => {
@@ -110,5 +110,32 @@ describe('applyDualScript', () => {
     const out = applyDualScript(roman, '我们')
     expect(out).toBe(roman)
     expect(out[0].romanText).toBeUndefined()
+  })
+})
+
+describe('buildWordTiles', () => {
+  // The exact phrase from the dev report: an 8-char clause is ONE LEGO, but
+  // pinyin word-spacing chunks it into parseable tiles.
+  const roman = 'nǐ xiǎng shénme shíhou kāishǐ liànxí?'
+  const native = '你想什么时候开始练习？'
+
+  it('tiles by pinyin word, not by LEGO', () => {
+    const tiles = buildWordTiles(roman, native)!
+    expect(tiles.map(t => t.targetText)).toEqual(['你', '想', '什么', '时候', '开始', '练习？'])
+    expect(tiles.map(t => t.romanText)).toEqual(['nǐ', 'xiǎng', 'shénme', 'shíhou', 'kāishǐ', 'liànxí?'])
+  })
+
+  it('bolds only the word tiles inside the salient LEGO span', () => {
+    const tiles = buildWordTiles(roman, native, { salientNativeTexts: ['你想什么时候开始'] })!
+    expect(tiles.map(t => t.isSalient)).toEqual([true, true, true, true, true, false])
+  })
+
+  it('emphasises every tile when no salient info is supplied', () => {
+    const tiles = buildWordTiles(roman, native)!
+    expect(tiles.every(t => t.isSalient)).toBe(true)
+  })
+
+  it('returns null when the native phrase cannot be aligned', () => {
+    expect(buildWordTiles('wǒ', '我们')).toBeNull()
   })
 })
