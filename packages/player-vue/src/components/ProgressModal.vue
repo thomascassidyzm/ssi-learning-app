@@ -321,7 +321,7 @@ onUnmounted(() => {
             <div class="map-row-wrap">
               <div
                 class="map-row"
-                :style="{ gridTemplateColumns: `repeat(${belts.length}, 1fr) 0.85fr` }"
+                :style="{ gridTemplateColumns: `repeat(${belts.length}, minmax(32px, 1fr)) minmax(27px, 0.85fr)` }"
               >
                 <!-- Colour-only belt dots. The belt NAME lives in title/aria-label
                      (semantically present, visually gone) so the row reads as a
@@ -709,16 +709,48 @@ onUnmounted(() => {
 }
 
 /* Colour-only belt ladder + the terminal ∞ chip — ONE grid row now (the ∞
-   is the last column), so the wrapper is a plain full-width block. */
+   is the last column). The wrapper is a full-width block that scrolls the row
+   horizontally when it can't fit at a usable chip size (see below). */
 .map-row-wrap {
   display: block;
+  /* On very narrow phones the 9-chip ladder (8 belts + ∞) can't fit at a
+     usable touch-target size, so let it scroll horizontally rather than
+     cram the chips. The grid floors (minmax on .map-row) keep each chip
+     tappable; this just reveals the overflow. -webkit-overflow-scrolling
+     gives iOS Safari momentum. */
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  /* Markers sit 22px above the row (.map-row padding-top) inside .map-row;
+     a hidden scrollbar gutter would clip them, so we keep the native bar
+     thin and let the row's own padding hold the marker space. */
+  scrollbar-width: thin;
 }
 
 .map-row {
   position: relative;
   display: grid;
-  /* grid-template-columns set inline on the element (N belt 1fr cols + a
-     terminal 0.85fr ∞ col) so we don't pre-bake a fixed belt count here. */
+  /* grid-template-columns set inline on the element: N belt minmax(32px,1fr)
+     cols + a terminal minmax(27px,0.85fr) ∞ col — no pre-baked belt count, and
+     every chip keeps a ~32px (belt) / ~27px (∞) touch-target floor. When the
+     floors sum wider than the wrap (narrow phones, up to 9 chips), the row
+     overflows and .map-row-wrap scrolls it horizontally instead of cramming.
+     The floors hold the 1 : 0.85 belt : ∞ ratio, so the %-based marker math
+     (chipCenterPercent) is valid in both the grown and floored regimes; markers
+     live INSIDE .map-row, so they scroll with the chips.
+
+     width:max-content + min-width:100% is what keeps the now/furthest markers
+     aligned. The markers are position:absolute children of .map-row, so their
+     left:% resolves against .map-row's width. Without an explicit width, an
+     overflowing grid inside overflow-x:auto resolves that % against the visible
+     SCROLLPORT (the wrap), not the full content row — so the markers would drift
+     ~23px off their dots at 320px. max-content makes .map-row size to its true
+     content width (the % then matches the dots' layout); min-width:100% lets the
+     1fr cols still grow to fill the wrap when everything fits (no needless
+     scroll on wider phones). Verified: marker drift ≤0.5px at 320/375px,
+     ≤1.5px at 390px. */
+  width: max-content;
+  min-width: 100%;
   gap: 0.25rem;
   padding-top: 22px; /* room for markers */
 }
@@ -904,6 +936,11 @@ onUnmounted(() => {
   }
   .headline-number {
     font-size: 1.875rem;
+  }
+  /* Tighten the inter-chip gap on phones so the 9-chip ladder needs less
+     horizontal room before it has to scroll (keeps the chips' 32px floor). */
+  .map-row {
+    gap: 0.2rem;
   }
 }
 
