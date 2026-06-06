@@ -953,13 +953,31 @@ const courseFinalLegoRef = ref<{ legoId: string; roundIndex: number } | null>(nu
 // take over (infplayRoundIndex, bumped per round in saveRoundProgress).
 const mainLoopMap = ref<RoundMap | null>(null)
 
+// LIVE, audio-aware main-loop extent — the SINGLE SOURCE OF TRUTH once a script
+// has actually been generated this session. generateScript (generateLearningScript.ts)
+// drops rounds whose intro/debut lacks target audio and counts the distinct
+// PLAYABLE main-loop rounds (its `mainLoopRoundCount`). That count is the true
+// "where INF PLAY starts" for THIS device on THIS content version. The
+// course_round_index matview is NOT audio-filtered and goes stale (e.g. fra
+// frozen at seed ~300 while the course is decomposed+audio'd out to 668), so it
+// can report a boundary far short of the real consumable end — which is what
+// kept fra/spa from ever entering INF PLAY. We set this ref at every
+// handoff/resume/regen site, and prefer it over the matview below.
+// Null until the first generateScript result lands (bootstrap uses the matview).
+const liveMainLoopRoundCount = ref<number | null>(null)
+
 // Number of main-loop rounds = the 0-based array index of the FIRST revival
 // round in the full script (round N+1 in 1-based terms). The ONE boundary used
-// everywhere. While the canonical map is still loading (or for a course whose
-// course_round_index view isn't materialised) we fall back to the final-LEGO
-// round index so entry/cadence degrade gracefully rather than reading 0 — this
-// is a load-time safety net, NOT a parallel source.
+// everywhere. THREE-TIER prefer-live:
+//   1. liveMainLoopRoundCount — the audio-aware count from the generated script
+//      (authoritative once a handoff/resume/regen has run this session).
+//   2. mainLoopMap.rounds.length — the course_round_index matview (bootstrap /
+//      pre-handoff only; may be stale + isn't audio-filtered).
+//   3. final-LEGO round index — load-time safety net before either is ready, so
+//      entry/cadence degrade gracefully rather than reading 0.
 const mainLoopBoundary = (): number => {
+  const live = liveMainLoopRoundCount.value
+  if (live !== null && live > 0) return live
   const mapLen = mainLoopMap.value?.rounds.length ?? 0
   if (mapLen > 0) return mapLen
   return (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
@@ -7224,7 +7242,13 @@ const enterInfPlay = async () => {
           const newRounds = toSimpleRoundsWithComponents(skipResult.items) as any[]
           cachedRounds.value = newRounds
           simplePlayer.appendRounds(newRounds)
-          // Boundary from the canonical round-map (the single source of truth)
+          // Single-source the boundary on the audio-aware count from this regen
+          // before reading it — so the first-revival index matches the script we
+          // just appended even when the matview is stale/short.
+          if (skipResult.mainLoopRoundCount > 0) {
+            liveMainLoopRoundCount.value = skipResult.mainLoopRoundCount
+          }
+          // Boundary from the live main-loop extent (the single source of truth)
           // — the SAME value the forward/back nav and the tail wrap read, so
           // they all agree on where the revival tail starts.
           const regenBoundary = mainLoopBoundary()
@@ -7391,6 +7415,7 @@ const handleRoundForward = async () => {
       console.debug('[LearningPlayer] Round forward: next round not loaded, regenerating script')
       const result = await generateScript()
       if (result.items.length > 0) {
+        if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
         simplePlayer.addRounds(toSimpleRoundsWithComponents(result.items) as any)
       }
     }
@@ -7447,6 +7472,7 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
   const skipResult = await generateScript()
 
   if (skipResult.items.length > 0) {
+    if (skipResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = skipResult.mainLoopRoundCount
     const newRounds = toSimpleRoundsWithComponents(skipResult.items)
     // addRounds dedupes by legoId and inserts in legoId-sorted order, so
     // main-loop belt rounds land in front of the appended INF-PLAY set —
@@ -8011,6 +8037,7 @@ async function triggerPreemptiveInfPlayWarmUp(): Promise<void> {
       const result = await generateScript()
       const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
       if (fullRounds.length > 0) {
+        if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
         cachedRounds.value = fullRounds
         rounds = fullRounds
         firstInfIdx = rounds.findIndex(isInfPlayRound)
@@ -8781,6 +8808,9 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
         estimatedMinutes: Math.round(totalCycles * 0.2),
         audioMapObj: {},
         courseWelcome: cachedCourseWelcome.value || undefined,
+        // Carry the live audio-aware boundary into the offline cold-reopen cache
+        // (set by the handoff that ran before this deliberate download).
+        mainLoopRoundCount: liveMainLoopRoundCount.value ?? undefined,
       })
       console.log(`[Offline] Persisted ${scriptRounds.length} rounds to script cache for cold offline reopen`)
     }
@@ -9427,6 +9457,11 @@ const expandScript = async (): Promise<number> => {
     }
     const result = await generateScript()
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
+    // Single-source the boundary on the live audio-aware count. In INF PLAY the
+    // main-loop count is unchanged (we only grew the revival lookahead), but in
+    // a main-loop expand on a course whose audio'd extent grew this keeps the
+    // boundary in step with the freshly-generated script.
+    if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
     if (expandedRounds.length > loadedCount) {
       const newRounds = expandedRounds.slice(loadedCount)
       // Keep cachedRounds in sync where other consumers read from it.
@@ -9957,6 +9992,14 @@ onMounted(async () => {
             if (cachedScript && cachedScript.rounds.length > 0) {
               console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
               cachedRounds.value = cachedScript.rounds
+              // Single-source the boundary on the audio-aware count baked into
+              // the cache when it was written from a full generateScript. Caches
+              // written before this field existed leave it undefined → boundary
+              // falls back to the matview, as before (and self-heals on the next
+              // full-script handoff this session).
+              if (typeof cachedScript.mainLoopRoundCount === 'number' && cachedScript.mainLoopRoundCount > 0) {
+                liveMainLoopRoundCount.value = cachedScript.mainLoopRoundCount
+              }
               if (cachedScript.courseWelcome) {
                 cachedCourseWelcome.value = cachedScript.courseWelcome
               }
@@ -10051,7 +10094,14 @@ onMounted(async () => {
             await ensureMainLoopMap()
             const infResult = await generateScript()
             const fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
-            // Where the revival tail begins = the canonical round-map boundary
+            // Single-source the boundary on the audio-aware count from the build
+            // we just ran — set BEFORE the mainLoopBoundary() read below so the
+            // first-revival-round index is computed off the live extent, not the
+            // (possibly stale, non-audio-filtered) matview.
+            if (infResult.mainLoopRoundCount > 0) {
+              liveMainLoopRoundCount.value = infResult.mainLoopRoundCount
+            }
+            // Where the revival tail begins = the live main-loop boundary
             // (the single source of truth, the SAME value the forward/back nav
             // and tail wrap read). Must agree with nav or resume lands on a
             // different "first revival round" than forward/back think it is.
@@ -10315,6 +10365,17 @@ onMounted(async () => {
                 console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on API path')
                 return
               }
+              // SINGLE-SOURCE THE BOUNDARY on the live, audio-aware extent the
+              // generator just computed. MUST run BEFORE the ∞-entry early-return
+              // below: a mid-walk INF-PLAY tap drops the rest of this handoff, but
+              // the live count is still the truth for that session and every
+              // downstream boundary read (advanceInfPlayRound, tail wrap, pod
+              // cadence) needs it set. Setting it here lets fra/spa — whose
+              // matview is frozen short of the real audio'd end — actually reach
+              // the true tail and enter INF PLAY.
+              if (result.mainLoopRoundCount > 0) {
+                liveMainLoopRoundCount.value = result.mainLoopRoundCount
+              }
               // Guard: this main-loop handoff was kicked off while the learner
               // was in MAIN. If they tapped ∞ during the multi-second walk,
               // the live queue is now the deterministic INF-PLAY revival set
@@ -10335,6 +10396,63 @@ onMounted(async () => {
               cachedRounds.value = fullRounds
               console.log(`[InstantPlayback] Full-script handoff: ${fullRounds.length} rounds local, no further per-round network needed`)
 
+              // STALE-MATVIEW RESUME REPAIR. resolveStartLegoId resolved the
+              // bootstrap landing against the course_round_index matview. For a
+              // learner whose saved cursor sits PAST a stale matview MAX (fra/spa:
+              // matview frozen short of the audio'd end), the cursor wasn't in the
+              // matview → the resolver fell to the ceiling (also past the matview →
+              // also unresolvable) → R1. The learner was stranded at the start of
+              // the course. Now that the full audio-aware script has landed,
+              // re-resolve their DB cursor (then ceiling) against fullRounds and
+              // jump there if the bootstrap landed somewhere else. Main-loop only;
+              // guarded so a learner who navigated during the multi-second walk
+              // isn't yanked, and a correct bootstrap landing is a no-op.
+              try {
+                if (inferEnrollmentMode === 'main') {
+                  const findInFull = (lego: string | null) =>
+                    lego ? fullRounds.findIndex((r: any) => r?.legoId === lego) : -1
+                  // Where the player currently sits after the queue replace
+                  // (replaceQueueFromCurrent preserves the current round).
+                  const landedLegoId = simplePlayer.currentRound?.value?.legoId ?? startedAtLegoId
+                  const landedIdx = findInFull(landedLegoId)
+                  // The learner's TRUE position: cursor first, then ceiling.
+                  let trueIdx = findInFull(inferCursorLegoId)
+                  let trueCycle = inferCursorCycle
+                  if (trueIdx < 0) {
+                    trueIdx = findInFull(inferCeilingLegoId)
+                    trueCycle = 0
+                  }
+                  // Only repair when the true position resolves in the full
+                  // script AND it's strictly AHEAD of where the bootstrap landed
+                  // (the stale-matview fallback always lands EARLIER — R1/ceiling
+                  // — never past the real cursor). Equal/behind = leave alone, so
+                  // a correct landing or a learner who stepped forward is never
+                  // disturbed.
+                  if (trueIdx >= 0 && (landedIdx < 0 || trueIdx > landedIdx)) {
+                    // Same gap rule as the other cursor-resume paths: a real
+                    // break restarts the round rather than the exact cycle.
+                    if (trueCycle > 0 && savedLastPracticedAt.value) {
+                      const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
+                      if (minutesSince >= resumeConfig.value.cycleResetMinutes) trueCycle = 0
+                    }
+                    const trueLegoId = fullRounds[trueIdx]?.legoId
+                    console.log(`[InstantPlayback] Stale-matview resume repair: bootstrap landed at ${landedLegoId} (idx ${landedIdx}); true position ${trueLegoId} (idx ${trueIdx} cycle ${trueCycle}) — jumping`)
+                    // fullRounds is now the engine's queue (post replaceQueueFromCurrent),
+                    // so trueIdx is a valid engine index — single jump, preserving the
+                    // resume cycle (jumpToLegoId can't carry a cycle).
+                    simplePlayer.jumpToRound(trueIdx, trueCycle)
+                    instantPlayback.setCurrentLegoId(trueLegoId ?? landedLegoId)
+                    if (trueLegoId && beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(trueLegoId)
+                    if (trueLegoId && beltProgress.value?.setPlayingPosition) {
+                      const seed = getSeedFromLegoId(trueLegoId)
+                      if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+                    }
+                  }
+                }
+              } catch (repairErr) {
+                console.warn('[InstantPlayback] Stale-matview resume repair failed (non-fatal):', repairErr)
+              }
+
               // Cache for warm-start. Until this commit the script cache
               // was never written — setCachedScript was imported but
               // never called (lost in ff6a4756's deprecation cleanup,
@@ -10353,6 +10471,9 @@ onMounted(async () => {
                   estimatedMinutes: Math.round(result.cycleCount * 0.2),
                   audioMapObj: {},
                   courseWelcome: cachedCourseWelcome.value || undefined,
+                  // Persist the audio-aware boundary so the next warm start's
+                  // cache-fast-path single-sources it (not the stale matview).
+                  mainLoopRoundCount: result.mainLoopRoundCount,
                 })
               } catch (cacheErr) {
                 console.warn('[InstantPlayback] setCachedScript failed (non-fatal):', cacheErr)
@@ -10594,6 +10715,11 @@ onMounted(async () => {
             }
 
             if (result.items.length > 0) {
+              // Legacy fallback path (instant-playback unavailable). This still
+              // generates the full audio-aware script, so single-source the
+              // boundary on its count here too — the matview is never consulted
+              // again once this lands.
+              if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
               const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
               simplePlayer.initialize(simpleRounds as any)
@@ -10793,6 +10919,11 @@ onMounted(async () => {
           console.log(`[LearningPlayer] Cached Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
         })
         cachedRounds.value = cachedScript.rounds
+        // Single-source the boundary on the cached audio-aware count when present
+        // (undefined on pre-field caches → matview fallback, as before).
+        if (typeof cachedScript.mainLoopRoundCount === 'number' && cachedScript.mainLoopRoundCount > 0) {
+          liveMainLoopRoundCount.value = cachedScript.mainLoopRoundCount
+        }
 
         // Capture course welcome if present
         if (cachedScript.courseWelcome) {
@@ -10977,6 +11108,7 @@ onMounted(async () => {
 
           if (simpleRounds.length > 0) {
             console.log('[LearningPlayer] Legacy fallback: generated', simpleRounds.length, 'rounds')
+            if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
             cachedRounds.value = simpleRounds as any
 
             // Restore position
@@ -11340,6 +11472,12 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   currentRoundIndex.value = 0
   currentItemInRound.value = 0
   cachedRounds.value = []
+  // Drop the previous course's LIVE boundary — it's a bare number with no
+  // course stamp, so a leftover value would mis-bound the new course until its
+  // own handoff runs. Also drop the matview map so the boundary falls back to
+  // the new course's matview/final-LEGO, not the old course's.
+  liveMainLoopRoundCount.value = null
+  mainLoopMap.value = null
   cachedCourseWelcome.value = null
   // completedRounds is computed from beltProgress, which is managed separately
   totalSeedsPlayed.value = 0
@@ -11375,6 +11513,11 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   if (cachedScript) {
     console.log('[LearningPlayer] Found cached script for new course:', cachedScript.rounds.length, 'rounds')
     cachedRounds.value = cachedScript.rounds
+    // Single-source the new course's boundary on its cached audio-aware count
+    // when present (undefined on pre-field caches → matview fallback).
+    if (typeof cachedScript.mainLoopRoundCount === 'number' && cachedScript.mainLoopRoundCount > 0) {
+      liveMainLoopRoundCount.value = cachedScript.mainLoopRoundCount
+    }
 
     if (cachedScript.courseWelcome) {
       cachedCourseWelcome.value = cachedScript.courseWelcome
@@ -11405,6 +11548,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
         { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
       )
     }
+    if (freshResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = freshResult.mainLoopRoundCount
     const freshRounds = toSimpleRoundsWithComponents(freshResult.items)
     cachedRounds.value = freshRounds as any
   }
