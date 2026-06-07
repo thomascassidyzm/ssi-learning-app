@@ -49,7 +49,7 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
-import { buildWordTiles } from '../utils/alignRomanToNative'
+import { buildWordTiles, attachRuby } from '../utils/alignRomanToNative'
 import ListeningOverlay from './ListeningOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useScriptMode } from '../composables/useScriptMode'
@@ -2074,15 +2074,16 @@ const soloComponentIds = computed<Set<string>>(() => {
   return ids
 })
 
-// Current phrase's LEGO blocks for the assembly view
-// Raw LEGO-based tiling — the original per-LEGO decomposition, used by
-// non-Mandarin courses. Mandarin (zho) bypasses this in currentPhraseLegoBlocks
-// below and tiles by PINYIN WORD instead, because a Mandarin LEGO can be a whole
-// clause (no internal word spaces) that is unparseable as a single hanzi tile.
+// Current phrase's LEGO blocks for the assembly view.
+// Raw LEGO-based tiling. For romanised (non-Latin-script) courses the native
+// script is ALWAYS the primary glyph here — the script toggle controls only the
+// romanisation ruby, attached in currentPhraseLegoBlocks below. Mandarin (zho)
+// bypasses this entirely and tiles by PINYIN WORD instead, because a Mandarin
+// LEGO can be a whole clause that is unparseable as a single hanzi tile.
 const currentPhraseLegoBlocksRaw = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  const useNative = isNativeScript.value && hasRomanizedText.value
+  const useNative = hasRomanizedText.value
   if (!cycle.componentLegoIds?.length) {
     // Detect intro/debut/component cycles from the cycle.type field —
     // authoritative and works for both the legacy script-generator
@@ -2428,8 +2429,22 @@ function salientNativeTexts(cycle: any): string[] {
   return []
 }
 
-// Final tiling consumed by the template. Mandarin → pinyin-word tiles (native
-// primary, pinyin ruby). Everything else → the LEGO-based raw tiling.
+// Merged roman LEGO map (legoId → romanisation), for the per-LEGO ruby fallback
+// used by scripts without word-spacing (Japanese). Round-derived wins over the
+// course-wide map (it's the freshest source for the loaded rounds).
+const legoRomanById = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>(globalLegoTargetTextMap.value)
+  for (const [id, text] of legoTargetTextMap.value.entries()) m.set(id, text)
+  return m
+})
+
+// Final tiling consumed by the template:
+//  - Mandarin (zho) → pinyin-word tiles (native primary, pinyin ruby), because
+//    a LEGO can be a whole spaceless clause.
+//  - Other romanised (non-Latin) courses → the LEGO-based native tiling with a
+//    transliteration ruby attached per tile (word-zip for space-separated
+//    scripts, per-LEGO lookup for Japanese).
+//  - Latin-script courses → raw tiling unchanged (no romanisation).
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (isMandarin.value && hasRomanizedText.value && cycle) {
@@ -2444,15 +2459,26 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
     }
     // buildWordTiles only fails on rare data defects — fall through to raw.
   }
-  return currentPhraseLegoBlocksRaw.value
+  const raw = currentPhraseLegoBlocksRaw.value
+  if (hasRomanizedText.value && cycle && raw.length > 0) {
+    const romanPhrase = cycle.target?.text || ''
+    const nativePhrase = (cycle.target as any)?.textNative || ''
+    if (romanPhrase) {
+      return attachRuby(raw, romanPhrase, {
+        nativeSpaced: /\s/.test(nativePhrase),
+        legoRomanById: legoRomanById.value,
+      })
+    }
+  }
+  return raw
 })
 
 // The script toggle governs whether the romanisation ruby is shown above each
 // tile. Native-script glyphs stay primary; this is a pronunciation crutch the
-// learner drops as character recognition builds. Default-on (scriptMode
-// 'roman'). Mandarin only — other courses' tiles carry no romanText.
+// learner drops as recognition builds. Default-on (scriptMode 'roman'). Applies
+// to every romanised (non-Latin-script) course.
 const showRomanization = computed(
-  () => isMandarin.value && hasRomanizedText.value && scriptMode.value === 'roman',
+  () => hasRomanizedText.value && scriptMode.value === 'roman',
 )
 
 // ============================================
@@ -4968,7 +4994,9 @@ const currentPhrase = computed(() => {
   }
   // Read from currentCycle to ensure text/audio are locked together
   if (currentCycle.value) {
-    const useNative = isNativeScript.value && hasRomanizedText.value
+    // Native script is the primary glyph on romanised courses (the toggle only
+    // controls the ruby), so always prefer the native text here.
+    const useNative = hasRomanizedText.value
     const targetText = useNative
       ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
       : (currentCycle.value.target.text || '')
@@ -5175,7 +5203,9 @@ function extractComponentsToMaps(rounds: PlayerRound[], logPrefix = '[Components
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  if (isNativeScript.value && hasRomanizedText.value) {
+  // Native components are the primary breakdown on romanised courses; the
+  // romanisation rides as a ruby line on the tile, not in the component text.
+  if (hasRomanizedText.value) {
     return _componentsByCycleIdNative.get(cycle.id) || _componentsByCycleId.get(cycle.id) || []
   }
   return _componentsByCycleId.get(cycle.id) || []
@@ -5332,7 +5362,9 @@ const introMessage = computed(() => {
 // Read from currentCycle to ensure text/audio are locked together
 const visibleTexts = computed(() => {
   if (currentCycle.value) {
-    const useNative = isNativeScript.value && hasRomanizedText.value
+    // Native script is the primary glyph on romanised courses (the toggle only
+    // controls the ruby), so always prefer the native text here.
+    const useNative = hasRomanizedText.value
     const targetText = useNative
       ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
       : (currentCycle.value.target.text || '')

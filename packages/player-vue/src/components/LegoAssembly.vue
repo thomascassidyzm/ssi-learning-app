@@ -1084,6 +1084,10 @@ const sentenceScale = computed(() => {
   white-space: nowrap;
   user-select: none;
   pointer-events: none;
+  /* The romanisation is always Latin — keep it LTR even above RTL (Arabic)
+     tiles, and isolate it from the surrounding bidi context. */
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 /* The visual tile */

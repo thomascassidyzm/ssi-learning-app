@@ -239,6 +239,72 @@ export function buildWordTiles(
   })
 }
 
+const LETTER_RE = /\p{L}/u
+/** Whitespace tokens that contain at least one letter — drops pure-punctuation
+ *  tokens (。？،) so they don't throw off the word count. */
+function letterWords(text: string): string[] {
+  return text.trim().split(/\s+/).filter(w => LETTER_RE.test(w))
+}
+
+/**
+ * Attach a romanisation ruby (`block.romanText`) to an existing NATIVE-script
+ * LEGO tiling, for non-Chinese scripts. Two strategies, chosen by data shape:
+ *
+ *  1. Word-zip (space-separated scripts — Korean, Russian, Greek, Armenian,
+ *     Arabic): the transliteration maps word-for-word onto the native text, so
+ *     each tile takes as many romanised words as it has native words, in order.
+ *     Uses the phrase's actual romanisation, so it tracks inflection exactly.
+ *
+ *  2. Per-LEGO lookup (scripts without word-spacing / word parity — Japanese):
+ *     each tile shows its own LEGO's stored transliteration, keyed by legoId.
+ *
+ * Tiles that resolve to neither are left without a ruby. Native text and tile
+ * boundaries are never changed — only the annotation is added.
+ */
+export interface AttachRubyOptions {
+  /** True when the native script uses word spaces (Korean/Russian/Greek/
+   *  Armenian/Arabic). Only then is word-zip attempted — for spaceless scripts
+   *  (Japanese) a coincidental word-count match would mis-assign, so we skip
+   *  straight to per-LEGO lookup. */
+  nativeSpaced?: boolean
+  /** legoId → romanisation, for the per-LEGO fallback (Japanese). */
+  legoRomanById?: Map<string, string>
+}
+
+export function attachRuby(
+  blocks: LegoBlock[],
+  romanPhrase: string,
+  opts: AttachRubyOptions = {},
+): LegoBlock[] {
+  if (blocks.length === 0) return blocks
+  const { nativeSpaced = true, legoRomanById } = opts
+  const romanWords = letterWords(romanPhrase || '')
+  const counts = blocks.map(b => letterWords(b.targetText).length)
+  const total = counts.reduce((a, b) => a + b, 0)
+
+  if (nativeSpaced && total > 0 && romanWords.length === total) {
+    let cur = 0
+    return blocks.map((b, i) => {
+      const n = counts[i]
+      if (n === 0) return b
+      const slice = romanWords.slice(cur, cur + n)
+      cur += n
+      return { ...b, romanText: slice.join(' ') }
+    })
+  }
+
+  if (legoRomanById && legoRomanById.size > 0) {
+    let any = false
+    const out = blocks.map(b => {
+      const r = legoRomanById.get(b.id)
+      if (r) { any = true; return { ...b, romanText: r } }
+      return b
+    })
+    if (any) return out
+  }
+  return blocks
+}
+
 /**
  * Promote a romanised-script tiling to dual-script tiles.
  *

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript, buildWordTiles } from './alignRomanToNative'
+import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript, buildWordTiles, attachRuby } from './alignRomanToNative'
 
 describe('pinyinSyllableCount', () => {
   it('counts vowel nuclei per pinyin word', () => {
@@ -137,5 +137,68 @@ describe('buildWordTiles', () => {
 
   it('returns null when the native phrase cannot be aligned', () => {
     expect(buildWordTiles('wǒ', '我们')).toBeNull()
+  })
+})
+
+describe('attachRuby — word-zip (space-separated scripts)', () => {
+  it('zips transliteration word-for-word (Russian)', () => {
+    const blocks = [
+      { id: 'L1', targetText: 'Она', isSalient: false },
+      { id: 'L2', targetText: 'могла', isSalient: true },
+      { id: 'L3', targetText: 'помочь', isSalient: false },
+    ]
+    const out = attachRuby(blocks, 'ona mogla pomoch')
+    expect(out.map(b => b.romanText)).toEqual(['ona', 'mogla', 'pomoch'])
+  })
+
+  it('gives a multi-word LEGO its multi-word transliteration (Greek)', () => {
+    const blocks = [
+      { id: 'L1', targetText: 'σαν', isSalient: false },
+      { id: 'L2', targetText: 'στον πατέρα', isSalient: true },
+    ]
+    const out = attachRuby(blocks, 'san ston patera')
+    expect(out[0].romanText).toBe('san')
+    expect(out[1].romanText).toBe('ston patera')
+  })
+
+  it('skips pure-punctuation tiles without consuming a roman word', () => {
+    const blocks = [
+      { id: 'L1', targetText: 'λέξη', isSalient: true },
+      { id: 'g', targetText: '.', isSalient: false },
+    ]
+    const out = attachRuby(blocks, 'lexi')
+    expect(out[0].romanText).toBe('lexi')
+    expect(out[1].romanText).toBeUndefined()
+  })
+})
+
+describe('attachRuby — per-LEGO lookup (Japanese)', () => {
+  it('uses per-LEGO transliteration for spaceless scripts', () => {
+    // 来るか / 気になる — no spaces, romaji has more "words" than native tiles
+    const blocks = [
+      { id: 'S1L1', targetText: '来るか', isSalient: false },
+      { id: 'S1L2', targetText: '気になる。', isSalient: true },
+    ]
+    const legoRoman = new Map([['S1L1', 'kuru ka'], ['S1L2', 'ki ni naru']])
+    const out = attachRuby(blocks, 'kuru ka ki ni naru.', { nativeSpaced: false, legoRomanById: legoRoman })
+    expect(out.map(b => b.romanText)).toEqual(['kuru ka', 'ki ni naru'])
+  })
+
+  it('does NOT word-zip a spaceless script even if word counts coincide', () => {
+    // Two native tiles, two romaji words — but they must NOT be zipped 1:1
+    // (the romaji words don't correspond to the kanji tiles). Per-LEGO wins.
+    const blocks = [
+      { id: 'A', targetText: '時間', isSalient: false },
+      { id: 'B', targetText: '今', isSalient: true },
+    ]
+    const legoRoman = new Map([['A', 'jikan'], ['B', 'ima']])
+    const out = attachRuby(blocks, 'foo bar', { nativeSpaced: false, legoRomanById: legoRoman })
+    expect(out.map(b => b.romanText)).toEqual(['jikan', 'ima']) // from lookup, not 'foo'/'bar'
+  })
+
+  it('leaves tiles unruby-d when no source resolves', () => {
+    const blocks = [{ id: 'x', targetText: '来る', isSalient: true }]
+    const out = attachRuby(blocks, 'kuru ka ki', { nativeSpaced: false })
+    expect(out[0].romanText).toBeUndefined()
   })
 })

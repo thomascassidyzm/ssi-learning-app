@@ -155,11 +155,11 @@ const handleOffline = () => {
           aria-label="Pronunciation guide"
         >
           <div class="tray-icon">
-            <span class="script-icon">拼</span>
+            <span class="script-icon">Aa</span>
           </div>
           <div class="tray-label">
             <span class="tray-name">Pronunciation</span>
-            <span class="tray-desc">{{ !isNativeScript ? 'Pinyin shown above characters' : 'Characters only' }}</span>
+            <span class="tray-desc">{{ !isNativeScript ? 'Guide shown above the script' : 'Native script only' }}</span>
           </div>
           <div class="tray-toggle" :class="{ on: !isNativeScript }">
             <div class="tray-toggle-knob"></div>
