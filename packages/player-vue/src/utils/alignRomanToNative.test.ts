@@ -218,6 +218,18 @@ describe('buildSegmentedTiles — device word segmentation (Japanese/Thai)', () 
     )).toEqual(['manabi', 'hajime', 'ta', 'kotoni', 'wa', 'manzoku', 'shi', 'teru'])
   })
 
+  it('uses the dictionary to anchor consecutive kanji words (no false short-vowel match)', () => {
+    // 今週鍵 are three kanji in a row; without the dict, を "o" false-matches the
+    // "o" inside 今週 "k(o)nshuu". The dict consumes 今週/鍵 first.
+    const dict = new Map([['今週', 'konshuu'], ['鍵', 'kagi']])
+    const out = alignJapaneseRomaji(
+      ['今週', '鍵', 'を', '返し', 'て', 'ほしい'],
+      'konshuu kagi o kaeshite hoshii',
+      dict,
+    )
+    expect(out).toEqual(['konshuu', 'kagi', 'o', 'kaeshi', 'te', 'hoshii'])
+  })
+
   it('uses the forced aligner inside buildSegmentedTiles (no blank ruby)', () => {
     const tiles = buildSegmentedTiles('すごくするのが好き', 'sugoku suru no ga suki', 'ja')!
     expect(tiles.map(t => t.romanText)).toEqual(['su', 'goku', 'suru', 'no', 'ga', 'suki'])

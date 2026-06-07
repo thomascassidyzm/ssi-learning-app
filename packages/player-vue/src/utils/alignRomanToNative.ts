@@ -351,13 +351,29 @@ function kanaUnit(chars: string[], i: number): { cands: string[]; len: number } 
  * e.g. ['止め','たい','と','思う'] + 'yametai to omou' → ['yame','tai','to','omou']
  *      ('止め'='yame' — the kanji reading is recovered from the stream gap.)
  */
-export function alignJapaneseRomaji(nativeWords: string[], phraseRomaji: string): string[] | null {
+export function alignJapaneseRomaji(
+  nativeWords: string[],
+  phraseRomaji: string,
+  dict?: Map<string, string>,
+): string[] | null {
   const stream = (phraseRomaji || '').toLowerCase().replace(/[^a-z]/g, '')
   if (!stream || nativeWords.length === 0) return null
   const out = nativeWords.map(() => '')
   let pos = 0
   let pendingWord = -1 // word owning the kanji/gap chars not yet attributed
   for (let wi = 0; wi < nativeWords.length; wi++) {
+    // Dictionary-consume first: if this word's known reading matches the stream
+    // here, take it. This advances the pointer past kanji readings so a short
+    // following kana (o / a / i) can't false-anchor *inside* them — e.g. を "o"
+    // matching the "o" in 今週 "k(o)nshuu".
+    if (pendingWord < 0) {
+      const d = dict?.get(nativeWords[wi])?.toLowerCase().replace(/[^a-z]/g, '')
+      if (d && stream.startsWith(d, pos)) {
+        out[wi] = stream.slice(pos, pos + d.length)
+        pos += d.length
+        continue
+      }
+    }
     const chars = [...nativeWords[wi]]
     for (let ci = 0; ci < chars.length; ) {
       const unit = kanaUnit(chars, ci)
@@ -432,7 +448,7 @@ export function buildSegmentedTiles(
   // Japanese: forced-align the phrase romaji onto the segmented words (kana
   // anchors + kanji gaps), so every tile gets its reading even when the romaji's
   // word boundaries differ from the device's segmentation.
-  const aligned = locale.startsWith('ja') ? alignJapaneseRomaji(nativeWords, romanPhrase) : null
+  const aligned = locale.startsWith('ja') ? alignJapaneseRomaji(nativeWords, romanPhrase, dict) : null
 
   // Salient native-word indices: the salient LEGO text is unsegmented, so locate
   // it by character offset within the concatenated native words.
