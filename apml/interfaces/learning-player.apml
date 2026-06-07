@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.6 (2026-06-07)
+# Version: 2.1.7 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -214,6 +214,22 @@ TILE_ASSEMBLY:
     whereas the romaji decomposes cleanly.
 
   strategies:
+    authored_display_tiling:
+      langs: "any course with course_practice_phrases.display_tiling (jpn_for_eng
+              backfilled June 2026, ~99% of phrases)"
+      how: "Strategy 0, authoritative. Popty stores authored tiles
+            [{n: native, r: roman, salient}] per phrase, validated both ways at
+            build time (roman = stored value sliced, native reassembles exactly).
+            Carried additively on the cycle as displayTiling through every
+            serving path (generateLearningScript select, toSimpleRounds,
+            cycles/infplay-cycles endpoints + get_course_cycles_window RPC,
+            bundle). currentPhraseLegoBlocks renders them verbatim when the
+            joined n-values reassemble the displayed native phrase
+            (whitespace-normalised); NULL or mismatch falls through to the
+            runtime strategies below. SCRIPT_VERSION v9 invalidated cached
+            scripts so the field appears without a content_version bump."
+      priority: "Checked before all runtime strategies — the device segmenter
+                 is now the fallback, not the primary path."
     mandarin_pinyin_word:
       langs: "zho"
       how: "buildWordTiles — tile by pinyin word; 1 hanzi = 1 syllable, each
@@ -243,6 +259,17 @@ TILE_ASSEMBLY:
     latin:
       langs: "spa/fra/deu/… (no target_text_roman)"
       how: "hasRomanizedText=false → raw romanised tiling unchanged, no ruby."
+
+  typography:
+    uniform_bold: |
+      (Tom 2026-06-07) Tile text is ONE size + weight (600) everywhere — the
+      old salient-vs-context split (smaller/muted non-salient text, softer
+      non-salient chrome, hero known-text salient-substring emphasis +
+      context fade) is removed. With the ruby line and authored per-word
+      tiles the weight differentiation read as noise. isSalient still flows
+      on blocks (semantics/telemetry) but changes nothing visually. The
+      display box (hero-known / known-text) renders the whole known phrase
+      at weight 600.
 
   script_toggle:
     composable: "composables/useScriptMode.ts (per-course localStorage)"

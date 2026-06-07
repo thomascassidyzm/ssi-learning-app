@@ -18,7 +18,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // cold offline reopen — no cached script to play). IndexedDB has GBs of room.
 // Bump SCRIPT_VERSION to invalidate — it's part of the key, so old entries
 // orphan and regenerate. This is the ONLY invalidation (no TTL).
-const SCRIPT_VERSION = 'v8' // v8: fix quoted component text in M-LEGO tiles
+const SCRIPT_VERSION = 'v9' // v9: carry display_tiling (authored {n,r,salient} tiles) on phrase items
 const SCRIPT_DB_NAME = 'ssi-script-cache'
 const SCRIPT_STORE = 'scripts'
 const AUDIO_CACHE_NAME = 'ssi-audio-v1'

@@ -45,6 +45,11 @@ export interface ScriptItem {
   /** Authoritative content-level tiling from course_practice_phrases.decomposition,
    * carried verbatim for phrase-sourced items. Player renders it directly. */
   decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+  /** Authored display tiles from course_practice_phrases.display_tiling —
+   * {n: native, r: roman, salient} per tile, built and validated in Popty.
+   * When present the player renders these directly (native glyph primary,
+   * roman as ruby) instead of running the device segmenter. */
+  displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
 
   /** M-LEGO component breakdown: [{known: "with", target: "con"}, ...] */
   components?: Array<{ known: string; target: string }>
@@ -223,7 +228,7 @@ function sampleWithoutReplacement<T>(arr: T[], n: number, rng: () => number = Ma
 }
 
 const PRACTICE_PHRASE_COLUMNS =
-  'seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce, decomposition'
+  'seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce, decomposition, display_tiling'
 
 /**
  * Fetch ALL course_practice_phrases for a course, paginated.
@@ -706,6 +711,7 @@ export async function generateLearningScript(
     target2_duration_ms?: number
     introduce?: boolean
     decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }> | null
+    display_tiling?: Array<{ n: string; r: string; salient?: boolean }> | null
   }
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[]; practice: Phrase[] }>()
   // Collect M-LEGO component breakdowns: legoKey → [{known, target}, ...]
@@ -1162,10 +1168,14 @@ export async function generateLearningScript(
     target_text?: string
     target_text_roman?: string
     decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }> | null
+    display_tiling?: Array<{ n: string; r: string; salient?: boolean }> | null
   }) => ({
     ...(item.target_text_roman ? { targetTextNative: item.target_text } : {}),
     ...(Array.isArray(item.decomposition) && item.decomposition.length > 0
       ? { decomposition: item.decomposition }
+      : {}),
+    ...(Array.isArray(item.display_tiling) && item.display_tiling.length > 0
+      ? { displayTiling: item.display_tiling }
       : {}),
   })
 

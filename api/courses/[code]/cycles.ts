@@ -85,6 +85,10 @@ interface CoursePhraseRow {
     known: string
     isGhost: boolean
   }> | null
+  /** Authored display tiles ({n: native, r: roman, salient}) — present only
+   * once get_course_cycles_window includes display_tiling in its phrase JSON
+   * (migration 20260607_course_cycles_window_display_tiling.sql). */
+  display_tiling?: Array<{ n: string; r: string; salient?: boolean }> | null
   known_audio_id: string | null
   target1_audio_id: string | null
   target2_audio_id: string | null
@@ -435,6 +439,11 @@ function phraseToCycle(
   // decomposition is optional — omit when NULL (per spec).
   if (Array.isArray(p.decomposition) && p.decomposition.length > 0) {
     cycle.decomposition = p.decomposition
+  }
+
+  // Authored display tiles — same omit-when-NULL convention.
+  if (Array.isArray(p.display_tiling) && p.display_tiling.length > 0) {
+    cycle.display_tiling = p.display_tiling
   }
 
   return cycle

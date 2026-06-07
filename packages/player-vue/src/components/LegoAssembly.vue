@@ -32,10 +32,8 @@ const props = defineProps<{
   phase: string // UI phase: 'prompt' | 'speak' | 'voice1' | 'voice2'
   components?: ComponentBreakdown[]
   targetLang?: string // ISO 639-3 language code (e.g., 'jpn', 'zho', 'spa')
-  /** Cycle type: 'use' lowers the visual mass of non-salient context tiles
-   *  (smaller padding, dimmer border, ~85% font) — context in USE is
-   *  already-known scaffolding, not a chunk being practised. Intro/debut
-   *  and BLDs keep full-mass tiles. */
+  /** Cycle type — drives the known-text visibility rule (intro/debut only).
+   *  Tile typography is uniform across cycle types (Tom 2026-06-07). */
   cycleType?: string
   /** Show the romanised ruby line (block.romanText) above each tile. Driven by
    *  the learner's script toggle — native-script glyphs are always primary; this
@@ -43,7 +41,6 @@ const props = defineProps<{
   showRomanization?: boolean
 }>()
 
-const isUseCycle = computed(() => (props.cycleType || '').toLowerCase() === 'use')
 // Known-text (the English subtitle under each tile) only renders during
 // intro and debut cycles — the first time a learner meets the LEGO. Once
 // the salient appears alongside other LEGOs (BLD / USE phrases), the
@@ -1145,42 +1142,25 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
+/* Uniform tile typography (Tom 2026-06-07): with the romanisation ruby and
+   authored per-word tiles, the old salient-vs-context weight/size split read
+   as noise — every tile now carries the same bold text. The salient class
+   stays on blocks (semantics/telemetry) but no longer changes the type. */
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: calc(1.9rem * var(--sentence-scale, 1));
+  font-size: calc(1.7rem * var(--sentence-scale, 1));
   /* Wraps: word-boundary by default (clean space breaks), plus any SHY
    * positions softHyphenate inserted mid-word for long compound nouns.
    * `hyphens: manual` means a wrap AT a SHY shows a visible hyphen
    * (signalling "this word is broken"); plain word-break wraps show
    * nothing extra. */
   hyphens: manual;
-  font-weight: 500;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   letter-spacing: 0.02em;
   user-select: none;
   position: relative;
   padding: 0 0.35em;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   ONE alternate visual treatment for "previously-known" tiles.
-   Tom 2026-05-21: two looks only — white salient (the current LEGO
-   being practised) + this single "second colour" for every other
-   tile type. Previously-known siblings, ghost-filled tokens, solo
-   components extracted from M-LEGOs, and in-span inserters between
-   M-LEGO atoms all collapse to the same treatment.
-
-   Approach: smaller-darker rather than opacity-dim. Opacity made
-   tiles read as "disabled / can't click this" (Tom's feedback on
-   first iteration). Smaller font + still-full-text-colour signals
-   "established / quieter" — like footnote vs headline — instead
-   of "deactivated".
-   ───────────────────────────────────────────────────────────────── */
-.lego-block:not(.salient):not(.wagon) .block-text,
-.tile-target .comp.is-inserter,
-.lego-block.has-components .comp.is-inserter {
-  font-size: calc(1.55rem * var(--sentence-scale, 1));
-  font-weight: 500;
 }
 
 /* Stubs-bright on practice M-LEGOs — M-LEGO components rendered as
@@ -1288,33 +1268,19 @@ const sentenceScale = computed(() => {
 }
 
 /* --- SALIENT LEGO (newly introduced) ---
-   No chrome change — salient tile reads identical to its neighbours.
-   Differentiation is carried entirely by the non-salient `:not(.salient)`
-   rule (smaller, slightly muted text). Salient itself gets a subtle
-   weight + size bump on the text only; no border colour, no glow, no
-   scale transform — those broke catastrophically on long phrases that
-   wrapped to multiple lines (4-line phrase x scale(1.2) bled off-screen).
-   Tom 2026-05-21. */
-.lego-block.salient .block-text {
-  font-size: calc(1.7rem * var(--sentence-scale, 1));
-  font-weight: 600;
-}
+   No visual change at all since the uniform-typography pass (Tom
+   2026-06-07) — the class is kept on blocks for semantics only. */
 
 /* ═══════════════════════════════════════════════════════════════
    CJK SIZING — Chinese/Japanese/Korean characters are denser than
    Roman letters and read cramped at Roman-tuned sizes. Bump font-
-   size ~20% and add letter-spacing so glyphs breathe without
-   inserting actual whitespace between characters.
+   size and add letter-spacing so glyphs breathe without inserting
+   actual whitespace between characters. One size for every tile —
+   salient and context read identically.
    ═══════════════════════════════════════════════════════════════ */
 .lego-block.is-cjk .block-text {
-  font-size: calc(2.15rem * var(--sentence-scale, 1));
-  letter-spacing: 0.08em;
-}
-.lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-  font-size: calc(1.85rem * var(--sentence-scale, 1));
-}
-.lego-block.salient.is-cjk .block-text {
   font-size: calc(2rem * var(--sentence-scale, 1));
+  letter-spacing: 0.08em;
 }
 .tile-target.is-cjk .comp {
   font-size: 2.2rem;
@@ -1365,30 +1331,14 @@ const sentenceScale = computed(() => {
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
   .lego-block .block-text {
-    font-size: calc(1.6rem * var(--sentence-scale, 1));
+    font-size: calc(1.55rem * var(--sentence-scale, 1));
   }
   .lego-block {
     padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
   }
-  /* Mobile: shrink both sides of the salient bump while keeping the
-     same subtle delta as desktop. The :not(.salient):not(.wagon) rule
-     in the desktop block beats the mobile base on specificity, so the
-     non-salient size needs its own mobile-scoped override here. */
-  .lego-block:not(.salient):not(.wagon) .block-text {
-    font-size: calc(1.45rem * var(--sentence-scale, 1));
-  }
-  .lego-block.salient .block-text {
-    font-size: calc(1.55rem * var(--sentence-scale, 1));
-  }
 
-  /* CJK mobile — keep the ~20% bump proportional to the mobile baseline. */
+  /* CJK mobile — keep the density bump proportional to the mobile baseline. */
   .lego-block.is-cjk .block-text {
-    font-size: calc(1.9rem * var(--sentence-scale, 1));
-  }
-  .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-    font-size: calc(1.7rem * var(--sentence-scale, 1));
-  }
-  .lego-block.salient.is-cjk .block-text {
     font-size: calc(1.8rem * var(--sentence-scale, 1));
   }
 
@@ -1437,26 +1387,9 @@ const sentenceScale = computed(() => {
   background: rgba(44, 38, 34, 0.2);
 }
 
-/* Mist theme: single "second colour" treatment. Matches the dark theme's
-   smaller-darker approach — full text colour, smaller font, NOT a
-   disabled-looking grey-out. The salient (with its red border + red
-   tint background from the existing mist .salient rule) still
-   dominates by chrome rather than by text contrast. */
-:root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) .block-text,
-:root[data-theme="mist"] .tile-target .comp.is-inserter,
-:root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
-  font-size: calc(1.55rem * var(--sentence-scale, 1));
-  color: rgba(44, 38, 34, 0.62);
-  font-weight: 500;
-}
-
-/* Non-salient tile chrome (mist) — softer border + lighter shadow so
-   the salient's normal border reads as the "active" one by contrast. */
-:root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) {
-  border-color: rgba(0, 0, 0, 0.18);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
-              0 4px 12px rgba(44, 38, 34, 0.05);
-}
+/* Mist: uniform tiles (Tom 2026-06-07). The old "second colour" treatment
+   (smaller, muted non-salient text + softer non-salient chrome) is gone —
+   every tile renders the same bold dark text in the same white box. */
 
 /* Hyphenated wagon edge stubs for mist theme */
 :root[data-theme="mist"] .lego-block.wagon:not(.wagon-end)::after,
@@ -1542,45 +1475,7 @@ const sentenceScale = computed(() => {
   background: #ffffff;
 }
 
-/* Mobile sizing for mist — mirrors the scoped mobile rules but with
-   :root[data-theme="mist"] specificity so it beats the mist non-salient
-   rule above. Without this the bump collapses to weight+colour only on
-   mobile-mist (the most common live-test surface). */
-@media (max-width: 600px) {
-  :root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) .block-text,
-  :root[data-theme="mist"] .tile-target .comp.is-inserter,
-  :root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
-    font-size: calc(1.45rem * var(--sentence-scale, 1));
-  }
-}
-
-/* CJK sizing — mist-scoped counterparts. The unscoped .is-cjk rules lose
-   to the mist non-salient rule on specificity (mist adds :root +
-   [data-theme]), so each one needs a mist-prefixed sibling. */
-:root[data-theme="mist"] .lego-block.is-cjk .block-text {
-  font-size: calc(2.15rem * var(--sentence-scale, 1));
-}
-:root[data-theme="mist"] .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-  font-size: calc(1.85rem * var(--sentence-scale, 1));
-}
-:root[data-theme="mist"] .lego-block.salient.is-cjk .block-text {
-  font-size: calc(2rem * var(--sentence-scale, 1));
-}
-:root[data-theme="mist"] .tile-target.is-cjk .comp {
-  font-size: 2.2rem;
-}
-@media (max-width: 600px) {
-  :root[data-theme="mist"] .lego-block.is-cjk .block-text {
-    font-size: calc(1.9rem * var(--sentence-scale, 1));
-  }
-  :root[data-theme="mist"] .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-    font-size: calc(1.7rem * var(--sentence-scale, 1));
-  }
-  :root[data-theme="mist"] .lego-block.salient.is-cjk .block-text {
-    font-size: calc(1.8rem * var(--sentence-scale, 1));
-  }
-  :root[data-theme="mist"] .tile-target.is-cjk .comp {
-    font-size: 1.9rem;
-  }
-}
+/* No mist-scoped sizing rules needed any more — the uniform unscoped
+   .block-text / .is-cjk rules apply in mist too, now that the mist
+   non-salient overrides (which used to win on specificity) are gone. */
 </style>

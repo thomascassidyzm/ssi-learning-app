@@ -87,6 +87,16 @@ interface PhraseRow {
   target1_duration_ms: number | null
   target2_duration_ms: number | null
   decomposition: DecompositionBlock[] | null
+  display_tiling: DisplayTile[] | null
+}
+
+// Authored display tiles ({n: native, r: roman, salient}), built and
+// validated in Popty. Served verbatim; the player renders them directly
+// (native primary, roman ruby) instead of running the device segmenter.
+interface DisplayTile {
+  n: string
+  r: string
+  salient?: boolean
 }
 
 // Authoritative content-level tiling, computed in Popty and stored on
@@ -120,6 +130,7 @@ interface Cycle {
   is_new: false
   inf_round: number       // 1-based within INF PLAY
   decomposition?: DecompositionBlock[]
+  display_tiling?: DisplayTile[]
 }
 
 function buildLegoId(seed: number, lego: number): string {
@@ -186,7 +197,7 @@ export default async function handler(
         .limit(5000),
       supabase
         .from('course_practice_phrases')
-        .select('seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms, decomposition')
+        .select('seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id, target1_duration_ms, target2_duration_ms, decomposition, display_tiling')
         .eq('course_code', code)
         .in('phrase_role', ['use', 'eternal_eligible'])
         .order('seed_number', { ascending: true })
@@ -332,6 +343,9 @@ export default async function handler(
             ...(Array.isArray(phrase.decomposition) && phrase.decomposition.length > 0
               ? { decomposition: phrase.decomposition }
               : {}),
+            ...(Array.isArray(phrase.display_tiling) && phrase.display_tiling.length > 0
+              ? { display_tiling: phrase.display_tiling }
+              : {}),
           })
         }
       }
@@ -366,6 +380,9 @@ export default async function handler(
           // falls back to runtime alignment). Closes the INFPLAY serving gap.
           ...(Array.isArray(phrase.decomposition) && phrase.decomposition.length > 0
             ? { decomposition: phrase.decomposition }
+            : {}),
+          ...(Array.isArray(phrase.display_tiling) && phrase.display_tiling.length > 0
+            ? { display_tiling: phrase.display_tiling }
             : {}),
         })
       }

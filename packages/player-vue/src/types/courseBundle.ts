@@ -164,6 +164,10 @@ export interface BundlePhrase {
     isGhost: boolean
     isSalient?: boolean
   }>
+  /** Authored display tiles ({n: native, r: roman, salient}) from
+   * course_practice_phrases.display_tiling — rendered verbatim by the player
+   * when present (native primary, roman ruby); absent → runtime segmenter. */
+  displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
   audio: {
     known?: BundleAudioRef
     target1?: BundleAudioRef

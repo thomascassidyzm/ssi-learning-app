@@ -21,6 +21,11 @@ export interface Cycle {
    * verbatim on course_practice_phrases.decomposition. When present the player
    * renders these blocks directly instead of re-deriving by runtime alignment. */
   decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+  /** Authored display tiles from course_practice_phrases.display_tiling —
+   * {n: native, r: roman, salient} per tile, built and validated in Popty.
+   * When present the player renders these tiles directly (native primary,
+   * roman ruby) and skips the runtime segmenter entirely. */
+  displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
 
   /** M-LEGO component breakdown for visual display */
   components?: Array<{ known: string; target: string }>
