@@ -144,11 +144,13 @@ const error = ref(null)
 const mode = ref('shuffled') // Start shuffled for variety
 
 // Top-level view toggle. Code keys stay snake-y; display labels in the
-// template are All / Core / Dialogues.
-//   'phrases' (All)       = every USE phrase in the course
+// template are Dialogues / Core / All.
+//   'pods'    (Dialogues) = Listening Pod scene list (Layer 2) — DEFAULT
 //   'seeds'   (Core)      = every seed sentence (whole-sentence listen)
-//   'pods'    (Dialogues) = Listening Pod scene list (Layer 2)
-const view = ref('phrases')
+//   'phrases' (All)       = every USE phrase in the course
+// Dialogues first and default (Tom 2026-06-07): the scenes are the
+// flagship listening content; All/Core are the deeper cuts.
+const view = ref('pods')
 
 // Phrase data
 const allPhrases = ref([])
@@ -813,9 +815,16 @@ const handleEndOfList = async (myPlaybackId) => {
   // advance — the whole pod plays through as a continuous session.
   if (view.value === 'pods' && selectedScene.value && !loopScene.value) {
     const sceneList = pods.scenes.value
-    const currentSceneIdx = sceneList.findIndex(s => s.id === selectedScene.value.id)
-    const nextScene = currentSceneIdx >= 0 ? sceneList[currentSceneIdx + 1] : null
-    if (nextScene) {
+    // Match by sceneNumber — PodScene has no `id` field, and the old
+    // `s.id === selectedScene.id` compared undefined===undefined, which
+    // matched index 0 and made EVERY scene "advance" to scene 2.
+    const currentSceneIdx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
+    // Single continuous playlist: segue into the next scene; after the
+    // last scene, wrap around to the first (Spotify playlist loop).
+    const nextScene = currentSceneIdx >= 0
+      ? (sceneList[currentSceneIdx + 1] || sceneList[0])
+      : null
+    if (nextScene && nextScene.sceneNumber !== selectedScene.value.sceneNumber) {
       // openScene resets currentIndex to 0 and stops playback; kick off
       // playback once the new scene's phrases have landed.
       openScene(nextScene)
@@ -825,9 +834,8 @@ const handleEndOfList = async (myPlaybackId) => {
       await playCurrentPhrase(newId)
       return
     }
-    // No next scene: fall through to the default loop-this-list behaviour
-    // (restart current scene). End of pod = polite re-cycle of the last
-    // scene rather than abrupt stop.
+    // Single-scene pod: fall through to the default loop-this-list
+    // behaviour (restart current scene).
   }
 
   if (mode.value === 'shuffled') {
@@ -1143,7 +1151,10 @@ onMounted(async () => {
   // Pre-build the LEGO-ordinal lookup so the first phrase batch can use it.
   // If it fails, phrases just render without ordinals — non-fatal.
   await loadLegoOrdinals()
-  loadPhrases()
+  // Default view is Dialogues (pods) — useListeningPods loads the scene
+  // list itself. Phrase data loads lazily when the user taps All.
+  if (view.value === 'phrases') loadPhrases()
+  else isLoading.value = false
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
   checkPackComplete()
@@ -1199,16 +1210,16 @@ watch(
          Settings. packState / packPercent / downloadListeningPack are
          retained in <script> for the eventual relocation.) -->
 
-    <!-- Top-level view tabs: All / Core / Dialogues.
-         All       = every USE phrase the learner has met (default).
+    <!-- Top-level view tabs: Dialogues / Core / All.
+         Dialogues = Layer 2 pod scenes for the course (default).
          Core      = every seed sentence in the course.
-         Dialogues = Layer 2 pod scenes for the course. -->
+         All       = every USE phrase the learner has met. -->
     <div class="view-tabs" @click.stop>
       <button
         class="view-tab"
-        :class="{ active: view === 'phrases' }"
-        @click="setView('phrases')"
-      >All</button>
+        :class="{ active: view === 'pods' }"
+        @click="setView('pods')"
+      >Dialogues</button>
       <button
         class="view-tab"
         :class="{ active: view === 'seeds' }"
@@ -1216,9 +1227,9 @@ watch(
       >Core</button>
       <button
         class="view-tab"
-        :class="{ active: view === 'pods' }"
-        @click="setView('pods')"
-      >Dialogues</button>
+        :class="{ active: view === 'phrases' }"
+        @click="setView('phrases')"
+      >All</button>
     </div>
 
     <!-- Pods scene-list view (shown when in pods view + no scene selected) -->
