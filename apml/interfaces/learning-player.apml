@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.7 (2026-06-07)
+# Version: 2.1.8 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -259,6 +259,23 @@ TILE_ASSEMBLY:
     latin:
       langs: "spa/fra/deu/… (no target_text_roman)"
       how: "hasRomanizedText=false → raw romanised tiling unchanged, no ruby."
+
+  intro_glosses:
+    rule: |
+      (Tom 2026-06-07) Intro/debut keep the known-language gloss UNDER the
+      tiles — first presentation must let the learner match the pieces in
+      both languages ("cosa|azul / thing|blue"). attachIntroGlosses
+      (LearningPlayer) wraps every word-tiling strategy's output:
+      components (native side) are matched to contiguous tile runs and each
+      run's first tile gets the component's known as knownText (structural
+      particles keep their empty known — tile consumed, no gloss). A
+      single-tile LEGO gets the whole known text. If per-piece matching
+      isn't possible (A-LEGO, or tiling crossing a component boundary) the
+      word tiles MERGE back to ONE tile — the LEGO is the unit being
+      introduced — routing LegoAssembly into its legacy single-tile intro
+      mode (component grid + known row, whole-phrase romanisation as ruby).
+      Word-level tiling resumes from the first BUILD phrase. Known text
+      never shows outside intro/debut (existing LegoAssembly rule).
 
   typography:
     uniform_bold: |

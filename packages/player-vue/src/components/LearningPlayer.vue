@@ -2448,6 +2448,72 @@ const nativeRomajiDict = computed<Map<string, string>>(() => {
 // Spaceless scripts → BCP-47 locale for the device word segmenter.
 const SEGMENTER_LOCALE: Record<string, string> = { jpn: 'ja', tha: 'th' }
 
+// Intro/debut: re-attach the known-language gloss to the tiles (Tom
+// 2026-06-07). The word-tiling strategies replaced the legacy single-tile
+// intro render, which carried the per-component known row — the
+// "cosa|azul / thing|blue" matching that makes a multi-piece LEGO's
+// componentisation visible in BOTH languages on first presentation.
+//
+// Each declared component (native side) is matched to a contiguous run of
+// tiles whose concatenated text equals the component's target
+// (whitespace/punctuation-normalised); its known gloss lands on the first
+// tile of the run (runs are almost always one tile). Structural particles
+// keep their empty known by design — their tile is consumed by the walk but
+// gets no gloss.
+//
+// When per-piece matching ISN'T possible (A-LEGO with no components, or
+// tiling that crosses a component boundary), the word tiles MERGE back into
+// one tile — the LEGO is the unit being introduced — which routes
+// LegoAssembly into its legacy single-tile intro mode: component grid with
+// the per-component known row when components exist, otherwise the whole
+// known text under the tile. The whole-phrase romanisation rides as the
+// ruby. Word-level tiling resumes from the first BUILD phrase onward.
+function attachIntroGlosses(tiles: LegoBlock[], cycle: any): LegoBlock[] {
+  const t = (cycle?.type || '').toLowerCase()
+  if (t !== 'intro' && t !== 'debut') return tiles
+  if (!tiles || tiles.length === 0) return tiles
+  const norm = (s: string) =>
+    (s || '').replace(/\s+/g, '').replace(/[。、，．・「」『』！？.,!?…'’"“”]/g, '')
+  const knownWhole = cycle?.known?.text || ''
+  if (tiles.length === 1) {
+    return knownWhole ? [{ ...tiles[0], knownText: knownWhole }] : tiles
+  }
+  // Native-script component targets match the tiles' native targetText;
+  // the roman variant is the fallback for courses without a native set.
+  const comps = (cycle?.componentsNative || cycle?.components || []) as Array<{
+    known: string
+    target: string
+  }>
+  const aligned = (() => {
+    if (!Array.isArray(comps) || comps.length < 2) return null
+    const out = tiles.map((x) => ({ ...x }))
+    let ti = 0
+    for (const comp of comps) {
+      const target = norm(comp?.target)
+      if (!target) return null
+      let acc = ''
+      const start = ti
+      while (ti < out.length && acc.length < target.length) {
+        acc += norm(out[ti].targetText)
+        ti++
+      }
+      if (acc !== target) return null
+      if (comp.known) out[start].knownText = comp.known
+    }
+    return out
+  })()
+  if (aligned) return aligned
+  // No per-piece mapping → one tile for the one unit being introduced.
+  const merged: LegoBlock = {
+    id: tiles[0].id,
+    targetText: (cycle?.target as any)?.textNative || tiles.map((x) => x.targetText).join(''),
+    isSalient: true,
+    ...(cycle?.target?.text ? { romanText: cycle.target.text } : {}),
+    ...(knownWhole ? { knownText: knownWhole } : {}),
+  }
+  return [merged]
+}
+
 // Final tiling consumed by the template. The tiling is always derived from the
 // ROMANISED side (the reliably-segmented one); the native script is the primary
 // glyph, the romanisation the ruby. Three strategies by script shape:
@@ -2477,12 +2543,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   if (Array.isArray(authored) && authored.length > 0 && nativePhrase) {
     const squash = (s: string) => s.replace(/\s+/g, '')
     if (squash(authored.map((t) => t.n).join('')) === squash(nativePhrase)) {
-      return authored.map((t, i) => ({
+      return attachIntroGlosses(authored.map((t, i) => ({
         id: `${idPrefix}_dt${i}`,
         targetText: t.n,
         romanText: t.r,
         isSalient: !!t.salient,
-      }))
+      })), cycle)
     }
   }
 
@@ -2491,13 +2557,13 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       const tiles = buildWordTiles(romanPhrase, nativePhrase, {
         salientNativeTexts: salientNativeTexts(cycle), idPrefix,
       })
-      if (tiles && tiles.length > 0) return tiles
+      if (tiles && tiles.length > 0) return attachIntroGlosses(tiles, cycle)
     } else if (/\s/.test(nativePhrase.trim())) {
       // Space-separated script → word-pair tiling.
       const tiles = buildWordPairTiles(romanPhrase, nativePhrase, {
         salientNativeTexts: salientNativeTexts(cycle), idPrefix,
       })
-      if (tiles && tiles.length > 0) return tiles
+      if (tiles && tiles.length > 0) return attachIntroGlosses(tiles, cycle)
     } else {
       // Spaceless script (Japanese/Thai) → device word segmentation.
       const locale = SEGMENTER_LOCALE[courseCode.value?.split('_')[0] || '']
@@ -2507,12 +2573,12 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
           idPrefix,
           nativeRomajiDict: nativeRomajiDict.value,
         })
-        if (tiles && tiles.length > 0) return tiles
+        if (tiles && tiles.length > 0) return attachIntroGlosses(tiles, cycle)
       }
       // Intl.Segmenter unavailable / unknown locale → pair native onto the
       // romaji tiling by legoId.
       const raw = currentPhraseLegoBlocksRaw.value
-      if (raw.length > 0) return nativeFromRomanTiles(raw, legoNativeById.value)
+      if (raw.length > 0) return attachIntroGlosses(nativeFromRomanTiles(raw, legoNativeById.value), cycle)
     }
   }
   return currentPhraseLegoBlocksRaw.value
