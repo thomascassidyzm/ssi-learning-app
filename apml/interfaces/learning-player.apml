@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.12 (2026-06-07)
+# Version: 2.1.13 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -326,6 +326,19 @@ LISTENING_OVERLAY:
     forever; default OFF. Scene matching is by sceneNumber — PodScene has
     no `id` field (a former `s.id === selected.id` undefined comparison
     made every scene "advance" to scene 2).
+  background_lock_protocol: |
+    (2026-06-07) The overlay follows the SAME bg/lock rule as the main
+    flow, INF PLAY and pod laps: every playback gap advances on an audio
+    'ended' event, NEVER a bare setTimeout (iOS freezes timers on a
+    backgrounded/locked tab). The 50ms intra-turn and 800ms inter-turn
+    gaps play as genuinely-silent one-shot WAV clips on the same element
+    (ListeningAudioController.playSilence → playback/silentWav.ts, the
+    builder extracted from SimplePlayer's PAUSE fix). playbackRate
+    applies to the silence too, so faster speeds tighten gaps
+    proportionally. The 15s safety timeout inside play() remains as a
+    foreground fallback only. RULE for any new playback surface: a gap
+    is "a phase with audio", never "a phase with only a timer".
+
   speaker_colouring: |
     (Tom 2026-06-07) The voice-casting 4-colour-map principle, made
     VISIBLE: useListeningPods builds the pod-wide "shares a scene" graph

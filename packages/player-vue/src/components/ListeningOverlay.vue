@@ -5,6 +5,7 @@ import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepaliv
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
+import { buildSilentWavDataUri } from '../playback/silentWav'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -15,6 +16,8 @@ class ListeningAudioController {
   constructor() {
     this.audio = null
     this.playbackRate = 1
+    // ms → data: URI cache for the silent gap clips (two sizes in practice).
+    this.silenceCache = new Map()
   }
 
   setPlaybackRate(rate) {
@@ -22,6 +25,25 @@ class ListeningAudioController {
     if (this.audio) {
       this.audio.playbackRate = rate
     }
+  }
+
+  /**
+   * Background/lock-safe gap: play a genuinely-silent one-shot WAV on the
+   * SAME element the real clips use and resolve on its natural 'ended' —
+   * the same protocol as SimplePlayer's PAUSE phase. A bare setTimeout
+   * here freezes when iOS backgrounds/locks the tab, which killed the
+   * inter-turn advance (main flow / INF PLAY / pod laps all advance on
+   * 'ended' and survive; these gaps must too). playbackRate applies, so
+   * faster speeds tighten the gaps proportionally — desirable.
+   */
+  async playSilence(ms) {
+    if (!ms || ms <= 0) return
+    let uri = this.silenceCache.get(ms)
+    if (!uri) {
+      uri = buildSilentWavDataUri(ms / 1000)
+      this.silenceCache.set(ms, uri)
+    }
+    await this.play(uri)
   }
 
   async play(url) {
@@ -781,6 +803,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // speech rather than feeling like two separate utterances. The
   // longer 800ms inter-phrase gap below (between turns) carries the
   // speaker-change pause.
+  //
+  // BOTH gaps play as silent one-shot clips (playSilence), NOT bare
+  // setTimeouts — iOS freezes timers on a backgrounded/locked tab, so a
+  // timer-driven gap killed the advance the moment the screen locked.
+  // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
+  // protocol (see SimplePlayer's PAUSE phase).
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
     const audioUrl = getAudioUrl(playQueue[i])
@@ -791,7 +819,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
     if (i < playQueue.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await audioController.value.playSilence(50)
     }
   }
 
@@ -801,7 +829,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
 
   if (myPlaybackId !== playbackId) return
 
-  await new Promise(resolve => setTimeout(resolve, 800))
+  await audioController.value.playSilence(800)
 
   if (myPlaybackId !== playbackId) return
 
