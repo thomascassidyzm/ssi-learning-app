@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.8 (2026-06-07)
+# Version: 2.1.9 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -262,20 +262,24 @@ TILE_ASSEMBLY:
 
   intro_glosses:
     rule: |
-      (Tom 2026-06-07) Intro/debut keep the known-language gloss UNDER the
-      tiles — first presentation must let the learner match the pieces in
-      both languages ("cosa|azul / thing|blue"). attachIntroGlosses
-      (LearningPlayer) wraps every word-tiling strategy's output:
-      components (native side) are matched to contiguous tile runs and each
-      run's first tile gets the component's known as knownText (structural
-      particles keep their empty known — tile consumed, no gloss). A
-      single-tile LEGO gets the whole known text. If per-piece matching
-      isn't possible (A-LEGO, or tiling crossing a component boundary) the
-      word tiles MERGE back to ONE tile — the LEGO is the unit being
-      introduced — routing LegoAssembly into its legacy single-tile intro
-      mode (component grid + known row, whole-phrase romanisation as ruby).
-      Word-level tiling resumes from the first BUILD phrase. Known text
-      never shows outside intro/debut (existing LegoAssembly rule).
+      (Tom 2026-06-07, v2: tiles must be IDENTICAL to regular phrases)
+      Intro/debut show the known-language gloss UNDER the tiles — first
+      presentation must let the learner match the pieces in both languages
+      ("cosa|azul / thing|blue") — but the tiles and ruby themselves render
+      EXACTLY as the LEGO appears in a regular phrase; the gloss is purely
+      additive. attachIntroGlosses (LearningPlayer) wraps every word-tiling
+      strategy's output on intro/debut only: component targets (union of
+      componentsNative + components — a component whose roman form is NULL,
+      e.g. zho 你, only exists in the roman list with native fallback text)
+      claim contiguous tile runs, order-independently (DB returns component
+      phrases in arbitrary order), longest target first. Each tile gets a
+      glossGroup id; LegoAssembly's intro-gloss-groups template branch (a
+      v-if BEFORE carriage/single-tile modes) renders runs as flush tile
+      rows with the run's gloss centred underneath (.gloss-group-row /
+      .gloss-group-tile). Structural particles keep their empty known
+      (claimed run, no gloss); unmatched components simply don't gloss —
+      tiles are NEVER merged or re-tiled. Single-tile LEGOs get the whole
+      known text. Known text never shows outside intro/debut.
 
   typography:
     uniform_bold: |

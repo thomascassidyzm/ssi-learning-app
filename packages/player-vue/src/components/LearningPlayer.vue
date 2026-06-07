@@ -2448,26 +2448,21 @@ const nativeRomajiDict = computed<Map<string, string>>(() => {
 // Spaceless scripts → BCP-47 locale for the device word segmenter.
 const SEGMENTER_LOCALE: Record<string, string> = { jpn: 'ja', tha: 'th' }
 
-// Intro/debut: re-attach the known-language gloss to the tiles (Tom
-// 2026-06-07). The word-tiling strategies replaced the legacy single-tile
-// intro render, which carried the per-component known row — the
-// "cosa|azul / thing|blue" matching that makes a multi-piece LEGO's
-// componentisation visible in BOTH languages on first presentation.
+// Intro/debut: attach the known-language gloss UNDER the tiles (Tom
+// 2026-06-07). The tiles and ruby are IDENTICAL to how the LEGO renders in
+// a regular phrase — the gloss is purely additive, the "cosa|azul /
+// thing|blue" matching that makes a multi-piece LEGO's componentisation
+// visible in BOTH languages on first presentation.
 //
-// Each declared component (native side) is matched to a contiguous run of
-// tiles whose concatenated text equals the component's target
-// (whitespace/punctuation-normalised); its known gloss lands on the first
-// tile of the run (runs are almost always one tile). Structural particles
-// keep their empty known by design — their tile is consumed by the walk but
-// gets no gloss.
-//
-// When per-piece matching ISN'T possible (A-LEGO with no components, or
-// tiling that crosses a component boundary), the word tiles MERGE back into
-// one tile — the LEGO is the unit being introduced — which routes
-// LegoAssembly into its legacy single-tile intro mode: component grid with
-// the per-component known row when components exist, otherwise the whole
-// known text under the tile. The whole-phrase romanisation rides as the
-// ruby. Word-level tiling resumes from the first BUILD phrase onward.
+// Matching is order-independent and claim-based (component phrases come
+// back in arbitrary DB order): each declared component target — native and
+// roman variants both considered, longest first so a short component can't
+// steal a longer one's prefix — claims the earliest unclaimed contiguous
+// tile run whose concatenated text equals it (whitespace/punctuation-
+// normalised). Tiles get `glossGroup` ids so LegoAssembly can centre each
+// gloss under its whole run; structural particles keep their empty known
+// by design (claimed run, no gloss). Components that don't match cleanly
+// just don't gloss — tiles are NEVER reshaped, merged, or re-tiled.
 function attachIntroGlosses(tiles: LegoBlock[], cycle: any): LegoBlock[] {
   const t = (cycle?.type || '').toLowerCase()
   if (t !== 'intro' && t !== 'debut') return tiles
@@ -2476,42 +2471,57 @@ function attachIntroGlosses(tiles: LegoBlock[], cycle: any): LegoBlock[] {
     (s || '').replace(/\s+/g, '').replace(/[。、，．・「」『』！？.,!?…'’"“”]/g, '')
   const knownWhole = cycle?.known?.text || ''
   if (tiles.length === 1) {
-    return knownWhole ? [{ ...tiles[0], knownText: knownWhole }] : tiles
+    return knownWhole ? [{ ...tiles[0], knownText: knownWhole, glossGroup: 0 }] : tiles
   }
-  // Native-script component targets match the tiles' native targetText;
-  // the roman variant is the fallback for courses without a native set.
-  const comps = (cycle?.componentsNative || cycle?.components || []) as Array<{
-    known: string
-    target: string
-  }>
-  const aligned = (() => {
-    if (!Array.isArray(comps) || comps.length < 2) return null
-    const out = tiles.map((x) => ({ ...x }))
-    let ti = 0
-    for (const comp of comps) {
-      const target = norm(comp?.target)
-      if (!target) return null
+  // Union of both component variants: the native list matches the tiles'
+  // native targetText, but components whose roman form is NULL fall back
+  // to native text in the roman list (e.g. zho 你) and only appear there.
+  const comps = ([] as Array<{ known: string; target: string }>).concat(
+    (cycle?.componentsNative as any) || [],
+    (cycle?.components as any) || [],
+  )
+  if (comps.length === 0) return tiles
+  const out = tiles.map((x) => ({ ...x }))
+  const claimed: boolean[] = new Array(out.length).fill(false)
+  const runs: Array<{ start: number; end: number; known: string }> = []
+  const ordered = comps
+    .filter((c) => norm(c?.target))
+    .sort((a, b) => norm(b.target).length - norm(a.target).length)
+  for (const comp of ordered) {
+    const target = norm(comp.target)
+    for (let start = 0; start < out.length; start++) {
+      if (claimed[start]) continue
       let acc = ''
-      const start = ti
-      while (ti < out.length && acc.length < target.length) {
-        acc += norm(out[ti].targetText)
-        ti++
+      let i = start
+      while (i < out.length && !claimed[i] && acc.length < target.length) {
+        acc += norm(out[i].targetText)
+        i++
       }
-      if (acc !== target) return null
-      if (comp.known) out[start].knownText = comp.known
+      if (acc !== target) continue
+      for (let k = start; k < i; k++) claimed[k] = true
+      runs.push({ start, end: i - 1, known: comp.known || '' })
+      break
     }
-    return out
-  })()
-  if (aligned) return aligned
-  // No per-piece mapping → one tile for the one unit being introduced.
-  const merged: LegoBlock = {
-    id: tiles[0].id,
-    targetText: (cycle?.target as any)?.textNative || tiles.map((x) => x.targetText).join(''),
-    isSalient: true,
-    ...(cycle?.target?.text ? { romanText: cycle.target.text } : {}),
-    ...(knownWhole ? { knownText: knownWhole } : {}),
   }
-  return [merged]
+  if (runs.length === 0) return tiles
+  // Assign group ids in tile order: claimed runs share an id; every
+  // unclaimed tile is its own group. Gloss rides on the run's first tile.
+  runs.sort((a, b) => a.start - b.start)
+  let gid = 0
+  let ri = 0
+  for (let i = 0; i < out.length; ) {
+    if (ri < runs.length && runs[ri].start === i) {
+      for (let k = runs[ri].start; k <= runs[ri].end; k++) out[k].glossGroup = gid
+      if (runs[ri].known) out[runs[ri].start].knownText = runs[ri].known
+      i = runs[ri].end + 1
+      ri++
+    } else {
+      out[i].glossGroup = gid
+      i++
+    }
+    gid++
+  }
+  return out
 }
 
 // Final tiling consumed by the template. The tiling is always derived from the
