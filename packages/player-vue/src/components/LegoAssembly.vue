@@ -748,7 +748,10 @@ const sentenceScale = computed(() => {
   inset: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  /* Bottom-align so every tile BOX sits on the same baseline within a row; the
+     romanisation ruby floats above the tiles that have one, instead of pushing
+     ruby-less tiles up into a ragged line. */
+  align-items: flex-end;
   align-content: center;
   justify-content: center;
   gap: 0;

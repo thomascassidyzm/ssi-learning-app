@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript, buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from './alignRomanToNative'
+import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript, buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles, alignJapaneseRomaji } from './alignRomanToNative'
 
 describe('pinyinSyllableCount', () => {
   it('counts vowel nuclei per pinyin word', () => {
@@ -204,6 +204,24 @@ describe('buildSegmentedTiles — device word segmentation (Japanese/Thai)', () 
     const tiles = buildSegmentedTiles('ผมอาทิตย์', 'phom a thit', 'th', { nativeRomajiDict: dict })!
     const aathit = tiles.find(t => t.targetText === 'อาทิตย์')
     expect(aathit?.romanText).toBe('a thit')
+  })
+
+  it('forced-aligns Japanese romaji to every segmented tile (kanji included)', () => {
+    // The exact dev cases where tiles were showing blank.
+    expect(alignJapaneseRomaji(['止め', 'たい', 'と', '思う'], 'yametai to omou.'))
+      .toEqual(['yame', 'tai', 'to', 'omou'])
+    expect(alignJapaneseRomaji(['す', 'ごく', 'する', 'の', 'が', '好き'], 'sugoku suru no ga suki'))
+      .toEqual(['su', 'goku', 'suru', 'no', 'ga', 'suki'])
+    expect(alignJapaneseRomaji(
+      ['学び', '始め', 'た', 'ことに', 'は', '満足', 'し', 'てる'],
+      'manabi hajimeta koto ni wa manzoku shiteru',
+    )).toEqual(['manabi', 'hajime', 'ta', 'kotoni', 'wa', 'manzoku', 'shi', 'teru'])
+  })
+
+  it('uses the forced aligner inside buildSegmentedTiles (no blank ruby)', () => {
+    const tiles = buildSegmentedTiles('すごくするのが好き', 'sugoku suru no ga suki', 'ja')!
+    expect(tiles.map(t => t.romanText)).toEqual(['su', 'goku', 'suru', 'no', 'ga', 'suki'])
+    expect(tiles.every(t => !!t.romanText)).toBe(true)
   })
 
   it('marks salient words from the salient LEGO text', () => {

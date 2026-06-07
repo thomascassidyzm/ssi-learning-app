@@ -297,6 +297,92 @@ export function buildWordPairTiles(
   }))
 }
 
+// Hiragana → romaji candidates (Hepburn + common variants). Used only to ANCHOR
+// the phrase's own romanisation to the device-segmented native words — the romaji
+// text shown comes from the phrase itself, so this just needs to find match
+// positions. Katakana folds onto hiragana (code - 0x60). Kanji, ー and small っ
+// are treated as gaps whose romaji is recovered from between anchors.
+const HIRA: Record<string, string[]> = {
+  あ:['a'],い:['i'],う:['u'],え:['e'],お:['o'],
+  か:['ka'],き:['ki'],く:['ku'],け:['ke'],こ:['ko'],
+  が:['ga'],ぎ:['gi'],ぐ:['gu'],げ:['ge'],ご:['go'],
+  さ:['sa'],し:['shi','si'],す:['su'],せ:['se'],そ:['so'],
+  ざ:['za'],じ:['ji','zi'],ず:['zu'],ぜ:['ze'],ぞ:['zo'],
+  た:['ta'],ち:['chi','ti'],つ:['tsu','tu'],て:['te'],と:['to'],
+  だ:['da'],ぢ:['ji','di'],づ:['zu','du'],で:['de'],ど:['do'],
+  な:['na'],に:['ni'],ぬ:['nu'],ね:['ne'],の:['no'],
+  は:['ha','wa'],ひ:['hi'],ふ:['fu','hu'],へ:['he','e'],ほ:['ho'],
+  ば:['ba'],び:['bi'],ぶ:['bu'],べ:['be'],ぼ:['bo'],
+  ぱ:['pa'],ぴ:['pi'],ぷ:['pu'],ぺ:['pe'],ぽ:['po'],
+  ま:['ma'],み:['mi'],む:['mu'],め:['me'],も:['mo'],
+  や:['ya'],ゆ:['yu'],よ:['yo'],
+  ら:['ra'],り:['ri'],る:['ru'],れ:['re'],ろ:['ro'],
+  わ:['wa'],を:['o','wo'],ん:['n','m'],ゔ:['vu'],
+}
+const YOUON: Record<string, string[]> = {
+  きゃ:['kya'],きゅ:['kyu'],きょ:['kyo'],ぎゃ:['gya'],ぎゅ:['gyu'],ぎょ:['gyo'],
+  しゃ:['sha','sya'],しゅ:['shu','syu'],しょ:['sho','syo'],じゃ:['ja','zya'],じゅ:['ju','zyu'],じょ:['jo','zyo'],
+  ちゃ:['cha','tya'],ちゅ:['chu','tyu'],ちょ:['cho','tyo'],
+  にゃ:['nya'],にゅ:['nyu'],にょ:['nyo'],ひゃ:['hya'],ひゅ:['hyu'],ひょ:['hyo'],
+  びゃ:['bya'],びゅ:['byu'],びょ:['byo'],ぴゃ:['pya'],ぴゅ:['pyu'],ぴょ:['pyo'],
+  みゃ:['mya'],みゅ:['myu'],みょ:['myo'],りゃ:['rya'],りゅ:['ryu'],りょ:['ryo'],
+}
+function toHira(ch: string): string {
+  const c = ch.charCodeAt(0)
+  return c >= 0x30a1 && c <= 0x30f6 ? String.fromCharCode(c - 0x60) : ch
+}
+/** Romaji candidates for the kana unit at index i (handles 2-char youon), or
+ *  null for kanji / ー / small っ — which become gaps filled from the stream. */
+function kanaUnit(chars: string[], i: number): { cands: string[]; len: number } | null {
+  const a = toHira(chars[i])
+  const b = i + 1 < chars.length ? toHira(chars[i + 1]) : ''
+  if (b && (a === 'ゃ' || a === 'ゅ' || a === 'ょ')) return null
+  if (b && YOUON[a + b]) return { cands: YOUON[a + b], len: 2 }
+  if (HIRA[a]) return { cands: HIRA[a], len: 1 }
+  return null
+}
+
+/**
+ * Forced-align a Japanese phrase's romanisation onto device-segmented native
+ * words. Kana are anchors (their romaji is found in the phrase romaji); kanji,
+ * ー and っ are gaps whose romaji is whatever sits between anchors. Returns one
+ * romaji string per native word, or null if any word couldn't be filled.
+ *
+ * e.g. ['止め','たい','と','思う'] + 'yametai to omou' → ['yame','tai','to','omou']
+ *      ('止め'='yame' — the kanji reading is recovered from the stream gap.)
+ */
+export function alignJapaneseRomaji(nativeWords: string[], phraseRomaji: string): string[] | null {
+  const stream = (phraseRomaji || '').toLowerCase().replace(/[^a-z]/g, '')
+  if (!stream || nativeWords.length === 0) return null
+  const out = nativeWords.map(() => '')
+  let pos = 0
+  let pendingWord = -1 // word owning the kanji/gap chars not yet attributed
+  for (let wi = 0; wi < nativeWords.length; wi++) {
+    const chars = [...nativeWords[wi]]
+    for (let ci = 0; ci < chars.length; ) {
+      const unit = kanaUnit(chars, ci)
+      if (!unit) { if (pendingWord < 0) pendingWord = wi; ci += 1; continue }
+      let at = -1, len = 0
+      for (const cand of unit.cands) {
+        const idx = stream.indexOf(cand, pos)
+        if (idx >= 0 && (at < 0 || idx < at)) { at = idx; len = cand.length }
+      }
+      if (at < 0) { if (pendingWord < 0) pendingWord = wi; ci += unit.len; continue }
+      if (at > pos) out[pendingWord >= 0 ? pendingWord : wi] += stream.slice(pos, at)
+      out[wi] += stream.slice(at, at + len)
+      pos = at + len
+      pendingWord = -1
+      ci += unit.len
+    }
+  }
+  if (pos === 0) return null // nothing anchored (e.g. no kana at all)
+  if (pos < stream.length) out[pendingWord >= 0 ? pendingWord : out.length - 1] += stream.slice(pos)
+  // Partial result is fine: words the aligner couldn't anchor come back empty and
+  // the caller fills them from the dictionary. Anchored words are always correct
+  // (positions are found absolutely), so empties never mean WRONG romaji.
+  return out
+}
+
 export interface SegmentedTileOptions extends WordPairOptions {
   /** native word → romanisation, from the course's own legos/atoms — used to
    *  fill the ruby when the phrase's romanisation doesn't split 1:1 with the
@@ -343,6 +429,10 @@ export function buildSegmentedTiles(
   const romanWords = romanPhrase.trim().split(/\s+/).filter(Boolean)
   const countMatch = romanWords.length === nativeWords.length
   const dict = opts.nativeRomajiDict
+  // Japanese: forced-align the phrase romaji onto the segmented words (kana
+  // anchors + kanji gaps), so every tile gets its reading even when the romaji's
+  // word boundaries differ from the device's segmentation.
+  const aligned = locale.startsWith('ja') ? alignJapaneseRomaji(nativeWords, romanPhrase) : null
 
   // Salient native-word indices: the salient LEGO text is unsegmented, so locate
   // it by character offset within the concatenated native words.
@@ -361,7 +451,7 @@ export function buildSegmentedTiles(
 
   const prefix = opts.idPrefix || 'w'
   return nativeWords.map((nw, i) => {
-    const roman = countMatch ? romanWords[i] : (dict?.get(nw) || '')
+    const roman = (aligned && aligned[i]) || (countMatch ? romanWords[i] : (dict?.get(nw) || ''))
     const [a, b] = offsets[i]
     return {
       id: `${prefix}_${i}`,
