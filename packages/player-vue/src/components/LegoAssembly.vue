@@ -582,7 +582,12 @@ const sentenceScale = computed(() => {
             </div>
           </div>
         </div>
-        <span v-if="group.known" class="block-known">{{ group.known }}</span>
+        <!-- Gloss line rendered for EVERY run, even empty ones (structural
+             particles): the assembly bottom-aligns the groups, so a missing
+             gloss line would push that run's tile DOWN by one line relative
+             to glossed neighbours. Reserving the space keeps every tile on
+             the same baseline. -->
+        <span class="block-known gloss-group-known">{{ group.known }}</span>
       </div>
     </template>
 
@@ -1137,6 +1142,13 @@ const sentenceScale = computed(() => {
   flex-direction: column;
   align-items: center;
   gap: 3px;              /* ruby → tile spacing, matches .lego-block-wrapper */
+}
+/* Reserve one gloss line on every run (glossed or not) so the bottom-aligned
+   groups keep their TILES on a shared baseline — a particle's empty gloss
+   must occupy the same height as its neighbours' known text. nowrap on
+   .block-known guarantees the line never grows past this. */
+.gloss-group-known {
+  min-height: 1.4em;
 }
 
 /* Romanised ruby line (pinyin / romaji / transliteration) above a tile.

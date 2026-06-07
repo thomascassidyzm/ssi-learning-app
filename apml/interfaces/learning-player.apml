@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.9 (2026-06-07)
+# Version: 2.1.10 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -279,7 +279,11 @@ TILE_ASSEMBLY:
       .gloss-group-tile). Structural particles keep their empty known
       (claimed run, no gloss); unmatched components simply don't gloss —
       tiles are NEVER merged or re-tiled. Single-tile LEGOs get the whole
-      known text. Known text never shows outside intro/debut.
+      known text. Known text never shows outside intro/debut. The gloss
+      line is RESERVED on every run (min-height, even when empty — e.g. a
+      structural particle's silent gloss): the assembly bottom-aligns the
+      groups, so a missing line would push that run's tile down by one
+      gloss-height relative to its neighbours.
 
   typography:
     uniform_bold: |
