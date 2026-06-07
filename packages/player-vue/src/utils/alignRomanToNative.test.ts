@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript, buildWordTiles, buildWordPairTiles, nativeFromRomanTiles } from './alignRomanToNative'
+import { pinyinSyllableCount, sliceNativeByRoman, applyDualScript, buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from './alignRomanToNative'
 
 describe('pinyinSyllableCount', () => {
   it('counts vowel nuclei per pinyin word', () => {
@@ -181,5 +181,37 @@ describe('nativeFromRomanTiles — spaceless scripts (Japanese/Thai)', () => {
     const out = nativeFromRomanTiles(romanTiles, new Map())
     expect(out[0].targetText).toBe('ga')
     expect(out[0].romanText).toBeUndefined()
+  })
+})
+
+describe('buildSegmentedTiles — device word segmentation (Japanese/Thai)', () => {
+  it('segments native into words on-device and pairs romaji positionally', () => {
+    const tiles = buildSegmentedTiles('友だちに時間をあげる', 'tomodachi ni jikan o ageru', 'ja')!
+    expect(tiles).not.toBeNull()
+    expect(tiles.map(t => t.targetText)).toEqual(['友だち', 'に', '時間', 'を', 'あげる'])
+    expect(tiles.map(t => t.romanText)).toEqual(['tomodachi', 'ni', 'jikan', 'o', 'ageru'])
+  })
+
+  it('segments Thai into words', () => {
+    const tiles = buildSegmentedTiles('ผมอยากพูดภาษาไทย', 'phom yak phut phasa thai', 'th')!
+    expect(tiles.map(t => t.targetText)).toEqual(['ผม', 'อยาก', 'พูด', 'ภาษา', 'ไทย'])
+    expect(tiles.map(t => t.romanText)).toEqual(['phom', 'yak', 'phut', 'phasa', 'thai'])
+  })
+
+  it('falls back to the native→romaji dictionary when counts disagree', () => {
+    // romaji over-splits อาทิตย์ into "a thit" → counts differ → dict lookup
+    const dict = new Map([['ผม', 'phom'], ['อาทิตย์', 'a thit']])
+    const tiles = buildSegmentedTiles('ผมอาทิตย์', 'phom a thit', 'th', { nativeRomajiDict: dict })!
+    const aathit = tiles.find(t => t.targetText === 'อาทิตย์')
+    expect(aathit?.romanText).toBe('a thit')
+  })
+
+  it('marks salient words from the salient LEGO text', () => {
+    const tiles = buildSegmentedTiles('友だちに時間をあげる', 'tomodachi ni jikan o ageru', 'ja', {
+      salientNativeTexts: ['時間'],
+    })!
+    const jikan = tiles.find(t => t.targetText === '時間')
+    expect(jikan?.isSalient).toBe(true)
+    expect(tiles.find(t => t.targetText === '友だち')?.isSalient).toBe(false)
   })
 })

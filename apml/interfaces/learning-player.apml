@@ -228,13 +228,17 @@ TILE_ASSEMBLY:
             a whole clause). Salient from the salient LEGO's native text. Ruby
             LTR + bidi-isolated for RTL. Null on count mismatch → native-pair."
       validated: "word-parity 94% (ara) – 100% (rus/hin/bul/heb)."
-    spaceless_native_pair:
+    spaceless_device_segmented:
       langs: "jpn, tha (Thai)"
-      how: "nativeFromRomanTiles — native can't be sliced or word-split, so tile
-            from the romaji decomposition (the working one) and swap each tile's
-            native text in by legoId; romaji stays as ruby. Unmatched ghost
-            tokens stay romaji WORDS (readable), not native char-ghosts."
-      validated: "native-paired w/ atoms in map: tha 96.6%, jpn 83.1%."
+      how: "buildSegmentedTiles — the DEVICE segments the native sentence into
+            words via Intl.Segmenter(locale,'word') (ICU dictionaries, ja/th),
+            so tiling does NOT depend on the backend decomposition (which is
+            39-69% ghost for these). Romaji per tile = positional phrase-romaji
+            when word counts match, else course native→romaji dict (legos+atoms);
+            unmatched words show native with no ruby (still parseable). Salient
+            by char-offset of the salient LEGO text. Old engines w/o
+            Intl.Segmenter → nativeFromRomanTiles fallback."
+      validated: "romaji coverage ~96% (tha) / ~80% (jpn); native tiling 100%."
     latin:
       langs: "spa/fra/deu/… (no target_text_roman)"
       how: "hasRomanizedText=false → raw romanised tiling unchanged, no ruby."

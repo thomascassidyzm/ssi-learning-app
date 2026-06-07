@@ -297,6 +297,81 @@ export function buildWordPairTiles(
   }))
 }
 
+export interface SegmentedTileOptions extends WordPairOptions {
+  /** native word → romanisation, from the course's own legos/atoms — used to
+   *  fill the ruby when the phrase's romanisation doesn't split 1:1 with the
+   *  device's word segmentation. */
+  nativeRomajiDict?: Map<string, string>
+}
+
+/**
+ * Tile a spaceless script (Japanese, Thai) by asking the DEVICE to segment the
+ * native sentence into words — `Intl.Segmenter(locale, {granularity:'word'})`
+ * uses the platform's built-in ICU dictionaries (Japanese/Thai/Chinese), so we
+ * get genuinely parseable native word tiles with NO dependency on the (sparse,
+ * ghost-heavy) backend decomposition.
+ *
+ * Romaji ruby per tile:
+ *  - if the phrase's romanisation splits into the same number of words, pair
+ *    positionally (uses the actual romanisation, inflection-correct);
+ *  - otherwise look each native word up in nativeRomajiDict (the course's
+ *    lego/atom native→romaji pairs). Words in neither just show without a ruby
+ *    (still native, still parseable).
+ *
+ * Returns null when Intl.Segmenter is unavailable (old engines) so the caller
+ * can fall back.
+ */
+export function buildSegmentedTiles(
+  nativePhrase: string,
+  romanPhrase: string,
+  locale: string,
+  opts: SegmentedTileOptions = {},
+): LegoBlock[] | null {
+  const Seg = (Intl as any)?.Segmenter
+  if (!Seg || !nativePhrase) return null
+  let nativeWords: string[]
+  try {
+    const seg = new Seg(locale, { granularity: 'word' })
+    nativeWords = [...seg.segment(nativePhrase)]
+      .filter((s: any) => s.isWordLike)
+      .map((s: any) => s.segment as string)
+  } catch {
+    return null
+  }
+  if (nativeWords.length === 0) return null
+
+  const romanWords = romanPhrase.trim().split(/\s+/).filter(Boolean)
+  const countMatch = romanWords.length === nativeWords.length
+  const dict = opts.nativeRomajiDict
+
+  // Salient native-word indices: the salient LEGO text is unsegmented, so locate
+  // it by character offset within the concatenated native words.
+  const concat = nativeWords.join('')
+  const offsets: Array<[number, number]> = []
+  let pos = 0
+  for (const w of nativeWords) { offsets.push([pos, pos + w.length]); pos += w.length }
+  const salientRanges: Array<[number, number]> = []
+  for (const s of opts.salientNativeTexts || []) {
+    if (!s) continue
+    const idx = concat.indexOf(s.replace(/\s+/g, ''))
+    if (idx >= 0) salientRanges.push([idx, idx + s.replace(/\s+/g, '').length])
+  }
+  const anySalient = salientRanges.length > 0
+  const overlaps = (a: number, b: number) => salientRanges.some(([s, e]) => a < e && b > s)
+
+  const prefix = opts.idPrefix || 'w'
+  return nativeWords.map((nw, i) => {
+    const roman = countMatch ? romanWords[i] : (dict?.get(nw) || '')
+    const [a, b] = offsets[i]
+    return {
+      id: `${prefix}_${i}`,
+      targetText: nw,
+      ...(roman ? { romanText: roman } : {}),
+      isSalient: anySalient ? overlaps(a, b) : true,
+    }
+  })
+}
+
 /**
  * Pair native text onto an existing ROMANISED LEGO tiling, for scripts where the
  * native side can't be word-split or sliced (Japanese, Thai). The romanisation

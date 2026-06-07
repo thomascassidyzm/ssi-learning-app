@@ -49,7 +49,7 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
-import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles } from '../utils/alignRomanToNative'
+import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
 import ListeningOverlay from './ListeningOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useScriptMode } from '../composables/useScriptMode'
@@ -2430,14 +2430,33 @@ function salientNativeTexts(cycle: any): string[] {
   return []
 }
 
-// Merged native LEGO map (legoId → native script), used to pair native text
-// onto the romaji tiling for spaceless scripts (Japanese/Thai). Round-derived
-// wins over the course-wide map (freshest for the loaded rounds).
+// Merged native LEGO map (legoId → native script), used by the old-browser
+// fallback that pairs native onto the romaji tiling.
 const legoNativeById = computed<Map<string, string>>(() => {
   const m = new Map<string, string>(globalLegoTargetTextNativeMap.value)
   for (const [id, text] of legoTargetTextNativeMap.value.entries()) m.set(id, text)
   return m
 })
+
+// native word → romanisation dictionary, built from the course's own LEGOs and
+// component atoms (native and roman maps share legoId / atom-synth-id keys). The
+// device-segmentation path uses this to fill a tile's ruby when the phrase's
+// romanisation doesn't split 1:1 with the segmented native words.
+const nativeRomajiDict = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>()
+  const add = (native: Map<string, string>, roman: Map<string, string>) => {
+    for (const [id, nat] of native.entries()) {
+      const rom = roman.get(id)
+      if (nat && rom && !m.has(nat)) m.set(nat, rom)
+    }
+  }
+  add(globalLegoTargetTextNativeMap.value, globalLegoTargetTextMap.value)
+  add(legoTargetTextNativeMap.value, legoTargetTextMap.value)
+  return m
+})
+
+// Spaceless scripts → BCP-47 locale for the device word segmenter.
+const SEGMENTER_LOCALE: Record<string, string> = { jpn: 'ja', tha: 'th' }
 
 // Final tiling consumed by the template. The tiling is always derived from the
 // ROMANISED side (the reliably-segmented one); the native script is the primary
@@ -2445,8 +2464,9 @@ const legoNativeById = computed<Map<string, string>>(() => {
 //  - Mandarin (zho): pinyin-word tiles, hanzi sliced 1-per-syllable.
 //  - Space-separated scripts: word-pair tiles (native↔romaji word-for-word) —
 //    finer than the LEGO decomposition, whose salient can be a whole clause.
-//  - Spaceless un-sliceable scripts (Japanese/Thai): tile from the romaji
-//    decomposition, then pair each tile's native text in by legoId.
+//  - Spaceless scripts (Japanese/Thai): the DEVICE segments the native into
+//    words (Intl.Segmenter); romaji is paired positionally or via the course's
+//    native→romaji dictionary. No dependency on the backend decomposition.
 //  - Latin-script courses: raw romanised tiling unchanged (no romanisation).
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
@@ -2455,23 +2475,34 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const nativePhrase = (cycle.target as any)?.textNative || ''
   const idPrefix = cycle.legoId || currentRound.value?.legoId || cycle.id || 'w'
 
-  if (hasRomanizedText.value && romanPhrase) {
-    if (isMandarin.value && nativePhrase) {
+  if (hasRomanizedText.value && romanPhrase && nativePhrase) {
+    if (isMandarin.value) {
       const tiles = buildWordTiles(romanPhrase, nativePhrase, {
         salientNativeTexts: salientNativeTexts(cycle), idPrefix,
       })
       if (tiles && tiles.length > 0) return tiles
-    } else if (nativePhrase && /\s/.test(nativePhrase.trim())) {
+    } else if (/\s/.test(nativePhrase.trim())) {
       // Space-separated script → word-pair tiling.
       const tiles = buildWordPairTiles(romanPhrase, nativePhrase, {
         salientNativeTexts: salientNativeTexts(cycle), idPrefix,
       })
       if (tiles && tiles.length > 0) return tiles
+    } else {
+      // Spaceless script (Japanese/Thai) → device word segmentation.
+      const locale = SEGMENTER_LOCALE[courseCode.value?.split('_')[0] || '']
+      if (locale) {
+        const tiles = buildSegmentedTiles(nativePhrase, romanPhrase, locale, {
+          salientNativeTexts: salientNativeTexts(cycle),
+          idPrefix,
+          nativeRomajiDict: nativeRomajiDict.value,
+        })
+        if (tiles && tiles.length > 0) return tiles
+      }
+      // Intl.Segmenter unavailable / unknown locale → pair native onto the
+      // romaji tiling by legoId.
+      const raw = currentPhraseLegoBlocksRaw.value
+      if (raw.length > 0) return nativeFromRomanTiles(raw, legoNativeById.value)
     }
-    // Spaceless script (Japanese/Thai), or the above fell through on a data
-    // defect: take the romaji tiling and pair native in by legoId.
-    const raw = currentPhraseLegoBlocksRaw.value
-    if (raw.length > 0) return nativeFromRomanTiles(raw, legoNativeById.value)
   }
   return currentPhraseLegoBlocksRaw.value
 })
