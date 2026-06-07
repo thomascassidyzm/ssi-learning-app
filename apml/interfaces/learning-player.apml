@@ -205,29 +205,39 @@ TILE_ASSEMBLY:
     learner drops the crutch as recognition builds. Three tiling strategies are
     dispatched by script shape (utils/alignRomanToNative.ts):
 
+  key_principle: |
+    Tiling is ALWAYS derived from the ROMANISED side (the reliably-segmented one
+    — word spaces or syllables). currentPhraseLegoBlocksRaw builds on romanised
+    (useNative=false); currentPhraseLegoBlocks then produces the native-primary
+    display per script. Lesson from the first cut: the NATIVE decomposition is
+    unreliable for spaceless scripts (Japanese's is mostly ghost characters),
+    whereas the romaji decomposes cleanly.
+
   strategies:
     mandarin_pinyin_word:
       langs: "zho"
-      how: "A Mandarin LEGO can be a whole spaceless clause, so tile by PINYIN
-            WORD (buildWordTiles): 1 hanzi = 1 syllable, each pinyin word
-            consumes its syllable-count of hanzi (erhua 儿 + apostrophe
-            handled). LEGO decomposition only marks the salient tiles."
+      how: "buildWordTiles — tile by pinyin word; 1 hanzi = 1 syllable, each
+            pinyin word consumes its syllable-count of hanzi (erhua 儿 +
+            apostrophe). LEGO decomposition only marks salient tiles."
       validated: "zho_for_eng: 5436 tiled, salient located 100%."
-    spaced_word_zip:
-      langs: "kor, rus, ell (Greek), hye (Armenian), ara (Arabic, RTL)"
-      how: "Native already tiles by LEGO (has word spaces). attachRuby word-zips
-            the phrase romanisation onto the tiles word-for-word (uses the
-            actual romanisation, so inflection tracks). Ruby forced LTR."
-      validated: "word-parity 94% (ara) – 99.6% (kor); misses → no ruby."
-    spaceless_per_lego:
-      langs: "jpn (Japanese)"
-      how: "romaji↔kana/kanji is not word-aligned, so attachRuby looks each
-            tile's romanisation up by legoId (nativeSpaced=false disables
-            word-zip so a coincidental count match can't mis-assign). Ghost
-            character tiles get no ruby."
+    spaced_word_pair:
+      langs: "kor, rus, ell, hye, ara, hin, ukr, fas, bul, heb (RTL: ara/fas/heb)"
+      how: "buildWordPairTiles — native and romanisation are both whitespace-
+            segmented and 1:1, so zip into one tile per word (native primary,
+            romaji ruby). FINER than the LEGO decomposition (whose salient can be
+            a whole clause). Salient from the salient LEGO's native text. Ruby
+            LTR + bidi-isolated for RTL. Null on count mismatch → native-pair."
+      validated: "word-parity 94% (ara) – 100% (rus/hin/bul/heb)."
+    spaceless_native_pair:
+      langs: "jpn, tha (Thai)"
+      how: "nativeFromRomanTiles — native can't be sliced or word-split, so tile
+            from the romaji decomposition (the working one) and swap each tile's
+            native text in by legoId; romaji stays as ruby. Unmatched ghost
+            tokens stay romaji WORDS (readable), not native char-ghosts."
+      validated: "native-paired w/ atoms in map: tha 96.6%, jpn 83.1%."
     latin:
       langs: "spa/fra/deu/… (no target_text_roman)"
-      how: "hasRomanizedText=false → raw tiling unchanged, no ruby."
+      how: "hasRomanizedText=false → raw romanised tiling unchanged, no ruby."
 
   script_toggle:
     composable: "composables/useScriptMode.ts (per-course localStorage)"

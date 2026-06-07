@@ -239,70 +239,82 @@ export function buildWordTiles(
   })
 }
 
-const LETTER_RE = /\p{L}/u
-/** Whitespace tokens that contain at least one letter — drops pure-punctuation
- *  tokens (。？،) so they don't throw off the word count. */
-function letterWords(text: string): string[] {
-  return text.trim().split(/\s+/).filter(w => LETTER_RE.test(w))
+const PUNCT_STRIP = /[.,!?;:¡¿"“”„«»。、！？；：؟،…]+/gu
+function normWord(w: string): string {
+  return w.toLowerCase().replace(PUNCT_STRIP, '').trim()
+}
+
+export interface WordPairOptions {
+  /** Native-script text(s) of the salient LEGO(s) — word tiles inside one of
+   *  these get isSalient=true. None matched → every tile is salient. */
+  salientNativeTexts?: string[]
+  idPrefix?: string
 }
 
 /**
- * Attach a romanisation ruby (`block.romanText`) to an existing NATIVE-script
- * LEGO tiling, for non-Chinese scripts. Two strategies, chosen by data shape:
+ * Tile a phrase by WORD for space-separated scripts (Korean, Russian, Greek,
+ * Armenian, Arabic, Hindi, Ukrainian, Persian, Bulgarian, Hebrew).
  *
- *  1. Word-zip (space-separated scripts — Korean, Russian, Greek, Armenian,
- *     Arabic): the transliteration maps word-for-word onto the native text, so
- *     each tile takes as many romanised words as it has native words, in order.
- *     Uses the phrase's actual romanisation, so it tracks inflection exactly.
+ * Native and romanisation are both whitespace-segmented and map one-for-one, so
+ * we zip them into one tile per word: native word as the primary glyph, the
+ * matching romanised word as the ruby. This goes FINER than the LEGO
+ * decomposition (whose salient can be a whole clause) — the romanisation's word
+ * spacing is the parseable unit. Salient tiles are marked from the salient
+ * LEGO's native text.
  *
- *  2. Per-LEGO lookup (scripts without word-spacing / word parity — Japanese):
- *     each tile shows its own LEGO's stored transliteration, keyed by legoId.
- *
- * Tiles that resolve to neither are left without a ruby. Native text and tile
- * boundaries are never changed — only the annotation is added.
+ * Returns null when the word counts don't line up (rare romanisations that join
+ * two words) so the caller can fall back.
  */
-export interface AttachRubyOptions {
-  /** True when the native script uses word spaces (Korean/Russian/Greek/
-   *  Armenian/Arabic). Only then is word-zip attempted — for spaceless scripts
-   *  (Japanese) a coincidental word-count match would mis-assign, so we skip
-   *  straight to per-LEGO lookup. */
-  nativeSpaced?: boolean
-  /** legoId → romanisation, for the per-LEGO fallback (Japanese). */
-  legoRomanById?: Map<string, string>
+export function buildWordPairTiles(
+  romanPhrase: string,
+  nativePhrase: string,
+  opts: WordPairOptions = {},
+): LegoBlock[] | null {
+  const nativeWords = nativePhrase.trim().split(/\s+/).filter(Boolean)
+  const romanWords = romanPhrase.trim().split(/\s+/).filter(Boolean)
+  if (nativeWords.length === 0 || nativeWords.length !== romanWords.length) return null
+
+  const normNative = nativeWords.map(normWord)
+  const salient = new Set<number>()
+  for (const s of opts.salientNativeTexts || []) {
+    const sw = s.trim().split(/\s+/).map(normWord).filter(Boolean)
+    if (sw.length === 0) continue
+    for (let i = 0; i + sw.length <= normNative.length; i++) {
+      let match = true
+      for (let k = 0; k < sw.length; k++) {
+        if (normNative[i + k] !== sw[k]) { match = false; break }
+      }
+      if (match) for (let k = 0; k < sw.length; k++) salient.add(i + k)
+    }
+  }
+  const anySalient = salient.size > 0
+  const prefix = opts.idPrefix || 'w'
+  return nativeWords.map((nw, i) => ({
+    id: `${prefix}_${i}`,
+    targetText: nw,
+    romanText: romanWords[i],
+    isSalient: anySalient ? salient.has(i) : true,
+  }))
 }
 
-export function attachRuby(
-  blocks: LegoBlock[],
-  romanPhrase: string,
-  opts: AttachRubyOptions = {},
+/**
+ * Pair native text onto an existing ROMANISED LEGO tiling, for scripts where the
+ * native side can't be word-split or sliced (Japanese, Thai). The romanisation
+ * decomposes cleanly into LEGO tiles; for each tile we swap in the LEGO's native
+ * text (by legoId) as the primary glyph and keep the romanisation as the ruby.
+ * Tiles whose id isn't a known LEGO (ghost tokens) stay romanised with no ruby —
+ * better than the ghost-character native tiling the backend produces here.
+ */
+export function nativeFromRomanTiles(
+  romanBlocks: LegoBlock[],
+  nativeById: Map<string, string>,
 ): LegoBlock[] {
-  if (blocks.length === 0) return blocks
-  const { nativeSpaced = true, legoRomanById } = opts
-  const romanWords = letterWords(romanPhrase || '')
-  const counts = blocks.map(b => letterWords(b.targetText).length)
-  const total = counts.reduce((a, b) => a + b, 0)
-
-  if (nativeSpaced && total > 0 && romanWords.length === total) {
-    let cur = 0
-    return blocks.map((b, i) => {
-      const n = counts[i]
-      if (n === 0) return b
-      const slice = romanWords.slice(cur, cur + n)
-      cur += n
-      return { ...b, romanText: slice.join(' ') }
-    })
-  }
-
-  if (legoRomanById && legoRomanById.size > 0) {
-    let any = false
-    const out = blocks.map(b => {
-      const r = legoRomanById.get(b.id)
-      if (r) { any = true; return { ...b, romanText: r } }
-      return b
-    })
-    if (any) return out
-  }
-  return blocks
+  if (romanBlocks.length === 0) return romanBlocks
+  return romanBlocks.map(b => {
+    const native = nativeById.get(b.id)
+    if (native) return { ...b, targetText: native, romanText: b.targetText }
+    return b
+  })
 }
 
 /**

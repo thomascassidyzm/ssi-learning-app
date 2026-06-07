@@ -49,7 +49,7 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
-import { buildWordTiles, attachRuby } from '../utils/alignRomanToNative'
+import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles } from '../utils/alignRomanToNative'
 import ListeningOverlay from './ListeningOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useScriptMode } from '../composables/useScriptMode'
@@ -2075,15 +2075,16 @@ const soloComponentIds = computed<Set<string>>(() => {
 })
 
 // Current phrase's LEGO blocks for the assembly view.
-// Raw LEGO-based tiling. For romanised (non-Latin-script) courses the native
-// script is ALWAYS the primary glyph here — the script toggle controls only the
-// romanisation ruby, attached in currentPhraseLegoBlocks below. Mandarin (zho)
-// bypasses this entirely and tiles by PINYIN WORD instead, because a Mandarin
-// LEGO can be a whole clause that is unparseable as a single hanzi tile.
+// Raw tiling — ALWAYS segmented on the ROMANISED script, the side that
+// decomposes cleanly (word spaces / syllables). currentPhraseLegoBlocks below
+// turns this into the native-primary display per script: pinyin-syllable tiles
+// (Mandarin), word-pair tiles (spaced scripts), or native-paired-onto-romaji
+// tiles (Japanese/Thai). For Latin-script courses the romanised form IS the
+// only form, so this passes through unchanged.
 const currentPhraseLegoBlocksRaw = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  const useNative = hasRomanizedText.value
+  const useNative = false
   if (!cycle.componentLegoIds?.length) {
     // Detect intro/debut/component cycles from the cycle.type field —
     // authoritative and works for both the legacy script-generator
@@ -2429,48 +2430,50 @@ function salientNativeTexts(cycle: any): string[] {
   return []
 }
 
-// Merged roman LEGO map (legoId → romanisation), for the per-LEGO ruby fallback
-// used by scripts without word-spacing (Japanese). Round-derived wins over the
-// course-wide map (it's the freshest source for the loaded rounds).
-const legoRomanById = computed<Map<string, string>>(() => {
-  const m = new Map<string, string>(globalLegoTargetTextMap.value)
-  for (const [id, text] of legoTargetTextMap.value.entries()) m.set(id, text)
+// Merged native LEGO map (legoId → native script), used to pair native text
+// onto the romaji tiling for spaceless scripts (Japanese/Thai). Round-derived
+// wins over the course-wide map (freshest for the loaded rounds).
+const legoNativeById = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>(globalLegoTargetTextNativeMap.value)
+  for (const [id, text] of legoTargetTextNativeMap.value.entries()) m.set(id, text)
   return m
 })
 
-// Final tiling consumed by the template:
-//  - Mandarin (zho) → pinyin-word tiles (native primary, pinyin ruby), because
-//    a LEGO can be a whole spaceless clause.
-//  - Other romanised (non-Latin) courses → the LEGO-based native tiling with a
-//    transliteration ruby attached per tile (word-zip for space-separated
-//    scripts, per-LEGO lookup for Japanese).
-//  - Latin-script courses → raw tiling unchanged (no romanisation).
+// Final tiling consumed by the template. The tiling is always derived from the
+// ROMANISED side (the reliably-segmented one); the native script is the primary
+// glyph, the romanisation the ruby. Three strategies by script shape:
+//  - Mandarin (zho): pinyin-word tiles, hanzi sliced 1-per-syllable.
+//  - Space-separated scripts: word-pair tiles (native↔romaji word-for-word) —
+//    finer than the LEGO decomposition, whose salient can be a whole clause.
+//  - Spaceless un-sliceable scripts (Japanese/Thai): tile from the romaji
+//    decomposition, then pair each tile's native text in by legoId.
+//  - Latin-script courses: raw romanised tiling unchanged (no romanisation).
 const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
-  if (isMandarin.value && hasRomanizedText.value && cycle) {
-    const romanPhrase = cycle.target?.text || ''
-    const nativePhrase = (cycle.target as any)?.textNative || ''
-    if (romanPhrase && nativePhrase) {
+  if (!cycle) return currentPhraseLegoBlocksRaw.value
+  const romanPhrase = cycle.target?.text || ''
+  const nativePhrase = (cycle.target as any)?.textNative || ''
+  const idPrefix = cycle.legoId || currentRound.value?.legoId || cycle.id || 'w'
+
+  if (hasRomanizedText.value && romanPhrase) {
+    if (isMandarin.value && nativePhrase) {
       const tiles = buildWordTiles(romanPhrase, nativePhrase, {
-        salientNativeTexts: salientNativeTexts(cycle),
-        idPrefix: cycle.legoId || currentRound.value?.legoId || cycle.id || 'w',
+        salientNativeTexts: salientNativeTexts(cycle), idPrefix,
+      })
+      if (tiles && tiles.length > 0) return tiles
+    } else if (nativePhrase && /\s/.test(nativePhrase.trim())) {
+      // Space-separated script → word-pair tiling.
+      const tiles = buildWordPairTiles(romanPhrase, nativePhrase, {
+        salientNativeTexts: salientNativeTexts(cycle), idPrefix,
       })
       if (tiles && tiles.length > 0) return tiles
     }
-    // buildWordTiles only fails on rare data defects — fall through to raw.
+    // Spaceless script (Japanese/Thai), or the above fell through on a data
+    // defect: take the romaji tiling and pair native in by legoId.
+    const raw = currentPhraseLegoBlocksRaw.value
+    if (raw.length > 0) return nativeFromRomanTiles(raw, legoNativeById.value)
   }
-  const raw = currentPhraseLegoBlocksRaw.value
-  if (hasRomanizedText.value && cycle && raw.length > 0) {
-    const romanPhrase = cycle.target?.text || ''
-    const nativePhrase = (cycle.target as any)?.textNative || ''
-    if (romanPhrase) {
-      return attachRuby(raw, romanPhrase, {
-        nativeSpaced: /\s/.test(nativePhrase),
-        legoRomanById: legoRomanById.value,
-      })
-    }
-  }
-  return raw
+  return currentPhraseLegoBlocksRaw.value
 })
 
 // The script toggle governs whether the romanisation ruby is shown above each
