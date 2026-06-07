@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.7 (2026-06-07)
+# Version: 2.1.10 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -259,6 +259,31 @@ TILE_ASSEMBLY:
     latin:
       langs: "spa/fra/deu/… (no target_text_roman)"
       how: "hasRomanizedText=false → raw romanised tiling unchanged, no ruby."
+
+  intro_glosses:
+    rule: |
+      (Tom 2026-06-07, v2: tiles must be IDENTICAL to regular phrases)
+      Intro/debut show the known-language gloss UNDER the tiles — first
+      presentation must let the learner match the pieces in both languages
+      ("cosa|azul / thing|blue") — but the tiles and ruby themselves render
+      EXACTLY as the LEGO appears in a regular phrase; the gloss is purely
+      additive. attachIntroGlosses (LearningPlayer) wraps every word-tiling
+      strategy's output on intro/debut only: component targets (union of
+      componentsNative + components — a component whose roman form is NULL,
+      e.g. zho 你, only exists in the roman list with native fallback text)
+      claim contiguous tile runs, order-independently (DB returns component
+      phrases in arbitrary order), longest target first. Each tile gets a
+      glossGroup id; LegoAssembly's intro-gloss-groups template branch (a
+      v-if BEFORE carriage/single-tile modes) renders runs as flush tile
+      rows with the run's gloss centred underneath (.gloss-group-row /
+      .gloss-group-tile). Structural particles keep their empty known
+      (claimed run, no gloss); unmatched components simply don't gloss —
+      tiles are NEVER merged or re-tiled. Single-tile LEGOs get the whole
+      known text. Known text never shows outside intro/debut. The gloss
+      line is RESERVED on every run (min-height, even when empty — e.g. a
+      structural particle's silent gloss): the assembly bottom-aligns the
+      groups, so a missing line would push that run's tile down by one
+      gloss-height relative to its neighbours.
 
   typography:
     uniform_bold: |

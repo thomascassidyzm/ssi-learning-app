@@ -9,6 +9,11 @@ export interface LegoBlock {
    *  tile boundaries are identical across scripts — only this line toggles. */
   romanText?: string
   knownText?: string
+  /** Intro/debut gloss grouping: consecutive blocks sharing a glossGroup id
+   *  form one run whose known gloss (on the run's first block) renders
+   *  centred under the WHOLE run. Tiles themselves are identical to the
+   *  regular-phrase rendering — only the gloss row is added. */
+  glossGroup?: number
   isSalient?: boolean
   /** This A-LEGO was extracted from an M-LEGO and now appears solo */
   isSoloComponent?: boolean
@@ -512,6 +517,28 @@ function alignedBlockComponents(block: LegoBlock): ComponentBreakdown[] | null {
   return aligned
 }
 
+// Intro/debut gloss groups (Tom 2026-06-07): when blocks carry glossGroup
+// ids, render them as runs — the word tiles EXACTLY as a regular phrase
+// shows them (per-tile ruby, same boxes), plus one known gloss centred
+// under each run. Groups are built from consecutive blocks sharing an id;
+// the run's gloss is the first block's knownText.
+const introGlossGroups = computed<Array<{ blocks: LegoBlock[]; known: string }> | null>(() => {
+  if (!props.blocks.some((b) => b.glossGroup !== undefined)) return null
+  const groups: Array<{ blocks: LegoBlock[]; known: string }> = []
+  let lastId: number | undefined
+  for (const b of props.blocks) {
+    const id = b.glossGroup
+    const last = groups[groups.length - 1]
+    if (last && id !== undefined && id === lastId) {
+      last.blocks.push(b)
+    } else {
+      groups.push({ blocks: [b], known: b.knownText || '' })
+    }
+    lastId = id
+  }
+  return groups
+})
+
 // Uniform sentence-level scaling: all tiles in a phrase scale together.
 // Floor 0.85 so the target font stays at least as big as the known-text
 // panel above — long phrases wrap onto more rows rather than shrinking
@@ -531,11 +558,45 @@ const sentenceScale = computed(() => {
   <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
 
     <!-- ═══════════════════════════════════════════
+         INTRO GLOSS GROUPS — intro/debut word tiles, identical to the
+         regular-phrase rendering (per-tile ruby, same boxes), with the
+         known-language gloss centred under each component's tile run.
+         ═══════════════════════════════════════════ -->
+    <template v-if="introGlossGroups">
+      <div
+        v-for="(group, gi) in introGlossGroups"
+        :key="'gg' + gi"
+        class="lego-block-wrapper gloss-group"
+        :class="[assemblyPhase]"
+        :style="{ '--stagger-delay': staggerDelay(gi) }"
+      >
+        <div class="gloss-group-row">
+          <div v-for="block in group.blocks" :key="block.id" class="gloss-group-tile">
+            <div v-if="showRomanization && block.romanText" class="tile-ruby">{{ block.romanText }}</div>
+            <div
+              class="lego-block"
+              :class="{ salient: block.isSalient, 'is-cjk': hasCjk(block.targetText) }"
+              :style="{ '--char-count': block.targetText.length }"
+            >
+              <span class="block-text">{{ softHyphenate(block.targetText) }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- Gloss line rendered for EVERY run, even empty ones (structural
+             particles): the assembly bottom-aligns the groups, so a missing
+             gloss line would push that run's tile DOWN by one line relative
+             to glossed neighbours. Reserving the space keeps every tile on
+             the same baseline. -->
+        <span class="block-known gloss-group-known">{{ group.known }}</span>
+      </div>
+    </template>
+
+    <!-- ═══════════════════════════════════════════
          CARRIAGE MODE — long M-LEGO as groups of up to 3 components
          Each group is a mini tile with internal stubs, groups linked externally
          ═══════════════════════════════════════════ -->
     <div
-      v-if="carriageGroups"
+      v-else-if="carriageGroups"
       class="lego-tile"
       :class="[assemblyPhase, { salient: blocks[0]?.isSalient }]"
       :style="{ '--assemble-duration': assembleDuration, '--stagger-delay': '0s' }"
@@ -1064,6 +1125,30 @@ const sentenceScale = computed(() => {
   transition-property: transform, opacity;
   transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1.0);
   will-change: transform, opacity;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INTRO GLOSS GROUPS — tile runs with the known gloss centred under
+   each run. The tiles inside reuse .lego-block / .tile-ruby exactly,
+   so the intro/debut tiling reads identical to a regular phrase.
+   ═══════════════════════════════════════════════════════════════ */
+.gloss-group-row {
+  display: flex;
+  align-items: flex-end; /* tile boxes share a baseline; ruby floats above */
+  gap: 0;                /* flush, matching the assembly's tile spacing */
+}
+.gloss-group-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;              /* ruby → tile spacing, matches .lego-block-wrapper */
+}
+/* Reserve one gloss line on every run (glossed or not) so the bottom-aligned
+   groups keep their TILES on a shared baseline — a particle's empty gloss
+   must occupy the same height as its neighbours' known text. nowrap on
+   .block-known guarantees the line never grows past this. */
+.gloss-group-known {
+  min-height: 1.4em;
 }
 
 /* Romanised ruby line (pinyin / romaji / transliteration) above a tile.
