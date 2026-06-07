@@ -663,6 +663,26 @@ const getAudioUrl = (audioId) => {
  * SW layer (CacheFirst — first request fills the cache, subsequent
  * requests hit it).
  */
+/**
+ * Warm the next scene's opening audio while the current scene's last turn
+ * plays — the playlist segue then reads straight from the SW cache instead
+ * of hitting the network inside the 800ms inter-turn gap. Mirrors the
+ * wrap-around logic in handleEndOfList (last scene warms the first).
+ */
+const prefetchNextSceneHead = () => {
+  if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
+  const sceneList = pods.scenes.value
+  const idx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
+  const next = idx >= 0 ? (sceneList[idx + 1] || sceneList[0]) : null
+  if (!next || next.sceneNumber === selectedScene.value.sceneNumber) return
+  for (const t of next.turns.slice(0, TAB_PREFETCH_LIMIT)) {
+    const id = Array.isArray(t.audioIds) ? t.audioIds[0] : null
+    if (!id) continue
+    const url = getAudioUrl(id)
+    if (url) fetch(url, { priority: 'low' }).catch(() => undefined)
+  }
+}
+
 const prefetchTopRows = () => {
   const rows = availablePhrases.value
   if (!rows.length) return
@@ -747,6 +767,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
     clips: playQueue.length,
   })
 
+  // Last turn of a pod scene → warm the NEXT scene's opening clips now,
+  // while this turn plays, so the scene segue never waits on the network.
+  if (currentIndex.value === availablePhrases.value.length - 1) {
+    prefetchNextSceneHead()
+  }
+
   if (myPlaybackId !== playbackId) return
 
   // Play each audio clip in sequence. Within a turn (same speaker
@@ -829,12 +855,17 @@ const handleEndOfList = async (myPlaybackId) => {
       ? (sceneList[currentSceneIdx + 1] || sceneList[0])
       : null
     if (nextScene && nextScene.sceneNumber !== selectedScene.value.sceneNumber) {
-      // openScene resets currentIndex to 0 and stops playback; kick off
-      // playback once the new scene's phrases have landed.
+      // openScene resets currentIndex to 0 — but it also calls
+      // stopPlayback(), which flips isPlaying off. playCurrentPhrase's
+      // first guard returns on !isPlaying, so the segue must re-arm it
+      // or every scene boundary silently stops the playlist (the bug
+      // behind "doesn't continue through the scenes").
       openScene(nextScene)
       await nextTick()
+      isPlaying.value = true
       playbackId += 1
       const newId = playbackId
+      scrollCurrentIntoView()
       await playCurrentPhrase(newId)
       return
     }
