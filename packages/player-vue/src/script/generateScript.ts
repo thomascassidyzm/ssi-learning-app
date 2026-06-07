@@ -439,6 +439,7 @@ function buildPhraseCycle(
       target2.durationMs ?? 0,
       DEFAULT_NORMAL,
     ),
+    displayTiling: phrase.displayTiling,
   })
 }
 
@@ -481,6 +482,7 @@ function buildInfPlayCycle(
       target2.durationMs ?? 0,
       DEFAULT_NORMAL,
     ),
+    displayTiling: phrase.displayTiling,
   })
 }
 
@@ -503,6 +505,8 @@ interface BaseCycleOpts {
   pauseDuration: number
   lingerMs?: number
   components?: Array<{ known: string; target: string }>
+  /** Authored display tiles — phrase-sourced cycles only. */
+  displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
 }
 
 function baseCycle(o: BaseCycleOpts): Cycle {
@@ -525,6 +529,7 @@ function baseCycle(o: BaseCycleOpts): Cycle {
     ...(o.target1.durationMs ? { target1DurationMs: o.target1.durationMs } : {}),
     ...(o.target2.durationMs ? { target2DurationMs: o.target2.durationMs } : {}),
     ...(o.components && o.components.length > 0 ? { components: o.components } : {}),
+    ...(o.displayTiling && o.displayTiling.length > 0 ? { displayTiling: o.displayTiling } : {}),
   }
   // `seedId` lives on Round, not Cycle — but the round consumer reads
   // `lego.seedId` from `legoIndex`, so we don't need to stash it on

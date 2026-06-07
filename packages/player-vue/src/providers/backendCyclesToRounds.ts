@@ -266,6 +266,9 @@ export function toPlayerCycle(bc: BackendCycle): Cycle | null {
     // componentLegoIds) so the player can render it directly — exact LEGO
     // spans, ghost residue, and the anchored salient.
     ...(Array.isArray(bc.decomposition) && bc.decomposition.length > 0 ? { decomposition: bc.decomposition } : {}),
+    // Authored display tiles — same verbatim pass-through (wire snake_case →
+    // player camelCase, matching toSimpleRounds' displayTiling field).
+    ...(Array.isArray(bc.display_tiling) && bc.display_tiling.length > 0 ? { displayTiling: bc.display_tiling } : {}),
   }
 
   return cycle

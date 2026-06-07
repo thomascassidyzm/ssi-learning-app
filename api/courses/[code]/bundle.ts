@@ -100,6 +100,9 @@ interface PhraseRow {
     isGhost: boolean
     isSalient?: boolean
   }> | null
+  // Authored display tiles ({n: native, r: roman, salient}) built and
+  // validated in Popty — served verbatim; player renders them directly.
+  display_tiling: Array<{ n: string; r: string; salient?: boolean }> | null
 }
 
 interface RoundIndexRow {
@@ -234,7 +237,7 @@ export default async function handler(
         .select(
           'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
             'known_audio_id, target1_audio_id, target2_audio_id, ' +
-            'target1_duration_ms, target2_duration_ms, decomposition',
+            'target1_duration_ms, target2_duration_ms, decomposition, display_tiling',
         )
         .eq('course_code', code)
         .in('phrase_role', ['build', 'use', 'practice', 'eternal_eligible'])
@@ -397,6 +400,10 @@ export default async function handler(
       // directly (honours isSalient/isGhost); null → runtime alignment fallback.
       if (Array.isArray(row.decomposition) && row.decomposition.length > 0) {
         phrase.decomposition = row.decomposition
+      }
+      // Authored display tiles — same omit-when-NULL convention.
+      if (Array.isArray(row.display_tiling) && row.display_tiling.length > 0) {
+        phrase.displayTiling = row.display_tiling
       }
       phrases.push(phrase)
     }

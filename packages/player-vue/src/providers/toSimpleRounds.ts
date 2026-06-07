@@ -212,6 +212,7 @@ export function toSimpleRounds(
         ...(i.componentLegoTexts ? { componentLegoTexts: i.componentLegoTexts } : {}),
         ...(i.componentLegoTextsNative ? { componentLegoTextsNative: i.componentLegoTextsNative } : {}),
         ...(i.decomposition ? { decomposition: i.decomposition } : {}),
+        ...(i.displayTiling ? { displayTiling: i.displayTiling } : {}),
         ...(i.components ? { components: i.components } : {}),
         ...(i.componentsNative ? { componentsNative: i.componentsNative } : {}),
         ...(speed !== 1.0 ? { playbackSpeed: speed } : {})

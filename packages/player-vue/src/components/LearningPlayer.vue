@@ -1949,25 +1949,18 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
   return map
 })
 
-// Course-wide lookup: LEGO ID → known text, loaded once per course mount.
-// The round-derived map above only contains LEGOs whose rounds are in
-// loadedRounds — in infinite-play mode (where cycles surface random USE
-// phrases referencing LEGOs from anywhere in the course) that map is
-// incomplete, so the hero-card highlight silently disappears for any
-// salient LEGO whose round isn't loaded. This map fills the gap with one
-// cheap query (~300 rows per course) and serves as the primary source
-// for the highlight lookup.
-const globalLegoKnownTextMap = ref<Map<string, string>>(new Map())
-// Course-wide target_text lookup. Same rationale as the known-text map
-// above, but for the target language — INFPLAY USE phrases reference
-// LEGOs anywhere in the course, and the round-derived legoTargetTextMap
-// only has entries for loaded rounds. decomposePhrase needs every
-// known-vocab text to bind tokens correctly, so we load all target_text
-// + target_text_native rows once per course mount.
+// Course-wide target_text lookup, loaded once per course mount. The
+// round-derived maps above only contain LEGOs whose rounds are in
+// loadedRounds — INFPLAY USE phrases reference LEGOs anywhere in the
+// course. decomposePhrase needs every known-vocab text to bind tokens
+// correctly, so we load all target_text + target_text_native rows once
+// per course mount. (The course-wide KNOWN-text map that used to load
+// alongside these fed only the hero salient highlight, removed with the
+// uniform-typography pass, Tom 2026-06-07.)
 const globalLegoTargetTextMap = ref<Map<string, string>>(new Map())
 const globalLegoTargetTextNativeMap = ref<Map<string, string>>(new Map())
 
-async function loadGlobalLegoKnownTexts() {
+async function loadGlobalLegoTexts() {
   const client = supabase.value
   const code = courseCode.value
   if (!client || !code) return
@@ -1994,18 +1987,16 @@ async function loadGlobalLegoKnownTexts() {
     //                                     happen to be swapped.
     const { data, error } = await client
       .from('course_legos')
-      .select('lego_id, known_text, target_text, target_text_roman')
+      .select('lego_id, target_text, target_text_roman')
       .eq('course_code', code)
     if (error) {
       console.warn('[LearningPlayer] Failed to load global lego texts:', error.message)
       return
     }
-    const knownMap = new Map<string, string>()
     const targetMap = new Map<string, string>()
     const targetNativeMap = new Map<string, string>()
     for (const row of (data || [])) {
       if (!row.lego_id) continue
-      if (row.known_text) knownMap.set(row.lego_id, row.known_text)
       // Primary (roman): prefer target_text_roman, fall back to target_text.
       const romanish = row.target_text_roman || row.target_text
       if (romanish) targetMap.set(row.lego_id, romanish)
@@ -2045,10 +2036,9 @@ async function loadGlobalLegoKnownTexts() {
       }
     }
 
-    globalLegoKnownTextMap.value = knownMap
     globalLegoTargetTextMap.value = targetMap
     globalLegoTargetTextNativeMap.value = targetNativeMap
-    console.log(`[LearningPlayer] Loaded ${knownMap.size} legos + ${(compData || []).length} component atoms for ${code}`)
+    console.log(`[LearningPlayer] Loaded ${targetMap.size} legos + ${(compData || []).length} component atoms for ${code}`)
   } catch (err) {
     console.warn('[LearningPlayer] Global lego text load errored:', err)
   }
@@ -2474,6 +2464,27 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   const romanPhrase = cycle.target?.text || ''
   const nativePhrase = (cycle.target as any)?.textNative || ''
   const idPrefix = cycle.legoId || currentRound.value?.legoId || cycle.id || 'w'
+
+  // Strategy 0 (authoritative): authored display tiles from Popty
+  // (course_practice_phrases.display_tiling). Built at content time, validated
+  // both ways (roman = stored value sliced, native reassembles exactly), so we
+  // render them verbatim — native glyph primary, roman as the ruby. Guard:
+  // tiles must reassemble the displayed native phrase (whitespace-normalised);
+  // a stale mismatch falls through to the runtime cascade below.
+  const authored = (cycle as any).displayTiling as
+    | Array<{ n: string; r: string; salient?: boolean }>
+    | undefined
+  if (Array.isArray(authored) && authored.length > 0 && nativePhrase) {
+    const squash = (s: string) => s.replace(/\s+/g, '')
+    if (squash(authored.map((t) => t.n).join('')) === squash(nativePhrase)) {
+      return authored.map((t, i) => ({
+        id: `${idPrefix}_dt${i}`,
+        targetText: t.n,
+        romanText: t.r,
+        isSalient: !!t.salient,
+      }))
+    }
+  }
 
   if (hasRomanizedText.value && romanPhrase && nativePhrase) {
     if (isMandarin.value) {
@@ -5078,12 +5089,6 @@ const showTargetText = computed(() =>
 // Stable known text - updates when not transitioning (prevents flash) OR when phrase changes
 const displayedKnownText = ref('')
 const lastKnownPhrase = ref('') // Track what phrase we've displayed
-// The salient LEGO id for the phrase displayedKnownText currently reflects.
-// Must be updated in lockstep with displayedKnownText — otherwise
-// salientKnownParts compares the NEW cycle's salient against the OLD cycle's
-// known text and emits a false-positive "invariant violated" warn during
-// every transition (and silently drops the highlight).
-const displayedLegoId = ref<string | null>(null)
 watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([transitioning, newKnown]) => {
   // CRITICAL FIX: Always update if the underlying phrase changed (item transitioned)
   // This prevents showing old known text while new audio plays
@@ -5093,56 +5098,12 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
   if (!transitioning || phraseChanged) {
     displayedKnownText.value = newKnown
     lastKnownPhrase.value = newKnown
-    displayedLegoId.value = simplePlayer.currentCycle.value?.legoId ?? null
   }
 }, { immediate: true })
 
-// Split the displayed known text into [prefix][salient match][suffix] so the
-// hero card can highlight the substring matching the current cycle's salient
-// LEGO. Anchors the learner's attention on "the thing being practised in this
-// cycle" — works equally for current-round practice and for spaced-review
-// cycles (whose salient is a different, older LEGO).
-//
-// SSi methodology invariant: the salient LEGO MUST appear in the USE phrase
-// in both languages (the LEGO pair is the unit). If salient known text isn't
-// found in the phrase known text, that's a content authoring error, not a
-// graceful-degrade case — surface it via console.warn so QA catches it.
-//
-// Returns null only when there is no salient yet (cycle hasn't loaded), no
-// salient known text in the maps (vocab not yet loaded), or the match spans
-// the whole sentence (highlighting everything is noise — typically because
-// the salient LEGO IS the whole phrase, e.g. intro/debut).
-const salientKnownParts = computed<{ prefix: string; match: string; suffix: string } | null>(() => {
-  const full = displayedKnownText.value
-  if (!full) return null
-  // Read the legoId from the SAME snapshot as displayedKnownText. The live
-  // simplePlayer.currentCycle advances before displayedKnownText releases
-  // during transitions; reading the live one here caused spurious
-  // "Salient LEGO's known text not found in phrase known text" warns when
-  // the new cycle's salient was being substring-checked against the prior
-  // cycle's still-displayed known text.
-  const legoId = displayedLegoId.value
-  if (!legoId) return null
-  // Prefer the course-wide map (authoritative LEGO known_text from DB);
-  // fall back to round-derived map if the global load hasn't completed.
-  const salientKnown = globalLegoKnownTextMap.value.get(legoId) || legoKnownTextMap.value.get(legoId)
-  if (!salientKnown || !salientKnown.trim()) return null
-  const idx = full.toLowerCase().indexOf(salientKnown.toLowerCase())
-  if (idx === -1) {
-    console.warn(
-      `[salientKnownParts] Salient LEGO's known text not found in phrase known text — content authoring error (salient pair invariant violated).`,
-      { legoId, salientKnown, phraseKnown: full },
-    )
-    return null
-  }
-  // Whole-phrase match → highlighting everything is pointless; skip.
-  if (idx === 0 && salientKnown.trim().length >= full.trim().length) return null
-  return {
-    prefix: full.slice(0, idx),
-    match: full.slice(idx, idx + salientKnown.length),
-    suffix: full.slice(idx + salientKnown.length),
-  }
-})
+// (The old salient-substring highlight of the known text — salientKnownParts —
+// was removed with the uniform-typography pass, Tom 2026-06-07: the display
+// box renders the whole known phrase at one bold weight, no salient split.)
 
 // Stable target text - only updates when hidden (prevents flash of new target between cycles)
 const displayedTargetText = ref('')
@@ -9946,7 +9907,7 @@ onMounted(async () => {
   // Load course-wide LEGO known_text lookup (powers the hero highlight in
   // cases where the salient LEGO's round isn't in loadedRounds, especially
   // infinite-play mode). Cheap one-shot query; fire-and-forget.
-  void loadGlobalLegoKnownTexts()
+  void loadGlobalLegoTexts()
 
   // Initialize offline play composable (sets up online/offline listeners)
   offlinePlayCleanup = initializeOfflinePlay()
@@ -12088,12 +12049,7 @@ defineExpose({
               <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <p v-else class="hero-known">
-                <template v-if="salientKnownParts">
-                  <span class="hero-known-context">{{ salientKnownParts.prefix }}</span><span class="hero-known-salient">{{ salientKnownParts.match }}</span><span class="hero-known-context">{{ salientKnownParts.suffix }}</span>
-                </template>
-                <template v-else>{{ displayedKnownText }}</template>
-              </p>
+              <p v-else class="hero-known">{{ displayedKnownText }}</p>
             </div>
           </div>
         </template>
@@ -12622,12 +12578,7 @@ defineExpose({
             {{ displayedKnownText }}
             <span class="listening-speed-badge" aria-label="Playback speed">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
           </p>
-          <p v-else class="known-text">
-            <template v-if="salientKnownParts">
-              <span class="hero-known-context">{{ salientKnownParts.prefix }}</span><span class="hero-known-salient">{{ salientKnownParts.match }}</span><span class="hero-known-context">{{ salientKnownParts.suffix }}</span>
-            </template>
-            <template v-else>{{ displayedKnownText }}</template>
-          </p>
+          <p v-else class="known-text">{{ displayedKnownText }}</p>
         </div>
 
         <!-- Guest progress warning -->
@@ -14563,10 +14514,12 @@ defineExpose({
   text-align: center;
 }
 
+/* Uniform bold (Tom 2026-06-07): the whole known phrase reads at one bold
+   weight — the old salient-substring emphasis + context fade is gone. */
 .hero-known {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: var(--known-text-size);
-  font-weight: 400;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
   line-height: 1.5;
@@ -14574,22 +14527,6 @@ defineExpose({
   overflow-wrap: break-word;
   word-break: break-word;
   max-width: 100%;
-}
-
-/* Inline emphasis on the substring matching the current cycle's salient
-   LEGO's known text. Couples to the salient tile below — same weight-
-   bump + context-fade treatment so the learner sees "this English bit
-   = this target tile" without the red wash that broke long phrases.
-   Tom 2026-05-21. */
-.hero-known-salient {
-  font-weight: 600;
-}
-.hero-known-context {
-  /* Tom 2026-05-22: 0.72 was still too sharp on the known side — most of
-   * the known text is context, and the salient match is usually a couple
-   * of words. Softer fade keeps the bump perceptible without making the
-   * surrounding English read as dimmed. Target side stays unchanged. */
-  opacity: 0.85;
 }
 
 /* Listening pedagogy — calmer, italic, slightly smaller. The learner is
@@ -14952,7 +14889,7 @@ button.phase-segment:active:not(.is-active) {
 /* Text Zones - FIXED HEIGHT */
 .known-text {
   font-size: var(--known-text-size);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
 }
@@ -15819,14 +15756,6 @@ button.phase-segment:active:not(.is-active) {
 /* --- Hero text & intro — all text must be dark on white --- */
 [data-theme="mist"] .player .hero-known {
   color: var(--text-primary);
-}
-
-[data-theme="mist"] .player .hero-known-salient {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-[data-theme="mist"] .player .hero-known-context {
-  color: rgba(44, 38, 34, 0.85);
 }
 
 [data-theme="mist"] .player .hero-target {
