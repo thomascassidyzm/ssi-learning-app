@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.10 (2026-06-07)
+# Version: 2.1.13 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -305,6 +305,60 @@ TILE_ASSEMBLY:
       recognition builds from exposure. Default ON (scriptMode 'roman').
     control: "ModeTray.vue — Aa (guide shown) / 文 (characters only)"
     prop: "LegoAssembly :show-romanization (LearningPlayer showRomanization computed)"
+
+## ============================================================================
+## LISTENING OVERLAY (headphones mode)
+## ============================================================================
+
+LISTENING_OVERLAY:
+  source: "packages/player-vue/src/components/ListeningOverlay.vue"
+  tabs: |
+    Dialogues | Core | All — in that order, Dialogues is the DEFAULT view
+    (Tom 2026-06-07). Dialogues = Layer 2 pod scenes (useListeningPods,
+    grouped by listening_pod_sentences.scene_number); Core = every seed
+    sentence; All = every USE phrase. Phrase data loads lazily on first
+    tap of All/Core — the default mount only loads the scene list.
+  dialogues_playlist: |
+    Scenes play as ONE continuous playlist: scene-end segues into the next
+    scene automatically, and after the last scene wraps around to the
+    first (Spotify playlist loop). The scene-loop button (visible with a
+    scene open) is single-track repeat: ON = restart the current scene
+    forever; default OFF. Scene matching is by sceneNumber — PodScene has
+    no `id` field (a former `s.id === selected.id` undefined comparison
+    made every scene "advance" to scene 2).
+  background_lock_protocol: |
+    (2026-06-07) The overlay follows the SAME bg/lock rule as the main
+    flow, INF PLAY and pod laps: every playback gap advances on an audio
+    'ended' event, NEVER a bare setTimeout (iOS freezes timers on a
+    backgrounded/locked tab). The 50ms intra-turn and 800ms inter-turn
+    gaps play as genuinely-silent one-shot WAV clips on the same element
+    (ListeningAudioController.playSilence → playback/silentWav.ts, the
+    builder extracted from SimplePlayer's PAUSE fix). playbackRate
+    applies to the silence too, so faster speeds tighten gaps
+    proportionally. The 15s safety timeout inside play() remains as a
+    foreground fallback only. RULE for any new playback surface: a gap
+    is "a phase with audio", never "a phase with only a timer".
+
+  speaker_colouring: |
+    (Tom 2026-06-07) The voice-casting 4-colour-map principle, made
+    VISIBLE: useListeningPods builds the pod-wide "shares a scene" graph
+    and greedy-colours speakers in first-appearance order (same algorithm
+    as Popty's voice colouring proof — never needed >4 colours on real
+    pods). One character = one colour across the whole pod; scene-mates
+    never share. SPEAKER_PALETTE (6 mid-tone colours) exported from the
+    composable. Rendered as: an uppercase speaker chip + dot above every
+    teleprompter dialogue row (.phrase-speaker), and cast dots on each
+    scene card (.scene-card-cast). Colour rides turn.colorIndex; display
+    name is the speaker label minus its time/place annotation.
+
+  scene_granularity: |
+    One scene = one dialogue beat. Montage pods (several mini-dialogues
+    sharing a backdrop, e.g. fra pod-0's "day of greetings") must be
+    SPLIT into one scene per beat in the data — same-speaker turn merging
+    (useListeningPods.mergeTurns) operates within a scene and will glue
+    the tail of one beat to the head of the next if they share a
+    scene_number (the 2026-06-07 French bug: "Have a good one! Excuse me,
+    is this seat taken?" as one card).
 
 ## ============================================================================
 ## PHASE STRIP

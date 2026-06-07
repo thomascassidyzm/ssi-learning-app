@@ -4,7 +4,8 @@ import { getAudioCache } from '../cache/createAudioCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
-import { useListeningPods } from '../composables/useListeningPods'
+import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
+import { buildSilentWavDataUri } from '../playback/silentWav'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -15,6 +16,8 @@ class ListeningAudioController {
   constructor() {
     this.audio = null
     this.playbackRate = 1
+    // ms → data: URI cache for the silent gap clips (two sizes in practice).
+    this.silenceCache = new Map()
   }
 
   setPlaybackRate(rate) {
@@ -22,6 +25,25 @@ class ListeningAudioController {
     if (this.audio) {
       this.audio.playbackRate = rate
     }
+  }
+
+  /**
+   * Background/lock-safe gap: play a genuinely-silent one-shot WAV on the
+   * SAME element the real clips use and resolve on its natural 'ended' —
+   * the same protocol as SimplePlayer's PAUSE phase. A bare setTimeout
+   * here freezes when iOS backgrounds/locks the tab, which killed the
+   * inter-turn advance (main flow / INF PLAY / pod laps all advance on
+   * 'ended' and survive; these gaps must too). playbackRate applies, so
+   * faster speeds tighten the gaps proportionally — desirable.
+   */
+  async playSilence(ms) {
+    if (!ms || ms <= 0) return
+    let uri = this.silenceCache.get(ms)
+    if (!uri) {
+      uri = buildSilentWavDataUri(ms / 1000)
+      this.silenceCache.set(ms, uri)
+    }
+    await this.play(uri)
   }
 
   async play(url) {
@@ -144,11 +166,13 @@ const error = ref(null)
 const mode = ref('shuffled') // Start shuffled for variety
 
 // Top-level view toggle. Code keys stay snake-y; display labels in the
-// template are All / Core / Dialogues.
-//   'phrases' (All)       = every USE phrase in the course
+// template are Dialogues / Core / All.
+//   'pods'    (Dialogues) = Listening Pod scene list (Layer 2) — DEFAULT
 //   'seeds'   (Core)      = every seed sentence (whole-sentence listen)
-//   'pods'    (Dialogues) = Listening Pod scene list (Layer 2)
-const view = ref('phrases')
+//   'phrases' (All)       = every USE phrase in the course
+// Dialogues first and default (Tom 2026-06-07): the scenes are the
+// flagship listening content; All/Core are the deeper cuts.
+const view = ref('pods')
 
 // Phrase data
 const allPhrases = ref([])
@@ -301,6 +325,10 @@ const openScene = (scene) => {
     knownText: t.knownText,
     targetText: t.targetText,
     speaker: t.speaker,
+    speakerName: t.speakerName,
+    // Resolved palette colour from the pod-wide conversation colouring —
+    // character-stable, scene-mates always distinct.
+    speakerColor: SPEAKER_PALETTE[t.colorIndex % SPEAKER_PALETTE.length],
     position: t.globalOrder,
     target1AudioId: t.audioIds[0] || '',
     target2AudioId: t.audioIds[0] || '',
@@ -657,6 +685,26 @@ const getAudioUrl = (audioId) => {
  * SW layer (CacheFirst — first request fills the cache, subsequent
  * requests hit it).
  */
+/**
+ * Warm the next scene's opening audio while the current scene's last turn
+ * plays — the playlist segue then reads straight from the SW cache instead
+ * of hitting the network inside the 800ms inter-turn gap. Mirrors the
+ * wrap-around logic in handleEndOfList (last scene warms the first).
+ */
+const prefetchNextSceneHead = () => {
+  if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
+  const sceneList = pods.scenes.value
+  const idx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
+  const next = idx >= 0 ? (sceneList[idx + 1] || sceneList[0]) : null
+  if (!next || next.sceneNumber === selectedScene.value.sceneNumber) return
+  for (const t of next.turns.slice(0, TAB_PREFETCH_LIMIT)) {
+    const id = Array.isArray(t.audioIds) ? t.audioIds[0] : null
+    if (!id) continue
+    const url = getAudioUrl(id)
+    if (url) fetch(url, { priority: 'low' }).catch(() => undefined)
+  }
+}
+
 const prefetchTopRows = () => {
   const rows = availablePhrases.value
   if (!rows.length) return
@@ -741,6 +789,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
     clips: playQueue.length,
   })
 
+  // Last turn of a pod scene → warm the NEXT scene's opening clips now,
+  // while this turn plays, so the scene segue never waits on the network.
+  if (currentIndex.value === availablePhrases.value.length - 1) {
+    prefetchNextSceneHead()
+  }
+
   if (myPlaybackId !== playbackId) return
 
   // Play each audio clip in sequence. Within a turn (same speaker
@@ -749,6 +803,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // speech rather than feeling like two separate utterances. The
   // longer 800ms inter-phrase gap below (between turns) carries the
   // speaker-change pause.
+  //
+  // BOTH gaps play as silent one-shot clips (playSilence), NOT bare
+  // setTimeouts — iOS freezes timers on a backgrounded/locked tab, so a
+  // timer-driven gap killed the advance the moment the screen locked.
+  // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
+  // protocol (see SimplePlayer's PAUSE phase).
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
     const audioUrl = getAudioUrl(playQueue[i])
@@ -759,7 +819,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
     if (i < playQueue.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 50))
+      await audioController.value.playSilence(50)
     }
   }
 
@@ -769,7 +829,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
 
   if (myPlaybackId !== playbackId) return
 
-  await new Promise(resolve => setTimeout(resolve, 800))
+  await audioController.value.playSilence(800)
 
   if (myPlaybackId !== playbackId) return
 
@@ -813,21 +873,32 @@ const handleEndOfList = async (myPlaybackId) => {
   // advance — the whole pod plays through as a continuous session.
   if (view.value === 'pods' && selectedScene.value && !loopScene.value) {
     const sceneList = pods.scenes.value
-    const currentSceneIdx = sceneList.findIndex(s => s.id === selectedScene.value.id)
-    const nextScene = currentSceneIdx >= 0 ? sceneList[currentSceneIdx + 1] : null
-    if (nextScene) {
-      // openScene resets currentIndex to 0 and stops playback; kick off
-      // playback once the new scene's phrases have landed.
+    // Match by sceneNumber — PodScene has no `id` field, and the old
+    // `s.id === selectedScene.id` compared undefined===undefined, which
+    // matched index 0 and made EVERY scene "advance" to scene 2.
+    const currentSceneIdx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
+    // Single continuous playlist: segue into the next scene; after the
+    // last scene, wrap around to the first (Spotify playlist loop).
+    const nextScene = currentSceneIdx >= 0
+      ? (sceneList[currentSceneIdx + 1] || sceneList[0])
+      : null
+    if (nextScene && nextScene.sceneNumber !== selectedScene.value.sceneNumber) {
+      // openScene resets currentIndex to 0 — but it also calls
+      // stopPlayback(), which flips isPlaying off. playCurrentPhrase's
+      // first guard returns on !isPlaying, so the segue must re-arm it
+      // or every scene boundary silently stops the playlist (the bug
+      // behind "doesn't continue through the scenes").
       openScene(nextScene)
       await nextTick()
+      isPlaying.value = true
       playbackId += 1
       const newId = playbackId
+      scrollCurrentIntoView()
       await playCurrentPhrase(newId)
       return
     }
-    // No next scene: fall through to the default loop-this-list behaviour
-    // (restart current scene). End of pod = polite re-cycle of the last
-    // scene rather than abrupt stop.
+    // Single-scene pod: fall through to the default loop-this-list
+    // behaviour (restart current scene).
   }
 
   if (mode.value === 'shuffled') {
@@ -1143,7 +1214,10 @@ onMounted(async () => {
   // Pre-build the LEGO-ordinal lookup so the first phrase batch can use it.
   // If it fails, phrases just render without ordinals — non-fatal.
   await loadLegoOrdinals()
-  loadPhrases()
+  // Default view is Dialogues (pods) — useListeningPods loads the scene
+  // list itself. Phrase data loads lazily when the user taps All.
+  if (view.value === 'phrases') loadPhrases()
+  else isLoading.value = false
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
   checkPackComplete()
@@ -1199,16 +1273,16 @@ watch(
          Settings. packState / packPercent / downloadListeningPack are
          retained in <script> for the eventual relocation.) -->
 
-    <!-- Top-level view tabs: All / Core / Dialogues.
-         All       = every USE phrase the learner has met (default).
+    <!-- Top-level view tabs: Dialogues / Core / All.
+         Dialogues = Layer 2 pod scenes for the course (default).
          Core      = every seed sentence in the course.
-         Dialogues = Layer 2 pod scenes for the course. -->
+         All       = every USE phrase the learner has met. -->
     <div class="view-tabs" @click.stop>
       <button
         class="view-tab"
-        :class="{ active: view === 'phrases' }"
-        @click="setView('phrases')"
-      >All</button>
+        :class="{ active: view === 'pods' }"
+        @click="setView('pods')"
+      >Dialogues</button>
       <button
         class="view-tab"
         :class="{ active: view === 'seeds' }"
@@ -1216,9 +1290,9 @@ watch(
       >Core</button>
       <button
         class="view-tab"
-        :class="{ active: view === 'pods' }"
-        @click="setView('pods')"
-      >Dialogues</button>
+        :class="{ active: view === 'phrases' }"
+        @click="setView('phrases')"
+      >All</button>
     </div>
 
     <!-- Pods scene-list view (shown when in pods view + no scene selected) -->
@@ -1248,7 +1322,19 @@ watch(
           <div class="scene-card-num">{{ scene.sceneNumber }}</div>
           <div class="scene-card-body">
             <div class="scene-card-title">{{ scene.title }}</div>
-            <div class="scene-card-meta">{{ scene.sentenceCount }} sentences</div>
+            <div class="scene-card-meta">
+              <!-- Cast dots — one per character, in their conversation colour -->
+              <span class="scene-card-cast">
+                <span
+                  v-for="sp in scene.speakers"
+                  :key="sp.name"
+                  class="scene-cast-dot"
+                  :style="{ background: SPEAKER_PALETTE[sp.colorIndex % SPEAKER_PALETTE.length] }"
+                  :title="sp.name"
+                ></span>
+              </span>
+              {{ scene.sentenceCount }} sentences
+            </div>
           </div>
           <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 18 15 12 9 6"/>
@@ -1419,6 +1505,12 @@ watch(
             <div v-if="phrase.legoOrdinal" class="phrase-meta">
               <span class="phrase-belt-pip" :style="{ background: phrase.beltColor }"></span>
               <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
+            </div>
+            <!-- Dialogue speaker chip — the conversation colouring made
+                 visible. Same character = same colour across the whole pod;
+                 two characters in the same scene never share a colour. -->
+            <div v-if="phrase.speakerName" class="phrase-speaker" :style="{ color: phrase.speakerColor }">
+              <span class="phrase-speaker-dot" :style="{ background: phrase.speakerColor }"></span>{{ phrase.speakerName }}
             </div>
             <div class="phrase-target">{{ phrase.targetText }}</div>
             <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
@@ -1714,6 +1806,28 @@ watch(
   font-style: italic;
 }
 
+/* Dialogue speaker chip — the conversation colouring made visible. Small
+ * caps name in the character's colour with a matching dot, sitting above
+ * the line like a script cue. Past/future rows inherit the row's reduced
+ * opacity, so the colour stays quiet until the line is live. */
+.phrase-speaker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.phrase-speaker-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* Per-row meta header (ordinal + belt pip). Subtle, tiny, sits above the
  * phrase target. Doesn't compete with the phrase text. */
 .phrase-meta {
@@ -1991,8 +2105,24 @@ watch(
 }
 
 .scene-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+/* Cast dots — one per character in the scene, in their conversation
+ * colour (matches the speaker chips inside the teleprompter). */
+.scene-card-cast {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.scene-cast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 
 .scene-card-arrow {
