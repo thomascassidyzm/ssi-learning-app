@@ -143,30 +143,28 @@ const handleOffline = () => {
     <!-- Tray popover -->
     <Transition name="tray">
       <div v-if="isOpen" class="mode-tray">
-        <!-- Script toggle (character-based languages only) -->
-        <div v-if="hasRomanizedText" class="tray-item tray-item--static">
+        <!-- Pronunciation guide on/off (character-based languages only).
+             An on/off switch — NOT a switch between two scripts. Native script
+             is always shown; this adds/removes the romanisation above it. -->
+        <button
+          v-if="hasRomanizedText"
+          class="tray-item"
+          :class="{ active: !isNativeScript }"
+          @click.stop="emit('toggleScript')"
+          :aria-pressed="!isNativeScript"
+          aria-label="Pronunciation guide"
+        >
           <div class="tray-icon">
-            <span class="script-icon">{{ isNativeScript ? '文' : 'Aa' }}</span>
+            <span class="script-icon">Aa</span>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Script</span>
-            <span class="tray-desc">Writing system</span>
+            <span class="tray-name">Pronunciation</span>
+            <span class="tray-desc">{{ !isNativeScript ? 'Guide shown above the script' : 'Native script only' }}</span>
           </div>
-          <div class="segmented-control" role="group" aria-label="Script selection">
-            <button
-              class="segment"
-              :class="{ active: !isNativeScript }"
-              @click.stop="isNativeScript && emit('toggleScript')"
-              aria-label="Romanized"
-            >Aa</button>
-            <button
-              class="segment"
-              :class="{ active: isNativeScript }"
-              @click.stop="!isNativeScript && emit('toggleScript')"
-              aria-label="Native script"
-            >文</button>
+          <div class="tray-toggle" :class="{ on: !isNativeScript }">
+            <div class="tray-toggle-knob"></div>
           </div>
-        </div>
+        </button>
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
@@ -537,15 +535,6 @@ const handleOffline = () => {
   padding: 8px 12px;
 }
 
-/* Static (non-button) tray item for embedded controls */
-.tray-item--static {
-  cursor: default;
-}
-
-.tray-item--static:hover {
-  background: transparent;
-}
-
 /* Section header */
 .tray-section-header {
   padding: 8px 14px 4px;
@@ -554,41 +543,6 @@ const handleOffline = () => {
   color: #A09A94;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-}
-
-/* Segmented control (script toggle) */
-.segmented-control {
-  display: flex;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
-  padding: 2px;
-  flex-shrink: 0;
-}
-
-.segment {
-  min-width: 32px;
-  height: 24px;
-  padding: 0 8px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #A09A94;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.segment:hover:not(.active) {
-  color: #6B6560;
-}
-
-.segment.active {
-  background: white;
-  color: #16a34a;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 /* Backdrop */

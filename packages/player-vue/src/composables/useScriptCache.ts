@@ -109,6 +109,13 @@ export interface CachedScript {
   loadedLegos?: number // For CourseExplorer pagination
   scriptOffset?: number // Track the starting offset (completedRounds at generation time)
   contentVersion?: string // courses.content_version — used to detect audio regeneration
+  // The audio-aware main-loop extent from the generateScript run that produced
+  // this cache (its mainLoopRoundCount = count of distinct playable main-loop
+  // rounds). Persisted so a warm cache-fast-path hydration single-sources the
+  // INF-PLAY boundary on this count rather than the (stale, non-audio-filtered)
+  // course_round_index matview. Optional for backward-compat with caches written
+  // before this field existed (they fall back to the matview, as before).
+  mainLoopRoundCount?: number
 }
 
 // ============================================================================

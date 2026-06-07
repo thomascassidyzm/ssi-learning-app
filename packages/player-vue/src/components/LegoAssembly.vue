@@ -4,6 +4,10 @@ import { computed, ref, watch } from 'vue'
 export interface LegoBlock {
   id: string
   targetText: string
+  /** Romanised form of this tile (e.g. pinyin), shown as a ruby annotation
+   *  above the native-script text when romanisation display is enabled. The
+   *  tile boundaries are identical across scripts — only this line toggles. */
+  romanText?: string
   knownText?: string
   isSalient?: boolean
   /** This A-LEGO was extracted from an M-LEGO and now appears solo */
@@ -33,6 +37,10 @@ const props = defineProps<{
    *  already-known scaffolding, not a chunk being practised. Intro/debut
    *  and BLDs keep full-mass tiles. */
   cycleType?: string
+  /** Show the romanised ruby line (block.romanText) above each tile. Driven by
+   *  the learner's script toggle — native-script glyphs are always primary; this
+   *  only adds/removes the pronunciation annotation. */
+  showRomanization?: boolean
 }>()
 
 const isUseCycle = computed(() => (props.cycleType || '').toLowerCase() === 'use')
@@ -535,6 +543,7 @@ const sentenceScale = computed(() => {
       :class="[assemblyPhase, { salient: blocks[0]?.isSalient }]"
       :style="{ '--assemble-duration': assembleDuration, '--stagger-delay': '0s' }"
     >
+      <div v-if="showRomanization && blocks[0]?.romanText" class="tile-ruby">{{ blocks[0]?.romanText }}</div>
       <div class="carriage-track">
         <div
           v-for="(group, gi) in carriageGroups"
@@ -573,6 +582,7 @@ const sentenceScale = computed(() => {
         '--char-count': blocks[0]?.targetText.length || 8,
       }"
     >
+      <div v-if="showRomanization && blocks[0]?.romanText" class="tile-ruby">{{ blocks[0]?.romanText }}</div>
       <!-- Target row: single tile, components are spans with stubs between.
            Three modes:
              1. M-LEGO with components → component-aligned sub-tiles
@@ -645,6 +655,9 @@ const sentenceScale = computed(() => {
             '--char-count': block.targetText.length,
           }"
         >
+          <!-- Romanised ruby line (e.g. pinyin) above the native tile. Toggled
+               by the learner; tile boundaries are identical across scripts. -->
+          <div v-if="showRomanization && block.romanText" class="tile-ruby">{{ block.romanText }}</div>
           <!-- Hyphenated mode: long M-LEGO split into wagon tiles -->
           <template v-if="practiceCarriageWagons(block)">
             <div class="hyphenated-track">
@@ -735,7 +748,10 @@ const sentenceScale = computed(() => {
   inset: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  /* Bottom-align so every tile BOX sits on the same baseline within a row; the
+     romanisation ruby floats above the tiles that have one, instead of pushing
+     ruby-less tiles up into a ragged line. */
+  align-items: flex-end;
   align-content: center;
   justify-content: center;
   gap: 0;
@@ -1051,6 +1067,30 @@ const sentenceScale = computed(() => {
   transition-property: transform, opacity;
   transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1.0);
   will-change: transform, opacity;
+}
+
+/* Romanised ruby line (pinyin / romaji / transliteration) above a tile.
+   Deliberately quiet — a pronunciation crutch the learner drops over time,
+   never competing with the native-script glyph it annotates. */
+.tile-ruby {
+  align-self: center;
+  text-align: center;
+  /* One pinyin syllable ≈ one hanzi wide (a syllable is 3-5 roman chars, a
+     hanzi ~one em), so the ruby tracks the tile width and never spills past it.
+     Sized to sit comfortably under the eye without competing with the glyph. */
+  font-size: calc(1.25rem * var(--sentence-scale, 1));
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(60, 55, 48, 0.62));
+  opacity: 0.9;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  /* The romanisation is always Latin — keep it LTR even above RTL (Arabic)
+     tiles, and isolate it from the surrounding bidi context. */
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 /* The visual tile */

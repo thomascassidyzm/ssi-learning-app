@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.5 (2026-06-01)
+# Version: 2.1.6 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -188,6 +188,71 @@ HERO_TEXT_PANE:
         phase_strip: "Horizontal 4-section strip with icons"
         known_text: "Known language text (always visible)"
         target_text: "Target language text (voice_2 only)"
+
+## ============================================================================
+## TILE ASSEMBLY & SCRIPT DISPLAY (June 2026)
+## ============================================================================
+
+TILE_ASSEMBLY:
+  description: "Phrase decomposed into per-LEGO tiles (LegoAssembly.vue)"
+  source: "packages/player-vue/src/components/LegoAssembly.vue"
+
+  dual_script_model: |
+    Every non-Latin-script course shows the NATIVE script as the primary glyph
+    with the romanisation as an optional ruby line above each tile
+    (block.romanText). The script toggle (ModeTray "Pronunciation") only shows/
+    hides the ruby — it is NOT a switch between two scripts. Default on; the
+    learner drops the crutch as recognition builds. Three tiling strategies are
+    dispatched by script shape (utils/alignRomanToNative.ts):
+
+  key_principle: |
+    Tiling is ALWAYS derived from the ROMANISED side (the reliably-segmented one
+    — word spaces or syllables). currentPhraseLegoBlocksRaw builds on romanised
+    (useNative=false); currentPhraseLegoBlocks then produces the native-primary
+    display per script. Lesson from the first cut: the NATIVE decomposition is
+    unreliable for spaceless scripts (Japanese's is mostly ghost characters),
+    whereas the romaji decomposes cleanly.
+
+  strategies:
+    mandarin_pinyin_word:
+      langs: "zho"
+      how: "buildWordTiles — tile by pinyin word; 1 hanzi = 1 syllable, each
+            pinyin word consumes its syllable-count of hanzi (erhua 儿 +
+            apostrophe). LEGO decomposition only marks salient tiles."
+      validated: "zho_for_eng: 5436 tiled, salient located 100%."
+    spaced_word_pair:
+      langs: "kor, rus, ell, hye, ara, hin, ukr, fas, bul, heb (RTL: ara/fas/heb)"
+      how: "buildWordPairTiles — native and romanisation are both whitespace-
+            segmented and 1:1, so zip into one tile per word (native primary,
+            romaji ruby). FINER than the LEGO decomposition (whose salient can be
+            a whole clause). Salient from the salient LEGO's native text. Ruby
+            LTR + bidi-isolated for RTL. Null on count mismatch → native-pair."
+      validated: "word-parity 94% (ara) – 100% (rus/hin/bul/heb)."
+    spaceless_device_segmented:
+      langs: "jpn, tha (Thai)"
+      how: "buildSegmentedTiles — the DEVICE segments the native sentence into
+            words via Intl.Segmenter(locale,'word') (ICU dictionaries, ja/th),
+            so tiling does NOT depend on the backend decomposition (which is
+            39-69% ghost for these). Romaji per tile, in order of preference:
+            (ja) alignJapaneseRomaji — forced-align the phrase romaji onto the
+            segmented words using kana as anchors + kanji as gaps recovered from
+            the stream; then positional phrase-romaji on count match; then the
+            course native→romaji dict (legos+atoms); else native, no ruby (still
+            parseable). Salient by char-offset. Old engines → nativeFromRomanTiles."
+      validated: "jpn combined romaji coverage 97.6% tiles / 90% phrases; tha ~96%."
+    latin:
+      langs: "spa/fra/deu/… (no target_text_roman)"
+      how: "hasRomanizedText=false → raw romanised tiling unchanged, no ruby."
+
+  script_toggle:
+    composable: "composables/useScriptMode.ts (per-course localStorage)"
+    semantics: |
+      Native-script glyphs are ALWAYS the primary text on romanised courses.
+      The toggle only shows/hides the romanisation as a ruby line (block.romanText)
+      above each tile — a pronunciation crutch the learner drops as character
+      recognition builds from exposure. Default ON (scriptMode 'roman').
+    control: "ModeTray.vue — Aa (guide shown) / 文 (characters only)"
+    prop: "LegoAssembly :show-romanization (LearningPlayer showRomanization computed)"
 
 ## ============================================================================
 ## PHASE STRIP
