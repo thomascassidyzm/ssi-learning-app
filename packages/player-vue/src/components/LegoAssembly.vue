@@ -1072,12 +1072,15 @@ const sentenceScale = computed(() => {
 .tile-ruby {
   align-self: center;
   text-align: center;
-  font-size: calc(0.62em * var(--sentence-scale, 1));
-  line-height: 1.1;
+  /* One pinyin syllable ≈ one hanzi wide (a syllable is 3-5 roman chars, a
+     hanzi ~one em), so the ruby tracks the tile width and never spills past it.
+     Sized to sit comfortably under the eye without competing with the glyph. */
+  font-size: calc(1.25rem * var(--sentence-scale, 1));
+  line-height: 1.15;
   letter-spacing: 0.01em;
   font-weight: 500;
-  color: var(--text-secondary, rgba(60, 55, 48, 0.6));
-  opacity: 0.85;
+  color: var(--text-secondary, rgba(60, 55, 48, 0.62));
+  opacity: 0.9;
   white-space: nowrap;
   user-select: none;
   pointer-events: none;
