@@ -4,7 +4,7 @@ import { getAudioCache } from '../cache/createAudioCache'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
-import { useListeningPods } from '../composables/useListeningPods'
+import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -303,6 +303,10 @@ const openScene = (scene) => {
     knownText: t.knownText,
     targetText: t.targetText,
     speaker: t.speaker,
+    speakerName: t.speakerName,
+    // Resolved palette colour from the pod-wide conversation colouring —
+    // character-stable, scene-mates always distinct.
+    speakerColor: SPEAKER_PALETTE[t.colorIndex % SPEAKER_PALETTE.length],
     position: t.globalOrder,
     target1AudioId: t.audioIds[0] || '',
     target2AudioId: t.audioIds[0] || '',
@@ -1259,7 +1263,19 @@ watch(
           <div class="scene-card-num">{{ scene.sceneNumber }}</div>
           <div class="scene-card-body">
             <div class="scene-card-title">{{ scene.title }}</div>
-            <div class="scene-card-meta">{{ scene.sentenceCount }} sentences</div>
+            <div class="scene-card-meta">
+              <!-- Cast dots — one per character, in their conversation colour -->
+              <span class="scene-card-cast">
+                <span
+                  v-for="sp in scene.speakers"
+                  :key="sp.name"
+                  class="scene-cast-dot"
+                  :style="{ background: SPEAKER_PALETTE[sp.colorIndex % SPEAKER_PALETTE.length] }"
+                  :title="sp.name"
+                ></span>
+              </span>
+              {{ scene.sentenceCount }} sentences
+            </div>
           </div>
           <svg class="scene-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="9 18 15 12 9 6"/>
@@ -1430,6 +1446,12 @@ watch(
             <div v-if="phrase.legoOrdinal" class="phrase-meta">
               <span class="phrase-belt-pip" :style="{ background: phrase.beltColor }"></span>
               <span class="phrase-ordinal">#{{ phrase.legoOrdinal }}</span>
+            </div>
+            <!-- Dialogue speaker chip — the conversation colouring made
+                 visible. Same character = same colour across the whole pod;
+                 two characters in the same scene never share a colour. -->
+            <div v-if="phrase.speakerName" class="phrase-speaker" :style="{ color: phrase.speakerColor }">
+              <span class="phrase-speaker-dot" :style="{ background: phrase.speakerColor }"></span>{{ phrase.speakerName }}
             </div>
             <div class="phrase-target">{{ phrase.targetText }}</div>
             <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
@@ -1725,6 +1747,28 @@ watch(
   font-style: italic;
 }
 
+/* Dialogue speaker chip — the conversation colouring made visible. Small
+ * caps name in the character's colour with a matching dot, sitting above
+ * the line like a script cue. Past/future rows inherit the row's reduced
+ * opacity, so the colour stays quiet until the line is live. */
+.phrase-speaker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.phrase-speaker-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* Per-row meta header (ordinal + belt pip). Subtle, tiny, sits above the
  * phrase target. Doesn't compete with the phrase text. */
 .phrase-meta {
@@ -2002,8 +2046,24 @@ watch(
 }
 
 .scene-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.8125rem;
   color: var(--text-muted);
+}
+
+/* Cast dots — one per character in the scene, in their conversation
+ * colour (matches the speaker chips inside the teleprompter). */
+.scene-card-cast {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.scene-cast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }
 
 .scene-card-arrow {

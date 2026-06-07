@@ -34,6 +34,14 @@ export interface PodSentence {
 export interface PodTurn {
   id: string
   speaker: string
+  /** Clean display name — the speaker label minus any time/place
+   *  annotation ("Barista (3 pm)" → "Barista"). */
+  speakerName: string
+  /** Palette index from the pod-wide conversation colouring — same
+   *  character keeps the same colour across every scene; two characters
+   *  who share a scene never share a colour (4-colour-map principle,
+   *  mirroring the voice-casting colouring in Popty). */
+  colorIndex: number
   /** Concatenated target text of all sentences in this turn (space-joined). */
   targetText: string
   /** Concatenated translation. */
@@ -54,7 +62,25 @@ export interface PodScene {
   turns: PodTurn[]
   /** Total sentence count across all turns (used for the scene-card subline). */
   sentenceCount: number
+  /** Cast of this scene in order of first line — for the scene-card dots. */
+  speakers: Array<{ name: string; colorIndex: number }>
 }
+
+/**
+ * Speaker palette — mid-tone, warm-theme-friendly colours that read as
+ * text on white cards and as dots on the warm-grey canvas. The colouring
+ * below guarantees scene-mates get different indices; the palette only
+ * wraps if a single pod genuinely needs more than 6 colours (the
+ * voice-casting proof never needed more than 4).
+ */
+export const SPEAKER_PALETTE = [
+  '#B5552D', // terracotta
+  '#2E7D6B', // teal
+  '#5B5EA6', // indigo
+  '#A8731E', // ochre
+  '#9C4D7E', // plum
+  '#3F7CAC', // slate blue
+]
 
 export interface UseListeningPodsReturn {
   scenes: Ref<PodScene[]>
@@ -117,7 +143,47 @@ export function useListeningPods(
       // vs "Vicino" — time annotation only on first speaker entrance).
       // Strip the time annotation for grouping so consecutive same-named
       // speakers merge even when only one row carries the time tag.
-      const speakerKey = (s: string) => s.replace(/\s*\([^)]*\)\s*/g, '').trim().toLowerCase()
+      const cleanSpeakerName = (s: string) => s.replace(/\s*\([^)]*\)\s*/g, '').trim()
+      const speakerKey = (s: string) => cleanSpeakerName(s).toLowerCase()
+
+      // ── Conversation colouring (4-colour-map principle) ─────────────
+      // Mirrors the voice-casting colouring in Popty: build the pod-wide
+      // "shares a scene" graph and greedy-colour speakers in order of
+      // first appearance. A character keeps ONE colour across the whole
+      // pod; two characters who converse never share a colour. Greedy on
+      // first-appearance order is exactly the algorithm the voice proof
+      // ran — it never needed more than 4 colours on real pods.
+      const speakerOrder: string[] = []
+      const displayName = new Map<string, string>()
+      const adjacency = new Map<string, Set<string>>()
+      for (const sceneSentences of buckets.values()) {
+        const cast = new Set<string>()
+        for (const s of sceneSentences) {
+          const key = speakerKey(s.speaker)
+          if (!key) continue
+          cast.add(key)
+          if (!displayName.has(key)) {
+            displayName.set(key, cleanSpeakerName(s.speaker))
+            speakerOrder.push(key)
+          }
+        }
+        for (const a of cast) {
+          let set = adjacency.get(a)
+          if (!set) { set = new Set(); adjacency.set(a, set) }
+          for (const b of cast) if (b !== a) set.add(b)
+        }
+      }
+      const colorOf = new Map<string, number>()
+      for (const key of speakerOrder) {
+        const taken = new Set<number>()
+        for (const n of adjacency.get(key) ?? []) {
+          const c = colorOf.get(n)
+          if (c !== undefined) taken.add(c)
+        }
+        let c = 0
+        while (taken.has(c)) c++
+        colorOf.set(key, c)
+      }
 
       /**
        * Merge consecutive same-speaker sentences into turns. The first
@@ -134,9 +200,12 @@ export function useListeningPods(
             last.knownText = `${last.knownText} ${s.knownText}`.trim()
             if (s.targetAudioId) last.audioIds.push(s.targetAudioId)
           } else {
+            const key = speakerKey(s.speaker)
             turns.push({
               id: `${s.id}-turn`,
               speaker: s.speaker,
+              speakerName: displayName.get(key) || cleanSpeakerName(s.speaker),
+              colorIndex: colorOf.get(key) ?? 0,
               targetText: s.targetText,
               knownText: s.knownText,
               audioIds: s.targetAudioId ? [s.targetAudioId] : [],
@@ -161,11 +230,21 @@ export function useListeningPods(
         const title = timeMatch
           ? `Scene ${sceneNumber} · ${timeMatch[1]}`
           : `Scene ${sceneNumber}`
+        // Scene cast in order of first line — drives the scene-card dots.
+        const castKeys: string[] = []
+        for (const s of sentences) {
+          const key = speakerKey(s.speaker)
+          if (key && !castKeys.includes(key)) castKeys.push(key)
+        }
         sceneList.push({
           sceneNumber,
           title,
           turns: mergeTurns(sentences),
           sentenceCount: sentences.length,
+          speakers: castKeys.map((key) => ({
+            name: displayName.get(key) || key,
+            colorIndex: colorOf.get(key) ?? 0,
+          })),
         })
       }
 

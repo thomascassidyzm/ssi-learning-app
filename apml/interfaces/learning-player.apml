@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.11 (2026-06-07)
+# Version: 2.1.12 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -326,6 +326,18 @@ LISTENING_OVERLAY:
     forever; default OFF. Scene matching is by sceneNumber — PodScene has
     no `id` field (a former `s.id === selected.id` undefined comparison
     made every scene "advance" to scene 2).
+  speaker_colouring: |
+    (Tom 2026-06-07) The voice-casting 4-colour-map principle, made
+    VISIBLE: useListeningPods builds the pod-wide "shares a scene" graph
+    and greedy-colours speakers in first-appearance order (same algorithm
+    as Popty's voice colouring proof — never needed >4 colours on real
+    pods). One character = one colour across the whole pod; scene-mates
+    never share. SPEAKER_PALETTE (6 mid-tone colours) exported from the
+    composable. Rendered as: an uppercase speaker chip + dot above every
+    teleprompter dialogue row (.phrase-speaker), and cast dots on each
+    scene card (.scene-card-cast). Colour rides turn.colorIndex; display
+    name is the speaker label minus its time/place annotation.
+
   scene_granularity: |
     One scene = one dialogue beat. Montage pods (several mini-dialogues
     sharing a backdrop, e.g. fra pod-0's "day of greetings") must be
