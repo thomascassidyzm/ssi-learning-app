@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
@@ -17,9 +17,12 @@ import type { CourseInfo } from '../composables/useEntitlement'
 import { useCyclePlayback } from '../composables/useCyclePlayback'
 import { scriptItemToCycle } from '../utils/scriptItemToCycle'
 import type { Cycle } from '../types/Cycle'
-import SessionComplete from './SessionComplete.vue'
+// Lazy: session-summary screen, only rendered v-if="showSessionComplete"
+// (never on the first-cycle path) — keeps its chunk off cold start.
+const SessionComplete = defineAsyncComponent(() => import('./SessionComplete.vue'))
 // OnboardingTooltips removed - deprecated
-import ReportIssueButton from './ReportIssueButton.vue'
+// Lazy: QA-only affordance, v-if="shouldShowQaMode" — never on learner cold path.
+const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton.vue'))
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
@@ -50,13 +53,20 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
 import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
-import ListeningOverlay from './ListeningOverlay.vue'
-import PronunciationOverlay from './PronunciationOverlay.vue'
+// Lazy: opt-in Listening-Pod mode, v-if="showListeningOverlay" — off by default,
+// not on the learning-cycle path. Heaviest clear win.
+const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.vue'))
+// Lazy: opt-in Pronunciation/mic mode, v-if="showPronunciationOverlay" — pulls the
+// prosody/mic subtree off cold start.
+const PronunciationOverlay = defineAsyncComponent(() => import('./PronunciationOverlay.vue'))
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
-import ProgressModal from './ProgressModal.vue'
+// Lazy: progress/contribution/belt modal. Its v-if (contribution.data.value) may
+// mount shortly after ready, but it renders no visible content until
+// showProgressModal opens, so deferring its chunk is flash-free.
+const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -11342,27 +11352,50 @@ onMounted(async () => {
   // loading complete' above to see whether data or the floor dominated.
   const coldTotalMs = Math.round(typeof performance !== 'undefined' ? performance.now() : 0)
   const coldOnMountedMs = Date.now() - startTime
-  console.log('[ColdStart] launch→ready', coldTotalMs, 'ms total (incl. app-shell+auth) |',
-    coldOnMountedMs, 'ms in onMounted | animFloor', MINIMUM_ANIMATION_MS, 'ms | returnUser', isReturnUser)
-  // Emit to telemetry so cold starts are measurable in player_events (there is
-  // otherwise NO event before tap_play — nothing captures launch→ready). Cookie-
-  // based, so guests are included; the unmount/visibility beacon flushes it even
-  // when the learner loads-then-switches without tapping play.
-  // Boot marks from main.js (nav-start relative) decompose the app-shell prefix:
-  //   nav→mainExec      = HTML + main bundle (Vue+App+deps) fetch+parse
-  //   mainExec→mounted  = App setup + createApp/mount
-  //   mounted→onMounted = PLAYER CHUNK fetch+parse + container/player setup
-  //   onMounted→ready   = onMountedMs (the player's own work; now floor-bound)
+  // Course switch is an in-app REMOUNT, not a document load: performance.now()
+  // (coldTotalMs) is relative to the ORIGINAL navigation and the boot marks are
+  // written once in main.js, so the nav-relative numbers are only meaningful on
+  // a genuine fresh document load. Detect it: the player's onMounted starts
+  // shortly after app.mount() on a fresh load, but much later on a switch
+  // (= time the learner spent on the previous course). mountToReadyMs is the
+  // always-valid per-mount cost (the real switch cost; floor-bound on a reload).
   const boot = (typeof window !== 'undefined' && (window as any).__ssiBoot) || {}
+  const onMountedEntryMs = coldTotalMs - coldOnMountedMs
+  const isFreshLoad = typeof boot.mountedMs === 'number'
+    ? (onMountedEntryMs - boot.mountedMs) < 3000
+    : true
+  console.log('[ColdStart]', isFreshLoad ? 'launch→ready' : 'switch→ready',
+    isFreshLoad ? coldTotalMs : coldOnMountedMs, 'ms |',
+    coldOnMountedMs, 'ms in onMounted | animFloor', MINIMUM_ANIMATION_MS, 'ms | fresh', isFreshLoad, '| returnUser', isReturnUser)
+  // Emit to telemetry so cold starts are measurable in player_events (there is
+  // otherwise NO event before tap_play). Cookie-based so guests are included;
+  // the unmount/visibility beacon flushes it even on load-then-switch.
   logEvent('cold_start', {
-    totalMs: coldTotalMs,            // navigation start → ready
-    onMountedMs: coldOnMountedMs,    // LearningPlayer onMounted entry → ready
-    mainExecMs: boot.mainExecMs ?? null,   // nav → main bundle evaluated
-    mountedMs: boot.mountedMs ?? null,     // nav → app.mount() done
-    animFloorMs: MINIMUM_ANIMATION_MS, // deliberate splash floor (300 return / 2800 first-visit)
+    isFreshLoad,                                       // true = genuine document load; false = in-app course switch (remount)
+    mountToReadyMs: coldOnMountedMs,                   // ALWAYS valid: this mount's onMounted→ready (real per-load/switch cost)
+    totalMs: isFreshLoad ? coldTotalMs : null,         // nav→ready — only meaningful on a fresh load
+    mainExecMs: isFreshLoad ? (boot.mainExecMs ?? null) : null,   // nav → main bundle evaluated
+    mountedMs: isFreshLoad ? (boot.mountedMs ?? null) : null,     // nav → app.mount() done
+    animFloorMs: MINIMUM_ANIMATION_MS,                 // deliberate splash floor (300 return / 2800 first-visit)
     returnUser: isReturnUser,
     guest: isGuestLearner.value,
   })
+
+  // Prewarm the now-lazy overlay/modal chunks on idle — AFTER ready, off the
+  // cold-start path — so entering Listening / Pronunciation mode or opening a
+  // modal mid-session has no chunk-fetch hitch. ListeningOverlay fires
+  // automatically ~5 min in, so it especially must be warm by then.
+  {
+    const idle = (typeof window !== 'undefined' && (window as any).requestIdleCallback)
+      ? (window as any).requestIdleCallback.bind(window)
+      : (cb: () => void) => setTimeout(cb, 1)
+    idle(() => {
+      void import('./ListeningOverlay.vue').catch(() => {})
+      void import('./PronunciationOverlay.vue').catch(() => {})
+      void import('./ProgressModal.vue').catch(() => {})
+      void import('./SessionComplete.vue').catch(() => {})
+    })
+  }
 
   // Preview mode: set position at startup (but defer network population to first play)
   nextTick(async () => {
