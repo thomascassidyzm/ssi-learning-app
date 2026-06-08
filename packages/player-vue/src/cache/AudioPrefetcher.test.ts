@@ -179,7 +179,7 @@ describe('AudioPrefetcher', () => {
     bundle = makeBundle()
   })
 
-  it('setBundle populates indices (probed via onRoundChanged)', async () => {
+  it('onRoundChanged is a no-op — no proactive ephemeral acquire (2026-05-23 streaming-first)', async () => {
     const prefetcher = createAudioPrefetcher({ audioCache: mock.cache })
     prefetcher.setBundle(bundle)
 
@@ -188,15 +188,18 @@ describe('AudioPrefetcher', () => {
       makeRound('S0001L02'),
       makeRound('S0001L03'),
     ]
-    await prefetcher.onRoundChanged(queue, 0)
+    await expect(prefetcher.onRoundChanged(queue, 0)).resolves.toBeUndefined()
 
-    // Default lookahead 1 (changed 2026-05-23 from 2 — streaming-first) → only L01 acquired.
-    expect(mock.acquireForLego).toHaveBeenCalledTimes(1)
-    const legoIds = mock.acquireForLego.mock.calls.map((c) => c[0].legoId)
-    expect(legoIds).toEqual(['S0001L01'])
+    // Proactive prefetch was disabled 2026-05-23: persistent.ensure /
+    // ephemeral.acquireForLego poisoned the SW CacheFirst layer with 200s that
+    // iOS Safari couldn't reconcile with its own Range/206 media requests
+    // (audio stalled, 'ended' never fired). onRoundChanged is kept as a no-op
+    // grep-handle. Nothing is acquired.
+    expect(mock.acquireForLego).not.toHaveBeenCalled()
+    expect(mock.ensure).not.toHaveBeenCalled()
   })
 
-  it('respects lookahead window (lookahead=2 acquires next 2, not 3rd)', async () => {
+  it('onRoundChanged is a no-op regardless of the lookahead option', async () => {
     const prefetcher = createAudioPrefetcher({ audioCache: mock.cache, lookahead: 2 })
     prefetcher.setBundle(bundle)
 
@@ -207,46 +210,26 @@ describe('AudioPrefetcher', () => {
       makeRound('S0001L04'),
       makeRound('S0001L05'),
     ]
-    await prefetcher.onRoundChanged(queue, 0)
+    await expect(prefetcher.onRoundChanged(queue, 0)).resolves.toBeUndefined()
 
-    expect(mock.acquireForLego).toHaveBeenCalledTimes(2)
-    const legoIds = mock.acquireForLego.mock.calls.map((c) => c[0].legoId)
-    expect(legoIds).toContain('S0001L01')
-    expect(legoIds).toContain('S0001L02')
-    expect(legoIds).not.toContain('S0001L03')
+    // lookahead now only governs onRoundCompleted's release window, not any
+    // proactive acquire — onRoundChanged acquires nothing.
+    expect(mock.acquireForLego).not.toHaveBeenCalled()
   })
 
-  it('ephemeral audio set = LEGO ephemeralAudio + build phrase audio (NOT use phrases)', async () => {
+  it('onRoundChanged does not touch the persistent (USE-phrase) layer', async () => {
     const prefetcher = createAudioPrefetcher({ audioCache: mock.cache, lookahead: 1 })
     prefetcher.setBundle(bundle)
 
     const queue: PrefetcherRound[] = [makeRound('S0001L01'), makeRound('S0001L02')]
-    await prefetcher.onRoundChanged(queue, 0)
+    await expect(prefetcher.onRoundChanged(queue, 0)).resolves.toBeUndefined()
 
-    expect(mock.acquireForLego).toHaveBeenCalledTimes(1)
-    const call = mock.acquireForLego.mock.calls[0][0]
-    expect(call.legoId).toBe('S0001L01')
-
-    const ids = new Set<string>(call.audioIds)
-    // LEGO own ephemeral audio
-    expect(ids.has('S0001L01-known')).toBe(true)
-    expect(ids.has('S0001L01-t1')).toBe(true)
-    expect(ids.has('S0001L01-t2')).toBe(true)
-    expect(ids.has('S0001L01-pres')).toBe(true)
-    // Build phrase audio
-    expect(ids.has('S0001L01-build1-k')).toBe(true)
-    expect(ids.has('S0001L01-build1-t1')).toBe(true)
-    expect(ids.has('S0001L01-build1-t2')).toBe(true)
-    expect(ids.has('S0001L01-build2-k')).toBe(true)
-    expect(ids.has('S0001L01-build2-t1')).toBe(true)
-    expect(ids.has('S0001L01-build2-t2')).toBe(true)
-    // USE phrase audio NOT present (persistent path)
-    expect(ids.has('S0001L01-use1-k')).toBe(false)
-    expect(ids.has('S0001L01-use1-t1')).toBe(false)
-    expect(ids.has('S0001L01-use2-k')).toBe(false)
+    // The ephemeral + persistent backstops were both disabled 2026-05-23.
+    expect(mock.acquireForLego).not.toHaveBeenCalled()
+    expect(mock.ensure).not.toHaveBeenCalled()
   })
 
-  it('persistent backstop ensures next N cycles distinct audio ids', async () => {
+  it('onRoundChanged runs no persistent backstop (disabled 2026-05-23)', async () => {
     const prefetcher = createAudioPrefetcher({
       audioCache: mock.cache,
       lookahead: 1,
@@ -255,18 +238,17 @@ describe('AudioPrefetcher', () => {
     prefetcher.setBundle(bundle)
 
     const queue: PrefetcherRound[] = [
-      makeRound('S0001L01', 3), // 3 cycles → 9 audio ids
+      makeRound('S0001L01', 3),
       makeRound('S0001L02', 3),
       makeRound('S0001L03', 3),
     ]
     await prefetcher.onRoundChanged(queue, 0)
 
-    // Wait one microtask so fire-and-forget ensure() runs.
+    // Wait two microtasks in case any fire-and-forget work were scheduled.
     await Promise.resolve()
     await Promise.resolve()
 
-    // We expect 5 cycles × 3 audio ids per cycle = 15 ensure calls.
-    expect(mock.ensure).toHaveBeenCalledTimes(15)
+    expect(mock.ensure).not.toHaveBeenCalled()
   })
 
   it('onRoundCompleted releases LEGO not in lookahead window', async () => {
@@ -299,16 +281,16 @@ describe('AudioPrefetcher', () => {
     expect(mock.releaseForLego).not.toHaveBeenCalled()
   })
 
-  it('swallows cache errors and continues', async () => {
+  it('onRoundChanged cannot surface cache errors — it never touches the cache', async () => {
     mock.acquireForLego.mockRejectedValueOnce(new Error('cache exploded'))
     const prefetcher = createAudioPrefetcher({ audioCache: mock.cache, lookahead: 2 })
     prefetcher.setBundle(bundle)
 
     const queue: PrefetcherRound[] = [makeRound('S0001L01'), makeRound('S0001L02')]
-    // Should not throw despite the first acquire rejecting.
+    // No-op: nothing is acquired, so the rejection setup never fires and the
+    // call resolves cleanly regardless.
     await expect(prefetcher.onRoundChanged(queue, 0)).resolves.toBeUndefined()
-    // Second acquire still fires.
-    expect(mock.acquireForLego).toHaveBeenCalledTimes(2)
+    expect(mock.acquireForLego).not.toHaveBeenCalled()
   })
 
   it('handles empty roundQueue and out-of-bounds index without throwing', async () => {
@@ -327,7 +309,7 @@ describe('AudioPrefetcher', () => {
     expect(mock.releaseForLego).not.toHaveBeenCalled()
   })
 
-  it('cycle without audioUrl is skipped without throwing', async () => {
+  it('onRoundChanged no-ops on malformed/empty cycle audio without throwing', async () => {
     const prefetcher = createAudioPrefetcher({
       audioCache: mock.cache,
       lookahead: 1,
@@ -358,20 +340,12 @@ describe('AudioPrefetcher', () => {
       },
     ]
 
+    // The no-op never walks cycles, so malformed/empty URLs can't throw and
+    // nothing reaches persistent.ensure.
     await expect(prefetcher.onRoundChanged(queue, 0)).resolves.toBeUndefined()
     await Promise.resolve()
     await Promise.resolve()
-    // Only the 3 valid IDs from the last cycle should reach persistent.ensure.
-    // Note: 'not-a-real-url' has 'not-a-real-url' as last segment → still
-    // technically an id by our extractor (we only filter empty). Adjust
-    // expectation accordingly: any URL with a non-empty last segment passes.
-    // The two valid-looking malformed ones ('not-a-real-url', 'nope') still
-    // yield ids, but the truly empty ones ('', '/api/audio/') are skipped.
-    // We just assert no throw and that the valid 'good-*' ids made it.
-    const ensuredIds = mock.ensure.mock.calls.map((c) => c[0])
-    expect(ensuredIds).toContain('good-k')
-    expect(ensuredIds).toContain('good-t1')
-    expect(ensuredIds).toContain('good-t2')
+    expect(mock.ensure).not.toHaveBeenCalled()
   })
 
   it('reset() clears state so subsequent onRoundChanged is a no-op', async () => {

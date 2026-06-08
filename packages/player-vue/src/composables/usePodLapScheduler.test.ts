@@ -171,7 +171,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     }
   })
 
-  it('first lap (ratchet=0 → podRound=1) plays sentence 1 at stage 1: ps,trans,ps,ps', async () => {
+  it('first lap (ratchet=0 → podRound=1) plays sentence 1 at stage 1: ps,ps,trans,ps (explainer dropped)', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -181,8 +181,11 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap).not.toBeNull()
     expect(lap!.podRound).toBe(1)
-    // Stage 1 stays all 1.0× per Aran's 2026-05-05 spec — 2× kicks in from stage 2.
-    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps'])
+    // Stage 1 playlist is ['ps','explainer','ps','trans','ps'] (Aran's 2026-05-07
+    // explainer insertion). This fixture sentence has no explainer_audio_id, so
+    // the explainer slot drops → ['ps','ps','trans','ps']. Still all 1.0× (2×
+    // kicks in from stage 2).
+    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'ps', 'trans', 'ps'])
     expect(lap!.plays.every(p => p.sentenceIdx === 1)).toBe(true)
     expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')

@@ -4,7 +4,16 @@ import { computed, ref, watch } from 'vue'
 export interface LegoBlock {
   id: string
   targetText: string
+  /** Romanised form of this tile (e.g. pinyin), shown as a ruby annotation
+   *  above the native-script text when romanisation display is enabled. The
+   *  tile boundaries are identical across scripts — only this line toggles. */
+  romanText?: string
   knownText?: string
+  /** Intro/debut gloss grouping: consecutive blocks sharing a glossGroup id
+   *  form one run whose known gloss (on the run's first block) renders
+   *  centred under the WHOLE run. Tiles themselves are identical to the
+   *  regular-phrase rendering — only the gloss row is added. */
+  glossGroup?: number
   isSalient?: boolean
   /** This A-LEGO was extracted from an M-LEGO and now appears solo */
   isSoloComponent?: boolean
@@ -28,14 +37,15 @@ const props = defineProps<{
   phase: string // UI phase: 'prompt' | 'speak' | 'voice1' | 'voice2'
   components?: ComponentBreakdown[]
   targetLang?: string // ISO 639-3 language code (e.g., 'jpn', 'zho', 'spa')
-  /** Cycle type: 'use' lowers the visual mass of non-salient context tiles
-   *  (smaller padding, dimmer border, ~85% font) — context in USE is
-   *  already-known scaffolding, not a chunk being practised. Intro/debut
-   *  and BLDs keep full-mass tiles. */
+  /** Cycle type — drives the known-text visibility rule (intro/debut only).
+   *  Tile typography is uniform across cycle types (Tom 2026-06-07). */
   cycleType?: string
+  /** Show the romanised ruby line (block.romanText) above each tile. Driven by
+   *  the learner's script toggle — native-script glyphs are always primary; this
+   *  only adds/removes the pronunciation annotation. */
+  showRomanization?: boolean
 }>()
 
-const isUseCycle = computed(() => (props.cycleType || '').toLowerCase() === 'use')
 // Known-text (the English subtitle under each tile) only renders during
 // intro and debut cycles — the first time a learner meets the LEGO. Once
 // the salient appears alongside other LEGOs (BLD / USE phrases), the
@@ -507,6 +517,28 @@ function alignedBlockComponents(block: LegoBlock): ComponentBreakdown[] | null {
   return aligned
 }
 
+// Intro/debut gloss groups (Tom 2026-06-07): when blocks carry glossGroup
+// ids, render them as runs — the word tiles EXACTLY as a regular phrase
+// shows them (per-tile ruby, same boxes), plus one known gloss centred
+// under each run. Groups are built from consecutive blocks sharing an id;
+// the run's gloss is the first block's knownText.
+const introGlossGroups = computed<Array<{ blocks: LegoBlock[]; known: string }> | null>(() => {
+  if (!props.blocks.some((b) => b.glossGroup !== undefined)) return null
+  const groups: Array<{ blocks: LegoBlock[]; known: string }> = []
+  let lastId: number | undefined
+  for (const b of props.blocks) {
+    const id = b.glossGroup
+    const last = groups[groups.length - 1]
+    if (last && id !== undefined && id === lastId) {
+      last.blocks.push(b)
+    } else {
+      groups.push({ blocks: [b], known: b.knownText || '' })
+    }
+    lastId = id
+  }
+  return groups
+})
+
 // Uniform sentence-level scaling: all tiles in a phrase scale together.
 // Floor 0.85 so the target font stays at least as big as the known-text
 // panel above — long phrases wrap onto more rows rather than shrinking
@@ -526,15 +558,50 @@ const sentenceScale = computed(() => {
   <div class="lego-assembly" :class="[assemblyPhase, { 'instant-hide': instantHide }]" :style="{ '--sentence-scale': sentenceScale, direction: isRTL ? 'rtl' : 'ltr' }">
 
     <!-- ═══════════════════════════════════════════
+         INTRO GLOSS GROUPS — intro/debut word tiles, identical to the
+         regular-phrase rendering (per-tile ruby, same boxes), with the
+         known-language gloss centred under each component's tile run.
+         ═══════════════════════════════════════════ -->
+    <template v-if="introGlossGroups">
+      <div
+        v-for="(group, gi) in introGlossGroups"
+        :key="'gg' + gi"
+        class="lego-block-wrapper gloss-group"
+        :class="[assemblyPhase]"
+        :style="{ '--stagger-delay': staggerDelay(gi) }"
+      >
+        <div class="gloss-group-row">
+          <div v-for="block in group.blocks" :key="block.id" class="gloss-group-tile">
+            <div v-if="showRomanization && block.romanText" class="tile-ruby">{{ block.romanText }}</div>
+            <div
+              class="lego-block"
+              :class="{ salient: block.isSalient, 'is-cjk': hasCjk(block.targetText) }"
+              :style="{ '--char-count': block.targetText.length }"
+            >
+              <span class="block-text">{{ softHyphenate(block.targetText) }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- Gloss line rendered for EVERY run, even empty ones (structural
+             particles): the assembly bottom-aligns the groups, so a missing
+             gloss line would push that run's tile DOWN by one line relative
+             to glossed neighbours. Reserving the space keeps every tile on
+             the same baseline. -->
+        <span class="block-known gloss-group-known">{{ group.known }}</span>
+      </div>
+    </template>
+
+    <!-- ═══════════════════════════════════════════
          CARRIAGE MODE — long M-LEGO as groups of up to 3 components
          Each group is a mini tile with internal stubs, groups linked externally
          ═══════════════════════════════════════════ -->
     <div
-      v-if="carriageGroups"
+      v-else-if="carriageGroups"
       class="lego-tile"
       :class="[assemblyPhase, { salient: blocks[0]?.isSalient }]"
       :style="{ '--assemble-duration': assembleDuration, '--stagger-delay': '0s' }"
     >
+      <div v-if="showRomanization && blocks[0]?.romanText" class="tile-ruby">{{ blocks[0]?.romanText }}</div>
       <div class="carriage-track">
         <div
           v-for="(group, gi) in carriageGroups"
@@ -573,6 +640,7 @@ const sentenceScale = computed(() => {
         '--char-count': blocks[0]?.targetText.length || 8,
       }"
     >
+      <div v-if="showRomanization && blocks[0]?.romanText" class="tile-ruby">{{ blocks[0]?.romanText }}</div>
       <!-- Target row: single tile, components are spans with stubs between.
            Three modes:
              1. M-LEGO with components → component-aligned sub-tiles
@@ -588,29 +656,42 @@ const sentenceScale = computed(() => {
            its full text, even if multi-word. Text wraps naturally at
            word boundaries inside the tile when needed; the tile
            outline stays continuous because it IS one chunk. -->
-      <div class="tile-target" :class="{ 'has-components': !!mLegoComponents, 'is-cjk': hasCjk(blocks[0]?.targetText) }">
-        <template v-if="mLegoComponents">
+      <!-- M-LEGO with components: target tiles (row 1, in the box) and the
+           known gloss (row 2) live in ONE grid, sharing column tracks, so each
+           gloss centres under its tile. The gloss cells are zero-width
+           (justify-self:center, overflow visible) so the COLUMNS are sized by
+           the tiles — tiles keep natural widths, glosses centre under them.
+           (They used to be two separate flex rows — natural-width tiles vs
+           equal-third glosses — which could only line up by coincidence.) -->
+      <div
+        v-if="mLegoComponents"
+        class="tile-grid"
+        :class="{ 'is-cjk': hasCjk(blocks[0]?.targetText), 'show-known': isIntroOrDebut && mLegoComponents.some(c => c.known) }"
+        :style="{ '--cols': mLegoComponents.length }"
+      >
+        <span
+          v-for="(comp, i) in mLegoComponents"
+          :key="'t' + i"
+          class="comp"
+          :class="{ 'is-inserter': comp.isInserter }"
+          :style="{ gridColumn: i + 1, gridRow: 1 }"
+        >{{ softHyphenate(comp.target) }}</span>
+        <template v-if="isIntroOrDebut && mLegoComponents.some(c => c.known)">
           <span
             v-for="(comp, i) in mLegoComponents"
-            :key="i"
-            class="comp"
-            :class="{ 'is-inserter': comp.isInserter }"
-          >{{ softHyphenate(comp.target) }}</span>
-        </template>
-        <span v-else class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
-      </div>
-      <!-- Known row: only during intro/debut. Once the salient LEGO
-           appears alongside other LEGOs, the English subtitle gets
-           dropped — target tiles stand alone. -->
-      <template v-if="isIntroOrDebut">
-        <div v-if="mLegoComponents && mLegoComponents.some(c => c.known)" class="tile-known-row">
-          <span
-            v-for="(comp, i) in mLegoComponents"
-            :key="i"
+            :key="'k' + i"
             class="tile-known-comp"
+            :style="{ gridColumn: i + 1, gridRow: 2 }"
           >{{ comp.known || '' }}</span>
+        </template>
+      </div>
+
+      <!-- Single A-LEGO (no components): the simple box + gloss underneath. -->
+      <template v-else>
+        <div class="tile-target" :class="{ 'is-cjk': hasCjk(blocks[0]?.targetText) }">
+          <span class="comp">{{ softHyphenate(blocks[0]?.targetText || '') }}</span>
         </div>
-        <div v-else-if="knownText" class="tile-known">{{ knownText }}</div>
+        <div v-if="isIntroOrDebut && knownText" class="tile-known">{{ knownText }}</div>
       </template>
     </div>
 
@@ -632,6 +713,9 @@ const sentenceScale = computed(() => {
             '--char-count': block.targetText.length,
           }"
         >
+          <!-- Romanised ruby line (e.g. pinyin) above the native tile. Toggled
+               by the learner; tile boundaries are identical across scripts. -->
+          <div v-if="showRomanization && block.romanText" class="tile-ruby">{{ block.romanText }}</div>
           <!-- Hyphenated mode: long M-LEGO split into wagon tiles -->
           <template v-if="practiceCarriageWagons(block)">
             <div class="hyphenated-track">
@@ -722,7 +806,10 @@ const sentenceScale = computed(() => {
   inset: 0;
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  /* Bottom-align so every tile BOX sits on the same baseline within a row; the
+     romanisation ruby floats above the tiles that have one, instead of pushing
+     ruby-less tiles up into a ragged line. */
+  align-items: flex-end;
   align-content: center;
   justify-content: center;
   gap: 0;
@@ -854,6 +941,71 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
+/* ── M-LEGO shared grid: tiles (row 1) + gloss (row 2) in one grid so each
+   gloss centres under its tile (replaces the two separate flex rows). ── */
+.tile-grid {
+  display: inline-grid;
+  grid-template-columns: repeat(var(--cols), auto); /* columns sized by the TILES */
+  align-items: center;
+  justify-items: center;
+  row-gap: 0.4em;        /* tile row → gloss row */
+  position: relative;
+  max-width: 100%;
+}
+/* The bordered box sits behind the tile row only (row 1, all columns). */
+.tile-grid::before {
+  content: '';
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  justify-self: stretch;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  z-index: 0;
+}
+.tile-grid .comp {
+  z-index: 1;
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: 1.9rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 0.02em;
+  padding: 0.55em 0.7em;   /* vertical → box height; horizontal → tile breathing */
+  position: relative;
+  hyphens: manual;
+}
+/* Divider stubs between adjacent tiles (short top + bottom lines). */
+.tile-grid .comp + .comp::before,
+.tile-grid .comp + .comp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 1.5px;
+  height: 27%;
+  background: rgba(255, 255, 255, 0.4);
+  z-index: 2;
+  pointer-events: none;
+}
+.tile-grid .comp + .comp::before { top: 0; }
+.tile-grid .comp + .comp::after { bottom: 0; }
+/* Gloss cells contribute ZERO width so the columns stay sized by the tiles;
+   the text overflows centred on the column (= under the tile centre). */
+.tile-grid .tile-known-comp {
+  width: 0;
+  min-width: 0;
+  justify-self: center;
+  overflow: visible;
+  white-space: nowrap;
+  padding: 0;
+}
+/* Salient (intro/debut) box emphasis — mirrors .tile-target.salient. */
+.lego-tile.salient .tile-grid::before {
+  border-color: rgba(255, 255, 255, 0.3);
+  border-width: 2px;
+}
+
 /* Salient (intro/debut) — neutral glow, consistent across phases */
 .lego-tile.salient .tile-target {
   border-color: rgba(255, 255, 255, 0.3);
@@ -975,6 +1127,54 @@ const sentenceScale = computed(() => {
   will-change: transform, opacity;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   INTRO GLOSS GROUPS — tile runs with the known gloss centred under
+   each run. The tiles inside reuse .lego-block / .tile-ruby exactly,
+   so the intro/debut tiling reads identical to a regular phrase.
+   ═══════════════════════════════════════════════════════════════ */
+.gloss-group-row {
+  display: flex;
+  align-items: flex-end; /* tile boxes share a baseline; ruby floats above */
+  gap: 0;                /* flush, matching the assembly's tile spacing */
+}
+.gloss-group-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;              /* ruby → tile spacing, matches .lego-block-wrapper */
+}
+/* Reserve one gloss line on every run (glossed or not) so the bottom-aligned
+   groups keep their TILES on a shared baseline — a particle's empty gloss
+   must occupy the same height as its neighbours' known text. nowrap on
+   .block-known guarantees the line never grows past this. */
+.gloss-group-known {
+  min-height: 1.4em;
+}
+
+/* Romanised ruby line (pinyin / romaji / transliteration) above a tile.
+   Deliberately quiet — a pronunciation crutch the learner drops over time,
+   never competing with the native-script glyph it annotates. */
+.tile-ruby {
+  align-self: center;
+  text-align: center;
+  /* One pinyin syllable ≈ one hanzi wide (a syllable is 3-5 roman chars, a
+     hanzi ~one em), so the ruby tracks the tile width and never spills past it.
+     Sized to sit comfortably under the eye without competing with the glyph. */
+  font-size: calc(1.25rem * var(--sentence-scale, 1));
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(60, 55, 48, 0.62));
+  opacity: 0.9;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  /* The romanisation is always Latin — keep it LTR even above RTL (Arabic)
+     tiles, and isolate it from the surrounding bidi context. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 /* The visual tile */
 .lego-block {
   display: inline-flex;
@@ -1027,42 +1227,25 @@ const sentenceScale = computed(() => {
   padding: 0 0.35em;
 }
 
+/* Uniform tile typography (Tom 2026-06-07): with the romanisation ruby and
+   authored per-word tiles, the old salient-vs-context weight/size split read
+   as noise — every tile now carries the same bold text. The salient class
+   stays on blocks (semantics/telemetry) but no longer changes the type. */
 .lego-block .block-text {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
-  font-size: calc(1.9rem * var(--sentence-scale, 1));
+  font-size: calc(1.7rem * var(--sentence-scale, 1));
   /* Wraps: word-boundary by default (clean space breaks), plus any SHY
    * positions softHyphenate inserted mid-word for long compound nouns.
    * `hyphens: manual` means a wrap AT a SHY shows a visible hyphen
    * (signalling "this word is broken"); plain word-break wraps show
    * nothing extra. */
   hyphens: manual;
-  font-weight: 500;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   letter-spacing: 0.02em;
   user-select: none;
   position: relative;
   padding: 0 0.35em;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   ONE alternate visual treatment for "previously-known" tiles.
-   Tom 2026-05-21: two looks only — white salient (the current LEGO
-   being practised) + this single "second colour" for every other
-   tile type. Previously-known siblings, ghost-filled tokens, solo
-   components extracted from M-LEGOs, and in-span inserters between
-   M-LEGO atoms all collapse to the same treatment.
-
-   Approach: smaller-darker rather than opacity-dim. Opacity made
-   tiles read as "disabled / can't click this" (Tom's feedback on
-   first iteration). Smaller font + still-full-text-colour signals
-   "established / quieter" — like footnote vs headline — instead
-   of "deactivated".
-   ───────────────────────────────────────────────────────────────── */
-.lego-block:not(.salient):not(.wagon) .block-text,
-.tile-target .comp.is-inserter,
-.lego-block.has-components .comp.is-inserter {
-  font-size: calc(1.55rem * var(--sentence-scale, 1));
-  font-weight: 500;
 }
 
 /* Stubs-bright on practice M-LEGOs — M-LEGO components rendered as
@@ -1170,33 +1353,19 @@ const sentenceScale = computed(() => {
 }
 
 /* --- SALIENT LEGO (newly introduced) ---
-   No chrome change — salient tile reads identical to its neighbours.
-   Differentiation is carried entirely by the non-salient `:not(.salient)`
-   rule (smaller, slightly muted text). Salient itself gets a subtle
-   weight + size bump on the text only; no border colour, no glow, no
-   scale transform — those broke catastrophically on long phrases that
-   wrapped to multiple lines (4-line phrase x scale(1.2) bled off-screen).
-   Tom 2026-05-21. */
-.lego-block.salient .block-text {
-  font-size: calc(1.7rem * var(--sentence-scale, 1));
-  font-weight: 600;
-}
+   No visual change at all since the uniform-typography pass (Tom
+   2026-06-07) — the class is kept on blocks for semantics only. */
 
 /* ═══════════════════════════════════════════════════════════════
    CJK SIZING — Chinese/Japanese/Korean characters are denser than
    Roman letters and read cramped at Roman-tuned sizes. Bump font-
-   size ~20% and add letter-spacing so glyphs breathe without
-   inserting actual whitespace between characters.
+   size and add letter-spacing so glyphs breathe without inserting
+   actual whitespace between characters. One size for every tile —
+   salient and context read identically.
    ═══════════════════════════════════════════════════════════════ */
 .lego-block.is-cjk .block-text {
-  font-size: calc(2.15rem * var(--sentence-scale, 1));
-  letter-spacing: 0.08em;
-}
-.lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-  font-size: calc(1.85rem * var(--sentence-scale, 1));
-}
-.lego-block.salient.is-cjk .block-text {
   font-size: calc(2rem * var(--sentence-scale, 1));
+  letter-spacing: 0.08em;
 }
 .tile-target.is-cjk .comp {
   font-size: 2.2rem;
@@ -1247,30 +1416,14 @@ const sentenceScale = computed(() => {
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 600px) {
   .lego-block .block-text {
-    font-size: calc(1.6rem * var(--sentence-scale, 1));
+    font-size: calc(1.55rem * var(--sentence-scale, 1));
   }
   .lego-block {
     padding: calc(0.5em * var(--sentence-scale, 1)) calc(0.9em * var(--sentence-scale, 1));
   }
-  /* Mobile: shrink both sides of the salient bump while keeping the
-     same subtle delta as desktop. The :not(.salient):not(.wagon) rule
-     in the desktop block beats the mobile base on specificity, so the
-     non-salient size needs its own mobile-scoped override here. */
-  .lego-block:not(.salient):not(.wagon) .block-text {
-    font-size: calc(1.45rem * var(--sentence-scale, 1));
-  }
-  .lego-block.salient .block-text {
-    font-size: calc(1.55rem * var(--sentence-scale, 1));
-  }
 
-  /* CJK mobile — keep the ~20% bump proportional to the mobile baseline. */
+  /* CJK mobile — keep the density bump proportional to the mobile baseline. */
   .lego-block.is-cjk .block-text {
-    font-size: calc(1.9rem * var(--sentence-scale, 1));
-  }
-  .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-    font-size: calc(1.7rem * var(--sentence-scale, 1));
-  }
-  .lego-block.salient.is-cjk .block-text {
     font-size: calc(1.8rem * var(--sentence-scale, 1));
   }
 
@@ -1319,26 +1472,9 @@ const sentenceScale = computed(() => {
   background: rgba(44, 38, 34, 0.2);
 }
 
-/* Mist theme: single "second colour" treatment. Matches the dark theme's
-   smaller-darker approach — full text colour, smaller font, NOT a
-   disabled-looking grey-out. The salient (with its red border + red
-   tint background from the existing mist .salient rule) still
-   dominates by chrome rather than by text contrast. */
-:root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) .block-text,
-:root[data-theme="mist"] .tile-target .comp.is-inserter,
-:root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
-  font-size: calc(1.55rem * var(--sentence-scale, 1));
-  color: rgba(44, 38, 34, 0.62);
-  font-weight: 500;
-}
-
-/* Non-salient tile chrome (mist) — softer border + lighter shadow so
-   the salient's normal border reads as the "active" one by contrast. */
-:root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) {
-  border-color: rgba(0, 0, 0, 0.18);
-  box-shadow: 0 1px 3px rgba(44, 38, 34, 0.08),
-              0 4px 12px rgba(44, 38, 34, 0.05);
-}
+/* Mist: uniform tiles (Tom 2026-06-07). The old "second colour" treatment
+   (smaller, muted non-salient text + softer non-salient chrome) is gone —
+   every tile renders the same bold dark text in the same white box. */
 
 /* Hyphenated wagon edge stubs for mist theme */
 :root[data-theme="mist"] .lego-block.wagon:not(.wagon-end)::after,
@@ -1373,6 +1509,35 @@ const sentenceScale = computed(() => {
   background: #ffffff;
 }
 
+/* M-LEGO shared-grid mist overrides — mirror .tile-target so the new grid
+   renders white-box/dark-text like the rest (mist is the only live theme). */
+:root[data-theme="mist"] .tile-grid::before {
+  background: #ffffff;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 8px 20px rgba(44, 38, 34, 0.06);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root[data-theme="mist"] .tile-grid .comp {
+  color: var(--text-primary);
+}
+:root[data-theme="mist"] .tile-grid .comp + .comp::before,
+:root[data-theme="mist"] .tile-grid .comp + .comp::after {
+  background: rgba(44, 38, 34, 0.2);
+}
+:root[data-theme="mist"] .lego-tile.salient .tile-grid::before {
+  border-color: rgba(0, 0, 0, 0.35);
+}
+:root[data-theme="mist"] .tile-grid.is-cjk .comp {
+  font-size: 2.2rem;
+}
+@media (max-width: 600px) {
+  :root[data-theme="mist"] .tile-grid.is-cjk .comp {
+    font-size: 1.9rem;
+  }
+}
+
 /* Carriage mist overrides */
 :root[data-theme="mist"] .carriage-cell {
   background: #ffffff;
@@ -1395,45 +1560,7 @@ const sentenceScale = computed(() => {
   background: #ffffff;
 }
 
-/* Mobile sizing for mist — mirrors the scoped mobile rules but with
-   :root[data-theme="mist"] specificity so it beats the mist non-salient
-   rule above. Without this the bump collapses to weight+colour only on
-   mobile-mist (the most common live-test surface). */
-@media (max-width: 600px) {
-  :root[data-theme="mist"] .lego-block:not(.salient):not(.wagon) .block-text,
-  :root[data-theme="mist"] .tile-target .comp.is-inserter,
-  :root[data-theme="mist"] .lego-block.has-components .comp.is-inserter {
-    font-size: calc(1.45rem * var(--sentence-scale, 1));
-  }
-}
-
-/* CJK sizing — mist-scoped counterparts. The unscoped .is-cjk rules lose
-   to the mist non-salient rule on specificity (mist adds :root +
-   [data-theme]), so each one needs a mist-prefixed sibling. */
-:root[data-theme="mist"] .lego-block.is-cjk .block-text {
-  font-size: calc(2.15rem * var(--sentence-scale, 1));
-}
-:root[data-theme="mist"] .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-  font-size: calc(1.85rem * var(--sentence-scale, 1));
-}
-:root[data-theme="mist"] .lego-block.salient.is-cjk .block-text {
-  font-size: calc(2rem * var(--sentence-scale, 1));
-}
-:root[data-theme="mist"] .tile-target.is-cjk .comp {
-  font-size: 2.2rem;
-}
-@media (max-width: 600px) {
-  :root[data-theme="mist"] .lego-block.is-cjk .block-text {
-    font-size: calc(1.9rem * var(--sentence-scale, 1));
-  }
-  :root[data-theme="mist"] .lego-block.is-cjk:not(.salient):not(.wagon) .block-text {
-    font-size: calc(1.7rem * var(--sentence-scale, 1));
-  }
-  :root[data-theme="mist"] .lego-block.salient.is-cjk .block-text {
-    font-size: calc(1.8rem * var(--sentence-scale, 1));
-  }
-  :root[data-theme="mist"] .tile-target.is-cjk .comp {
-    font-size: 1.9rem;
-  }
-}
+/* No mist-scoped sizing rules needed any more — the uniform unscoped
+   .block-text / .is-cjk rules apply in mist too, now that the mist
+   non-salient overrides (which used to win on specificity) are gone. */
 </style>

@@ -13,7 +13,7 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export interface AdminUser {
+interface AdminUser {
   id: string
   user_id: string
   display_name: string
@@ -24,7 +24,7 @@ export interface AdminUser {
   platform_role: string | null
 }
 
-export interface UserEnrollment {
+interface UserEnrollment {
   learner_id: string
   course_id: string
   last_practiced_at: string | null

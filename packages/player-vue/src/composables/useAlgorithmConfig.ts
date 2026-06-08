@@ -64,9 +64,10 @@ export interface PodsConfig {
  * (highest_completed_*) is always preserved so they keep access.
  */
 export interface ResumeConfig {
-  /** After this gap in days, ignore current_cycle_index on resume —
-   *  start at the beginning of the in-progress round. */
-  cycleResetDays: number
+  /** After this gap in MINUTES, ignore current_cycle_index on resume and
+   *  restart the in-progress round (replays the LEGO intro). A brief pause
+   *  resumes the exact cycle; a real break restarts the round. ~5 min cutoff. */
+  cycleResetMinutes: number
   /** After this gap in days, walk the round cursor back to the start of
    *  the learner's current belt. Set to a very large number to disable. */
   beltRegressionDays: number
@@ -212,7 +213,7 @@ const DEFAULT_SCRIPT_SHAPE: ScriptShapeConfig = {
 }
 
 const DEFAULT_RESUME: ResumeConfig = {
-  cycleResetDays: 14,
+  cycleResetMinutes: 5,
   beltRegressionDays: 60,
 }
 

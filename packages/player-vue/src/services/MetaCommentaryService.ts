@@ -76,6 +76,19 @@ export class MetaCommentaryService {
   private cyclesSinceLastFire = 0
   private nextFireAtCycles = 0 // 0 → rolled lazily on first round
 
+  // Dev cheat (?forceEncouragements=1): fire on EVERY eligible (speaking)
+  // boundary, bypassing the ~10-min interval, so the interjection display can
+  // be tested without a long wait. Instructions still come first (in order),
+  // then encouragements. Off in normal play.
+  forceFire = false
+
+  // Dev cheat (?fc=enc): jump straight to encouragements, skipping the ~30
+  // ordered instructions — SESSION-ONLY, never persisted (no globalState
+  // write), so the learner's real instruction progress is untouched. For
+  // eyeballing the rotating encouragement icons without grinding through every
+  // instruction first.
+  forceEncouragementsOnly = false
+
   constructor(provider: CourseDataProvider, learnerId: string) {
     this.provider = provider
     this.courseId = provider.getCourseId()
@@ -161,7 +174,7 @@ export class MetaCommentaryService {
     this.cyclesSinceLastFire += Math.max(0, cyclesInRound)
 
     if (!canFire) return null
-    if (this.cyclesSinceLastFire < this.nextFireAtCycles) return null
+    if (!this.forceFire && this.cyclesSinceLastFire < this.nextFireAtCycles) return null
 
     const commentary = this.getNextCommentary()
     if (!commentary) return null
@@ -190,7 +203,10 @@ export class MetaCommentaryService {
    *    the previous design used was pure ceremony.
    */
   private getNextCommentary(): MetaCommentaryAudio | null {
-    if (!this.globalState.instructionsComplete && this.globalState.instructionIndex < this.instructions.length) {
+    // ?fc=enc cheat: skip the instruction list entirely (session-only, no
+    // persistence) so the encouragement icons can be tested immediately.
+    if (!this.forceEncouragementsOnly &&
+        !this.globalState.instructionsComplete && this.globalState.instructionIndex < this.instructions.length) {
       const instruction = this.instructions[this.globalState.instructionIndex]
       return { ...instruction, type: 'instruction' }
     }

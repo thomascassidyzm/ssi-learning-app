@@ -23,8 +23,16 @@ FEATURE LANE  feature/<name> → dev (combine) → staging (soak) → main
 |--------|---------|------------|
 | `main` | Production — real users. The trunk and the only production truth; **everything branches off it.** | `saysomethingin.app` |
 | `staging` | Stable soak — the candidate the external/Colombo team vets | `staging.saysomethingin.app` |
-| `dev` | Feature integration — where features combine and interactions surface. The only branch safe to thrash. | `dev.saysomethingin.app` |
+| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions auto-merge here; the only branch safe to thrash | Vercel git-branch alias `ssi-learning-app-git-dev-zenjin.vercel.app` (**no `dev.saysomethingin.app` — it 404s**) |
 | `fix/<name>` | One isolated fix off `main`, verified on its own preview | per-branch Vercel preview |
+
+> **Dev URL note.** The only stable non-prod custom domain is `staging.saysomethingin.app`. The `dev` branch has **no** custom domain — use its Vercel git-branch alias `https://ssi-learning-app-git-dev-zenjin.vercel.app` (always tracks dev's latest build; dev auto-updates the SW so a reload gets fresh code). Per-commit hash URLs also work but rotate every push. Dev test cheats: append `?fc=1` (force interjections every boundary), `?stream` (bypass cache play), `?reset=1` (full state wipe).
+
+At the start of every session, run:
+```bash
+git checkout dev
+git pull origin dev
+```
 
 ### Fix lane
 1. Branch `fix/<name>` **off `main`** — a fix must apply to *what's actually live*. **Never** branch a fix off `dev`/feature churn, or you can't ship it without shipping that churn.
@@ -334,11 +342,11 @@ SEED (full sentence) → LEGO (learning unit) → PracticePhrase (practice item)
 
 ## Vue Player (`player-vue`)
 
-### Design: "Moonlit Dojo"
-- Dark sanctuary theme with belt-colored accents
-- Japanese landscape silhouettes
-- Firefly particles that match belt color
-- "Schindler's List" restraint - single color accent
+### Design: "Mist" — the single theme (light mode)
+- **One theme, forced for everyone.** `composables/useTheme.ts` pins `data-theme="mist"`; `toggleTheme`/`setTheme` are no-ops and `isDark()` always returns false. The old dark theme (`cosmos`, formerly written up as "Moonlit Dojo" / "Deep Space Constellation") is **deprecated — do not reintroduce dark mode or a theme switcher.**
+- Light palette: warm-grey canvas (`--bg-primary: #e8e3dd`), white elevated surfaces, browser chrome `#D9D6D2`. Tokens in `styles/design-tokens.css` under `[data-theme="mist"]`.
+- A single belt-coloured accent (by current belt) carried through the UI — "Schindler's List" restraint.
+- Management/admin surfaces (everything outside the player) follow the **Frostwell Courtyard** canon — see `docs/frostwell-courtyard.md`.
 
 ### Belt Progression System
 8 martial arts belts tracking seed completion:
@@ -665,7 +673,7 @@ pnpm --filter @ssi/web dev
 - [x] CycleOrchestrator state machine
 - [x] 4-phase learning cycle
 - [x] RealAudioController (mobile-compatible)
-- [x] Vue player with Deep Space Constellation design
+- [x] Vue player with the Mist theme (single forced light theme; dark mode deprecated)
 - [x] Belt progression system
 - [x] Session summary screen
 - [x] Dynamic pause duration (2x target audio)
@@ -699,7 +707,7 @@ pnpm --filter @ssi/web dev
 - Reuse the single Audio element for mobile compatibility
 - Respect the 4-phase cycle order
 - Test audio playback on mobile Safari
-- Follow the Moonlit Dojo design aesthetic
+- Follow the Mist theme (single light theme: warm grey, white surfaces, one belt-colour accent) — do NOT add dark mode or a theme switcher
 - Query Supabase for new implementations (not manifest)
 - Cache audio in IndexedDB as it's played
 

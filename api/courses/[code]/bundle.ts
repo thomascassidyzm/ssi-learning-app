@@ -91,12 +91,18 @@ interface PhraseRow {
   target2_duration_ms: number | null
   // NOTE: course_practice_phrases table does NOT have known_duration_ms.
   // See LegoRow note above.
-  // NOTE: `decomposition` is added by a migration in the dashboard repo
-  // (ssi-dashboard-v7-clean/migrations) and may not exist in every
-  // environment; we omit it here to keep the SELECT portable. cycles.ts
-  // gets it via the get_course_cycles_window RPC which handles the
-  // absence; if we want decomposition in the bundle later, the same
-  // approach (or a NULL-tolerant column-list select) is the way.
+  // Authoritative content-level tiling (added by the dashboard-repo migration,
+  // now live in all environments — cycles.ts/infplay-cycles.ts both select it).
+  decomposition: Array<{
+    legoId: string | null
+    target: string
+    known: string
+    isGhost: boolean
+    isSalient?: boolean
+  }> | null
+  // Authored display tiles ({n: native, r: roman, salient}) built and
+  // validated in Popty — served verbatim; player renders them directly.
+  display_tiling: Array<{ n: string; r: string; salient?: boolean }> | null
 }
 
 interface RoundIndexRow {
@@ -231,7 +237,7 @@ export default async function handler(
         .select(
           'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
             'known_audio_id, target1_audio_id, target2_audio_id, ' +
-            'target1_duration_ms, target2_duration_ms',
+            'target1_duration_ms, target2_duration_ms, decomposition, display_tiling',
         )
         .eq('course_code', code)
         .in('phrase_role', ['build', 'use', 'practice', 'eternal_eligible'])
@@ -390,7 +396,15 @@ export default async function handler(
         audio,
       }
       if (targets.targetTextNative !== undefined) phrase.targetTextNative = targets.targetTextNative
-      // decomposition intentionally omitted — see PhraseRow note above.
+      // Authoritative tiling, served verbatim when present. Player renders it
+      // directly (honours isSalient/isGhost); null → runtime alignment fallback.
+      if (Array.isArray(row.decomposition) && row.decomposition.length > 0) {
+        phrase.decomposition = row.decomposition
+      }
+      // Authored display tiles — same omit-when-NULL convention.
+      if (Array.isArray(row.display_tiling) && row.display_tiling.length > 0) {
+        phrase.displayTiling = row.display_tiling
+      }
       phrases.push(phrase)
     }
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, inject, watch, onMounted } from 'vue'
 import { unregisterAllServiceWorkers, clearAllCaches } from '../composables/useServiceWorkerSafety'
+import { getAudioCache } from '../cache/createAudioCache'
 import { useBeltProgress } from '../composables/useBeltProgress'
 import { useTheme } from '../composables/useTheme'
 import { useInviteCode, type InviteCodeContext } from '../composables/useInviteCode'
@@ -11,6 +12,7 @@ import { getLanguageName, getLanguageEndonym, setLocale } from '../composables/u
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
+import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -728,14 +730,164 @@ const toggleVerboseLogging = () => {
 // Supabase and remain valid across localStorage clear if we restore them
 // afterwards. ?reset=1 stays as the nuclear option that does wipe auth
 // too (different intent: full factory reset).
-const isClearingCache = ref(false)
-const handleClearCacheAndReload = async () => {
-  isClearingCache.value = true
-  console.log('[Settings] Clearing all caches and reloading...')
+// ── Troubleshooting (cache / service-worker recovery) ───────────────────────
+// The core UX win here is LEGIBILITY: a recovery action used to fire silently
+// and then maybe reload, leaving the user staring at an unchanged screen unsure
+// if anything happened. Instead every action runs a staged, screen-owning
+// "Fixing things…" overlay that narrates each step (✓ as it completes) and ends
+// in a definite reload — never dead air. Two graduated actions:
+//   • Update to the latest version — light: activate the waiting SW + reload.
+//     Keeps audio + progress. Fixes the common "stuck on an old version" case.
+//   • Clear cache & reload — heavy: wipe local data (gated behind a confirm that
+//     warns about paid offline downloads and unbacked-up guest progress).
 
-  // Grab any Supabase auth keys before we clear — typically
-  // `sb-<project-ref>-auth-token` and friends. Restore after clear so
-  // the user stays signed in.
+type FixStepStatus = 'pending' | 'running' | 'done'
+interface FixStep { key: string; label: string; status: FixStepStatus }
+const fixOverlayOpen = ref(false)
+const fixOverlayTitle = ref('Fixing things…')
+const fixSteps = ref<FixStep[]>([])
+const fixNote = ref('')
+
+// Guarded reload — the SKIP_WAITING / controllerchange dance can fire a reload
+// from more than one place; this makes sure it only happens once.
+let _reloading = false
+const guardedReload = () => {
+  if (_reloading) return
+  _reloading = true
+  window.location.reload()
+}
+
+// Known IndexedDB databases — the fallback for browsers without
+// indexedDB.databases() (Safari/iOS WebKit before ~14.5). Without this, those
+// users — exactly the ones most likely to hit cache bugs — would have NOTHING
+// cleared. Keep in sync with the app's DB names (audio cache, course bundles,
+// script cache, the dead sync queue).
+const KNOWN_IDB_NAMES = ['ssi-audio-cache-v2', 'ssi-course-bundles-v1', 'ssi-script-cache', 'ssi-sync-queue']
+
+// Delete one IndexedDB database, resolving even if it's blocked by an open
+// connection (a blocked delete is what used to make the wipe "appear to hang").
+const deleteDatabaseSafely = (name: string): Promise<void> =>
+  new Promise<void>((resolve) => {
+    let settled = false
+    const finish = () => { if (!settled) { settled = true; resolve() } }
+    try {
+      const req = indexedDB.deleteDatabase(name)
+      req.onsuccess = finish
+      req.onerror = finish
+      req.onblocked = finish
+    } catch { finish() }
+    setTimeout(finish, 2000) // never hang the flow on a blocked DB
+  })
+
+// Delete IndexedDB databases matching `match`. Uses indexedDB.databases() where
+// available, else falls back to the known names so older iOS/WebKit still gets
+// cleared. Never throws.
+const deleteIndexedDbs = async (match: (name: string) => boolean): Promise<void> => {
+  let names: string[] = []
+  try {
+    if (window.indexedDB?.databases) {
+      const dbs = await indexedDB.databases()
+      names = dbs.map((d) => d.name).filter((n): n is string => !!n)
+    }
+  } catch { /* enumeration unavailable/blocked */ }
+  if (names.length === 0) names = KNOWN_IDB_NAMES   // fallback for browsers without databases()
+  await Promise.all(names.filter(match).map((n) => deleteDatabaseSafely(n)))
+}
+
+// Run a list of async steps with visible per-step progress, then reload.
+const runFixFlow = async (
+  title: string,
+  steps: Array<{ key: string; label: string; run: () => Promise<void> }>,
+  note = '',
+) => {
+  fixOverlayTitle.value = title
+  fixNote.value = note
+  fixSteps.value = steps.map((s) => ({ key: s.key, label: s.label, status: 'pending' }))
+  fixOverlayOpen.value = true
+  for (let i = 0; i < steps.length; i++) {
+    fixSteps.value[i].status = 'running'
+    try { await steps[i].run() } catch (err) { console.warn('[Troubleshoot] step failed:', steps[i].key, err) }
+    fixSteps.value[i].status = 'done'
+    // A short beat so each ✓ is actually seen on a fast device — the point is
+    // that the user watches it work, not that it's instant.
+    await new Promise((r) => setTimeout(r, 320))
+  }
+  guardedReload()
+}
+
+// Light action — get the newest version without touching audio or progress.
+const handleUpdateToLatest = () => {
+  if (fixOverlayOpen.value) return
+  void runFixFlow('Getting the latest version…', [
+    {
+      key: 'check', label: 'Checking for the latest version',
+      run: async () => {
+        const reg = await navigator.serviceWorker?.getRegistration?.()
+        if (reg) { try { await reg.update() } catch { /* offline / no SW */ } }
+      },
+    },
+    {
+      key: 'apply', label: 'Switching to the latest version',
+      run: async () => {
+        // Drop the navigation/runtime caches FIRST so the fresh shell is fetched
+        // (NOT the audio cache — keep the downloads). This MUST happen before
+        // SKIP_WAITING: activating the new SW fires `controllerchange`, on which
+        // vite-plugin-pwa reloads the page itself — so anything after the post
+        // here can be skipped by that reload.
+        try {
+          const keys = await caches.keys()
+          await Promise.all(keys.filter((k) => !/audio/i.test(k)).map((k) => caches.delete(k)))
+        } catch { /* Cache API unavailable */ }
+        const reg = await navigator.serviceWorker?.getRegistration?.()
+        if (reg?.waiting) {
+          // Activate the waiting SW. vite-plugin-pwa owns the reload on
+          // controllerchange; runFixFlow's guardedReload below is the fallback
+          // for when there's no waiting SW (or controllerchange never fires).
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+        }
+      },
+    },
+  ], 'Still stuck? Fully close the app and open it again.')
+}
+
+// Heavy action — full local wipe, gated behind a confirm dialog.
+const showClearConfirm = ref(false)
+const offlineMb = ref(0)            // size of paid offline downloads, for the warning
+// Guest = genuinely not signed in. Key off the positive isSignedIn signal, NOT
+// the learnerId guest- fallback (learnerId returns a 'guest-' id while a real
+// learner's row is still loading, which would wrongly flash the guest warning at
+// a signed-in user). auth null → not signed in → guest, which is the safe side.
+const isGuestLearner = computed(() => !isSignedIn.value)
+
+// Transparency: how much audio is downloaded for offline, shown at rest so the
+// learner can SEE what's stored before they touch anything ("it's not clear
+// what's going on" was the original complaint).
+const downloadedMb = ref<number | null>(null)
+onMounted(async () => {
+  try {
+    const s = await getAudioCache().stats()
+    downloadedMb.value = Math.round((s.persistent.bytes || 0) / 1e6)
+  } catch { /* best-effort */ }
+})
+
+const openClearConfirm = async () => {
+  if (fixOverlayOpen.value) return
+  offlineMb.value = 0
+  showClearConfirm.value = true
+  try {
+    const s = await getAudioCache().stats()
+    offlineMb.value = Math.round((s.persistent.bytes || 0) / 1e6)
+  } catch { /* stats best-effort */ }
+}
+const cancelClearConfirm = () => { showClearConfirm.value = false }
+// Close the confirm AND the settings overlay before opening auth — the auth
+// modal renders behind settings, so without emit('close') it'd be invisible
+// (same pattern as the "Sign In" CTA above).
+const createAccountFromClear = () => { showClearConfirm.value = false; emit('close'); openAuth() }
+
+const confirmClearCache = () => {
+  showClearConfirm.value = false
+  // Snapshot Supabase auth so a signed-in user stays signed in across the wipe.
   const authKeys: Array<[string, string]> = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
@@ -745,35 +897,36 @@ const handleClearCacheAndReload = async () => {
       if (value !== null) authKeys.push([key, value])
     }
   }
-
-  try {
-    // Clear localStorage
-    localStorage.clear()
-    // Clear sessionStorage
-    sessionStorage.clear()
-    // Clear IndexedDB
-    if (window.indexedDB && indexedDB.databases) {
-      const dbs = await indexedDB.databases()
-      for (const db of dbs) {
-        if (db.name) indexedDB.deleteDatabase(db.name)
-      }
-    }
-    // Unregister service workers and clear caches
-    await Promise.all([
-      unregisterAllServiceWorkers().catch(() => {}),
-      clearAllCaches().catch(() => {})
-    ])
-  } catch (err) {
-    console.warn('[Settings] Error during cache clear:', err)
-  }
-
-  // Restore auth so the user doesn't get bounced to the sign-in screen.
-  for (const [key, value] of authKeys) {
-    try { localStorage.setItem(key, value) } catch { /* quota etc */ }
-  }
-
-  // Reload clean
-  window.location.reload()
+  void runFixFlow('Fixing things…', [
+    {
+      key: 'audio', label: 'Clearing downloaded audio',
+      run: async () => {
+        await deleteIndexedDbs((name) => /audio|bundle/i.test(name))
+      },
+    },
+    {
+      key: 'data', label: 'Clearing app data',
+      run: async () => {
+        localStorage.clear()
+        sessionStorage.clear()
+        // Restore auth IMMEDIATELY — before the IndexedDB work below, so that a
+        // rejecting indexedDB.databases() (possible on a wedged browser, which is
+        // exactly when this tool gets used) can never strand a signed-in user
+        // logged out. The IDB step doesn't touch localStorage, so order is free.
+        for (const [key, value] of authKeys) { try { localStorage.setItem(key, value) } catch { /* quota */ } }
+        await deleteIndexedDbs(() => true)
+      },
+    },
+    {
+      key: 'version', label: 'Getting the latest version',
+      run: async () => {
+        await Promise.all([
+          unregisterAllServiceWorkers().catch(() => {}),
+          clearAllCaches().catch(() => {}),
+        ])
+      },
+    },
+  ], 'Still stuck? Fully close the app and open it again.')
 }
 
 // Helper to dispatch setting change events
@@ -909,6 +1062,56 @@ const confirmReset = async () => {
       </div>
     </Transition>
 
+    <!-- Clear Cache confirm dialog -->
+    <Transition name="fade">
+      <div v-if="showClearConfirm" class="reset-overlay">
+        <div class="reset-dialog">
+          <div class="reset-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+            </svg>
+          </div>
+          <h3 class="reset-title">Clear cache and reload?</h3>
+          <p class="reset-desc">
+            This clears the app's stored data and reloads from scratch. It fixes most audio and loading problems, and you'll stay signed in.
+          </p>
+          <p v-if="offlineMb > 0" class="clear-warn">
+            Your offline downloads (~{{ offlineMb }} MB) will be removed — you'll need to download them again over the internet.
+          </p>
+          <div v-if="isGuestLearner" class="clear-warn clear-warn--guest">
+            You're not signed in, so your progress on this device isn't backed up. Clearing now will reset it.
+            <button class="clear-account-btn" @click="createAccountFromClear">Create a free account to keep it</button>
+          </div>
+          <div class="reset-actions">
+            <button class="reset-btn reset-btn--cancel" @click="cancelClearConfirm">Cancel</button>
+            <button class="reset-btn reset-btn--confirm" @click="confirmClearCache">Clear cache</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Staged "Fixing things…" overlay — owns the screen and narrates each step
+         so the user always sees something happening, then reloads. -->
+    <Transition name="fade">
+      <div v-if="fixOverlayOpen" class="fix-overlay">
+        <div class="fix-dialog">
+          <h3 class="fix-title">{{ fixOverlayTitle }}</h3>
+          <ul class="fix-steps">
+            <li v-for="step in fixSteps" :key="step.key" class="fix-step" :class="`is-${step.status}`">
+              <span class="fix-step-mark" aria-hidden="true">
+                <svg v-if="step.status === 'done'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+                <span v-else-if="step.status === 'running'" class="fix-spinner"></span>
+                <span v-else class="fix-dot"></span>
+              </span>
+              <span class="fix-step-label">{{ step.label }}</span>
+            </li>
+          </ul>
+          <p v-if="fixSteps.length && fixSteps.every(s => s.status === 'done')" class="fix-reloading">Reloading…</p>
+          <p v-if="fixNote" class="fix-note">{{ fixNote }}</p>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Delete Account Confirmation Dialog -->
     <Transition name="fade">
       <div v-if="showDeleteConfirm" class="reset-overlay">
@@ -980,11 +1183,26 @@ const confirmReset = async () => {
 
     <!-- Main Content -->
     <main class="main">
-      <!-- Build Info -->
-      <div class="build-card">
-        <span class="build-sha">{{ buildNumber || 'dev' }}</span>
-        <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
-      </div>
+      <!-- Build / version — tappable: runs the staged "get the latest version"
+           flow (the prominent update affordance). Badges when a new version is
+           waiting. The "what's new" changelog sits right below. -->
+      <button
+        type="button"
+        class="build-card clickable"
+        :class="{ 'has-update': pwaUpdateAvailable }"
+        :aria-label="pwaUpdateAvailable ? 'Update available — tap to update' : 'Tap to update to the latest version'"
+        @click="handleUpdateToLatest"
+      >
+        <span class="build-card-version">
+          <span class="build-sha">{{ buildNumber || 'dev' }}</span>
+          <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
+        </span>
+        <span class="build-card-action">
+          <span v-if="pwaUpdateAvailable" class="build-update-badge">Update available</span>
+          <span v-else class="build-update-hint">Tap to update</span>
+          <svg class="build-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        </span>
+      </button>
 
       <!-- What's New — admin-curated release notes (see /admin/release-notes) -->
       <section v-if="releaseNotes.length > 0" class="section whats-new">
@@ -1521,18 +1739,37 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Troubleshooting — always visible recovery tool. 2026-05-23:
-           moved out of the admin-gated Developer section so any user
-           hitting cache-related bugs can reach it. handleClearCacheAndReload
-           preserves Supabase auth across the wipe so signed-in users stay
-           signed in (anonymous users were never signed in to start). -->
+      <!-- Troubleshooting — always-visible recovery tool (moved out of the
+           admin-gated Developer section 2026-05-23 so any user hitting
+           cache-related bugs can reach it). Two graduated actions, each running
+           the staged "Fixing things…" overlay so the user always sees progress:
+           a light "Update to the latest version" and a gated "Clear cache &
+           reload". Both preserve Supabase auth so signed-in users stay signed
+           in; the heavy one warns about offline downloads + guest progress. -->
       <section class="section">
         <h3 class="section-title">Troubleshooting</h3>
         <div class="card">
-          <div class="setting-row clickable danger" @click="handleClearCacheAndReload">
+          <!-- At-rest transparency: what version you're on + what's stored -->
+          <div class="troubleshoot-status">
+            App version {{ buildNumber || 'dev' }}<template v-if="downloadedMb"> · {{ downloadedMb }} MB downloaded for offline</template>
+          </div>
+
+          <!-- Light: get the latest version, keeps audio + progress -->
+          <div class="setting-row clickable" @click="handleUpdateToLatest">
             <div class="setting-info">
-              <span class="setting-label">{{ isClearingCache ? 'Clearing...' : 'Clear Cache & Reload' }}</span>
-              <span class="setting-desc">Clear all local data, service workers, and reload. Stays signed in.</span>
+              <span class="setting-label">Update to the latest version</span>
+              <span class="setting-desc">Reloads with the newest version. Your downloads and progress are kept.</span>
+            </div>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+
+          <!-- Heavy: full wipe, gated behind a confirm -->
+          <div class="setting-row clickable danger" @click="openClearConfirm">
+            <div class="setting-info">
+              <span class="setting-label">Clear cache &amp; reload</span>
+              <span class="setting-desc">Fixes most audio and loading problems. You stay signed in.</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
@@ -1682,15 +1919,39 @@ const confirmReset = async () => {
 .build-card {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.5rem 1rem;
+  width: 100%;
+  padding: 0.625rem 1rem;
   margin-bottom: 1rem;
   background: var(--bg-card);
   border-radius: 12px;
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
+.build-card:hover { border-color: var(--border-medium); }
+.build-card:active { transform: scale(0.995); }
+.build-card.has-update { border-color: #16a34a; }
+.build-card-version { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.build-card-action { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+.build-update-hint { font-size: 0.78rem; color: var(--text-muted); }
+.build-update-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: #16a34a;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  animation: build-update-pulse 1.6s ease-in-out infinite;
+}
+@keyframes build-update-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .build-update-badge { animation: none; } }
+.build-card-chevron { width: 16px; height: 16px; color: var(--text-muted); }
 
 .build-sha {
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
@@ -2196,6 +2457,122 @@ const confirmReset = async () => {
   background: var(--overlay-bg);
   backdrop-filter: blur(8px);
   padding: 1.5rem;
+}
+
+/* Troubleshooting — at-rest status line + confirm warnings + staged overlay */
+.troubleshoot-status {
+  padding: 0.75rem 1rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-medium);
+}
+.clear-warn {
+  margin: 0.6rem 0 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 0.6rem;
+  text-align: left;
+}
+.clear-warn--guest { background: rgba(234, 179, 8, 0.12); }
+.clear-account-btn {
+  display: block;
+  margin-top: 0.5rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #16a34a;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.fix-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;          /* above the confirm dialogs (1000) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(8px);
+  padding: 1.5rem;
+}
+.fix-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 1rem;
+  padding: 1.75rem 1.75rem 1.5rem;
+  max-width: 340px;
+  width: 100%;
+}
+.fix-title {
+  margin: 0 0 1.1rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+}
+.fix-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.fix-step {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+.fix-step.is-running,
+.fix-step.is-done { color: var(--text-primary); }
+.fix-step.is-pending { opacity: 0.5; }
+.fix-step-mark {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: #16a34a;
+}
+.fix-step-mark svg { width: 18px; height: 18px; }
+.fix-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-medium);
+}
+.fix-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border-medium);
+  border-top-color: #16a34a;
+  animation: fix-spin 0.7s linear infinite;
+}
+@keyframes fix-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .fix-spinner { animation: none; }
+}
+.fix-reloading {
+  margin: 1.1rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+.fix-note {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-align: center;
 }
 
 .reset-dialog {

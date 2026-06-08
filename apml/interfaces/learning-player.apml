@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.4 (2026-05-29)
+# Version: 2.1.13 (2026-06-07)
 # Status: Production-ready
 
 ## ============================================================================
@@ -11,20 +11,19 @@ SPECIFICATION:
   name: "Learning Player Interface"
   purpose: "Main player UI for the 4-phase learning cycle with constellation network"
   source: "packages/player-vue/src/components/LearningPlayer.vue"
-  design_system: "Deep Space Constellation"
-  version: "2.0.0"
-  previous_version: "1.0.0 (Moonlit Dojo)"
+  design_system: "Mist (single light theme)"
+  version: "3.0.0"
+  previous_versions: "2.0.0 (Deep Space Constellation), 1.0.0 (Moonlit Dojo) — both dark, now deprecated"
 
 DESIGN_PHILOSOPHY:
-  name: "Deep Space Constellation"
-  evolution: "Evolved from Moonlit Dojo to Deep Space Constellation in January 2026"
+  name: "Mist — the single light theme"
+  history: "Dark themes (Moonlit Dojo → Deep Space Constellation) were retired; mist (light) is now forced for everyone (composables/useTheme.ts). Do NOT reintroduce dark mode."
 
   visual_principles:
-    - "Deep space gradient background with nebula effects"
-    - "Constellation network as primary visual element"
-    - "Hero-centric glass pane for text display"
-    - "Belt color accent (preserved from Moonlit Dojo)"
-    - "Star field for ambient depth"
+    - "Light: warm grey canvas (#e8e3dd), white elevated surfaces"
+    - "Hero-centric pane for text display"
+    - "Single belt-colour accent (from currentBelt)"
+    - "Restraint — one accent colour at a time"
     - "Phase strip with semantic icons (speaker/mic/eyes)"
 
   interaction_principles:
@@ -191,6 +190,177 @@ HERO_TEXT_PANE:
         target_text: "Target language text (voice_2 only)"
 
 ## ============================================================================
+## TILE ASSEMBLY & SCRIPT DISPLAY (June 2026)
+## ============================================================================
+
+TILE_ASSEMBLY:
+  description: "Phrase decomposed into per-LEGO tiles (LegoAssembly.vue)"
+  source: "packages/player-vue/src/components/LegoAssembly.vue"
+
+  dual_script_model: |
+    Every non-Latin-script course shows the NATIVE script as the primary glyph
+    with the romanisation as an optional ruby line above each tile
+    (block.romanText). The script toggle (ModeTray "Pronunciation") only shows/
+    hides the ruby — it is NOT a switch between two scripts. Default on; the
+    learner drops the crutch as recognition builds. Three tiling strategies are
+    dispatched by script shape (utils/alignRomanToNative.ts):
+
+  key_principle: |
+    Tiling is ALWAYS derived from the ROMANISED side (the reliably-segmented one
+    — word spaces or syllables). currentPhraseLegoBlocksRaw builds on romanised
+    (useNative=false); currentPhraseLegoBlocks then produces the native-primary
+    display per script. Lesson from the first cut: the NATIVE decomposition is
+    unreliable for spaceless scripts (Japanese's is mostly ghost characters),
+    whereas the romaji decomposes cleanly.
+
+  strategies:
+    authored_display_tiling:
+      langs: "any course with course_practice_phrases.display_tiling (jpn_for_eng
+              backfilled June 2026, ~99% of phrases)"
+      how: "Strategy 0, authoritative. Popty stores authored tiles
+            [{n: native, r: roman, salient}] per phrase, validated both ways at
+            build time (roman = stored value sliced, native reassembles exactly).
+            Carried additively on the cycle as displayTiling through every
+            serving path (generateLearningScript select, toSimpleRounds,
+            cycles/infplay-cycles endpoints + get_course_cycles_window RPC,
+            bundle). currentPhraseLegoBlocks renders them verbatim when the
+            joined n-values reassemble the displayed native phrase
+            (whitespace-normalised); NULL or mismatch falls through to the
+            runtime strategies below. SCRIPT_VERSION v9 invalidated cached
+            scripts so the field appears without a content_version bump."
+      priority: "Checked before all runtime strategies — the device segmenter
+                 is now the fallback, not the primary path."
+    mandarin_pinyin_word:
+      langs: "zho"
+      how: "buildWordTiles — tile by pinyin word; 1 hanzi = 1 syllable, each
+            pinyin word consumes its syllable-count of hanzi (erhua 儿 +
+            apostrophe). LEGO decomposition only marks salient tiles."
+      validated: "zho_for_eng: 5436 tiled, salient located 100%."
+    spaced_word_pair:
+      langs: "kor, rus, ell, hye, ara, hin, ukr, fas, bul, heb (RTL: ara/fas/heb)"
+      how: "buildWordPairTiles — native and romanisation are both whitespace-
+            segmented and 1:1, so zip into one tile per word (native primary,
+            romaji ruby). FINER than the LEGO decomposition (whose salient can be
+            a whole clause). Salient from the salient LEGO's native text. Ruby
+            LTR + bidi-isolated for RTL. Null on count mismatch → native-pair."
+      validated: "word-parity 94% (ara) – 100% (rus/hin/bul/heb)."
+    spaceless_device_segmented:
+      langs: "jpn, tha (Thai)"
+      how: "buildSegmentedTiles — the DEVICE segments the native sentence into
+            words via Intl.Segmenter(locale,'word') (ICU dictionaries, ja/th),
+            so tiling does NOT depend on the backend decomposition (which is
+            39-69% ghost for these). Romaji per tile, in order of preference:
+            (ja) alignJapaneseRomaji — forced-align the phrase romaji onto the
+            segmented words using kana as anchors + kanji as gaps recovered from
+            the stream; then positional phrase-romaji on count match; then the
+            course native→romaji dict (legos+atoms); else native, no ruby (still
+            parseable). Salient by char-offset. Old engines → nativeFromRomanTiles."
+      validated: "jpn combined romaji coverage 97.6% tiles / 90% phrases; tha ~96%."
+    latin:
+      langs: "spa/fra/deu/… (no target_text_roman)"
+      how: "hasRomanizedText=false → raw romanised tiling unchanged, no ruby."
+
+  intro_glosses:
+    rule: |
+      (Tom 2026-06-07, v2: tiles must be IDENTICAL to regular phrases)
+      Intro/debut show the known-language gloss UNDER the tiles — first
+      presentation must let the learner match the pieces in both languages
+      ("cosa|azul / thing|blue") — but the tiles and ruby themselves render
+      EXACTLY as the LEGO appears in a regular phrase; the gloss is purely
+      additive. attachIntroGlosses (LearningPlayer) wraps every word-tiling
+      strategy's output on intro/debut only: component targets (union of
+      componentsNative + components — a component whose roman form is NULL,
+      e.g. zho 你, only exists in the roman list with native fallback text)
+      claim contiguous tile runs, order-independently (DB returns component
+      phrases in arbitrary order), longest target first. Each tile gets a
+      glossGroup id; LegoAssembly's intro-gloss-groups template branch (a
+      v-if BEFORE carriage/single-tile modes) renders runs as flush tile
+      rows with the run's gloss centred underneath (.gloss-group-row /
+      .gloss-group-tile). Structural particles keep their empty known
+      (claimed run, no gloss); unmatched components simply don't gloss —
+      tiles are NEVER merged or re-tiled. Single-tile LEGOs get the whole
+      known text. Known text never shows outside intro/debut. The gloss
+      line is RESERVED on every run (min-height, even when empty — e.g. a
+      structural particle's silent gloss): the assembly bottom-aligns the
+      groups, so a missing line would push that run's tile down by one
+      gloss-height relative to its neighbours.
+
+  typography:
+    uniform_bold: |
+      (Tom 2026-06-07) Tile text is ONE size + weight (600) everywhere — the
+      old salient-vs-context split (smaller/muted non-salient text, softer
+      non-salient chrome, hero known-text salient-substring emphasis +
+      context fade) is removed. With the ruby line and authored per-word
+      tiles the weight differentiation read as noise. isSalient still flows
+      on blocks (semantics/telemetry) but changes nothing visually. The
+      display box (hero-known / known-text) renders the whole known phrase
+      at weight 600.
+
+  script_toggle:
+    composable: "composables/useScriptMode.ts (per-course localStorage)"
+    semantics: |
+      Native-script glyphs are ALWAYS the primary text on romanised courses.
+      The toggle only shows/hides the romanisation as a ruby line (block.romanText)
+      above each tile — a pronunciation crutch the learner drops as character
+      recognition builds from exposure. Default ON (scriptMode 'roman').
+    control: "ModeTray.vue — Aa (guide shown) / 文 (characters only)"
+    prop: "LegoAssembly :show-romanization (LearningPlayer showRomanization computed)"
+
+## ============================================================================
+## LISTENING OVERLAY (headphones mode)
+## ============================================================================
+
+LISTENING_OVERLAY:
+  source: "packages/player-vue/src/components/ListeningOverlay.vue"
+  tabs: |
+    Dialogues | Core | All — in that order, Dialogues is the DEFAULT view
+    (Tom 2026-06-07). Dialogues = Layer 2 pod scenes (useListeningPods,
+    grouped by listening_pod_sentences.scene_number); Core = every seed
+    sentence; All = every USE phrase. Phrase data loads lazily on first
+    tap of All/Core — the default mount only loads the scene list.
+  dialogues_playlist: |
+    Scenes play as ONE continuous playlist: scene-end segues into the next
+    scene automatically, and after the last scene wraps around to the
+    first (Spotify playlist loop). The scene-loop button (visible with a
+    scene open) is single-track repeat: ON = restart the current scene
+    forever; default OFF. Scene matching is by sceneNumber — PodScene has
+    no `id` field (a former `s.id === selected.id` undefined comparison
+    made every scene "advance" to scene 2).
+  background_lock_protocol: |
+    (2026-06-07) The overlay follows the SAME bg/lock rule as the main
+    flow, INF PLAY and pod laps: every playback gap advances on an audio
+    'ended' event, NEVER a bare setTimeout (iOS freezes timers on a
+    backgrounded/locked tab). The 50ms intra-turn and 800ms inter-turn
+    gaps play as genuinely-silent one-shot WAV clips on the same element
+    (ListeningAudioController.playSilence → playback/silentWav.ts, the
+    builder extracted from SimplePlayer's PAUSE fix). playbackRate
+    applies to the silence too, so faster speeds tighten gaps
+    proportionally. The 15s safety timeout inside play() remains as a
+    foreground fallback only. RULE for any new playback surface: a gap
+    is "a phase with audio", never "a phase with only a timer".
+
+  speaker_colouring: |
+    (Tom 2026-06-07) The voice-casting 4-colour-map principle, made
+    VISIBLE: useListeningPods builds the pod-wide "shares a scene" graph
+    and greedy-colours speakers in first-appearance order (same algorithm
+    as Popty's voice colouring proof — never needed >4 colours on real
+    pods). One character = one colour across the whole pod; scene-mates
+    never share. SPEAKER_PALETTE (6 mid-tone colours) exported from the
+    composable. Rendered as: an uppercase speaker chip + dot above every
+    teleprompter dialogue row (.phrase-speaker), and cast dots on each
+    scene card (.scene-card-cast). Colour rides turn.colorIndex; display
+    name is the speaker label minus its time/place annotation.
+
+  scene_granularity: |
+    One scene = one dialogue beat. Montage pods (several mini-dialogues
+    sharing a backdrop, e.g. fra pod-0's "day of greetings") must be
+    SPLIT into one scene per beat in the data — same-speaker turn merging
+    (useListeningPods.mergeTurns) operates within a scene and will glue
+    the tail of one beat to the head of the next if they share a
+    scene_number (the 2026-06-07 French bug: "Have a good one! Excuse me,
+    is this seat taken?" as one card).
+
+## ============================================================================
 ## PHASE STRIP
 ## ============================================================================
 
@@ -333,6 +503,24 @@ HEADER_NAV:
     belt_modal: "Belt row is COLOUR-ONLY: each belt is just its coloured dot (.map-chip-dot) with a thin black ring (so WHITE reads on the white modal); belt NAME in title/aria-label. A glowing/throbbing ∞ activator (.infplay-activator) at the row end ENTERS INF PLAY (emit enterInfPlay → handleActivateInfPlay → enterInfPlay()) — the deliberate entry point. Both have :root[data-theme=\"mist\"] counterparts (modal teleports to body)."
 
 ## ============================================================================
+## RESUME BEHAVIOR
+## ============================================================================
+
+## "Resume = where you left off", sized by how long the break was. Updated
+## 2026-06-01 (fix/resume-position).
+
+RESUME_BEHAVIOR:
+  cursor:
+    stored: "course_enrollments: last_completed_lego_id (the permalink), current_cycle_index, last_practiced_at"
+    writer: "ProgressStore.setLivePosition ONLY — fired per cycle (phase=prompt), so the DB source is cycle-precise and never lags localStorage. Single writer; useBeltProgress.syncToRemote no longer writes last_completed_lego_id (highest is lifted from the cursor by the ratchet trigger)."
+  gap_rule:
+    config: "ResumeConfig.cycleResetMinutes (default 5)"
+    under_cutoff: "gap < cutoff → resume the EXACT cycle (the Voice-2-incomplete one)"
+    over_cutoff: "gap >= cutoff → restart the in-progress ROUND (cycle 0 → the LEGO intro replays). Uniform: no practice rounds; in INF PLAY there is no intro, so it is simply the round start."
+    belt_regression: "ResumeConfig.beltRegressionDays (default 60) → walk the cursor back to the current belt's start (ceiling preserved)"
+    applied_on: "EVERY resume path — localStorage (resolveResumePosition, via the save's lastUpdated stamp) AND the DB-cursor path (via last_practiced_at). Fires only on a fresh load/reopen; pressing play in a still-live session is a continuation, not a resume."
+
+## ============================================================================
 ## INTRO MODE
 ## ============================================================================
 
@@ -431,19 +619,18 @@ COMPOSABLES:
 
 CSS_CUSTOM_PROPERTIES:
   theme:
-    --bg-primary: "Deep space gradient"
-    --text-primary: "#ffffff"
-    --text-secondary: "#a0a0a0"
-    --accent: "#c23a3a"
+    # SINGLE theme: "mist" (light), forced for everyone via composables/useTheme.ts
+    # (data-theme="mist" pinned; toggleTheme/setTheme are no-ops; isDark()=false).
+    # The old dark theme (cosmos / "Deep Space Constellation" / "Moonlit Dojo") is
+    # deprecated — do NOT reintroduce dark mode. Tokens: styles/design-tokens.css [data-theme="mist"].
+    name: "mist (light) — the only theme"
+    --bg-primary: "#e8e3dd (warm grey canvas)"
+    --bg-elevated: "white surfaces"
+    --browser-chrome: "#D9D6D2"
 
   belt_colors:
-    --belt-color: "dynamic (from currentBelt)"
+    --belt-color: "dynamic (from currentBelt) — the single accent"
     --belt-glow: "dynamic"
-
-  glass_effects:
-    --glass-bg: "rgba(15, 15, 25, 0.8)"
-    --glass-blur: "16px"
-    --glass-border: "rgba(255, 255, 255, 0.1)"
 
 ## ============================================================================
 ## RESPONSIVE DESIGN
@@ -490,6 +677,19 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.5:
+    date: "2026-06-04"
+    title: "INF PLAY: complete the SR drain (≥89 rounds) + genuinely unbounded play"
+    changes:
+      - "Revival-tail FLOOR raised from a hard-coded 50 to max(spacedRepOffsets)+1 (=90). At 50 the final main-loop LEGO never received its N-55 / N-89 reviews — the last LEGOs were under-trained. The floor now guarantees the full N-1…N-89 spaced-rep drain completes for the final LEGO (methodology requirement). Floor derives from scriptShapeConfig.spacedRepOffsets, not a magic number (infPlayLookaheadFloor)."
+      - "INF PLAY is now genuinely unbounded: expandScript() GROWS the revival lookahead by INF_PLAY_BATCH each expansion (a simple growing counter, infPlayLookahead), so the deterministic seeded stream keeps emitting new revival rounds (phase 1: the ≤89-round drain; phase 2 past the drain: pure random USE filling each ~22-cycle round). Previously the fixed 50 made expandScript a no-op in INF PLAY → dead-end at the tail."
+      - "wrapInfPlayAtTail() retained as a SAFETY NET only (was the sole fix in the first cut): if a transient online generateScript failure returns 0 rounds, jump back to the first revival round instead of dropping to the paused summary — the auto-play analogue of advanceInfPlayRound's wrap. Growth is the primary path; the approaching-end watcher fires it ~5 rounds before the tail so play never reaches session_complete in the common case."
+      - "Surfaced as 'stuck after a listening pod': the pod cadence lands a lap on the final revival round (lookahead was a multiple of the interval), so the old dead-end coincided with the end of a pod lap; only the bottom-nav forward (which already wraps) recovered."
+      - "Continuation wired at onSessionComplete and the post-pod-lap branch in handleRoundBoundary: expandScript (growth) first, wrap as fallback. Offline still loops via appendCachedLoopForOffline (runs first), matching the partial-content 'straight to random, no drain' behaviour."
+      - "Main-loop-boundary SINGLE SOURCE OF TRUTH (done): every divergent computation (infplayMainLoopCount ?? courseFinalLegoRef.roundIndex+1 ×6, roundMap.rounds[0].r-1 ×3, courseTotalRounds, the deterministic-build + regen generator counts) now routes through mainLoopBoundary() — the canonical /round-map (course_round_index) LEGO-ID-ordered map, held in its OWN stable ref (mainLoopMap), fetched once on load via getOrFetchRoundMap and never overwritten (unlike instantPlayback.roundMap, which bootstrapInfPlay clobbers with a synthetic infplay map). course_round_index is already the server-side authority (cursor-repair caps at MAX(round_index); course_stats.lego_count counts it)."
+      - "infplayMainLoopCount ref DELETED. courseFinalLegoRef retained only for the final-LEGO id/seed (belt anchor, ratchet) + as a load-time fallback inside mainLoopBoundary() until the map resolves. mainLoopIndexForLegoId() gives main-loop position BY LEGO ID; handleRoundForward's INF-PLAY-entry test now reads position by LEGO ID, not the round array index. No counter up to the boundary; only infplayRoundIndex (per-round, in saveRoundProgress) counts PAST it. Also fixes a latent bug where the three roundMap.rounds[0].r-1 derivations mis-computed the boundary for deep (fromRound>1) infplay bootstraps."
+      - "BEHAVIOUR NOTE for courses with unbuilt/no-audio LEGOs (e.g. German/Croatian): the round-map (is_new count) and the generator's PLAYABLE count can differ; the client now matches the server (round-map) instead of the generator's playable count. For fully-built courses the two agree exactly. Verify INF PLAY entry/boundary on a missing-audio course."
+
   v2.1.4:
     date: "2026-05-29"
     title: "INF PLAY deterministic online — frozen script run forward, no random fork"

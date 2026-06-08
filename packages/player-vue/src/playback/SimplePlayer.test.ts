@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { SimplePlayer, type AudioFailedEvent, type Round } from './SimplePlayer'
 
+// The background-safe PAUSE clip is a self-contained silent WAV data: URI
+// (see buildSilentWavDataUri in SimplePlayer.ts). It's module-private, but it's
+// the only src the player ever sets that starts with this prefix — every real
+// audio track in these fixtures is an https:// URL — so the prefix uniquely
+// identifies "the pause clip is sounding on the element".
+const SILENT_PAUSE_CLIP_PREFIX = 'data:audio/wav;base64,'
+const isSilentPauseClip = (src: string) => src.startsWith(SILENT_PAUSE_CLIP_PREFIX)
+
 // Minimal HTMLAudioElement mock. Each new SimplePlayer instance creates
 // its own via `new Audio()`, so we stub the global constructor.
 interface MockAudio {
@@ -189,5 +197,234 @@ describe('SimplePlayer.replaceQueueFromCurrent', () => {
     const player = new SimplePlayer(initial)
     player.replaceQueueFromCurrent([])
     expect((player as any).rounds).toHaveLength(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Background-safe PAUSE phase.
+//
+// The existing fixtures bake pauseDuration:0, which routes prompt→voice1
+// directly and never enters the pause path. These tests use a real
+// pauseDuration so the player plays the silent one-shot clip on the audio
+// element and advances pause→voice1 on EITHER the clip's 'ended' OR the trim
+// timer, single-guarded against a double advance. See SimplePlayer.ts
+// startPausePhase / endPausePhase / clearPauseTimer / onAudioEnded.
+// ---------------------------------------------------------------------------
+describe('SimplePlayer — background-safe pause', () => {
+  let mockAudio: MockAudio
+
+  beforeEach(() => {
+    mockAudio = makeMockAudio()
+    vi.stubGlobal('Audio', vi.fn(() => mockAudio))
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  // A round whose single cycle has a real pause window, so the pause phase
+  // actually runs (the shared makeRound() bakes pauseDuration:0).
+  function makePausingRound(legoId: string, pauseDuration = 6000): Round {
+    const r = makeRound(legoId)
+    r.cycles[0].pauseDuration = pauseDuration
+    return r
+  }
+
+  // startPhase awaits resolveUrl before setting audio.src, so the element's
+  // src for a newly-started phase only updates on the next microtask. Flush a
+  // couple of microtask turns so assertions see the post-await src.
+  async function flush(): Promise<void> {
+    await Promise.resolve()
+    await Promise.resolve()
+  }
+
+  // Drive a freshly-played player up to the start of the pause phase: play()
+  // starts prompt (known audio), the prompt's 'ended' advances prompt→pause.
+  // startPausePhase sets the silent-clip src synchronously, so no flush needed
+  // to observe the pause clip — but we flush to settle the prompt's play().
+  async function enterPause(player: SimplePlayer): Promise<void> {
+    player.play()                 // → prompt, known audio playing
+    await flush()
+    mockAudio._endedHandler!()    // known 'ended' → onAudioEnded → pause
+    await flush()
+  }
+
+  it('1. entering pause plays a one-shot silent clip and does NOT advance to voice1 yet', async () => {
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    await enterPause(player)
+
+    expect(player.currentState.phase).toBe('pause')
+    // The silent clip is now the element's source, played non-looping.
+    expect(isSilentPauseClip(mockAudio.src)).toBe(true)
+    expect(mockAudio.loop).toBe(false)
+    expect((player as any).pauseClipActive).toBe(true)
+    // It must NOT have jumped to voice1: neither the clip's 'ended' nor the
+    // trim timer has fired, so voice1Url has not been loaded.
+    expect(mockAudio.src).not.toBe('https://example.com/t1.mp3')
+  })
+
+  it("2. the clip's 'ended' advances pause→voice1 (plays voice1Url)", async () => {
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    await enterPause(player)
+    expect(player.currentState.phase).toBe('pause')
+
+    // Clip reaches its natural end → background-safe advance.
+    mockAudio._endedHandler!()
+    await flush()
+
+    expect(player.currentState.phase).toBe('voice1')
+    expect(mockAudio.src).toBe('https://example.com/t1.mp3')
+  })
+
+  it('3. the trim timer advances pause→voice1 exactly once (generation-guarded against a re-fire)', async () => {
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    const phases: string[] = []
+    player.on('phase_changed', (e) => phases.push((e as any).phase))
+    await enterPause(player)
+    expect(player.currentState.phase).toBe('pause')
+
+    // Trim timer (pause duration) elapses → advance to voice1. endPausePhase
+    // bumps playGeneration, so the now-stale trim callback can never re-advance.
+    vi.advanceTimersByTime(6000)
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+    expect(mockAudio.src).toBe('https://example.com/t1.mp3')
+
+    // voice1 was entered exactly once — the single trim-timer fire produced
+    // exactly one pause→voice1 transition (no double advance).
+    //
+    // NOTE: we deliberately do NOT also fire a synthetic clip-'ended' here.
+    // In a real browser endPausePhase calls audio.pause() then startPhase
+    // re-points audio.src to voice1, so the silent clip's 'ended' can never
+    // arrive after the timer wins — the only later 'ended' is voice1's own.
+    // The generation guard the code documents protects the *timer* path; the
+    // mirror ordering (clip ends first, then a stale timer) is covered by 3b.
+    expect(phases.filter((p) => p === 'voice1')).toHaveLength(1)
+  })
+
+  it('3b. when the clip ends first, a late trim-timer fire does not double-advance', async () => {
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    const phases: string[] = []
+    player.on('phase_changed', (e) => phases.push((e as any).phase))
+    await enterPause(player)
+
+    // Clip 'ended' fires first → advances to voice1 and bumps playGeneration.
+    mockAudio._endedHandler!()
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+
+    // The trim timer fires afterwards — must be a no-op (gen guard).
+    vi.advanceTimersByTime(6000)
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+    expect(phases.filter((p) => p === 'voice1')).toHaveLength(1)
+  })
+
+  it('4. clearPauseTimer (skip/stop path) stops the clip and prevents the pause from advancing', async () => {
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    await enterPause(player)
+    expect((player as any).pauseClipActive).toBe(true)
+
+    // skipToPhase / skipRound / stop / pause all route through clearPauseTimer.
+    // Call it directly to assert its contract in isolation.
+    ;(player as any).clearPauseTimer()
+
+    expect((player as any).pauseClipActive).toBe(false)
+    expect((player as any).pauseEndsAt).toBe(0)
+    expect(mockAudio.pause).toHaveBeenCalled()
+
+    // The trim timer, if it ever fires now, must NOT advance: still in pause,
+    // clip no longer active, and endPausePhase guards on pauseClipActive.
+    vi.advanceTimersByTime(6000)
+    expect(player.currentState.phase).toBe('pause')
+    expect(mockAudio.src).not.toBe('https://example.com/t1.mp3')
+  })
+
+  it('5. foregrounding (visibilitychange→visible) catches up the pause if it elapsed while hidden', async () => {
+    // The visibility catch-up advances iff pauseEndsAt has already passed.
+    // Drive the wall clock past pauseEndsAt WITHOUT firing the trim timer
+    // (simulating iOS freezing the timer while backgrounded), then dispatch
+    // a visibilitychange with the document visible.
+    const baseNow = 1_000_000
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(baseNow)
+
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    await enterPause(player)
+    expect(player.currentState.phase).toBe('pause')
+    // pauseEndsAt = now + duration
+    expect((player as any).pauseEndsAt).toBe(baseNow + 6000)
+
+    // Advance only the wall clock past the pause window — the trim timer stays
+    // frozen (we deliberately do NOT advance fake timers).
+    nowSpy.mockReturnValue(baseNow + 7000)
+
+    // happy-dom: document is visible by default. Fire the catch-up directly via
+    // the handler the constructor registered (it reads document.visibilityState,
+    // which is 'visible' here) — this is exactly what the visibilitychange
+    // event dispatches.
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flush()
+
+    expect(player.currentState.phase).toBe('voice1')
+    expect(mockAudio.src).toBe('https://example.com/t1.mp3')
+
+    nowSpy.mockRestore()
+  })
+
+  it('6. a rejected silent-clip play() does NOT halt the cycle or emit audio_failed', async () => {
+    // The pause clip is non-critical: if it can't sound, the trim timer still
+    // advances. A play() rejection on the silent clip must be swallowed —
+    // never trip needs-gesture / play-error, never stop the session.
+    mockAudio.play = vi.fn(() => {
+      // Reject only for the silent pause clip; real tracks resolve as normal
+      // (matching the default mock's resolved-Promise contract).
+      if (isSilentPauseClip(mockAudio.src)) {
+        return Promise.reject(Object.assign(new Error('autoplay blocked'), { name: 'NotAllowedError' }))
+      }
+      return Promise.resolve(undefined)
+    }) as unknown as MockAudio['play']
+
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    await enterPause(player)
+
+    // Still cleanly in pause — not halted, no gesture/play-error emitted.
+    expect(failedEvents).toHaveLength(0)
+    expect(player.currentState.phase).toBe('pause')
+    expect(player.currentState.isPlaying).toBe(true)
+
+    // And the trim timer still carries the advance despite the clip not sounding.
+    vi.advanceTimersByTime(6000)
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+    expect(mockAudio.src).toBe('https://example.com/t1.mp3')
+  })
+
+  it('6b. a thrown silent-clip play() (sync) does not halt the cycle', async () => {
+    // Some environments throw synchronously from play(); startPausePhase wraps
+    // the call in try/catch and falls through to the trim timer. Real tracks
+    // return a resolved Promise as the default mock does.
+    mockAudio.play = vi.fn(() => {
+      if (isSilentPauseClip(mockAudio.src)) throw new Error('play threw')
+      return Promise.resolve(undefined)
+    }) as unknown as MockAudio['play']
+
+    const player = new SimplePlayer([makePausingRound('S0001L01', 6000)])
+    const failedEvents: AudioFailedEvent[] = []
+    player.on('audio_failed', (e) => failedEvents.push(e as AudioFailedEvent))
+
+    await enterPause(player)
+
+    expect(failedEvents).toHaveLength(0)
+    expect(player.currentState.phase).toBe('pause')
+
+    vi.advanceTimersByTime(6000)
+    await flush()
+    expect(player.currentState.phase).toBe('voice1')
+    expect(mockAudio.src).toBe('https://example.com/t1.mp3')
   })
 })

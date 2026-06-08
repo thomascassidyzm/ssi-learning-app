@@ -257,7 +257,7 @@ describe('useBeltProgress - Supabase sync', () => {
     expect(bp.highestBeltIndex.value).toBe(4) // Blue (seed 100 > 80 threshold)
   })
 
-  it('syncToRemote includes last_completed_lego_id', async () => {
+  it('syncToRemote does NOT write last_completed_lego_id (cursor is owned by setLivePosition)', async () => {
     mockSupabase.upsert.mockResolvedValue({ error: null })
 
     const bp = useBeltProgress('test_sync_out', {
@@ -269,12 +269,14 @@ describe('useBeltProgress - Supabase sync', () => {
 
     await bp.syncToRemote(bp.highestBeltIndex.value)
 
-    // Verify upsert was called with last_completed_lego_id
+    // Belt sync only bumps last_practiced_at; it must NOT touch the resume
+    // cursor column (that's the two-writers-two-meanings bug we removed).
     expect(mockSupabase.from).toHaveBeenCalledWith('course_enrollments')
     const upsertCall = mockSupabase.upsert.mock.calls[0][0]
-    expect(upsertCall.last_completed_lego_id).toBe('S0045L03')
+    expect(upsertCall.last_completed_lego_id).toBeUndefined()
     expect(upsertCall.learner_id).toBe('user-123')
     expect(upsertCall.course_id).toBe('test_sync_out')
+    expect(upsertCall.last_practiced_at).toBeDefined()
   })
 
   it('setLastLegoId triggers debounced remote sync', async () => {

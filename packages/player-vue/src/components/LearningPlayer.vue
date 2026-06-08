@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
+// Offline-download status (shared with the mode-button ring in ModeTray)
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
   AudioController,
   CyclePhase,
@@ -21,11 +23,11 @@ import ReportIssueButton from './ReportIssueButton.vue'
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
-import { INITIAL_PRELOAD_SEEDS, LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
+import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
+import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
-import { useBeltLoader, getBeltForSeed, BELT_RANGES, type BeltLoaderConfig } from '../composables/useBeltLoader'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
@@ -47,25 +49,25 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
+import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
 import ListeningOverlay from './ListeningOverlay.vue'
 import PronunciationOverlay from './PronunciationOverlay.vue'
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
-import ContributionCounter from './learner/ContributionCounter.vue'
 import ProgressModal from './ProgressModal.vue'
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
-import { useInstantPlayback } from '../composables/useInstantPlayback'
+import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
-import { createBundleDownloader, type BundleDownloader } from '../cache/BundleDownloader'
+import { type BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 import { generateScript as generateBundleScript } from '../script/generateScript'
 
@@ -359,6 +361,27 @@ const {
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
+// ── INF PLAY revival-tail sizing ───────────────────────────────────────────
+// The revival tail must run at LEAST max(spacedRepOffsets) rounds so the FINAL
+// main-loop LEGO completes its full N-1 … N-89 spaced-rep drain. Anything
+// shorter (the old hard-coded 50) leaves the last LEGOs under-trained — a
+// methodology requirement, not a perf knob. Beyond that floor the tail GROWS in
+// batches as the learner walks it (expandScript bumps infPlayLookahead while in
+// INF PLAY), so play is genuinely unbounded: every revival round is ~22 cycles
+// of the drained-out spaced review plus uniform-random USE across the whole
+// course, and the deterministic seeded stream just keeps extending forward.
+const INF_PLAY_BATCH = 50
+// Revival-tail length fed to the generator. 0 = "not yet sized" → the floor
+// applies; expandScript raises it in INF PLAY so each regen yields new rounds.
+const infPlayLookahead = ref(0)
+const infPlayLookaheadFloor = (): number => {
+  const offsets = scriptShapeConfig.value?.spacedRepOffsets
+  const maxOffset = offsets && offsets.length ? Math.max(...offsets) : 89
+  // +1 of headroom so the final LEGO's longest-offset review sits comfortably
+  // inside the tail rather than exactly on the last generated round.
+  return maxOffset + 1
+}
+
 /**
  * Wrapper for generateSimpleScript that threads the live algorithm_config
  * triple (listening, scriptShape, turbo cull) into every script-generation
@@ -385,10 +408,15 @@ const generateScript = (
   // Full-course one-shot generation. The script generator walks the
   // whole inventory; the player consumes from wherever its cursor is
   // (resume-by-lego-id). No seed-range chunking; no emit windowing.
+  //
+  // infinitePlayLookahead = current revival-tail length, never below the floor
+  // (so the final LEGO always drains fully). expandScript grows it in batches
+  // during INF PLAY so the tail keeps extending — genuinely infinite.
+  const infinitePlayLookahead = Math.max(infPlayLookahead.value, infPlayLookaheadFloor())
   return generateSimpleScript(
     supabase.value,
     courseCode.value,
-    50,  // infinitePlayLookahead — revival rounds after the main loop
+    infinitePlayLookahead,  // revival rounds after the main loop (≥ max SR offset, grows in INF PLAY)
     listening,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
@@ -609,13 +637,10 @@ const isGuestLearner = computed(() => {
 })
 
 // Developer settings (can be toggled in Settings > Developer)
-const showFragileProgressWarning = ref(true)
 const enableQaMode = ref(false)
 const showDebugOverlay = ref(false)
-const enableVerboseLogging = ref(false)
 
 // Computed properties for conditional rendering
-const shouldShowProgressWarning = computed(() => false /* disabled during light theme work */)
 const shouldShowQaMode = computed(() => enableQaMode.value || isQaMode.value) // Either setting or URL param
 
 // Class session tracking
@@ -911,6 +936,75 @@ let courseFinalLegoCacheKey: string | null = null
 // loadAllData so it's ready by the time the learner can press
 // forward-skip.
 const courseFinalLegoRef = ref<{ legoId: string; roundIndex: number } | null>(null)
+
+// ── THE single source of truth for the main-loop sequence ──────────────────
+// The LEGO-ID-ordered round map (course_round_index), fetched once on load via
+// the SAME cached /round-map the instant-playback path uses (getOrFetchRoundMap).
+// course_round_index is already the SERVER-SIDE authority — the cursor-repair
+// migration caps reach at MAX(round_index) FROM course_round_index, and
+// course_stats.lego_count counts it. We hold it in its OWN stable ref, NOT
+// instantPlayback.roundMap (which bootstrapInfPlay overwrites with a synthetic
+// infplay map — the "messy" one we must never read as the boundary).
+//
+// EVERY main-loop boundary / position read goes through the two helpers below.
+// No round-index arithmetic (pods, encouragements and listening rounds get
+// spliced into the live index and pollute it), no DB is_new estimate, no
+// per-source generator guess. Up to the boundary the position is known purely
+// by LEGO ID; only PAST the boundary (INF PLAY, no more LEGOs) does a counter
+// take over (infplayRoundIndex, bumped per round in saveRoundProgress).
+const mainLoopMap = ref<RoundMap | null>(null)
+
+// LIVE, audio-aware main-loop extent — the SINGLE SOURCE OF TRUTH once a script
+// has actually been generated this session. generateScript (generateLearningScript.ts)
+// drops rounds whose intro/debut lacks target audio and counts the distinct
+// PLAYABLE main-loop rounds (its `mainLoopRoundCount`). That count is the true
+// "where INF PLAY starts" for THIS device on THIS content version. The
+// course_round_index matview is NOT audio-filtered and goes stale (e.g. fra
+// frozen at seed ~300 while the course is decomposed+audio'd out to 668), so it
+// can report a boundary far short of the real consumable end — which is what
+// kept fra/spa from ever entering INF PLAY. We set this ref at every
+// handoff/resume/regen site, and prefer it over the matview below.
+// Null until the first generateScript result lands (bootstrap uses the matview).
+const liveMainLoopRoundCount = ref<number | null>(null)
+
+// Number of main-loop rounds = the 0-based array index of the FIRST revival
+// round in the full script (round N+1 in 1-based terms). The ONE boundary used
+// everywhere. THREE-TIER prefer-live:
+//   1. liveMainLoopRoundCount — the audio-aware count from the generated script
+//      (authoritative once a handoff/resume/regen has run this session).
+//   2. mainLoopMap.rounds.length — the course_round_index matview (bootstrap /
+//      pre-handoff only; may be stale + isn't audio-filtered).
+//   3. final-LEGO round index — load-time safety net before either is ready, so
+//      entry/cadence degrade gracefully rather than reading 0.
+const mainLoopBoundary = (): number => {
+  const live = liveMainLoopRoundCount.value
+  if (live !== null && live > 0) return live
+  const mapLen = mainLoopMap.value?.rounds.length ?? 0
+  if (mapLen > 0) return mapLen
+  return (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+}
+
+// 0-based main-loop position of a LEGO BY ITS ID (its index in the ordered
+// sequence), or -1 if it isn't a main-loop LEGO. Never a play counter.
+const mainLoopIndexForLegoId = (legoId: string | null | undefined): number => {
+  if (!legoId) return -1
+  const rounds = mainLoopMap.value?.rounds
+  if (!rounds) return -1
+  return rounds.findIndex(r => r.legoId === legoId)
+}
+
+// Populate the canonical map once (idempotent; getOrFetchRoundMap is
+// localStorage-cached and version-revalidated). Non-fatal: on failure the
+// boundary helper falls back to the final-LEGO index.
+const ensureMainLoopMap = async (): Promise<void> => {
+  if (mainLoopMap.value && mainLoopMap.value.course_code === courseCode.value) return
+  try {
+    const map = await instantPlayback.getOrFetchRoundMap()
+    if (map?.course_code === courseCode.value) mainLoopMap.value = map
+  } catch (err) {
+    console.warn('[LearningPlayer] canonical round-map fetch failed; boundary falls back to final-LEGO index:', err)
+  }
+}
 const getCourseFinalLego = async (course: string): Promise<{ legoId: string; roundIndex: number } | null> => {
   if (courseFinalLegoRef.value && courseFinalLegoCacheKey === course) {
     return courseFinalLegoRef.value
@@ -994,11 +1088,40 @@ const simplePlayer = useSimplePlayer()
 // learnerId + courseCode per call at the recordCyclePlay site below.
 const pairingsTelemetry = usePairingsTelemetry()
 
+// DB-01: throttle the mid-round cursor write to ~60s + flush on lifecycle
+// boundaries. Per-cycle writes were ~5-6/min/learner; only same-sitting (<5min)
+// resumes use current_cycle_index (longer gaps reset to the round intro), so 60s
+// granularity is imperceptible. CANCELLED on round-advance: the round-advance
+// write supersedes, so a stale old-round cursor must never flush after it.
+let pendingCursor: { learnerId: string; courseId: string; idx: number } | null = null
+let cursorFlushTimer: ReturnType<typeof setTimeout> | null = null
+const flushCursor = () => {
+  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
+  const p = pendingCursor
+  pendingCursor = null
+  if (!p || !progressStore?.value) return
+  void progressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
+    console.warn('[LearningPlayer] Failed to persist current cycle:', err)
+  })
+}
+const queueCursor = (learnerId: string, courseId: string, idx: number) => {
+  pendingCursor = { learnerId, courseId, idx }
+  if (!cursorFlushTimer) cursorFlushTimer = setTimeout(flushCursor, 60_000)
+}
+const cancelPendingCursor = () => {
+  if (cursorFlushTimer) { clearTimeout(cursorFlushTimer); cursorFlushTimer = null }
+  pendingCursor = null
+}
+
 // Diagnostic event log — captures play/pause/skip/stop taps + lap and
 // commentary lifecycle. Persisted in player_events; surfaced in the
 // admin user-detail page so user reports like "skip didn't work" can
 // be diagnosed without DevTools.
-const playerLog = usePlayerLog({ courseCode })
+// Stamp the RUNNING bundle's build sha on every event so telemetry can tell
+// which build a user is actually on (incl. a stale SW-cached one). Mirrors the
+// __BUILD_NUMBER__ pattern used in App.vue / SettingsScreen.vue.
+const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
+const playerLog = usePlayerLog({ courseCode, learnerId, clientVersion: BUILD_VERSION })
 const logEvent = playerLog.event
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
@@ -1089,13 +1212,6 @@ const highestCompletedLegoId = ref<string | null>(null)
 // resting state, and an INF PLAY round's legoId is a random USE that
 // doesn't represent pedagogical position.
 const lastCompletedLegoIdRef = ref<string | null>(null)
-// Current cursor (vs ceiling). Critical for infinite-play resume:
-// in infinite-play rounds the saved lastLegoId points to a LEGO
-// reviewed via random-USE, which the legoId-based resume would map to
-// that LEGO's MAIN-LOOP debut round — not the infinite-play round the
-// learner was actually on. The round index is the only unambiguous
-// position when legoIds get reused across infinite-play rounds.
-const lastCompletedRoundIndex = ref<number | null>(null)
 // Cycle cursor within the in-progress round, persisted on every cycle
 // completion. Read once on resume so a PWA reload mid-round picks up
 // from the cycle the learner was on rather than restarting cycle 0
@@ -1127,7 +1243,6 @@ watch(
       if (saved) {
         highestCompletedRoundIndex.value = saved.highestCompletedRoundIndex ?? null
         highestCompletedLegoId.value = saved.highestCompletedLegoId ?? null
-        lastCompletedRoundIndex.value = saved.lastCompletedRoundIndex ?? null
         lastCompletedLegoIdRef.value = saved.lastCompletedLegoId ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
@@ -1136,7 +1251,6 @@ watch(
       } else {
         highestCompletedRoundIndex.value = null
         highestCompletedLegoId.value = null
-        lastCompletedRoundIndex.value = null
         lastCompletedLegoIdRef.value = null
         savedCurrentCycleIndex.value = 0
         savedLastPracticedAt.value = null
@@ -1187,7 +1301,7 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
         void instantPlayback.prefetchNextInfPlayBatch().then(() => {
           const mapForInf = instantPlayback.roundMap.value
           if (!mapForInf) return
-          const mainLoopCount = mapForInf.rounds[0] ? mapForInf.rounds[0].r - 1 : 0
+          const mainLoopCount = mainLoopBoundary()
           const refreshed = infPlayCyclesToRounds(
             instantPlayback.infPlayCycles.value as any,
             mainLoopCount,
@@ -1243,7 +1357,6 @@ const cachedRounds = loadedRounds  // Legacy alias
 const effectiveRoundIndex = currentRoundIndex
 const effectiveItemInRound = currentItemInRound
 
-const playbackGeneration = ref(0)  // Counter for playback generation tracking
 const scriptBaseOffset = ref(0)  // Base offset for script loading
 
 // ============================================
@@ -1378,16 +1491,13 @@ simplePlayer.onCycleCompleted((cycle) => {
         if (id && id !== cycle.legoId) firedLegoIds.push(id)
       }
     }
-    void pairingsTelemetry
-      .recordCyclePlay({
-        learnerId: learnerId.value,
-        courseCode: courseCode.value,
-        legoIds: firedLegoIds,
-      })
-      .catch((err: unknown) => {
-        // Telemetry must never break playback — log and move on.
-        console.warn('[LearningPlayer] pairings telemetry failed:', err)
-      })
+    // Accumulate locally; flushed in one batch on pause/background/unmount.
+    // record_lego_pairings now takes per-pair counts → ~150 RPCs/session → ~1-3.
+    pairingsTelemetry.recordCyclePlay({
+      learnerId: learnerId.value,
+      courseCode: courseCode.value,
+      legoIds: firedLegoIds,
+    })
   }
 
   // Feed per-LEGO adaptive engine. Only when we have a real latency signal
@@ -1455,19 +1565,18 @@ simplePlayer.onCycleCompleted((cycle) => {
     const nextCycleIdx = simplePlayer.cycleIndex.value + 1
     const roundCycleCount = simplePlayer.currentRound.value?.cycles?.length ?? 0
     if (nextCycleIdx < roundCycleCount) {
-      progressStore.value.updateCurrentCycle(
-        learnerId.value,
-        courseCode.value,
-        nextCycleIdx,
-      ).catch(err => {
-        console.warn('[LearningPlayer] Failed to persist current cycle:', err)
-      })
+      queueCursor(learnerId.value, courseCode.value, nextCycleIdx)
     }
   }
 })
 
 // Round completed - save progress and update current LEGO ID
 simplePlayer.onRoundCompleted((round) => {
+  // DB-01: discard the just-finished round's pending mid-round cursor before
+  // the round-advance write below supersedes it. Without this, a stale 60s
+  // timer could flush an old-round cycle index AFTER the new round's cursor.
+  cancelPendingCursor()
+
   const completedRoundIndex = simplePlayer.roundIndex.value
   logEvent('round_complete', {
     roundIndex: completedRoundIndex,
@@ -1488,10 +1597,8 @@ simplePlayer.onRoundCompleted((round) => {
   // already started the next round's prompt audio, causing the pod intro
   // to overlap with main-player audio. Pausing here, in the same tick as
   // the round-completed event, beats that race.
-  const willFirePod = !!podScheduler
-    && podScheduler.isInitialized.value
-    && !beltJustEarned.value
-    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  const willFirePod = !beltJustEarned.value
+    && podCadenceFiresAtRound(completedRoundIndex)
   if (willFirePod) {
     simplePlayer.pause()
   }
@@ -1528,13 +1635,19 @@ simplePlayer.onRoundCompleted((round) => {
       // Belt visuals follow the main-loop LEGO this round is "for" —
       // for infplay rounds that's the last main-loop LEGO reached, NOT
       // the random USE drawn first (which would make the belt jump).
-      const visualLegoId = visualLegoIdForRound(round)
-      if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
-        beltProgress.value.setCurrentLegoId(visualLegoId)
-      }
-      if (visualLegoId && beltProgress.value?.setPlayingPosition) {
-        const seed = getSeedFromLegoId(visualLegoId)
-        if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+      // In INF PLAY skip the belt write entirely — the belt is the locked red
+      // ∞ (beltCssVars red override) and visualLegoIdForRound falls back to the
+      // random USE legoId for guests (no main-loop ceiling recorded), which is
+      // exactly the cycle-to-cycle belt flip Tom flagged.
+      if (!isInfPlayActive.value) {
+        const visualLegoId = visualLegoIdForRound(round)
+        if (visualLegoId && beltProgress.value?.setCurrentLegoId) {
+          beltProgress.value.setCurrentLegoId(visualLegoId)
+        }
+        if (visualLegoId && beltProgress.value?.setPlayingPosition) {
+          const seed = getSeedFromLegoId(visualLegoId)
+          if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+        }
       }
     }
   }
@@ -1611,13 +1724,18 @@ simplePlayer.onSessionComplete(async () => {
     // Nothing survived the persistent-audio filter (empty cached set) — fall
     // through to the summary; that's the empty-cache edge, not the recycle.
   }
-  // Infinite play: the course should never end. Try expanding the
-  // script and resuming before falling through to a paused-quiet state.
+  // Infinite play / main loop: the course should never end. expandScript()
+  // GROWS the revival tail by a batch in INF PLAY (genuinely infinite — fresh
+  // deterministic rounds), or loads more main-loop rounds; then resume.
   const added = await expandScript()
   if (added > 0) {
     simplePlayer.resume()
     return
   }
+  // Generation produced nothing (transient online failure; offline was handled
+  // above). Last resort in INF PLAY: wrap to the first revival round so play
+  // never dead-ends instead of dropping to the paused summary.
+  if (wrapInfPlayAtTail()) return
   sessionEnded.value = true
   showPausedSummary()
 })
@@ -1701,7 +1819,6 @@ watch(
 // fire-and-forget. Future: respect navigator.connection.saveData / type.
 
 const AUDIO_EAGER_AHEAD = 3   // rounds (current + next 2) loaded on round entry
-const AUDIO_DEEP_BATCH = 5    // rounds per batch in the deep background walk
 
 // Phase 3 — eager prefetch on round entry. immediate: true catches session
 // start / resume so the FIRST round of a session is preloaded before its
@@ -1832,25 +1949,18 @@ const legoKnownTextMap = computed<Map<string, string>>(() => {
   return map
 })
 
-// Course-wide lookup: LEGO ID → known text, loaded once per course mount.
-// The round-derived map above only contains LEGOs whose rounds are in
-// loadedRounds — in infinite-play mode (where cycles surface random USE
-// phrases referencing LEGOs from anywhere in the course) that map is
-// incomplete, so the hero-card highlight silently disappears for any
-// salient LEGO whose round isn't loaded. This map fills the gap with one
-// cheap query (~300 rows per course) and serves as the primary source
-// for the highlight lookup.
-const globalLegoKnownTextMap = ref<Map<string, string>>(new Map())
-// Course-wide target_text lookup. Same rationale as the known-text map
-// above, but for the target language — INFPLAY USE phrases reference
-// LEGOs anywhere in the course, and the round-derived legoTargetTextMap
-// only has entries for loaded rounds. decomposePhrase needs every
-// known-vocab text to bind tokens correctly, so we load all target_text
-// + target_text_native rows once per course mount.
+// Course-wide target_text lookup, loaded once per course mount. The
+// round-derived maps above only contain LEGOs whose rounds are in
+// loadedRounds — INFPLAY USE phrases reference LEGOs anywhere in the
+// course. decomposePhrase needs every known-vocab text to bind tokens
+// correctly, so we load all target_text + target_text_native rows once
+// per course mount. (The course-wide KNOWN-text map that used to load
+// alongside these fed only the hero salient highlight, removed with the
+// uniform-typography pass, Tom 2026-06-07.)
 const globalLegoTargetTextMap = ref<Map<string, string>>(new Map())
 const globalLegoTargetTextNativeMap = ref<Map<string, string>>(new Map())
 
-async function loadGlobalLegoKnownTexts() {
+async function loadGlobalLegoTexts() {
   const client = supabase.value
   const code = courseCode.value
   if (!client || !code) return
@@ -1877,18 +1987,16 @@ async function loadGlobalLegoKnownTexts() {
     //                                     happen to be swapped.
     const { data, error } = await client
       .from('course_legos')
-      .select('lego_id, known_text, target_text, target_text_roman')
+      .select('lego_id, target_text, target_text_roman')
       .eq('course_code', code)
     if (error) {
       console.warn('[LearningPlayer] Failed to load global lego texts:', error.message)
       return
     }
-    const knownMap = new Map<string, string>()
     const targetMap = new Map<string, string>()
     const targetNativeMap = new Map<string, string>()
     for (const row of (data || [])) {
       if (!row.lego_id) continue
-      if (row.known_text) knownMap.set(row.lego_id, row.known_text)
       // Primary (roman): prefer target_text_roman, fall back to target_text.
       const romanish = row.target_text_roman || row.target_text
       if (romanish) targetMap.set(row.lego_id, romanish)
@@ -1928,10 +2036,9 @@ async function loadGlobalLegoKnownTexts() {
       }
     }
 
-    globalLegoKnownTextMap.value = knownMap
     globalLegoTargetTextMap.value = targetMap
     globalLegoTargetTextNativeMap.value = targetNativeMap
-    console.log(`[LearningPlayer] Loaded ${knownMap.size} legos + ${(compData || []).length} component atoms for ${code}`)
+    console.log(`[LearningPlayer] Loaded ${targetMap.size} legos + ${(compData || []).length} component atoms for ${code}`)
   } catch (err) {
     console.warn('[LearningPlayer] Global lego text load errored:', err)
   }
@@ -1957,11 +2064,17 @@ const soloComponentIds = computed<Set<string>>(() => {
   return ids
 })
 
-// Current phrase's LEGO blocks for the assembly view
-const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
+// Current phrase's LEGO blocks for the assembly view.
+// Raw tiling — ALWAYS segmented on the ROMANISED script, the side that
+// decomposes cleanly (word spaces / syllables). currentPhraseLegoBlocks below
+// turns this into the native-primary display per script: pinyin-syllable tiles
+// (Mandarin), word-pair tiles (spaced scripts), or native-paired-onto-romaji
+// tiles (Japanese/Thai). For Latin-script courses the romanised form IS the
+// only form, so this passes through unchanged.
+const currentPhraseLegoBlocksRaw = computed<LegoBlock[]>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  const useNative = isNativeScript.value && hasRomanizedText.value
+  const useNative = false
   if (!cycle.componentLegoIds?.length) {
     // Detect intro/debut/component cycles from the cycle.type field —
     // authoritative and works for both the legacy script-generator
@@ -2020,6 +2133,33 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
       const salientText = salientId
         ? (useNative ? legoTargetTextNativeMap.value.get(salientId) : null) || legoTargetTextMap.value.get(salientId) || ''
         : ''
+
+      // Strategy 0 (authoritative): the backend (Popty) computes the tiling at
+      // content-generation time — which token belongs to which LEGO, the salient
+      // anchored on the parent LEGO, ghost residue for inserted particles — and
+      // serves it verbatim on `decomposition`. When present we render those blocks
+      // DIRECTLY rather than re-deriving by runtime string-matching, which is the
+      // fragile path that mis-aligned short LEGOs and dropped the salient. Guard:
+      // only trust the served blocks when they exactly reassemble the displayed
+      // target (whitespace-normalised) — otherwise (e.g. roman-script display vs
+      // native-script decomposition) fall through to the runtime cascade below.
+      const served = (cycle as any).decomposition as
+        | Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+        | undefined
+      if (Array.isArray(served) && served.length > 0) {
+        const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+        if (norm(served.map((b) => b.target).join('')) === norm(targetText)) {
+          const blocks = served.map((b, i) => ({
+            id: b.legoId || `ghost_${i}`,
+            targetText: b.target,
+            ...(b.known && !b.isGhost ? { knownText: b.known } : {}),
+            isSalient: !!b.isSalient || (!!b.legoId && b.legoId === salientId),
+          }))
+          // Safety: never emit a fully-faded sentence. If nothing is marked
+          // salient (stale data), fall through to the runtime cascade.
+          if (blocks.some((b) => b.isSalient)) return blocks
+        }
+      }
 
       // First try: client-side decomposition against the learner's known
       // vocab. Walks every phrase token and binds each to a previously-
@@ -2164,7 +2304,11 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
           cycleType: (cycle?.type || ''),
         },
       )
-      return [{ id: salientId || 'phrase', targetText, isSalient: false }]
+      // No salient match found → show the WHOLE phrase at full emphasis, NOT
+      // faded. The faded "context" styling only reads correctly next to a bold
+      // salient; with no salient it greys the entire sentence and nothing is
+      // the focus (the "looks dead" state). Tom 2026-06-02 row-back.
+      return [{ id: salientId || 'phrase', targetText, isSalient: true }]
     }
     // Golden rule: if audio will play, text must be present. Whatever
     // failed above (missing legoId, missing componentLegoIds, empty
@@ -2242,26 +2386,230 @@ const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
   // which would manufacture false units like [fratello vuole].
   const result = ensureTileCoverage(rawBlocks, tileText)
 
-  // Fallback: if decomposition fails, show the full phrase as a single tile.
-  // The audio still plays — the learner must see what they hear.
+  // Fallback: if decomposition fails, show the full phrase as a single tile at
+  // FULL emphasis (not faded) — same reason as above: a lone non-salient block
+  // greys the whole sentence with nothing to contrast against. The audio still
+  // plays — the learner must see what they hear.
   if (result.length === 0 && tileText) {
-    return [{ id: salientLegoId || 'phrase', targetText: tileText, isSalient: false }]
+    return [{ id: salientLegoId || 'phrase', targetText: tileText, isSalient: true }]
   }
   return result
 })
+
+// Mandarin (target lang zho): a LEGO can be a whole clause, so we tile by
+// PINYIN WORD instead of by LEGO and slice the hanzi to match each word — the
+// pinyin word-spacing IS the parseable chunking. Other languages keep their
+// LEGO-based tiling (a multi-word LEGO is a meaningful unit there and the words
+// are already space-separated).
+const isMandarin = computed(() => (courseCode.value?.split('_')[0] || '') === 'zho')
+
+// Native-script text(s) of the salient LEGO(s) on the current cycle, used to
+// bold the matching pinyin-word tiles. Prefer the served decomposition's
+// salient block(s); fall back to the salient LEGO's native text.
+function salientNativeTexts(cycle: any): string[] {
+  const dec = cycle?.decomposition
+  if (Array.isArray(dec)) {
+    const s = dec.filter((b: any) => b?.isSalient && b?.target).map((b: any) => b.target as string)
+    if (s.length > 0) return s
+  }
+  const id = cycle?.legoId || currentRound.value?.legoId
+  if (id) {
+    const t = legoTargetTextNativeMap.value.get(id) || globalLegoTargetTextNativeMap.value.get(id)
+    if (t) return [t]
+  }
+  return []
+}
+
+// Merged native LEGO map (legoId → native script), used by the old-browser
+// fallback that pairs native onto the romaji tiling.
+const legoNativeById = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>(globalLegoTargetTextNativeMap.value)
+  for (const [id, text] of legoTargetTextNativeMap.value.entries()) m.set(id, text)
+  return m
+})
+
+// native word → romanisation dictionary, built from the course's own LEGOs and
+// component atoms (native and roman maps share legoId / atom-synth-id keys). The
+// device-segmentation path uses this to fill a tile's ruby when the phrase's
+// romanisation doesn't split 1:1 with the segmented native words.
+const nativeRomajiDict = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>()
+  const add = (native: Map<string, string>, roman: Map<string, string>) => {
+    for (const [id, nat] of native.entries()) {
+      const rom = roman.get(id)
+      if (nat && rom && !m.has(nat)) m.set(nat, rom)
+    }
+  }
+  add(globalLegoTargetTextNativeMap.value, globalLegoTargetTextMap.value)
+  add(legoTargetTextNativeMap.value, legoTargetTextMap.value)
+  return m
+})
+
+// Spaceless scripts → BCP-47 locale for the device word segmenter.
+const SEGMENTER_LOCALE: Record<string, string> = { jpn: 'ja', tha: 'th' }
+
+// Intro/debut: attach the known-language gloss UNDER the tiles (Tom
+// 2026-06-07). The tiles and ruby are IDENTICAL to how the LEGO renders in
+// a regular phrase — the gloss is purely additive, the "cosa|azul /
+// thing|blue" matching that makes a multi-piece LEGO's componentisation
+// visible in BOTH languages on first presentation.
+//
+// Matching is order-independent and claim-based (component phrases come
+// back in arbitrary DB order): each declared component target — native and
+// roman variants both considered, longest first so a short component can't
+// steal a longer one's prefix — claims the earliest unclaimed contiguous
+// tile run whose concatenated text equals it (whitespace/punctuation-
+// normalised). Tiles get `glossGroup` ids so LegoAssembly can centre each
+// gloss under its whole run; structural particles keep their empty known
+// by design (claimed run, no gloss). Components that don't match cleanly
+// just don't gloss — tiles are NEVER reshaped, merged, or re-tiled.
+function attachIntroGlosses(tiles: LegoBlock[], cycle: any): LegoBlock[] {
+  const t = (cycle?.type || '').toLowerCase()
+  if (t !== 'intro' && t !== 'debut') return tiles
+  if (!tiles || tiles.length === 0) return tiles
+  const norm = (s: string) =>
+    (s || '').replace(/\s+/g, '').replace(/[。、，．・「」『』！？.,!?…'’"“”]/g, '')
+  const knownWhole = cycle?.known?.text || ''
+  if (tiles.length === 1) {
+    return knownWhole ? [{ ...tiles[0], knownText: knownWhole, glossGroup: 0 }] : tiles
+  }
+  // Union of both component variants: the native list matches the tiles'
+  // native targetText, but components whose roman form is NULL fall back
+  // to native text in the roman list (e.g. zho 你) and only appear there.
+  const comps = ([] as Array<{ known: string; target: string }>).concat(
+    (cycle?.componentsNative as any) || [],
+    (cycle?.components as any) || [],
+  )
+  if (comps.length === 0) return tiles
+  const out = tiles.map((x) => ({ ...x }))
+  const claimed: boolean[] = new Array(out.length).fill(false)
+  const runs: Array<{ start: number; end: number; known: string }> = []
+  const ordered = comps
+    .filter((c) => norm(c?.target))
+    .sort((a, b) => norm(b.target).length - norm(a.target).length)
+  for (const comp of ordered) {
+    const target = norm(comp.target)
+    for (let start = 0; start < out.length; start++) {
+      if (claimed[start]) continue
+      let acc = ''
+      let i = start
+      while (i < out.length && !claimed[i] && acc.length < target.length) {
+        acc += norm(out[i].targetText)
+        i++
+      }
+      if (acc !== target) continue
+      for (let k = start; k < i; k++) claimed[k] = true
+      runs.push({ start, end: i - 1, known: comp.known || '' })
+      break
+    }
+  }
+  if (runs.length === 0) return tiles
+  // Assign group ids in tile order: claimed runs share an id; every
+  // unclaimed tile is its own group. Gloss rides on the run's first tile.
+  runs.sort((a, b) => a.start - b.start)
+  let gid = 0
+  let ri = 0
+  for (let i = 0; i < out.length; ) {
+    if (ri < runs.length && runs[ri].start === i) {
+      for (let k = runs[ri].start; k <= runs[ri].end; k++) out[k].glossGroup = gid
+      if (runs[ri].known) out[runs[ri].start].knownText = runs[ri].known
+      i = runs[ri].end + 1
+      ri++
+    } else {
+      out[i].glossGroup = gid
+      i++
+    }
+    gid++
+  }
+  return out
+}
+
+// Final tiling consumed by the template. The tiling is always derived from the
+// ROMANISED side (the reliably-segmented one); the native script is the primary
+// glyph, the romanisation the ruby. Three strategies by script shape:
+//  - Mandarin (zho): pinyin-word tiles, hanzi sliced 1-per-syllable.
+//  - Space-separated scripts: word-pair tiles (native↔romaji word-for-word) —
+//    finer than the LEGO decomposition, whose salient can be a whole clause.
+//  - Spaceless scripts (Japanese/Thai): the DEVICE segments the native into
+//    words (Intl.Segmenter); romaji is paired positionally or via the course's
+//    native→romaji dictionary. No dependency on the backend decomposition.
+//  - Latin-script courses: raw romanised tiling unchanged (no romanisation).
+const currentPhraseLegoBlocks = computed<LegoBlock[]>(() => {
+  const cycle = simplePlayer.currentCycle.value
+  if (!cycle) return currentPhraseLegoBlocksRaw.value
+  const romanPhrase = cycle.target?.text || ''
+  const nativePhrase = (cycle.target as any)?.textNative || ''
+  const idPrefix = cycle.legoId || currentRound.value?.legoId || cycle.id || 'w'
+
+  // Strategy 0 (authoritative): authored display tiles from Popty
+  // (course_practice_phrases.display_tiling). Built at content time, validated
+  // both ways (roman = stored value sliced, native reassembles exactly), so we
+  // render them verbatim — native glyph primary, roman as the ruby. Guard:
+  // tiles must reassemble the displayed native phrase (whitespace-normalised);
+  // a stale mismatch falls through to the runtime cascade below.
+  const authored = (cycle as any).displayTiling as
+    | Array<{ n: string; r: string; salient?: boolean }>
+    | undefined
+  if (Array.isArray(authored) && authored.length > 0 && nativePhrase) {
+    const squash = (s: string) => s.replace(/\s+/g, '')
+    if (squash(authored.map((t) => t.n).join('')) === squash(nativePhrase)) {
+      return attachIntroGlosses(authored.map((t, i) => ({
+        id: `${idPrefix}_dt${i}`,
+        targetText: t.n,
+        romanText: t.r,
+        isSalient: !!t.salient,
+      })), cycle)
+    }
+  }
+
+  if (hasRomanizedText.value && romanPhrase && nativePhrase) {
+    if (isMandarin.value) {
+      const tiles = buildWordTiles(romanPhrase, nativePhrase, {
+        salientNativeTexts: salientNativeTexts(cycle), idPrefix,
+      })
+      if (tiles && tiles.length > 0) return attachIntroGlosses(tiles, cycle)
+    } else if (/\s/.test(nativePhrase.trim())) {
+      // Space-separated script → word-pair tiling.
+      const tiles = buildWordPairTiles(romanPhrase, nativePhrase, {
+        salientNativeTexts: salientNativeTexts(cycle), idPrefix,
+      })
+      if (tiles && tiles.length > 0) return attachIntroGlosses(tiles, cycle)
+    } else {
+      // Spaceless script (Japanese/Thai) → device word segmentation.
+      const locale = SEGMENTER_LOCALE[courseCode.value?.split('_')[0] || '']
+      if (locale) {
+        const tiles = buildSegmentedTiles(nativePhrase, romanPhrase, locale, {
+          salientNativeTexts: salientNativeTexts(cycle),
+          idPrefix,
+          nativeRomajiDict: nativeRomajiDict.value,
+        })
+        if (tiles && tiles.length > 0) return attachIntroGlosses(tiles, cycle)
+      }
+      // Intl.Segmenter unavailable / unknown locale → pair native onto the
+      // romaji tiling by legoId.
+      const raw = currentPhraseLegoBlocksRaw.value
+      if (raw.length > 0) return attachIntroGlosses(nativeFromRomanTiles(raw, legoNativeById.value), cycle)
+    }
+  }
+  return currentPhraseLegoBlocksRaw.value
+})
+
+// The script toggle governs whether the romanisation ruby is shown above each
+// tile. Native-script glyphs stay primary; this is a pronunciation crutch the
+// learner drops as recognition builds. Default-on (scriptMode 'roman'). Applies
+// to every romanised (non-Latin-script) course.
+const showRomanization = computed(
+  () => hasRomanizedText.value && scriptMode.value === 'roman',
+)
 
 // ============================================
 // PROGRESSIVE LOADING - Start small, expand as learner progresses
 // ============================================
 const INITIAL_ROUNDS = 20           // Fast initial load
 const EXPANSION_THRESHOLD = 5       // Expand when within 5 rounds of end
-const MAX_EXPANSION_BATCH = 200     // Cap each expansion batch
-const ROUNDS_TO_FETCH = 50          // Legacy: rounds to fetch in skip operations (deprecated code)
 const isExpandingScript = ref(false)
-const allPlayableItems = ref<any[]>([])  // Legacy: all script items for backwards compat
 const totalSeedsPlayed = ref(0)     // Legacy: total seeds played in current session
 const isInitialized = ref(false)    // Legacy: whether component is fully initialized
-const prebuiltNetwork = { clear: () => {} }  // Legacy: stub for network operations
 
 // ============================================
 // LOCAL STORAGE PERSISTENCE - Works for all users (guests + logged-in)
@@ -2394,6 +2742,15 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
     const byId = cycles.findIndex((c: any) => c?.id === localPos.cycleId)
     if (byId >= 0) cycleIndex = byId
   }
+  // Gap rule on the localStorage path too (not just the DB path): a brief
+  // pause resumes the exact cycle; a real break restarts the round. Uses the
+  // save's OWN timestamp, so it fires even when the player was left up in rest
+  // state (DB last_practiced_at not reloaded) — the case that slipped through
+  // and kept the exact cycle no matter how long the gap. Tom 2026-06-01.
+  if (cycleIndex > 0 && typeof localPos.lastUpdated === 'number') {
+    const minutesSince = (Date.now() - localPos.lastUpdated) / 60000
+    if (minutesSince >= resumeConfig.value.cycleResetMinutes) cycleIndex = 0
+  }
   return { roundIndex: idx, cycleIndex }
 }
 
@@ -2440,6 +2797,12 @@ const positionInitialized = ref(false)
 watch(() => simplePlayer.phase.value, (phase) => {
   if (phase === 'prompt' && positionInitialized.value && useRoundBasedPlayback.value) {
     savePositionToLocalStorage()
+    // Persist the cursor to the DB every cycle, not just per round. The DB is
+    // the durable cross-session source; when it lagged at round granularity, a
+    // learner whose localStorage was gone (SW update / new device) resumed at a
+    // stale round and had to skip forward by hand. Cycle-precise here closes
+    // that gap. Single-row PK update, fire-and-forget. Tom 2026-06-01.
+    persistLivePositionToDb()
   }
 })
 
@@ -2649,23 +3012,6 @@ const scriptItemToPlayableItem = async (scriptItem) => {
   return playable
 }
 
-// Current script item (from round)
-const currentScriptItem = computed(() => {
-  if (!currentRound.value || !currentRound.value.items) return null
-  return currentRound.value.items[currentItemInRound.value] || null
-})
-
-// Round progress tracking
-const isRoundComplete = computed(() => {
-  if (!currentRound.value) return false
-  return currentItemInRound.value >= currentRound.value.items.length
-})
-
-const roundProgress = computed(() => {
-  if (!currentRound.value || !currentRound.value.items.length) return 0
-  return (currentItemInRound.value / currentRound.value.items.length) * 100
-})
-
 // Initialize learning session composable
 const learningSession = useLearningSession({
   progressStore: progressStore,
@@ -2717,6 +3063,42 @@ const podScheduler = supabase?.value
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
     })
   : null
+
+// ============================================
+// LAYER-1 LISTENING SCHEDULER (drained-seed fluency maintenance)
+// Sibling of podScheduler but simpler: no stages, no ratchet. Fires every
+// ~50 main rounds (DEFAULT_LAYER1_CONFIG) once seeds have fully drained from
+// spaced rep; the lap is a pure function of (catalogue, round, learner) so
+// it's resume-safe with no persisted state. See useLayer1Scheduler.ts.
+// ============================================
+// Dev cheat (?l1test): make Layer-1 listening fire early + often so it can be
+// verified without playing ~100 rounds. Default config (activation@100, every
+// 50 rounds, 90-round graduation offset) is correct for real learners but
+// untestable by hand. ?l1test → first lap at round 2, every 3 rounds, offset 0
+// (every already-debuted seed is immediately eligible, so the bucket is full
+// from the start). Optional ?l1every=N overrides the interval. Mirrors ?fc.
+const l1TestConfig = ((): Partial<Layer1Config> | undefined => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    if (!p.has('l1test')) return undefined
+    const every = parseInt(p.get('l1every') || '', 10)
+    return {
+      activationRound: 2,
+      interval: Number.isFinite(every) && every > 0 ? every : 3,
+      offset: 0,
+    }
+  } catch { return undefined }
+})()
+
+const l1Scheduler = supabase?.value
+  ? useLayer1Scheduler({
+      supabase: supabase as any,
+      courseCode: courseCode,
+      learnerId: learnerId,
+      config: l1TestConfig,
+    })
+  : null
+
 const playingPodLapAudio = ref(false)
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
@@ -2750,6 +3132,7 @@ watch(
   () => [courseCode.value, learnerId.value],
   async () => {
     if (podScheduler) await podScheduler.initialize()
+    if (l1Scheduler) await l1Scheduler.initialize()
   },
   { immediate: true }
 )
@@ -2939,19 +3322,28 @@ const sessionMultiplier = computed(() => {
 // Uses localStorage for persistence with Supabase sync for cross-device
 const beltProgress = shallowRef(null)
 
-// Belt loader for progressive loading with priority queue
-// Loads current belt first 5 rounds (P0 blocking), then background loads next belts
+// Belt loader for progressive loading — VESTIGIAL as of 2026-06-02: its only
+// writer (initializeBeltLoader) was removed as dead code (never called; the
+// instant-playback path superseded it). This ref is now never populated, so
+// the two reads below (useOfflinePlay's getCachedItems + the clearCache guard)
+// are effectively no-ops (always null → [] / never fires). Left in place
+// because they thread into the live offline-play system; retire as part of the
+// offline/buffer rework, not here.
 const beltLoader = shallowRef(null)
 
 // Offline play composable for infinite play when offline
 // Seamlessly cycles through cached content when network is unavailable
 const offlinePlay = shallowRef(null)
 
-// Track if we're using belt loader for playback
-const useBeltLoaderPlayback = ref(false)
-
 // Online/offline state for UI indicators
 const isOnline = ref(navigator.onLine)
+// buffer-model: cache-play online (default-on on this branch; ?stream=1 to compare
+// against the old streaming path). Hoisted here so BOTH the main-cycle resolver
+// (resolveAudioUrl) and the AudioController source (createAudioCacheSource) read
+// the SAME flag — previously only the latter did, so the main 4-phase cycle kept
+// streaming /api/audio online and died when locked (iOS won't start a streamed
+// <audio> locked); airplane forced it onto the cache, which is why airplane worked.
+const cachePlayOnline = typeof window !== 'undefined' && !new URLSearchParams(window.location.search).has('stream')
 
 // Computed properties that delegate to the composable (with fallbacks for initial load)
 const completedRounds = computed(() => beltProgress.value?.completedRounds.value ?? 0)
@@ -3030,7 +3422,30 @@ const timeToNextBelt = computed(() => beltProgress.value?.timeToNextBelt.value ?
 const beltJourney = computed(() => beltProgress.value?.beltJourney.value ?? [])
 
 // CSS custom properties for belt theming
+// Are we POSITIONED in INF PLAY right now? INF PLAY is a POSITION/STATE, not a
+// property of the LEGO under the cursor — once you're in it, you stay in it on
+// whatever round you're on, and the belt is the red ∞ until you deliberately
+// EXIT via the header belt chevrons. Detected by the mode flag OR (crucially for
+// GUESTS, who never get the persisted 'infplay' mode — setMode is gated on a real
+// account) by the current round being a revival round (no intro/debut/build).
+// Single source of truth for the belt indicator, the accent colour, the forward-
+// belt-skip null, and the listening cadence. Tom 2026-06-03.
+const isInfPlayActive = computed(() =>
+  currentMode.value === 'infplay'
+  || (!!simplePlayer.currentRound.value && !isMainLoopRound(simplePlayer.currentRound.value))
+)
+
 const beltCssVars = computed(() => {
+  // In INF PLAY the accent LOCKS to SSi red (matches the .is-infplay pill) so the
+  // whole UI stays red regardless of which LEGO each random-USE phrase draws from
+  // — never the flipping belt colour of the current cycle's LEGO.
+  if (isInfPlayActive.value) {
+    return {
+      '--belt-color': '#c23a3a',
+      '--belt-color-dark': '#9e2f2f',
+      '--belt-glow': 'rgba(194, 58, 58, 0.35)',
+    }
+  }
   return beltProgress.value?.beltCssVars.value ?? {
     '--belt-color': '#ffffff',
     '--belt-color-dark': '#e0e0e0',
@@ -3101,56 +3516,6 @@ const initializeListeningProgress = async () => {
 }
 
 /**
- * Initialize belt loader for progressive loading
- * Call after belt progress is initialized to know starting position
- */
-const initializeBeltLoader = async () => {
-  if (!courseCode.value || !beltProgress.value || beltLoader.value) return
-
-  console.log('[LearningPlayer] Initializing belt loader...')
-
-  // Script chunk generator — preserved as a wrapper for useBeltLoader's
-  // interface, but now always returns the full course. The chunk-by-seed
-  // pattern is gone (it was the cause of the L1-listening silent-fail bug).
-  // beltLoader receives the same rounds every call; no incremental loading
-  // happens here any more. Eventually useBeltLoader should be simplified
-  // to a single load — until then this preserves the contract.
-  const generateScriptChunk = async (_startSeed: number, _count: number) => {
-    if (!supabase?.value) return { rounds: [] as any[], nextSeed: 1, hasMore: false }
-    const result = await generateScript()
-    if (result.hasRomanizedText) hasRomanizedText.value = true
-    const rounds = toSimpleRoundsWithComponents(result.items)
-    return {
-      rounds: rounds as any[],
-      nextSeed: 9999,
-      hasMore: false,
-    }
-  }
-
-  // Initialize belt loader
-  const loaderConfig: BeltLoaderConfig = {
-    supabase: supabase,
-    courseCode: computed(() => courseCode.value),
-    audioBaseUrl: AUDIO_S3_BASE_URL,
-    generateScriptChunk,
-  }
-
-  beltLoader.value = useBeltLoader(loaderConfig)
-
-  // Initialize from current progress position
-  let startSeed: number
-  if (props.classContext?.last_lego_id) {
-    const seedMatch = props.classContext.last_lego_id.match(/^S(\d{4})L/)
-    startSeed = seedMatch ? parseInt(seedMatch[1], 10) : 1
-  } else {
-    startSeed = beltProgress.value.completedRounds.value + 1
-  }
-  await beltLoader.value.initializeFromSeed(startSeed)
-
-  console.log('[LearningPlayer] Belt loader ready, starting from seed', startSeed)
-}
-
-/**
  * Initialize offline play composable
  */
 const initializeOfflinePlay = () => {
@@ -3199,6 +3564,48 @@ const beltJustEarned = ref(null)
 // Mode discovery tips (shown between rounds, one at a time)
 const modeTip = ref<{ mode: string; label: string; desc: string } | null>(null)
 
+// ── Interjection display (the box follows the audio) ────────────────────────
+// While a between-rounds interjection plays, the display box shows content that
+// matches the AUDIO, never the next LEGO (the engine has advanced roundIndex
+// onto it but its intro audio hasn't started). Encouragement → a wordless,
+// rotating "positive" icon (strength / power / learning / effort). Instruction →
+// a short, varied "back to the science" caption. Welcome keeps its own
+// "listen to your guide" path. Tom 2026-06-02.
+type CommentaryDisplayType = 'welcome' | 'instruction' | 'encouragement'
+const currentCommentaryType = ref<CommentaryDisplayType | null>(null)
+
+// Dev cheat flag (?fc=1 / ?forceEncouragements=1): read once. Drives both the
+// service's forceFire (drop the ~10-min interval, set in useMetaCommentary) and
+// the relaxed placement gate in handleRoundBoundary (fire at any non-pod
+// boundary). Lets the interjection display be tested without a long wait.
+const forceInterjectionsCheat = (() => {
+  try {
+    const p = new URLSearchParams(window.location.search)
+    return p.has('fc') || p.has('forceEncouragements')
+  } catch { return false }
+})()
+
+// Short, varied captions for the ordered (sciencey) instructions — Tom's
+// "slightly fun, back to the science". No LEGO text; sets the expectation that
+// this is the meta-cognitive teaching track, distinct from the wordless icons.
+const INSTRUCTION_CAPTIONS = [
+  'Back to the science…',
+  'A bit of the science…',
+  'The science behind it…',
+  'Why this works…',
+]
+const instructionCaptionIndex = ref(0)
+const currentInstructionCaption = computed(() => INSTRUCTION_CAPTIONS[instructionCaptionIndex.value % INSTRUCTION_CAPTIONS.length])
+
+// Show the interjection block instead of the LEGO text. Welcome keeps its own
+// existing "listen to your guide" message, so only instruction/encouragement
+// flip this. Pods/L1 listening have their own overlays and don't set
+// currentCommentaryType.
+const showInterjection = computed(() =>
+  playingCommentaryAudio.value &&
+  (currentCommentaryType.value === 'instruction' || currentCommentaryType.value === 'encouragement')
+)
+
 /**
  * Play commentary audio (welcome, instruction, or encouragement)
  * Returns a promise that resolves when audio finishes
@@ -3210,6 +3617,15 @@ const playCommentaryAudio = async (commentary) => {
   }
 
   playingCommentaryAudio.value = true
+  // Drive the display box off WHAT'S PLAYING (Tom 2026-06-02): an instruction
+  // shows a short "back to the science" caption (words suit the dialog box); an
+  // encouragement shows a calm throbbing ellipsis (consistent, non-distracting,
+  // "just listen") — NEVER the next LEGO (the engine has advanced roundIndex
+  // onto it, but its audio hasn't started). Pick the caption once per clip.
+  currentCommentaryType.value = (commentary.type as CommentaryDisplayType) ?? null
+  if (commentary.type === 'instruction') {
+    instructionCaptionIndex.value = Math.floor(Math.random() * INSTRUCTION_CAPTIONS.length)
+  }
   console.log('[LearningPlayer] Playing', commentary.type, ':', commentary.text?.substring(0, 50))
   logEvent('commentary_start', {
     type: commentary.type ?? null,
@@ -3239,6 +3655,7 @@ const playCommentaryAudio = async (commentary) => {
       settled = true
       cleanup()
       playingCommentaryAudio.value = false
+      currentCommentaryType.value = null
       logEvent('commentary_end', { reason, type: commentary.type ?? null })
       resolve(success)
     }
@@ -3564,12 +3981,42 @@ const updateBeltForPosition = (roundIndex) => {
  */
 const deriveBeltFromLandedRound = () => {
   if (!beltProgress.value) return
+  // In INF PLAY the belt is the locked red ∞ — never derive it from the landed
+  // round (each revival round's legoId is a random USE that would flip the belt
+  // colour cycle-to-cycle). The accent comes from beltCssVars' red override.
+  // Exit paths flip OUT of INF PLAY (land on a main-loop round) before calling
+  // this, so the real belt colour resumes there.
+  if (isInfPlayActive.value) return
   const round = simplePlayer.currentRound.value
   const legoId = visualLegoIdForRound(round)
   if (!legoId) return
   const seed = getSeedFromLegoId(legoId)
   if (seed === null) return
   beltProgress.value.setPlayingPosition(seed)
+}
+
+// Pod-lap cadence, INF-PLAY-aware (B4, Tom 2026-06-03: listening fires every 5
+// ROUNDS, not cycles). `completedRoundIndex` is the 0-based flat queue index of
+// the round that just finished.
+//   • Main loop → defer to the scheduler's own activation+interval math, keyed
+//     on the absolute round number (unchanged behaviour).
+//   • INF PLAY → count the REVIVAL-TAIL ordinal (position past the main loop)
+//     and fire every `roundInterval` (normal config = 5) INF PLAY rounds. We use
+//     the position ordinal, NOT the bumped infplayRoundIndex, because the
+//     pre-pause check (onRoundCompleted) runs BEFORE saveRoundProgress bumps the
+//     counter and the fire check (here) runs AFTER — the position ordinal is the
+//     one value both see identically, so pause and fire never desync.
+const podCadenceFiresAtRound = (completedRoundIndex: number): boolean => {
+  if (!podScheduler || !podScheduler.isInitialized.value) return false
+  if (isInfPlayActive.value) {
+    const mainLoopCount = mainLoopBoundary()
+    if (mainLoopCount < 0) return false
+    const infOrdinal = (completedRoundIndex - mainLoopCount) + 1 // 1-based revival round
+    if (infOrdinal <= 0) return false
+    const interval = Math.max(1, Math.floor(podsConfig.value.roundInterval ?? 5))
+    return infOrdinal % interval === 0
+  }
+  return podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
 }
 
 // Handle round boundary - called when a round completes
@@ -3609,11 +4056,30 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro' || c.type === 'pod'
     )
   const nextRound = loadedRounds.value[completedRoundIndex + 1] as { cycles?: Array<{ type?: string }> } | undefined
-  const podFiresThisBoundary = !!podScheduler
-    && podScheduler.isInitialized.value
-    && podScheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  // Pod cadence uses the INF-PLAY-aware helper (dev): main-loop defers to the
+  // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
+  const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
+  // Layer-1 fires only on a clean boundary with no pod (pod wins priority).
+  // Listening items must sit between main rounds, so an encouragement adjacent
+  // to an L1 lap is suppressed too — boundaryBetweenSpeakingRounds excludes it.
+  const l1FiresThisBoundary = !!l1Scheduler
+    && l1Scheduler.isInitialized.value
+    && currentMode.value !== 'infplay'
+    && !podFiresThisBoundary
+    && l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
   const boundaryBetweenSpeakingRounds =
-    !isListeningRound(completedRound) && !isListeningRound(nextRound) && !podFiresThisBoundary
+    !isListeningRound(completedRound) && !isListeningRound(nextRound)
+    && !podFiresThisBoundary && !l1FiresThisBoundary
+
+  // Dev cheat (?fc / ?forceEncouragements): relax the placement rule so an
+  // interjection can fire at ANY boundary that isn't a pod lap — otherwise a
+  // pod-/listening-heavy stretch never offers a clean speaking→speaking
+  // boundary and the forced interjections never show. Still excludes pod
+  // boundaries (firing there would overlap/race the lap). Pairs with the
+  // service's forceFire (which drops the ~10-min interval).
+  const canFireInterjection = forceInterjectionsCheat
+    ? (!podFiresThisBoundary && !l1FiresThisBoundary)
+    : boundaryBetweenSpeakingRounds
 
   // No random encouragements in INF PLAY — the locked model has none, and a
   // mid-stream ~1-min clip is poor pacing in a pure-review tail. Gating here
@@ -3624,7 +4090,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     const commentary = metaCommentary.onRoundComplete(
       completedRoundIndex + 1,
       cyclesInRound,
-      boundaryBetweenSpeakingRounds,
+      canFireInterjection,
     )
 
     if (commentary) {
@@ -3654,8 +4120,6 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // the ratchet when the lap plays to completion.
   // ============================================
   if (podScheduler && podScheduler.isInitialized.value && !beltJustEarned.value) {
-    const completedMainRound = (completedRoundIndex || 0) + 1
-
     // Look one round ahead: if the round about to start will end with a
     // pod, warm its audio now. The round gives ~5 min of runway —
     // comfortable for any working network.
@@ -3666,11 +4130,14 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     // round-trip per play — matters for the stage-driven gapless
     // playback that pod laps depend on (per the asset + program
     // architecture model).
-    if (podScheduler.shouldFireLapAt(completedMainRound + 1)) {
+    //
+    // Cadence via podCadenceFiresAtRound so INF PLAY counts revival-tail rounds
+    // (every 5), not the absolute flat queue index (B4).
+    if (podCadenceFiresAtRound(completedRoundIndex + 1)) {
       podScheduler.prefetchLap((id) => audioCache.persistent.ensure(id))
     }
 
-    if (podScheduler.shouldFireLapAt(completedMainRound)) {
+    if (podCadenceFiresAtRound(completedRoundIndex)) {
       const lap = podScheduler.nextLap()
       if (lap) {
         console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
@@ -3714,10 +4181,17 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
             sessionEnded.value = false
             simplePlayer.resume()
           } else {
+            // session_complete fired during this pod lap (the cadence lands a
+            // lap near the tail). expandScript() grows the revival tail by a
+            // batch in INF PLAY so play continues into genuinely new rounds.
             const added = await expandScript()
             if (added > 0) {
               sessionEnded.value = false
               simplePlayer.resume()
+            } else if (wrapInfPlayAtTail()) {
+              // Growth couldn't run (transient online failure) — wrap so INF
+              // PLAY never dead-ends right after a listening pod.
+              // (wrapInfPlayAtTail clears sessionEnded + resumes.)
             } else {
               showPausedSummary()
             }
@@ -3732,6 +4206,75 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           simplePlayer.resume()
         }
       }
+    }
+  }
+
+  // ============================================
+  // LAYER-1 LISTENING (runtime — drained-seed fluency maintenance)
+  // Fires every ~50 main rounds once seeds have fully drained from spaced
+  // rep. Plays the bucket (each drained seed's target sentence) at normal
+  // speed, then the whole list again at 2×. No ratchet: the lap is a pure
+  // function of (catalogue, round, learner), so it's resume-safe with nothing
+  // to persist. l1FiresThisBoundary already gated it on a clean, pod-free
+  // boundary (pod wins priority); a due-but-empty bucket no-ops via nextLap.
+  // ============================================
+  if (l1Scheduler && l1FiresThisBoundary && !beltJustEarned.value) {
+    const completedMainRound = (completedRoundIndex || 0) + 1
+
+    // Warm the NEXT L1 lap's audio if the upcoming round ends in one and no
+    // pod pre-empts it (mirror of the pod look-ahead prefetch above).
+    if (l1Scheduler.shouldFireLapAt(completedMainRound + 1)
+        && !(podScheduler?.shouldFireLapAt(completedMainRound + 1))) {
+      l1Scheduler.prefetchLap(completedMainRound + 1, (id) => audioCache.persistent.ensure(id))
+    }
+
+    const l1Lap = l1Scheduler.nextLap(completedMainRound)
+    if (l1Lap) {
+      console.log(`[LearningPlayer] Playing L1 listening lap @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
+      simplePlayer.pause()
+
+      // Reuse the proven pod playback path — shape the L1 lap into a PodLap.
+      // L1 plays are seed target sentences (no glued chunks → glueToNextChunk
+      // false). omitIntro=false: an L1 lap is standalone (it never co-fires
+      // with a pod — l1FiresThisBoundary requires !podFiresThisBoundary).
+      const l1AsPodLap: PodLap = {
+        podRound: completedMainRound,
+        intro: l1Lap.intro,
+        outro: l1Lap.outro,
+        plays: l1Lap.plays.map((p): PodPlay => ({
+          sentenceIdx: p.seedNumber,
+          stage: 0,
+          playRole: p.playbackSpeed >= 2 ? 'ps2x' : 'ps',
+          audioId: p.audioId,
+          text: p.text,
+          playbackSpeed: p.playbackSpeed,
+          glueToNextChunk: false,
+        })),
+      }
+      await playPodLap(l1AsPodLap, false) // L1 has no ratchet — nothing to persist.
+
+      // Resume handling mirrors the pod block: keep the course rolling unless
+      // the session ended (offline loop / expand) or the learner stopped.
+      if (sessionEnded.value) {
+        if (offlinePlaybackActive() && appendCachedLoopForOffline() > 0) {
+          sessionEnded.value = false
+          simplePlayer.resume()
+        } else {
+          const added = await expandScript()
+          if (added > 0) {
+            sessionEnded.value = false
+            simplePlayer.resume()
+          } else {
+            showPausedSummary()
+          }
+        }
+      } else if (userStoppedDuringLap.value) {
+        userStoppedDuringLap.value = false
+        pendingLapResume.value = l1AsPodLap
+      } else {
+        simplePlayer.resume()
+      }
+      podLapSkippedByUser.value = false
     }
   }
 
@@ -3899,8 +4442,6 @@ const startCyclePlayback = async (itemOrPlayable: any) => {
   const getAudioSource = resolveAudioFromCache
 
   // Emit fire-path event for network visualization
-  // Extract LEGO IDs from the cycle for brain animation
-  const legoIds = [cycle.legoId]  // Primary LEGO being taught
   const cycleDuration = cycle.known.durationMs + cycle.pauseDurationMs + cycle.target.voice1DurationMs + cycle.target.voice2DurationMs
 
   // Emit event that Brain3DView can listen to
@@ -4274,18 +4815,6 @@ if (typeof navigator !== 'undefined') {
 
 // Layout mode: 'default' | 'subtitle' | 'floating' | 'minimal'
 const layoutMode = ref('subtitle')  // Try subtitle mode by default
-const layoutModes = ['default', 'subtitle', 'floating', 'minimal'] as const
-const layoutModeLabels: Record<string, string> = {
-  default: 'Card',
-  subtitle: 'Strip',
-  floating: 'Float',
-  minimal: 'Text'
-}
-function cycleLayoutMode() {
-  const currentIndex = layoutModes.indexOf(layoutMode.value as typeof layoutModes[number])
-  const nextIndex = (currentIndex + 1) % layoutModes.length
-  layoutMode.value = layoutModes[nextIndex]
-}
 const itemsPracticed = ref(0)
 const phrasesSpokenCount = ref(0) // Cycles where VAD detected learner speech
 const showSessionComplete = ref(false)
@@ -4446,17 +4975,6 @@ const introductionPhase = ref(false) // True during introduction phase (shows di
 const ringContainerRef = ref(null)
 const networkTheaterRef = ref<HTMLElement | null>(null)
 
-// Network visualization removed — see archive/brain-views branch
-// Stub variables for code that still references network state
-const networkViewRef = ref(null)
-const networkViewProps = { nodes: ref([]), edges: ref([]), currentPath: ref([]) }
-const networkCenter = ref({ x: 0, y: 0 })
-const isFullNetworkLoaded = ref(false)
-const introducedLegoIds = computed(() => {
-  const ids = new Set<string>()
-  return ids
-})
-
 // Additional state for resonance effect (M-LEGOs with partial word overlap)
 const resonatingNodes = ref([])
 
@@ -4485,15 +5003,6 @@ const isPlayingNodePhrases = ref(false)
 const playingNodeId = ref<string | null>(null)
 const currentPlayingPhraseIndex = ref(0)
 const nodePhraseItems = ref<any[]>([])
-
-// Hero node scaling - fewer nodes = bigger nodes (for ring visual)
-const heroNodeScale = computed(() => {
-  const count = dbNetworkNodes.value.length
-  if (count <= 3) return 2.5
-  if (count <= 8) return 1.8
-  if (count <= 15) return 1.3
-  return 1
-})
 
 // Welcome audio state (plays once on first course load)
 const welcomeChecked = ref(false) // True after we've checked welcome status
@@ -4554,6 +5063,34 @@ const formattedSessionTime = computed(() => {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 })
 
+// --- Sitting persistence -------------------------------------------------
+// The "session" timer is a SITTING (one continuous bout), not a counted
+// session. It carries on across a short away-gap and resets after a longer
+// one — reusing the SAME 5-min resume window (resumeConfig.cycleResetMinutes),
+// so one threshold governs both where you resume AND whether the sitting
+// continues. Persisted per-course so reopening within the window resumes the
+// same number. Cosmetic — never block playback. See docs/sessions-and-days-active.md
+const sittingKey = () => `ssi:sitting:${courseCode.value || 'unknown'}`
+function saveSitting(): void {
+  try {
+    localStorage.setItem(sittingKey(), JSON.stringify({ seconds: sessionSeconds.value, ts: Date.now() }))
+  } catch { /* ignore — sitting timer is cosmetic */ }
+}
+function restoreSitting(): void {
+  // Continue the sitting iff we came back within the resume window, else 0:00.
+  const windowMs = (resumeConfig.value?.cycleResetMinutes ?? 5) * 60000
+  try {
+    const raw = localStorage.getItem(sittingKey())
+    const prior = raw ? JSON.parse(raw) : null
+    if (prior && typeof prior.seconds === 'number' && typeof prior.ts === 'number'
+        && (Date.now() - prior.ts) < windowMs) {
+      sessionSeconds.value = prior.seconds   // same sitting — keep counting
+      return
+    }
+  } catch { /* fall through to fresh sitting */ }
+  sessionSeconds.value = 0                    // new sitting
+}
+
 // Computed - use round-based item when available, fallback to session items
 const currentItem = computed(() => {
   if (useRoundBasedPlayback.value && currentPlayableItem.value) {
@@ -4578,7 +5115,9 @@ const currentPhrase = computed(() => {
   }
   // Read from currentCycle to ensure text/audio are locked together
   if (currentCycle.value) {
-    const useNative = isNativeScript.value && hasRomanizedText.value
+    // Native script is the primary glyph on romanised courses (the toggle only
+    // controls the ruby), so always prefer the native text here.
+    const useNative = hasRomanizedText.value
     const targetText = useNative
       ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
       : (currentCycle.value.target.text || '')
@@ -4605,62 +5144,6 @@ const sessionProgress = computed(() => {
 // This flag is set TRUE 500ms before VOICE_2 ends, cleared when next PROMPT begins
 const isTransitioningItem = ref(false)
 
-// ============================================
-// DURATION ESTIMATION
-// Build running average from observed data to estimate missing durations
-// Uses CHARACTER count (not words) - works across all languages including
-// character-based scripts like Chinese/Japanese where each char ≈ 1 syllable
-// ============================================
-const durationObservations = ref<Array<{ charCount: number; durationMs: number }>>([])
-const avgMsPerChar = computed(() => {
-  if (durationObservations.value.length === 0) return 120 // Default ~120ms/char (~3 chars/syllable at 400ms/syllable)
-  const totalMs = durationObservations.value.reduce((sum, o) => sum + o.durationMs, 0)
-  const totalChars = durationObservations.value.reduce((sum, o) => sum + o.charCount, 0)
-  return totalChars > 0 ? totalMs / totalChars : 120
-})
-
-/**
- * Record an observed duration to improve future estimates
- */
-const recordDurationObservation = (targetText: string, durationMs: number) => {
-  const charCount = targetText?.length || 0
-  if (charCount > 0 && durationMs > 100) {
-    durationObservations.value.push({ charCount, durationMs })
-    // Keep last 50 observations for rolling average
-    if (durationObservations.value.length > 50) {
-      durationObservations.value.shift()
-    }
-  }
-}
-
-/**
- * Get duration for an item - uses actual duration if available, estimates from character count otherwise
- * Character count is language-agnostic and approximates syllable count across all scripts
- */
-const getEstimatedDuration = (item: any, audioType: 'target1' | 'target2'): number | null => {
-  const actualDuration = item?.audioDurations?.[audioType]
-  const targetText = item?.phrase?.target || item?.targetText || ''
-
-  if (actualDuration && actualDuration > 0) {
-    // Record for future estimates
-    if (targetText) {
-      recordDurationObservation(targetText, actualDuration * 1000)
-    }
-    return actualDuration * 1000 // Convert to ms
-  }
-
-  // Estimate from character count (language-agnostic proxy for syllables)
-  const charCount = targetText.length
-  if (charCount > 0) {
-    return charCount * avgMsPerChar.value
-  }
-
-  return null // No data to estimate from
-}
-
-// During transition, fade ALL text (known + target together)
-const showAllText = computed(() => !isTransitioningItem.value)
-
 // Detect listening cycles (passive whole-sentence replay at speed)
 const isListeningCycle = computed(() => {
   const cycle = simplePlayer.currentCycle.value
@@ -4682,12 +5165,6 @@ const showTargetText = computed(() =>
 // Stable known text - updates when not transitioning (prevents flash) OR when phrase changes
 const displayedKnownText = ref('')
 const lastKnownPhrase = ref('') // Track what phrase we've displayed
-// The salient LEGO id for the phrase displayedKnownText currently reflects.
-// Must be updated in lockstep with displayedKnownText — otherwise
-// salientKnownParts compares the NEW cycle's salient against the OLD cycle's
-// known text and emits a false-positive "invariant violated" warn during
-// every transition (and silently drops the highlight).
-const displayedLegoId = ref<string | null>(null)
 watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([transitioning, newKnown]) => {
   // CRITICAL FIX: Always update if the underlying phrase changed (item transitioned)
   // This prevents showing old known text while new audio plays
@@ -4697,56 +5174,12 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
   if (!transitioning || phraseChanged) {
     displayedKnownText.value = newKnown
     lastKnownPhrase.value = newKnown
-    displayedLegoId.value = simplePlayer.currentCycle.value?.legoId ?? null
   }
 }, { immediate: true })
 
-// Split the displayed known text into [prefix][salient match][suffix] so the
-// hero card can highlight the substring matching the current cycle's salient
-// LEGO. Anchors the learner's attention on "the thing being practised in this
-// cycle" — works equally for current-round practice and for spaced-review
-// cycles (whose salient is a different, older LEGO).
-//
-// SSi methodology invariant: the salient LEGO MUST appear in the USE phrase
-// in both languages (the LEGO pair is the unit). If salient known text isn't
-// found in the phrase known text, that's a content authoring error, not a
-// graceful-degrade case — surface it via console.warn so QA catches it.
-//
-// Returns null only when there is no salient yet (cycle hasn't loaded), no
-// salient known text in the maps (vocab not yet loaded), or the match spans
-// the whole sentence (highlighting everything is noise — typically because
-// the salient LEGO IS the whole phrase, e.g. intro/debut).
-const salientKnownParts = computed<{ prefix: string; match: string; suffix: string } | null>(() => {
-  const full = displayedKnownText.value
-  if (!full) return null
-  // Read the legoId from the SAME snapshot as displayedKnownText. The live
-  // simplePlayer.currentCycle advances before displayedKnownText releases
-  // during transitions; reading the live one here caused spurious
-  // "Salient LEGO's known text not found in phrase known text" warns when
-  // the new cycle's salient was being substring-checked against the prior
-  // cycle's still-displayed known text.
-  const legoId = displayedLegoId.value
-  if (!legoId) return null
-  // Prefer the course-wide map (authoritative LEGO known_text from DB);
-  // fall back to round-derived map if the global load hasn't completed.
-  const salientKnown = globalLegoKnownTextMap.value.get(legoId) || legoKnownTextMap.value.get(legoId)
-  if (!salientKnown || !salientKnown.trim()) return null
-  const idx = full.toLowerCase().indexOf(salientKnown.toLowerCase())
-  if (idx === -1) {
-    console.warn(
-      `[salientKnownParts] Salient LEGO's known text not found in phrase known text — content authoring error (salient pair invariant violated).`,
-      { legoId, salientKnown, phraseKnown: full },
-    )
-    return null
-  }
-  // Whole-phrase match → highlighting everything is pointless; skip.
-  if (idx === 0 && salientKnown.trim().length >= full.trim().length) return null
-  return {
-    prefix: full.slice(0, idx),
-    match: full.slice(idx, idx + salientKnown.length),
-    suffix: full.slice(idx + salientKnown.length),
-  }
-})
+// (The old salient-substring highlight of the known text — salientKnownParts —
+// was removed with the uniform-typography pass, Tom 2026-06-07: the display
+// box renders the whole known phrase at one bold weight, no salient split.)
 
 // Stable target text - only updates when hidden (prevents flash of new target between cycles)
 const displayedTargetText = ref('')
@@ -4841,7 +5274,9 @@ function extractComponentsToMaps(rounds: PlayerRound[], logPrefix = '[Components
 const displayedComponents = computed<Array<{known: string, target: string}>>(() => {
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return []
-  if (isNativeScript.value && hasRomanizedText.value) {
+  // Native components are the primary breakdown on romanised courses; the
+  // romanisation rides as a ruby line on the tile, not in the component text.
+  if (hasRomanizedText.value) {
     return _componentsByCycleIdNative.get(cycle.id) || _componentsByCycleId.get(cycle.id) || []
   }
   return _componentsByCycleId.get(cycle.id) || []
@@ -4921,39 +5356,11 @@ const isIntroOrDebutPhase = computed(() => {
   return item?.type === 'intro' || item?.type === 'debut'
 })
 
-// REVIEW cue: this cycle is a spaced-rep revisit of an EARLIER LEGO (the
-// ownership-vs-position distinction made visible — "you've met this before,
-// stretch for it"). Drives a subtle warm tint on the dialog box. Suppressed
-// in INF PLAY, which is its own "random review" state (the red pill already
-// signals it); a dedicated RANDOM cue can come later if we want it.
-const isReviewCycle = computed(() =>
-  currentMode.value !== 'infplay'
-  && simplePlayer.currentCycle.value?.type === 'spaced_rep',
-)
-
-// The LEGEND for the tint: a quiet word above the phrase naming what this is.
-// REVIEWING = a spaced-rep revisit of an earlier LEGO (gold). We only NAME the
-// review — practising the current LEGO is the default (no label needed; naming
-// it was just noise). The word teaches what the gold means; once learnt the
-// colour carries it on its own. Empty for listening pods and INF PLAY (its own
-// random state — a RANDOM label could come later).
-const phraseModeLabel = computed<'' | 'REVIEWING'>(() => {
-  if (currentMode.value === 'infplay') return ''
-  if (inListeningContext.value) return ''
-  if (simplePlayer.currentCycle.value?.type === 'spaced_rep') return 'REVIEWING'
-  return ''
-})
-
-// Only surface the label over a real phrase — not the intro typewriter or any
-// of the transient loading/prep/buffering text states.
-const showPhraseModeLabel = computed(() =>
-  !!phraseModeLabel.value
-  && !isIntroPhase.value
-  && !isAwakening.value
-  && !isPreparingToPlay.value
-  && !skipPrepVisible.value
-  && !bufferingPromptVisible.value,
-)
+// REVIEW/PRACTISING cues removed 2026-06-01: the spaced-rep tint + REVIEWING
+// legend were internal-facing clarity (which cycle is a revisit), but for the
+// learner they're just visual noise over "hear the prompt, have a go". The
+// distinction still exists in the engine (currentCycle.type === 'spaced_rep')
+// if we ever want to resurface it elsewhere.
 
 // ============================================
 // LEARNING HINTS - Computed properties (defined after isIntroPhase)
@@ -5026,7 +5433,9 @@ const introMessage = computed(() => {
 // Read from currentCycle to ensure text/audio are locked together
 const visibleTexts = computed(() => {
   if (currentCycle.value) {
-    const useNative = isNativeScript.value && hasRomanizedText.value
+    // Native script is the primary glyph on romanised courses (the toggle only
+    // controls the ruby), so always prefer the native text here.
+    const useNative = hasRomanizedText.value
     const targetText = useNative
       ? ((currentCycle.value.target as any).textNative || currentCycle.value.target.text || '')
       : (currentCycle.value.target.text || '')
@@ -5039,22 +5448,6 @@ const visibleTexts = computed(() => {
   return {
     known: currentItem.value?.phrase?.phrase?.known || '',
     target: currentItem.value?.phrase?.phrase?.target || '',
-  }
-})
-
-// Phase symbols/icons - CORRECT ORDER
-const phaseInfo = computed(() => {
-  switch (currentPhase.value) {
-    case Phase.PROMPT:
-      return { icon: 'speaker', label: 'Listen', instruction: 'Hear the phrase' }
-    case Phase.SPEAK:
-      return { icon: 'mic', label: 'Speak', instruction: 'Say it in the target language' }
-    case Phase.VOICE_1:
-      return { icon: 'ear', label: 'Listen', instruction: 'Listen to the answer' }
-    case Phase.VOICE_2:
-      return { icon: 'eye', label: 'Read', instruction: 'See and hear the answer' }
-    default:
-      return { icon: 'speaker', label: '', instruction: '' }
   }
 })
 
@@ -5585,22 +5978,13 @@ const handleCycleEvent = async (event) => {
           return
         }
 
-        // Capture current generation - if it changes (user jumped), this callback becomes stale
-        const generationAtStart = playbackGeneration.value
-
         // Start next item after delay (ensure text transitions complete)
         // CSS transition is 300ms, so wait 350ms to be safe
         // Set transition flag to prevent watcher from setting isPlaying = false
         isCycleTransitioning.value = true
         console.log('[LearningPlayer] Scheduling next item, nextScriptItem:', nextScriptItem?.type, nextScriptItem?.legoId)
         setTimeout(async () => {
-          console.log('[LearningPlayer] setTimeout fired, isPlaying:', isPlaying.value, 'generation:', playbackGeneration.value, '===', generationAtStart)
-          // CRITICAL: Check if we've jumped since this callback was queued
-          if (playbackGeneration.value !== generationAtStart) {
-            console.log('[LearningPlayer] Stale callback detected (generation mismatch), skipping')
-            isCycleTransitioning.value = false
-            return
-          }
+          console.log('[LearningPlayer] setTimeout fired, isPlaying:', isPlaying.value)
           if (!isPlaying.value) {
             console.log('[LearningPlayer] Not playing, aborting next item')
             isCycleTransitioning.value = false
@@ -5618,22 +6002,12 @@ const handleCycleEvent = async (event) => {
               // Clear transition flag for intro playback
               isCycleTransitioning.value = false
               const introPlayable = await scriptItemToPlayableItem(nextScriptItem)
-              // CRITICAL: Check generation after async - user may have skipped during conversion
-              if (playbackGeneration.value !== generationAtStart) {
-                console.log('[LearningPlayer] Stale after introPlayable conversion, aborting')
-                return
-              }
               if (introPlayable) {
                 currentPlayableItem.value = introPlayable
 
                 // Both intro and component_intro: play presentation audio sequence
                 // Component intros now have presentation audio ("The X for 'word', as in 'phrase', is:")
                 const introPlayed = await playIntroductionAudioDirectly(nextScriptItem)
-                // CRITICAL: Check generation after async intro audio
-                if (playbackGeneration.value !== generationAtStart) {
-                  console.log('[LearningPlayer] Stale after intro audio, aborting')
-                  return
-                }
                 if (introPlayed) {
                   console.log('[LearningPlayer]', nextScriptItem.type, 'complete, advancing to next item')
                 } else if (nextScriptItem.type === 'component_intro') {
@@ -5657,11 +6031,6 @@ const handleCycleEvent = async (event) => {
                 const followingItem = currentRound.value?.items[currentItemInRound.value]
                 if (followingItem && isPlaying.value) {
                   const followingPlayable = await scriptItemToPlayableItem(followingItem)
-                  // CRITICAL: Check generation after async conversion
-                  if (playbackGeneration.value !== generationAtStart) {
-                    console.log('[LearningPlayer] Stale after followingPlayable conversion, aborting')
-                    return
-                  }
                   if (followingPlayable) {
                     currentPlayableItem.value = followingPlayable
                     await startCyclePlayback(followingItem)
@@ -5673,12 +6042,6 @@ const handleCycleEvent = async (event) => {
 
             console.log('[LearningPlayer] Converting next script item to playable...')
             const nextPlayable = await scriptItemToPlayableItem(nextScriptItem)
-            // CRITICAL: Check generation after async - user may have skipped during conversion
-            if (playbackGeneration.value !== generationAtStart) {
-              console.log('[LearningPlayer] Stale after nextPlayable conversion, aborting')
-              isCycleTransitioning.value = false
-              return
-            }
             if (nextPlayable) {
               // Store for currentItem computed
               currentPlayableItem.value = nextPlayable
@@ -5716,17 +6079,9 @@ const handleCycleEvent = async (event) => {
         }
         currentItemIndex.value = nextIndex
 
-        // Capture generation for stale callback detection
-        const genAtStart = playbackGeneration.value
-
         // Start next item (with introduction if needed)
         // CSS transition is 300ms, wait 350ms to ensure text fades complete
         setTimeout(async () => {
-          // Check if we've jumped since this callback was queued
-          if (playbackGeneration.value !== genAtStart) {
-            console.log('[LearningPlayer] Stale session callback (generation mismatch), skipping')
-            return
-          }
           if (isPlaying.value) {
             // Stop any previous audio
             stopCycle()
@@ -5798,6 +6153,11 @@ const handlePause = () => {
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
   }
+
+  // Flush batched co-fire telemetry on pause (accumulated per cycle).
+  void pairingsTelemetry.flush()
+  // DB-01: persist any pending mid-round cursor on pause.
+  flushCursor()
 }
 
 const handleResume = async () => {
@@ -5879,8 +6239,14 @@ const handleResume = async () => {
   isPlaying.value = true
   localStorage.setItem('ssi-has-played', 'true')
 
-  // Welcome no longer blocks Play — it lives in its own banner in the
-  // resting state. Tom 2026-05-25.
+  // First-ever course with a welcome: play it once, automatically, before
+  // the cycle starts. The Play tap is the user gesture that lets it sound.
+  // Streamed (not bundled); playCourseWelcome() marks it heard (localStorage
+  // + DB) so it NEVER repeats — any course, any device. Replaces the opt-in
+  // banner. Tom 2026-06-02.
+  if (welcomeBannerVisible.value) {
+    await playCourseWelcome()
+  }
   simplePlayer.play()
 }
 
@@ -6269,11 +6635,11 @@ let introAudioElement = null // Store reference for intro skip functionality
 let introAbortController = null // AbortController for cancelling pending intro audio
 let introEventCleanups = [] // Array of cleanup functions for intro audio event listeners
 
-// Welcome banner visibility — true only for the very first course a
-// learner ever opens, when the course has a welcome audio. Gates the
-// "Play course welcome" CTA in the resting state. All conditions are
-// reactive so the banner appears as soon as data resolves and
-// disappears the instant any heard-signal flips. Tom 2026-05-25.
+// First-welcome gate — true only for the very first course a learner ever
+// opens, when the course has welcome audio and it hasn't been heard. Now
+// gates the AUTO-played welcome on first Play (handleResume), not a banner —
+// the opt-in CTA was removed 2026-06-02. All conditions reactive so it flips
+// off the instant any heard-signal sets. Tom 2026-05-25 / 2026-06-02.
 const welcomeBannerVisible = computed(() => {
   if (welcomeChecked.value) return false
   if (localStorage.getItem('ssi-welcome-heard') === 'true') return false
@@ -6312,11 +6678,6 @@ const markWelcomeHeard = async () => {
   if (courseDataProvider.value) {
     try { await courseDataProvider.value.markWelcomePlayed(learnerId.value) } catch (_e) { /* ignore */ }
   }
-}
-
-const dismissCourseWelcome = async () => {
-  console.log('[LearningPlayer] Welcome banner dismissed')
-  await markWelcomeHeard()
 }
 
 const playCourseWelcome = async () => {
@@ -6570,7 +6931,12 @@ const saveResumeAudio = () => {
 // Both fire close together in practice, but better to cover both than
 // miss the save window.
 const onSaveResumeVisibilityChange = () => {
-  if (document.visibilityState === 'hidden') saveResumeAudio()
+  if (document.visibilityState === 'hidden') {
+    saveResumeAudio()
+    void pairingsTelemetry.flush()
+    // DB-01: persist any pending mid-round cursor on background.
+    flushCursor()
+  }
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', onSaveResumeVisibilityChange)
@@ -6975,7 +7341,7 @@ const enterInfPlay = async () => {
       // main-loop rounds matching the same shape as an INF PLAY round.
       // The user would then click ∞ and land on S0001L02 instead of an
       // actual revival round. Tom 2026-05-21.
-      const mainLoopCount = (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+      const mainLoopCount = mainLoopBoundary()
       const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
         ? mainLoopCount
         : -1
@@ -7035,11 +7401,18 @@ const enterInfPlay = async () => {
           const newRounds = toSimpleRoundsWithComponents(skipResult.items) as any[]
           cachedRounds.value = newRounds
           simplePlayer.appendRounds(newRounds)
-          // Same mainLoopCount-based boundary as above — see comment at
-          // first firstInfIdx for why we stopped trusting the cycle-type
-          // predicate.
-          const refoundIdx = mainLoopCount > 0 && newRounds.length > mainLoopCount
-            ? mainLoopCount
+          // Single-source the boundary on the audio-aware count from this regen
+          // before reading it — so the first-revival index matches the script we
+          // just appended even when the matview is stale/short.
+          if (skipResult.mainLoopRoundCount > 0) {
+            liveMainLoopRoundCount.value = skipResult.mainLoopRoundCount
+          }
+          // Boundary from the live main-loop extent (the single source of truth)
+          // — the SAME value the forward/back nav and the tail wrap read, so
+          // they all agree on where the revival tail starts.
+          const regenBoundary = mainLoopBoundary()
+          const refoundIdx = regenBoundary > 0 && newRounds.length > regenBoundary
+            ? regenBoundary
             : -1
           if (refoundIdx >= 0) {
             simplePlayer.jumpToRound(refoundIdx)
@@ -7075,7 +7448,7 @@ const enterInfPlay = async () => {
  * cached cycles via enterInfPlayFromCache rather than stalling.
  */
 const advanceInfPlayRound = async (fromIdx: number) => {
-  const mainLoopCount = (courseFinalLegoRef.value?.roundIndex ?? -1) + 1
+  const mainLoopCount = mainLoopBoundary()
   const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
     ? mainLoopCount
     : -1
@@ -7135,6 +7508,29 @@ const advanceInfPlayRound = async (fromIdx: number) => {
  * next round isn't loaded yet, LOAD-then-resolve (never teleport).
  */
 const handleRoundForward = async () => {
+  // Skip pressed DURING an inter-round interjection (encouragement /
+  // instruction / pod lap): dismiss it and continue into the LEGO that's
+  // ALREADY queued — the boundary advanced roundIndex onto it and it's the
+  // text on screen, so the learner expects to land THERE, not one past it.
+  // Mirror the cycle-skip's commentary branch: cancel + let
+  // handleRoundBoundary's resume() play the queued LEGO. Do NOT fall through
+  // to cancelInFlightLap()+jump — cancelInFlightLap sets userStoppedDuringLap
+  // (which GATES that resume → dead silence) and the +1 jump overshoots the
+  // displayed LEGO. Regression from 73f357ff (3-level nav re-pointed the bottom
+  // skip here from the commentary-aware handleSkip); telemetry signature was
+  // "no tap_skip + no audio_play after commentary_end(cancelled)".
+  if (playingPodLapAudio.value || playingCommentaryAudio.value) {
+    logEvent('tap_skip', {
+      during: playingPodLapAudio.value ? 'pod_lap' : 'commentary',
+      via: 'round_forward',
+      roundIndex: simplePlayer.roundIndex.value,
+      legoId: simplePlayer.currentRound.value?.legoId ?? null,
+    })
+    if (playingPodLapAudio.value) podLapSkippedByUser.value = true
+    podLapCancelled.value = true
+    audioController.value?.stop()
+    return
+  }
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
@@ -7150,13 +7546,16 @@ const handleRoundForward = async () => {
 
   // Entry to INF PLAY is keyed on the FINAL LEGO, not the final belt. We
   // advance LEGO-by-LEGO right through the final belt; only stepping forward
-  // FROM the course's final introduced LEGO crosses into INF PLAY.
-  //   - at/past the final-LEGO round index → enter
-  //   - finalLegoRoundIndex not resolved yet → fall back to wouldEnterInfplay
+  // FROM the course's final introduced LEGO crosses into INF PLAY. Position is
+  // read BY LEGO ID off the canonical map — the final main-loop LEGO is at
+  // index boundary-1 (0-based).
+  //   - current LEGO at/past it → enter
+  //   - LEGO/map not resolved yet → fall back to wouldEnterInfplay
   //     (belt-granular) so we never advance into empty rounds.
-  const finalLegoRoundIdx = courseFinalLegoRef.value?.roundIndex ?? null
-  const atOrPastFinalLego = finalLegoRoundIdx !== null
-    ? fromIdx >= finalLegoRoundIdx
+  const forwardBoundary = mainLoopBoundary()
+  const curMainLoopIdx = mainLoopIndexForLegoId(currentRound?.legoId)
+  const atOrPastFinalLego = (forwardBoundary > 0 && curMainLoopIdx >= 0)
+    ? curMainLoopIdx >= forwardBoundary - 1
     : wouldEnterInfplay.value
   if (atOrPastFinalLego) {
     await enterInfPlay()
@@ -7175,6 +7574,7 @@ const handleRoundForward = async () => {
       console.debug('[LearningPlayer] Round forward: next round not loaded, regenerating script')
       const result = await generateScript()
       if (result.items.length > 0) {
+        if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
         simplePlayer.addRounds(toSimpleRoundsWithComponents(result.items) as any)
       }
     }
@@ -7231,6 +7631,7 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
   const skipResult = await generateScript()
 
   if (skipResult.items.length > 0) {
+    if (skipResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = skipResult.mainLoopRoundCount
     const newRounds = toSimpleRoundsWithComponents(skipResult.items)
     // addRounds dedupes by legoId and inserts in legoId-sorted order, so
     // main-loop belt rounds land in front of the appended INF-PLAY set —
@@ -7289,33 +7690,41 @@ const handleRoundBack = async () => {
     haltAllPlayback()
 
     if (isInfplay) {
-      // Exiting INF PLAY: flip mode → main so future resume-bootstrap doesn't
-      // bounce back into INF PLAY and persistCursorAtCurrentRound (a no-op in
-      // infplay) writes the real landed position. infplayRoundIndex is a
-      // lifetime counter — leave it.
-      currentMode.value = 'main'
-      if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-        try {
-          await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
-        } catch (modeErr) {
-          console.warn('[LearningPlayer] setMode(main) on infplay exit failed:', modeErr)
-        }
+      // Step BACK one INF PLAY round (Tom 2026-06-03). The bottom-nav back arrow
+      // is the ROUND axis, so in INF PLAY it walks the revival tail backwards —
+      // it does NOT exit the mode. Exiting INF PLAY is owned by the header ‹‹
+      // chevron (handleSkipToPrevBelt) and the belt modal. This is the mirror
+      // image of advanceInfPlayRound: queue index −1, clamp at the first revival
+      // round, decrement the central-pill ∞ readout, belt pinned to the
+      // course-final belt, stay in 'infplay'. The counter bump is local-only,
+      // symmetric with the forward button (the DB infplay_round_index only
+      // ratchets on natural round completion via saveRoundProgress).
+      const mainLoopCount = mainLoopBoundary()
+      const firstInfIdx = mainLoopCount > 0 && cachedRounds.value.length > mainLoopCount
+        ? mainLoopCount
+        : -1
+      const fromIdx = simplePlayer.roundIndex.value
+      // No revival set loaded, or already at the first revival round → nothing
+      // earlier to step to; stay put (use the header ‹‹ chevron / belt modal to
+      // leave INF PLAY). Mirrors main-loop back staying put at the first LEGO.
+      if (firstInfIdx < 0 || fromIdx <= firstInfIdx) {
+        console.log('[LearningPlayer] Round back in INF PLAY: at the first revival round — staying put')
+        return
       }
-      // The main-loop rounds aren't loaded (queue is the recycled INF-PLAY
-      // set). Force a full main-loop load before resolving the previous LEGO —
-      // never trust the "already loaded" short-circuit on an INF-PLAY exit.
-      await loadSeedIfNeeded(1, /* forceReload */ true)
-      // Land on the LAST main-loop LEGO the learner reached (the course's
-      // final LEGO, since INF PLAY ratchets there) and replay its debut.
-      const anchorLegoId = lastMainLoopLegoId.value || highestCompletedLegoId.value
-      let targetIdx = anchorLegoId ? simplePlayer.findRoundIndexForLegoId(anchorLegoId) : -1
-      if (targetIdx < 0) targetIdx = Math.max(0, cachedRounds.value.length - 1)
-      await prepareAndJump(targetIdx, 'Previous LEGO…', () => {
-        // slot 0 → intro/debut/build replay. Belt DERIVES from the landed
-        // round, which is now a real main-loop round.
-        simplePlayer.jumpToRound(targetIdx, 0)
-        deriveBeltFromLandedRound()
+      const targetIdx = fromIdx - 1
+      const courseEndSeed = (() => {
+        const fin = courseFinalLegoRef.value?.legoId
+        if (fin) { const s = getSeedFromLegoId(fin); if (s !== null) return s }
+        return 668
+      })()
+      await prepareAndJump(targetIdx, 'Previous review round…', () => {
+        simplePlayer.jumpToRound(targetIdx)
+        // Pin belt to the final belt — a revival round's random-USE legoId would
+        // otherwise bounce the indicator (mirrors advanceInfPlayRound).
+        if (beltProgress.value) beltProgress.value.setPlayingPosition(courseEndSeed)
       })
+      // Step the central-pill ∞ readout back (floor at 1).
+      infplayRoundIndex.value = Math.max(1, infplayRoundIndex.value - 1)
       await persistCursorAtCurrentRound()
       return
     }
@@ -7360,9 +7769,18 @@ const handleRoundBack = async () => {
   }
 }
 
-// Belt pill tap — open the unified progress modal
-const handleBeltPillTap = () => {
+// Belt pill tap — open the unified progress modal. Persist the in-flight
+// play-seconds first (await the write so the read sees it), without stopping
+// playback, then refetch — so the modal shows your CURRENT total, not the
+// last-flushed snapshot from your last pause.
+const handleBeltPillTap = async () => {
   showProgressModal.value = true
+  if (!courseCode.value || !supabase?.value) return
+  const learnerId = (auth as any)?.learnerId?.value || null
+  try {
+    await learningSession.flushTelemetryDelta()
+  } catch { /* flush is best-effort */ }
+  contribution.fetch(courseCode.value, learnerId).catch(() => {})
 }
 
 // ∞ activator (belt modal) — the ONE deliberate entry into INF PLAY. The
@@ -7424,6 +7842,35 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     await persistCursorAtCurrentRound()
   } finally {
     isSkippingBelt.value = false
+  }
+}
+
+// ── Header belt nav (‹‹ ››) — Tom 2026-06-01 ───────────────────────────────
+// Header double-chevrons step the BELT axis (LEGO → bottom pill, CYCLE → phase
+// pill). Forward → next belt's start, or INF PLAY at course end (reuses the
+// wouldEnterInfplay morph). Back → restart the CURRENT belt first, then the
+// PREVIOUS belt (mirrors the LEGO back's restart-current-first rule). Both wrap
+// handleSkipToBelt, so INF-PLAY exit + cursor persistence come free.
+const handleSkipToNextBelt = async () => {
+  // Already in INF PLAY → there is nothing past the revival tail to skip
+  // forward to, so the belt-forward chevron is a NO-OP (B3). Without this guard
+  // wouldEnterInfplay is true in INF PLAY, so this re-ran the full enterInfPlay
+  // entry (ratchet + jump-to-first-revival + warm-up overlay) = the whole-screen
+  // flash. Stepping THROUGH revival rounds is the bottom-nav forward arrow
+  // (handleRoundForward → advanceInfPlayRound), not the belt axis. Position-based
+  // (isInfPlayActive) so it also nulls for GUESTS, who never get the mode flag.
+  if (isInfPlayActive.value) return
+  if (wouldEnterInfplay.value) { await enterInfPlay(); return }
+  if (playingNextBelt.value) await handleSkipToBelt(playingNextBelt.value)
+}
+
+const handleSkipToPrevBelt = async () => {
+  const cur = playingBelt.value
+  const startIdx = simplePlayer.findRoundIndexForBeltThreshold(Math.max(cur.seedsRequired, 1))
+  if (startIdx >= 0 && simplePlayer.roundIndex.value > startIdx) {
+    await handleSkipToBelt(cur)                       // restart the current belt
+  } else if (cur.index > 0) {
+    await handleSkipToBelt(BELTS[cur.index - 1])      // already at start → previous belt
   }
 }
 
@@ -7521,12 +7968,14 @@ simplePlayer.setRuntimeOverrides({
   // "operation is not supported" decode failure that got blob playback
   // dropped on 2026-05-23 (a confounded bug, not an iOS limitation).
   resolveAudioUrl: async (audioUrl: string): Promise<string> => {
-    if (!offlinePlaybackActive()) return audioUrl
+    // Serve the cached WAV blob when offline OR when online cache-play is on —
+    // this is what keeps the MAIN cycle off the network so it survives lock.
+    // A genuine cache miss falls through to the network URL (instant first play).
+    if (!offlinePlaybackActive() && !cachePlayOnline) return audioUrl
     const id = audioUrl.match(/\/api\/audio\/([^?]+)/)?.[1]
     if (!id) return audioUrl
     // WAV, not the cached mp3 blob — WebKit refuses mp3 blob: URLs.
     const wavUrl = await audioCache.getWavBlobUrl(id)
-    console.log(`[offline] ${id} → ${wavUrl ? 'WAV blob' : 'cache miss → network'}`)
     return wavUrl || audioUrl
   },
   // ensureKnownReady: REMOVED 2026-05-23.
@@ -7635,58 +8084,12 @@ const isSteppingRound = ref(false)
 // runs in the background and doesn't gate playback.
 const isWarmingUpInfPlay = ref(false)
 
-/**
- * Phase 1 (BLOCKING): download all audio for the next `count` rounds.
- * Tom's design 2026-05-20 — INF PLAY's random sampling defeats the
- * linear 30-min prefetch, so we batch-load a chunk of rounds before
- * playback starts and then top up in the background while the
- * learner plays through.
- *
- * Walks each round's cycles, collects unique audio URLs (known +
- * target1 + target2 + any presentation/listening clips), fires
- * fetch() against /api/audio/* — service-worker CacheFirst absorbs
- * the responses into the audio cache. Subsequent <audio> playback
- * hits the cache, no network roundtrip.
- *
- * Parallel-limited at 5 to saturate 4G without thrashing. Errors
- * are swallowed — partial cache is better than blocking forever.
- */
 // Tracks URLs the warm-up has successfully cached. Drives the
 // shouldSkipCycle gate in INF PLAY so cycles with uncached audio are
 // silently dropped (rather than stalling / playing silently) —
 // because INF PLAY doesn't need any particular cycle, only that
 // SOMETHING with audio plays in each slot.
 const warmedUpAudioUrls = ref<Set<string>>(new Set())
-
-async function warmUpInfPlayRounds(rounds: any[], count: number): Promise<void> {
-  const slice = rounds.slice(0, Math.max(0, count))
-  const urls = new Set<string>()
-  for (const r of slice) {
-    if (!Array.isArray(r?.cycles)) continue
-    for (const c of r.cycles) {
-      if (c?.known?.audioUrl) urls.add(c.known.audioUrl)
-      if (c?.target?.voice1Url) urls.add(c.target.voice1Url)
-      if (c?.target?.voice2Url) urls.add(c.target.voice2Url)
-    }
-  }
-  const list = [...urls]
-  if (list.length === 0) return
-
-  const parallel = 5
-  for (let i = 0; i < list.length; i += parallel) {
-    const batch = list.slice(i, i + parallel)
-    const results = await Promise.allSettled(batch.map(url =>
-      fetch(url).then(r => r.ok ? r.arrayBuffer().then(() => url) : null).catch(() => null)
-    ))
-    // Mark every URL that resolved successfully — it's now in the SW
-    // CacheFirst store, safe for the shouldSkipCycle gate to trust.
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        warmedUpAudioUrls.value.add(r.value)
-      }
-    }
-  }
-}
 
 /**
  * Bootstrap-style INF PLAY entry — fetch JUST the first cycle's
@@ -7715,14 +8118,18 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
   ].filter(Boolean) as string[]
   if (urls.length === 0) return
 
-  const results = await Promise.allSettled(urls.map(url =>
-    fetch(url).then(r => r.ok ? r.arrayBuffer().then(() => url) : null).catch(() => null)
+  // Fetch to warm the SW CacheFirst layer so the first cycle plays instantly.
+  // We deliberately do NOT record these URLs in `warmedUpAudioUrls`: doing so
+  // made the set non-empty, which ACTIVATED the shouldSkipCycle INF-PLAY cull
+  // gate and skipped every cycle except this warmed first one — the cause of
+  // "phase/cycle-back works on the first cycle only" (B2). With the set left
+  // empty the gate self-disables (its own `size > 0` guard) and INF PLAY
+  // cycles play via the same JIT/SW path as the main loop — exactly what the
+  // warmUpInfPlayRoundsBackground docblock already assumes. Offline still
+  // culls via its own persistent-cache branch in shouldSkipCycle.
+  await Promise.allSettled(urls.map(url =>
+    fetch(url).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null)
   ))
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) {
-      warmedUpAudioUrls.value.add(r.value)
-    }
-  }
 }
 
 /**
@@ -7789,6 +8196,7 @@ async function triggerPreemptiveInfPlayWarmUp(): Promise<void> {
       const result = await generateScript()
       const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
       if (fullRounds.length > 0) {
+        if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
         cachedRounds.value = fullRounds
         rounds = fullRounds
         firstInfIdx = rounds.findIndex(isInfPlayRound)
@@ -8105,15 +8513,28 @@ const toggleTurbo = () => {
   turboActive.value = !turboActive.value
 }
 
-// Offline mode: a deliberate, opt-in download of the upcoming span into
-// IndexedDB, after which playback resolves to local blob: URLs (the main
+// Offline mode: a deliberate, opt-in download of the upcoming course content
+// into IndexedDB, after which playback resolves to local blob: URLs (the main
 // loop via the SimplePlayer resolveAudioUrl override; pods/intros via the
 // createAudioCacheSource gate). The streaming-first online path is untouched.
-// Span = roughly the next OFFLINE_SPAN_MS of play (~30 min for now). Time-
-// based because that's the real product unit ("download the next 30 min /
-// your journey"), not an arbitrary round count. The only deliberate
-// downloader; normal play streams and caches nothing speculatively.
-const OFFLINE_SPAN_MS = 30 * 60 * 1000
+// Depth is chosen by the learner as a % of the course (see the depth-knob note
+// further down) — NOT a time span, because offline never stops (it recycles via
+// INF PLAY). The only deliberate downloader; normal play streams and caches
+// nothing speculatively.
+// Rolling online warm-ahead (buffer-model step 1a). A shallow span the filler
+// keeps cached in IndexedDB during normal online play, so playback can later
+// resolve from cache (surviving connection loss / lock mid-session) instead of
+// streaming every clip. Deliberately SHALLOW to start: speculative ahead-fetch
+// was disabled 2026-05-23 for contending with the live play fetch (the
+// pipe-hogging stalls). We re-enable it gently (sequential, missing-only) and
+// will only deepen once a device test confirms it doesn't starve playback.
+// 2026-06-01: device-confirmed clean on a 3G throttle, and Afrikaans telemetry
+// showed the cold-start window (first ~10 min still streaming, cacheHit low) is
+// the only lock-fragile gap. So deepen the steady span, and add a fast BURST
+// span fired at non-lock moments (session start, about-to-hide, stop) to warm
+// the head quickly and keep a restart / backgrounded app supplied.
+const ROLLING_SPAN_MS = 20 * 60 * 1000
+const BURST_SPAN_MS = 10 * 60 * 1000
 const offlineActive = ref(false)
 // Offline PLAYBACK engages on the explicit toggle OR whenever the device is
 // genuinely offline. offlineActive is an in-memory ref that resets to false on
@@ -8123,23 +8544,16 @@ const offlineActive = ref(false)
 // player streamed /api/audio and every clip failed offline.) Download gates stay
 // on the explicit toggle — downloading is a deliberate, online action.
 const offlinePlaybackActive = (): boolean => offlineActive.value || !isOnline.value
-const offlineDlState = ref<'idle' | 'preparing' | 'downloading' | 'complete' | 'error'>('idle')
-const offlineDlDone = ref(0)      // audio files genuinely cached (successes only)
-const offlineDlTotal = ref(0)
-const offlineDlFailed = ref(0)    // fetches that failed (e.g. bad network)
-
-// Progress banner label — empty when there's nothing to show. `done` counts
-// ONLY files that actually landed in IndexedDB, so "Ready" can't lie.
-const offlineDownloadLabel = computed(() => {
-  if (offlineDlState.value === 'preparing') return 'Preparing offline download…'
-  if (offlineDlState.value === 'downloading') {
-    const pct = offlineDlTotal.value > 0 ? Math.round((offlineDlDone.value / offlineDlTotal.value) * 100) : 0
-    return `Downloading for offline… ${pct}% (${offlineDlDone.value}/${offlineDlTotal.value})`
-  }
-  if (offlineDlState.value === 'complete') return `Ready to play offline ✓ (${offlineDlDone.value} files)`
-  if (offlineDlState.value === 'error') return `Offline download incomplete — ${offlineDlFailed.value} failed, needs better signal`
-  return ''
-})
+// Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
+// from useOfflineDownloadStatus and written by downloadForOffline below. The UI
+// for it now lives on the mode button (the ring) + the Offline row in ModeTray,
+// not a floating banner here. Because those refs are page-lifetime singletons,
+// a fresh player instance must start them clean, and on teardown we drop
+// offlineActive so any in-flight downloadForOffline loop (whose cancel-guard is
+// this instance's offlineActive) stops writing the shared refs for the next
+// course's ring.
+onMounted(() => { resetOfflineDownloadStatus() })
+onUnmounted(() => { offlineActive.value = false })
 
 // Estimated wall-clock (ms) of play currently sitting in cachedRounds from
 // the current round forward. Used to decide whether we've loaded enough
@@ -8156,21 +8570,12 @@ const loadedSpanMsFromHere = (): number => {
   return accMs
 }
 
-// Lazy loading means cachedRounds may hold only the current round (round N)
-// when offline is toggled — so collectOfflineSpanAudioIds' loop terminates on
-// rounds.length long before the 30-min budget is filled. That was the "only
-// got 4 LEGOs" bug. Expand the script (the same machinery INF PLAY uses) until
-// cachedRounds covers the span, the generator runs dry (course tail), or the
-// user cancels offline mode.
-const ensureOfflineSpanLoaded = async (): Promise<void> => {
-  let guard = 0
-  while (offlineActive.value && loadedSpanMsFromHere() < OFFLINE_SPAN_MS && guard++ < 20) {
-    const added = await expandScript()
-    if (added === 0) break  // generator exhausted — take what we have
-  }
-}
-
-const collectOfflineSpanAudioIds = (): string[] => {
+// Walk forward from the current round, accumulating estimated wall-clock time
+// per cycle, collecting unique /api/audio ids until ~spanMs of play is covered.
+// Dedupes files (a clip reused N times in the span counts once). Used by the
+// rolling online filler (ROLLING_SPAN_MS) — the deliberate offline download
+// uses the round-based collector below (depth = % of course, not ms).
+const collectSpanAudioIds = (spanMs: number): string[] => {
   const rounds = cachedRounds.value || []
   const start = Math.max(0, currentRoundIndex.value)
   const ids = new Set<string>()
@@ -8178,10 +8583,8 @@ const collectOfflineSpanAudioIds = (): string[] => {
     const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
     if (m) ids.add(m[1])
   }
-  // Walk forward from the current round, accumulating estimated wall-clock
-  // time per cycle, until we've covered ~OFFLINE_SPAN_MS of play.
   let accMs = 0
-  for (let i = start; i < rounds.length && accMs < OFFLINE_SPAN_MS; i++) {
+  for (let i = start; i < rounds.length && accMs < spanMs; i++) {
     for (const c of (((rounds[i]) as any).cycles || [])) {
       add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
       // prompt + pause + both target plays + inter-phase gaps
@@ -8190,6 +8593,248 @@ const collectOfflineSpanAudioIds = (): string[] => {
   }
   return [...ids]
 }
+
+// How many rounds the rolling span (re)covers ahead of the cursor — same
+// per-cycle wall-clock estimate collectSpanAudioIds uses, counted in ROUNDS so
+// we can ask the pod / Layer-1 schedulers which laps fire in that window.
+// Lower-bounded at 1 so we always look at least one round ahead even when the
+// loaded rounds are long. Used ONLY to bound the extras enumeration; it never
+// gates cycle warming (cycles are collected by ms span as before).
+const roundsCoveredBySpan = (spanMs: number): number => {
+  const rounds = cachedRounds.value || []
+  const start = Math.max(0, currentRoundIndex.value)
+  let accMs = 0
+  let n = 0
+  for (let i = start; i < rounds.length && accMs < spanMs; i++) {
+    n++
+    for (const c of (((rounds[i]) as any).cycles || [])) {
+      accMs += 2000 + (c?.pauseDuration ?? 0) + (c?.target1DurationMs ?? 2000) + (c?.target2DurationMs ?? 2000) + 1000
+    }
+  }
+  return Math.max(1, n)
+}
+
+// Pod-lap audio ids that WILL play within the next `spanMs` of cycle play.
+//
+// Pods advance on a ratchet (completed_pod_rounds), not on a round number, so
+// nextLap() composes only the IMMEDIATELY-NEXT lap (it reads the live ratchet).
+// That's exactly what's needed: pods fire at most once per played lap, each lap
+// reuses a slice of the same small bounded sentence pool, and the per-boundary
+// handler advances the ratchet as laps play. So warming the next due lap keeps
+// the upcoming pod cached even across a backgrounded span that crosses several
+// boundaries — the ratchet hasn't moved for laps not yet played, and once one
+// plays the next round-advance re-warms. Returns [] when no pod is due anywhere
+// in the span (cheap no-op — same shape as collectSpanAudioIds: bare audio ids).
+const collectPodSpanAudioIds = (spanMs: number): string[] => {
+  if (!podScheduler || !podScheduler.isInitialized.value) return []
+  const cursor = Math.max(0, currentRoundIndex.value)
+  const lastRound = cursor + roundsCoveredBySpan(spanMs)
+  // mainRound passed to shouldFireLapAt is 1-based (cursor+1 = current round).
+  // Cheap scan bounded by the span's round count.
+  let firesInSpan = false
+  for (let mr = cursor + 1; mr <= lastRound + 1; mr++) {
+    if (podScheduler.shouldFireLapAt(mr)) { firesInSpan = true; break }
+  }
+  if (!firesInSpan) return []
+  const lap = podScheduler.nextLap()
+  if (!lap) return []
+  const ids = new Set<string>()
+  if (lap.intro?.id) ids.add(lap.intro.id)
+  if (lap.outro?.id) ids.add(lap.outro.id)
+  for (const p of lap.plays) if (p.audioId) ids.add(p.audioId)
+  return [...ids]
+}
+
+// Layer-1 listening audio ids that WILL play within the next `spanMs`. Unlike
+// pods, an L1 lap is a PURE function of (catalogue, round, learner) —
+// nextLap(mainRound) is fully deterministic — so we enumerate every L1 lap due
+// in the round window ahead of the cursor and warm all their audio. Skips rounds
+// where a pod pre-empts L1 (same priority rule the boundary handler enforces:
+// pod > L1). Returns [] when no L1 lap falls in the span (cheap no-op).
+const collectLayer1SpanAudioIds = (spanMs: number): string[] => {
+  if (!l1Scheduler || !l1Scheduler.isInitialized.value) return []
+  const cursor = Math.max(0, currentRoundIndex.value)
+  const lastRound = cursor + roundsCoveredBySpan(spanMs)
+  const ids = new Set<string>()
+  for (let mr = cursor + 1; mr <= lastRound + 1; mr++) {
+    if (!l1Scheduler.shouldFireLapAt(mr)) continue
+    if (podScheduler?.shouldFireLapAt(mr)) continue // pod pre-empts L1 this round
+    const lap = l1Scheduler.nextLap(mr)
+    if (!lap) continue
+    if (lap.intro?.id) ids.add(lap.intro.id)
+    if (lap.outro?.id) ids.add(lap.outro.id)
+    for (const p of lap.plays) if (p.audioId) ids.add(p.audioId)
+  }
+  return [...ids]
+}
+
+// ── Offline depth knob = % OF COURSE CONTENT, not playback time ──────────────
+// Tom 2026-06-02: time is the wrong unit. Offline never *stops* — it drops into
+// INF PLAY and recycles the cache forever, so "hours offline" is infinite no
+// matter what you download. What the deliberate download actually controls is
+// how much NEW course content you carry. So the depth limiter counts ROUNDS
+// ahead of the cursor (a round ≈ one LEGO introduction), surfaced to the user
+// as a % of the whole course. The ms-based collectSpanAudioIds above stays for
+// the rolling online filler (that's a real "next N minutes warm-ahead" job).
+
+// Course total rounds = main-loop length (excludes the INF PLAY tail). The %
+// denominator. Returns 0 until getCourseFinalLego resolves (roundIndex −1).
+const courseTotalRounds = (): number => mainLoopBoundary()
+
+// Rounds currently loaded ahead of (and including) the cursor.
+const roundsLoadedAhead = (): number =>
+  Math.max(0, (cachedRounds.value?.length ?? 0) - Math.max(0, currentRoundIndex.value))
+
+// Expand the script for the deliberate offline download (same
+// machinery INF PLAY uses) until `roundsAhead` rounds are loaded ahead of the
+// cursor, the generator runs dry (course tail), or the user cancels. Guard is a
+// runaway backstop only; the real stop is rounds-reached or added === 0.
+const ensureOfflineRoundsLoaded = async (roundsAhead: number): Promise<void> => {
+  let guard = 0
+  while (offlineActive.value && roundsLoadedAhead() < roundsAhead && guard++ < 2000) {
+    const added = await expandScript()
+    if (added === 0) break  // generator exhausted — course tail reached
+  }
+}
+
+// Walk forward `roundsAhead` rounds from the cursor, collecting unique
+// /api/audio ids. Infinity = to the end of what's loaded. Dedupes (a clip
+// reused across the span counts once) — same shape as collectSpanAudioIds.
+const collectRoundsAudioIds = (roundsAhead: number): string[] => {
+  const rounds = cachedRounds.value || []
+  const start = Math.max(0, currentRoundIndex.value)
+  const end = roundsAhead === Infinity ? rounds.length : Math.min(rounds.length, start + roundsAhead)
+  const ids = new Set<string>()
+  const add = (url?: string) => {
+    const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
+    if (m) ids.add(m[1])
+  }
+  for (let i = start; i < end; i++) {
+    for (const c of (((rounds[i]) as any).cycles || [])) {
+      add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
+    }
+  }
+  return [...ids]
+}
+
+// Rolling filler (buffer-model step 1a): keep the next ROLLING_SPAN_MS of play
+// warm in IndexedDB during normal online play. Does NOT change playback — the
+// resolver still streams online (the gate flip is step 1b) — so this cannot
+// regress lock; it only pre-stages bytes. Gentle by construction: sequential
+// (concurrency 1), missing-only, yields to the bulk offline download, no-ops
+// offline. Expands the script ahead first (ensureLiveSpanLoaded) so the cache
+// fills DEEP, not just the ~3-round bootstrap window — that shallow cap was the
+// root cause of cold-start lock/offline failures. Re-entrancy guarded so
+// overlapping round-advances don't double-fetch.
+let rollingFillActive = false
+// A function (not an inline `=== 'downloading'`) so TS doesn't narrow the
+// reactive offlineDlState across the early return — its .value genuinely changes
+// across awaits when the bulk download starts mid-fill.
+const bulkDownloadRunning = (): boolean => offlineDlState.value === 'downloading'
+// Expand the script ahead so the cache can fill DEEP, not just the ~3-round
+// cold-start bootstrap window (the root cause of cold-start lock/offline death).
+// expandScript() is append-only (cursor-safe) + re-entrancy-guarded; one call
+// loads the whole course, then loadedSpanMsFromHere() >= spanMs short-circuits.
+// Online + visible only (generateScript needs network); yields to bulk download.
+// INF PLAY keeps its own near-edge paginator (expandScript would splice
+// main-loop intros into the seeded-USE tail) — we only warm what's loaded there.
+let rollingExpandActive = false
+const ensureLiveSpanLoaded = async (spanMs: number): Promise<void> => {
+  if (rollingExpandActive) return
+  if (currentMode.value === 'infplay') return
+  if (!isOnline.value) return
+  if (bulkDownloadRunning()) return
+  if (loadedSpanMsFromHere() >= spanMs) return
+  rollingExpandActive = true
+  try {
+    let guard = 0
+    while (
+      isOnline.value &&
+      !bulkDownloadRunning() &&
+      loadedSpanMsFromHere() < spanMs &&
+      guard++ < 8
+    ) {
+      const added = await expandScript()
+      if (added === 0) break  // generator dry — course tail
+    }
+  } finally {
+    rollingExpandActive = false
+  }
+}
+// Warm the next `spanMs` of upcoming play into IndexedDB. `concurrency` workers
+// pull in parallel: 1 for the steady background fill (device-proven not to
+// contend with the live play fetch), higher for bursts at non-lock moments
+// (start, hide, stop) where speed matters and there's no live playback to starve
+// — backgrounded play is from cache, so the only fetches are the filler's.
+const fillBuffer = async (spanMs: number, concurrency = 1): Promise<void> => {
+  if (rollingFillActive) return
+  if (!isOnline.value) return            // offline: nothing to fetch (offline mode owns true-offline)
+  // KEEP warming even while hidden/locked. We briefly went network-silent on lock
+  // (theory: background fetch deactivates the iOS audio session) — but a 63-min
+  // screen-locked run streamed over the network the WHOLE time and never died, so
+  // that theory was wrong. Going silent just DRAINED the buffer → playback then
+  // streamed every clip anyway (defeating the entire point of a buffer). Warming
+  // while locked keeps playback on cache blobs (more lock-stable than streaming)
+  // and removes the needless streaming bandwidth. (Tom 2026-06-02.)
+  if (bulkDownloadRunning()) return      // don't fight the bulk download
+  rollingFillActive = true
+  try {
+    // Grow the loaded script ahead first so we warm a DEEP cache, not just the
+    // shallow bootstrap window — the fix for cold-start lock/offline failures.
+    await ensureLiveSpanLoaded(spanMs)
+    // PRIORITY ORDER is structural (Tom's "fill faster than we consume; never
+    // starve cycles" invariant, satisfied without rate measurement): build ONE
+    // ordered missing-list as [cycles…, pods…, L1…]. The sequential
+    // missing-only worker(s) drain it front-to-back, so every uncached cycle is
+    // warmed before any pod, and every pod before any L1 listening clip. Pods
+    // and L1 are the EXTRAS that ride the same gentle filler — they only get
+    // bytes once the cycle buffer ahead is already warm. dedupe across all
+    // three so a clip shared by a cycle and a lap is fetched once.
+    const ordered = [
+      ...collectSpanAudioIds(spanMs),
+      ...collectPodSpanAudioIds(spanMs),
+      ...collectLayer1SpanAudioIds(spanMs),
+    ]
+    const seen = new Set<string>()
+    const missing = ordered.filter((id) => {
+      if (seen.has(id) || audioCache.persistent.has(id)) return false
+      seen.add(id)
+      return true
+    })
+    let next = 0
+    const worker = async (): Promise<void> => {
+      while (next < missing.length) {
+        if (!isOnline.value || bulkDownloadRunning()) return
+        const id = missing[next++]
+        // Silent — the play path handles any miss by streaming.
+        await audioCache.persistent.ensure(id).catch(() => { /* keep going */ })
+      }
+    }
+    await Promise.all(Array.from({ length: Math.max(1, concurrency) }, worker))
+  } finally {
+    rollingFillActive = false
+  }
+}
+// Steady background fill on each round advance — gentle (one at a time, deep span).
+const fillRollingBuffer = (): Promise<void> => fillBuffer(ROLLING_SPAN_MS, 1)
+// Fast burst at non-lock moments: warm the head quickly so the cold-start window
+// (the only lock-fragile gap, per Afrikaans telemetry) closes fast, and a
+// restart / backgrounded app stays supplied.
+const warmBurst = (): Promise<void> => fillBuffer(BURST_SPAN_MS, 3)
+
+// First rounds load → burst the head warm fast. Each later round advance →
+// steady top-up. Stop/pause → burst the next bundle so a restart is instant.
+let firstBurstDone = false
+watch(() => (cachedRounds.value || []).length, (n) => {
+  if (n > 0 && !firstBurstDone) { firstBurstDone = true; void warmBurst() }
+})
+watch(currentRoundIndex, () => { void fillRollingBuffer() })
+watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
+// NOTE: no special on-hide burst needed — the steady fillRollingBuffer keeps
+// warming on every round advance INCLUDING while hidden/locked (fillBuffer no
+// longer early-returns on document.hidden; see its comment for why). So the
+// buffer stays topped up through a lock instead of draining and falling back to
+// streaming every clip.
 
 // Commentary (welcome/instructions/encouragements) and pod audio are
 // scheduled at RUNTIME — encouragements are a random pull from a pool, pod
@@ -8227,16 +8872,38 @@ const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
       if (podScheduler.outroAudio.value?.id) ids.add(podScheduler.outroAudio.value.id)
     } catch (e) { console.warn('[Offline] pod enumerate failed:', e) }
   }
+  // Layer-1 listening (drained-seed fluency maintenance). Same treatment as
+  // pods: the seed-level target audio is a small bounded pool and L1 laps are
+  // chosen at RUNTIME (every ~50 rounds, from whatever's drained at that
+  // position), so we can't predict the exact clips in advance — cache the whole
+  // pool so any lap that fires offline is guaranteed present. Tom's rule:
+  // listening must load in EVERY offline plan, encouragements are the first
+  // thing to cut, never the listening tracks. Bookends overlap with the pod
+  // intro/outro above; the Set dedupes.
+  if (l1Scheduler) {
+    try {
+      if (!l1Scheduler.isInitialized.value) await l1Scheduler.initialize()
+      for (const seed of (l1Scheduler.seeds.value ?? new Map()).values()) {
+        if (seed?.target1_audio_id) ids.add(seed.target1_audio_id)
+        if (seed?.target2_audio_id) ids.add(seed.target2_audio_id)
+      }
+      if (l1Scheduler.introAudio.value?.id) ids.add(l1Scheduler.introAudio.value.id)
+      if (l1Scheduler.outroAudio.value?.id) ids.add(l1Scheduler.outroAudio.value.id)
+    } catch (e) { console.warn('[Offline] L1 enumerate failed:', e) }
+  }
   return [...ids]
 }
 
-const downloadForOffline = async () => {
+const downloadForOffline = async (roundsAhead: number = Infinity) => {
   // Build out the script first — without this we'd only download whatever
   // rounds lazy-loading happened to have in memory (the "4 LEGOs" cap).
+  // roundsAhead = the user-chosen depth in COURSE CONTENT (rounds ahead of the
+  // cursor); Infinity = rest of the course. Derived from the depth slider via
+  // offlineSelectedRounds (a fraction of the REMAINING course).
   offlineDlState.value = 'preparing'
-  await ensureOfflineSpanLoaded()
+  await ensureOfflineRoundsLoaded(roundsAhead)
   if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
-  const cycleIds = collectOfflineSpanAudioIds()
+  const cycleIds = collectRoundsAudioIds(roundsAhead)
   const auxIds = await collectAuxiliaryAudioIds()  // commentary + pod pools
   const ids = [...new Set([...cycleIds, ...auxIds])]
   const missing = ids.filter((id) => !audioCache.persistent.has(id))
@@ -8244,15 +8911,37 @@ const downloadForOffline = async () => {
   offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
-  console.log(`[Offline] downloading span: ${missing.length} of ${ids.length} audio files (~next 30 min)`)
-  const CONC = 4
-  for (let i = 0; i < missing.length; i += CONC) {
+  console.log(`[Offline] downloading ${missing.length} of ${ids.length} audio files (depth: ${roundsAhead === Infinity ? 'rest of course' : roundsAhead + ' rounds'})`)
+  // Concurrency: aggressive when nothing is playing (the download is the only
+  // network user), polite when a session is live (protect the live next-clip
+  // fetch). Re-evaluated EACH batch — the learner can hit play mid-download.
+  // 12 is past the point where the bottleneck is network latency (these clips
+  // are ~24KB); going higher mainly raises backend cold-start/throttle risk for
+  // little speed gain.
+  const concNow = () => (isPlaying.value ? 4 : 12)
+  // Retry a clip a few times with backoff before counting it failed, so a
+  // transient backend throttle (429 under burst) doesn't become a permanent
+  // "download incomplete". ensure() dedupes in-flight, so retries never
+  // double-fetch.
+  const ensureWithRetry = async (id: string): Promise<void> => {
+    for (let attempt = 0; ; attempt++) {
+      try { await audioCache.persistent.ensure(id); return }
+      catch (err) {
+        if (attempt >= 2) throw err                                   // 3 tries total
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))  // 300ms, 600ms backoff
+      }
+    }
+  }
+  let i = 0
+  while (i < missing.length) {
     if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
-    await Promise.all(missing.slice(i, i + CONC).map(async (id) => {
-      // Count ONLY genuine cache writes. A failed fetch (bad network) must
-      // NOT tick progress — otherwise "Ready ✓" lies and offline plays
-      // silence (the train test). ensure() throws on network failure.
-      try { await audioCache.persistent.ensure(id); offlineDlDone.value++ }
+    const batch = missing.slice(i, i + concNow())
+    i += batch.length
+    await Promise.all(batch.map(async (id) => {
+      // Count ONLY genuine cache writes. A clip that still fails after retries
+      // must NOT tick progress — otherwise "Ready ✓" lies and offline plays
+      // silence (the train test).
+      try { await ensureWithRetry(id); offlineDlDone.value++ }
       catch { offlineDlFailed.value++ }
     }))
   }
@@ -8278,6 +8967,9 @@ const downloadForOffline = async () => {
         estimatedMinutes: Math.round(totalCycles * 0.2),
         audioMapObj: {},
         courseWelcome: cachedCourseWelcome.value || undefined,
+        // Carry the live audio-aware boundary into the offline cold-reopen cache
+        // (set by the handoff that ran before this deliberate download).
+        mainLoopRoundCount: liveMainLoopRoundCount.value ?? undefined,
       })
       console.log(`[Offline] Persisted ${scriptRounds.length} rounds to script cache for cold offline reopen`)
     }
@@ -8303,6 +8995,14 @@ const downloadForOffline = async () => {
 // shuffled for variety. The end-of-rounds watcher re-invokes this near each
 // new end → endless cached play. Returns rounds appended (0 if nothing
 // cached). Tom 2026-05-25: offline must always play SOMETHING.
+// INF PLAY plays USE PHRASES ONLY (Tom 2026-06-03) — never intro/debut/BUILD
+// (BLD phrases only ever play in a LEGO's debut round) nor component/listening
+// cycles. 'use' and 'spaced_rep' are both USE-phrase plays (the generator draws
+// spaced_rep from the same usePhrases pool). Filtering to these also means the
+// recycled rounds carry NO intro/debut/build → isMainLoopRound is false →
+// isInfPlayActive true → the belt correctly shows the red ∞ for offline INF PLAY.
+const INF_PLAY_USE_TYPES = new Set(['use', 'spaced_rep'])
+
 const appendCachedLoopForOffline = (): number => {
   const rounds = (cachedRounds.value || []) as any[]
   if (rounds.length === 0) return 0
@@ -8311,7 +9011,8 @@ const appendCachedLoopForOffline = (): number => {
   const cachedOnly: any[] = []
   for (const r of rounds) {
     const cyc = ((r?.cycles) || []).filter((c: any) =>
-      cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
+      INF_PLAY_USE_TYPES.has(c?.type)
+      && cachedId(c?.known?.audioUrl) && cachedId(c?.target?.voice1Url) && cachedId(c?.target?.voice2Url))
     if (cyc.length > 0) cachedOnly.push({ ...r, cycles: cyc })
   }
   if (cachedOnly.length === 0) return 0
@@ -8383,14 +9084,385 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
   return true
 }
 
-const toggleOffline = () => {
-  offlineActive.value = !offlineActive.value
-  console.log('[LearningPlayer] Offline mode:', offlineActive.value ? 'ON — downloading span, then serving cached blobs' : 'OFF — stream')
-  if (offlineActive.value) {
-    void downloadForOffline()
+// ── Depth picker (Spotify-style "take it with you") ─────────────────────────
+// The offline-mode tap no longer silently grabs a fixed 30 min. It opens a
+// picker so the learner chooses how much of the course to carry, annotated with
+// a live size estimate (MB; plus a "running low" warning only when near the cap).
+const showOfflinePicker = ref(false)
+const offlineEstimating = ref(false)
+
+// Notched slider: each notch is a fraction of the REMAINING course (from the
+// cursor to the tail), not of the whole course. So the top notch (100%) always
+// means "the rest of the course" no matter how far through you are, and the
+// notches never collapse into each other. Thumb starts at the smallest.
+const OFFLINE_NOTCHES = [0.02, 0.05, 0.10, 0.25, 0.50, 1] as const
+const offlineNotchIndex = ref(0)
+const offlineSelectedFraction = computed(() => OFFLINE_NOTCHES[offlineNotchIndex.value])
+const offlineSelectedLabel = computed(() => {
+  const pct = Math.round(offlineSelectedFraction.value * 100)
+  if (offlineSelectedFraction.value >= 1) return offlineAtTail.value ? 'the whole course' : 'the rest of the course'
+  return offlineAtTail.value ? `${pct}% of the course` : `${pct}% of what's left`
+})
+
+const formatMb = (mb: number): string =>
+  mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${Math.max(1, Math.round(mb))} MB`
+
+// Estimate basis, gathered ONCE when the picker opens (course length + cache
+// stats). The per-notch MB/bar then derive synchronously as the slider moves —
+// no re-fetch per drag. Best-effort + labelled "≈"; a sense of cost, not a
+// promise (Tom: the number "probably doesn't matter that much").
+interface OfflineEstBasis {
+  total: number; start: number
+  avgBytesPerFile: number; avgFilesPerRound: number
+  lowSpace: boolean; ready: boolean
+}
+const offlineEst = ref<OfflineEstBasis>({
+  total: 0, start: 0,
+  avgBytesPerFile: 24 * 1024, avgFilesPerRound: 12, lowSpace: false, ready: false,
+})
+
+// At/past the main-loop tail = INF PLAY / course finished: there's no NEW content
+// ahead (courseTotalRounds is the main-loop length, which the cursor reaches and
+// then exceeds as INF PLAY recycles). For that learner the download isn't "carry
+// the next chunk of new learning" — it's "keep the (whole) course offline to
+// recycle", so the slider, bar and labels switch to that framing.
+const offlineAtTail = computed(() => {
+  const { total, start, ready } = offlineEst.value
+  return ready && total > 0 && start >= total
+})
+// The pool of rounds the chosen fraction draws from. Mid-course: the NEW content
+// remaining ahead (total − start). Finished/INF-PLAY: the whole course. Length
+// unknown: whatever's loaded ahead. NEVER collapses to 0 while total > 0 — that
+// was the bug that made every notch a single round for the furthest-through user.
+const offlinePoolRounds = computed((): number => {
+  const { total, start } = offlineEst.value
+  if (!(total > 0)) return Math.max(1, roundsLoadedAhead())
+  return start >= total ? total : total - start
+})
+
+const refreshOfflineEstimates = async (): Promise<void> => {
+  offlineEstimating.value = true
+  offlineNotchIndex.value = 0   // every open starts at the smallest, lowest-commitment notch
+  try {
+    // Resolve the course length first (cached) — without it courseTotalRounds()
+    // is 0 and the bar/estimate would read off the ~3 bootstrap rounds.
+    if (courseTotalRounds() <= 0 && courseCode.value) {
+      try { await getCourseFinalLego(courseCode.value) } catch { /* best-effort */ }
+    }
+    const total = courseTotalRounds()
+    const start = Math.max(0, currentRoundIndex.value)
+    let avgBytesPerFile = 24 * 1024  // ~24 KB/clip fallback (CLAUDE.md: 4.8 MB / 198 files)
+    try {
+      const stats = await audioCache.stats()
+      if (stats.persistent.count > 0) avgBytesPerFile = stats.persistent.bytes / stats.persistent.count
+    } catch { /* stats best-effort */ }
+    // "Running low" = the usage/quota RATIO is near full. We use the ratio (not
+    // the absolute quota) deliberately: navigator.storage.estimate().quota is
+    // unreliable on iOS Safari (a large, fuzzy disk-derived number), so a
+    // "% of device" reading is misleading — but the ratio still tells us when
+    // we're genuinely close to the cap regardless of what that cap reports.
+    let lowSpace = false
+    try { lowSpace = (await audioCache.quotaPressure()) > 0.9 } catch { /* best-effort */ }
+    // Files per round from the loaded sample (deduped), else a sane fallback.
+    const sampleRounds = roundsLoadedAhead()
+    const sampleFiles = collectRoundsAudioIds(Infinity).length
+    const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
+    offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true }
+  } finally {
+    offlineEstimating.value = false
+  }
+}
+
+// Rounds the selected fraction maps to (≥1; the top notch = the whole pool).
+const offlineSelectedRounds = computed((): number => {
+  if (offlineSelectedFraction.value >= 1) return offlinePoolRounds.value
+  return Math.max(1, Math.ceil(offlinePoolRounds.value * offlineSelectedFraction.value))
+})
+
+// Live size readout for the current notch — MB only (the honest, reliable
+// number). The old "% of device" was dropped: it divided by an iOS-unreliable
+// storage quota and read as a meaningless sliver. lowSpace surfaces a plain
+// warning only when the cache is genuinely near the cap.
+const offlineSelectedEstimate = computed(() => {
+  const { avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
+  if (!ready) return { size: '', lowSpace: false }
+  const files = Math.round(avgFilesPerRound * offlineSelectedRounds.value)
+  const mb = (files * avgBytesPerFile) / 1e6
+  return { size: `≈ ${formatMb(mb)}`, lowSpace }
+})
+
+// Course-depth bar (% of the WHOLE course): how far you've already come, then the
+// new chunk this download carries forward. Whatever's left after that is where
+// INF PLAY recycling lives — shown by the bar's untinted remainder. This is the
+// "pre-INF-PLAY new learning" made visible, without a misleading time number.
+const offlineCourseBar = computed(() => {
+  const { total, start } = offlineEst.value
+  const frac = offlineSelectedFraction.value
+  if (!(total > 0)) {
+    return { donePct: 0, newPct: frac >= 1 ? 100 : Math.round(frac * 100), finished: false }
+  }
+  if (start >= total) {
+    // Finished / INF PLAY: nothing "ahead" — the bar shows how much of the WHOLE
+    // course you're keeping offline (fill from the start), not a position.
+    const newPct = frac >= 1 ? 100 : Math.min(100, Math.round((offlineSelectedRounds.value / total) * 100))
+    return { donePct: 0, newPct, finished: true }
+  }
+  const donePct = Math.min(100, (start / total) * 100)
+  const newPct = Math.min(100 - donePct, (offlineSelectedRounds.value / total) * 100)
+  return { donePct, newPct, finished: false }
+})
+
+const startOfflineDownload = (): void => {
+  showOfflinePicker.value = false
+  offlineActive.value = true
+  const frac = offlineSelectedFraction.value
+  console.log(`[LearningPlayer] Offline ON — depth ${frac >= 1 ? 'rest of course' : Math.round(frac * 100) + '% of remaining'}`)
+  void downloadForOffline(frac >= 1 ? Infinity : offlineSelectedRounds.value)
+}
+
+// ── INF PLAY single-option offline: USE-only, longest-3-per-LEGO download ─────
+// INF PLAY only ever recycles USE content (and spaced_rep, which the generator
+// draws from the SAME USE pool — verified against api/courses/[code]/infplay-
+// cycles.ts). So for the INF-PLAY / at-tail learner the deliberate download
+// doesn't need the whole course's intro/debut/build clips — only the USE-phrase
+// audio. To keep it small we cap each LEGO to its LONGEST 3 USE phrases (by
+// target-text character count): the richest review, and INF PLAY samples USE
+// per-LEGO anyway. This is the single "Download for unlimited offline" option
+// (offlineSingleOption); the mid-course % slider is left untouched.
+//
+// The `|| offlineAtTail` is REQUIRED: guests never get the persisted 'infplay'
+// mode flag (no enrollment row), but they DO reach the tail by position — this
+// catches them into the same single-option download.
+const offlineSingleOption = computed(
+  () => currentMode.value === 'infplay' || offlineAtTail.value,
+)
+
+// Cap of USE phrases kept per LEGO (the longest by target-text chars).
+const INF_PLAY_USE_KEEP_PER_LEGO = 3
+
+// Course-wide USE-only audio id set for INF PLAY offline. Per LEGO, keep the 3
+// USE phrases with the MOST characters in the target phrase text, and collect
+// each kept phrase's known/target1/target2 audio ids. PAGINATED (mirrors
+// fetchAllPracticePhrases in generateLearningScript.ts) — a single .limit(N) is
+// silently truncated by PostgREST on big courses (banked lesson). Returns [] if
+// the course/client can't be resolved (caller still has the aux pools).
+const collectInfPlayUseAudioIds = async (): Promise<string[]> => {
+  const client = supabase.value
+  const code = courseCode.value
+  if (!client || !code) return []
+  // Length-sort key = the target phrase TEXT. course_practice_phrases carries
+  // both target_text (native) and target_text_roman; prefer roman where present
+  // (what INF PLAY displays/plays), else native. Length = character count.
+  // Roles 'use' + 'eternal_eligible' mirror infplay-cycles.ts's USE pool.
+  type UseRow = {
+    seed_number: number
+    lego_index: number
+    target_text: string | null
+    target_text_roman: string | null
+    known_audio_id: string | null
+    target1_audio_id: string | null
+    target2_audio_id: string | null
+  }
+  const PAGE = 1000
+  let allRows: UseRow[] = []
+  try {
+    const { count, error: countErr } = await client
+      .from('course_practice_phrases')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_code', code)
+      .in('phrase_role', ['use', 'eternal_eligible'])
+    if (countErr) {
+      console.warn('[Offline] INF PLAY USE count failed:', countErr.message)
+      return []
+    }
+    const total = count ?? 0
+    if (total === 0) return []
+    const pageCount = Math.ceil(total / PAGE)
+    const pages = await Promise.all(
+      Array.from({ length: pageCount }, (_, i) =>
+        client
+          .from('course_practice_phrases')
+          .select('seed_number, lego_index, target_text, target_text_roman, known_audio_id, target1_audio_id, target2_audio_id')
+          .eq('course_code', code)
+          .in('phrase_role', ['use', 'eternal_eligible'])
+          .order('seed_number', { ascending: true })
+          .order('lego_index', { ascending: true })
+          .order('position', { ascending: true })
+          .range(i * PAGE, i * PAGE + PAGE - 1),
+      ),
+    )
+    for (const p of pages) {
+      if (p.error) {
+        console.warn('[Offline] INF PLAY USE page failed:', p.error.message)
+        return []
+      }
+      if (p.data) allRows = allRows.concat(p.data as UseRow[])
+    }
+  } catch (e) {
+    console.warn('[Offline] INF PLAY USE query errored:', e)
+    return []
+  }
+
+  // Bucket by LEGO id (S{seed}L{lego}). Skip any phrase missing one of the 3 ids
+  // (partial-import safety) BEFORE the cap, so the cap counts only fully-playable
+  // phrases. Per LEGO keep the longest 3 by target-text char length (desc) and
+  // collect their 3 audio ids each.
+  const byLego = new Map<string, UseRow[]>()
+  for (const row of allRows) {
+    if (!row.known_audio_id || !row.target1_audio_id || !row.target2_audio_id) continue
+    const legoId = `S${String(row.seed_number).padStart(4, '0')}L${String(row.lego_index).padStart(2, '0')}`
+    const list = byLego.get(legoId)
+    if (list) list.push(row)
+    else byLego.set(legoId, [row])
+  }
+  const textLen = (r: UseRow): number => (r.target_text_roman || r.target_text || '').length
+  const ids = new Set<string>()
+  for (const list of byLego.values()) {
+    list.sort((a, b) => textLen(b) - textLen(a))
+    for (const r of list.slice(0, INF_PLAY_USE_KEEP_PER_LEGO)) {
+      ids.add(r.known_audio_id!)
+      ids.add(r.target1_audio_id!)
+      ids.add(r.target2_audio_id!)
+    }
+  }
+  return [...ids]
+}
+
+// MB estimate for the single INF-PLAY option — same avg-bytes-per-file basis as
+// the slider, but the file count is the REAL USE-only id set (longest-3/LEGO +
+// aux pools), gathered once when the picker opens. Best-effort + "≈".
+const offlineSingleEstimate = ref<{ size: string; lowSpace: boolean; ready: boolean }>(
+  { size: '', lowSpace: false, ready: false },
+)
+const refreshOfflineSingleEstimate = async (): Promise<void> => {
+  offlineSingleEstimate.value = { size: '', lowSpace: false, ready: false }
+  try {
+    const [useIds, auxIds] = await Promise.all([
+      collectInfPlayUseAudioIds(),
+      collectAuxiliaryAudioIds(),
+    ])
+    const fileCount = new Set([...useIds, ...auxIds]).size
+    const avgBytesPerFile = offlineEst.value.avgBytesPerFile || 24 * 1024
+    const mb = (fileCount * avgBytesPerFile) / 1e6
+    offlineSingleEstimate.value = {
+      size: fileCount > 0 ? `≈ ${formatMb(mb)}` : '',
+      lowSpace: offlineEst.value.lowSpace,
+      ready: true,
+    }
+  } catch (e) {
+    console.warn('[Offline] INF PLAY single estimate failed:', e)
+    offlineSingleEstimate.value = { size: '', lowSpace: false, ready: true }
+  }
+}
+
+// Single "Download for unlimited offline" — caches only USE audio (longest 3 per
+// LEGO) + the aux pools (pods + commentary, KEPT because INF PLAY still plays
+// pods + encouragements), then flips offline on. Reuses the EXISTING download
+// machinery: the same retry/batch loop and the cold-reopen script-cache write.
+// For INF PLAY cachedRounds is already the USE-only revival tail, so that write
+// stays correct. Mirrors downloadForOffline's structure with a different id set.
+const startOfflineDownloadInfPlay = async (): Promise<void> => {
+  showOfflinePicker.value = false
+  offlineActive.value = true
+  console.log('[LearningPlayer] Offline ON — INF PLAY USE-only (longest 3/LEGO)')
+  offlineDlState.value = 'preparing'
+  const [useIds, auxIds] = await Promise.all([
+    collectInfPlayUseAudioIds(),
+    collectAuxiliaryAudioIds(),
+  ])
+  if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // cancelled during prepare
+  const ids = [...new Set([...useIds, ...auxIds])]
+  const missing = ids.filter((id) => !audioCache.persistent.has(id))
+  offlineDlTotal.value = ids.length
+  offlineDlDone.value = ids.length - missing.length  // already-cached count toward done
+  offlineDlFailed.value = 0
+  offlineDlState.value = 'downloading'
+  console.log(`[Offline] INF PLAY USE-only: downloading ${missing.length} of ${ids.length} audio files`)
+  const concNow = () => (isPlaying.value ? 4 : 12)
+  const ensureWithRetry = async (id: string): Promise<void> => {
+    for (let attempt = 0; ; attempt++) {
+      try { await audioCache.persistent.ensure(id); return }
+      catch (err) {
+        if (attempt >= 2) throw err
+        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
+      }
+    }
+  }
+  let i = 0
+  while (i < missing.length) {
+    if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
+    const batch = missing.slice(i, i + concNow())
+    i += batch.length
+    await Promise.all(batch.map(async (id) => {
+      try { await ensureWithRetry(id); offlineDlDone.value++ }
+      catch { offlineDlFailed.value++ }
+    }))
+  }
+
+  // Persist the SCRIPT for the cold-reopen fast-path — identical to
+  // downloadForOffline. For INF PLAY cachedRounds is already the USE-only
+  // revival tail, so the cached script resumes into INF PLAY correctly.
+  try {
+    const scriptRounds = (cachedRounds.value || []) as any[]
+    if (scriptRounds.length > 0) {
+      const totalCycles = scriptRounds.reduce((s: number, r: any) => s + (r?.cycles?.length || 0), 0)
+      await setCachedScript(courseCode.value, {
+        rounds: scriptRounds,
+        totalSeeds: scriptRounds.length,
+        totalLegos: scriptRounds.length,
+        totalCycles,
+        estimatedMinutes: Math.round(totalCycles * 0.2),
+        audioMapObj: {},
+        courseWelcome: cachedCourseWelcome.value || undefined,
+      })
+      console.log(`[Offline] INF PLAY: persisted ${scriptRounds.length} rounds to script cache for cold offline reopen`)
+    }
+  } catch (e) {
+    console.warn('[Offline] INF PLAY setCachedScript during download failed (non-fatal):', e)
+  }
+
+  if (offlineDlFailed.value > 0) {
+    offlineDlState.value = 'error'
+    console.warn(`[Offline] INF PLAY incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed`)
   } else {
+    offlineDlState.value = 'complete'
+    console.log(`[Offline] INF PLAY complete: ${offlineDlDone.value}/${offlineDlTotal.value} cached`)
+    setTimeout(() => { if (offlineDlState.value === 'complete') offlineDlState.value = 'idle' }, 4000)
+  }
+}
+
+const cancelOfflinePicker = () => { showOfflinePicker.value = false }
+
+// Escape-to-close, matching every other modal in the app (ProgressModal,
+// AuthModal, …). The listener is attached only while the picker is open so it
+// never competes with the player's own keys. Keeps the input dialog dismissable
+// from the keyboard (desktop/testing), not only by the ✕ / backdrop tap.
+const onOfflinePickerKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && showOfflinePicker.value) cancelOfflinePicker()
+}
+watch(showOfflinePicker, (open) => {
+  if (open) document.addEventListener('keydown', onOfflinePickerKeydown)
+  else document.removeEventListener('keydown', onOfflinePickerKeydown)
+})
+onUnmounted(() => document.removeEventListener('keydown', onOfflinePickerKeydown))
+
+const toggleOffline = () => {
+  if (offlineActive.value) {
+    // Already on → turn off: stop serving blobs, revoke, reset.
+    offlineActive.value = false
+    showOfflinePicker.value = false
     offlineDlState.value = 'idle'
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
+    console.log('[LearningPlayer] Offline mode: OFF — stream')
+  } else {
+    // Off → open the depth picker (download starts only when a depth is chosen).
+    showOfflinePicker.value = true
+    // Refresh the slider basis FIRST (sets avgBytesPerFile), then the single
+    // INF-PLAY option's USE-only estimate which reuses that avg. Both are
+    // best-effort; the single-option estimate only surfaces when offlineSingleOption.
+    void refreshOfflineEstimates().then(() => {
+      if (offlineSingleOption.value) void refreshOfflineSingleEstimate()
+    })
   }
 }
 
@@ -8422,10 +9494,6 @@ const showPausedSummary = () => {
     auth.incrementSessionCount()
   }
 }
-
-
-// Network loading removed — see archive/brain-views branch
-const ensureNetworkLoaded = () => {}
 
 
 const handleResumeLearning = async () => {
@@ -8462,6 +9530,53 @@ const addNetworkNode = (_legoId: any, _targetText: any, _knownText: any, _beltCo
 const populateNetworkUpToRound = (_targetRoundIndex: number) => {}
 
 // ============================================
+// INF PLAY — continuous-play tail wrap (SAFETY NET)
+// ============================================
+// Primary path is GROWTH: expandScript() raises infPlayLookahead by a batch
+// while in INF PLAY, so the deterministic revival tail keeps extending forward
+// and the learner gets genuinely new rounds — the course never repeats itself.
+// The approaching-the-end watcher fires that growth ~5 rounds before the tail,
+// so in the common case continuous play never even reaches session_complete.
+//
+// This wrap is the LAST RESORT for when growth can't run: a transient online
+// generateScript failure (network blip) returns 0 rounds. Rather than dropping
+// to the paused summary, jump back to the first revival round and keep playing
+// — the auto-play analogue of the forward button's tail wrap
+// (advanceInfPlayRound). No overlay/flash — a silent continuation. (Offline is
+// handled separately/earlier by appendCachedLoopForOffline; this never runs
+// before expandScript at the call sites.)
+//
+// Historically this was the ONLY fix and ran BEFORE expandScript, because the
+// lookahead was a fixed 50 that expandScript could never grow — so the tail
+// dead-ended at the last revival round, which (since the pod cadence lands a lap
+// on that final round) showed up as "stuck right after a listening pod". With
+// growth in place that dead-end no longer happens; the wrap only catches the
+// generation-failure edge.
+//
+// Returns true if it wrapped (caller must NOT fall through to showPausedSummary).
+// No-ops (returns false) outside INF PLAY or when no revival set is loaded.
+const wrapInfPlayAtTail = (): boolean => {
+  if (currentMode.value !== 'infplay') return false
+  const mainLoopCount = mainLoopBoundary()
+  // First revival round = first index past the main loop. Guard against a
+  // not-yet-loaded main-loop count and an unloaded revival set.
+  const firstInfIdx = mainLoopCount > 0 && simplePlayer.roundCount.value > mainLoopCount
+    ? mainLoopCount
+    : -1
+  if (firstInfIdx < 0) return false
+  console.log(`[LearningPlayer] INF PLAY tail reached — wrapping to first revival round (idx ${firstInfIdx}) so play never dead-ends`)
+  // jumpToRound lands on cycle 0 with isPlaying=false (we're paused at the
+  // tail); resume() then starts the 4-phase cycle from PROMPT. The infplay
+  // round counter is bumped per round by saveRoundProgress, so we don't touch
+  // it here (advanceInfPlayRound bumps it because the button bypasses a round
+  // completion; this path doesn't).
+  sessionEnded.value = false
+  simplePlayer.jumpToRound(firstInfIdx)
+  simplePlayer.resume()
+  return true
+}
+
+// ============================================
 // PROGRESSIVE SCRIPT EXPANSION
 // The course never ends. As the learner approaches the tail of
 // cachedRounds we regenerate with a bigger endSeed — generateLearningScript
@@ -8481,9 +9596,31 @@ const expandScript = async (): Promise<number> => {
     // queued — using its length here would lead to an under-sized
     // neededEnd and miss the infinite-play threshold entirely.
     const loadedCount = simplePlayer.roundCount.value
-    const neededEnd = scriptBaseOffset.value + loadedCount + EXPANSION_BATCH
+    // INF PLAY: extend the revival tail by a batch so this regen yields NEW
+    // rounds. The generator otherwise reproduces the SAME fixed-length tail
+    // (the deterministic seeded stream), so without growing the lookahead the
+    // expansion would add nothing and play would dead-end at the tail.
+    //
+    // A simple growing COUNTER (base + batch), not a function of mainLoopCount:
+    // each expansion adds INF_PLAY_BATCH more revival rounds than the last,
+    // independent of how the generator counts its own main loop. The
+    // approaching-the-end watcher fires this ~5 rounds before the tail, so the
+    // batch lands before the learner reaches it. The first ≥ floor rounds are
+    // the SR drain (phase 1: the final LEGO's full N-1…N-89 review); everything
+    // past the drain is pure random USE (phase 2), so the tail is genuinely
+    // unbounded. Main loop leaves the lookahead at its floor — once the whole
+    // course is loaded its expandScript no-ops as before.
+    if (currentMode.value === 'infplay') {
+      const base = infPlayLookahead.value > 0 ? infPlayLookahead.value : infPlayLookaheadFloor()
+      infPlayLookahead.value = base + INF_PLAY_BATCH
+    }
     const result = await generateScript()
     const expandedRounds = toSimpleRoundsWithComponents(result.items)
+    // Single-source the boundary on the live audio-aware count. In INF PLAY the
+    // main-loop count is unchanged (we only grew the revival lookahead), but in
+    // a main-loop expand on a course whose audio'd extent grew this keeps the
+    // boundary in step with the freshly-generated script.
+    if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
     if (expandedRounds.length > loadedCount) {
       const newRounds = expandedRounds.slice(loadedCount)
       // Keep cachedRounds in sync where other consumers read from it.
@@ -8524,8 +9661,6 @@ const expandScript = async (): Promise<number> => {
 const highlightNetworkNode = (_legoId: any) => {}
 const strengthenPhrasePath = (_legoIds: any) => {}
 const handleNetworkNodeTap = async (node: any) => {
-  console.debug('[Network] Node tapped:', node.id, node.targetText)
-
   // If already playing phrases for a node, stop it
   if (isPlayingNodePhrases.value) {
     stopNodePhrasePlayback()
@@ -8542,7 +9677,6 @@ const handleNetworkNodeTap = async (node: any) => {
   // Get all practice items for this LEGO
   const roundIndex = cachedRounds.value.findIndex(r => r.legoId === node.id)
   if (roundIndex < 0) {
-    console.log('[Network] No round found for LEGO:', node.id)
     return
   }
 
@@ -8555,12 +9689,10 @@ const handleNetworkNodeTap = async (node: any) => {
   )
 
   if (practiceItems.length === 0) {
-    console.log('[Network] No practice phrases for LEGO:', node.id)
     return
   }
 
   // Start playback
-  console.log(`[Network] Playing ${practiceItems.length} phrases for ${node.targetText}`)
   isPlayingNodePhrases.value = true
   playingNodeId.value = node.id
   nodePhraseItems.value = practiceItems
@@ -8742,27 +9874,6 @@ const findResonatingNodes = (item, exactMatches) => {
 }
 
 // ============================================
-// NETWORK REVEAL HELPER
-// ============================================
-
-/**
- * Calculate how many nodes to reveal based on highestLegoId (LEGO-granular high-water mark).
- * Falls back to belt-granular completedRounds if highestLegoId not available.
- */
-const getRevealUpTo = (rounds: Array<{ legoId: string }>): number => {
-  const highestLego = beltProgress.value?.highestLegoId?.value
-  if (highestLego && rounds.length > 0) {
-    const idx = rounds.findIndex(r => r.legoId === highestLego)
-    if (idx >= 0) return Math.max(idx, currentRoundIndex.value)
-    // If exact match not found, find last node that sorts before highestLego
-    const lastBefore = rounds.reduce((best, r, i) => r.legoId <= highestLego ? i : best, -1)
-    if (lastBefore >= 0) return Math.max(lastBefore, currentRoundIndex.value)
-  }
-  // Fallback: belt-granular
-  return Math.max(completedRounds.value, currentRoundIndex.value)
-}
-
-// ============================================
 // LIFECYCLE
 // ============================================
 
@@ -8794,10 +9905,8 @@ onMounted(async () => {
   }
 
   // Load developer settings
-  showFragileProgressWarning.value = localStorage.getItem('ssi-show-fragile-warning') !== 'false'
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
-  enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
 
   // Listen for developer settings changes (from Settings screen)
   settingChangedHandler = (e: Event) => {
@@ -8805,17 +9914,11 @@ onMounted(async () => {
     if (!detail?.key) return
     
     switch (detail.key) {
-      case 'showFragileProgressWarning':
-        showFragileProgressWarning.value = detail.value
-        break
       case 'enableQaMode':
         enableQaMode.value = detail.value
         break
       case 'showDebugOverlay':
         showDebugOverlay.value = detail.value
-        break
-      case 'enableVerboseLogging':
-        enableVerboseLogging.value = detail.value
         break
       case 'adaptationConsent':
         handleAdaptationConsent(detail.value)
@@ -8852,9 +9955,20 @@ onMounted(async () => {
   // AudioCache; the SW cache stays as a network-level backstop for
   // anything neither layer has seen yet.
   if (courseCode.value) {
-    audioCacheSource = createAudioCacheSource(audioCache, courseCode.value, () => offlinePlaybackActive())
+    // buffer-model step 1b: serve cached WAV blobs ONLINE too — so warm clips
+    // (staged by the rolling filler) play from cache, which survives connection
+    // loss / lock mid-session, with the resolver's network fallback on a miss.
+    // DEFAULT ON for this feature branch: an installed PWA has no address bar, so
+    // a URL opt-in couldn't reach the real iPhone lock test. Add ?stream=1 to
+    // force the old streaming path for an A/B comparison. This branch is isolated
+    // (feat/buffer-model), so default-on only affects this preview, never main.
+    // offlinePlaybackActive() still covers the existing offline/airplane gate.
+    audioCacheSource = createAudioCacheSource(
+      audioCache, courseCode.value,
+      () => offlinePlaybackActive() || cachePlayOnline,
+    )
     audioController.value.setAudioSource(audioCacheSource)
-    console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value)
+    console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value, cachePlayOnline ? '(cache-play online: ON)' : '')
   }
 
   // Initialize belt progress (loads from localStorage, merges with Supabase)
@@ -8869,7 +9983,7 @@ onMounted(async () => {
   // Load course-wide LEGO known_text lookup (powers the hero highlight in
   // cases where the salient LEGO's round isn't in loadedRounds, especially
   // infinite-play mode). Cheap one-shot query; fire-and-forget.
-  void loadGlobalLegoKnownTexts()
+  void loadGlobalLegoTexts()
 
   // Initialize offline play composable (sets up online/offline listeners)
   offlinePlayCleanup = initializeOfflinePlay()
@@ -8915,6 +10029,12 @@ onMounted(async () => {
       // Fire-and-forget — the computed has a sensible fallback while
       // this is in flight.
       void getCourseFinalLego(courseCode.value)
+
+      // Warm the canonical main-loop round map (THE boundary source) as early
+      // as possible. Cached + shared with the instant-playback bootstrap, so
+      // this is usually a no-op cache hit. The INF-PLAY build below awaits it
+      // explicitly before reading the boundary.
+      void ensureMainLoopMap()
 
       void courseBundle.load(courseCode.value)
         .then((bundle) => {
@@ -9031,6 +10151,14 @@ onMounted(async () => {
             if (cachedScript && cachedScript.rounds.length > 0) {
               console.log(`[InstantPlayback] Cache fast-path: hydrating ${cachedScript.rounds.length} rounds from localStorage`)
               cachedRounds.value = cachedScript.rounds
+              // Single-source the boundary on the audio-aware count baked into
+              // the cache when it was written from a full generateScript. Caches
+              // written before this field existed leave it undefined → boundary
+              // falls back to the matview, as before (and self-heals on the next
+              // full-script handoff this session).
+              if (typeof cachedScript.mainLoopRoundCount === 'number' && cachedScript.mainLoopRoundCount > 0) {
+                liveMainLoopRoundCount.value = cachedScript.mainLoopRoundCount
+              }
               if (cachedScript.courseWelcome) {
                 cachedCourseWelcome.value = cachedScript.courseWelcome
               }
@@ -9063,6 +10191,12 @@ onMounted(async () => {
                   // origin / after ?reset=1) match the warm-localStorage one.
                   resumeRoundIndex = cursorIdx
                   resumeCycle = inferCursorCycle
+                  // Same gap rule on the DB-cursor path (cold localStorage):
+                  // a real break restarts the round rather than the exact cycle.
+                  if (resumeCycle > 0 && savedLastPracticedAt.value) {
+                    const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
+                    if (minutesSince >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
+                  }
                 } else {
                   const ceilingIdx = findLego(inferCeilingLegoId)
                   if (ceilingIdx >= 0) {
@@ -9114,15 +10248,25 @@ onMounted(async () => {
         // when the local build genuinely yields no revival rounds.
         if (inferEnrollmentMode === 'infplay' && !offlinePlaybackActive()) {
           try {
+            // The boundary (mainLoopBoundary) must be resolved before we index
+            // into the built script — await the canonical map here.
+            await ensureMainLoopMap()
             const infResult = await generateScript()
             const fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
-            const finalLegoRoundIdx = courseFinalLegoRef.value?.roundIndex
-              ?? (await getCourseFinalLego(courseCode.value))?.roundIndex
-              ?? null
-            const mainLoopCount = finalLegoRoundIdx !== null ? finalLegoRoundIdx + 1 : -1
-            // First revival round index in the freshly-built script. The tail
-            // sits right after the main loop; infplay_round_index is 1-based
-            // within that tail.
+            // Single-source the boundary on the audio-aware count from the build
+            // we just ran — set BEFORE the mainLoopBoundary() read below so the
+            // first-revival-round index is computed off the live extent, not the
+            // (possibly stale, non-audio-filtered) matview.
+            if (infResult.mainLoopRoundCount > 0) {
+              liveMainLoopRoundCount.value = infResult.mainLoopRoundCount
+            }
+            // Where the revival tail begins = the live main-loop boundary
+            // (the single source of truth, the SAME value the forward/back nav
+            // and tail wrap read). Must agree with nav or resume lands on a
+            // different "first revival round" than forward/back think it is.
+            const mainLoopCount = mainLoopBoundary()
+            // First revival round index. The tail sits right after the main loop;
+            // infplay_round_index is 1-based within that tail.
             const firstInfIdx = mainLoopCount > 0 && fullRounds.length > mainLoopCount
               ? mainLoopCount
               : -1
@@ -9205,7 +10349,7 @@ onMounted(async () => {
           const initialRounds = inferEnrollmentMode === 'infplay'
             ? infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
-                map.rounds[0] ? map.rounds[0].r - 1 : 0,  // mainLoopCount = absolute round - infRound
+                mainLoopBoundary(),  // boundary from the canonical round-map (single source of truth)
               )
             : backendCyclesToRounds(
                 instantPlayback.getBufferedCyclesForLego,
@@ -9335,7 +10479,7 @@ onMounted(async () => {
             void instantPlayback.prefetchNextInfPlayBatch().then(() => {
               const mapForInf = instantPlayback.roundMap.value
               if (!mapForInf) return
-              const mainLoopCount = mapForInf.rounds[0] ? mapForInf.rounds[0].r - 1 : 0
+              const mainLoopCount = mainLoopBoundary()
               const refreshedRounds = infPlayCyclesToRounds(
                 instantPlayback.infPlayCycles.value as any,
                 mainLoopCount,
@@ -9380,6 +10524,17 @@ onMounted(async () => {
                 console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on API path')
                 return
               }
+              // SINGLE-SOURCE THE BOUNDARY on the live, audio-aware extent the
+              // generator just computed. MUST run BEFORE the ∞-entry early-return
+              // below: a mid-walk INF-PLAY tap drops the rest of this handoff, but
+              // the live count is still the truth for that session and every
+              // downstream boundary read (advanceInfPlayRound, tail wrap, pod
+              // cadence) needs it set. Setting it here lets fra/spa — whose
+              // matview is frozen short of the real audio'd end — actually reach
+              // the true tail and enter INF PLAY.
+              if (result.mainLoopRoundCount > 0) {
+                liveMainLoopRoundCount.value = result.mainLoopRoundCount
+              }
               // Guard: this main-loop handoff was kicked off while the learner
               // was in MAIN. If they tapped ∞ during the multi-second walk,
               // the live queue is now the deterministic INF-PLAY revival set
@@ -9400,6 +10555,63 @@ onMounted(async () => {
               cachedRounds.value = fullRounds
               console.log(`[InstantPlayback] Full-script handoff: ${fullRounds.length} rounds local, no further per-round network needed`)
 
+              // STALE-MATVIEW RESUME REPAIR. resolveStartLegoId resolved the
+              // bootstrap landing against the course_round_index matview. For a
+              // learner whose saved cursor sits PAST a stale matview MAX (fra/spa:
+              // matview frozen short of the audio'd end), the cursor wasn't in the
+              // matview → the resolver fell to the ceiling (also past the matview →
+              // also unresolvable) → R1. The learner was stranded at the start of
+              // the course. Now that the full audio-aware script has landed,
+              // re-resolve their DB cursor (then ceiling) against fullRounds and
+              // jump there if the bootstrap landed somewhere else. Main-loop only;
+              // guarded so a learner who navigated during the multi-second walk
+              // isn't yanked, and a correct bootstrap landing is a no-op.
+              try {
+                if (inferEnrollmentMode === 'main') {
+                  const findInFull = (lego: string | null) =>
+                    lego ? fullRounds.findIndex((r: any) => r?.legoId === lego) : -1
+                  // Where the player currently sits after the queue replace
+                  // (replaceQueueFromCurrent preserves the current round).
+                  const landedLegoId = simplePlayer.currentRound?.value?.legoId ?? startedAtLegoId
+                  const landedIdx = findInFull(landedLegoId)
+                  // The learner's TRUE position: cursor first, then ceiling.
+                  let trueIdx = findInFull(inferCursorLegoId)
+                  let trueCycle = inferCursorCycle
+                  if (trueIdx < 0) {
+                    trueIdx = findInFull(inferCeilingLegoId)
+                    trueCycle = 0
+                  }
+                  // Only repair when the true position resolves in the full
+                  // script AND it's strictly AHEAD of where the bootstrap landed
+                  // (the stale-matview fallback always lands EARLIER — R1/ceiling
+                  // — never past the real cursor). Equal/behind = leave alone, so
+                  // a correct landing or a learner who stepped forward is never
+                  // disturbed.
+                  if (trueIdx >= 0 && (landedIdx < 0 || trueIdx > landedIdx)) {
+                    // Same gap rule as the other cursor-resume paths: a real
+                    // break restarts the round rather than the exact cycle.
+                    if (trueCycle > 0 && savedLastPracticedAt.value) {
+                      const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
+                      if (minutesSince >= resumeConfig.value.cycleResetMinutes) trueCycle = 0
+                    }
+                    const trueLegoId = fullRounds[trueIdx]?.legoId
+                    console.log(`[InstantPlayback] Stale-matview resume repair: bootstrap landed at ${landedLegoId} (idx ${landedIdx}); true position ${trueLegoId} (idx ${trueIdx} cycle ${trueCycle}) — jumping`)
+                    // fullRounds is now the engine's queue (post replaceQueueFromCurrent),
+                    // so trueIdx is a valid engine index — single jump, preserving the
+                    // resume cycle (jumpToLegoId can't carry a cycle).
+                    simplePlayer.jumpToRound(trueIdx, trueCycle)
+                    instantPlayback.setCurrentLegoId(trueLegoId ?? landedLegoId)
+                    if (trueLegoId && beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(trueLegoId)
+                    if (trueLegoId && beltProgress.value?.setPlayingPosition) {
+                      const seed = getSeedFromLegoId(trueLegoId)
+                      if (seed !== null) beltProgress.value.setPlayingPosition(seed)
+                    }
+                  }
+                }
+              } catch (repairErr) {
+                console.warn('[InstantPlayback] Stale-matview resume repair failed (non-fatal):', repairErr)
+              }
+
               // Cache for warm-start. Until this commit the script cache
               // was never written — setCachedScript was imported but
               // never called (lost in ff6a4756's deprecation cleanup,
@@ -9418,6 +10630,9 @@ onMounted(async () => {
                   estimatedMinutes: Math.round(result.cycleCount * 0.2),
                   audioMapObj: {},
                   courseWelcome: cachedCourseWelcome.value || undefined,
+                  // Persist the audio-aware boundary so the next warm start's
+                  // cache-fast-path single-sources it (not the stale matview).
+                  mainLoopRoundCount: result.mainLoopRoundCount,
                 })
               } catch (cacheErr) {
                 console.warn('[InstantPlayback] setCachedScript failed (non-fatal):', cacheErr)
@@ -9659,6 +10874,11 @@ onMounted(async () => {
             }
 
             if (result.items.length > 0) {
+              // Legacy fallback path (instant-playback unavailable). This still
+              // generates the full audio-aware script, so single-source the
+              // boundary on its count here too — the matview is never consulted
+              // again once this lands.
+              if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
               const simpleRounds = toSimpleRoundsWithComponents(result.items)
 
               simplePlayer.initialize(simpleRounds as any)
@@ -9683,7 +10903,9 @@ onMounted(async () => {
                 // timestamp (not auth restoration time) so a session that
                 // stays open for hours doesn't trigger a regression.
                 if (savedLastPracticedAt.value) {
-                  const daysSince = (Date.now() - savedLastPracticedAt.value.getTime()) / (1000 * 60 * 60 * 24)
+                  const msSince = Date.now() - savedLastPracticedAt.value.getTime()
+                  const daysSince = msSince / (1000 * 60 * 60 * 24)
+                  const minutesSince = msSince / (1000 * 60)
                   const ttl = resumeConfig.value
                   if (daysSince >= ttl.beltRegressionDays && resumeLegoId) {
                     // Belt regression: walk the cursor back to the start of
@@ -9719,8 +10941,8 @@ onMounted(async () => {
                         }
                       }
                     }
-                  } else if (daysSince >= ttl.cycleResetDays) {
-                    console.log(`[ResumeTTL] ${Math.round(daysSince)}d gap → cycle reset (round restart)`)
+                  } else if (minutesSince >= ttl.cycleResetMinutes) {
+                    console.log(`[ResumeTTL] ${Math.round(minutesSince)}m gap → cycle reset (round restart)`)
                     resumeCycle = 0
                   }
                 }
@@ -9856,6 +11078,11 @@ onMounted(async () => {
           console.log(`[LearningPlayer] Cached Round ${i} has ${r.items?.length} items:`, r.items?.map(it => it.type).join(', '))
         })
         cachedRounds.value = cachedScript.rounds
+        // Single-source the boundary on the cached audio-aware count when present
+        // (undefined on pre-field caches → matview fallback, as before).
+        if (typeof cachedScript.mainLoopRoundCount === 'number' && cachedScript.mainLoopRoundCount > 0) {
+          liveMainLoopRoundCount.value = cachedScript.mainLoopRoundCount
+        }
 
         // Capture course welcome if present
         if (cachedScript.courseWelcome) {
@@ -9919,10 +11146,17 @@ onMounted(async () => {
               try {
                 const savedProgress = await loadSavedProgress()
                 if (savedProgress?.lastCompletedRoundIndex !== null) {
-                  const resumeIndex = savedProgress.lastCompletedRoundIndex + 1
+                  // Position, not completion: last_completed_round_index names the
+                  // round the playhead was ON, so resume lands there directly. The
+                  // old "+1" treated it as "last finished" and skipped a round —
+                  // the bug this rarely-fired backup path used to hide. Now matches
+                  // the main instant-playback resume. Cycle isn't restored here
+                  // (lands at the round's start), which is the same as a gap-rule
+                  // round-restart and correct for any real return.
+                  const resumeIndex = savedProgress.lastCompletedRoundIndex
                   if (resumeIndex < cachedScript.rounds.length) {
                     currentRoundIndex.value = resumeIndex
-                    currentItemInRound.value = 0 // Database only stores round, not item
+                    currentItemInRound.value = 0 // round start; per-cycle precision is the main path's job
 
                     // Also set currentPlayableItem so splash screen shows correct text
                     const resumeScriptItem = cachedScript.rounds[resumeIndex]?.items?.[0]
@@ -10033,6 +11267,7 @@ onMounted(async () => {
 
           if (simpleRounds.length > 0) {
             console.log('[LearningPlayer] Legacy fallback: generated', simpleRounds.length, 'rounds')
+            if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
             cachedRounds.value = simpleRounds as any
 
             // Restore position
@@ -10134,7 +11369,6 @@ onMounted(async () => {
       // Expand script if preview index exceeds cached rounds
       if (targetIndex >= absoluteEnd && supabase?.value) {
         console.log(`[LearningPlayer] Preview ${targetIndex} exceeds cached ${absoluteEnd}, expanding...`)
-        const neededEnd = absoluteEnd + (targetIndex - absoluteEnd) + 10
         const expandResult = await generateScript()
         const expandedRounds = toSimpleRoundsWithComponents(expandResult.items)
         if (expandedRounds.length > cachedRounds.value.length) {
@@ -10184,9 +11418,12 @@ onMounted(async () => {
   // Start session timer. Tick whenever the learner is engaged with audio —
   // including listening pods and commentary, not just the cycle player. A
   // 6-minute pod lap is still 6 minutes of practice and should count.
+  // Restore (or reset) the SITTING first, per the 5-min resume window.
+  restoreSitting()
   sessionTimerInterval = setInterval(() => {
     if (isPlaying.value || playingPodLapAudio.value || playingCommentaryAudio.value) {
       sessionSeconds.value++
+      if (sessionSeconds.value % 5 === 0) saveSitting() // backstop for hard kills
     }
   }, 1000)
 
@@ -10227,6 +11464,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // Flush any batched co-fire telemetry before teardown (route change etc.).
+  void pairingsTelemetry.flush()
+  // DB-01: persist any pending mid-round cursor before teardown.
+  flushCursor()
+
   heroResizeObserver?.disconnect()
   heroResizeObserver = null
 
@@ -10276,6 +11518,7 @@ onUnmounted(() => {
   // Stop cycle playback
   stopCycle()
   if (ringAnimationFrame) cancelAnimationFrame(ringAnimationFrame)
+  saveSitting() // persist the sitting so a reopen within the window resumes it
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
 
@@ -10387,13 +11630,17 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // 2. Reset all state
   currentRoundIndex.value = 0
   currentItemInRound.value = 0
-  // Legacy items array for deprecated code paths
-  allPlayableItems.value = []
   cachedRounds.value = []
+  // Drop the previous course's LIVE boundary — it's a bare number with no
+  // course stamp, so a leftover value would mis-bound the new course until its
+  // own handoff runs. Also drop the matview map so the boundary falls back to
+  // the new course's matview/final-LEGO, not the old course's.
+  liveMainLoopRoundCount.value = null
+  mainLoopMap.value = null
   cachedCourseWelcome.value = null
   // completedRounds is computed from beltProgress, which is managed separately
   totalSeedsPlayed.value = 0
-  sessionSeconds.value = 0
+  restoreSitting() // sitting for the NEW course: continue if returned within the window, else 0:00
   welcomeChecked.value = false
   isInitialized.value = false
 
@@ -10425,6 +11672,11 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   if (cachedScript) {
     console.log('[LearningPlayer] Found cached script for new course:', cachedScript.rounds.length, 'rounds')
     cachedRounds.value = cachedScript.rounds
+    // Single-source the new course's boundary on its cached audio-aware count
+    // when present (undefined on pre-field caches → matview fallback).
+    if (typeof cachedScript.mainLoopRoundCount === 'number' && cachedScript.mainLoopRoundCount > 0) {
+      liveMainLoopRoundCount.value = cachedScript.mainLoopRoundCount
+    }
 
     if (cachedScript.courseWelcome) {
       cachedCourseWelcome.value = cachedScript.courseWelcome
@@ -10455,6 +11707,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
         { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
       )
     }
+    if (freshResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = freshResult.mainLoopRoundCount
     const freshRounds = toSimpleRoundsWithComponents(freshResult.items)
     cachedRounds.value = freshRounds as any
   }
@@ -10574,6 +11827,8 @@ defineExpose({
   handleResume,
   handleRevisit,
   handleSkip,
+  handleRoundForward,
+  handleRoundBack,
   isInListeningCycle,
   exitListeningMode,
   exitAllModes,
@@ -10591,10 +11846,6 @@ defineExpose({
   toggleOffline,
   offlineActive,
   sessionSeconds,
-  // Welcome banner (opt-in, only on first-ever course)
-  welcomeBannerVisible,
-  playCourseWelcome,
-  dismissCourseWelcome,
 })
 </script>
 
@@ -10602,20 +11853,92 @@ defineExpose({
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
   <div class="learning-player-root">
 
-  <!-- Offline download progress — shown while Offline mode prepares its span -->
-  <div v-if="offlineDownloadLabel" class="offline-dl-banner" :class="{ 'is-complete': offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
-    {{ offlineDownloadLabel }}
-  </div>
+  <!-- Offline download progress is shown as a ring on the mode button + the
+       Offline row in ModeTray (where offline was switched on), not a banner. -->
 
-  <!-- Contribution Counter - "Part of the Solution" -->
-  <ContributionCounter
-    v-if="contribution.data.value && !showSessionComplete"
-    :language-name="contribution.languageName.value"
-    :global-minutes="contribution.todayMinutes.value"
-    :user-phrases="contribution.userTodayPhrases.value"
-    :is-playing="simplePlayer.isPlaying.value"
-    @expand="showProgressModal = true"
-  />
+  <!-- Offline depth picker — "take it with you". Choose how much of the course
+       to carry; each option shows a live size estimate. -->
+  <Teleport to="body">
+    <Transition name="offline-picker">
+      <div v-if="showOfflinePicker" class="offline-picker-backdrop" @click.self="cancelOfflinePicker">
+        <div class="offline-picker" role="dialog" aria-label="Take it offline">
+          <div class="offline-picker-head">
+            <h3 class="offline-picker-title">Take it offline</h3>
+            <button class="offline-picker-close" aria-label="Close" @click="cancelOfflinePicker">✕</button>
+          </div>
+          <p class="offline-picker-sub">{{ offlineSingleOption ? 'Take the whole thing with you for endless offline play.' : (offlineAtTail ? 'How much of the course do you want to keep offline?' : "How much of what's left do you want to carry?") }}</p>
+
+          <!-- INF PLAY (or at-tail / guest-at-tail): a single download. INF PLAY
+               only recycles USE phrases, so we cache USE audio only (the longest
+               3 per LEGO) + pods/encouragements — small, and it plays forever. -->
+          <div v-if="offlineSingleOption" class="offline-single">
+            <p class="offline-depth-size">
+              <span class="offline-depth-size-mb">{{ offlineSingleEstimate.size || 'Working out size…' }}</span>
+              <span v-if="offlineSingleEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
+            </p>
+            <p class="offline-single-caption">Caches the course's key phrases so it plays on endless repeat with no signal.</p>
+            <button class="offline-depth-download" @click="startOfflineDownloadInfPlay">Download for unlimited offline</button>
+          </div>
+
+          <div v-else class="offline-depth">
+            <!-- Notched slider — fraction of the REMAINING course -->
+            <input
+              type="range"
+              class="offline-depth-slider"
+              min="0"
+              :max="OFFLINE_NOTCHES.length - 1"
+              step="1"
+              v-model.number="offlineNotchIndex"
+              :aria-valuetext="offlineSelectedLabel"
+              aria-label="How much of the remaining course to download"
+            />
+            <!-- Tick labels stay tappable for mouse/touch, but the slider above is
+                 the single canonical control: aria-hidden + tabindex -1 keeps them
+                 out of the keyboard/SR traversal so the value isn't announced twice. -->
+            <div class="offline-depth-ticks" aria-hidden="true">
+              <button
+                v-for="(n, i) in OFFLINE_NOTCHES"
+                :key="i"
+                type="button"
+                tabindex="-1"
+                class="offline-depth-tick"
+                :class="{ active: i === offlineNotchIndex }"
+                @click="offlineNotchIndex = i"
+              >{{ Math.round(n * 100) }}%</button>
+            </div>
+
+            <!-- Live cost readout for the selected notch -->
+            <p class="offline-depth-size">
+              <span class="offline-depth-size-mb">{{ offlineSelectedEstimate.size || 'Working out size…' }}</span>
+              <span v-if="offlineSelectedEstimate.lowSpace" class="offline-depth-size-low"> · running low on space</span>
+            </p>
+
+            <!-- Course-depth bar: mid-course = where you are + the new chunk you'd
+                 carry; finished/INF-PLAY = how much of the course you're keeping. -->
+            <div
+              class="offline-depth-bar"
+              role="img"
+              :aria-label="offlineCourseBar.finished
+                ? (offlineSelectedFraction >= 1 ? 'Keeps the whole course offline' : `Keeps about ${Math.round(offlineCourseBar.newPct)} percent of the course offline`)
+                : (offlineSelectedFraction >= 1 ? 'Carries everything left to learn' : `Carries you about ${Math.round(offlineCourseBar.newPct)} percent further through the course`)"
+            >
+              <div class="offline-depth-bar-done" :style="{ width: offlineCourseBar.donePct + '%' }"></div>
+              <div class="offline-depth-bar-new" :style="{ left: offlineCourseBar.donePct + '%', width: offlineCourseBar.newPct + '%' }"></div>
+            </div>
+            <p class="offline-depth-caption">
+              {{ offlineCourseBar.finished
+                ? (offlineSelectedFraction >= 1 ? 'The whole course, kept offline' : `~${Math.round(offlineCourseBar.newPct)}% of the course, kept offline`)
+                : (offlineSelectedFraction >= 1 ? 'Everything left to learn' : `New learning — carries you ~${Math.round(offlineCourseBar.newPct)}% further`) }}
+            </p>
+
+            <button class="offline-depth-download" @click="startOfflineDownload">Download</button>
+          </div>
+
+          <p class="offline-picker-note">Plays offline forever once downloaded — it keeps going on repeat with no signal.</p>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 
   <!-- Belt Skip Loading Overlay. Same overlay covers two states:
        1. belt-to-belt skip (Jumping to X belt...)
@@ -10628,7 +11951,13 @@ defineExpose({
     <!-- Suppress overlay when the INF PLAY intro is on-screen — the
          typed message IS the loading affordance; an overlay on top
          would hide it. Audio still warms up in parallel. -->
-    <div v-if="(isSkippingBelt || isWarmingUpInfPlay) && !isShowingInfPlayIntro && !isSteppingRound" class="belt-skip-overlay">
+    <!-- belt-skip no longer raises this full-screen scrim — it flashed on every
+         belt-pill/chevron jump even when instant from cache. The player never
+         remounts (v-show), and the belt colour + dialog update reactively, so a
+         belt-skip is now an in-place recolour + dialog swap. Overlay kept only
+         for the real blocking wait: INF-PLAY first-batch warmup. (Mirrors the
+         isSteppingRound suppression from 5d4177e1, extended to belt skips.) -->
+    <div v-if="isWarmingUpInfPlay && !isShowingInfPlayIntro && !isSteppingRound" class="belt-skip-overlay">
       <div class="belt-skip-spinner"></div>
       <span class="belt-skip-label">{{
         isWarmingUpInfPlay
@@ -10645,6 +11974,8 @@ defineExpose({
     v-if="contribution.data.value"
     :is-open="showProgressModal"
     :data="contribution.data.value"
+    :session-seconds="sessionSeconds"
+    :is-guest="isGuestLearner"
     :known-lang="props.course?.known_lang"
     :current-belt="playingBelt"
     :is-skipping="isSkippingBelt"
@@ -10653,7 +11984,7 @@ defineExpose({
     :highest-round="highestAbsoluteRound"
     :current-belt-index="cursorBeltIndex"
     :highest-belt-index="highestBeltIndex"
-    :is-infplay="currentMode === 'infplay'"
+    :is-infplay="isInfPlayActive"
     :is-offline="offlinePlaybackActive()"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
@@ -10724,6 +12055,7 @@ defineExpose({
       :components="isIntroOrDebutPhase ? displayedComponents : undefined"
       :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
       :cycle-type="simplePlayer.currentCycle.value?.type"
+      :show-romanization="showRomanization"
     />
 
 
@@ -10731,15 +12063,9 @@ defineExpose({
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
 
       <!-- Main Text Box (with integrated hint) -->
-      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-review': isReviewCycle }">
-        <!-- Phrase-mode legend: a quiet word naming what this phrase is
-             (PRACTISING / REVIEWING), colour-matched to the dialog tint. -->
-        <div v-if="showPhraseModeLabel" class="phrase-mode-label"
-             :class="{ 'is-reviewing': phraseModeLabel === 'REVIEWING' }">
-          {{ phraseModeLabel }}
-        </div>
+      <div class="hero-glass" :class="{ 'is-speaking': currentPhase === 'speak' && showLearningHint && !isIntroPhase, 'is-interjection': showInterjection }">
         <!-- Inline learning hint label -->
-        <div v-if="showLearningHint && !isIntroPhase" class="hero-hint-label">
+        <div v-if="showLearningHint && !isIntroPhase && !showInterjection" class="hero-hint-label">
           <span class="hint-text">{{ phaseInstruction }}</span>
           <button class="hint-dismiss" @click.stop="dismissLearningHint" title="Hide hints">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -10748,8 +12074,27 @@ defineExpose({
           </button>
         </div>
 
+        <!-- INTERJECTION MODE: between-rounds encouragement / instruction.
+             The display follows the AUDIO — never the next LEGO (which the
+             engine has queued but not started). Encouragement → wordless
+             rotating strength/learning icon; instruction → a short sciencey
+             caption. -->
+        <template v-if="showInterjection">
+          <!-- "Your guide is speaking": one model for all interjections, since
+               both instruction and encouragement are Aran's voice. A synthetic
+               (NOT audio-reactive — that'd tap the element and risk lock) wave
+               that reads as live voice. Instructions also keep their short
+               caption; encouragements are wave-only. -->
+          <div class="interjection-display" :class="`is-${currentCommentaryType}`">
+            <div class="interjection-wave" aria-label="Your guide is speaking" role="img">
+              <span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span><span class="wbar"></span>
+            </div>
+            <div v-if="currentCommentaryType === 'instruction'" class="interjection-caption">{{ currentInstructionCaption }}</div>
+          </div>
+        </template>
+
         <!-- INTRO MODE: Typewriter-style encouraging message -->
-        <template v-if="isIntroPhase && !isAwakening">
+        <template v-else-if="isIntroPhase && !isAwakening">
           <div class="intro-display">
             <div class="intro-typewriter">
               <span class="intro-prefix">›</span>
@@ -10780,12 +12125,7 @@ defineExpose({
               <p v-else-if="inListeningContext" class="hero-known listening-pedagogy">
                 {{ passiveListeningHint }}
               </p>
-              <p v-else class="hero-known">
-                <template v-if="salientKnownParts">
-                  <span class="hero-known-context">{{ salientKnownParts.prefix }}</span><span class="hero-known-salient">{{ salientKnownParts.match }}</span><span class="hero-known-context">{{ salientKnownParts.suffix }}</span>
-                </template>
-                <template v-else>{{ displayedKnownText }}</template>
-              </p>
+              <p v-else class="hero-known">{{ displayedKnownText }}</p>
             </div>
           </div>
         </template>
@@ -10796,7 +12136,19 @@ defineExpose({
            continuous shape reads as "one cycle, four stages". Sits below
            the hero glass card. pointer-events: auto overrides the
            .hero-text-pane parent's pointer-events: none. -->
-      <div v-if="showPhaseStrip" class="phase-strip" role="group" aria-label="Cycle phases">
+      <div v-if="showPhaseStrip" class="phase-row">
+        <button
+          type="button"
+          class="belt-header-skip phase-cycle-skip"
+          @click="handleRevisit"
+          title="Previous cycle"
+          aria-label="Previous cycle"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <div class="phase-strip" role="group" aria-label="Cycle phases">
         <button
           type="button"
           class="phase-segment phase-segment--prompt"
@@ -10847,6 +12199,18 @@ defineExpose({
             <path d="M5 21v-1.5a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5V21"/>
           </svg>
           <span class="phase-segment-num">2</span>
+        </button>
+        </div>
+        <button
+          type="button"
+          class="belt-header-skip phase-cycle-skip"
+          @click="handleSkip"
+          title="Next cycle"
+          aria-label="Next cycle"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </button>
       </div>
 
@@ -11088,10 +12452,10 @@ defineExpose({
           <button
             class="belt-header-skip belt-header-skip--back"
             :class="{ 'is-skipping': isSkippingBelt }"
-            @click="handleRoundBack"
-            :disabled="simplePlayer.roundIndex.value === 0 && simplePlayer.cycleIndex.value === 0 && currentMode !== 'infplay'"
-            :title="currentMode === 'infplay' ? 'Leave INF PLAY — back to the previous LEGO' : 'Restart this LEGO (again to step back)'"
-            :aria-label="currentMode === 'infplay' ? 'Leave infinite play, back to the previous LEGO' : 'Restart this LEGO; press again to step back to the previous LEGO'"
+            @click="handleSkipToPrevBelt"
+            :disabled="playingBelt.index === 0 && simplePlayer.roundIndex.value === 0 && !isInfPlayActive"
+            :title="isInfPlayActive ? 'Leave INF PLAY — back to your current belt' : 'Restart this belt (again for the previous belt)'"
+            :aria-label="isInfPlayActive ? 'Leave infinite play, back to your current belt' : 'Restart the current belt; press again to step back to the previous belt'"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false">
               <polyline points="11 17 6 12 11 7"/>
@@ -11106,13 +12470,13 @@ defineExpose({
                in all states. -->
           <button
             class="belt-timer-unified"
-            :class="{ 'is-infplay': currentMode === 'infplay' }"
-            :title="currentMode === 'infplay'
+            :class="{ 'is-infplay': isInfPlayActive }"
+            :title="isInfPlayActive
               ? `In INF PLAY (round ${infplayRoundIndex}) — tap to jump to a belt`
               : (!nextBelt
                   ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved! Tap to jump to a belt`
                   : `${Math.round(beltProgressPercent)}% to ${nextBelt.name} belt — tap to jump to a belt`)"
-            :aria-label="currentMode === 'infplay'
+            :aria-label="isInfPlayActive
               ? `Infinite play, round ${infplayRoundIndex}. Tap to jump to a belt.`
               : (!nextBelt
                   ? `${currentBelt.name[0].toUpperCase() + currentBelt.name.slice(1)} belt achieved. Tap to jump to a belt.`
@@ -11120,7 +12484,7 @@ defineExpose({
             @click="handleBeltPillTap"
           >
             <!-- INF PLAY: ∞ glyph, no progress line. Main loop: progress bar. -->
-            <svg v-if="currentMode === 'infplay'" class="belt-infplay-glyph"
+            <svg v-if="isInfPlayActive" class="belt-infplay-glyph"
                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
               <path d="M5.5 12 C5.5 9 7 7 9.5 7 C12 7 13.5 9 14.5 12 C15.5 15 17 17 18.5 17 C20 17 21.5 15 21.5 12 C21.5 9 20 7 18.5 7 C17 7 15.5 9 14.5 12 C13.5 15 12 17 9.5 17 C7 17 5.5 15 5.5 12 Z"/>
@@ -11140,17 +12504,18 @@ defineExpose({
           <button
             class="belt-header-skip belt-header-skip--forward"
             :class="{ 'is-skipping': isSkippingBelt }"
-            @click="handleRoundForward"
-            :title="currentMode === 'infplay'
-              ? `In INF PLAY (round ${infplayRoundIndex}) — next review round`
+            @click="handleSkipToNextBelt"
+            :disabled="isInfPlayActive"
+            :title="isInfPlayActive
+              ? 'INF PLAY is the end of the course — there is no next belt'
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY — random review of everything you have learned'
-                  : 'Next LEGO')"
-            :aria-label="currentMode === 'infplay'
-              ? `Infinite play, round ${infplayRoundIndex}. Next review round.`
+                  : 'Next belt')"
+            :aria-label="isInfPlayActive
+              ? 'Infinite play is the end of the course. There is no next belt.'
               : (wouldEnterInfplay
                   ? 'Enter INF PLAY: random review of everything you have learned'
-                  : 'Next LEGO')"
+                  : 'Next belt')"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  aria-hidden="true" focusable="false">
@@ -11212,38 +12577,6 @@ defineExpose({
 
     <!-- NETWORK THEATER - The brain visualization fills this space -->
     <section ref="networkTheaterRef" class="network-theater">
-      <!-- Session Points Counter - HIDDEN (belt progression system is used instead) -->
-      <!-- Points are still calculated internally for reward words but not shown to users -->
-      <!--
-      <div v-if="sessionPoints > 0" class="session-points-display" :class="{ 'has-multiplier': sessionMultiplier > 1 }">
-        <span v-if="sessionMultiplier > 1" class="session-multiplier-indicator" title="Turbo bonus active">×</span>
-        <span class="session-points-value">{{ sessionPoints }}</span>
-        <span class="session-points-label">pts</span>
-      </div>
-      -->
-
-      <!-- Progress Warning Overlay - shown for guest users (can be toggled in Settings > Developer) -->
-      <div v-if="shouldShowProgressWarning" class="progress-warning-overlay">
-        <div class="progress-warning-content">
-          <div class="progress-warning-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </div>
-          <h3 class="progress-warning-title">Your progress is fragile</h3>
-          <p class="progress-warning-text">
-            Create an account or sign-in to store your progress in our database.
-          </p>
-          <div class="progress-warning-actions">
-            <button class="progress-warning-btn progress-warning-btn--primary" @click="openAuth()">
-              Sign in to save
-            </button>
-          </div>
-        </div>
-      </div>
-
       <!-- Debug Overlay - shows current phase, round, LEGO info (can be toggled in Settings > Developer) -->
       <div v-if="showDebugOverlay" class="debug-overlay">
         <div class="debug-info">
@@ -11321,12 +12654,7 @@ defineExpose({
             {{ displayedKnownText }}
             <span class="listening-speed-badge" aria-label="Playback speed">{{ listeningPlaybackSpeed === 1.0 ? '1x' : '2x' }}</span>
           </p>
-          <p v-else class="known-text">
-            <template v-if="salientKnownParts">
-              <span class="hero-known-context">{{ salientKnownParts.prefix }}</span><span class="hero-known-salient">{{ salientKnownParts.match }}</span><span class="hero-known-context">{{ salientKnownParts.suffix }}</span>
-            </template>
-            <template v-else>{{ displayedKnownText }}</template>
-          </p>
+          <p v-else class="known-text">{{ displayedKnownText }}</p>
         </div>
 
         <!-- Guest progress warning -->
@@ -11447,17 +12775,6 @@ defineExpose({
       :current-target="visibleTexts.target"
       :qa-mode="shouldShowQaMode"
     />
-
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: `${sessionProgress * 100}%` }"></div>
-      </div>
-      <div class="footer-stats">
-        <span>{{ itemsPracticed }} / {{ sessionItems.length }}</span>
-        <span v-if="learningSession.isDemoMode.value" class="demo-badge">Demo Mode</span>
-      </div>
-    </footer>
 
   </div>
 
@@ -11612,28 +12929,215 @@ defineExpose({
   overflow: hidden;
 }
 
-/* Offline download progress banner — top-centre, above all play surfaces */
-.offline-dl-banner {
+/* Offline depth picker ("take it with you") */
+.offline-picker-backdrop {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 200;
-  max-width: calc(100vw - 32px);
-  padding: 8px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.78);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-  pointer-events: none;
+  inset: 0;
+  /* Above the bottom-nav / belt-skip / paywall layer (all z-index:3000) so the
+     input dialog is ALWAYS reachable — even if some nav-layer surface is open,
+     it can never paint over the picker. Stays below the deliberately top-most
+     system prompts (PWA update, install banner). The mode tray also closes
+     itself on the offline tap, so in practice the picker is the only popup. */
+  z-index: 3100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
-.offline-dl-banner.is-complete { background: rgba(22, 130, 70, 0.9); }
-.offline-dl-banner.is-error { background: rgba(150, 40, 40, 0.9); }
+.offline-picker {
+  width: 100%;
+  max-width: 340px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border-radius: 18px;
+  padding: 18px 18px 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  /* Never taller than the viewport. The header (title + ✕) and the note stay
+     pinned; only the options list scrolls — so on a short/landscape screen every
+     control, including the close button, stays reachable. Requirement: the input
+     dialog must ALWAYS be accessible. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 48px);
+}
+.offline-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.offline-picker-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2622;
+}
+.offline-picker-close {
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1;
+  color: #9a948e;
+  cursor: pointer;
+  padding: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+.offline-picker-sub {
+  margin: 4px 0 14px;
+  font-size: 13px;
+  color: #6b6560;
+  flex-shrink: 0;
+}
+/* Offline depth — notched slider + course-depth bar (replaces the option list) */
+.offline-depth {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Stay scrollable inside the height-capped dialog (close button + note remain
+     pinned; this region scrolls if it ever overflows a short/landscape screen). */
+  overflow-y: auto;
+  min-height: 0;
+}
+.offline-depth-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;             /* comfortable hit area around the 4px track */
+  margin: 2px 0 0;
+  background: transparent;
+  cursor: pointer;
+}
+.offline-depth-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.offline-depth-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;         /* centre the 22px thumb on the 4px track */
+  border-radius: 50%;
+  background: #16a34a;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.offline-depth-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.14);
+}
+.offline-depth-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #16a34a;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.offline-depth-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); }
+.offline-depth-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.35); }
+.offline-depth-ticks {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin-top: -2px;
+}
+.offline-depth-tick {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #9a948e;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.offline-depth-tick.active { color: #16a34a; }
+.offline-depth-size {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2b2622;
+  text-align: center;
+}
+.offline-depth-size-low { font-weight: 600; color: #c2410c; }
+.offline-depth-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+.offline-depth-bar-done {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.22);   /* already learned / behind the cursor */
+}
+.offline-depth-bar-new {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: #16a34a;               /* the new chunk this download carries */
+  transition: left 0.15s ease, width 0.15s ease;
+}
+.offline-depth-caption {
+  margin: 0;
+  font-size: 11.5px;
+  color: #9a948e;
+  text-align: center;
+}
+/* INF PLAY single "Download for unlimited offline" — same column layout as the
+   depth picker, minus the slider/bar. */
+.offline-single {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.offline-single-caption {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #9a948e;
+  text-align: center;
+}
+.offline-depth-download {
+  margin-top: 2px;
+  width: 100%;
+  padding: 13px 15px;
+  border: none;
+  border-radius: 12px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.offline-depth-download:hover { background: #15903f; }
+.offline-depth-download:active { transform: scale(0.99); }
+.offline-picker-note {
+  margin: 14px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #9a948e;
+  flex-shrink: 0;
+}
+.offline-picker-enter-active,
+.offline-picker-leave-active { transition: opacity 0.2s ease; }
+.offline-picker-enter-from,
+.offline-picker-leave-to { opacity: 0; }
+.offline-picker-enter-active .offline-picker,
+.offline-picker-leave-active .offline-picker { transition: transform 0.2s ease; }
+.offline-picker-enter-from .offline-picker,
+.offline-picker-leave-to .offline-picker { transform: translateY(12px) scale(0.97); }
 
 .player {
   /* ════════════════════════════════════════════════════════════════════════════
@@ -11654,13 +13158,36 @@ defineExpose({
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
+  /* ============ HERO CONSTRUCTION GRID ============
+   * The whole top section is built from ONE base unit. Everything derives, so
+   * the single breakpoint just swaps --u (4px mobile → 5px desktop) and the
+   * proportions hold. Ratios:
+   *   pill height   = 8u   (belt pill, phase pill, AND the flanking round
+   *                         buttons — so each row is one clean band)
+   *   pill radius   = 4u   (= height/2 → true stadium ends; buttons are
+   *                         circles of the same radius → one family)
+   *   row h-gap     = 2u   (round button ↔ pill)
+   *   vertical rhythm = 5u (title↔belt = belt↔dialog = dialog↔phase, all equal)
+   *   title slot    = 7u   (the logo's line box)
+   * The painting is a full-bleed backdrop, so the stack can sit anywhere — we
+   * just lay it on the grid from the top. */
+  --u: 4px;
+  --pill-height: calc(8 * var(--u));     /* 32px mobile / 40px desktop */
+  --pill-radius: calc(4 * var(--u));     /* 16 / 20 — stadium + matching circles */
+  --hero-gap: calc(5 * var(--u));        /* 20 / 25 — the one vertical rhythm */
+  --title-slot: calc(7 * var(--u));      /* 28 / 35 — logo line box */
+
   /* ============ LAYOUT STRUCTURE ============ */
-  --header-height: 72px;
+  /* Header height is now an HONEST sum of its parts (top padding + title +
+   * rhythm + pill), not a hardcoded guess — so --hero-offset is the TRUE
+   * belt→dialog gap. (Old --header-height: 72px under-reported the real ~87px,
+   * which is why the gaps never matched their tokens.) */
+  --header-height: calc(var(--space-lg) + var(--title-slot) + var(--hero-gap) + var(--pill-height));
   --header-total: calc(var(--header-height) + var(--safe-area-top));
   --nav-height: 80px;
   --nav-total: calc(var(--nav-height) + var(--safe-area-bottom));
   --control-bar-bottom: var(--nav-total);
-  --hero-offset: 24px;
+  --hero-offset: var(--hero-gap); /* belt pill → dialog box = one rhythm unit */
   --hero-top: calc(var(--header-total) + var(--hero-offset));
 
   /* ============ SPACING SCALE ============ */
@@ -11706,10 +13233,13 @@ defineExpose({
 
   /* ============ HEADER ============ */
   --header-padding: var(--space-md) var(--space-lg) var(--space-sm);
-  --belt-row-gap: 0.5rem;
+  --belt-row-gap: calc(2 * var(--u)); /* round button ↔ pill = 2u (8 / 10) */
   --belt-timer-width: 180px;
   --belt-bar-width: 60px;
   --belt-bar-height: 5px;
+  /* --pill-height + --pill-radius now live in the HERO CONSTRUCTION GRID above
+   * (8u tall, 4u radius). Belt pill, phase pill, and the flanking round buttons
+   * all consume --pill-height so the rows are one band by construction. */
 
   /* ============ RING / TEXT ZONE ============ */
   --ring-size: 180px;
@@ -12010,7 +13540,7 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: calc(var(--space-sm) + var(--safe-area-top)) var(--space-lg) 0;
+  padding: calc(var(--space-lg) + var(--safe-area-top)) var(--space-lg) 0; /* more island -> logo clearance (was --space-sm; looked flush to the Dynamic Island) */
   pointer-events: auto;
   min-height: var(--header-height);
 }
@@ -12024,7 +13554,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--hero-gap); /* title → belt pill — one rhythm unit (5u) */
   width: 100%;
   max-width: 400px;
 }
@@ -12037,6 +13567,12 @@ defineExpose({
   letter-spacing: -0.02em;
   white-space: nowrap;
   flex-shrink: 0;
+  /* Occupy a defined 7u band (like the pills are 8u), logo centred in it — so
+     --header-height is an exact sum of grid bands, not font-metric guesswork. */
+  height: var(--title-slot);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-say, .logo-in { color: var(--accent); }
@@ -12107,160 +13643,10 @@ defineExpose({
   50% { opacity: 0.4; }
 }
 
-.session-timer {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: 'Space Mono', monospace;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border-radius: 100px;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.session-timer:hover {
-  background: var(--bg-elevated);
-  border-color: var(--accent);
-  color: var(--text-primary);
-}
-
-.session-timer:hover .timer-end-icon {
-  opacity: 1;
-  color: var(--accent);
-}
-
-.timer-end-icon {
-  width: 14px;
-  height: 14px;
-  opacity: 0.5;
-  transition: all 0.2s ease;
-}
-
-.timer-value {
-  font-variant-numeric: tabular-nums;
-}
-
-.theme-toggle {
-  width: 48px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: var(--bg-card);
-  border-radius: 100px;
-  cursor: pointer;
-  position: relative;
-  border: 1px solid var(--border-subtle);
-}
-
-.toggle-track {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--accent);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.toggle-thumb.light {
-  transform: translateX(20px);
-  background: var(--gold);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-/* ============ BELT NAVIGATION HEADER ============ */
-.belt-nav-header {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.belt-nav-header-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  padding: 0;
-}
-
-.belt-nav-header-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
-.belt-nav-header-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--belt-color, var(--text-primary));
-}
-
-.belt-nav-header-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Forward button shows next belt color */
-.belt-nav-header-btn--forward {
-  color: var(--next-belt-color, var(--text-muted));
-}
-
-.belt-nav-header-btn--forward:hover:not(:disabled) {
-  color: var(--next-belt-color, var(--text-primary));
-}
-
-/* Back button shows target belt color */
-.belt-nav-header-btn--back {
-  color: var(--back-belt-color, var(--text-muted));
-}
-
-.belt-nav-header-btn--back:hover:not(:disabled) {
-  color: var(--back-belt-color, var(--text-primary));
-}
-
 /* Belt skip processing animation */
 @keyframes belt-skip-flash {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
-}
-
-.belt-nav-header-btn.is-skipping {
-  animation: belt-skip-flash 0.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.belt-nav-header-btn--forward.is-skipping {
-  color: var(--next-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.belt-nav-header-btn--back.is-skipping {
-  color: var(--back-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.1);
 }
 
 /* ============ BELT ROW ============ */
@@ -12273,15 +13659,18 @@ defineExpose({
   padding: 0 var(--space-sm);
 }
 
-/* Belt skip buttons */
+/* Belt skip buttons — diameter LOCKED to the pill height so the round
+   buttons and the pill form one uniform-height band (was 36 vs 33px pill,
+   which made them bulge above/below). The circle's radius then equals the
+   pill's stadium radius → one family. */
 .belt-header-skip {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: var(--pill-height);
+  height: var(--pill-height);
+  min-width: var(--pill-height);
   border-radius: 50%;
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
-  color: var(--skip-belt-color, var(--text-muted));
+  color: var(--text-muted);
   opacity: 0.7;
   cursor: pointer;
   display: flex;
@@ -12301,8 +13690,7 @@ defineExpose({
   opacity: 1;
   transform: scale(1.1);
   background: rgba(255, 255, 255, 0.10);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
-              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-glow)) 20%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .belt-header-skip:disabled {
@@ -12374,12 +13762,13 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  padding: 6px 12px 6px 16px;
+  height: var(--pill-height);
+  padding: 0 12px 0 16px;
   background: color-mix(in srgb, var(--belt-color) 70%, rgba(0,0,0,0.3));
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 20px;
+  border-radius: var(--pill-radius); /* stadium — matches the round buttons + phase pill */
   transition: all 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   flex: 1;
@@ -12412,7 +13801,7 @@ defineExpose({
 
 .belt-timer-label {
   font-family: 'Space Mono', monospace;
-  font-size: clamp(0.75rem, 2vw, 0.875rem);
+  font-size: clamp(0.875rem, 2.4vw, 1.0625rem); /* slightly bigger m:ss — reads as the session stat */
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
   font-variant-numeric: tabular-nums;
@@ -12422,7 +13811,7 @@ defineExpose({
 }
 
 /* INF-PLAY indicator state for the CENTRAL belt-progress pill.
- * When currentMode === 'infplay' the pill changes colour (purple
+ * When isInfPlayActive the pill changes colour (purple
  * gradient), THROBS, and shows an ∞ glyph instead of the progress line.
  * Tom: the ∞ indicator moved OFF the forward chevron ONTO this pill. */
 .belt-timer-unified.is-infplay {
@@ -12438,19 +13827,6 @@ defineExpose({
   min-width: var(--belt-bar-width);
   height: 20px;
   color: #ffffff;
-}
-
-/* Legacy styles kept for backwards compatibility */
-.belt-progress-btn {
-  display: none; /* Hidden - replaced by belt-timer-unified */
-}
-
-.belt-bar-label {
-  display: none; /* Hidden - replaced by belt-timer-label */
-}
-
-.belt-inline-timer {
-  display: none; /* Hidden - timer now always visible in belt-timer-label */
 }
 
 /* ============ FULLSCREEN NETWORK LAYOUT ============ */
@@ -12535,14 +13911,6 @@ defineExpose({
   margin: 0 0 12px 0;
 }
 
-.progress-warning-cta {
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: #e8a87c;
-  margin: 0 0 28px 0;
-  font-weight: 500;
-}
-
 .progress-warning-actions {
   display: flex;
   flex-direction: column;
@@ -12575,22 +13943,6 @@ defineExpose({
 
 .progress-warning-btn--primary:active {
   transform: translateY(0);
-}
-
-.progress-warning-btn--secondary {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.progress-warning-btn--secondary:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.3);
-  color: rgba(255, 255, 255, 0.95);
-}
-
-.progress-warning-btn--secondary:active {
-  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Debug Overlay - Developer tool for showing current state */
@@ -12642,57 +13994,6 @@ defineExpose({
   margin-top: 0;
   padding-top: 0;
   border-top: none;
-}
-
-/* Layout Mode Toggle Button */
-.layout-toggle-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.layout-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0.35);
-}
-
-.layout-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-.layout-toggle-btn .layout-icon {
-  font-size: 14px;
-  opacity: 0.7;
-}
-
-.layout-toggle-btn .layout-label {
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Adjust toggle position based on layout mode to avoid overlap */
-.player:has(.control-pane.layout-subtitle) .layout-toggle-btn,
-.player:has(.control-pane.layout-floating) .layout-toggle-btn,
-.player:has(.control-pane.layout-minimal) .layout-toggle-btn {
-  bottom: 80px;
 }
 
 .control-pane {
@@ -13113,49 +14414,6 @@ defineExpose({
   letter-spacing: 0.3em;
 }
 
-/* Component breakdown tiles for M-type LEGOs */
-.pane-components {
-  margin-top: 1rem;
-}
-
-.components-tiles {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.component-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0.4rem 0.75rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.component-tile-target {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--belt-color, rgba(251, 191, 36, 0.9));
-  line-height: 1.3;
-}
-
-.component-tile-known {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.3;
-}
-
-.component-plus {
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.3);
-  font-weight: 300;
-}
-
 /* Hidden ring reference (for backwards compatibility) */
 .ring-reference {
   position: absolute;
@@ -13209,36 +14467,6 @@ defineExpose({
   /* Fill parent width - parent handles max-width */
   width: 100%;
   overflow: hidden;
-  /* Ease the REVIEW tint in/out between cycles rather than snapping. */
-  transition: background 0.4s ease, border-color 0.4s ease;
-}
-
-/* REVIEW cue — a spaced-rep revisit of an earlier LEGO. A faint warm wash on
-   the dialog glass ("you've met this before"). Deliberately NOT a belt hue or
-   the INF-PLAY red — a neutral-warm gold so it never reads as a belt or mode.
-   Very subtle by design; tune the alphas if it wants more/less presence. */
-.hero-glass.is-review {
-  background: rgba(212, 168, 83, 0.09);
-  border-color: rgba(212, 168, 83, 0.4);
-}
-
-/* Phrase-mode legend (PRACTISING / REVIEWING). Quiet by design: small, spaced
-   caps, very low-contrast for PRACTISING so it barely registers; gold + a touch
-   more present for REVIEWING since that's the meaningful one. Eased so it shifts
-   gently between cycles. (Single theme now — light/mist — so a plain rule is
-   the live style; no dark-theme counterpart needed.) */
-.phrase-mode-label {
-  font-size: 0.625rem;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-align: center;
-  color: rgba(60, 50, 40, 0.32);
-  transition: color 0.4s ease;
-  user-select: none;
-}
-.phrase-mode-label.is-reviewing {
-  color: rgba(176, 132, 50, 0.9);
 }
 
 /* Glass pane is hidden during intro - this rule kept for any edge cases */
@@ -13292,15 +14520,82 @@ defineExpose({
   51%, 100% { opacity: 0; }
 }
 
+/* Interjection display — shown while a between-rounds encouragement /
+   instruction plays. Calm, content-free reassurance keyed to the belt accent;
+   never the next LEGO's text. */
+.interjection-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 1.5rem 2rem;
+  min-height: 80px;
+}
+/* Synthetic voice waveform — five bars with a gentle staggered rise/fall.
+   Reads as "your guide is talking", identical every time so it never becomes
+   distracting content. NOT driven by the real audio (no AnalyserNode tap on
+   the <audio> element — that risks iOS lock/background stability). */
+.interjection-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+  animation: interjection-in 320ms ease-out;
+}
+.interjection-wave .wbar {
+  width: 5px;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--belt-color, #b08968);
+  opacity: 0.5;
+  transform: scaleY(0.3);
+  transform-origin: center;
+  animation: wave-bar 1.5s ease-in-out infinite;
+}
+.interjection-wave .wbar:nth-child(1) { animation-delay: 0s; }
+.interjection-wave .wbar:nth-child(2) { animation-delay: 0.18s; }
+.interjection-wave .wbar:nth-child(3) { animation-delay: 0.36s; }
+.interjection-wave .wbar:nth-child(4) { animation-delay: 0.24s; }
+.interjection-wave .wbar:nth-child(5) { animation-delay: 0.42s; }
+@keyframes wave-bar {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+  50%      { transform: scaleY(1);   opacity: 0.9; }
+}
+/* The whole box breathes softly while the guide speaks — "comes alive". */
+.hero-glass.is-interjection {
+  animation: hero-throb 3.4s ease-in-out infinite;
+}
+@keyframes hero-throb {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.015); }
+}
+.interjection-caption {
+  font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  font-size: var(--text-base);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--belt-color, #b08968);
+  opacity: 0.9;
+  animation: interjection-in 360ms ease-out;
+}
+@keyframes interjection-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
 .hero-text-known,
 .hero-text-target {
   text-align: center;
 }
 
+/* Uniform bold (Tom 2026-06-07): the whole known phrase reads at one bold
+   weight — the old salient-substring emphasis + context fade is gone. */
 .hero-known {
   font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
   font-size: var(--known-text-size);
-  font-weight: 400;
+  font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
   line-height: 1.5;
@@ -13308,22 +14603,6 @@ defineExpose({
   overflow-wrap: break-word;
   word-break: break-word;
   max-width: 100%;
-}
-
-/* Inline emphasis on the substring matching the current cycle's salient
-   LEGO's known text. Couples to the salient tile below — same weight-
-   bump + context-fade treatment so the learner sees "this English bit
-   = this target tile" without the red wash that broke long phrases.
-   Tom 2026-05-21. */
-.hero-known-salient {
-  font-weight: 600;
-}
-.hero-known-context {
-  /* Tom 2026-05-22: 0.72 was still too sharp on the known side — most of
-   * the known text is context, and the salient match is usually a couple
-   * of words. Softer fade keeps the bump perceptible without making the
-   * surrounding English read as dimmed. Target side stays unchanged. */
-  opacity: 0.85;
 }
 
 /* Listening pedagogy — calmer, italic, slightly smaller. The learner is
@@ -13356,64 +14635,6 @@ defineExpose({
 }
 
 /* Voice 2 phase: known text stays visible, target appears below */
-
-/* Timing ring - REMOVED (keeping CSS for cleanup later) */
-.hero-timing-ring {
-  display: none; /* Removed - distracting */
-  position: absolute;
-  inset: -8px;
-  width: calc(100% + 16px);
-  height: calc(100% + 16px);
-  pointer-events: none;
-}
-
-.timing-ring-track {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.06);
-  stroke-width: 2;
-}
-
-.timing-ring-progress {
-  fill: none;
-  stroke: var(--belt-color, #c23a3a);
-  stroke-width: 2;
-  stroke-dasharray: 688; /* Perimeter of rounded rect */
-  stroke-dashoffset: 688; /* Start hidden */
-  stroke-linecap: round;
-  opacity: 0.6;
-  transition: stroke-dashoffset 0.3s ease;
-}
-
-/* Phase-based progress animation */
-.timing-ring-progress.prompt {
-  stroke-dashoffset: 516; /* 25% visible */
-  animation: timing-pulse 2s ease-in-out;
-}
-
-.timing-ring-progress.speak {
-  stroke-dashoffset: 344; /* 50% visible */
-  animation: timing-fill 4s linear forwards;
-}
-
-.timing-ring-progress.voice_1 {
-  stroke-dashoffset: 172; /* 75% visible */
-}
-
-.timing-ring-progress.voice_2 {
-  stroke-dashoffset: 0; /* 100% visible */
-  stroke: var(--belt-color, #c23a3a);
-  opacity: 0.8;
-}
-
-@keyframes timing-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.7; }
-}
-
-@keyframes timing-fill {
-  from { stroke-dashoffset: 516; }
-  to { stroke-dashoffset: 172; }
-}
 
 /* ============ INLINE HINT LABEL (inside hero-glass) ============ */
 .hero-hint-label {
@@ -13492,25 +14713,41 @@ defineExpose({
  * pointer-events: none — otherwise the buttons inherit pass-through
  * and clicks never reach them.
  */
+/* Phase row mirrors the belt row exactly; the phase pill takes the belt pill's
+   box (.belt-timer-unified): flex:1 width (no cap), 6px vertical padding, 20px
+   radius, content-driven height — so it's pixel-identical to the belt pill and
+   comes out that "tiny bit smaller" than the 36px buttons, just like the belt
+   pill does. Tom 2026-06-01 (rebuild). */
+.phase-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--belt-row-gap);
+  width: 100%;
+  padding: 0 var(--space-sm);
+  margin: var(--hero-gap) auto 0; /* dialog box → phase pill — one rhythm unit (5u) */
+}
 .phase-strip {
   display: flex;
   align-items: stretch;
-  height: 40px;
-  width: 100%;
-  max-width: 340px;
-  margin: var(--space-md) auto 0;
-  /* iOS-character white pill — matches .hero-glass and .component-tile
-   * mist treatment so the phase strip reads as part of the same family
-   * of white-card components on the page. */
+  flex: 1;
+  min-width: 0;
+  height: var(--pill-height);
+  padding: 0;
   background: #ffffff;
-  border: 1.5px solid rgba(0, 0, 0, 0.35);
-  border-radius: 999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35); /* match belt pill border (default theme) */
+  border-radius: var(--pill-radius); /* stadium — matches belt pill + round buttons */
   box-shadow:
     0 2px 4px rgba(44, 38, 34, 0.10),
     0 6px 16px rgba(44, 38, 34, 0.06);
   overflow: hidden;
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
+}
+/* Flanking cycle buttons sit in the same pointer-events:none pane as the strip
+   — re-enable clicks on them (else they're dead, like last time). */
+.phase-cycle-skip {
+  pointer-events: auto;
 }
 
 .phase-segment {
@@ -13645,117 +14882,6 @@ button.phase-segment:active:not(.is-active) {
   z-index: 0;
 }
 
-/* ============ PHASE STRIP (legacy section helpers — .phase-section,
- * NOT .phase-strip; kept because some other code may still reference
- * .phase-section). The duplicate .phase-strip rule that lived here was
- * deleted: it was applying `gap: 6px` to the new segmented pill,
- * forcing visible whitespace between every segment. */
-.phase-section {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  opacity: 0.35;
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.phase-section.active {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* SVG icon styling */
-.phase-icon-svg {
-  width: 22px;
-  height: 22px;
-  color: rgba(255, 255, 255, 0.6);
-  transition: all 0.3s ease;
-}
-
-.phase-section.active .phase-icon-svg {
-  color: rgba(255, 255, 255, 0.95);
-}
-
-/* Emoji icon styling */
-.phase-icon-emoji {
-  font-size: 22px;
-  line-height: 1;
-  opacity: 0.6;
-  transition: all 0.3s ease;
-}
-
-.phase-section.active .phase-icon-emoji {
-  opacity: 1;
-  transform: scale(1.15);
-}
-
-/* Speaker sections - pulse when active */
-.phase-section.speaker-section.active {
-  animation: speaker-pulse 0.8s ease-in-out infinite;
-}
-
-.phase-section.speaker-section.active .phase-icon-svg {
-  color: var(--belt-color, #c23a3a);
-}
-
-@keyframes speaker-pulse {
-  0%, 100% {
-    box-shadow: 0 0 8px var(--belt-glow, rgba(194, 58, 58, 0.3));
-  }
-  50% {
-    box-shadow: 0 0 16px var(--belt-glow, rgba(194, 58, 58, 0.6));
-  }
-}
-
-/* Mic section - red recording indicator when active */
-.phase-section.mic-section {
-  position: relative;
-  overflow: hidden;
-}
-
-.phase-section.mic-section.active {
-  background: rgba(220, 38, 38, 0.25);
-  box-shadow: 0 0 12px rgba(220, 38, 38, 0.4);
-}
-
-.phase-section.mic-section.active .phase-icon-svg {
-  color: #ef4444;
-  animation: mic-pulse 1s ease-in-out infinite;
-}
-
-@keyframes mic-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-.speak-timer {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 0 0 8px 8px;
-  overflow: hidden;
-}
-
-.speak-timer-fill {
-  height: 100%;
-  background: #ef4444;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
-  transition: width 0.1s linear;
-}
-
-/* Eyes section - appears clearly on final phase */
-.phase-section.eyes-section.active {
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: 0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.5));
-}
-
 /* Intro phase: NO TEXT AT ALL - pure listen mode */
 .hero-text-pane.is-intro .hero-text-known,
 .hero-text-pane.is-intro .hero-text-target {
@@ -13768,24 +14894,6 @@ button.phase-segment:active:not(.is-active) {
    Core sizing handled by clamp() in --text-*, --space-*, etc.
    Only special cases (landscape compact mode) need media queries.
    ═══════════════════════════════════════════════════════════════ */
-
-/* Legacy responsive .phase-section sizing (NOT .phase-strip — that
- * duplicate rule was deleted; it was overriding the new segmented pill
- * with `gap: clamp(...)` and reintroducing visible whitespace). */
-.phase-section {
-  width: clamp(28px, 6vmin, 64px);
-  height: clamp(28px, 6vmin, 64px);
-  border-radius: clamp(6px, 1.5vmin, 16px);
-}
-
-.phase-icon-svg {
-  width: clamp(14px, 3vmin, 32px);
-  height: clamp(14px, 3vmin, 32px);
-}
-
-.phase-icon-emoji {
-  font-size: clamp(14px, 3vmin, 32px);
-}
 
 /* Session points display - floating above transport controls, centered */
 .session-points-display {
@@ -13854,38 +14962,10 @@ button.phase-segment:active:not(.is-active) {
   pointer-events: none;
 }
 
-/* ============ MAIN - FIXED LAYOUT (legacy, may be removed) ============ */
-.main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem 1.5rem;
-  position: relative;
-  z-index: 10;
-  gap: 1.5rem;
-}
-
-
 /* Text Zones - FIXED HEIGHT */
-.text-zone {
-  width: 100%;
-  max-width: 600px;
-  min-height: var(--text-zone-min-height);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
-
-.text-zone--known {
-  /* Known language styling */
-}
-
 .known-text {
   font-size: var(--known-text-size);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
 }
@@ -13904,173 +14984,6 @@ button.phase-segment:active:not(.is-active) {
   border-radius: 4px;
   margin-left: 0.5em;
   vertical-align: middle;
-}
-
-.text-zone--target {
-  min-height: 80px; /* Always reserve space */
-}
-
-.target-text {
-  font-size: var(--target-text-size);
-  font-weight: 600;
-  color: var(--gold);
-  line-height: 1.3;
-}
-
-.target-placeholder {
-  height: 1.75rem; /* Match target text height */
-  opacity: 0;
-}
-
-/* ============ HERO NODE - Brain Network Center ============ */
-.ring-container {
-  position: relative;
-  width: var(--ring-size);
-  height: var(--ring-size);
-  cursor: pointer;
-  transition: transform 0.2s ease;
-  z-index: 10; /* Above network edges */
-}
-
-.ring-container:hover {
-  transform: scale(1.02);
-}
-
-.ring-container:active {
-  transform: scale(0.98);
-}
-
-/* Multi-layer glow for node effect */
-.ring-ambient {
-  position: absolute;
-  inset: -40px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--belt-glow, var(--accent-soft)) 0%, transparent 70%);
-  opacity: 0.4;
-  transition: opacity 0.5s ease;
-}
-
-/* Outer constellation glow - belt colored */
-.ring-container::before {
-  content: '';
-  position: absolute;
-  inset: -80px;
-  border-radius: 50%;
-  background: radial-gradient(circle,
-    var(--belt-glow, rgba(194, 58, 58, 0.15)) 0%,
-    transparent 50%
-  );
-  animation: node-breathe 4s ease-in-out infinite;
-  pointer-events: none;
-}
-
-/* Inner pulse ring */
-.ring-container::after {
-  content: '';
-  position: absolute;
-  inset: -20px;
-  border-radius: 50%;
-  border: 1px solid var(--belt-color, var(--accent));
-  opacity: 0.3;
-  animation: node-pulse-ring 3s ease-out infinite;
-  pointer-events: none;
-}
-
-@keyframes node-breathe {
-  0%, 100% { opacity: 0.3; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.1); }
-}
-
-@keyframes node-pulse-ring {
-  0% { transform: scale(0.9); opacity: 0.5; }
-  50% { transform: scale(1.2); opacity: 0; }
-  100% { transform: scale(0.9); opacity: 0; }
-}
-
-.ring-container.is-speak .ring-ambient {
-  opacity: 1;
-  animation: ambient-breathe 3s ease-in-out infinite;
-}
-
-@keyframes ambient-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.1); opacity: 1; }
-}
-
-.ring-svg {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 0 12px var(--belt-glow, rgba(194, 58, 58, 0.4)));
-}
-
-.ring-track {
-  stroke: var(--belt-color, var(--accent));
-  opacity: 0.2;
-}
-
-.ring-progress {
-  stroke: var(--belt-color, var(--accent));
-  stroke-linecap: round;
-  transition: stroke-dashoffset 0.05s linear;
-  filter: drop-shadow(0 0 8px var(--belt-glow, var(--accent-glow)));
-}
-
-.ring-inner {
-  stroke: var(--belt-color, var(--accent));
-  opacity: 0.15;
-}
-
-.ring-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: var(--ring-center-size);
-  height: var(--ring-center-size);
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%,
-    var(--bg-elevated) 0%,
-    var(--bg-card) 50%,
-    rgba(10, 10, 15, 0.95) 100%
-  );
-  /* Center always uses SSi red accent - belt colors on outer rings only */
-  border: 2px solid var(--accent);
-  box-shadow:
-    0 0 20px rgba(194, 58, 58, 0.3),
-    inset 0 0 30px rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-/* Hero node when paused - ready to start */
-.ring-container.is-paused .ring-center {
-  /* Center always stays SSi red accent - belt colors only on outer rings */
-  background: radial-gradient(circle at 30% 30%,
-    var(--accent) 0%,
-    color-mix(in srgb, var(--accent) 70%, black) 100%
-  );
-  border-color: var(--accent);
-  box-shadow:
-    0 0 40px rgba(194, 58, 58, 0.5),
-    inset 0 0 20px rgba(255, 255, 255, 0.1);
-}
-
-.play-indicator {
-  color: white;
-  opacity: 0.3;
-  transition: opacity 0.5s ease;
-}
-
-.play-indicator.fade-in {
-  opacity: 1;
-}
-
-.play-indicator svg {
-  width: 40px;
-  height: 40px;
-  margin-left: 4px; /* Optical centering */
 }
 
 /* Loading state styles */
@@ -14101,32 +15014,6 @@ button.phase-segment:active:not(.is-active) {
 @keyframes cursor-blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
-}
-
-/* Ring during loading - subtle appearance */
-.ring-center.is-loading {
-  background: rgba(0, 0, 0, 0.3);
-  border-color: transparent;
-}
-
-.phase-icon {
-  color: var(--text-secondary);
-  transition: all 0.3s ease;
-}
-
-.phase-icon svg {
-  width: 36px;
-  height: 36px;
-}
-
-.phase-icon.speak {
-  color: var(--accent);
-  animation: icon-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes icon-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
 }
 
 /* ============ WELCOME OVERLAY ============ */
@@ -14188,48 +15075,6 @@ button.phase-segment:active:not(.is-active) {
 @keyframes pulse {
   0%, 100% { opacity: 0.6; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.05); }
-}
-
-/* ============ COMING SOON LABEL ============ */
-
-.mode-btn.coming-soon {
-  position: relative;
-}
-
-.coming-soon-label {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  font-size: 0.625rem;
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
-  white-space: nowrap;
-  animation: fade-in-out 2s ease-out;
-}
-
-@keyframes fade-in-out {
-  0% { opacity: 0; transform: translateX(-50%) translateY(4px); }
-  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
-  80% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-.ring-label {
-  position: absolute;
-  bottom: -32px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  transition: opacity 0.3s ease;
-}
-
-.ring-container.is-paused .ring-label {
-  opacity: 0.5;
 }
 
 /* ============ INK SPIRIT REWARDS ============ */
@@ -14353,98 +15198,12 @@ button.phase-segment:active:not(.is-active) {
   opacity: 0;
 }
 
-/* ============ CONTROLS ============ */
-.control-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: var(--control-bar-gap);
-  padding: var(--control-bar-padding);
-  position: absolute;
-  bottom: var(--control-bar-bottom);
-  left: 50%;
-  transform: translateX(-50%);
-  /* Above BottomNav backdrop (z:100) but below BottomNav play button (z:110) */
-  z-index: 105;
-  pointer-events: auto;
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border-radius: var(--control-bar-radius);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  /* Belt glow accent */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4),
-              0 8px 24px rgba(0, 0, 0, 0.3),
-              0 0 16px color-mix(in srgb, var(--belt-glow) 12%, transparent);
-  /* Fixed phone-like width - matches other content */
-  width: calc(100% - 2rem);
-  max-width: 400px;
-  transition: opacity 0.3s ease;
-}
-
-/* Hide control bar when player is resting (not playing) */
-.control-bar--hidden {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-
-/* Control groups for 3+3 layout */
-.control-group {
-  display: flex;
-  align-items: center;
-  gap: var(--control-group-gap);
-}
-
 /* QA Report button - positioned in header area */
 .qa-report-btn {
   position: fixed;
   top: calc(1rem + env(safe-area-inset-top, 0px));
   right: 1rem;
   z-index: 100;
-}
-
-.mode-btn {
-  width: var(--mode-btn-size);
-  height: var(--mode-btn-size);
-  min-width: var(--btn-touch-target);
-  min-height: var(--btn-touch-target);
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.mode-btn svg {
-  width: var(--mode-btn-icon);
-  height: var(--mode-btn-icon);
-}
-
-.mode-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-primary);
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
-}
-
-.mode-btn.active {
-  background: rgba(74, 222, 128, 0.15);
-  border-color: var(--success);
-  color: var(--success);
-  box-shadow: 0 0 16px rgba(74, 222, 128, 0.3);
-}
-
-.mode-btn--turbo.active {
-  background: var(--gold-soft);
-  border-color: var(--gold);
-  color: var(--gold);
-  box-shadow: 0 0 16px rgba(212, 168, 83, 0.4);
 }
 
 /* Mode Explanation Popups */
@@ -14568,108 +15327,6 @@ button.phase-segment:active:not(.is-active) {
   filter: brightness(1.1);
 }
 
-/* Belt Navigation Buttons - Double chevrons for belt jumps */
-.belt-nav-btn {
-  width: var(--belt-nav-btn-size);
-  height: var(--belt-nav-btn-size);
-  min-width: var(--btn-touch-target);
-  min-height: var(--btn-touch-target);
-  border-radius: 50%;
-  border: 1.5px solid;
-  background: rgba(255, 255, 255, 0.06);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.belt-nav-btn svg {
-  width: var(--belt-nav-btn-icon);
-  height: var(--belt-nav-btn-icon);
-}
-
-.belt-nav-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(1.05);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 20%, transparent);
-}
-
-.belt-nav-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* Forward button shows next belt color - always visible border */
-.belt-nav-btn--forward {
-  color: var(--next-belt-color, var(--text-muted));
-  border-color: var(--next-belt-color, var(--text-muted));
-}
-
-.belt-nav-btn--forward:hover:not(:disabled) {
-  color: var(--next-belt-color, var(--text-primary));
-  box-shadow: 0 0 12px var(--next-belt-glow, transparent);
-}
-
-/* Back button shows target belt color - always visible border */
-.belt-nav-btn--back {
-  color: var(--back-belt-color, var(--text-muted));
-  border-color: var(--back-belt-color, var(--text-muted));
-}
-
-.belt-nav-btn--back:hover:not(:disabled) {
-  color: var(--back-belt-color, var(--text-primary));
-}
-
-/* Belt skip processing animation for bottom nav */
-.belt-nav-btn.is-skipping {
-  animation: belt-skip-flash 0.6s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.belt-nav-btn--forward.is-skipping {
-  color: var(--next-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.15);
-  border-color: var(--next-belt-color, var(--accent));
-  box-shadow: 0 0 12px var(--next-belt-glow, transparent);
-}
-
-.belt-nav-btn--back.is-skipping {
-  color: var(--back-belt-color, var(--accent));
-  background: rgba(255, 255, 255, 0.15);
-  border-color: var(--back-belt-color, var(--accent));
-}
-
-/* Transport buttons (Revisit, Skip) */
-.transport-btn {
-  width: var(--transport-btn-size);
-  height: var(--transport-btn-size);
-  min-width: var(--btn-touch-target);
-  min-height: var(--btn-touch-target);
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.transport-btn svg {
-  width: var(--transport-btn-icon);
-  height: var(--transport-btn-icon);
-}
-
-.transport-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--text-primary);
-  transform: scale(1.05);
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--belt-glow) 15%, transparent);
-}
-
 /* ============ FOOTER ============ */
 .footer {
   /* Hidden - transport controls now at bottom, progress in header */
@@ -14789,11 +15446,12 @@ button.phase-segment:active:not(.is-active) {
    the space background extending to fill the viewport.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* Tablet and Desktop (768px+) - more breathing room */
+/* Tablet and Desktop (768px+) - more breathing room.
+   ONE knob: bump the base unit 4px → 5px and the whole hero grid scales
+   proportionally (pill 32→40, radius 16→20, rhythm 20→25, header derives). */
 @media (min-width: 768px) {
   .player {
-    --header-height: 84px;
-    --hero-offset: 28px;
+    --u: 5px;
     --space-sm: 10px;
     --space-md: 16px;
     --space-lg: 20px;
@@ -14808,6 +15466,7 @@ button.phase-segment:active:not(.is-active) {
     --belt-timer-width: 240px;
     --belt-bar-width: 90px;
     --belt-bar-height: 6px;
+    /* --pill-height now derives from --u (8u = 40px here) */
     --control-bar-gap: 3.5rem;
     --control-group-gap: 0.625rem;
     --ring-size: 220px;
@@ -14817,11 +15476,12 @@ button.phase-segment:active:not(.is-active) {
   }
 }
 
-/* Landscape phones - compact vertical spacing */
+/* Landscape phones - compact vertical spacing.
+   Same grid, smaller base unit (3px → pill 24, rhythm 15); header-height +
+   hero-offset DERIVE from it (honest), so no overlap from a hardcoded guess. */
 @media (orientation: landscape) and (max-height: 500px) {
   .player {
-    --header-height: 56px;
-    --hero-offset: 8px;
+    --u: 3px;
     --space-sm: 4px;
     --space-md: 8px;
     --space-lg: 12px;
@@ -15110,33 +15770,6 @@ button.phase-segment:active:not(.is-active) {
   transform: translateY(20px);
 }
 
-/* Mode button active states */
-.mode-btn--modes.active--listening {
-  background: var(--gold-glow, rgba(212, 168, 83, 0.15));
-  border-color: var(--gold, #d4a853);
-  color: var(--gold, #d4a853);
-}
-
-.mode-btn--modes.active--driving {
-  background: rgba(96, 165, 250, 0.15);
-  border-color: #60a5fa;
-  color: #60a5fa;
-}
-
-/* Driving overlay transition */
-.driving-overlay-enter-active {
-  transition: opacity 0.3s ease;
-}
-
-.driving-overlay-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.driving-overlay-enter-from,
-.driving-overlay-leave-to {
-  opacity: 0;
-}
-
 
 </style>
 
@@ -15160,11 +15793,6 @@ button.phase-segment:active:not(.is-active) {
 [data-theme="mist"] .player .space-nebula {
   background: transparent;
   animation: none;
-}
-
-@keyframes mist-drift {
-  0%, 100% { opacity: 1; transform: translateY(0); }
-  50% { opacity: 0.7; transform: translateY(-8px); }
 }
 
 [data-theme="mist"] .player .bg-noise {
@@ -15201,24 +15829,9 @@ button.phase-segment:active:not(.is-active) {
               0 20px 48px rgba(44, 38, 34, 0.05);
 }
 
-/* REVIEW cue on mist (light glass): a warm cream wash + gold border, kept
-   gentle so it reads as "familiar" not "alert". Mirrors the default theme. */
-[data-theme="mist"] .player .hero-glass.is-review {
-  background: rgba(249, 241, 224, 0.97);
-  border-color: rgba(196, 152, 70, 0.55);
-}
-
 /* --- Hero text & intro — all text must be dark on white --- */
 [data-theme="mist"] .player .hero-known {
   color: var(--text-primary);
-}
-
-[data-theme="mist"] .player .hero-known-salient {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-[data-theme="mist"] .player .hero-known-context {
-  color: rgba(44, 38, 34, 0.85);
 }
 
 [data-theme="mist"] .player .hero-target {
@@ -15261,12 +15874,19 @@ button.phase-segment:active:not(.is-active) {
 [data-theme="mist"] .player .belt-timer-unified {
   background: color-mix(in srgb, var(--belt-color) 65%, white);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.12),
-              0 8px 24px rgba(44, 38, 34, 0.08);
+  /* Match the phase pill exactly so the two pills read as one family — the
+     belt pill's heavier 24px shadow made it look chunkier ("less sleek"). */
+  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
+              0 6px 16px rgba(44, 38, 34, 0.06);
 }
 
 [data-theme="mist"] .player .belt-timer-label {
   color: #2C2622;
+}
+
+/* Phase pill border matches the belt pill per-theme: white on default, dark on mist */
+[data-theme="mist"] .player .phase-strip {
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
 }
 
 /* --- Mode nav buttons on mist → translucent, not opaque like the pill --- */
@@ -15277,15 +15897,14 @@ button.phase-segment:active:not(.is-active) {
   background: rgba(255, 255, 255, 0.96);
   border: 1.5px solid rgba(0, 0, 0, 0.35);
   opacity: 1;
-  color: color-mix(in srgb, var(--skip-belt-color, #6B6560) 70%, #2C2622);
+  color: rgba(44, 38, 34, 0.85);
   box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10);
 }
 
 [data-theme="mist"] .player .belt-header-skip:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 12%, #ffffff);
-  color: color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 70%, #2C2622);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.14),
-              0 0 12px color-mix(in srgb, var(--skip-belt-color, var(--belt-color)) 20%, transparent);
+  background: #e6e1d9;
+  color: rgba(44, 38, 34, 0.95);
+  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.18);
 }
 
 [data-theme="mist"] .player .belt-header-skip:disabled {
@@ -15345,12 +15964,6 @@ button.phase-segment:active:not(.is-active) {
   box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16);
 }
 
-[data-theme="mist"] .player .mode-btn.active {
-  background: #ffffff;
-  color: var(--text-primary);
-  box-shadow: 0 2px 8px rgba(44, 38, 34, 0.16);
-}
-
 /* --- Belt celebration overlay --- */
 [data-theme="mist"] .player .belt-celebration-overlay {
   background: rgba(232, 227, 221, 0.8);
@@ -15389,35 +16002,11 @@ button.phase-segment:active:not(.is-active) {
               0 0 16px rgba(194, 58, 58, 0.08);
 }
 
-[data-theme="mist"] .player .pause-timer-bar {
-  background: rgba(0, 0, 0, 0.06);
-}
-
 [data-theme="mist"] .player .hint-dismiss {
   background: rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="mist"] .player .hint-dismiss svg {
-  color: var(--text-muted);
-}
-
-/* --- Component breakdown tiles → White elevated --- */
-[data-theme="mist"] .player .component-tile {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.35);
-  box-shadow: 0 2px 4px rgba(44, 38, 34, 0.10),
-              0 6px 16px rgba(44, 38, 34, 0.06);
-}
-
-[data-theme="mist"] .player .component-tile-target {
-  color: #2C2622;
-}
-
-[data-theme="mist"] .player .component-tile-known {
-  color: var(--text-muted);
-}
-
-[data-theme="mist"] .player .component-plus {
   color: var(--text-muted);
 }
 

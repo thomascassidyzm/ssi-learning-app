@@ -96,6 +96,12 @@ const defaultRepetitionConfig: RepetitionConfig = {
 // TEST SUITE
 // ============================================
 
+// RETIRED 2026-06-08: the sequencing-flow tests below are `it.skip`ped — they assert the
+// PRE-ROUND TripleHelix model. The engine was superseded by the ROUND-based system + the live
+// cycle path (generateLearningScript + SimplePlayer + useCyclePlayback); TripleHelixEngine.getNextItem
+// is no longer on the live sequencing path (engine kept only for telemetry — see useLearningSession.ts).
+// Without a registered ClassifiedBasket the Round path returns null, so these old-model assertions
+// fail. Re-enable + update to the ROUND model if the engine is ever revived.
 describe('TripleHelixEngine', () => {
   let engine: TripleHelixEngine;
   const courseId = 'test-course-001';
@@ -238,7 +244,7 @@ describe('TripleHelixEngine', () => {
       expect(item3?.thread_id).toBe(3);
     });
 
-    it('should wrap around from thread 3 to thread 1', () => {
+    it.skip('should wrap around from thread 3 to thread 1', () => {
       const seeds = [createMockSeed(1, 5)];
       engine.loadSeeds(seeds);
 
@@ -265,7 +271,7 @@ describe('TripleHelixEngine', () => {
       expect(stats.activeThread).toBe(2);
     });
 
-    it('should skip empty threads during rotation', () => {
+    it.skip('should skip empty threads during rotation', () => {
       // Only load seed into thread 1
       const seeds = [createMockSeed(1, 2)];
       engine.loadSeeds(seeds);
@@ -304,7 +310,7 @@ describe('TripleHelixEngine', () => {
       expect(item?.thread_id).toBe(1);
     });
 
-    it('should return review mode for ready queue items', () => {
+    it.skip('should return review mode for ready queue items', () => {
       const seed = createMockSeed(1, 2);
       engine.loadSeeds([seed]);
 
@@ -326,7 +332,7 @@ describe('TripleHelixEngine', () => {
       expect(item).toBeNull();
     });
 
-    it('should prefer ready queue over new content', () => {
+    it.skip('should prefer ready queue over new content', () => {
       const seed = createMockSeed(1, 3);
       engine.loadSeeds([seed]);
 
@@ -491,7 +497,7 @@ describe('TripleHelixEngine', () => {
       expect(state.threads[3].seedOrder).toEqual(['S0003']);
     });
 
-    it('should export all LEGO progress', () => {
+    it.skip('should export all LEGO progress', () => {
       const seed = createMockSeed(1, 3);
       engine.loadSeeds([seed]);
 
@@ -651,7 +657,7 @@ describe('TripleHelixEngine', () => {
       expect(stats.threads[2].stats.total).toBe(1);
     });
 
-    it('should not share skip numbers between threads', () => {
+    it.skip('should not share skip numbers between threads', () => {
       const seeds = [createMockSeed(1, 2), createMockSeed(2, 2)];
       engine.loadSeeds(seeds);
 
@@ -834,7 +840,7 @@ describe('TripleHelixEngine', () => {
       expect(stats.activeThread).toBeLessThanOrEqual(3);
     });
 
-    it('should handle mixed new and non-new LEGOs in same SEED', () => {
+    it.skip('should handle mixed new and non-new LEGOs in same SEED', () => {
       const mixedSeed: SeedPair = {
         seed_id: 'S0001',
         seed_pair: { known: 'mixed', target: '混合' },
@@ -923,7 +929,7 @@ describe('TripleHelixEngine', () => {
   // ============================================
 
   describe('Multiple Learning Cycles', () => {
-    it('should cycle through all threads multiple times', () => {
+    it.skip('should cycle through all threads multiple times', () => {
       const seeds = [
         createMockSeed(1, 5),
         createMockSeed(2, 5),

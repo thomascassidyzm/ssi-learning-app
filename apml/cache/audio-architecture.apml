@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-01-25
+# Last Updated: 2026-06-03 (offline depth = notched slider; download progress = ring on the mode button)
 
 spec audio_caching_architecture:
   version: "1.0.0"
@@ -122,38 +122,102 @@ spec audio_caching_architecture:
       is_buffer_critical: "< 5 minutes"
 
   ## ==========================================================================
-  ## DOWNLOAD MANAGER
+  ## OFFLINE DOWNLOAD — DEPTH PICKER
   ## ==========================================================================
 
-  download_manager:
-    file: "packages/core/src/cache/DownloadManager.ts"
-    purpose: "Explicit course download for extended offline use"
+  offline_download:
+    file: "packages/player-vue/src/components/LearningPlayer.vue"
+    purpose: "Deliberate, opt-in download of upcoming course content for offline play"
 
-    download_options:
-      - label: "Current belt"
-        hours: 0.5
-      - label: "Next 2 hours"
-        hours: 2
-      - label: "Next 5 hours"
-        hours: 5
-      - label: "Entire course"
-        hours: 10
+    depth_unit:
+      measure: "% of course content (rounds ahead of the cursor)"
+      NOT: "playback time"
+      why: >
+        Offline never STOPS — when the downloaded content runs out it drops into
+        INF PLAY and recycles the cache forever, so 'hours offline' is infinite
+        regardless of download size. The knob controls how much NEW course
+        material you carry, not how long you can listen.
 
-    features:
-      pause_resume: true
-      cancel: true
-      progress_tracking: true
-      resumable_across_restarts: true
+    flow:
+      - "Tapping 'Offline mode' closes the mode tray (handleOffline) and opens the 'Take it offline' picker (showOfflinePicker)"
+      - "Picker = a notched SLIDER (how much of what's left to carry) + a live MB readout + a course-depth bar"
+      - "Tapping Download → startOfflineDownload() → sets offlineActive, downloads the selected depth"
+      - "Turning offline off revokes blob URLs and resets state"
 
-    persistence:
-      storage: "localStorage"
-      key: "ssi-download-task"
-      expiry: "24 hours"
-      data:
-        - courseId
-        - pendingAudioIds
-        - completedCount
-        - totalCount
+    single_popup_rule:
+      requirement: "The input dialog must ALWAYS be accessible — one popup at a time."
+      why: >
+        The mode tray lives inside the bottom-nav's z-index:3000 stacking context;
+        the picker teleports to <body>. Two things keep the dialog reachable:
+      how:
+        - "ModeTray.handleOffline closes the tray on the offline tap, so the picker is the only popup"
+        - "offline-picker-backdrop z-index 3100 — above the nav/belt-skip/paywall layer (3000), below system prompts (PWA update/install)"
+        - "Dialog capped at max-height calc(100dvh - 48px): header + note pinned, options scroll → every control reachable on short/landscape screens"
+        - "Dismiss via ✕, backdrop tap, or Escape (matches the app's other modals)"
+
+    depth_slider:
+      control: "notched <input type=range> (offlineNotchIndex 0..5) + tappable tick labels"
+      notches: "[0.02, 0.05, 0.10, 0.25, 0.50, 1]  # OFFLINE_NOTCHES"
+      unit: >
+        Fraction of the REMAINING course (cursor → tail), NOT of the whole course.
+        So the top notch (100%) always means 'the rest of the course' regardless
+        of how far through you are, and notches never collapse into each other —
+        no per-notch hiding needed. Thumb starts at the smallest (2%) on each open.
+      mapping: "offlineSelectedRounds = frac>=1 ? poolRounds : ceil(poolRounds·frac), min 1"
+      pool: >
+        offlinePoolRounds: mid-course = total − start (new content ahead);
+        finished/INF-PLAY (start >= total, cursor at/past the main-loop tail) =
+        the whole course (no new content left — download = keep it offline to
+        recycle); unknown length = roundsLoadedAhead. NEVER 0 while total>0
+        (was the bug: courseTotalRounds is main-loop-only, so a finished learner
+        had remaining=0 → every notch collapsed to one round). offlineAtTail flips
+        the slider/bar/labels to the 'keep N% of the course offline' framing.
+      why_not_time: >
+        Time is misleading twice: INF PLAY makes total offline time infinite, and
+        the 'new' portion stretches with turbo/replay. So the readout is MB (real
+        cost) + a course-depth bar (the pre-INF-PLAY new learning made visible),
+        never a duration.
+      course_depth_bar: >
+        offlineCourseBar — donePct (start/total, already learned) + newPct
+        (selectedRounds/total, the new chunk carried). Untinted remainder = where
+        INF PLAY recycling lives. % is of the WHOLE course here (for honest depth).
+
+    size_estimate:
+      shown_for_selected_notch: "≈MB and % of device storage (offlineSelectedEstimate); basis gathered once on open (offlineEst), derives synchronously as the slider moves"
+      bytes_per_file: "avg from audioCache.stats() (persistent.bytes / count), fallback ~24KB"
+      files_projection: "avg files/round from loaded sample × rounds the notch covers"
+      device_quota: "navigator.storage.estimate() via audioCache.stats().quotaBytes"
+      accuracy: "best-effort, labelled '~'; self-refines as the cache grows"
+
+    key_functions:
+      courseTotalRounds: "course length (main-loop), the % denominator"
+      roundsForCourseFraction: "fraction → round count ahead, capped at course tail; >=1 → Infinity"
+      ensureOfflineRoundsLoaded: "expandScript() until N rounds loaded ahead or generator dry"
+      collectRoundsAudioIds: "unique /api/audio ids over N rounds ahead of cursor"
+      downloadForOffline: "(roundsAhead) — ensure + collect + fetch missing into IndexedDB"
+
+    progress:
+      state: "offlineDlState: idle | preparing | downloading | complete | error"
+      counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done)"
+      shared_state: >
+        useOfflineDownloadStatus.ts — module-level refs (offlineDlState/Done/Total/
+        Failed) + computeds (offlineDownloadVisible/Active/Pct/Label), written by
+        LearningPlayer.downloadForOffline, read by ModeTray. Same shared-singleton
+        pattern as usePwaUpdate (no prop-drilling to the mode button). LearningPlayer
+        resetOfflineDownloadStatus() onMounted + offlineActive=false onUnmounted so a
+        course-change remount can't leave a stale ring or an orphaned write loop.
+      indicator: >
+        A progress RING around the mode-tray trigger button (where offline is
+        switched on), NOT a floating banner. Shown when offlineDownloadVisible
+        (state≠idle): determinate arc = offlineDownloadPct while downloading, green
+        full ring on complete (~4s then idle), red on error, indeterminate spin while
+        preparing. pointer-events:none so it never blocks the button. The granular
+        "Downloading… N% (x/y)" detail shows on the tray's Offline row (open the tray
+        for it) — green while active, red on error.
+
+    deferred:
+      premium_gate: "useEntitlement.canDownload exists but NOT wired to download (no premium users yet)"
+      expiry_30_day: "Spotify-style purge-if-not-online-in-30-days — not built yet"
 
   ## ==========================================================================
   ## GRACEFUL DEGRADATION (INFINITE PLAY)

@@ -87,9 +87,9 @@ This is pure logic - no UI. It can power any interface.
 
 ### The Vue Player (`player-vue`)
 
-A working demo player with the "Moonlit Dojo" design:
+A working demo player with the "Mist" design (single light theme; dark mode deprecated):
 
-- Dark sanctuary theme
+- Light theme — warm grey canvas, white elevated surfaces, single belt-colour accent
 - Belt progression system (white → black, 8 levels)
 - Session summary screen
 - Mobile-compatible audio handling
@@ -192,7 +192,7 @@ ssi-learning-app/
 | Triple helix | ✅ Complete | Thread interleaving works |
 | Spaced repetition | ✅ Complete | Fibonacci skip numbers |
 | Audio playback | ✅ Complete | Mobile-compatible |
-| Vue demo player | ✅ Complete | Moonlit Dojo design |
+| Vue demo player | ✅ Complete | Mist theme (single light theme) |
 | Struggle detection | ✅ Complete | Differential-based |
 | Mastery tracking | ✅ Complete | 4-state machine |
 | Smart selection | ✅ Complete | Weighted algorithm |

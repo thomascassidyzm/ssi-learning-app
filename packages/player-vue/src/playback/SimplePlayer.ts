@@ -1,5 +1,7 @@
 // SimplePlayer.ts - Clean playback engine (~180 lines)
 
+import { buildSilentWavDataUri } from './silentWav'
+
 export interface Cycle {
   id: string
   /**
@@ -17,6 +19,16 @@ export interface Cycle {
   componentLegoIds?: string[]
   componentLegoTexts?: string[]
   componentLegoTextsNative?: string[]
+  /** Authoritative content-level tiling from the backend (Popty), served
+   * verbatim on course_practice_phrases.decomposition. When present the player
+   * renders these blocks directly instead of re-deriving by runtime alignment. */
+  decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+  /** Authored display tiles from course_practice_phrases.display_tiling —
+   * {n: native, r: roman, salient} per tile, built and validated in Popty.
+   * When present the player renders these tiles directly (native primary,
+   * roman ruby) and skips the runtime segmenter entirely. */
+  displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
+
   /** M-LEGO component breakdown for visual display */
   components?: Array<{ known: string; target: string }>
   componentsNative?: Array<{ known: string; target: string }>
@@ -155,6 +167,49 @@ export interface AudioFailedEvent {
 // Fallback: bootUpTime(2000) + scaleFactor(0.75) × estimatedTarget(6000) = 6500ms
 const DEFAULT_PAUSE_DURATION = 6500
 
+// ---------------------------------------------------------------------------
+// Background-safe PAUSE phase.
+//
+// pause→voice1 was the ONLY cycle transition driven by a bare setTimeout. iOS
+// Safari freezes JS timers on a backgrounded / screen-locked tab and tears
+// down the now-playing session during the SILENT pause, so the timer never
+// fired and voice1 never played (learner heard the prompt, then nothing).
+// Every OTHER phase advances on the audio element's 'ended' event — which a
+// backgrounded tab still receives — and so survives background/lock. The
+// Listening-Pod lap is immune for exactly the same reason: it keeps real
+// audio sounding and chains clip→clip on 'ended'.
+//
+// Fix: during PAUSE, play a genuinely-silent, real-PCM one-shot clip on the
+// SAME element the cycle already uses (this.audio). Its natural 'ended' flows
+// through the existing onAudioEnded hub exactly like prompt/voice1/voice2, so
+// pause now advances on a clock iOS does not throttle. This is the minimal
+// mirror of the phases that already work — pause becomes "a phase with audio"
+// instead of "a phase with only a timer".
+//
+// NOT the old silentAudio.ts "driving mode": that LOOPED silence on the main
+// element and kept re-grabbing audio focus. This clip is strictly ONE-SHOT
+// (never loop = true, never auto-restarted — that looping pattern is the
+// disabled 2026-05-23 oscillation landmine) and the keepalive AudioContext
+// (owned at LearningPlayer level via useAudioSessionKeepalive) is left exactly
+// as-is underneath.
+//
+// The existing dynamic/Turbo pause-duration timer is kept as a trim/backstop:
+// whichever of (clip 'ended', trim timer) fires first advances, guarded by
+// playGeneration against a double advance.
+//
+// The clip is a `data:` URI synthesised here at module load: no bundled asset,
+// no fetch, no IndexedDB, no service worker, no resolveUrl/206-Range path — so
+// it is silent AND works fully offline by construction (a real WAV body, not
+// an empty src iOS treats as nothing).
+
+// Fixed clip length, comfortably longer than any realistic pause (DEFAULT is
+// 6500ms; adaptive/Turbo never exceed it by much). The trim timer cuts it
+// short for the actual dynamic/Turbo pause; the natural 'ended' is the
+// background backstop when the timer is frozen.
+const SILENT_CLIP_DURATION_S = 12
+
+const SILENT_PAUSE_CLIP = buildSilentWavDataUri(SILENT_CLIP_DURATION_S)
+
 function isGestureRequiredError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const maybe = err as { name?: string; message?: string }
@@ -174,12 +229,30 @@ export class SimplePlayer {
   private state: PlaybackState
   private pauseTimer: ReturnType<typeof setTimeout> | null = null
   private safetyTimer: ReturnType<typeof setTimeout> | null = null
+  // True only while the silent pause clip is sounding on this.audio. Lets the
+  // 'ended' hub and the teardown chokepoint tell a pause clip apart from a real
+  // voice clip.
+  private pauseClipActive: boolean = false
+  // Absolute time (ms) the current pause should end — used by the foreground
+  // visibilitychange catch-up to advance immediately if the trim timer was
+  // frozen while backgrounded. 0 when not in a pause.
+  private pauseEndsAt: number = 0
   private lingerTimer: ReturnType<typeof setTimeout> | null = null
   private listeners: Map<EventName, Set<EventCallback>> = new Map()
 
   // Named handlers for cleanup in dispose()
   private onEndedHandler: () => void
   private onErrorHandler: (e: Event) => void
+  // Keeps navigator.mediaSession's position state fresh as each clip plays so
+  // Android Chrome sees an active, advancing media session and is less likely
+  // to suspend the backgrounded/locked tab (the cause of "finishes the phrase
+  // then stops" online). Heuristic background-survival aid. Tom 2026-05-31.
+  private onTimeUpdateHandler: () => void
+  // Belt-and-braces: if the silent pause clip's 'ended' is ever delayed by iOS
+  // while the tab is hidden, foregrounding it advances the pause the instant it
+  // should have elapsed. Bounds the worst case; never the primary mechanism
+  // (the clip 'ended' is).
+  private onVisibilityHandler: () => void
   // Generation counter: increments on every playAudio call.
   // Stale play() rejections and safety timeouts check this to avoid
   // advancing the phase machine from a superseded audio request.
@@ -216,6 +289,44 @@ export class SimplePlayer {
 
     this.audio.addEventListener('ended', this.onEndedHandler)
     this.audio.addEventListener('error', this.onErrorHandler)
+    this.onTimeUpdateHandler = () => this.updateMediaPositionState()
+    this.audio.addEventListener('timeupdate', this.onTimeUpdateHandler)
+    this.audio.addEventListener('loadedmetadata', this.onTimeUpdateHandler)
+
+    this.onVisibilityHandler = () => {
+      // Only relevant during a backgrounded PAUSE. Back in the foreground and
+      // the pause window has elapsed → advance now rather than waiting on a
+      // trim timer iOS may have frozen. The clip's own 'ended' usually beats
+      // this; it's the belt-and-braces backstop.
+      if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+      if (this.state.phase !== 'pause' || !this.state.isPlaying) return
+      if (this.pauseEndsAt > 0 && Date.now() >= this.pauseEndsAt) this.endPausePhase()
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityHandler)
+    }
+  }
+
+  /**
+   * Refresh navigator.mediaSession's position state from the live audio
+   * element. Android Chrome is markedly more reluctant to suspend a tab whose
+   * media session reports an active, advancing position — which is what keeps
+   * background / screen-off playback alive. Guards the NaN/0 duration and
+   * out-of-range position that would make setPositionState throw. Tom
+   * 2026-05-31.
+   */
+  private updateMediaPositionState(): void {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+    if (typeof ms.setPositionState !== 'function') return
+    const duration = this.audio.duration
+    if (!Number.isFinite(duration) || duration <= 0) return
+    const position = Math.min(Math.max(this.audio.currentTime || 0, 0), duration)
+    try {
+      ms.setPositionState({ duration, position, playbackRate: this.audio.playbackRate || 1 })
+    } catch {
+      // Invalid state (e.g. position transiently > duration mid-seek) — ignore.
+    }
   }
 
   /**
@@ -990,15 +1101,75 @@ export class SimplePlayer {
     // undefined, fall back to the baked cycle.pauseDuration.
     const override = cycle ? this.runtimeOverrides.getPauseDuration?.(cycle) : undefined
     const duration = override ?? cycle?.pauseDuration ?? DEFAULT_PAUSE_DURATION
+    this.pauseEndsAt = Date.now() + duration
+
+    // Play a genuinely-silent ONE-SHOT clip on the MAIN element for the pause.
+    // Its 'ended' (a background-safe media event) OR the trim timer below —
+    // whichever fires first — advances to voice1. The clip is what keeps the
+    // now-playing session asserted and the advance firing while the tab is
+    // backgrounded / the screen is locked, exactly as the pod lap's real
+    // clips do. The clip is longer than any realistic pause; the trim timer
+    // cuts it to the precise dynamic/Turbo duration. See buildSilentWavDataUri.
+    const gen = ++this.playGeneration
+    this.pauseClipActive = true
+    try {
+      this.audio.src = SILENT_PAUSE_CLIP
+      this.audio.playbackRate = 1.0
+      this.audio.loop = false // NEVER loop — that is the disabled oscillation landmine.
+      const p = this.audio.play()
+      // Some environments (and the test stub) return undefined from play().
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // The pause clip is non-critical: if it can't sound (rare), the trim
+          // timer still advances the pause. Never halt the cycle on silence,
+          // and never trip the gesture-required path off the silent clip.
+        })
+      }
+    } catch {
+      // Ditto — fall through to the timer.
+    }
+
+    // Trim timer: bounds the (longer) clip to the exact dynamic/Turbo pause
+    // duration. While foregrounded this fires on time; while backgrounded iOS
+    // may throttle it, in which case the clip's own 'ended' (or the visibility
+    // catch-up) carries the advance instead.
     this.pauseTimer = setTimeout(() => {
-      if (this.state.isPlaying) this.onAudioEnded()
+      if (gen !== this.playGeneration) return
+      this.endPausePhase()
     }, duration)
+  }
+
+  /**
+   * Advance out of the PAUSE phase exactly once. Stops the silent clip,
+   * invalidates the trim timer + any late 'ended', and routes through the
+   * normal onAudioEnded hub so pause→voice1 is identical to every other phase
+   * transition. Idempotent: the playGeneration bump makes a second caller
+   * (e.g. the clip 'ended' arriving just after the trim timer) a no-op.
+   */
+  private endPausePhase(): void {
+    if (this.state.phase !== 'pause' || !this.state.isPlaying) return
+    if (!this.pauseClipActive) return
+    this.pauseClipActive = false
+    this.pauseEndsAt = 0
+    ++this.playGeneration // invalidate the trim timer and any trailing 'ended'
+    this.clearPauseTimer()
+    this.audio.pause()
+    this.onAudioEnded()
   }
 
   private clearPauseTimer(): void {
     if (this.pauseTimer) {
       clearTimeout(this.pauseTimer)
       this.pauseTimer = null
+    }
+    // Stop the silent pause clip wherever the timer is cleared. Every exit path
+    // (pause / skipToPhase / skipRound / jumpToRound / stop / trip*) already
+    // calls clearPauseTimer, so this is the single chokepoint that guarantees
+    // the clip is never left sounding — zero new call sites needed.
+    if (this.pauseClipActive) {
+      this.pauseClipActive = false
+      this.pauseEndsAt = 0
+      try { this.audio.pause() } catch { /* element may already be torn down */ }
     }
   }
 
@@ -1019,6 +1190,15 @@ export class SimplePlayer {
   private onAudioEnded(): void {
     this.clearSafetyTimer()
     if (!this.state.isPlaying) return
+
+    // The silent pause clip reaching its natural end is the background-safe
+    // trigger for pause→voice1. Route it through endPausePhase so it shares the
+    // single, generation-guarded advance path with the trim timer (no double
+    // advance, clip stopped, isPlaying re-checked).
+    if (this.state.phase === 'pause' && this.pauseClipActive) {
+      this.endPausePhase()
+      return
+    }
 
     const nextPhase = this.getNextPhase()
     if (nextPhase) {
@@ -1118,6 +1298,11 @@ export class SimplePlayer {
     this.stop()
     this.audio.removeEventListener('ended', this.onEndedHandler)
     this.audio.removeEventListener('error', this.onErrorHandler)
+    this.audio.removeEventListener('timeupdate', this.onTimeUpdateHandler)
+    this.audio.removeEventListener('loadedmetadata', this.onTimeUpdateHandler)
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityHandler)
+    }
     this.listeners.clear()
   }
 }

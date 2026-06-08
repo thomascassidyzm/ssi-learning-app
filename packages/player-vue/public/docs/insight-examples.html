@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Example Insights — SSi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --paper:#f4f2ec; --paper-2:#efece4; --card:#ffffff; --ink:#2C2622; --ink-2:#5b534c; --ink-3:#8A8078; --ink-faint:#b8b0a6;
+    --line:rgba(44,38,34,0.12); --line-soft:rgba(44,38,34,0.07);
+    --red:#DB1E17; --blue:#60A5FA; --gold:#C59840; --green:#3A9E60;
+    --display:'Arsenal',Georgia,serif; --body:'Newsreader',Georgia,serif; --mono:'Spline Sans Mono',ui-monospace,monospace;
+    --wide:64rem;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--body); font-size:18px; line-height:1.6; -webkit-font-smoothing:antialiased;
+    background-image: radial-gradient(1200px 600px at 80% -10%, rgba(197,152,64,0.10), transparent 60%), radial-gradient(900px 500px at -10% 12%, rgba(96,165,250,0.07), transparent 55%); background-attachment:fixed; }
+  .topbar { position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:18px; padding:calc(14px + env(safe-area-inset-top,0px)) clamp(18px,5vw,64px) 14px; background:rgba(244,242,236,0.82); backdrop-filter:blur(14px) saturate(1.4); border-bottom:1px solid var(--line-soft); }
+  .backlink { display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:12px; color:var(--ink-2); text-decoration:none; padding:6px 12px 6px 9px; border-radius:999px; border:1px solid var(--line); background:var(--card); }
+  .backlink:hover { color:var(--red); border-color:rgba(219,30,23,0.32); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-2); }
+  .brand b { color:var(--red); font-weight:600; } .brand .mark { width:22px; height:22px; border-radius:6px; background:var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  main { position:relative; z-index:1; }
+  .wrap { max-width:var(--wide); margin:0 auto; padding:0 clamp(20px,5vw,28px); }
+  .hero { padding:clamp(48px,9vw,96px) 0 clamp(20px,4vw,40px); }
+  .eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--red); display:inline-block; margin-bottom:18px; }
+  h1 { font-family:var(--display); font-weight:700; letter-spacing:-0.02em; line-height:1.03; font-size:clamp(36px,6.5vw,68px); margin:0 0 18px; }
+  h1 em { font-style:italic; color:var(--red); font-weight:400; }
+  .lede { font-size:clamp(18px,2.4vw,22px); line-height:1.5; color:var(--ink-2); max-width:42rem; }
+  .lens-head { font-family:var(--mono); font-size:12px; letter-spacing:0.16em; text-transform:uppercase; color:var(--red); margin:clamp(40px,6vw,72px) 0 6px; }
+  .lens-sub { font-style:italic; color:var(--ink-2); margin:0 0 22px; font-size:19px; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:20px; }
+  .fig { background:var(--card); border:1px solid var(--line); border-radius:18px; overflow:hidden; box-shadow:0 1px 2px rgba(44,38,34,.05), 0 16px 44px rgba(44,38,34,.08); display:flex; flex-direction:column; }
+  .fig.span { grid-column:1/-1; }
+  .fig-head { padding:18px 22px 12px; border-bottom:1px solid var(--line-soft); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .fig-q { font-family:var(--display); font-weight:700; font-size:18px; color:var(--ink); }
+  .fig-tag { font-family:var(--mono); font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#fff; background:var(--ink); padding:3px 8px; border-radius:5px; margin-left:auto; }
+  .fig-tag.b { background:var(--red); } .fig-tag.a { background:var(--blue); }
+  .chart { width:100%; height:300px; }
+  .chart.tall { height:340px; }
+  .read { padding:12px 22px 18px; font-size:14.5px; line-height:1.5; color:var(--ink-2); border-top:1px solid var(--line-soft); }
+  .read b { color:var(--ink); font-weight:600; }
+  /* health */
+  .health-body { display:grid; grid-template-columns:1.2fr 1fr; gap:8px; align-items:center; padding:8px 12px; }
+  .tiles { display:flex; flex-direction:column; gap:12px; padding-right:8px; }
+  .tile { background:var(--paper-2); border:1px solid var(--line-soft); border-radius:12px; padding:14px 16px; }
+  .tile .v { font-family:var(--display); font-weight:700; font-size:26px; line-height:1; }
+  .tile .v.warn { color:var(--red); } .tile .v.ok { color:var(--green); }
+  .tile .l { font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); margin-top:7px; }
+  .tile .d { font-size:12.5px; color:var(--ink-2); margin-top:5px; }
+  /* standing footer */
+  .stand-foot { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:0 22px 16px; }
+  .stand-foot .avg { font-size:14px; color:var(--ink-2); } .stand-foot .avg b{color:var(--ink)}
+  .pct { font-family:var(--display); font-weight:700; color:var(--green); font-size:19px; }
+  /* discover */
+  .disc { padding:20px 22px; }
+  .disc .moved { font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--red); }
+  .disc .story { font-family:var(--display); font-weight:700; font-size:23px; line-height:1.22; color:var(--ink); margin:6px 0 6px; }
+  .disc .why { font-size:16px; color:var(--ink-2); margin:0 0 16px; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; }
+  .act { display:flex; align-items:center; gap:9px; border:1px solid var(--line); background:var(--card); border-radius:10px; padding:9px 13px; font-size:14px; color:var(--ink); }
+  .act .tier { font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em; text-transform:uppercase; padding:2px 7px; border-radius:999px; }
+  .act .tier.try { background:rgba(58,158,96,.16); color:var(--green); }
+  .act .tier.invest { background:rgba(197,152,64,.2); color:#9a7320; }
+  .act .tier.together { background:rgba(96,165,250,.18); color:#2563eb; }
+  .act .own { font-family:var(--mono); font-size:10px; color:var(--ink-3); }
+  .why-btn { font-family:var(--mono); font-size:11px; color:var(--ink-3); border:1px solid var(--line); background:transparent; border-radius:999px; padding:2px 9px; }
+  footer { padding:50px 0 80px; color:var(--ink-3); font-size:13px; font-family:var(--mono); letter-spacing:0.03em; }
+  .reveal { opacity:0; transform:translateY(14px); transition:opacity .6s cubic-bezier(.2,.7,.2,1), transform .6s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ .reveal{opacity:1;transform:none;transition:none} html{scroll-behavior:auto} }
+  @media (max-width:560px){ .health-body{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/admin/methodology" class="backlink"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg> Back</a>
+  <span class="brand"><span class="mark">S</span> SaySomethin<b>in</b> · Admin</span>
+</div>
+
+<main>
+  <header class="hero wrap">
+    <span class="eyebrow">Insight engine · worked examples</span>
+    <h1>The sort of thing<br>you'd <em>actually look at</em>.</h1>
+    <p class="lede">Eight widgets the engine would produce — every one a different visual shape, rendered with realistic SSi data and themed to the house palette. Company-facing patterns (Lens&nbsp;B) and the entity-standing celebration (Lens&nbsp;A). Each is a mock-up of a Claude-emitted spec: a question, a configured widget, and what you could <em>do</em> about it.</p>
+  </header>
+
+  <div class="wrap">
+    <div class="lens-head">Lens B — what should we do?</div>
+    <p class="lens-sub">Population &amp; content patterns, for content · reach · value.</p>
+
+    <div class="grid2">
+      <div class="fig reveal">
+        <div class="fig-head"><span class="fig-q">Which courses carry the value?</span><span class="fig-tag b">treemap</span></div>
+        <div id="c-treemap" class="chart"></div>
+        <p class="read">Sized by the value proxy — <b>reach × stickiness × retention</b> (lifetime in-app hours). Spanish dominates on reach; Welsh punches above on stickiness. <b>Croatian is muted</b> — its figure is still inflated by schools test accounts, so the engine flags the contaminated source rather than ranking it straight.</p>
+      </div>
+      <div class="fig reveal">
+        <div class="fig-head"><span class="fig-q">Where do trial users fall away?</span><span class="fig-tag b">funnel</span></div>
+        <div id="c-funnel" class="chart"></div>
+        <p class="read">The <b>day-4 return</b> is the leak (in red) — the drop lands <em>before the second real session</em>. One testable lever (move the day-2 nudge to day-3), not a vague "improve onboarding." Premium = the 7-day trial, so this funnel is the whole conversion story.</p>
+      </div>
+    </div>
+
+    <div class="fig span reveal" style="margin-top:20px">
+      <div class="fig-head"><span class="fig-q">Where does the curriculum hurt everyone? — friction map</span><span class="fig-tag b">heatmap</span></div>
+      <div id="c-heatmap" class="chart"></div>
+      <p class="read">Population-wide <b>skip-back per seed-band × course</b> — the hot cells are where learners stall <em>regardless of who they are</em>, so they're content problems, not adaptation. Welsh S11–20 lights up: that's a Popty re-split question, surfaced not guessed.</p>
+    </div>
+
+    <div class="grid2" style="margin-top:20px">
+      <div class="fig reveal">
+        <div class="fig-head"><span class="fig-q">Where do learners go next?</span><span class="fig-tag b">sankey</span></div>
+        <div id="c-sankey" class="chart tall"></div>
+        <p class="read">The <b>course-flow graph</b> — first course → next → next. Spanish feeds French and Italian; the Celtic learners cluster (Welsh→Cornish). Both a marketing signal (what to cross-sell) and a sequencing one (what pairs naturally).</p>
+      </div>
+      <div class="fig reveal">
+        <div class="fig-head"><span class="fig-q">Who's fluent vs clicking through?</span><span class="fig-tag b">scatter</span></div>
+        <div id="c-scatter" class="chart tall"></div>
+        <p class="read">The signature <b>difficulty × execution</b> plane — far-along + executing well is fluent; far-along + low execution is clicking through (the red outliers — top of the "needs a look" list). <em>Illustrative: the execution axis arrives with VAD.</em></p>
+      </div>
+    </div>
+
+    <div class="fig span reveal" style="margin-top:20px">
+      <div class="fig-head"><span class="fig-q">Is the machine healthy — and is my fix live?</span><span class="fig-tag b">gauge · ops</span></div>
+      <div class="health-body">
+        <div id="c-donut" class="chart" style="height:240px"></div>
+        <div class="tiles">
+          <div class="tile"><div class="v warn">3.1%</div><div class="l">audio-failed · ↑ from 2.4%</div><div class="d">one clip on iOS Safari</div></div>
+          <div class="tile"><div class="v ok">94%</div><div class="l">cache-hit</div><div class="d">healthy buffer · lock-safe</div></div>
+        </div>
+      </div>
+      <p class="read">The <b>build-sha donut</b> is the "did my fix actually reach people" answer, from the data: <b>72% are still on a stale cached build</b>, so a change you shipped isn't live for most until their service worker swaps. (Exactly the Aran-reset question, answerable now.)</p>
+    </div>
+
+    <div class="fig span reveal" style="margin-top:20px">
+      <div class="fig-head"><span class="fig-q">What's worth a human's eye this week?</span><span class="fig-tag b">discover</span></div>
+      <div class="disc">
+        <span class="moved">▲ moved this week · by acceleration</span>
+        <p class="story">Welsh skip-back on S0014L02 jumped 40% — across 18 different learners.</p>
+        <p class="why">It's <em>content-relative</em> (it follows the LEGO, not any one person), so it's a quality signal not adaptation — most likely the LEGO is too big and wants a split. <button class="why-btn">why? ↗</button></p>
+        <div class="actions">
+          <span class="act"><span class="tier try">try</span> Re-split into two <span class="own">· popty</span></span>
+          <span class="act"><span class="tier invest">investigate</span> Open the 18 learners <span class="own">· you</span></span>
+          <span class="act"><span class="tier together">together</span> Walk the pod step with me <span class="own">· you + claude</span></span>
+        </div>
+      </div>
+      <p class="read">The engine's signature output: a thing you <b>didn't know to ask</b>, named, interpreted, and terminated in a small menu of <b>graded options with owners</b>. A curated recommender, never a backlog.</p>
+    </div>
+
+    <div class="lens-head">Lens A — how is this entity doing?</div>
+    <p class="lens-sub">Relational &amp; sovereign — celebrate, never shame.</p>
+
+    <div class="fig span reveal">
+      <div class="fig-head"><span class="fig-q">Welsh learners — last 30 days</span><span class="fig-tag a">standing</span></div>
+      <div id="c-standing" class="chart"></div>
+      <div class="stand-foot"><span class="avg">Average Welsh learner this month: <b>3h 05m</b></span><span class="pct">You're in the top 20% ✨</span></div>
+      <p class="read">The top 5 are <b>anonymised</b> (initials) — it celebrates the handful really putting the time in, without naming or shaming. You see <em>your</em> bar and a percentile, never a ladder to climb. <b>Admin</b> — visibility, not just comparison — would see these named, to spot power users to nurture.</p>
+    </div>
+  </div>
+
+  <footer class="wrap">SSi · Insight engine — worked examples · mock-ups of Claude-emitted specs · charted with ECharts · 2026-06-02</footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var ink="#2C2622", ink2="#5b534c", ink3="#8A8078", faint="#b8b0a6", red="#DB1E17", gold="#C59840", blue="#60A5FA", green="#3A9E60", line="rgba(44,38,34,0.10)";
+  var mono="Spline Sans Mono, monospace", disp="Arsenal, serif";
+  var base = { backgroundColor:"transparent", textStyle:{ fontFamily:mono, color:ink2 }, animationDuration:700, animationEasing:"cubicOut" };
+  function grad(c1, c2){ return new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:c1},{offset:1,color:c2}]); }
+  function gradV(c1, c2){ return new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:c1},{offset:1,color:c2}]); }
+  var charts = [];
+  function mk(id, opt){ var d=document.getElementById(id); if(!d||!window.echarts) return; var ch=echarts.init(d,null,{renderer:"canvas"}); ch.setOption(Object.assign({}, base, opt)); charts.push(ch); }
+
+  // 1. Treemap — course value
+  mk("c-treemap", { tooltip:{formatter:"{b}: {c} hrs"}, series:[{ type:"treemap", roam:false, nodeClick:false, breadcrumb:{show:false}, width:"100%", height:"100%", top:6, bottom:6, left:6, right:6,
+    itemStyle:{ borderColor:"#f4f2ec", borderWidth:3, gapWidth:3, borderRadius:7 },
+    label:{ show:true, fontFamily:mono, color:"#fff", fontSize:13, formatter:function(p){ return p.name+"\n"+ (p.value>=1000? (p.value/1000).toFixed(1)+"k" : p.value)+"h"; } },
+    data:[
+      { name:"Spanish", value:9140, itemStyle:{color:red} },
+      { name:"Welsh", value:6480, itemStyle:{color:gold} },
+      { name:"Italian", value:4020, itemStyle:{color:"#b8443e"} },
+      { name:"Afrikaans", value:2830, itemStyle:{color:"#7c8aa0"} },
+      { name:"Croatian", value:2360, itemStyle:{color:faint} },
+      { name:"Dutch", value:1610, itemStyle:{color:"#9aa3b2"} },
+      { name:"Romanian", value:1180, itemStyle:{color:"#c98b86"} }
+    ] }] });
+
+  // 2. Funnel — trial conversion
+  mk("c-funnel", { tooltip:{formatter:"{b}: {c}"}, series:[{ type:"funnel", left:"6%", right:"6%", top:10, bottom:14, minSize:"30%", maxSize:"100%", sort:"descending", gap:3,
+    label:{ position:"inside", color:"#fff", fontFamily:mono, fontSize:12, formatter:"{b}  {c}" },
+    itemStyle:{ borderColor:"#fff", borderWidth:2 },
+    data:[
+      { value:412, name:"Trial started", itemStyle:{color:gradV(blue,"#4a90d9")} },
+      { value:322, name:"Day-1 session", itemStyle:{color:gradV("#6ba8e8","#5a96d6")} },
+      { value:169, name:"Day-4 return", itemStyle:{color:gradV(red,"#e9696b")} },
+      { value:136, name:"Day-7 active", itemStyle:{color:gradV("#8bb5e0","#7aa5d4")} },
+      { value:99,  name:"Converted",    itemStyle:{color:gradV(green,"#2f8050")} }
+    ] }] });
+
+  // 3. Heatmap — curriculum friction
+  var hx=["S1–20","S21–40","S41–60","S61–80","S81–100","S101+"], hy=["Romanian","Afrikaans","Spanish","Welsh"];
+  var hd=[[0,3,18],[1,3,46],[2,3,12],[3,3,9],[4,3,7],[5,3,5], [0,2,14],[1,2,9],[2,2,22],[3,2,11],[4,2,8],[5,2,6], [0,1,11],[1,1,16],[2,1,8],[3,1,7],[4,1,9],[5,1,4], [0,0,9],[1,0,7],[2,0,13],[3,0,6],[4,0,5],[5,0,3]].map(function(d){return [d[0],d[1],d[2]];});
+  mk("c-heatmap", { tooltip:{position:"top", formatter:function(p){return p.name+" · "+hy[p.data[1]]+": "+p.data[2]+"% skip-back";}},
+    grid:{ left:78, right:18, top:14, bottom:40 },
+    xAxis:{ type:"category", data:hx, axisLine:{lineStyle:{color:line}}, axisTick:{show:false}, axisLabel:{fontFamily:mono,color:ink3,fontSize:11} },
+    yAxis:{ type:"category", data:hy, axisLine:{show:false}, axisTick:{show:false}, axisLabel:{fontFamily:mono,color:ink2,fontSize:12} },
+    visualMap:{ min:3, max:46, calculable:true, orient:"horizontal", left:"center", bottom:4, itemWidth:12, itemHeight:120, text:["hot",""], textStyle:{fontFamily:mono,fontSize:10,color:ink3}, inRange:{color:["#efece4","#f3d9a6","#e89a6a","#DB1E17"]} },
+    series:[{ type:"heatmap", data:hd, label:{show:true,fontFamily:mono,fontSize:11,color:ink,formatter:"{c}"}, itemStyle:{borderColor:"#fff",borderWidth:2,borderRadius:4}, emphasis:{itemStyle:{shadowBlur:8,shadowColor:"rgba(0,0,0,.2)"}} }] });
+
+  // 4. Sankey — course flow
+  mk("c-sankey", { tooltip:{trigger:"item",triggerOn:"mousemove"}, series:[{ type:"sankey", left:8, right:90, top:10, bottom:10, nodeGap:13, nodeWidth:14,
+    emphasis:{focus:"adjacency"},
+    label:{ fontFamily:mono, fontSize:12, color:ink },
+    lineStyle:{ color:"gradient", opacity:0.4, curveness:0.5 },
+    itemStyle:{ borderWidth:0, color:gold },
+    data:[ {name:"Spanish",itemStyle:{color:red}},{name:"Welsh",itemStyle:{color:gold}},{name:"French",itemStyle:{color:blue}},{name:"Italian",itemStyle:{color:"#b8443e"}},{name:"Cornish",itemStyle:{color:"#9a7320"}},{name:"German",itemStyle:{color:green}},{name:"Portuguese",itemStyle:{color:"#7c8aa0"}} ],
+    links:[ {source:"Spanish",target:"French",value:42},{source:"Spanish",target:"Italian",value:24},{source:"Spanish",target:"Portuguese",value:16},{source:"Welsh",target:"Cornish",value:18},{source:"Welsh",target:"French",value:9},{source:"French",target:"German",value:14},{source:"Italian",target:"French",value:8} ] }] });
+
+  // 5. Scatter — difficulty × execution
+  function cloud(n, cx, cy, sx, sy, seed){ var a=[]; var s=seed; function r(){ s=(s*9301+49297)%233280; return s/233280; } for(var i=0;i<n;i++){ var u=r(),v=r(); var g=Math.sqrt(-2*Math.log(u||.001))*Math.cos(6.283*v); var g2=Math.sqrt(-2*Math.log(r()||.001))*Math.cos(6.283*r()); a.push([Math.max(2,Math.min(98, cx+g*sx)), Math.max(2,Math.min(98, cy+g2*sy))]); } return a; }
+  mk("c-scatter", { grid:{left:46,right:18,top:18,bottom:42},
+    xAxis:{ name:"difficulty →", nameLocation:"middle", nameGap:26, nameTextStyle:{fontFamily:mono,color:ink3,fontSize:11}, min:0,max:100, splitLine:{lineStyle:{color:line}}, axisLine:{lineStyle:{color:line}}, axisLabel:{show:false}, axisTick:{show:false} },
+    yAxis:{ name:"execution →", nameLocation:"middle", nameGap:22, nameTextStyle:{fontFamily:mono,color:ink3,fontSize:11}, min:0,max:100, splitLine:{lineStyle:{color:line}}, axisLine:{lineStyle:{color:line}}, axisLabel:{show:false}, axisTick:{show:false} },
+    series:[
+      { type:"scatter", symbolSize:9, itemStyle:{color:"rgba(96,165,250,.45)"}, data:cloud(70, 52, 60, 22, 18, 7) },
+      { type:"effectScatter", symbolSize:13, rippleEffect:{scale:2.6,brushType:"stroke"}, itemStyle:{color:red}, data:[[78,22],[71,28],[85,31],[66,19]] }
+    ] });
+
+  // 6. Donut — build-sha (is the fix live)
+  mk("c-donut", { tooltip:{formatter:"{b}: {c}%"}, series:[{ type:"pie", radius:["56%","82%"], center:["50%","52%"], avoidLabelOverlap:false, padAngle:2,
+    itemStyle:{ borderRadius:6 }, label:{ show:true, position:"center", formatter:"28%\n{|on latest}", rich:{}, fontFamily:disp, fontWeight:700, fontSize:30, color:ink, lineHeight:30 },
+    labelLine:{show:false},
+    data:[ {value:28,name:"latest",itemStyle:{color:green}}, {value:72,name:"stale cached",itemStyle:{color:faint}} ] }] });
+
+  // 7. Standing — top 5 + you
+  mk("c-standing", { grid:{left:64,right:54,top:10,bottom:10},
+    xAxis:{ type:"value", max:24, splitLine:{lineStyle:{color:line}}, axisLine:{show:false}, axisTick:{show:false}, axisLabel:{show:false} },
+    yAxis:{ type:"category", data:["you","H·W","S·P","D·L","K·M","A·R"], axisLine:{show:false}, axisTick:{show:false}, axisLabel:{fontFamily:mono,fontSize:13,color:ink2,formatter:function(v){return v==="you"?"{you|you}":v;}, rich:{you:{color:"#2563eb",fontWeight:"bold"}} } },
+    series:[{ type:"bar", barWidth:"56%", itemStyle:{ borderRadius:[0,7,7,0] },
+      label:{ show:true, position:"right", fontFamily:mono, fontSize:12, color:ink2, formatter:function(p){ var h=Math.floor(p.value), m=Math.round((p.value-h)*60); return h+"h "+(m<10?"0":"")+m+"m"; } },
+      data:[
+        { value:9.5, itemStyle:{color:grad("#9cc6f5",blue)} },
+        { value:12.6, itemStyle:{color:grad("#e6c48a",gold)} },
+        { value:14.2, itemStyle:{color:grad("#e6c48a",gold)} },
+        { value:16.0, itemStyle:{color:grad("#e6c48a",gold)} },
+        { value:18.6, itemStyle:{color:grad("#e6c48a",gold)} },
+        { value:21.7, itemStyle:{color:grad("#e6c48a",gold)} }
+      ] }] });
+
+  function resize(){ charts.forEach(function(c){ c.resize(); }); }
+  window.addEventListener("resize", resize);
+  // re-render charts as their card reveals (so canvas sizes correctly)
+  var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); setTimeout(resize, 80); } }); }, { threshold: 0.08 });
+  document.querySelectorAll(".reveal").forEach(function (n) { io.observe(n); });
+})();
+</script>
+</body>
+</html>

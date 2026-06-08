@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import {
+  offlineDlState,
+  offlineDownloadPct,
+  offlineDownloadVisible,
+  offlineDownloadActive,
+  offlineDownloadHeadline,
+  offlineDownloadCount,
+} from '../composables/useOfflineDownloadStatus'
 
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
@@ -22,6 +30,22 @@ const isOpen = ref(false)
 const toggleTray = () => {
   isOpen.value = !isOpen.value
 }
+
+// ── Offline-download ring around the mode button ────────────────────────────
+// Offline was switched on from here, so its progress lives here too. The ring is
+// a conic-gradient on a child of the button itself (anchored via inset to the
+// button's own box → can NEVER drift off-centre, unlike an overlaid sibling SVG).
+// Drive it with CSS vars: --dl-pct fills the green arc; --dl-color sets green
+// (downloading/complete) or red (error). complete/error show a full ring.
+const offlineRingVars = computed(() => {
+  let pct = 0
+  let color = '#16a34a'
+  if (offlineDlState.value === 'complete') pct = 100
+  else if (offlineDlState.value === 'error') { pct = 100; color = '#ef4444' }
+  else if (offlineDownloadPct.value !== null) pct = offlineDownloadPct.value
+  else if (offlineDlState.value === 'preparing') pct = 12   // small green arc + pulse (no total yet)
+  return { '--dl-pct': pct, '--dl-color': color }
+})
 
 const closeTray = () => {
   isOpen.value = false
@@ -69,17 +93,35 @@ const handleMode = (mode: string) => {
   const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
   emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
 }
+
+// Offline is special: tapping it hands off to the full-screen depth picker
+// ("how much of the course to carry"). Close the tray first so the picker is
+// never left stacked behind it — the tray lives inside the bottom-nav's
+// z-index:3000 layer, so a still-open tray would paint over the body-teleported
+// picker. One popup at a time; the dialog requesting input stays accessible.
+const handleOffline = () => {
+  emit('toggleOffline')
+  closeTray()
+}
 </script>
 
 <template>
   <div v-show="isVisible" class="mode-tray-container">
-    <!-- Trigger button -->
+    <!-- Trigger button. The offline-download progress ring is a child of the
+         button, anchored to its own box so it stays perfectly concentric. -->
     <button
       class="mode-trigger"
       :class="{ active: hasActiveMode, open: isOpen }"
+      :style="offlineDownloadVisible ? offlineRingVars : undefined"
       @click="toggleTray"
       title="Modes"
     >
+      <span
+        v-if="offlineDownloadVisible"
+        class="mode-dl-ring"
+        :class="{ 'is-preparing': offlineDlState === 'preparing' }"
+        aria-hidden="true"
+      ></span>
       <!-- Show active mode icon, or default sliders icon -->
       <svg v-if="activeModeIcon === 'listening'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
@@ -101,30 +143,28 @@ const handleMode = (mode: string) => {
     <!-- Tray popover -->
     <Transition name="tray">
       <div v-if="isOpen" class="mode-tray">
-        <!-- Script toggle (character-based languages only) -->
-        <div v-if="hasRomanizedText" class="tray-item tray-item--static">
+        <!-- Pronunciation guide on/off (character-based languages only).
+             An on/off switch — NOT a switch between two scripts. Native script
+             is always shown; this adds/removes the romanisation above it. -->
+        <button
+          v-if="hasRomanizedText"
+          class="tray-item"
+          :class="{ active: !isNativeScript }"
+          @click.stop="emit('toggleScript')"
+          :aria-pressed="!isNativeScript"
+          aria-label="Pronunciation guide"
+        >
           <div class="tray-icon">
-            <span class="script-icon">{{ isNativeScript ? '文' : 'Aa' }}</span>
+            <span class="script-icon">Aa</span>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Script</span>
-            <span class="tray-desc">Writing system</span>
+            <span class="tray-name">Pronunciation</span>
+            <span class="tray-desc">{{ !isNativeScript ? 'Guide shown above the script' : 'Native script only' }}</span>
           </div>
-          <div class="segmented-control" role="group" aria-label="Script selection">
-            <button
-              class="segment"
-              :class="{ active: !isNativeScript }"
-              @click.stop="isNativeScript && emit('toggleScript')"
-              aria-label="Romanized"
-            >Aa</button>
-            <button
-              class="segment"
-              :class="{ active: isNativeScript }"
-              @click.stop="!isNativeScript && emit('toggleScript')"
-              aria-label="Native script"
-            >文</button>
+          <div class="tray-toggle" :class="{ on: !isNativeScript }">
+            <div class="tray-toggle-knob"></div>
           </div>
-        </div>
+        </button>
 
         <div v-if="hasRomanizedText" class="tray-divider"></div>
 
@@ -153,7 +193,7 @@ const handleMode = (mode: string) => {
         <button
           class="tray-item"
           :class="{ active: isOfflineMode }"
-          @click="handleMode('offline')"
+          @click="handleOffline"
         >
           <div class="tray-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -164,7 +204,13 @@ const handleMode = (mode: string) => {
           </div>
           <div class="tray-label">
             <span class="tray-name">Offline mode</span>
-            <span class="tray-desc">Play from downloaded audio</span>
+            <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
+              <template v-if="offlineDownloadVisible">
+                <span class="tray-desc-line">{{ offlineDownloadHeadline }}</span>
+                <span v-if="offlineDownloadCount" class="tray-desc-line tray-desc-count">{{ offlineDownloadCount }}</span>
+              </template>
+              <template v-else>Play from downloaded audio</template>
+            </span>
           </div>
           <div class="tray-toggle" :class="{ on: isOfflineMode }">
             <div class="tray-toggle-knob"></div>
@@ -232,8 +278,35 @@ const handleMode = (mode: string) => {
   z-index: 103;
 }
 
-/* Trigger button */
+/* Trigger button + offline-download ring */
+/* Offline-download progress ring — a conic-gradient masked into a ring, as a
+   CHILD of the button anchored to its own box (inset). It can never drift
+   off-centre the way the old overlaid SVG did. --dl-pct (0–100) fills the green
+   arc clockwise from 12 o'clock; --dl-color is green (downloading/complete) or
+   red (error). complete/error pass pct=100 → full ring. */
+.mode-dl-ring {
+  position: absolute;
+  inset: -5px;                 /* a halo just OUTSIDE the 44px button */
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(var(--dl-color, #16a34a) calc(var(--dl-pct, 0) * 1%), rgba(0, 0, 0, 0.13) 0);
+  /* cut a 4px ring out of the conic disc (Safari needs -webkit-mask). No
+     filter:drop-shadow here — drop-shadow + CSS mask is a known iOS Safari
+     rendering quirk; the green + 4px thickness carry the visibility. */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  transition: background 0.3s ease;
+}
+.mode-dl-ring.is-preparing {
+  animation: mode-dl-pulse 1s ease-in-out infinite;   /* no total yet → gentle pulse */
+}
+@keyframes mode-dl-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .mode-dl-ring.is-preparing { animation: none; }
+}
+
 .mode-trigger {
+  position: relative;          /* positioning context for .mode-dl-ring */
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -375,6 +448,28 @@ const handleMode = (mode: string) => {
   line-height: 1.3;
   margin-top: 1px;
 }
+/* While a download is in progress, the Offline row's desc shows the live detail
+   in the accent colour, as TWO fixed lines (headline + count) so the layout
+   never reflows between 1 and 2 lines as the numbers tick — that reflow was the
+   flicker. tabular-nums keeps digit width steady so the count doesn't jitter. */
+.tray-desc.is-downloading {
+  color: #16a34a;
+  font-weight: 600;
+}
+.tray-desc-line {
+  display: block;
+}
+/* Only the count stays on one line (numbers shouldn't wrap mid-value); the
+   headline may wrap so the long 'Download incomplete…' error doesn't overflow. */
+.tray-desc-count {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.tray-desc.is-error {
+  color: #ef4444;
+  font-weight: 600;
+}
 
 /* Toggle switch for Turbo */
 .tray-toggle {
@@ -405,16 +500,6 @@ const handleMode = (mode: string) => {
 
 .tray-toggle.on .tray-toggle-knob {
   transform: translateX(16px);
-}
-
-/* Active dot for exclusive modes */
-.tray-active-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #16a34a;
-  flex-shrink: 0;
-  box-shadow: 0 0 6px rgba(22, 163, 74, 0.4);
 }
 
 /* Radio indicator for mutually exclusive modes */
@@ -450,15 +535,6 @@ const handleMode = (mode: string) => {
   padding: 8px 12px;
 }
 
-/* Static (non-button) tray item for embedded controls */
-.tray-item--static {
-  cursor: default;
-}
-
-.tray-item--static:hover {
-  background: transparent;
-}
-
 /* Section header */
 .tray-section-header {
   padding: 8px 14px 4px;
@@ -467,41 +543,6 @@ const handleMode = (mode: string) => {
   color: #A09A94;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-}
-
-/* Segmented control (script toggle) */
-.segmented-control {
-  display: flex;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
-  padding: 2px;
-  flex-shrink: 0;
-}
-
-.segment {
-  min-width: 32px;
-  height: 24px;
-  padding: 0 8px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #A09A94;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.segment:hover:not(.active) {
-  color: #6B6560;
-}
-
-.segment.active {
-  background: white;
-  color: #16a34a;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 /* Backdrop */

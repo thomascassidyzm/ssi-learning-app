@@ -1,10 +1,5 @@
 import type { DemoConfig } from '../types'
 
-// Welsh demo data IDs (retained for potential future scene lookups; persona
-// is set once by DemoLauncher so scenes no longer carry a user ID).
-const CLASS_WELSH_ID = 'e0300000-0000-0000-0000-000000000001'   // Blwyddyn 5 Cymraeg
-const CLASS_FRENCH_ID = 'e0300000-0000-0000-0000-000000000004'  // Blwyddyn 6 Ffrangeg
-
 export const teacherDemo: DemoConfig = {
   id: 'teacher-demo',
   title: 'SaySomethingin Schools - Teacher Demo',

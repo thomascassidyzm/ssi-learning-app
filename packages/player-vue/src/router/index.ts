@@ -235,6 +235,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'User Detail', description: 'Individual user profile and progress' },
       },
       {
+        path: 'attention',
+        name: 'admin-attention',
+        component: () => import('@/views/admin/AdminAttention.vue'),
+        meta: { title: 'Needs Attention', description: 'Subscribers who need attention' },
+      },
+      {
         path: 'activity',
         name: 'admin-activity',
         component: () => import('@/views/admin/AdminActivity.vue'),
@@ -273,6 +279,12 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-methodology',
         component: () => import('@/views/admin/AdminMethodology.vue'),
         meta: { title: 'Measuring progress', description: 'Methodology papers and demos' },
+      },
+      {
+        path: 'insights',
+        name: 'admin-insights',
+        component: () => import('@/insight/InsightsView.vue'),
+        meta: { title: 'Insights', description: 'Insight Engine — Claude-directed analytics boards' },
       },
     ],
   },

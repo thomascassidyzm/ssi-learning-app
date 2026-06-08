@@ -208,31 +208,6 @@ export function createThreadManager(): ThreadManager {
   }
 
   /**
-   * Mark a LEGO's introduction as complete
-   */
-  function markIntroductionComplete(legoId: string): void {
-    for (const thread of threads.values()) {
-      const progress = thread.progress.get(legoId)
-      if (progress) {
-        progress.introduction_complete = true
-        progress.introduction_played = true
-        progress.skip_number = 1 // Ready for first spaced rep
-        break
-      }
-    }
-  }
-
-  /**
-   * Advance current index in active thread (after completing a LEGO's round)
-   */
-  function advanceCurrentIndex(): void {
-    const thread = threads.get(activeThread)
-    if (thread && thread.currentIndex < thread.legos.length) {
-      thread.currentIndex++
-    }
-  }
-
-  /**
    * Decrement skip numbers across all threads
    */
   function decrementSkipNumbers(): void {

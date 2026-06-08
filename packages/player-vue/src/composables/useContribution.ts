@@ -29,6 +29,13 @@ function emptyTimeframe(): ContributionTimeframe {
   return { minutes: 0, phrases: 0, speakers: 0 }
 }
 
+// --- Community all-time OFFSET --------------------------------------------
+// All-time community = the real sum of every daily_contributions row, read live.
+// (Previously a frozen per-language OFFSET: raw all-time was once schools-test-
+// polluted AND the table wasn't anon-readable, so we showed an approximation.
+// The pollution is no longer dominant and the SELECT grant is in — so we read
+// the true number. See docs/sessions-and-days-active.md.)
+
 export function useContribution(client: Ref<SupabaseClient | null>) {
   const data = ref<ContributionData | null>(null)
   const isLoading = ref(false)
@@ -127,12 +134,40 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
         }
       }
 
+      // All-time community = the true sum of every daily row (read live now that
+      // the table is anon-readable; no more frozen offset). All-time keeps using
+      // daily_contributions because it carries pre-LSO history.
+      const allSum = sumRows(allRows)
+      const globalAllTime = { minutes: allSum.minutes, phrases: allSum.phrases, speakers: 0 }
+
+      // Community WINDOWS (today/7d/30d) come live from the SAME source as the
+      // user number (learner_speaking_opportunities, via a security-definer
+      // aggregate) — so you can never exceed the community. daily_contributions
+      // is fed by COMPLETED sessions only, so its "today" lags badly early in the
+      // UTC day (the old "38 / 6"). Falls back to daily_contributions if the RPC
+      // isn't deployed yet.
+      let globalToday2 = { ...globalToday }
+      let globalDays7 = { ...sumRows(days7Rows), speakers: globalToday.speakers }
+      let globalDays30 = { ...sumRows(days30Rows), speakers: 0 }
+      try {
+        const { data: live } = await client.value.rpc('get_community_contribution', { p_target_lang: targetLang })
+        if (Array.isArray(live)) {
+          const byKey = Object.fromEntries(live.map((r: any) => [r.window_key, r]))
+          const pick = (k: string) => byKey[k]
+            ? { minutes: Number(byKey[k].minutes) || 0, phrases: Number(byKey[k].phrases) || 0, speakers: Number(byKey[k].speakers) || 0 }
+            : null
+          globalToday2 = pick('today') ?? globalToday2
+          globalDays7 = pick('days7') ?? globalDays7
+          globalDays30 = pick('days30') ?? globalDays30
+        }
+      } catch { /* RPC not deployed — keep the daily_contributions windows */ }
+
       data.value = {
         global: {
-          today: globalToday,
-          days7: { ...sumRows(days7Rows), speakers: globalToday.speakers },
-          days30: sumRows(days30Rows),
-          allTime: sumRows(allRows),
+          today: globalToday2,
+          days7: globalDays7,
+          days30: globalDays30,
+          allTime: globalAllTime,
         },
         user: { today: userToday, days7: user7, days30: user30, allTime: userAll },
         targetLanguage: targetLang,

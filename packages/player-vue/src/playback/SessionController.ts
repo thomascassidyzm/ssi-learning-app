@@ -428,18 +428,6 @@ export function createSessionController(): SessionController {
   }
 
   /**
-   * Find the seed that contains a LEGO
-   */
-  function findSeedForLego(legoId: string): SeedPair | null {
-    for (const seed of seeds) {
-      if (seed.legos.some(l => l.id === legoId)) {
-        return seed
-      }
-    }
-    return seeds[0] ?? null
-  }
-
-  /**
    * Start playback
    */
   function start(audioSource: GetAudioSourceFn): void {

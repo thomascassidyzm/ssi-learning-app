@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Listening Pod — SSi Methodology</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Arsenal:ital,wght@0,400;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper:#f4f2ec; --paper-2:#efece4; --card:#ffffff;
+    --ink:#2C2622; --ink-2:#5b534c; --ink-3:#8A8078; --ink-faint:#b8b0a6;
+    --line:rgba(44,38,34,0.12); --line-soft:rgba(44,38,34,0.07);
+    --red:#DB1E17; --red-deep:#900600;
+    --blue:96,165,250; --gold:197,152,64; --green:58,158,96;
+    --display:'Arsenal',Georgia,serif; --body:'Newsreader',Georgia,serif; --mono:'Spline Sans Mono',ui-monospace,monospace;
+    --measure:38rem; --wide:60rem;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink); font-family:var(--body);
+    font-size:19px; line-height:1.62; font-weight:400; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    background-image: radial-gradient(1200px 600px at 80% -10%, rgba(var(--gold),0.10), transparent 60%), radial-gradient(900px 500px at -10% 12%, rgba(var(--blue),0.06), transparent 55%);
+    background-attachment:fixed;
+  }
+  body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:none; opacity:0.4; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"); }
+
+  /* nav */
+  .topbar { position:sticky; top:0; z-index:40; display:flex; align-items:center; gap:18px;
+    padding:calc(14px + env(safe-area-inset-top,0px)) clamp(18px,5vw,64px) 14px;
+    background:rgba(244,242,236,0.82); backdrop-filter:blur(14px) saturate(1.4); border-bottom:1px solid var(--line-soft); }
+  .backlink { display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:12px; letter-spacing:0.04em;
+    color:var(--ink-2); text-decoration:none; padding:6px 12px 6px 9px; border-radius:999px; border:1px solid var(--line); background:var(--card); transition:color .15s,border-color .15s; flex:none; }
+  .backlink:hover { color:var(--red); border-color:rgba(219,30,23,0.32); }
+  .brand { display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-2); }
+  .brand b { color:var(--red); font-weight:600; }
+  .brand .mark { width:22px; height:22px; border-radius:6px; background:var(--red); color:#fff; display:grid; place-items:center; font-family:var(--display); font-weight:700; font-size:14px; }
+  .topnav { margin-left:auto; display:flex; gap:4px; flex-wrap:wrap; }
+  .topnav a { font-family:var(--mono); font-size:11px; letter-spacing:0.04em; color:var(--ink-3); text-decoration:none; padding:6px 10px; border-radius:999px; transition:color .15s,background .15s; }
+  .topnav a:hover, .topnav a.active { color:var(--red); background:rgba(219,30,23,0.07); }
+  @media (max-width:880px){ .topnav { display:none; } }
+
+  /* layout */
+  main { position:relative; z-index:1; }
+  .wrap { max-width:var(--measure); margin:0 auto; padding:0 clamp(20px,5vw,28px); }
+  .wide { max-width:var(--wide); margin:0 auto; padding:0 clamp(20px,5vw,28px); }
+  section { padding:clamp(40px,7vw,88px) 0; border-top:1px solid var(--line-soft); }
+  section:first-of-type { border-top:none; }
+
+  .hero { padding:clamp(56px,11vw,130px) 0 clamp(36px,6vw,64px); border-top:none; }
+  .eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; text-transform:uppercase; color:var(--red); display:inline-block; margin-bottom:22px; }
+  .hero h1 { font-family:var(--display); font-weight:700; letter-spacing:-0.02em; line-height:1.02; font-size:clamp(40px,7.5vw,86px); margin:0 0 22px; }
+  .hero h1 em { font-style:italic; color:var(--red); font-weight:400; }
+  .lede { font-size:clamp(20px,2.6vw,25px); line-height:1.5; color:var(--ink-2); max-width:34rem; }
+  .lede strong { color:var(--ink); font-weight:500; }
+  .meta-row { margin-top:38px; display:flex; gap:26px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; letter-spacing:0.04em; color:var(--ink-3); }
+  .meta-row span b { color:var(--ink); font-weight:600; }
+
+  h2 { font-family:var(--display); font-weight:700; letter-spacing:-0.015em; line-height:1.08; font-size:clamp(28px,4.4vw,44px); margin:0 0 6px; }
+  h2 em { font-style:italic; color:var(--red); font-weight:400; }
+  .sec-num { font-family:var(--mono); font-size:12px; letter-spacing:0.18em; color:var(--red); text-transform:uppercase; display:block; margin-bottom:14px; }
+  .dek { font-size:21px; color:var(--ink-2); font-style:italic; margin:0 0 30px; max-width:32rem; }
+  p { margin:0 0 20px; }
+  strong { font-weight:600; } em { font-style:italic; }
+  a.inline { color:var(--red); text-decoration:none; border-bottom:1px solid rgba(219,30,23,0.3); }
+  .small { font-size:16px; color:var(--ink-2); }
+  .pull { font-family:var(--display); font-weight:700; font-size:clamp(22px,3vw,30px); line-height:1.2; color:var(--ink); border-left:3px solid var(--red); padding-left:20px; margin:30px 0; }
+  .pull em { font-style:italic; color:var(--red); font-weight:400; }
+  blockquote { margin:26px 0; padding:0 0 0 22px; border-left:3px solid var(--line); font-style:italic; color:var(--ink-2); font-size:20px; }
+  blockquote cite { display:block; margin-top:10px; font-style:normal; font-family:var(--mono); font-size:12px; letter-spacing:0.04em; color:var(--ink-3); }
+
+  /* figure */
+  figure.fig { margin:0; background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 1px 0 rgba(255,255,255,0.6) inset, 0 18px 40px -28px rgba(44,38,34,0.4); }
+  .fig-head { padding:18px 22px 12px; border-bottom:1px solid var(--line-soft); display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .fig-tag { font-family:var(--mono); font-size:11px; letter-spacing:0.12em; text-transform:uppercase; color:#fff; background:var(--ink); padding:3px 8px; border-radius:5px; }
+  .fig-title { font-family:var(--display); font-weight:700; font-size:18px; color:var(--ink); }
+  .fig-body { padding:22px; }
+  figcaption { padding:14px 22px 20px; border-top:1px solid var(--line-soft); font-size:15px; line-height:1.5; color:var(--ink-2); background:var(--paper-2); }
+  figcaption b { color:var(--ink); }
+
+  /* controls */
+  .controls { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:20px; }
+  .ctrl-label { font-family:var(--mono); font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-3); }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:var(--paper-2); }
+  .seg button { font-family:var(--mono); font-size:12px; color:var(--ink-2); background:none; border:none; padding:7px 14px; cursor:pointer; transition:background .15s,color .15s; }
+  .seg button.on { background:var(--ink); color:#fff; }
+  .seg.red button.on { background:var(--red); }
+  input[type=range] { -webkit-appearance:none; appearance:none; height:4px; border-radius:999px; background:var(--line); outline:none; flex:1; min-width:160px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:var(--red); cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+  input[type=range]::-moz-range-thumb { width:20px; height:20px; border:none; border-radius:50%; background:var(--red); cursor:pointer; }
+  .readout { font-family:var(--mono); font-size:12px; color:var(--ink); min-width:88px; }
+  .readout b { color:var(--red); }
+
+  /* role chips (stage-through) */
+  .lap { display:flex; gap:10px; flex-wrap:wrap; align-items:stretch; margin:6px 0 18px; min-height:62px; }
+  .chip { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; padding:10px 14px; border-radius:10px; min-width:74px; border:1px solid transparent; transition:transform .2s; }
+  .chip .role { font-family:var(--mono); font-size:10px; letter-spacing:0.06em; text-transform:uppercase; opacity:.8; }
+  .chip .what { font-family:var(--display); font-weight:700; font-size:14px; }
+  .chip.ps    { background:rgba(44,38,34,0.06); color:var(--ink); border-color:var(--line); }
+  .chip.ps2x  { background:rgba(219,30,23,0.10); color:var(--red-deep); border-color:rgba(219,30,23,0.25); }
+  .chip.trans { background:rgba(var(--gold),0.16); color:#7a5a18; border-color:rgba(var(--gold),0.4); }
+  .chip.explainer { background:rgba(var(--blue),0.16); color:#2c5f9e; border-color:rgba(var(--blue),0.45); }
+  .stage-meta { display:flex; gap:24px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; color:var(--ink-3); margin-bottom:4px; }
+  .stage-meta b { color:var(--ink); }
+  .verdict { font-size:16px; color:var(--ink-2); line-height:1.5; margin-top:4px; min-height:48px; }
+  .verdict b { color:var(--ink); } .verdict .hl { color:var(--red); font-weight:600; }
+
+  /* sentence rows (chunk vs explainer) */
+  .row { display:flex; align-items:center; gap:14px; padding:12px 16px; border:1px solid var(--line); border-radius:10px; background:var(--paper-2); margin-bottom:8px; }
+  .row .tgt { font-family:var(--display); font-weight:700; font-size:17px; color:var(--ink); }
+  .row .kn { font-family:var(--body); font-style:italic; color:var(--ink-3); margin-left:auto; font-size:15px; }
+  .row .num { font-family:var(--mono); font-size:11px; color:var(--ink-faint); width:18px; flex:none; }
+  .explainer-strip { display:flex; flex-wrap:wrap; gap:8px 10px; padding:14px 16px; border-radius:10px; background:rgba(var(--blue),0.10); border:1px dashed rgba(var(--blue),0.4); margin:4px 0 2px; }
+  .explainer-strip .lbl { font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; color:#2c5f9e; width:100%; }
+  .explainer-strip .part { font-size:15.5px; color:var(--ink); }
+  .explainer-strip .part b { color:#2c5f9e; }
+  .tradeoff { display:flex; gap:14px; flex-wrap:wrap; margin-top:16px; }
+  .tradeoff > div { flex:1; min-width:200px; padding:13px 16px; border-radius:10px; font-size:15px; line-height:1.45; }
+  .tradeoff .a { background:rgba(44,38,34,0.05); } .tradeoff .b { background:rgba(219,30,23,0.06); }
+  .tradeoff h4 { font-family:var(--mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; margin:0 0 6px; color:var(--ink-3); }
+
+  /* growing lap (figure C) */
+  .stack { display:flex; flex-direction:column-reverse; gap:5px; margin:8px 0 14px; }
+  .bar { display:flex; align-items:center; gap:12px; height:30px; border-radius:7px; padding:0 12px; color:#fff; font-family:var(--mono); font-size:11.5px; letter-spacing:0.03em; white-space:nowrap; overflow:hidden; transition:width .25s ease; }
+  .bar .sid { opacity:.7; } .bar .lab { font-weight:600; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-family:var(--mono); font-size:11px; color:var(--ink-3); margin-top:6px; }
+  .legend i { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+
+  .qbox { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:26px 28px; margin-top:8px; }
+  .qbox h3 { font-family:var(--display); font-weight:700; font-size:22px; margin:0 0 6px; }
+  .qbox ol { margin:14px 0 0; padding-left:22px; }
+  .qbox li { margin-bottom:14px; font-size:16.5px; }
+  .qbox li b { color:var(--red); font-weight:600; }
+
+  footer { padding:60px 0 90px; border-top:1px solid var(--line-soft); color:var(--ink-3); font-size:14px; }
+  footer .wrap { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; font-family:var(--mono); letter-spacing:0.03em; }
+
+  .reveal { opacity:0; transform:translateY(16px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ .reveal { opacity:1; transform:none; transition:none; } html { scroll-behavior:auto; } }
+  .hero-fade > * { opacity:0; animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards; }
+  .hero-fade > *:nth-child(1){animation-delay:.05s} .hero-fade > *:nth-child(2){animation-delay:.18s}
+  .hero-fade > *:nth-child(3){animation-delay:.31s} .hero-fade > *:nth-child(4){animation-delay:.44s}
+  @keyframes rise { to { opacity:1; transform:none; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="/admin/methodology" class="backlink" aria-label="Back to methodology">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </a>
+  <span class="brand"><span class="mark">S</span> SaySomethin<b>in</b> · Listening</span>
+  <nav class="topnav" id="topnav">
+    <a href="#why">Why listening</a>
+    <a href="#shape">The pod</a>
+    <a href="#stages">Stage-through</a>
+    <a href="#breakdown">Breakdown</a>
+    <a href="#lap">The growing lap</a>
+    <a href="#question">The question</a>
+  </nav>
+</div>
+
+<main>
+  <header class="hero wrap hero-fade">
+    <span class="eyebrow">Methodology · for Tom &amp; Aran</span>
+    <h1>How a conversation<br>teaches <em>itself</em>.</h1>
+    <p class="lede">The Listening Pod is SSi's second layer — <strong>acquisition through comprehensible input</strong>. A short natural exchange that, sentence by sentence, fades its own scaffolding until you're just listening, fast, and understanding. <strong>The figures are live — drag and toggle them.</strong></p>
+    <div class="meta-row">
+      <span><b>Layer</b> &nbsp;2 · acquisition</span>
+      <span><b>Companion</b> &nbsp;docs/methodology/listening-layers.md</span>
+      <span><b>Status</b> &nbsp;Design / discussion</span>
+    </div>
+  </header>
+
+  <!-- WHY -->
+  <section id="why"><div class="wrap reveal">
+    <span class="sec-num">01 — Why listening</span>
+    <h2>Once you can <em>produce</em>, listening does the rest.</h2>
+    <p class="dek">There's a tipping point. Before it, you build capacity. After it, you widen it.</p>
+    <p>Early on, learning is hard productive work — prompt, pause, attempt, hear it back. That builds <strong>productive capacity</strong>: the ability to say things. But once you have that capacity, you no longer need intensive productive effort on every new item. New vocabulary can ride in on <em>comprehensible input</em> — listening you mostly understand, where the unknown is carried by the known around it.</p>
+    <blockquote>"I don't really need all that much productive work with new items now — I've done a lot of that, and I now have a lot of productive capacity. <em>Wider listening is the key.</em>"<cite>— Aran Jones, on finishing Irish</cite></blockquote>
+    <p>The pod is how we deliver that wider listening: natural, scene-based conversation, not restricted to known words, tuned so the learner can follow without text. Showing text would remove the very effort that makes it stick — so by default there's none.</p>
+  </div></section>
+
+  <!-- SHAPE -->
+  <section id="shape"><div class="wrap reveal">
+    <span class="sec-num">02 — The shape of a pod</span>
+    <h2>A day, in scenes.</h2>
+    <p class="dek">Greetings, a coffee, an aperitif, the restaurant, the market, the hotel, the pharmacy, directions, a taxi.</p>
+    <p>Pod 0 walks one character through an ordinary day. Each scene is a short, natural exchange between two speakers; each row is one line of dialogue and its plain translation. That's <em>all</em> the author writes — the target sentence and its English. Everything else (the part-by-part breakdown, the speeds, when English appears and when it stops) is produced downstream and decided by the engine.</p>
+    <p class="small">The three live pods — Spanish, French, Croatian — share this scene spine exactly, which is why they're directly comparable. Where they differ is <em>how finely a line is cut</em>, and that's the subject of figures B and C.</p>
+  </div></section>
+
+  <!-- STAGES -->
+  <section id="stages"><div class="wrap reveal">
+    <span class="sec-num">03 — The stage-through</span>
+    <h2>One sentence, <em>maturing</em>.</h2>
+    <p class="dek">The same line, heard again across sessions — but never the same way twice.</p>
+    <p>When a sentence first appears, it's slow, broken down, and propped up with English. Each time it comes back, it loses a little support and gains a little speed — until eventually it's just the target, at full pace, with no scaffolding at all. That progression is the heart of the pod. Step through it:</p>
+  </div>
+  <div class="wide reveal">
+    <figure class="fig">
+      <div class="fig-head"><span class="fig-tag">Figure A</span><span class="fig-title">What plays, at each stage of a sentence's life</span></div>
+      <div class="fig-body">
+        <div class="controls">
+          <span class="ctrl-label">Stage</span>
+          <input type="range" id="stageRange" min="1" max="8" value="1" step="1" />
+          <span class="readout">Stage <b id="stageNum">1</b> / 8</span>
+        </div>
+        <div class="stage-meta">
+          <span>Speed: <b id="stageSpeed">1.0×</b></span>
+          <span>English support: <b id="stageEng">breakdown + translation</b></span>
+          <span id="stageEternal"></span>
+        </div>
+        <div class="lap" id="stageLap"></div>
+        <div class="verdict" id="stageVerdict"></div>
+      </div>
+      <figcaption><b>Read it:</b> each tile is one thing the learner hears, left to right. <span style="color:#2c5f9e;font-weight:600">Breakdown</span> appears <b>only at stage 1</b> — the very first exposure. From stage 2 it's gone, replaced by a plain <span style="color:#7a5a18;font-weight:600">translation</span>, which itself fades as the target speeds up to <span style="color:var(--red-deep);font-weight:600">2×</span>. By the final stage it's target-only, full speed, forever.</figcaption>
+    </figure>
+  </div></section>
+
+  <!-- BREAKDOWN -->
+  <section id="breakdown"><div class="wrap reveal">
+    <span class="sec-num">04 — Breaking a line down</span>
+    <h2>Two ways to make a sentence <em>followable</em>.</h2>
+    <p class="dek">Cut it into pieces — or keep it whole and explain the pieces once.</p>
+    <p>A long line needs to be made comprehensible. There are two strategies, and our three pods are split across them. <strong>Chunking</strong> slices the sentence into atomic pieces, each its own row, each practised on its own. <strong>The explainer</strong> keeps the sentence whole and, the first time it appears, plays an auto-generated part-by-part gloss in Tom's voice — <em>"X means Y, A means B"</em> — then never again; after that, just the translation.</p>
+    <p class="small">The explainer isn't authored — Haiku generates it from the sentence and its translation, then it's rendered to audio. Croatian was chunked instead, so it has <em>no</em> explainers at all. Toggle the same French line both ways:</p>
+  </div>
+  <div class="wide reveal">
+    <figure class="fig">
+      <div class="fig-head"><span class="fig-tag">Figure B</span><span class="fig-title">"Oui, après l'église et la poste."</span></div>
+      <div class="fig-body">
+        <div class="controls">
+          <span class="ctrl-label">Strategy</span>
+          <div class="seg red" id="bdSeg">
+            <button data-m="explain" class="on">Whole + explainer</button>
+            <button data-m="chunk">Chunk it</button>
+          </div>
+        </div>
+        <div id="bdView"></div>
+        <div class="tradeoff">
+          <div class="a"><h4>Chunking</h4>Smallest possible units, lots of repetition, no generated audio needed. But the line is never heard as one natural breath, and the row count explodes.</div>
+          <div class="b"><h4>Whole + explainer</h4>Natural sentences, broken down once then dropped. Bigger, more native rhythm — but leans on a generated breakdown that has to be good.</div>
+        </div>
+      </div>
+      <figcaption><b>Read it:</b> same content, same translation — only the <em>granularity</em> changes. Chunking turns one line into three rows that each march through their own stage-through. The explainer keeps it one row and spends a single first-exposure on the gloss. This is the choice on the table.</figcaption>
+    </figure>
+  </div></section>
+
+  <!-- LAP -->
+  <section id="lap"><div class="wrap reveal">
+    <span class="sec-num">05 — The lap that grows</span>
+    <h2>The pod gets <em>longer</em> as you go.</h2>
+    <p class="dek">Sentence <i>n</i> joins on the <i>n</i>-th lap. Everything older has moved on ahead of it.</p>
+    <p>A pod lap isn't fixed. On each lap a new sentence is introduced at stage 1, while every earlier sentence has aged forward into later stages. So a single lap is a cross-section of the whole journey at once — the newest line getting its breakdown, the oldest lines flashing past at 2×. Drag the lap counter and watch the front fill in while the back hardens:</p>
+  </div>
+  <div class="wide reveal">
+    <figure class="fig">
+      <div class="fig-head"><span class="fig-tag">Figure C</span><span class="fig-title">A single lap, as a cross-section of maturity</span></div>
+      <div class="fig-body">
+        <div class="controls">
+          <span class="ctrl-label">Lap</span>
+          <input type="range" id="lapRange" min="1" max="24" value="7" step="1" />
+          <span class="readout">Lap <b id="lapNum">7</b></span>
+        </div>
+        <div class="stack" id="lapStack"></div>
+        <div class="legend">
+          <span><i style="background:#2c5f9e"></i>Stage 1 · breakdown</span>
+          <span><i style="background:#5b534c"></i>Early · translation</span>
+          <span><i style="background:#b07a2a"></i>Mid · speeding up</span>
+          <span><i style="background:#900600"></i>Eternal · 2×, no support</span>
+        </div>
+      </div>
+      <figcaption><b>Read it:</b> the bottom bar is the sentence just introduced this lap (stage 1, with its breakdown); each bar above it is an older sentence further along. As laps climb, the lap lengthens and its tail goes red — content the learner has effectively acquired, now just maintenance. <span class="small">(Stage width shown illustratively so the spread is legible.)</span></figcaption>
+    </figure>
+  </div></section>
+
+  <!-- QUESTION -->
+  <section id="question"><div class="wrap reveal">
+    <span class="sec-num">06 — The open question</span>
+    <h2>Bigger sentences, carried by a better <em>breakdown</em>.</h2>
+    <p class="dek">Built to be argued with.</p>
+    <p>The working hypothesis: <strong>bigger sentences are better</strong> — more natural, more rhythm, more real comprehensible input — <em>provided</em> the breakdown does enough work the first time. That means leaning on the explainer model (Spanish / French) rather than chunking everything small (Croatian), and making the explainer genuinely good. Croatian would come back to whole sentences and get an explainer pass it has never had.</p>
+    <div class="qbox">
+      <h3>What we'd settle with Aran</h3>
+      <ol>
+        <li><b>Granularity.</b> Whole-sentence + explainer as the default, chunking only where a line truly won't sit? Or keep chunking for some scenes?</li>
+        <li><b>Once vs first stage.</b> Today the breakdown plays through the <em>whole</em> first stage (~5 laps). Should it be literally <em>once</em>, then translation — closer to "first time, then just the translation"?</li>
+        <li><b>Explainer quality bar.</b> If sentences get bigger, the gloss carries more load. What's good enough — and does it want Tom's voice throughout, or only the gloss?</li>
+        <li><b>Translation cadence.</b> How long should plain English persist after the breakdown drops, before the target stands on its own?</li>
+      </ol>
+    </div>
+  </div></section>
+
+  <footer><div class="wrap">
+    <span>SaySomethin<b>in</b> · Listening Pods</span>
+    <span>Layer 2 · acquisition</span>
+    <span>Draft for discussion</span>
+  </div></footer>
+</main>
+
+<script>
+  const $ = (s,r)=>(r||document).querySelector(s);
+
+  /* ---------- Figure A: stage-through ---------- */
+  // Mirrors DEFAULT_STAGE_PLAYLIST in usePodLapScheduler.ts
+  const STAGES = {
+    1:['ps','explainer','ps','trans','ps'],
+    2:['ps','trans','ps','ps2x'],
+    3:['ps','trans','ps2x','ps2x'],
+    4:['ps','trans','ps2x'],
+    5:['ps2x','trans','ps2x'],
+    6:['ps','ps2x'],
+    7:['ps2x','ps2x'],
+    8:['ps2x'],
+  };
+  const ROLE = {
+    ps:        {role:'1.0×', what:'say it'},
+    ps2x:      {role:'2.0×', what:'say it'},
+    trans:     {role:'English', what:'meaning'},
+    explainer: {role:'first time', what:'breakdown'},
+  };
+  const STAGE_VERDICT = {
+    1:'<b>First exposure.</b> Slowest, fully supported: hear it, get the <span class="hl">part-by-part breakdown</span>, hear it again, get the English, hear it once more.',
+    2:'The breakdown is <b>gone for good</b>. A plain translation remains, and the first 2× pass arrives.',
+    3:'More speed — two 2× passes now. English still there to anchor it.',
+    4:'Leaner. One slow pass, the translation, one fast.',
+    5:'The slow pass drops; it opens <b>at 2×</b> now, English just once in the middle.',
+    6:'English is gone. Just the target, slow then fast.',
+    7:'Two fast passes. Pure target, no support.',
+    8:'<b>Eternal hold.</b> One 2× pass, forever — acquired, now only maintained.',
+  };
+  function speedOf(s){ const pl=STAGES[s]; return pl.every(x=>x==='ps2x'||x==='trans') && pl.includes('ps2x') ? '2.0×' : (pl.includes('ps2x') ? 'mixed' : '1.0×'); }
+  function engOf(s){ const pl=STAGES[s]; if(pl.includes('explainer')) return 'breakdown + translation'; if(pl.includes('trans')) return 'translation only'; return 'none'; }
+  function drawStage(s){
+    s=+s;
+    $('#stageNum').textContent=s;
+    $('#stageSpeed').textContent=speedOf(s);
+    $('#stageEng').textContent=engOf(s);
+    $('#stageEternal').innerHTML = s===8 ? '· <b>eternal</b>' : '';
+    const lap=$('#stageLap'); lap.innerHTML='';
+    STAGES[s].forEach(r=>{
+      const d=document.createElement('div'); d.className='chip '+r;
+      d.innerHTML='<span class="role">'+ROLE[r].role+'</span><span class="what">'+ROLE[r].what+'</span>';
+      lap.appendChild(d);
+    });
+    $('#stageVerdict').innerHTML=STAGE_VERDICT[s];
+  }
+  $('#stageRange').addEventListener('input', e=>drawStage(e.target.value));
+  drawStage(1);
+
+  /* ---------- Figure B: chunk vs explainer ---------- */
+  const SENT = {
+    tgt:"Oui, après l'église et la poste.",
+    kn:"Yes, past the church and the post office.",
+    parts:[
+      {t:'Oui', e:'yes'},
+      {t:"après l'église", e:'past the church'},
+      {t:'et la poste', e:'and the post office'},
+    ],
+  };
+  function drawBd(mode){
+    const v=$('#bdView');
+    if(mode==='chunk'){
+      v.innerHTML = SENT.parts.map((p,i)=>
+        '<div class="row"><span class="num">'+(i+1)+'</span><span class="tgt">'+p.t+'</span><span class="kn">'+p.e+'</span></div>'
+      ).join('') + '<p class="small" style="margin:10px 2px 0">→ <b>3 rows</b>, each running its own stage-through independently.</p>';
+    } else {
+      v.innerHTML =
+        '<div class="row"><span class="num">1</span><span class="tgt">'+SENT.tgt+'</span><span class="kn">'+SENT.kn+'</span></div>'+
+        '<div class="explainer-strip"><span class="lbl">Explainer — first exposure only, generated, Tom’s voice</span>'+
+        SENT.parts.map(p=>'<span class="part"><b>'+p.t+'</b> means '+p.e+'</span>').join('<span style="color:var(--ink-faint)">·</span>')+
+        '</div>'+
+        '<p class="small" style="margin:10px 2px 0">→ <b>1 row</b>, broken down once, then only the translation.</p>';
+    }
+  }
+  $('#bdSeg').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    $('#bdSeg').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); drawBd(b.dataset.m);
+  });
+  drawBd('explain');
+
+  /* ---------- Figure C: growing lap ---------- */
+  // Illustrative stage width = 2 laps/stage so the spread reads at small lap counts.
+  const STAGE_DUR = 2, TOTAL_STAGES = 8;
+  function stageFor(entryLap, lap){
+    const alive = lap - entryLap + 1;
+    if(alive < 1) return null;
+    for(let st=1; st<TOTAL_STAGES; st++){ if(alive <= st*STAGE_DUR) return st; }
+    return TOTAL_STAGES;
+  }
+  function barColor(st){
+    if(st===1) return '#2c5f9e';
+    if(st<=3) return '#5b534c';
+    if(st<=6) return '#b07a2a';
+    return '#900600';
+  }
+  function barLabel(st){
+    if(st===1) return 'breakdown';
+    if(st<=3) return 'English';
+    if(st<=6) return 'speeding up';
+    return '2× · acquired';
+  }
+  function drawLap(lap){
+    lap=+lap; $('#lapNum').textContent=lap;
+    const stack=$('#lapStack'); stack.innerHTML='';
+    const maxBar = 100; // %
+    for(let i=1;i<=lap;i++){
+      const st=stageFor(i,lap); if(!st) continue;
+      const w = 34 + (st/TOTAL_STAGES)*(maxBar-34); // older→wider (further along)
+      const b=document.createElement('div'); b.className='bar';
+      b.style.width=w+'%'; b.style.background=barColor(st);
+      b.innerHTML='<span class="sid">S'+String(i).padStart(2,'0')+'</span><span class="lab">stage '+st+' · '+barLabel(st)+'</span>';
+      stack.appendChild(b);
+    }
+  }
+  $('#lapRange').addEventListener('input', e=>drawLap(e.target.value));
+  drawLap(7);
+
+  /* ---------- reveal + active nav ---------- */
+  const io=new IntersectionObserver(es=>es.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target);} }),{threshold:0.12});
+  document.querySelectorAll('.reveal').forEach(r=>io.observe(r));
+  const navLinks=[...document.querySelectorAll('#topnav a')];
+  const secs=navLinks.map(a=>document.querySelector(a.getAttribute('href')));
+  const nav=new IntersectionObserver(es=>es.forEach(en=>{ if(en.isIntersecting){ const id='#'+en.target.id; navLinks.forEach(a=>a.classList.toggle('active', a.getAttribute('href')===id)); } }),{rootMargin:'-45% 0px -50% 0px'});
+  secs.forEach(s=>s&&nav.observe(s));
+</script>
+</body>
+</html>

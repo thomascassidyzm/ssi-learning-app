@@ -26,7 +26,7 @@ const SignInModal = defineAsyncComponent(() => import('@/components/auth/SignInM
 
 // Global auth modal state (shared singleton)
 import { useAuthModal } from '@/composables/useAuthModal'
-import { BELTS, getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
+import { getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 
 // Inject from App
@@ -146,33 +146,20 @@ const handleTogglePlayback = () => {
   }
 }
 
-// Handle transport controls from BottomNav (revisit/skip)
+// Bottom-nav transport now steps the LEGO axis (was CYCLE — cycle moved to the
+// phase pill, belt moved to the header). Tom 2026-06-01.
 const handleRevisit = () => {
-  if (learningPlayerRef.value?.handleRevisit) {
-    learningPlayerRef.value.handleRevisit()
+  if (learningPlayerRef.value?.handleRoundBack) {
+    learningPlayerRef.value.handleRoundBack()
   }
 }
 
 const handleSkip = () => {
-  if (learningPlayerRef.value?.handleSkip) {
-    learningPlayerRef.value.handleSkip()
+  if (learningPlayerRef.value?.handleRoundForward) {
+    learningPlayerRef.value.handleRoundForward()
   }
 }
 
-// Welcome banner — visibility comes from LearningPlayer's computed,
-// surfaced via defineExpose. Reading through the ref keeps reactivity
-// because the exposed value is a ref/computed.
-const showWelcomeBanner = computed(() => {
-  return !!learningPlayerRef.value?.welcomeBannerVisible
-})
-
-const handlePlayWelcome = () => {
-  learningPlayerRef.value?.playCourseWelcome?.()
-}
-
-const handleDismissWelcome = () => {
-  learningPlayerRef.value?.dismissCourseWelcome?.()
-}
 
 // Handle play state changes from LearningPlayer
 const handlePlayStateChanged = (playing) => {
@@ -514,11 +501,8 @@ onMounted(() => {
       :total-seeds="totalSeeds"
       :current-belt-name="currentBeltName"
       :is-player-ready="isPlayerReady"
-      :show-welcome-banner="showWelcomeBanner"
       @start="handleTogglePlayback"
       @change-course="showCourseSelector = true"
-      @play-welcome="handlePlayWelcome"
-      @dismiss-welcome="handleDismissWelcome"
     />
 
     <!-- Library overlay (slide-up modal, same pattern as Settings) -->
@@ -589,7 +573,6 @@ onMounted(() => {
             @close="closeSettings"
             @openExplorer="openExplorerOverlay"
             @openListening="closeSettings(); handleToggleListening()"
-            @openDriving="closeSettings(); handleToggleDriving()"
           />
         </div>
       </div>
@@ -637,38 +620,6 @@ onMounted(() => {
   padding-bottom: var(--nav-height-safe);
 }
 
-/* Fade transition */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-/* Slide right transition */
-.slide-right-enter-active {
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  will-change: transform, opacity;
-}
-
-.slide-right-leave-active {
-  transition: all 0.2s ease-in;
-  will-change: transform, opacity;
-}
-
-.slide-right-enter-from {
-  opacity: 0;
-  transform: translateX(20px);
-}
-
-.slide-right-leave-to {
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
 /* Slide up transition for overlays */
 .slide-up-enter-active {
   transition: opacity 0.3s ease;
@@ -700,47 +651,6 @@ onMounted(() => {
 
 .slide-up-leave-to .settings-panel {
   transform: translateY(100%);
-}
-
-/* Settings gear icon */
-.settings-gear {
-  position: fixed;
-  top: calc(0.75rem + env(safe-area-inset-top, 0px));
-  right: 1rem;
-  z-index: 100;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: none;
-  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.settings-gear:hover {
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--bg-elevated) 95%, transparent);
-}
-
-.settings-gear:active {
-  transform: scale(0.9);
-}
-
-.settings-gear svg {
-  width: 20px;
-  height: 20px;
-  transition: transform 0.3s ease;
-}
-
-.settings-gear--open svg {
-  transform: rotate(90deg);
 }
 
 /* Settings overlay */

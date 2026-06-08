@@ -42,6 +42,15 @@ export interface ScriptItem {
   componentLegoTexts?: string[]
   /** Native script variants — only set when romanized text exists */
   componentLegoTextsNative?: string[]
+  /** Authoritative content-level tiling from course_practice_phrases.decomposition,
+   * carried verbatim for phrase-sourced items. Player renders it directly. */
+  decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }>
+  /** Authored display tiles from course_practice_phrases.display_tiling —
+   * {n: native, r: roman, salient} per tile, built and validated in Popty.
+   * When present the player renders these directly (native glyph primary,
+   * roman as ruby) instead of running the device segmenter. */
+  displayTiling?: Array<{ n: string; r: string; salient?: boolean }>
+
   /** M-LEGO component breakdown: [{known: "with", target: "con"}, ...] */
   components?: Array<{ known: string; target: string }>
   /** Native script variant of components */
@@ -185,6 +194,15 @@ export interface LearningScriptResult {
   items: ScriptItem[]
   cycleCount: number
   roundCount: number
+  /**
+   * Number of MAIN-LOOP rounds in the playable output (i.e. where the INF-PLAY
+   * revival tail begins, as a 0-based index into the rounds). Derived from the
+   * generator's OWN boundary (mainLoopLastRound) over the PLAYABLE items — so it
+   * is the true current course size (sparse LEGO ordinal, unbuilt/no-audio seeds
+   * already excluded). The single source of truth for "where INF PLAY starts";
+   * callers must NOT re-derive it from a DB count, which diverges.
+   */
+  mainLoopRoundCount: number
   hasRomanizedText: boolean
 }
 
@@ -207,6 +225,54 @@ function sampleWithoutReplacement<T>(arr: T[], n: number, rng: () => number = Ma
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a.slice(0, n)
+}
+
+const PRACTICE_PHRASE_COLUMNS =
+  'seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce, decomposition, display_tiling'
+
+/**
+ * Fetch ALL course_practice_phrases for a course, paginated.
+ *
+ * A single `.limit(N)` is silently capped by PostgREST's server-side max-rows
+ * (>=10000 here). Big courses carry 15-17k phrase rows, so the old single
+ * `.limit(10000)` query dropped every phrase past ~seed 405 — the back 40-56%
+ * of the course had NO build/use phrases, which starved INF PLAY's random-USE
+ * pool AND the SR-drain (revival rounds came out as ~4-16 cycles of mostly the
+ * front of the course, never the canonical 22, and the spaced review of the
+ * final LEGOs played nothing). Count first, then fetch every page in parallel
+ * (PAGE well under any server cap, so the slices are complete and ordered).
+ */
+async function fetchAllPracticePhrases(
+  supabase: SupabaseClient,
+  courseCode: string,
+): Promise<{ data: any[] | null; error: any }> {
+  const PAGE = 1000
+  const { count, error: countError } = await supabase
+    .from('course_practice_phrases')
+    .select('*', { count: 'exact', head: true })
+    .eq('course_code', courseCode)
+  if (countError) return { data: null, error: countError }
+  const total = count ?? 0
+  if (total === 0) return { data: [], error: null }
+  const pageCount = Math.ceil(total / PAGE)
+  const pages = await Promise.all(
+    Array.from({ length: pageCount }, (_, i) =>
+      supabase
+        .from('course_practice_phrases')
+        .select(PRACTICE_PHRASE_COLUMNS)
+        .eq('course_code', courseCode)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
+        .order('position', { ascending: true })
+        .range(i * PAGE, i * PAGE + PAGE - 1),
+    ),
+  )
+  const all: any[] = []
+  for (const p of pages) {
+    if (p.error) return { data: null, error: p.error }
+    if (p.data) all.push(...p.data)
+  }
+  return { data: all, error: null }
 }
 
 export async function generateLearningScript(
@@ -292,14 +358,9 @@ export async function generateLearningScript(
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
       .limit(5000),
-    supabase
-      .from('course_practice_phrases')
-      .select('seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce')
-      .eq('course_code', courseCode)
-      .order('seed_number', { ascending: true })
-      .order('lego_index', { ascending: true })
-      .order('position', { ascending: true })
-      .limit(10000),
+    // Paginated — a single .limit() is capped by PostgREST max-rows and big
+    // courses have 15-17k phrase rows; truncation starved INF PLAY (see helper).
+    fetchAllPracticePhrases(supabase, courseCode),
     // Seed sentences for L1 listening (whole-sentence replay after graduation).
     listeningConfig.enabled
       ? supabase
@@ -649,6 +710,8 @@ export async function generateLearningScript(
     target1_duration_ms?: number
     target2_duration_ms?: number
     introduce?: boolean
+    decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }> | null
+    display_tiling?: Array<{ n: string; r: string; salient?: boolean }> | null
   }
   const phrasesByLego = new Map<string, { build: Phrase[]; use: Phrase[]; practice: Phrase[] }>()
   // Collect M-LEGO component breakdowns: legoKey → [{known, target}, ...]
@@ -1097,8 +1160,24 @@ export async function generateLearningScript(
   const courseHasRomanized = legoIdToTextNative.size > 0
 
   // Helper: returns native text fields when romanized text exists
-  const nativeFields = (item: { target_text?: string; target_text_roman?: string }) =>
-    item.target_text_roman ? { targetTextNative: item.target_text } : {}
+  // Spread onto every emitted item. Carries the native-script variant AND, for
+  // phrase-sourced items, the authoritative content-level tiling served verbatim
+  // on course_practice_phrases.decomposition (LEGO/seed callers lack the field,
+  // so it's simply omitted there). The player renders it directly when present.
+  const nativeFields = (item: {
+    target_text?: string
+    target_text_roman?: string
+    decomposition?: Array<{ legoId: string | null; target: string; known: string; isGhost: boolean; isSalient?: boolean }> | null
+    display_tiling?: Array<{ n: string; r: string; salient?: boolean }> | null
+  }) => ({
+    ...(item.target_text_roman ? { targetTextNative: item.target_text } : {}),
+    ...(Array.isArray(item.decomposition) && item.decomposition.length > 0
+      ? { decomposition: item.decomposition }
+      : {}),
+    ...(Array.isArray(item.display_tiling) && item.display_tiling.length > 0
+      ? { displayTiling: item.display_tiling }
+      : {}),
+  })
 
   // Process each seed
   for (const seedNum of sortedSeedNums) {
@@ -1397,7 +1476,11 @@ export async function generateLearningScript(
   // where the learner is — the script is one-shot whole-course; the
   // player consumes from wherever its cursor lands.
 
-  const TARGET_ROUND_CYCLES = 20
+  // Canonical INF PLAY round (Tom's spec): 10 random USE + the full spaced
+  // review (N-1×3, then N-2,N-3,N-5…N-89, capped at MAX_SPACED_REP_PHRASES=12)
+  // = ~22 cycles. randomUseCount tops the random bucket back up to hold 22 as
+  // spaced offsets drain (e.g. N-1 dropping off → +3 random), floored at 10.
+  const TARGET_ROUND_CYCLES = 22
   const MIN_RANDOM_USE = 10
   const mainLoopLastRound = roundNumber
   const revivalCap = mainLoopLastRound + infinitePlayLookahead
@@ -1642,10 +1725,18 @@ export async function generateLearningScript(
 
   // Recount rounds from playable items
   const playableRoundCount = new Set(playableItems.map(i => i.roundNumber)).size
+  // Where the INF-PLAY revival tail begins = count of PLAYABLE main-loop rounds.
+  // mainLoopLastRound is the generator's own boundary (set right before the
+  // revival loop); counting distinct playable roundNumbers at-or-below it gives
+  // the true current course size, with unbuilt/no-audio rounds already filtered
+  // out. This is what the player must use to find the tail — never a DB count.
+  const mainLoopRoundCount = new Set(
+    playableItems.filter(i => i.roundNumber <= mainLoopLastRound).map(i => i.roundNumber)
+  ).size
   const listeningItemCount = playableItems.filter(i => i.type === 'listening').length
   const listeningStats = listeningConfig.enabled && graduatedSeeds.size > 0
     ? `, ${graduatedSeeds.size} seeds graduated, ${listeningItemCount} listening items`
     : ''
   console.debug(`[generateLearningScript] ${playableItems.length} items, ${playableRoundCount} rounds for ${courseCode}${removedCount > 0 ? `, ${removedCount} deduped` : ''}${incompleteByAudio.size > 0 ? `, ${incompleteByAudio.size} no-audio rounds` : ''}${droppedByText > 0 ? `, ${droppedByText} bad-text cycles` : ''}${listeningStats}`)
-  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, hasRomanizedText: courseHasRomanized }
+  return { items: playableItems, cycleCount: playableItems.length, roundCount: playableRoundCount, mainLoopRoundCount, hasRomanizedText: courseHasRomanized }
 }

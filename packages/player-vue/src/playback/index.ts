@@ -16,8 +16,6 @@ export * from './types'
 export {
   type PlaybackConfig,
   DEFAULT_PLAYBACK_CONFIG,
-  TURBO_CONFIG,
-  BEGINNER_CONFIG,
   createPlaybackConfig,
   calculatePauseDuration,
 } from './PlaybackConfig'

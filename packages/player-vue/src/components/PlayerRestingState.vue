@@ -10,13 +10,9 @@ const props = defineProps({
   totalSeeds: { type: Number, default: 668 },
   currentBeltName: { type: String, default: 'white' },
   isPlayerReady: { type: Boolean, default: false },
-  // Welcome banner — only true on the first-ever course a learner opens
-  // when that course has welcome audio. Opt-in CTA; tapping Play below
-  // ignores it and starts cycle 1 directly.
-  showWelcomeBanner: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['start', 'change-course', 'play-welcome', 'dismiss-welcome'])
+const emit = defineEmits(['start', 'change-course'])
 
 const courseName = computed(() => {
   // Defensive fallback for the brief window before course resolves —
@@ -50,21 +46,6 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((props.completedSeeds / props.totalSeeds) * 100))
 })
 
-// `greeting` is defined but not currently rendered in this template; it's
-// kept so a future revision can reuse the band-stage messaging here. The
-// active loading copy lives in LearningPlayer.vue's awakening typewriter
-// (AWAKENING_MESSAGES + COURSE_AWAKENING_TEMPLATES), which is what fills
-// the hero-known slot during cold-start.
-const greeting = computed(() => {
-  if (!props.isPlayerReady) return t('resting.loading', 'Loading...')
-  if (props.completedSeeds === 0) return t('resting.readyWhenYouAre', 'Ready when you are')
-  if (props.completedSeeds < 10) return t('resting.greatStart', 'Great start — keep going')
-  if (props.completedSeeds < 50) return t('resting.buildingMomentum', 'Building momentum')
-  if (props.completedSeeds < 150) return t('resting.youreOnARoll', "You're on a roll")
-  if (props.completedSeeds < 300) return t('resting.impressiveProgress', 'Impressive progress')
-  return t('resting.nearlyThere', 'Nearly there')
-})
-
 const handleChangeCourse = () => {
   emit('change-course')
 }
@@ -73,27 +54,6 @@ const handleChangeCourse = () => {
 <template>
   <!-- Full resting state (shown when paused) -->
   <div class="resting-state">
-    <!-- Welcome banner — first-ever course only. Opt-in: dismissing or
-         playing it both mark heard so the banner never returns. Sits
-         above the resting content so it reads as a one-time offer, not
-         part of the steady-state UI. -->
-    <div v-if="showWelcomeBanner" class="welcome-banner" @click.stop="emit('play-welcome')">
-      <div class="welcome-banner-icon">▶</div>
-      <div class="welcome-banner-text">
-        <div class="welcome-banner-title">{{ t('welcome.bannerTitle', 'Welcome — about your course') }}</div>
-        <div class="welcome-banner-subtitle">{{ t('welcome.bannerSubtitle', 'about 1 min · tap to play') }}</div>
-      </div>
-      <button
-        class="welcome-banner-dismiss"
-        :aria-label="t('welcome.dismiss', 'Dismiss welcome')"
-        @click.stop="emit('dismiss-welcome')"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-
     <div class="resting-content">
       <!-- Course identity -->
       <LanguageFlag :code="course?.target_lang || ''" :size="48" class="course-flag" />
@@ -351,28 +311,6 @@ const handleChangeCourse = () => {
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-}
-
-.greeting {
-  font-family: var(--font-body);
-  font-size: 16px;
-  color: var(--text-secondary);
-  margin: 8px 0 0;
-  font-style: italic;
-}
-
-.tap-hint {
-  font-family: var(--font-body);
-  font-size: 11px;
-  color: var(--text-muted);
-  margin: 16px 0 0;
-  opacity: 0.6;
-  animation: hint-pulse 2s ease-in-out infinite;
-}
-
-@keyframes hint-pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
 }
 </style>
 

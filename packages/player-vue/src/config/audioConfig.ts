@@ -9,41 +9,6 @@
  * - Future CDN flexibility
  */
 
-export interface AudioUrlOptions {
-  courseId?: string
-  seedId?: string
-  role?: 'known' | 'target1' | 'target2'
-  offline?: boolean
-}
-
-/**
- * Build audio URL through the proxy API.
- * The proxy handles S3 resolution, caching headers, and analytics.
- */
-export function buildProxyAudioUrl(audioId: string, options: AudioUrlOptions = {}): string {
-  const params = new URLSearchParams()
-
-  if (options.courseId) params.set('courseId', options.courseId)
-  if (options.seedId) params.set('seedId', options.seedId)
-  if (options.role) params.set('role', options.role)
-  if (options.offline) params.set('offline', 'true')
-
-  const queryString = params.toString()
-  const baseUrl = `/api/audio/${audioId}`
-
-  return queryString ? `${baseUrl}?${queryString}` : baseUrl
-}
-
-/**
- * Build direct S3 URL (fallback when proxy is unavailable).
- * Uses the S3 key directly - bypasses proxy.
- */
-export function buildDirectAudioUrl(s3Key: string): string {
-  const baseUrl = import.meta.env.VITE_S3_AUDIO_BASE_URL ||
-                  'https://ssi-audio-stage.s3.eu-west-1.amazonaws.com'
-  return `${baseUrl}/${s3Key}`
-}
-
 /**
  * Audio configuration constants
  */
