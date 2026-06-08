@@ -6646,6 +6646,17 @@ const markWelcomeHeard = async () => {
 
 const playCourseWelcome = async () => {
   if (welcomeChecked.value) return false
+  // Once ever, PER LEARNER (DB-tracked) — survives PWA reinstall / new device /
+  // a different course. localStorage 'ssi-welcome-heard' (checked in the loader
+  // watchEffect) is just the same-device fast path; learners.welcome_played_at
+  // is the cross-device source of truth. Guests have no DB row → fall through to
+  // localStorage-only. One DB read here is negligible before a ~1-min welcome.
+  if (!isGuestLearner.value && learnerId.value && courseDataProvider.value
+      && await courseDataProvider.value.hasPlayedWelcome(learnerId.value)) {
+    welcomeChecked.value = true
+    localStorage.setItem('ssi-welcome-heard', 'true')
+    return false
+  }
   try {
     const w = cachedCourseWelcome.value
     if (!w || (!w.s3_key && !w.id)) {

@@ -389,47 +389,50 @@ export class CourseDataProvider {
   }
 
   /**
-   * Check if learner has already heard the welcome audio
+   * Has this learner EVER heard the welcome? Per-learner, course-agnostic —
+   * the welcome plays once ever, not once per course. Source of truth is
+   * learners.welcome_played_at (set via /api/welcome/played). Guests have no
+   * DB row → false here (the caller's localStorage gate covers same-device).
+   * On error: false (play it) — better to occasionally replay than to silently
+   * deny a genuine first-timer their one welcome.
    */
   async hasPlayedWelcome(learnerId: string): Promise<boolean> {
-    // Guests don't have persistent welcome tracking - always play
     if (!this.client || this.isGuestLearner(learnerId)) return false
 
     try {
       const { data, error } = await this.client
-        .from('course_enrollments')
-        .select('welcome_played')
-        .eq('learner_id', learnerId)
-        .eq('course_id', this.courseId)
+        .from('learners')
+        .select('welcome_played_at')
+        .eq('id', learnerId)
         .single()
 
-      if (error || !data) return false // Not enrolled = hasn't played
-      return data.welcome_played === true
+      if (error || !data) return false
+      return data.welcome_played_at != null
     } catch (err) {
-      // console.error('[CourseDataProvider] Error checking welcome status:', err)
-      return true // Assume played on error
+      return false
     }
   }
 
   /**
-   * Mark welcome audio as played (or skipped) for a learner
+   * Mark the welcome as played for this learner, once ever. learners is
+   * column-write-locked for clients (20260521180000), so this goes through the
+   * service-role /api/welcome/played endpoint (JWT-gated: marks only the
+   * caller's own row). Guests skip — their same-device gate is localStorage.
+   * Idempotent server-side (won't overwrite the original timestamp).
    */
   async markWelcomePlayed(learnerId: string): Promise<void> {
-    // Guests don't have persistent welcome tracking - skip silently
     if (!this.client || this.isGuestLearner(learnerId)) return
 
     try {
-      const { error } = await this.client
-        .from('course_enrollments')
-        .update({ welcome_played: true })
-        .eq('learner_id', learnerId)
-        .eq('course_id', this.courseId)
-
-      if (error) {
-        // console.error('[CourseDataProvider] Error marking welcome played:', error)
-      }
+      const { data: { session } } = await this.client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return // no auth session — same-device localStorage gate still applies
+      await fetch('/api/welcome/played', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      })
     } catch (err) {
-      // console.error('[CourseDataProvider] Error updating welcome status:', err)
+      // silent — diagnostic/non-critical; localStorage still prevents same-device replay
     }
   }
 
