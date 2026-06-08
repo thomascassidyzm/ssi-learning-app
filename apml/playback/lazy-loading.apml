@@ -1,16 +1,48 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-04-22
+# Last Updated: 2026-06-08
 
 spec lazy_loading_architecture:
-  version: "1.0.0"
+  version: "2.0.0"
   status: "implemented"
-  date: "2026-01-27"
+  date: "2026-06-08"
+
+  superseded_design_notice: |
+    The original PriorityRoundLoader / SessionController / CyclePlayer
+    "lazy loader" described by v1.0.0 was DELETED 2026-06-08. None of
+    PriorityRoundLoader, SessionController, CyclePlayer, ThreadManager,
+    RoundBuilder or PlaybackConfig exist in the tree any more. The
+    belt-aware priority queue, course-end-detection loop and incremental
+    SessionController methods (initializeEmpty/addRound/addRounds) are
+    GONE.
+
+    LIVE startup is now the "instant playback" path:
+      composables/useInstantPlayback.ts  (bootstrap → round-map + cycles,
+      localStorage-cached) feeding the player's rounds, with
+      `const INSTANT_PLAYBACK_ALL = true` in LearningPlayer.vue so every
+      course takes this path. The legacy upfront-load assembly is kept ONLY
+      as a flag-off catch-fallback (try/catch around the bootstrap call in
+      loadAllData); flipping INSTANT_PLAYBACK_ALL false is the escape hatch.
+
+    Cross-reference the authoritative, code-traced write-up:
+      docs/cold-start-and-playback.md  (the doc that wins on disagreement).
+    The 4-phase cycle playback itself lives in
+      playback/SimplePlayer.ts + composables/useCyclePlayback.ts + the
+      RealAudioController class defined inside LearningPlayer.vue
+    (not the deleted @ssi/core CycleOrchestrator/AudioController).
+
+    Sections below are reconciled to that reality. Where a v1.0.0 concept
+    has no live equivalent it is marked REMOVED rather than silently kept.
 
   description: |
-    Lazy-load rounds for instant startup (< 2s to first play).
-    Smart background loading based on user intent probability.
-    Users can only skip ONE belt ahead - loading priority mirrors this constraint.
+    Instant startup (< 2s to first play) via a per-course round-map +
+    on-demand cycle fetch, both localStorage-cached so a returning learner
+    pays ~0 network to bootstrap. There is no longer a belt-by-belt
+    background loading QUEUE: the round-map gives O(1) position lookup for
+    skips, and audio is supplied by a rolling filler + IndexedDB cache (see
+    apml/cache/audio-architecture.apml), not a round loader.
+    Users can still only skip ONE belt ahead — but that's now enforced by UI,
+    not by a loading priority queue.
 
   ## ==========================================================================
   ## DESIGN PRINCIPLES
@@ -18,24 +50,49 @@ spec lazy_loading_architecture:
 
   principles:
     instant_play: |
-      First play must happen in < 2 seconds. Only load Round N (BLOCKING),
-      then background load everything else in priority order.
+      First play must happen in < 2 seconds. The critical path is:
+      resolve resume position → fetch round-map (1 tiny query, cached forever
+      per course version) → fetch ONE cycle (limit=1) → hand to the player.
+      Warm caches (localStorage round-map + cycles, IndexedDB WAV blobs)
+      collapse this to ~0 network for a returning learner.
+
+    splash_floor: |
+      Ready is gated by a DELIBERATE animation floor, not data:
+      `MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800` in LearningPlayer.vue.
+      Return users get a 300ms minimum splash; first-ever visitors get a
+      2800ms cinematic. When total-ready ≈ this floor, the floor is the gate.
+      onMounted: `await Promise.all([loadAllData(), runAnimationTimeline()])`
+      then `warmFirstKnownAudio()` then `setLoadingStage('ready')`.
+
+    deferred_hydration_off_critical_path: |
+      Belt progress, the adaptation engine, and Layer-1 listening hydration
+      each cost a Supabase round-trip but NONE is needed for the first cycle,
+      so they run fire-and-forget concurrently, off the critical path.
+      Consumers are null-safe with defaults: getPauseMultiplier(legoId) ?? 1.0,
+      belt computeds `?. ?? default`. (LearningPlayer.vue onMounted, ~L9971.)
 
     intent_probability: |
-      Users can only skip one belt ahead. Load what they're most likely to need:
-      1. Current round (BLOCKING)
-      2. Next round (seamless continuation)
-      3. First of NEXT belt (belt-skip ready)
-      4. Rest of current belt
-      5. Continue belt-by-belt forward
+      Users can only skip ONE belt ahead — but this is now a UI constraint,
+      NOT a loading priority queue. The round-map gives O(1) lookup of any
+      round's start LEGO, so a skip is just a fresh bootstrap at that legoId
+      (instantPlayback.getOrFetchRoundMap / setCurrentLegoId), with cycles
+      fetched on demand. There is no longer a buildLoadingQueue ordering of
+      next-round / next-belt / belt-by-belt; that whole algorithm was REMOVED
+      with PriorityRoundLoader.
 
     graceful_course_end: |
-      When course ends (no LEGO at seed N), detect once and stop loading.
-      Never spam "No LEGO found" errors. Log summary, not individual failures.
+      Course end is the final round-map entry — there is no per-seed probe
+      loop to overrun, so the "detect once / suppress spam logging / clear
+      queue" machinery of v1.0.0 no longer exists. The round-map simply has
+      no entry past the last round.
 
   ## ==========================================================================
   ## BELT SYSTEM
   ## ==========================================================================
+  ## NOTE: thresholds below are still the live belt boundaries, but they no
+  ## longer drive any loading priority (PriorityRoundLoader is gone). Belt
+  ## logic now lives in useBeltProgress.ts and is hydrated OFF the critical
+  ## path (see deferred_hydration_off_critical_path above).
 
   belts:
     thresholds:
@@ -73,104 +130,104 @@ spec lazy_loading_architecture:
         end: infinity
 
   ## ==========================================================================
-  ## PRIORITY ROUND LOADER
+  ## REMOVED: PRIORITY ROUND LOADER  (deleted 2026-06-08)
   ## ==========================================================================
 
   priority_round_loader:
-    file: "packages/player-vue/src/playback/PriorityRoundLoader.ts"
-    purpose: "Smart background loading based on user intent probability"
-
-    loading_queue_algorithm: |
-      buildLoadingQueue(currentSeed):
-        queue = []
-        currentBelt = getBeltForSeed(currentSeed)
-        nextBelt = getNextBelt(currentBelt)
-
-        # Priority 2: Next round (N+1)
-        queue.push(currentSeed + 1)
-
-        # Priority 3: First of next belt (belt-skip ready)
-        if nextBelt:
-          queue.push(nextBelt.start)
-
-        # Priority 4: Rest of current belt
-        for s in range(currentSeed + 2, currentBelt.end + 1):
-          queue.push(s)
-
-        # Priority 5: Rest of next belt
-        if nextBelt:
-          for s in range(nextBelt.start + 1, nextBelt.end + 1):
-            queue.push(s)
-
-        # Priority 6: Continue belt-by-belt forward
-        for belt in belts[nextBelt.index + 1:]:
-          for s in range(belt.start, belt.end + 1):
-            queue.push(s)
-
-        return queue
-
-    course_end_detection: |
-      When loadLegoAtPosition(seedNumber) returns null:
-        1. Set courseEndDetected = true
-        2. Store detectedCourseEnd = seedNumber - 1
-        3. Clear loading queue (no point loading beyond course end)
-        4. Log ONCE: "Course end detected at seed {N}"
-        5. Skip any queued seeds > detectedCourseEnd
-
-    error_handling: |
-      - Log each ERROR TYPE only once (deduplicate via Set)
-      - Never stop queue on individual errors
-      - Emit error callbacks for monitoring
-      - Log summary at queue completion
-
-    events:
-      round_ready:
-        signature: "onRoundReady(callback: (roundIndex, round) => void)"
-        fires: "When a round is loaded and added to SessionController"
-      belt_ready:
-        signature: "onBeltReady(callback: (belt) => void)"
-        fires: "When all seeds in a belt are loaded"
-      error:
-        signature: "onError(callback: (error, seedNumber) => void)"
-        fires: "When a seed fails to load (non-fatal)"
-
-    methods:
-      start: "Start background loading with priority queue"
-      stop: "Stop loading (abortable)"
-      prioritize: "Force-load a specific seed (for belt skip)"
-      isRoundReady: "Check if a round is loaded"
-      getProgress: "Get loading progress { loaded, total, currentBelt, nextBelt }"
-      dispose: "Clean up all resources and callbacks"
+    status: "REMOVED"
+    former_file: "packages/player-vue/src/playback/PriorityRoundLoader.ts (deleted)"
+    note: |
+      The belt-aware buildLoadingQueue priority queue, the per-seed
+      course-end-detection loop, the deduplicated error logging and the
+      onRoundReady/onBeltReady/onError event surface no longer exist. The
+      replacement (instant_playback below) needs none of it: position lookup
+      is O(1) via the round-map and audio supply is a rolling filler + cache,
+      not a seed-by-seed loader. Removal also documented in
+      docs/cold-start-and-playback.md ("removed 2026-06-08; INSTANT_PLAYBACK_ALL
+      = true means it was never instantiated").
 
   ## ==========================================================================
-  ## SESSION CONTROLLER INTEGRATION
+  ## INSTANT PLAYBACK  (the live startup path)
   ## ==========================================================================
 
-  session_controller:
-    file: "packages/player-vue/src/playback/SessionController.ts"
-    purpose: "Orchestrates rounds, supports incremental loading"
+  instant_playback:
+    file: "packages/player-vue/src/composables/useInstantPlayback.ts"
+    flag: "const INSTANT_PLAYBACK_ALL = true  (LearningPlayer.vue ~L104)"
+    purpose: "Sub-second time-to-first-play via round-map + on-demand cycles"
 
-    incremental_methods:
-      initializeEmpty:
-        signature: "initializeEmpty(courseId: string)"
-        purpose: "Initialize with no rounds - ready for incremental loading"
-      addRound:
-        signature: "addRound(round: RoundTemplate)"
-        purpose: "Add a single round (from PriorityRoundLoader)"
-      addRounds:
-        signature: "addRounds(rounds: RoundTemplate[])"
-        purpose: "Add multiple rounds at once"
-      hasRound:
-        signature: "hasRound(roundIndex: number): boolean"
-        purpose: "Check if a round exists at index"
-      getRoundCount:
-        signature: "getRoundCount(): number"
-        purpose: "Get current number of loaded rounds"
+    round_map:
+      api: "GET /api/courses/:code/round-map  (api/courses/[code]/round-map.ts)"
+      shape: "{ course_code, version, rounds: [{ r, legoId, seed }] }"
+      cache: |
+        localStorage, version-stamped, key prefix
+        'ssi-instant-playback-roundmap-<courseCode>'. Position-independent, so
+        cached forever per course version and reusable across course switches.
+        version bumps on any LEGO/decomposition change → cache bust on read.
 
-    sparse_rounds_handling: |
-      Rounds are stored in sparse array - gaps are allowed.
-      playCurrentItem() checks hasRound() before playing.
-      If round not ready, emit 'round:loading' event.
+    cycles:
+      api: "GET /api/courses/:code/cycles?from=:legoId&limit=N"
+      wire_type: |
+        BackendCycle (type: intro | debut | build | use | listening) — distinct
+        from the atomic playback Cycle in types/Cycle.ts; the player converts
+        each backend cycle into one or more atomic PROMPT/PAUSE/VOICE_1/VOICE_2
+        cycles. Carries display_tiling (authored tiles) when present.
+      cache: |
+        localStorage, validated against the current round-map version on read,
+        so a content edit that bumps the version evicts stale cycles.
+
+    bootstrap_critical_path: |
+      bootstrap(legoId?):
+        1. Resolve start LEGO — resolveStartLegoId() (the enrollment's
+           last_completed_lego_id via progressStore.getEnrollment) unless an
+           explicit legoId is passed. null = fresh learner → round-map's first.
+        2. Get round-map (cache hit = 0 network; cold = 1 tiny fetch).
+        3. Fetch ONE cycle (limit=1) for the start LEGO.
+        4. Return { firstCycle, mapVersion }; the caller (loadAllData) hands
+           the rounds to SimplePlayer. Audio is the audio controller's job.
+      For a returning learner with warm caches this is ~0 network. On any
+      bootstrap throw the caller falls back to the legacy upfront-load path.
+
+    prefetch_tiers: |
+      Run DURING playback, never blocking:
+        - prefetchTier1: rest of the current round's cycles (limit=15).
+        - prefetchTier3: the next round's cycles.
+      The old Tier 2 bulk presentation/listening prefetch was disabled
+      2026-05-23 — that audio JIT-fetches at use time on
+      audioCache.persistent.ensure + SW CacheFirst, with
+      SimplePlayer.prefetchNextCycle warming the upcoming voices.
+
+    inf_play: |
+      bootstrapInfPlay(fromRound) is a parallel entry that manufactures a
+      synthetic round-map for the infinite-play sequence (no real round-map
+      equivalent), keeping main-loop bootstrap latency low.
+
+    prewarm_on_switch:
+      function: "prewarmInstantCaches(courseCode)  (useInstantPlayback.ts ~L265)"
+      caller: "App.vue ~L272 (void prewarmInstantCaches(courseCode) on course switch)"
+      purpose: |
+        Warm the round-map (and position-0 cycles) localStorage caches for a
+        course WITHOUT mounting the player, so the next mount's bootstrap() is
+        a cache hit instead of two fetches — targets the slow course-switch.
+
+  ## ==========================================================================
+  ## ROUND HOSTING  (was SessionController — now SimplePlayer)
+  ## ==========================================================================
+
+  round_hosting:
+    note: |
+      SessionController + its incremental methods (initializeEmpty / addRound /
+      addRounds) were DELETED 2026-06-08. The "SessionController path" phrases
+      still scattered through LearningPlayer.vue comments now just name the
+      instant-playback code path, not the deleted class.
+    live_owner:
+      file: "packages/player-vue/src/playback/SimplePlayer.ts"
+      wrapper: "packages/player-vue/src/composables/useSimplePlayer.ts"
+      surviving_method: |
+        hasRound(roundNumber): boolean — now a SimplePlayer method (and
+        re-exported by useSimplePlayer), the only piece of the old incremental
+        API still present. The player owns the single <audio> element via the
+        RealAudioController class defined INSIDE LearningPlayer.vue (~L5472)
+        and warms the next clip via SimplePlayer.prefetchNextCycle().
 
   ## ==========================================================================
   ## COURSE DATA PROVIDER - LAZY METHODS
@@ -192,24 +249,39 @@ spec lazy_loading_architecture:
       (used only by CourseExplorer QA) deliberately do NOT filter, so
       admins can see broken rows.
 
+    welcome_played:
+      note: |
+        CourseDataProvider also gates the course welcome via
+        learners.welcome_played_at (per-LEARNER, course-agnostic; replaces the
+        old per-course course_enrollments.welcome_played). It reads
+        welcome_played_at and marks it through the JWT-gated service-role
+        endpoint POST /api/welcome/played (idempotent — keeps the first
+        timestamp). Welcome now plays once EVER per learner.
+
     lazy_methods:
+      status: "VESTIGIAL — defined but no live callers as of 2026-06-08"
+      note: |
+        loadLegoAtPosition / loadLegoRange / getBasketsBatch still exist in
+        CourseDataProvider.ts but were the seed-by-seed feed for the deleted
+        PriorityRoundLoader; nothing in the tree calls them now (the round-map
+        + /cycles API replaced them). The audio-completeness filter they carry
+        is the same NOT-NULL-on-all-three-audio-IDs rule applied above. Kept
+        for now; candidates for removal in a later tidy.
+
       loadLegoAtPosition:
         signature: "loadLegoAtPosition(seedNumber: number): Promise<LearningItem | null>"
-        purpose: "Load single LEGO at seed position (for fast startup)"
-        performance: "~50ms single query"
+        purpose: "Load single LEGO at seed position (formerly fast startup)"
         returns_null_when: "no row at position, OR row exists but audio incomplete"
 
       loadLegoRange:
         signature: "loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]>"
-        purpose: "Load range of LEGOs (for belt loading)"
-        performance: "~100-200ms single query"
+        purpose: "Load range of LEGOs (formerly belt loading)"
         deduplication: "Keeps first LEGO per seed_number"
         filters: "Only LEGOs with all three audio IDs populated"
 
       getBasketsBatch:
         signature: "getBasketsBatch(legoIds: string[]): Promise<Map<string, ClassifiedBasket>>"
         purpose: "Batch load baskets (one query instead of N)"
-        performance: "~100-200ms vs N*50ms"
         filters: "Only practice phrases with all three audio IDs populated"
 
   ## ==========================================================================
@@ -217,75 +289,83 @@ spec lazy_loading_architecture:
   ## ==========================================================================
 
   data_flow:
-    instant_startup: |
-      1. App loads
-      2. loadLegoAtPosition(currentSeed)       [~50ms, BLOCKING]
-      3. Build first round
-      4. SessionController.initializeEmpty()
-      5. SessionController.addRound(firstRound)
-      6. PLAY NOW (< 2s from load)
-      7. PriorityRoundLoader.start()           [Background]
+    cold_start_onMounted: |
+      All in LearningPlayer.vue onMounted:
+      1. await Promise.all([loadAllData(), runAnimationTimeline()])
+         - loadAllData: resolve resume (getEnrollment) →
+           instantPlayback.bootstrap() (round-map + first-round cycles; warm
+           = 0 network via localStorage caches, cold = 2 tiny fetches) →
+           build the player's rounds → apply saved cycle cursor.
+         - runAnimationTimeline: enforce the splash floor
+           (MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800).
+      2. await warmFirstKnownAudio()
+      3. setLoadingStage('ready')
+      Off the critical path, concurrently (fire-and-forget): belt progress,
+      adaptation engine, Layer-1 listening hydration, loadGlobalLegoTexts,
+      getCourseFinalLego, ensureMainLoopMap, courseBundle.load.
 
-    background_loading: |
-      1. Build priority queue from currentSeed
-      2. For each seed in queue:
-         a. loadLegoAtPosition(seed)
-         b. getLegoBasket(legoId)
-         c. Build round
-         d. SessionController.addRound(round)
-         e. Emit 'round:ready'
-      3. Check belt completion, emit 'belt:ready'
-      4. Continue until queue empty or course end
+    course_switch: |
+      App.vue calls prewarmInstantCaches(courseCode) so the next player mount's
+      bootstrap() is a cache hit; the remount path logs [ColdStart] switch→ready.
 
-    belt_skip: |
-      User clicks "skip to next belt":
-      1. PriorityRoundLoader.prioritize(targetSeed)
-      2. Moves seed to front of queue
-      3. Waits for load to complete
-      4. Returns round for immediate play
+    skip: |
+      Skips use the round-map for O(1) position lookup, then re-bootstrap /
+      setCurrentLegoId at the target LEGO with cycles fetched on demand —
+      no priority-queue prioritize() and no waiting on a background loader.
+      generateScript / useScriptCache still serve some skip + legacy INF-PLAY
+      paths (see docs/cold-start-and-playback.md "Still live").
 
   ## ==========================================================================
   ## PERFORMANCE TARGETS
   ## ==========================================================================
 
   performance:
+    note: |
+      "Ready" is usually gated by the deliberate splash FLOOR, not by data —
+      so first-play time is dominated by MINIMUM_ANIMATION_MS (300ms return /
+      2800ms first-visit), not by loading. Compare the [ColdStart] and
+      [LearningPlayer] Data loading complete logs to see which dominated.
     first_play:
       target: "< 2 seconds"
-      actual: "~200ms on 4G, ~500ms on 3G"
+      gated_by: "splash floor when warm (data is ~0 network for returning learners)"
     next_round:
-      target: "instant (already loaded)"
-      actual: "0ms (background loaded)"
-    belt_skip:
-      target: "< 500ms (usually instant)"
-      actual: "Usually 0ms (loaded early in priority queue)"
-    arbitrary_skip:
-      target: "< 2s (rare case)"
-      actual: "~200ms (single LEGO + basket load)"
+      target: "instant (cycles prefetched via prefetchTier1/Tier3 during play)"
+    skip:
+      target: "fast — O(1) round-map lookup + on-demand cycle fetch"
 
   ## ==========================================================================
-  ## FILES SUMMARY
+  ## FILES SUMMARY  (live as of 2026-06-08)
   ## ==========================================================================
 
   files:
-    new:
-      - path: "packages/player-vue/src/playback/PriorityRoundLoader.ts"
-        purpose: "Smart priority-based background loading"
-        exports:
-          - "PriorityRoundLoader"
-          - "createPriorityRoundLoader"
-          - "BELT_THRESHOLDS"
-          - "BELT_NAMES"
-          - "Belt"
-          - "LoaderConfig"
-          - "LoaderProgress"
-
-    modified:
-      - path: "packages/player-vue/src/playback/SessionController.ts"
-        changes: "Added initializeEmpty(), addRound(), addRounds(), hasRound()"
+    live:
+      - path: "packages/player-vue/src/composables/useInstantPlayback.ts"
+        purpose: "Round-map + on-demand cycles bootstrap; prewarmInstantCaches"
+      - path: "packages/player-vue/src/components/LearningPlayer.vue"
+        purpose: |
+          INSTANT_PLAYBACK_ALL flag, loadAllData/runAnimationTimeline cold-start,
+          MINIMUM_ANIMATION_MS splash floor, RealAudioController class,
+          cold_start telemetry, deferred off-critical-path hydration
+      - path: "packages/player-vue/src/playback/SimplePlayer.ts"
+        purpose: "Owns rounds + the single <audio> element; hasRound; prefetchNextCycle"
+      - path: "packages/player-vue/src/composables/useSimplePlayer.ts"
+        purpose: "Vue wrapper over SimplePlayer"
+      - path: "packages/player-vue/src/composables/useCyclePlayback.ts"
+        purpose: "4-phase cycle playback"
+      - path: "api/courses/[code]/round-map.ts"
+        purpose: "round-map endpoint"
+      - path: "api/welcome/played.ts"
+        purpose: "marks learners.welcome_played_at (welcome plays once ever)"
       - path: "packages/player-vue/src/providers/CourseDataProvider.ts"
-        changes: "Added loadLegoAtPosition(), loadLegoRange(), getBasketsBatch()"
-      - path: "packages/player-vue/src/composables/useSessionPlayback.ts"
-        changes: "Fast init path with background loader integration"
+        purpose: "Audio-completeness-filtered queries; welcome gate; vestigial lazy_methods"
+      - path: "docs/cold-start-and-playback.md"
+        purpose: "Authoritative code-traced write-up of cold start + playback (the doc wins)"
+
+    deleted_2026_06_08:
+      - "packages/player-vue/src/playback/PriorityRoundLoader.ts"
+      - "packages/player-vue/src/playback/SessionController.ts"
+      - "packages/player-vue/src/playback/CyclePlayer.ts (+ ThreadManager, RoundBuilder, PlaybackConfig)"
+      - "packages/player-vue/src/composables/useSessionPlayback.ts (no longer present)"
 
   ## ==========================================================================
   ## VERIFICATION
@@ -293,36 +373,50 @@ spec lazy_loading_architecture:
 
   verification:
     console_timing: |
-      Watch for log lines:
-      - "[PriorityRoundLoader] Starting with queue: [2, 8, 3, 4, ...]"
-      - "[PriorityRoundLoader] Belt complete: White"
-      - "[PriorityRoundLoader] Course end detected at seed 305"
-      - "[PriorityRoundLoader] Queue complete, loaded 305 seeds"
+      Watch for:
+      - "[ColdStart] launch→ready Xms total ... | animFloor Z | returnUser ..."
+      - "[ColdStart] switch→ready ..." (in-app course switch / remount)
+      - "[LearningPlayer] Data loading complete in ..." (compare vs animFloor)
+      cold_start telemetry event in player_events carries
+      { isFreshLoad, mountToReadyMs, totalMs, animFloorMs, returnUser, guest }.
 
-    belt_skip_test: |
-      1. Start app at seed 1
-      2. Within 3 seconds, click "skip to Yellow"
-      3. Should be ready immediately (seed 8 is Priority 3)
+    warm_resume_test: |
+      1. Play a course, then reload the dev URL.
+      2. Returning learner → 300ms splash floor; bootstrap should be ~0 network
+         (localStorage round-map + cycles, IndexedDB WAV blobs).
 
     network_throttling: |
-      DevTools → Network → Slow 3G
-      First play should still be < 3s
+      DevTools → Network → Slow 3G. First play should still be quick on a warm
+      cache (caches collapse bootstrap to ~0 network); cold = 2 tiny fetches.
 
 # =============================================================================
 # VERSION HISTORY
 # =============================================================================
 
 version_history:
+  v2.0.0:
+    date: "2026-06-08"
+    changes:
+      - "Reconciled to instant-playback: PriorityRoundLoader/SessionController/CyclePlayer DELETED"
+      - "useInstantPlayback round-map + on-demand cycles (localStorage-cached); INSTANT_PLAYBACK_ALL=true"
+      - "Cold-start splash floor (MINIMUM_ANIMATION_MS 300/2800)"
+      - "Belt/adaptation/listening hydration moved OFF the critical path (fire-and-forget)"
+      - "prewarmInstantCaches on course switch; cold_start telemetry"
+      - "Welcome plays once-ever per learner via learners.welcome_played_at + /api/welcome/played"
+      - "CourseDataProvider lazy_methods marked vestigial (no live callers)"
+      - "Cross-ref docs/cold-start-and-playback.md (authoritative)"
+    implementation_status: "IMPLEMENTED"
+
   v1.0.0:
     date: "2026-01-27"
     changes:
       - "Initial lazy loading specification"
-      - "PriorityRoundLoader implementation"
-      - "Belt-aware priority queue"
-      - "Course end detection (no spam logging)"
-      - "Incremental SessionController methods"
-      - "CourseDataProvider lazy loading methods"
-    implementation_status: "IMPLEMENTED"
+      - "PriorityRoundLoader implementation (REMOVED 2026-06-08)"
+      - "Belt-aware priority queue (REMOVED)"
+      - "Course end detection (no spam logging) (REMOVED)"
+      - "Incremental SessionController methods (REMOVED)"
+      - "CourseDataProvider lazy loading methods (now vestigial)"
+    implementation_status: "SUPERSEDED"
     contributors:
       - "Tom Cassidy"
       - "Claude (AI Assistant)"

@@ -4,7 +4,7 @@
 
 app SSiLearningApp:
   title: "SSI Learning App"
-  version: "2.3.0"
+  version: "2.4.0"
   apml_version: "2.0.0"
 
   description: |
@@ -13,13 +13,24 @@ app SSiLearningApp:
     an immersive 4-phase prompt-response learning experience with
     constellation network visualization.
 
-    v2.3.0: Lazy loading for instant startup (< 2s). PriorityRoundLoader with belt-aware loading.
+    v2.4.0 (2026-06-08): Major playback/cache cleanup (~14.8k LOC removed).
+    The @ssi/core CycleOrchestrator / AudioController / AdaptationEngine
+    classes, the playback island (PriorityRoundLoader / SessionController /
+    CyclePlayer), and cache/AudioPrefetcher + BundleDownloader are GONE.
+    Live cycle playback now lives in player-vue: SimplePlayer.ts +
+    useCyclePlayback.ts + the RealAudioController class inside
+    LearningPlayer.vue. Loading is instant-playback (useInstantPlayback.ts).
+    Adaptation is useAdaptationEngine.ts composing the kept engines directly.
+    Audio supply is a rolling filler + AudioCache (IndexedDB) + SW CacheFirst;
+    online plays from cache like offline (cachePlayOnline). Cold start uses a
+    deliberate splash floor; Welcome plays once ever per learner.
+    v2.3.0: Lazy loading for instant startup (< 2s). [superseded: PriorityRoundLoader deleted]
     v2.2.0: Best-in-class audio caching with backend proxy, 30-min prefetch, graceful degradation.
     v2.1.0: Belt-aware progressive loading, cross-device sync, offline play.
 
   compilation_method: "forward-compilation"
-  generated_from: "Working v2.3.0 codebase (2026-01-27)"
-  last_updated: "2026-01-27"
+  generated_from: "Working codebase (2026-06-08, post playback/cache cleanup)"
+  last_updated: "2026-06-08"
 
   ## ==========================================================================
   ## RELATIONSHIP TO DASHBOARD
@@ -104,16 +115,28 @@ app SSiLearningApp:
   ## ==========================================================================
 
   import engine/cycle-orchestrator:
-    status: "extracted"
-    date: "2025-12-03"
-    source: "packages/core/src/engine/CycleOrchestrator.ts"
+    status: "superseded"
+    date: "2026-06-08"
+    note: |
+      The @ssi/core CycleOrchestrator class was DELETED in the 2026-06-08
+      cleanup. The 4-phase cycle is now driven in player-vue by
+      SimplePlayer.ts + useCyclePlayback.ts. The CyclePhase and
+      TEXT_VISIBILITY enums it described are KEPT and live in
+      packages/core/src/engine/types.ts (still the canonical phase/text-rule
+      definitions). The legacy spec file documents the deleted class only.
+    source: "packages/player-vue/src/playback/SimplePlayer.ts, packages/player-vue/src/composables/useCyclePlayback.ts, packages/core/src/engine/types.ts"
     coverage: "4-phase state machine, events, text visibility rules"
 
   import engine/audio-controller:
-    status: "extracted"
-    date: "2025-12-03"
-    source: "packages/player-vue/src/components/LearningPlayer.vue"
-    coverage: "HTML5 Audio handling, mobile compatibility, preloading"
+    status: "current"
+    date: "2026-06-08"
+    note: |
+      @ssi/core AudioController / RobustAudioController were DELETED. The live
+      audio controller is the RealAudioController class defined INSIDE
+      LearningPlayer.vue (single reusable Audio element for iOS gesture-unlock,
+      preload cache, online-plays-from-cache via cachePlayOnline).
+    source: "packages/player-vue/src/components/LearningPlayer.vue (RealAudioController)"
+    coverage: "HTML5 Audio handling, mobile compatibility, preloading, cache-blob playback"
 
   ## ==========================================================================
   ## LEARNING ALGORITHM SPECIFICATIONS
@@ -132,24 +155,32 @@ app SSiLearningApp:
     coverage: "Fibonacci-based skip numbers, retirement"
 
   import learning/adaptation:
-    status: "designed"
-    date: "2025-12-03"
-    source: "packages/core/src/learning/AdaptationEngine.ts"
-    coverage: "Latency tracking, spike detection, difficulty adjustment"
+    status: "current"
+    date: "2026-06-08"
+    note: |
+      The @ssi/core AdaptationEngine CLASS and WeightedSelector were DELETED.
+      Live adaptation is the composable useAdaptationEngine.ts, which composes
+      the KEPT engines MetricsTracker + SpikeDetector + MasteryStateMachine
+      directly (no orchestrating class). getPauseMultiplier(legoId) is what
+      drives pause length per LEGO.
+    source: "packages/player-vue/src/composables/useAdaptationEngine.ts; packages/core/src/learning/{MetricsTracker,SpikeDetector,MasteryStateMachine}.ts"
+    coverage: "Latency tracking, spike detection, mastery state, pause-multiplier"
 
   ## ==========================================================================
   ## PERSISTENCE SPECIFICATIONS
   ## ==========================================================================
 
   import persistence/progressive-loading:
-    status: "implemented"
-    date: "2026-01-18"
-    source: "packages/player-vue/src/composables/useBeltLoader.ts"
+    status: "partly superseded"
+    date: "2026-06-08"
+    source: "packages/player-vue/src/composables/useInstantPlayback.ts (loading); useBeltProgress.ts (sync)"
     coverage: |
-      Belt-aware progressive loading, three-layer architecture,
-      offline infinite play, cross-device sync via Supabase
+      Offline infinite play + cross-device sync via Supabase are still live.
+      The belt-aware priority-queue loader (useBeltLoader.ts) was DELETED
+      2026-06-08; loading is now useInstantPlayback.ts (rolling filler +
+      AudioCache). See apml/playback/lazy-loading.apml + cache/audio-architecture.apml.
     composables:
-      - "useBeltLoader.ts - Priority queue loading"
+      - "useInstantPlayback.ts - instant-playback loader (REPLACED the deleted useBeltLoader.ts, 2026-06-08)"
       - "useOfflinePlay.ts - Infinite play mode"
       - "useBeltProgress.ts - Supabase sync enhancement"
     database:
@@ -176,20 +207,31 @@ app SSiLearningApp:
   ## ==========================================================================
 
   import cache/audio-architecture:
-    status: "implemented"
-    date: "2026-01-25"
+    status: "current"
+    date: "2026-06-08"
     source: "Multiple files - see apml/cache/audio-architecture.apml"
     coverage: |
       Backend proxy for audio (/api/audio/:audioId),
-      30-minute rolling prefetch buffer,
-      graceful degradation to infinite play,
-      resumable downloads up to 10 hours,
-      analytics tracking for all audio plays
-    new_files:
+      rolling FILLER warms ~20 min ahead,
+      IndexedDB AudioCache + Service Worker CacheFirst,
+      online plays from cache like offline (cachePlayOnline),
+      graceful degradation to infinite play
+    note: |
+      cache/AudioPrefetcher + BundleDownloader + composables/usePrefetchManager.ts
+      were DELETED in the 2026-06-08 cleanup. Live audio supply is the rolling
+      filler in LearningPlayer.vue (fillBuffer/expandScript warm the buffer
+      ahead of the playhead) plus audioCache.persistent.ensure (AudioCache.ts,
+      IndexedDB) and the SW CacheFirst layer; SimplePlayer.prefetchNextCycle
+      warms the next cycle. cachePlayOnline (default ON, bypass with ?stream)
+      decodes cached MP3 → WAV blob (createAudioCacheSource →
+      AudioCache.getWavBlobUrl) so online == offline playback. The
+      AudioCache.ephemeral namespace is now vestigial (kept for now).
+    live_files:
       - "api/audio/[audioId].ts - Vercel serverless proxy"
-      - "packages/player-vue/src/composables/usePrefetchManager.ts"
+      - "packages/player-vue/src/cache/AudioCache.ts - IndexedDB cache"
+      - "packages/player-vue/src/cache/createAudioCacheSource.ts - WAV-blob source"
+      - "packages/player-vue/src/composables/useOfflinePlay.ts - graceful degradation / infinite play"
       - "packages/player-vue/src/config/audioConfig.ts"
-      - "supabase/migrations/20260125000000_audio_plays.sql"
     key_principle: "Never show connection errors - always keep playing"
 
   ## ==========================================================================
@@ -197,20 +239,35 @@ app SSiLearningApp:
   ## ==========================================================================
 
   import playback/lazy-loading:
-    status: "implemented"
-    date: "2026-01-27"
-    source: "Multiple files - see apml/playback/lazy-loading.apml"
+    status: "superseded"
+    date: "2026-06-08"
+    source: "Multiple files - see apml/playback/lazy-loading.apml (legacy)"
     coverage: |
-      Lazy loading for instant startup (< 2s to first play),
-      PriorityRoundLoader with belt-aware priority queue,
-      Course end detection (no spam logging),
-      Incremental SessionController methods
-    new_files:
-      - "packages/player-vue/src/playback/PriorityRoundLoader.ts"
-    modified_files:
-      - "packages/player-vue/src/playback/SessionController.ts - addRound(), hasRound()"
-      - "packages/player-vue/src/providers/CourseDataProvider.ts - loadLegoAtPosition()"
-    key_principle: "First play in < 2 seconds - load what user needs, background the rest"
+      Instant startup to first play, course-end detection,
+      cold-start splash floor, instant-playback bootstrap
+    note: |
+      The whole playback island was DELETED in the 2026-06-08 cleanup:
+      PriorityRoundLoader, SessionController, CyclePlayer, ThreadManager,
+      RoundBuilder, PlaybackConfig. Live loading is the composable
+      useInstantPlayback.ts: a bootstrap fetch builds a round-map + cycles
+      (localStorage-cached), with const INSTANT_PLAYBACK_ALL = true in
+      LearningPlayer.vue making every course use this path (the legacy
+      upfront-load path is kept only as a catch-fallback). prewarmInstantCaches
+      runs on course switch (App.vue). generateLearningScript.ts +
+      useScriptCache.ts remain live for skips and the legacy INF-PLAY path.
+      Cold start: a deliberate splash floor MINIMUM_ANIMATION_MS
+      (300 returning / 2800 first-visit); belt/adaptation/listening hydration
+      moved OFF the critical path (fire-and-forget); cold_start telemetry event.
+    live_files:
+      - "packages/player-vue/src/composables/useInstantPlayback.ts"
+      - "packages/player-vue/src/playback/SimplePlayer.ts"
+      - "packages/player-vue/src/composables/useCyclePlayback.ts"
+      - "packages/player-vue/src/providers/generateLearningScript.ts (skips / legacy infplay)"
+      - "packages/player-vue/src/composables/useScriptCache.ts"
+    docs:
+      - "docs/cold-start-and-playback.md"
+      - "docs/buffer-model.md (superseded - describes earlier buffer model)"
+    key_principle: "First play near-instant - instant-playback bootstrap, warm the buffer with the filler"
 
   ## ==========================================================================
   ## INTERFACE SPECIFICATIONS
@@ -226,16 +283,18 @@ app SSiLearningApp:
     version: "2.0.0"
 
   import interfaces/constellation-network:
-    status: "current"
-    date: "2026-01-09"
-    source: "packages/player-vue/src/components/ConstellationNetworkView.vue"
+    status: "DELETED from runtime (2026-06-08) — historical design only"
+    date: "2026-06-08"
+    source: "(none — ConstellationNetworkView.vue + usePrebuiltNetwork(.Integration).ts + useLegoNetwork.ts all DELETED 2026-06-08)"
     coverage: |
-      Pre-built network visualization, hero-centric panning,
-      path animation during voice phases, node tap playback,
-      pinch-zoom and drag-pan interactions
+      Pre-built network visualization (historical). The whole subsystem was
+      removed in the 2026-06-08 cleanup; nothing mounts it and
+      ensureNetworkInitialized is a no-op. decomposePhrase() survives as a
+      standalone util (utils/decomposePhrase.ts). See the DELETION NOTE at the
+      top of apml/interfaces/constellation-network.apml.
     composables:
-      - "usePrebuiltNetwork.ts"
-      - "usePrebuiltNetworkIntegration.ts"
+      - "(deleted) usePrebuiltNetwork.ts"
+      - "(deleted) usePrebuiltNetworkIntegration.ts"
 
   import interfaces/session-complete:
     status: "extracted"
@@ -262,7 +321,7 @@ app SSiLearningApp:
 
     directory_mapping:
       apml/core/: "Core data types and variable registry"
-      apml/engine/: "CycleOrchestrator and AudioController specs"
+      apml/engine/: "Cycle phase/text-visibility enums + audio-controller spec (CycleOrchestrator/AudioController classes deleted 2026-06-08; live impl in player-vue SimplePlayer/RealAudioController)"
       apml/learning/: "Learning algorithm specifications"
       apml/persistence/: "Storage and sync specifications"
       apml/interfaces/: "UI component specifications"
@@ -323,8 +382,8 @@ app SSiLearningApp:
 
     system_to_system:
       status: "complete"
-      coverage: "CycleOrchestrator events, audio callbacks, state transitions"
-      documented_in: "engine/cycle-orchestrator.apml"
+      coverage: "Cycle phase transitions (SimplePlayer/useCyclePlayback), audio callbacks, state transitions"
+      documented_in: "engine/cycle-orchestrator.apml (live impl: player-vue SimplePlayer.ts + useCyclePlayback.ts)"
 
   validate pss_compliance:
     check directory_structure_complete:
@@ -341,6 +400,30 @@ app SSiLearningApp:
   ## ==========================================================================
 
   version_history:
+    v2.4.0:
+      date: "2026-06-08"
+      title: "Playback / Cache Cleanup (~14.8k LOC removed)"
+      removed:
+        - "@ssi/core CycleOrchestrator + AudioController + RobustAudioController"
+        - "@ssi/core AdaptationEngine class + WeightedSelector"
+        - "playback island: PriorityRoundLoader, SessionController, CyclePlayer, ThreadManager, RoundBuilder, PlaybackConfig"
+        - "cache/AudioPrefetcher + BundleDownloader + composables/usePrefetchManager.ts"
+      live_architecture:
+        - "Cycle playback: SimplePlayer.ts + useCyclePlayback.ts + RealAudioController (inside LearningPlayer.vue)"
+        - "Loading: useInstantPlayback.ts bootstrap (INSTANT_PLAYBACK_ALL=true; legacy upfront-load kept only as catch-fallback)"
+        - "Adaptation: useAdaptationEngine.ts composing kept engines MetricsTracker + SpikeDetector + MasteryStateMachine; getPauseMultiplier drives pauses"
+        - "Audio supply: rolling filler (fillBuffer/expandScript) + AudioCache (IndexedDB) + SW CacheFirst + SimplePlayer.prefetchNextCycle"
+        - "Online == offline: cachePlayOnline default-on plays WAV blobs decoded from cached MP3"
+      session_features:
+        - "Cold start: instant-playback bootstrap + deliberate splash floor MINIMUM_ANIMATION_MS (300 returning / 2800 first-visit); belt/adaptation/listening hydration off the critical path; cold_start telemetry; prewarmInstantCaches on course switch"
+        - "Welcome plays once EVER per learner via learners.welcome_played_at (marked via /api/welcome/played); was per-course course_enrollments.welcome_played"
+      kept:
+        - "CyclePhase / TEXT_VISIBILITY enums (packages/core/src/engine/types.ts)"
+        - "TripleHelixEngine, SpacedRepetitionQueue, ProgressStore, SessionStore"
+      docs:
+        - "docs/cold-start-and-playback.md"
+        - "docs/buffer-model.md (superseded)"
+
     v2.1.0:
       date: "2026-01-18"
       title: "Belt-Aware Progressive Loading"
@@ -543,8 +626,11 @@ app SSiLearningApp:
         - "A/B testing framework"
 
 ## ============================================================================
-## MASTER SPECIFICATION v1.0.0
-## Generated: 2025-12-03 via forward-compilation
-## Status: Core complete, learning algorithms partial, persistence pending
+## MASTER SPECIFICATION
+## Originally generated 2025-12-03 via forward-compilation.
+## Last reconciled to reality 2026-06-08 (post playback/cache cleanup, ~14.8k LOC removed):
+##   playback/adaptation/cache classes deleted from @ssi/core and the playback island;
+##   live impl = player-vue SimplePlayer / useCyclePlayback / RealAudioController /
+##   useInstantPlayback / useAdaptationEngine / rolling filler + AudioCache.
 ## Method: Extract from reality (working code)
 ## ============================================================================

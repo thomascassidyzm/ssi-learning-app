@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.15 (2026-06-08)
+# Version: 2.1.16 (2026-06-08)
 # Status: Production-ready
 
 ## ============================================================================
@@ -447,11 +447,17 @@ PHASE_UI_STATES:
 
 ## ============================================================================
 ## CONSTELLATION NETWORK INTEGRATION
+## (STALE / ASPIRATIONAL — subsystem DELETED 2026-06-08; see constellation-network.apml)
 ## ============================================================================
+# NOTE (2026-06-08): ConstellationNetworkView.vue + usePrebuiltNetwork(.Integration).ts
+# + useLegoNetwork.ts were ALL DELETED. The network is no longer populated at
+# runtime (ensureNetworkInitialized is a no-op). The section below documents the
+# former design only — do not treat it as live behaviour.
 
 NETWORK_INTEGRATION:
-  component: "ConstellationNetworkView"
-  spec: "apml/interfaces/constellation-network.apml"
+  status: "DELETED FROM RUNTIME (2026-06-08) — historical design"
+  component: "(none — ConstellationNetworkView.vue DELETED)"
+  spec: "apml/interfaces/constellation-network.apml (see its DELETION NOTE)"
 
   behavior:
     on_item_change: "Pan to center hero node"
@@ -542,6 +548,118 @@ RESUME_BEHAVIOR:
     applied_on: "EVERY resume path — localStorage (resolveResumePosition, via the save's lastUpdated stamp) AND the DB-cursor path (via last_practiced_at). Fires only on a fresh load/reopen; pressing play in a still-live session is a continuation, not a resume."
 
 ## ============================================================================
+## COLD START & WELCOME (2026-06-08)
+## ============================================================================
+
+## "Playback is the loading mask." Cold start gets a cycle into the buffer in
+## one indexed query + one tiny cycles fetch; everything not required to play
+## the FIRST cycle is fired concurrently and NOT awaited.
+
+COLD_START:
+  source: "packages/player-vue/src/components/LearningPlayer.vue (onMounted + loadAllData)"
+
+  instant_playback_bootstrap:
+    composable: "composables/useInstantPlayback.ts"
+    gate: "INSTANT_PLAYBACK_ALL = true (const in LearningPlayer.vue) — every course
+           uses the instant path; INSTANT_PLAYBACK_COURSES allowlist only matters
+           if the wildcard is flipped off. The legacy upfront-load path (cached
+           script / generateScript+toSimpleRounds) survives ONLY as a catch
+           fallback when SimplePlayer/instant init throws."
+    how: |
+      instantPlayback.bootstrap() fetches the round-map (course_round_index, the
+      LEGO-id-ordered authority) AND the whole first round's cycles in one
+      parallel call, so the buffer is COMPLETE before player init — no second
+      network roundtrip before first play (the old separate Tier-1 awaited fetch
+      is removed). Round-map + cycles are localStorage-cached (the cache fast-path
+      hydrates rounds from localStorage when present). Resume directly INTO INF
+      PLAY uses bootstrapInfPlay(infPlayRoundIndex) instead (deterministic build,
+      lands on the revival round keyed on infplay_round_index).
+    prewarm_on_switch: |
+      App.vue calls prewarmInstantCaches(courseCode) (useInstantPlayback) when the
+      course changes, so a course SWITCH (an in-app remount, not a document load)
+      finds the round-map/cycles already warm.
+    skips_and_legacy: "generateScript / useScriptCache still live — used for skips
+                        and the legacy/offline INF-PLAY paths."
+
+  splash_floor:
+    state_ref: "loadingStage ref ('awakening' | 'finding' | 'preparing' | 'ready'),
+                isAwakening = loadingStage !== 'ready'. setLoadingStage drives it."
+    rule: |
+      A DELIBERATE minimum splash time, not a data-wait: MINIMUM_ANIMATION_MS =
+      300ms for a returning user (localStorage 'ssi-has-played' === 'true'),
+      2800ms on first visit (the full cinematic awakening → finding → preparing
+      timeline). Data load (loadAllData) and the animation timeline run in
+      Promise.all; ready = BOTH data loaded AND the floor elapsed. When the data
+      lands before the floor (the common case now), the floor is the gate. After
+      Promise.all, warmFirstKnownAudio() (bounded ~2s) makes the opening sound
+      instant, then setLoadingStage('ready').
+
+  deferred_hydration: |
+    Belt + adaptation + listening hydration are moved OFF the critical path. The
+    three init calls — initializeBeltProgress() (belt remote merge + getMaxSeedNumber),
+    initializeAdaptationEngine() (mastery hydration), initializeListeningProgress()
+    (Layer-1 fire-counts) — each await a Supabase round-trip but NONE is required
+    before the first cycle plays. They are fired CONCURRENTLY via
+    void Promise.all([...]) and NOT awaited; the belt readout / pause tuning / L1
+    counts hydrate reactively a beat later. Every consumer is null-safe with a
+    default (adaptationEngine.value?.getPauseMultiplier() ?? 1.0, listeningProgress
+    .value?., belt computeds all `?. ?? <default>`). Only getEnrollment (resume
+    position) is on the critical path. loadGlobalLegoTexts() + offline-play listener
+    setup are likewise fire-and-forget. Lazy chunks (ListeningOverlay, Pronunciation
+    Overlay, ProgressModal, SessionComplete) are import-prewarmed on requestIdleCallback
+    AFTER ready. Network population is deferred to first play / Progress-screen open.
+
+  telemetry:
+    event: "cold_start (logEvent) — the ONLY event before tap_play, so cold starts
+            are measurable; cookie-based so guests are included."
+    payload: |
+      { isFreshLoad (true = real document load, false = in-app course switch/remount),
+        mountToReadyMs (always-valid per-mount onMounted→ready cost),
+        totalMs / mainExecMs / mountedMs (nav-relative, only meaningful on a fresh
+        load — read from window.__ssiBoot marks written once in main.js),
+        animFloorMs (the splash floor), returnUser, guest }
+    note: "On a course switch the nav-relative numbers are stale (boot marks fire
+           once); mountToReadyMs is the real switch cost. Console '[ColdStart]'
+           line mirrors it."
+
+  docs: "docs/cold-start-and-playback.md; docs/buffer-model.md (superseded model)."
+
+## ============================================================================
+## WELCOME AUDIO (plays once EVER per learner — 2026-06-08)
+## ============================================================================
+
+WELCOME_AUDIO:
+  source: "packages/player-vue/src/components/LearningPlayer.vue (playCourseWelcome /
+           markWelcomeHeard / skipWelcome)"
+  description: "A ~1-min course welcome. Deferred until the learner taps Play —
+                never autoplays before interaction. Plays on a DEDICATED Audio
+                element (not the shared audioController), with a skip button."
+
+  once_ever_per_learner: |
+    (2026-06-08) The welcome plays ONCE EVER per LEARNER, course-agnostic —
+    NOT once per course. It used to key on course_enrollments.welcome_played
+    (per-course). The flag now lives on learners.welcome_played_at — survives
+    PWA reinstall / new device / switching to a different course.
+    Resolution order in playCourseWelcome():
+      1. welcomeChecked ref / localStorage 'ssi-welcome-heard' === 'true' (the
+         same-device fast path; also checked in the loader watchEffect to skip
+         even fetching the welcome audio).
+      2. For a real (non-guest) learner: courseDataProvider.hasPlayedWelcome
+         (learnerId) reads learners.welcome_played_at — the cross-device source
+         of truth (one cheap DB read before a ~1-min clip). Guests have no DB
+         row → fall through to localStorage-only.
+  marking: |
+    markWelcomeHeard() — fired on natural end AND on skip (skipped counts as
+    heard) — sets welcomeChecked + localStorage, then calls
+    courseDataProvider.markWelcomePlayed(learnerId). That POSTs /api/welcome/played
+    (api/welcome/played.ts), a service-role endpoint: `learners` is column-write-
+    locked for clients (20260521180000_block_anon_role_escalation), so the client
+    cannot UPDATE the row directly. JWT-gated (verifyAuthToken) — a caller can
+    only mark their OWN learner row (matched by auth user_id). Idempotent: the
+    UPDATE is `.is('welcome_played_at', null)` so the first timestamp is never
+    overwritten.
+
+## ============================================================================
 ## INTRO MODE
 ## ============================================================================
 
@@ -593,8 +711,13 @@ COMPOSABLES:
     source: "packages/player-vue/src/composables/useLearningSession.ts"
 
   usePrebuiltNetworkIntegration:
-    purpose: "Integrate constellation network with learning session"
-    source: "packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts"
+    purpose: "(REMOVED) was: integrate constellation network with learning session"
+    source: "DELETED — composables/usePrebuiltNetworkIntegration.ts no longer exists,
+             nor useLegoNetwork.ts. The live constellation network is no longer
+             populated at runtime: LearningPlayer's ensureNetworkInitialized is now
+             a no-op (`() => {}`). See NETWORK_INTEGRATION below — that section is
+             aspirational/stale and tracked by constellation-network.apml; do not
+             treat these composables as live."
 
   useScriptCache:
     purpose: "Cache generated learning scripts"
@@ -613,14 +736,28 @@ COMPOSABLES:
       - "Supabase background sync (cross-device)"
       - "max(local, remote) merge strategy"
 
-  useBeltLoader:
-    purpose: "Progressive loading with belt-aware priority queue"
-    source: "packages/player-vue/src/composables/useBeltLoader.ts"
+  useInstantPlayback:
+    purpose: "Cold-start loading — round-map + first round's cycles in one parallel
+              call so the first cycle plays in <2s; localStorage-cached."
+    source: "packages/player-vue/src/composables/useInstantPlayback.ts"
+    note: "REPLACED useBeltLoader (deleted) and the playback/PriorityRoundLoader
+           island (SessionController/CyclePlayer/ThreadManager/RoundBuilder, all
+           deleted). bootstrap() = main loop; bootstrapInfPlay(idx) = resume into
+           INF PLAY; prewarmInstantCaches(courseCode) warms the caches on a course
+           switch (called from App.vue). INSTANT_PLAYBACK_ALL=true in LearningPlayer
+           routes every course here; the legacy upfront-load path is a catch fallback."
     features:
-      - "Three-layer loading (blocking/background/infinite)"
-      - "P0 blocking loads current belt first 5 rounds"
-      - "P1-P5 background loads next belts breadth-first"
-      - "Enables skip-ahead without blocking"
+      - "Round-map (course_round_index, LEGO-id-ordered authority) fetched once"
+      - "First round's cycles grabbed in the SAME parallel call (buffer complete pre-init)"
+      - "localStorage cache fast-path; mapVersion-keyed invalidation"
+
+  useAdaptationEngine:
+    purpose: "Live real-time adaptation — composes the kept @ssi/core engines
+              (MetricsTracker + SpikeDetector + MasteryStateMachine) directly."
+    source: "packages/player-vue/src/composables/useAdaptationEngine.ts"
+    note: "REPLACED the deleted @ssi/core AdaptationEngine class + WeightedSelector.
+           getPauseMultiplier(legoId) drives pause length; hydrated off the
+           cold-start critical path (see COLD_START.deferred_hydration)."
 
   useOfflinePlay:
     purpose: "Infinite play resilience for OFFLINE only (online INF PLAY is the deterministic revival build — see v2.1.4)"
@@ -631,8 +768,8 @@ COMPOSABLES:
       - "Recent item avoidance (no immediate repeats)"
 
   useLegoNetwork:
-    purpose: "D3 force simulation for LEGO network (legacy)"
-    source: "packages/player-vue/src/composables/useLegoNetwork.ts"
+    purpose: "(REMOVED) was: D3 force simulation for LEGO network (legacy)"
+    source: "DELETED — composables/useLegoNetwork.ts no longer exists."
 
 ## ============================================================================
 ## CSS CUSTOM PROPERTIES
@@ -698,6 +835,17 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.16:
+    date: "2026-06-08"
+    title: "Cold-start instant-playback bootstrap + splash floor; welcome plays once EVER per learner; deleted-playback-module spec sync"
+    changes:
+      - "COLD START documented (new COLD_START section). INSTANT_PLAYBACK_ALL=true routes every course through useInstantPlayback.bootstrap() — round-map + first round's cycles in one parallel call so the first cycle plays in <2s with NO second roundtrip; localStorage-cached; prewarmInstantCaches(courseCode) warms on course switch (App.vue). The legacy upfront-load path (cached-script / generateScript+toSimpleRounds) is now only a catch fallback."
+      - "Splash floor: loadingStage ref ('awakening'|'finding'|'preparing'|'ready'); MINIMUM_ANIMATION_MS is a DELIBERATE floor (300ms returning / 2800ms first-visit), run in Promise.all with loadAllData; ready = data loaded AND floor elapsed. Data now usually lands before the floor, so the floor is the gate."
+      - "Belt + adaptation + listening hydration moved OFF the cold-start critical path: initializeBeltProgress/initializeAdaptationEngine/initializeListeningProgress fired via void Promise.all([...]) and NOT awaited (every consumer is null-safe with a default). Only getEnrollment (resume position) is on the critical path. Lazy overlay/modal chunks import-prewarmed on requestIdleCallback after ready."
+      - "cold_start telemetry event added (logEvent) — the only event before tap_play; payload includes isFreshLoad (real load vs in-app course-switch remount), mountToReadyMs, nav-relative totalMs/mainExecMs/mountedMs (from window.__ssiBoot), animFloorMs, returnUser, guest."
+      - "WELCOME now plays once EVER per LEARNER (course-agnostic) via learners.welcome_played_at, marked through service-role /api/welcome/played (api/welcome/played.ts: JWT-gated to own row, idempotent `.is('welcome_played_at', null)`). Was once-per-course on course_enrollments.welcome_played. localStorage 'ssi-welcome-heard' is the same-device fast path; hasPlayedWelcome() is the cross-device source of truth; guests fall through to localStorage."
+      - "Spec sync to this session's @ssi/core deletions: useBeltLoader / playback PriorityRoundLoader island (SessionController/CyclePlayer/ThreadManager/RoundBuilder) and the AdaptationEngine class + WeightedSelector are DELETED. COMPOSABLES re-pointed: useInstantPlayback (loading) and useAdaptationEngine (composes kept MetricsTracker+SpikeDetector+MasteryStateMachine, getPauseMultiplier drives pause length). usePrebuiltNetworkIntegration + useLegoNetwork also deleted — constellation network is no longer populated at runtime (ensureNetworkInitialized is a no-op); NETWORK_INTEGRATION below is stale/aspirational, tracked by constellation-network.apml."
+
   v2.1.14:
     date: "2026-06-08"
     title: "Settings 'What's new' panel — scannable bullets, per-note Read more, note-derived update flag"
@@ -785,6 +933,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18
+## GENERATED: 2026-01-18 — Last updated: 2026-06-08
 ## APML v2.1.0
 ## ============================================================================
