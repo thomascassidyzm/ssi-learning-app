@@ -16,9 +16,8 @@
  *   - ~300 seeds × ~150 bytes  = ~45KB
  *   Total: ~1.3MB uncompressed, ~300KB gzipped.
  *
- * Cached forever per (course_code, version) — fetched once at session
- * start, then served from IndexedDB via `useCourseBundle` until the
- * server's version bumps.
+ * Cacheable per (course_code, version) — fetched once at session
+ * start, then served from IndexedDB until the server's version bumps.
  *
  * Lifecycle classification (see `AudioLifecycle` below):
  *   - `ephemeral`: only ever consumed during a LEGO's introduction round
