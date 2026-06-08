@@ -11632,6 +11632,14 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
 
 // Expose methods for parent component (PlayerContainer) to control playback
 const togglePlayback = () => {
+  // Ignore taps until the player is READY. Before that, onMounted is still
+  // building rounds / initialising SimplePlayer, and tapping runs handleResume
+  // concurrently with that setup — playback starts half-initialised and
+  // isPlaying desyncs from the audio (sound the pause button can't stop; only a
+  // route change like Settings tears it down). This was the "single tap before
+  // the Play button was ready" trigger. The control goes live the instant
+  // loadingStage flips to 'ready'.
+  if (isAwakening.value) return
   // If a pod lap or commentary is playing, the big button reads "stop"
   // (per isAudioPlaying). Pressing it should halt everything — the runtime
   // audio AND any auto-resume into the next round. Without this we'd
