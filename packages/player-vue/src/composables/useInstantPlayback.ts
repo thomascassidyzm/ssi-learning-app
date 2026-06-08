@@ -246,6 +246,48 @@ function writeCachedCycles(
 }
 
 // ============================================================================
+// PREWARM (course switch / hover / idle)
+// ============================================================================
+
+/**
+ * Warm the instant-playback localStorage caches for a course WITHOUT mounting
+ * the player, so the next mount's bootstrap() is a cache hit instead of two
+ * cold serial network round-trips. Call on course switch (before the player
+ * remounts), course-card hover, or idle. Reuses the EXACT cache keys the
+ * composable reads. Fire-and-forget; silent on failure; skips work already
+ * cached. round-map is position-independent (helps any switch); the
+ * first-round cycles specifically de-cold the fresh-learner case (no saved
+ * position → bootstrap starts at rounds[0]), which is the slow course-switch.
+ */
+export async function prewarmInstantCaches(
+  courseCode: string,
+  apiBase = '/api/courses',
+): Promise<void> {
+  if (!courseCode) return
+  try {
+    let map = readCachedRoundMap(courseCode)
+    if (!map) {
+      const res = await fetch(`${apiBase}/${encodeURIComponent(courseCode)}/round-map`)
+      if (!res.ok) return
+      map = (await res.json()) as RoundMap
+      writeCachedRoundMap(courseCode, map)
+    }
+    const first = map.rounds?.[0]
+    if (!first) return
+    if (!readCachedCycles(courseCode, first.legoId, map.version)) {
+      const res = await fetch(
+        `${apiBase}/${encodeURIComponent(courseCode)}/cycles?from=${encodeURIComponent(first.legoId)}&limit=15`,
+      )
+      if (!res.ok) return
+      const cycles = (await res.json()) as CyclesResponse
+      writeCachedCycles(courseCode, first.legoId, cycles)
+    }
+  } catch {
+    /* best-effort prewarm — a cold mount just pays the round-trips as before */
+  }
+}
+
+// ============================================================================
 // COMPOSABLE
 // ============================================================================
 
