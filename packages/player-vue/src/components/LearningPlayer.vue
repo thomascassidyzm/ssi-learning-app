@@ -11200,7 +11200,12 @@ onMounted(async () => {
   // Show player immediately, orchestrator inits in background
   // ============================================
   // Warm the first known audio so the opening sound is instant (bounded).
+  // Timed (warmAudioMs): on a cold-cache course this fetch dominates
+  // mount→ready. prewarmInstantCaches now precaches it on course-select, so on
+  // a switch this should hit the SW cache (~0ms) instead of streaming.
+  const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
   await warmFirstKnownAudio()
+  const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   setLoadingStage('ready')
 
   // Cold-start budget instrumentation. performance.now() is measured from
@@ -11237,6 +11242,7 @@ onMounted(async () => {
     mainExecMs: isFreshLoad ? (boot.mainExecMs ?? null) : null,   // nav → main bundle evaluated
     mountedMs: isFreshLoad ? (boot.mountedMs ?? null) : null,     // nav → app.mount() done
     animFloorMs: MINIMUM_ANIMATION_MS,                 // deliberate splash floor (300 return / 2800 first-visit)
+    warmAudioMs,                                        // time awaited on warmFirstKnownAudio (cold-audio cost; ~0 once prewarm-precached)
     returnUser: isReturnUser,
     guest: isGuestLearner.value,
   })

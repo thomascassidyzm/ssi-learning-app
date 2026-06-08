@@ -277,13 +277,22 @@ export async function prewarmInstantCaches(
     }
     const first = map.rounds?.[0]
     if (!first) return
-    if (!readCachedCycles(courseCode, first.legoId, map.version)) {
+    let cycles = readCachedCycles(courseCode, first.legoId, map.version)
+    if (!cycles) {
       const res = await fetch(
         `${apiBase}/${encodeURIComponent(courseCode)}/cycles?from=${encodeURIComponent(first.legoId)}&limit=15`,
       )
       if (!res.ok) return
-      const cycles = (await res.json()) as CyclesResponse
+      cycles = (await res.json()) as CyclesResponse
       writeCachedCycles(courseCode, first.legoId, cycles)
+    }
+    // Precache the FIRST cycle's audio into the SW CacheFirst layer so
+    // warmFirstKnownAudio (the ready gate) and the opening PROMPT/VOICE plays
+    // hit cache instead of streaming — the dominant cold-switch cost. Plain
+    // GETs (same URL shape warmFirstKnownAudio uses), fire-and-forget.
+    const c0 = cycles.cycles?.[0]
+    for (const id of [c0?.audio?.known_id, c0?.audio?.target1_id, c0?.audio?.target2_id]) {
+      if (id) void fetch(`/api/audio/${encodeURIComponent(id)}`).catch(() => {})
     }
   } catch {
     /* best-effort prewarm — a cold mount just pays the round-trips as before */
