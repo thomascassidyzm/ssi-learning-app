@@ -120,6 +120,13 @@ const onLatestNoteVersion = computed(() => !!latestNote.value && latestNote.valu
 const noteIndicatesNewer = computed(() => {
   const n = latestNote.value
   if (!n || onLatestNoteVersion.value) return false
+  // PROD-only nudge: dev/staging run DIFFERENT SHAs than the prod-stamped note
+  // (same content, different commits), so version !== buildNumber there and the
+  // date check below would false-fire a permanent "Update available". The newer-
+  // version nudge only makes sense for real prod learners — gate to the production
+  // host (same hostname convention as LearningPlayer.vue's env detection).
+  const host = typeof window !== 'undefined' ? window.location.hostname : ''
+  if (host !== 'saysomethingin.app' && host !== 'www.saysomethingin.app') return false
   if (!buildTime || buildNumber === 'dev') return false
   const bt = Date.parse(buildTime)
   if (Number.isNaN(bt)) return false
