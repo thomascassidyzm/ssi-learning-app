@@ -68,7 +68,6 @@ import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
-import { type BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 import { generateScript as generateBundleScript } from '../script/generateScript'
 
@@ -559,16 +558,11 @@ const instantPlayback = useInstantPlayback(courseCode, {
 // ============================================================
 // Single source of truth for "is this audio playable locally."
 // Bundle ships the full course structure in one fetch; AudioCache
-// stores blobs in IndexedDB with quota-aware LRU eviction; the
-// BundleDownloader walks every persistent audio ref in the
-// background so by the time the learner reaches spaced rep /
-// INF PLAY, the audio is already local. The legacy warm-up
-// surface stays alongside for now — this commit only adds the
-// bundle layer; subsequent commits wire the prefetcher and
-// remove the warm-up code.
+// stores blobs in IndexedDB with quota-aware LRU eviction. Audio is
+// filled by the rolling filler (fillBuffer/expandScript) ahead of the
+// playhead; online plays from cache like offline (cachePlayOnline).
 const courseBundle = useCourseBundle()
 const audioCache = getAudioCache()
-let bundleDownloader: BundleDownloader | null = null
 // Module-scoped so onUnmounted can revoke its blob URLs. Built per
 // session in onMounted once the courseCode is known.
 let audioCacheSource: AudioCacheSource | null = null
@@ -10059,21 +10053,13 @@ onMounted(async () => {
           // and fires the initial onRoundChanged for the current
           // playback position.
           audioPrefetcher.setBundle(bundle)
-          // BundleDownloader (always-on full-course audio prefetch) is
-          // DISABLED. Bandwidth math says it isn't needed: ~30 KB per
-          // audio × 3 audios per cycle = 90 KB/cycle, cycles are ~15s
-          // including the speaking pause, so steady-state need is
-          // ~6 KB/s — comfortable on 3G. AudioPrefetcher's per-round
-          // JIT fetch (fired by the reactive watch below) already
-          // covers that path. Eager-bundling every course also
-          // disadvantaged casual users dipping into multiple courses
-          // — downloading several full courses for a handful of
-          // sentences is gratuitous bandwidth.
-          //
-          // The downloader class is intentionally left intact so a
-          // future "Download for offline" button (e.g. for plane
-          // journeys) can opt in. createBundleDownloader + .start
-          // still work — they're just no longer fired from bootstrap.
+          // Audio is filled by the rolling filler (fillBuffer /
+          // expandScript) ahead of the playhead — no always-on
+          // full-course downloader. Bandwidth math: ~30 KB × 3 audios
+          // per ~15s cycle ≈ 6 KB/s steady-state, comfortable on 3G.
+          // A future "Download for offline" button can deep-fill on
+          // demand; eager-bundling every course was gratuitous for
+          // casual users dipping into several courses.
         })
         .catch((err) => {
           // Branch-isolated: bundle endpoint may not yet be live on this
@@ -11508,9 +11494,6 @@ onUnmounted(() => {
   // pulling data the user just navigated away from.
   instantPlayback.cancel()
 
-  // Stop the bundle downloader if running. Cursor is persisted on
-  // each batch so the next session resumes where we left off.
-  bundleDownloader?.stop()
   courseBundle.cancel()
   // Drop the prefetcher's in-memory indices. Cached ephemeral audio
   // for in-progress LEGOs stays in IndexedDB; the cache's own
