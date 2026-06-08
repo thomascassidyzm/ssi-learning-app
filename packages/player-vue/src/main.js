@@ -6,6 +6,15 @@ import './styles/global.css'
 import App from './App.vue'
 import router from './router'
 
+// Cold-start boot marks (all from navigation start via performance.now()).
+// mainExec = the main bundle (Vue + App + its static dep tree) has finished
+// parsing/evaluating and the entry body is running; nav→mainExec is HTML +
+// main-bundle fetch+parse. mounted = + createApp/mount. The player chunk +
+// LearningPlayer.onMounted happen after; the [ColdStart] event reads these
+// back to decompose the app-shell prefix.
+const __ssiBoot = (window.__ssiBoot = window.__ssiBoot || {})
+__ssiBoot.mainExecMs = Math.round(typeof performance !== 'undefined' ? performance.now() : 0)
+
 // Debug tooling — preview deploys (*.vercel.app) or ?debug only, NEVER
 // production. eruda is an on-screen console/network inspector so logs are
 // visible ON the iPhone without tethering to a Mac.
@@ -45,6 +54,7 @@ const app = createApp(App)
 app.use(router)
 
 app.mount('#app')
+__ssiBoot.mountedMs = Math.round(typeof performance !== 'undefined' ? performance.now() : 0)
 
 // Remove loading state once app is mounted
 document.getElementById('app')?.classList.remove('app-loading')

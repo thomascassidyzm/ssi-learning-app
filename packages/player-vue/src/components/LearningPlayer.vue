@@ -11348,9 +11348,17 @@ onMounted(async () => {
   // otherwise NO event before tap_play — nothing captures launch→ready). Cookie-
   // based, so guests are included; the unmount/visibility beacon flushes it even
   // when the learner loads-then-switches without tapping play.
+  // Boot marks from main.js (nav-start relative) decompose the app-shell prefix:
+  //   nav→mainExec      = HTML + main bundle (Vue+App+deps) fetch+parse
+  //   mainExec→mounted  = App setup + createApp/mount
+  //   mounted→onMounted = PLAYER CHUNK fetch+parse + container/player setup
+  //   onMounted→ready   = onMountedMs (the player's own work; now floor-bound)
+  const boot = (typeof window !== 'undefined' && (window as any).__ssiBoot) || {}
   logEvent('cold_start', {
-    totalMs: coldTotalMs,            // navigation start → ready (bundle parse + auth + onMounted)
-    onMountedMs: coldOnMountedMs,    // onMounted entry → ready (excludes app-shell+auth)
+    totalMs: coldTotalMs,            // navigation start → ready
+    onMountedMs: coldOnMountedMs,    // LearningPlayer onMounted entry → ready
+    mainExecMs: boot.mainExecMs ?? null,   // nav → main bundle evaluated
+    mountedMs: boot.mountedMs ?? null,     // nav → app.mount() done
     animFloorMs: MINIMUM_ANIMATION_MS, // deliberate splash floor (300 return / 2800 first-visit)
     returnUser: isReturnUser,
     guest: isGuestLearner.value,
