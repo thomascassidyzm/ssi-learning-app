@@ -6196,16 +6196,6 @@ const handleResume = async () => {
   if (welcomeBannerVisible.value) {
     await playCourseWelcome()
   }
-  // Fast double-tap guard: the welcome (and any preload) above is awaited, so a
-  // second tap during it routes to handlePause → isPlaying=false + skipWelcome,
-  // which RESOLVES the await and lets us fall through here. Without this check
-  // the deferred play() would start audio while the button shows 'paused',
-  // leaving sound running with no way to stop it. Honor the pause instead; the
-  // next Play tap takes the resume path (simplePlayer.resume restarts cycle 1).
-  if (!isPlaying.value) {
-    clearPreparingState()
-    return
-  }
   simplePlayer.play()
 }
 
