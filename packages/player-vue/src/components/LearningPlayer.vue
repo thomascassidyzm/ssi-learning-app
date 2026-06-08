@@ -1168,29 +1168,7 @@ const visualLegoIdForRound = (round: any): string | null => {
 // We need writable refs because legacy code assigns to these directly
 const currentRoundIndex = ref(0)
 const currentItemInRound = ref(0)
-// isPlaying is the SINGLE source of truth for "is any session audio sounding".
-// It is a COMPUTED that ORs every real audio-playing signal — never assigned
-// directly. Audio plays from simplePlayer (the cycle) AND from separate paths
-// (course welcome, pod laps, LEGO introductions, commentary), each on its own
-// <audio> element with its own flag. A previous design mirrored ONLY
-// simplePlayer via a watcher, so the button flipped to "play" whenever one of
-// those other paths was sounding while simplePlayer was paused; manual
-// isPlaying.value = true/false assignments scattered across the handlers then
-// raced the async watcher under rapid taps, producing the "reverse polarity"
-// desync. Deriving it removes both hazards. The flags it reads are declared
-// further down (TDZ-safe: the computed body only runs when .value is read,
-// after setup completes — same pattern as the keepalive watcher below).
-// Optimistic tap feedback (button shows "stop" the instant you tap, before
-// audio loads) is preserved because simplePlayer.play()/resume() flip their
-// internal isPlaying SYNCHRONOUSLY on tap; isPreparingToPlay covers the
-// first-play preload gap before play() is called.
-const isPlaying = computed(() =>
-  simplePlayer.isPlaying.value
-  || isPlayingWelcome.value
-  || playingPodLapAudio.value
-  || isPlayingIntroduction.value
-  || playingCommentaryAudio.value
-)
+const isPlaying = ref(false)
 
 // Furthest round the learner has ever reached, with its lego companion.
 // Read once on resume; the trigger keeps the DB ceiling in sync as the
@@ -1340,8 +1318,9 @@ watch(() => simplePlayer.roundIndex.value, (idx) => {
   }
 })
 watch(() => simplePlayer.cycleIndex.value, (idx) => { currentItemInRound.value = idx })
-// (isPlaying is now a computed deriving from simplePlayer + the other audio
-// paths — see its definition above. The old mirror-watcher was removed.)
+watch(() => simplePlayer.isPlaying.value, (playing) => {
+  isPlaying.value = playing
+})
 
 // Backwards compatibility aliases
 const effectiveRounds = loadedRounds
@@ -4553,14 +4532,6 @@ const isSkipInProgress = ref(false) // Flag to prevent cycle_stopped from resett
 const isCycleTransitioning = ref(false) // Flag to prevent watcher from resetting isPlaying between cycles
 const isPreparingToPlay = ref(false) // True when play pressed but audio hasn't started yet
 const preparingMessage = ref('') // Current "preparing" message being displayed
-// Fast double-tap guard for the FIRST-play path: handleResume awaits the
-// course welcome (and a preload) before calling simplePlayer.play(), so a
-// second tap during that await routes to handlePause. We can no longer detect
-// it by re-reading isPlaying (now a derived computed — it reflects audio
-// state, not a pending pause intent), so handlePause raises this flag and the
-// first-play path checks it after its awaits to honor the pause instead of
-// starting sound the button can't stop. Reset at the top of every play tap.
-const firstPlayPauseRequested = ref(false)
 
 // Messages shown while preparing to play (after pressing play button)
 const PREPARING_MESSAGES = computed(() => [
@@ -6121,16 +6092,12 @@ const handlePause = () => {
     skipWelcome()
   }
 
-  // Signal any in-flight first-play sequence (awaiting welcome/preload) to
-  // abort before it calls simplePlayer.play() — see firstPlayPauseRequested.
-  firstPlayPauseRequested.value = true
-
   // Use SimplePlayer
   simplePlayer.pause()
-  // isPlaying is a computed: pausing simplePlayer AND the skipIntroduction/
-  // skipWelcome calls above (which clear isPlayingIntroduction/isPlayingWelcome)
-  // make it derive false. Even the "paused during welcome before the cycle
-  // started" case is covered — skipWelcome() above clears isPlayingWelcome.
+
+  // Always set isPlaying = false, even if simplePlayer wasn't playing yet
+  // (e.g. during welcome audio before cycle playback has started)
+  isPlaying.value = false
 
   if (ringAnimationFrame) {
     cancelAnimationFrame(ringAnimationFrame)
@@ -6156,8 +6123,6 @@ const handleResume = async () => {
   // explicit stop / session-complete / unmount.
   audioEngaged.value = true
   sessionEnded.value = false
-  // Clear any stale pause-intent from a previous tap before we start awaiting.
-  firstPlayPauseRequested.value = false
 
   // RESUME from pause — use resume() to continue from current phase
   // (play() always restarts from prompt, losing position mid-cycle)
@@ -6170,8 +6135,7 @@ const handleResume = async () => {
     if (pendingLapResume.value) {
       const lap = pendingLapResume.value
       pendingLapResume.value = null
-      // playPodLap sets playingPodLapAudio=true synchronously on entry, which
-      // makes the isPlaying computed derive true immediately — no manual set.
+      isPlaying.value = true
       const completed = await playPodLap(lap, true)
       if (completed) {
         podScheduler?.markLapCompleted().catch((err) => {
@@ -6195,10 +6159,9 @@ const handleResume = async () => {
         }
       } else if (userStoppedDuringLap.value) {
         // Stopped again during the replayed lap — bookmark and stay paused.
-        // playPodLap has returned so playingPodLapAudio is already false and
-        // simplePlayer is paused → the isPlaying computed already reads false.
         userStoppedDuringLap.value = false
         pendingLapResume.value = lap
+        isPlaying.value = false
       } else {
         simplePlayer.resume()
       }
@@ -6218,14 +6181,11 @@ const handleResume = async () => {
     await preloadSimpleRoundAudio(loadedRounds.value, 2, currentIdx)
   }
 
-  // Mark as started IMMEDIATELY so displayPhrases shows cycle text instead of
-  // "ready when you are" (it gates on hasEverStarted, not isPlaying). The
-  // play/stop button already reads "stop" from the tap: isPreparingToPlay is
-  // true (startPreparingState above) and, once simplePlayer.play() runs below,
-  // simplePlayer.isPlaying flips synchronously, so the isPlaying computed turns
-  // true with no manual assignment. The resting-state play-hint is suppressed
-  // while isPreparingToPlay is true (see its v-if in the template).
+  // Mark as started and playing IMMEDIATELY so:
+  // 1. displayPhrases shows cycle text instead of "ready when you are"
+  // 2. PlayerRestingState overlay hides (it checks isPlaying)
   hasEverStarted.value = true
+  isPlaying.value = true
   localStorage.setItem('ssi-has-played', 'true')
 
   // First-ever course with a welcome: play it once, automatically, before
@@ -6237,13 +6197,12 @@ const handleResume = async () => {
     await playCourseWelcome()
   }
   // Fast double-tap guard: the welcome (and any preload) above is awaited, so a
-  // second tap during it routes to handlePause, which sets
-  // firstPlayPauseRequested. Without this check the deferred play() would start
-  // audio while the button shows 'paused', leaving sound running with no way to
-  // stop it. Honor the pause instead; the next Play tap takes the resume path
-  // (simplePlayer.resume restarts cycle 1).
-  if (firstPlayPauseRequested.value) {
-    firstPlayPauseRequested.value = false
+  // second tap during it routes to handlePause → isPlaying=false + skipWelcome,
+  // which RESOLVES the await and lets us fall through here. Without this check
+  // the deferred play() would start audio while the button shows 'paused',
+  // leaving sound running with no way to stop it. Honor the pause instead; the
+  // next Play tap takes the resume path (simplePlayer.resume restarts cycle 1).
+  if (!isPlaying.value) {
     clearPreparingState()
     return
   }
@@ -9396,8 +9355,7 @@ const toggleOffline = () => {
 const showPausedSummary = () => {
   stopCycle()
   simplePlayer.pause()
-  // isPlaying is a computed — stopCycle + simplePlayer.pause() (and the other
-  // audio flags already being clear at session-end) make it derive false.
+  isPlaying.value = false
   audioEngaged.value = false
 
   // End belt progress session (saves session history for time estimates)
@@ -11392,8 +11350,7 @@ onMounted(async () => {
       handleResume()
     }, 100)
   } else {
-    // isPlaying is a computed and already derives false here (no audio path is
-    // active before the first tap) — nothing to assign.
+    isPlaying.value = false
 
     // Welcome audio deferred until user taps Play (never autoplay before interaction)
   }
@@ -12658,7 +12615,7 @@ defineExpose({
            this is a visual hint. The "Playing / Paused" sr-only announcer
            above conveys state to assistive tech. -->
       <div
-        v-if="!isPlaying && !isPlayingWelcome && !isPreparingToPlay"
+        v-if="!isPlaying && !isPlayingWelcome"
         class="pane-play-hint"
         :class="{ 'initial-start': !hasEverStarted }"
         :aria-label="hasEverStarted ? 'Paused — tap player to resume' : 'Tap player to start'"
