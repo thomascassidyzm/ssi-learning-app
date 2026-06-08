@@ -68,7 +68,6 @@ import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
-import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
 import { generateScript as generateBundleScript } from '../script/generateScript'
 
 /**
@@ -577,7 +576,6 @@ let audioCacheSource: AudioCacheSource | null = null
 // handles ongoing playback caching. Learners who want full course
 // caching get driving mode's chunked accumulation or the future
 // paid "Download for offline" opt-in.
-const audioPrefetcher = createAudioPrefetcher({ audioCache })
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
@@ -1579,13 +1577,6 @@ simplePlayer.onRoundCompleted((round) => {
     seedId: round.seedId,
   })
 
-  // AudioPrefetcher: release the completed LEGO's ephemeral audio
-  // (intro/debut/builds) and acquire the next LEGOs' ephemeral sets.
-  // No-op if the bundle hasn't loaded yet (setBundle hasn't fired).
-  // Errors swallowed inside the prefetcher.
-  void audioPrefetcher.onRoundCompleted(loadedRounds.value as any, completedRoundIndex)
-  void audioPrefetcher.onRoundChanged(loadedRounds.value as any, completedRoundIndex + 1)
-
   // Synchronously pause if a pod is about to fire on this boundary.
   // handleRoundBoundary is async and runs on a later microtask — by the
   // time its own pause() lands, simplePlayer's orchestrator may have
@@ -1734,28 +1725,6 @@ simplePlayer.onSessionComplete(async () => {
   sessionEnded.value = true
   showPausedSummary()
 })
-
-// AudioPrefetcher initial fire — once the bundle has loaded AND rounds
-// are populated, kick the prefetcher at the current playback position.
-// The watch refires when any of (bundle, rounds, roundIndex) changes,
-// so progressive script loads / belt skips also re-arm the prefetcher.
-// Idempotent inside the prefetcher (cache calls de-dupe).
-watch(
-  () => [
-    courseBundle.bundle.value?.version ?? null,
-    loadedRounds.value.length,
-    simplePlayer.roundIndex.value,
-  ] as const,
-  () => {
-    if (!courseBundle.bundle.value) return
-    if (loadedRounds.value.length === 0) return
-    void audioPrefetcher.onRoundChanged(
-      loadedRounds.value as any,
-      simplePlayer.roundIndex.value,
-    )
-  },
-  { immediate: true },
-)
 
 // Round ENTRY persistence: whenever the player advances or jumps to a
 // new round (skip-forward chevron, jump-to-seed, natural advance after a
@@ -10048,18 +10017,11 @@ onMounted(async () => {
       void courseBundle.load(courseCode.value)
         .then((bundle) => {
           console.log(`[BundleLoad] Loaded bundle for ${bundle.courseCode} v${bundle.version}: ${bundle.legos.length} LEGOs, ${bundle.phrases.length} phrases`)
-          // Arm the prefetcher with the bundle. The reactive watch
-          // below picks up bundle-ready + rounds-populated transitions
-          // and fires the initial onRoundChanged for the current
-          // playback position.
-          audioPrefetcher.setBundle(bundle)
           // Audio is filled by the rolling filler (fillBuffer /
           // expandScript) ahead of the playhead — no always-on
           // full-course downloader. Bandwidth math: ~30 KB × 3 audios
           // per ~15s cycle ≈ 6 KB/s steady-state, comfortable on 3G.
-          // A future "Download for offline" button can deep-fill on
-          // demand; eager-bundling every course was gratuitous for
-          // casual users dipping into several courses.
+          // A future "Download for offline" button can deep-fill on demand.
         })
         .catch((err) => {
           // Branch-isolated: bundle endpoint may not yet be live on this
@@ -11495,10 +11457,6 @@ onUnmounted(() => {
   instantPlayback.cancel()
 
   courseBundle.cancel()
-  // Drop the prefetcher's in-memory indices. Cached ephemeral audio
-  // for in-progress LEGOs stays in IndexedDB; the cache's own
-  // lifecycle reclaims it on the next session boundary or eviction.
-  audioPrefetcher.reset()
   // Release any blob: URLs the AudioSource handed out this session so
   // we don't leak. Cached blobs in IndexedDB survive — only the
   // URL.createObjectURL handles are revoked.
