@@ -91,6 +91,44 @@ function formatReleaseDate(iso: string): string {
   } catch { return '' }
 }
 
+// Per-note bullet expansion — a note can carry ~15 bullets and swamp the whole
+// screen, so each note collapses to the first few with its own Read-more toggle.
+// State is keyed by note.id so expanding one note never expands another. This is
+// independent of showAllNotes (the earlier-updates toggle above).
+const BULLET_PREVIEW_COUNT = 4
+const expandedNoteIds = ref<Set<string>>(new Set())
+function isNoteExpanded(id: string): boolean {
+  return expandedNoteIds.value.has(id)
+}
+function toggleNoteExpanded(id: string): void {
+  const next = new Set(expandedNoteIds.value)
+  if (next.has(id)) next.delete(id); else next.add(id)
+  expandedNoteIds.value = next
+}
+function visibleBullets(note: { id: string; bullets: string[] }): string[] {
+  const all = note.bullets || []
+  if (isNoteExpanded(note.id) || all.length <= BULLET_PREVIEW_COUNT) return all
+  return all.slice(0, BULLET_PREVIEW_COUNT)
+}
+
+// Newer-version flag — does the latest published note describe a build NEWER than
+// the one running? Version strings are git SHAs (NOT orderable), so SHA-equality
+// is the "you're current" short-circuit and released_at-vs-buildTime decides the
+// rest. Guarded so dev builds (no buildTime / SHA 'dev') never flag.
+const latestNote = computed(() => releaseNotes.value[0] || null)
+const onLatestNoteVersion = computed(() => !!latestNote.value && latestNote.value.version === buildNumber)
+const noteIndicatesNewer = computed(() => {
+  const n = latestNote.value
+  if (!n || onLatestNoteVersion.value) return false
+  if (!buildTime || buildNumber === 'dev') return false
+  const bt = Date.parse(buildTime)
+  if (Number.isNaN(bt)) return false
+  return new Date(n.released_at).getTime() > bt + 5 * 60 * 1000 /* 5-min tolerance */
+})
+// Build-row badge fires on either the service-worker signal or a note that
+// describes a build the user doesn't have yet.
+const showUpdateBadge = computed(() => pwaUpdateAvailable.value || noteIndicatesNewer.value)
+
 // Practice mode visibility (default: off — unlocked via settings or notification)
 const showListeningMode = ref(false)
 const showPronunciationMode = ref(false)
@@ -1189,8 +1227,8 @@ const confirmReset = async () => {
       <button
         type="button"
         class="build-card clickable"
-        :class="{ 'has-update': pwaUpdateAvailable }"
-        :aria-label="pwaUpdateAvailable ? 'Update available — tap to update' : 'Tap to update to the latest version'"
+        :class="{ 'has-update': showUpdateBadge }"
+        :aria-label="showUpdateBadge ? 'Update available — tap to update' : 'Tap to update to the latest version'"
         @click="handleUpdateToLatest"
       >
         <span class="build-card-version">
@@ -1198,7 +1236,7 @@ const confirmReset = async () => {
           <span v-if="formattedBuildTime" class="build-time">{{ formattedBuildTime }}</span>
         </span>
         <span class="build-card-action">
-          <span v-if="pwaUpdateAvailable" class="build-update-badge">Update available</span>
+          <span v-if="showUpdateBadge" class="build-update-badge">Update available</span>
           <span v-else class="build-update-hint">Tap to update</span>
           <svg class="build-card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
         </span>
@@ -1214,9 +1252,20 @@ const confirmReset = async () => {
               <span v-if="note.version && note.version !== formatReleaseDate(note.released_at)" class="whats-new-version">{{ note.version }}</span>
             </div>
             <p v-if="note.headline" class="whats-new-headline">{{ note.headline }}</p>
+            <!-- "In the latest version" marker — only on the newest note, only when
+                 it describes a build the user doesn't have yet. -->
+            <p v-if="note.id === latestNote?.id && noteIndicatesNewer" class="whats-new-newer">
+              ✦ In the latest version — tap the version above to update.
+            </p>
             <ul class="whats-new-bullets">
-              <li v-for="(bullet, bi) in note.bullets" :key="bi">{{ bullet }}</li>
+              <li v-for="(bullet, bi) in visibleBullets(note)" :key="bi">{{ bullet }}</li>
             </ul>
+            <button
+              v-if="note.bullets.length > BULLET_PREVIEW_COUNT"
+              type="button"
+              class="whats-new-readmore"
+              @click="toggleNoteExpanded(note.id)"
+            >{{ isNoteExpanded(note.id) ? 'Show less' : `Read more (${note.bullets.length - BULLET_PREVIEW_COUNT} more)…` }}</button>
             <hr v-if="idx < visibleNotes.length - 1" class="whats-new-sep" />
           </div>
           <button
@@ -2021,11 +2070,45 @@ const confirmReset = async () => {
   color: var(--text-primary);
   font-style: italic;
 }
+/* Bullets — a scannable list, not a paragraph blob. Custom warm-grey markers,
+   comfortable row spacing and a readable line-height. */
 .whats-new-bullets {
-  margin: 0; padding-left: 1.1rem;
-  font-size: 0.88rem; color: var(--text-primary);
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.88rem;
+  color: var(--text-secondary, var(--text-primary));
 }
-.whats-new-bullets li { margin: 0.15rem 0; line-height: 1.35; }
+.whats-new-bullets li {
+  position: relative;
+  padding-left: 1.1rem;
+  margin: 0.45rem 0;
+  line-height: 1.45;
+}
+.whats-new-bullets li::before {
+  content: '•';
+  position: absolute;
+  left: 0.15rem;
+  top: -0.02em;
+  color: var(--text-muted);
+  font-size: 1em;
+  line-height: 1.45;
+}
+/* "In the latest version" marker — subtle accent tint, sits under the headline. */
+.whats-new-newer {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent, var(--ssi-red, #c23a3a));
+}
+/* Per-note Read more / Show less — quieter than the earlier-updates toggle. */
+.whats-new-readmore {
+  background: none; border: 0; padding: 0.3rem 0 0;
+  font: inherit; font-size: 0.8rem; font-weight: 500;
+  color: var(--text-secondary, var(--text-muted));
+  cursor: pointer;
+}
+.whats-new-readmore:hover { color: var(--text-primary); text-decoration: underline; }
 .whats-new-sep {
   border: 0; height: 1px; background: var(--border-subtle);
   margin: 0.7rem -0.25rem;
