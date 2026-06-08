@@ -11329,9 +11329,21 @@ onMounted(async () => {
   // minimum (returnUser 300ms / first-visit 2800ms) — when total ≈ animFloor
   // the floor is the gate, not data. Compare against '[LearningPlayer] Data
   // loading complete' above to see whether data or the floor dominated.
-  console.log('[ColdStart] launch→ready',
-    Math.round(typeof performance !== 'undefined' ? performance.now() : 0), 'ms total (incl. app-shell+auth) |',
-    Date.now() - startTime, 'ms in onMounted | animFloor', MINIMUM_ANIMATION_MS, 'ms | returnUser', isReturnUser)
+  const coldTotalMs = Math.round(typeof performance !== 'undefined' ? performance.now() : 0)
+  const coldOnMountedMs = Date.now() - startTime
+  console.log('[ColdStart] launch→ready', coldTotalMs, 'ms total (incl. app-shell+auth) |',
+    coldOnMountedMs, 'ms in onMounted | animFloor', MINIMUM_ANIMATION_MS, 'ms | returnUser', isReturnUser)
+  // Emit to telemetry so cold starts are measurable in player_events (there is
+  // otherwise NO event before tap_play — nothing captures launch→ready). Cookie-
+  // based, so guests are included; the unmount/visibility beacon flushes it even
+  // when the learner loads-then-switches without tapping play.
+  logEvent('cold_start', {
+    totalMs: coldTotalMs,            // navigation start → ready (bundle parse + auth + onMounted)
+    onMountedMs: coldOnMountedMs,    // onMounted entry → ready (excludes app-shell+auth)
+    animFloorMs: MINIMUM_ANIMATION_MS, // deliberate splash floor (300 return / 2800 first-visit)
+    returnUser: isReturnUser,
+    guest: isGuestLearner.value,
+  })
 
   // Preview mode: set position at startup (but defer network population to first play)
   nextTick(async () => {
