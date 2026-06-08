@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-06-08).** This was the *design intent*; the shipped system diverged (no separate WAV IndexedDB tier — WAV is decoded on demand into an in-memory map; the filler fills the cache, not a prefetcher). For what the code **actually** does, see [`cold-start-and-playback.md`](./cold-start-and-playback.md). Kept for historical context only.
+
 # The Buffer — one system, two tiers
 
 > First principles, 2026-06-01. Replaces the earlier Fibonacci-chunking /
