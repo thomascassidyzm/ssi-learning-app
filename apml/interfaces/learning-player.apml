@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.13 (2026-06-07)
+# Version: 2.1.14 (2026-06-08)
 # Status: Production-ready
 
 ## ============================================================================
@@ -677,6 +677,12 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.14:
+    date: "2026-06-08"
+    title: "Settings 'What's new' panel — scannable bullets, per-note Read more, note-derived update flag"
+    changes:
+      - "SettingsScreen 'What's new': restyled bullets (custom • markers, ~0.45rem spacing, 1.45 line-height) to read as a tidy list; each note's bullets collapse to the first 4 (BULLET_PREVIEW_COUNT) with a per-note Read more / Show less (state keyed by note.id, independent of the showAllNotes earlier-updates toggle); build-row 'Update available' badge now also fires on noteIndicatesNewer (latest note's released_at > build time +5min, SHA-equality short-circuits to 'current'), with an 'In the latest version' marker on the newest note."
+
   v2.1.5:
     date: "2026-06-04"
     title: "INF PLAY: complete the SR drain (≥89 rounds) + genuinely unbounded play"
