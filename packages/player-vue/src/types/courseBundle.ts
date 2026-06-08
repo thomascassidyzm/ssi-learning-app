@@ -289,41 +289,6 @@ export interface CourseBundle {
 // HELPERS
 // ============================================================================
 
-/**
- * Walk a CourseBundle and yield every audio ref. Used by the bundle
- * downloader (to enumerate downloads) and by quota-estimation code.
- * Deduplicates by id — a single physical audio file may be referenced
- * by multiple LEGOs / phrases.
- */
-export function* iterateBundleAudio(bundle: CourseBundle): Iterable<BundleAudioRef> {
-  const seen = new Set<string>()
-  const yieldOnce = function* (ref: BundleAudioRef | undefined): Iterable<BundleAudioRef> {
-    if (!ref) return
-    if (seen.has(ref.id)) return
-    seen.add(ref.id)
-    yield ref
-  }
-  for (const lego of bundle.legos) {
-    yield* yieldOnce(lego.ephemeralAudio.known)
-    yield* yieldOnce(lego.ephemeralAudio.target1)
-    yield* yieldOnce(lego.ephemeralAudio.target2)
-    yield* yieldOnce(lego.ephemeralAudio.presentation)
-  }
-  for (const phrase of bundle.phrases) {
-    yield* yieldOnce(phrase.audio.known)
-    yield* yieldOnce(phrase.audio.target1)
-    yield* yieldOnce(phrase.audio.target2)
-  }
-  for (const pod of bundle.pods) {
-    yield* yieldOnce(pod.introAudio)
-    yield* yieldOnce(pod.outroAudio)
-    for (const sentence of pod.sentences) {
-      yield* yieldOnce(sentence.targetAudio)
-      yield* yieldOnce(sentence.knownAudio)
-    }
-  }
-}
-
 /** Group phrases by legoId — common pattern for the script generator. */
 export function phrasesByLego(bundle: CourseBundle): Map<string, BundlePhrase[]> {
   const map = new Map<string, BundlePhrase[]>()

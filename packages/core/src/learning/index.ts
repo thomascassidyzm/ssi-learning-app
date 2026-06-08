@@ -3,8 +3,6 @@ export * from './SpacedRepetitionQueue';
 export * from './TripleHelixEngine';
 export * from './MetricsTracker';
 export * from './SpikeDetector';
-export * from './AdaptationEngine';
-export * from './WeightedSelector';
 export * from './MasteryStateMachine';
 export * from './PhraseSelector';
 export * from './RoundEngine';

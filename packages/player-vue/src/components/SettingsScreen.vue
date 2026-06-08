@@ -1035,7 +1035,6 @@ const confirmReset = async () => {
         .update({
           total_practice_minutes: 0,
           last_practiced_at: null,
-          welcome_played: false,
           highest_completed_seed: 0,
           last_completed_lego_id: null,
         })

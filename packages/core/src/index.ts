@@ -11,7 +11,7 @@ export * from './config';
 // Data types
 export * from './data';
 
-// Engine (CycleOrchestrator, AudioController)
+// Engine (cycle phases, audio-controller interfaces)
 export * from './engine';
 
 // Learning algorithms (SpacedRepetition, TripleHelix)
@@ -25,6 +25,3 @@ export * from './audio';
 
 // Pricing (Big 10 languages, access control)
 export * from './pricing';
-
-// Network engine (brain view) — structural + context edge builder
-export * from './network';

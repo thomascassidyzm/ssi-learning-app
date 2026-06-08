@@ -15,13 +15,11 @@ import type {
   TimeSeriesData,
   CohortGridData,
   StatData,
-  FunnelData,
   Tone,
 } from '../spec'
 import type { CourseValueData, CourseValueRow } from './courseValue'
 import type { RetentionResolverResult } from './retention'
 import type { HealthPayload, HealthFailureTrendPoint, HealthVersionStat, HealthDeviceStat } from './health'
-import type { TrialConversionResult } from './trialConversion'
 
 // ── Demo flag helper ────────────────────────────────────────────────────────
 // True when the URL carries ?demo or ?demo=1 (or any value). Cheap, no caching:
@@ -478,45 +476,3 @@ export function demoHealth(days = 30): HealthPayload {
   }
 }
 
-// ============================================================================
-// demoTrialConversion() → TrialConversionResult (the RPC-row shape the resolver
-// indexes). The board/resolver maps these to FunnelData stages. A clear day-4 leak.
-// ============================================================================
-export function demoTrialConversion(): TrialConversionResult {
-  const started = 1200
-  const day1 = Math.round(started * 0.78)   // strong day-1
-  const day4 = Math.round(day1 * 0.41)      // <-- the leak: big drop at day-4
-  const day7 = Math.round(day4 * 0.72)
-  const converted = Math.round(day7 * 0.55)
-  return [
-    { stage: 'trial_started', label: 'Trial started', learner_count: started },
-    { stage: 'day1_session',  label: 'Day-1 session', learner_count: day1 },
-    { stage: 'day4_return',   label: 'Day-4 return',  learner_count: day4 },
-    { stage: 'day7_active',   label: 'Day-7 active',  learner_count: day7 },
-    { stage: 'converted',     label: 'Converted',     learner_count: converted },
-  ]
-}
-
-// ============================================================================
-// demoTrialFunnel() → FunnelData directly, for any board that wants the rendered
-// funnel rather than the raw rows. Tone derivation mirrors trialConversion.ts.
-// ============================================================================
-export function demoTrialFunnel(): FunnelData {
-  const rows = demoTrialConversion()
-  const thresholds: Record<string, number> = {
-    day1_session: 0.4, day4_return: 0.3, day7_active: 0.3,
-  }
-  const stages: FunnelData['stages'] = []
-  let prev = 0
-  rows.forEach((r, i) => {
-    let tone: Tone = 'neutral'
-    if (i > 0 && prev > 0) {
-      const share = r.learner_count / prev
-      const th = thresholds[r.stage] ?? 0
-      tone = r.learner_count === 0 ? 'alarm' : th > 0 && share < th ? 'warn' : 'good'
-    }
-    stages.push({ id: r.stage, label: r.label, value: r.learner_count, tone })
-    prev = r.learner_count
-  })
-  return { kind: 'funnel', stages }
-}

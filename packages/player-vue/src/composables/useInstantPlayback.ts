@@ -14,12 +14,15 @@
  *
  * Prefetch tiers run during playback (never block):
  *   - Tier 1: rest of the current round's cycles (limit=15)
- *   - Tier 2: listening audio for tier-1 cycles (delegated to the
- *     existing `usePrefetchManager` / service-worker `CacheFirst`)
- *   - Tier 3: next round's cycles + listening audio
+ *   - Tier 3: next round's cycles
  *
- * Coexists with `usePrefetchManager` (30-min audio buffer) and
- * `PriorityRoundLoader` (legacy upfront-load lazy loader). The new
+ * Listening/presentation audio is NOT bulk-prefetched here (the old
+ * Tier 2 was disabled 2026-05-23) — it JIT-fetches at use time and
+ * rides `audioCache.persistent.ensure` + the service-worker
+ * `CacheFirst` strategy, with `SimplePlayer.prefetchNextCycle`
+ * warming the upcoming cycle's voices during the prompt/pause window.
+ *
+ * Coexists with `usePrefetchManager` (30-min audio buffer). The
  * critical path *replaces* the upfront whole-course assembly when the
  * feature flag is on; the legacy path stays in tree as the flag-off
  * fallback.
@@ -754,31 +757,14 @@ export function useInstantPlayback(
   }
 
   /**
-   * Tier 2 — listening audio for the cycles tier 1 fetched.
-   *
-   * 2026-05-23: DISABLED. Used to fire ~15 parallel /api/audio/<id>
-   * fetches for presentation (seed/pod) audios for the current
-   * LEGO. Listening exercises only fire ~5 min into the round, so
-   * there's no actual urgency — JIT-fetch when the listening
-   * exercise actually starts is fine. Bulk prefetching here added
-   * to iOS WebKit's parallel-request pile-up alongside tier 3 and
-   * AudioPrefetcher's own ensures.
-   *
-   * Same streaming-first principle as the other bulk-fetch no-ops.
-   */
-  async function prefetchTier2(): Promise<void> {
-    // intentional no-op — listening audio JIT-fetched at use time
-    return
-  }
-
-  /**
    * Tier 3 — cycles for the NEXT round.
    *
    * The cycle metadata fetch (round queue continuation) stays — it
    * needs to land before round N+1 starts. 2026-05-23: dropped the
-   * inline ~15-audio bulk prefetch that followed it. Same reasoning
-   * as Tier 2: presentation audios don't need to land that early,
-   * AudioPrefetcher's persistentLookaheadCycles=3 + JIT covers it.
+   * inline ~15-audio bulk prefetch that followed it (and the old
+   * Tier 2 listening prefetch). Presentation audios don't need to land
+   * that early; JIT fetch + SW CacheFirst + SimplePlayer.prefetchNextCycle
+   * cover the upcoming cycle's audio.
    */
   async function prefetchTier3(): Promise<void> {
     const map = roundMap.value
@@ -867,7 +853,6 @@ export function useInstantPlayback(
 
     // Prefetch tiers
     prefetchTier1,
-    prefetchTier2,
     prefetchTier3,
 
     // State

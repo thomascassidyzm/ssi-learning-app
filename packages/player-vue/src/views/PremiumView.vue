@@ -134,10 +134,10 @@ function selectContextCourse(c: Course) {
 }
 
 function goBackToFreeCourses() {
-  // Send them to the player home AND signal HomeScreen to auto-open the
-  // Choose Your Course modal (where the Free section lives). Without the
-  // query param they'd just land on the player and have to find the
-  // course-picker button themselves.
+  // Send them to the player home with ?openCourses=1, which PlayerContainer
+  // reads to auto-open the Choose Your Course modal (where the Free section
+  // lives). Without the query param they'd just land on the player and have
+  // to find the course-picker button themselves.
   router.push({ path: '/', query: { openCourses: '1' } })
 }
 

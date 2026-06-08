@@ -170,7 +170,7 @@ const cacheHitSpec = computed<AnyInsightSpec>(() => {
       ...(rate < 0.8
         ? [{
             tier: 'investigate' as const,
-            text: 'Check fillBuffer / expandScript wiring in AudioPrefetcher',
+            text: 'Check fillBuffer / expandScript wiring (SimplePlayer.prefetchNextCycle + per-cycle resolver)',
             owner: 'you+claude' as const,
           }]
         : []),

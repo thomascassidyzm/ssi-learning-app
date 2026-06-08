@@ -118,7 +118,6 @@ const isLoadingScript = ref(false)
 const ROUNDS_PER_PAGE = 50
 const loadedRoundsCount = ref(0)
 const hasMoreRounds = ref(true)
-const isLoadingMore = ref(false)
 
 // Full course script generation (uses RoundBuilder - same logic as player)
 const fullCourseScript = useFullCourseScript()
@@ -496,11 +495,6 @@ const loadScript = async (forceRefresh = false) => {
     isLoadingScript.value = false
     isRefreshing.value = false
   }
-}
-
-// Load more rounds (no-op — full script is loaded on mount via useFullCourseScript)
-const loadMoreRounds = async () => {
-  hasMoreRounds.value = false
 }
 
 // Flatten rounds into single item list with round markers
@@ -1219,25 +1213,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Load More Button -->
-          <div v-if="hasMoreRounds" class="load-more-container">
-            <button
-              class="load-more-btn"
-              @click="loadMoreRounds"
-              :disabled="isLoadingMore"
-            >
-              <template v-if="isLoadingMore">
-                <div class="loading-spinner small"></div>
-                Loading...
-              </template>
-              <template v-else>
-                Load More ({{ loadedRoundsCount }} / {{ totalLegos }} rounds)
-              </template>
-            </button>
-          </div>
-
           <!-- End of content indicator -->
-          <div v-else-if="rounds.length > 0" class="end-of-content">
+          <div v-if="rounds.length > 0" class="end-of-content">
             All {{ rounds.length }} rounds loaded
           </div>
         </div>

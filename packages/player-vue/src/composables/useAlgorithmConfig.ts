@@ -107,7 +107,10 @@ export interface ListeningModeConfig {
   layer1StageDuration: number
   /** @deprecated Moved to PodsConfig.podActivationRound (2026-05-17).
    *  Optional/read-only here for legacy rows whose `pods` config hasn't
-   *  been re-saved yet. The dashboard backfills on next load. */
+   *  been re-saved yet. The dashboard backfills on next load.
+   *  KEPT: still the #2 fallback link for un-migrated `listening` config
+   *  rows (LearningPlayer.vue) — removing changes pod-activation timing
+   *  for un-migrated learners. Keep until the dashboard backfills `pods`. */
   podActivationRound?: number
 }
 

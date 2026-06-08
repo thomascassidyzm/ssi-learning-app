@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
-  AudioController,
   CyclePhase,
   DEFAULT_CONFIG,
   createVoiceActivityDetector,
@@ -100,6 +99,8 @@ import { generateScript as generateBundleScript } from '../script/generateScript
  * INSTANT_PLAYBACK_ALL on doesn't risk breaking any course that lacks the
  * required round-map data; those just degrade silently to legacy.
  */
+// KEPT: rollout scaffolding — INSTANT_PLAYBACK_COURSES is the per-course
+// rollback lever; the legacy init path is the catch-fallback safety net.
 const INSTANT_PLAYBACK_ALL = true
 const INSTANT_PLAYBACK_COURSES = new Set<string>([
   // Used only when INSTANT_PLAYBACK_ALL is false. Examples:
@@ -114,18 +115,20 @@ function isInstantPlaybackCourse(courseCode: string): boolean {
 // ============================================================
 // Mirrors the INSTANT_PLAYBACK rollout pattern above. When enabled
 // for a course, the INF PLAY entry path uses the new client-side
-// generateScript() + AudioCache + AudioPrefetcher pipeline instead
-// of the legacy server-side /infplay-cycles + warm-up dance.
+// generateScript() + AudioCache pipeline (audioCache.persistent.ensure
+// + SW CacheFirst + per-cycle resolver) instead of the legacy
+// server-side /infplay-cycles + warm-up dance.
 //
-// Bundle load + BundleDownloader fire for ALL courses regardless —
-// the downloader is polite enough now (concurrency=1, jitter,
-// 429/503 backoff per BundleDownloader.ts) that it doesn't need a
-// gate. Only the INF PLAY entry switches per course via this flag.
+// The course bundle loads for ALL courses regardless; only the INF
+// PLAY entry switches per course via this flag.
 //
 // Add a course code below to canary it. Leave empty + ALL=false to
 // keep the new INF PLAY path dormant. Legacy INF PLAY path remains
 // the safety net — the new path falls through to legacy if the
 // bundle isn't loaded or generateScript returns no rounds.
+//
+// KEPT: canary scaffolding (ALL=false, empty Set → never runs). Kept
+// as the documented switch to trial the bundle-based INF PLAY path.
 const BUNDLE_BASED_INFPLAY_ALL = false
 const BUNDLE_BASED_INFPLAY_COURSES = new Set<string>([
   // Add a single course here to canary, e.g. 'jpn_for_eng'.
@@ -575,17 +578,13 @@ const audioCache = getAudioCache()
 // Module-scoped so onUnmounted can revoke its blob URLs. Built per
 // session in onMounted once the courseCode is known.
 let audioCacheSource: AudioCacheSource | null = null
-// JIT prefetcher — ephemeral acquire/release around LEGO debut rounds,
-// persistent backstop for the next ~30 cycles. Replaces the warm-up
-// surface in the existing instant-playback path (next commit removes
-// the now-redundant code).
-// Streaming-first AudioPrefetcher — accepts the library defaults
-// (lookahead=1 LEGO, persistentLookaheadCycles=3) which warm just
-// enough to avoid races between cycle entry and audio load. The
-// SW CacheFirst layer (driven by SimplePlayer.prefetchNextCycle)
-// handles ongoing playback caching. Learners who want full course
-// caching get driving mode's chunked accumulation or the future
-// paid "Download for offline" opt-in.
+// Streaming-first audio: per-cycle resolution lands the playing cycle's
+// ids into AudioCache.persistent, and SimplePlayer.prefetchNextCycle
+// warms the upcoming cycle's voices during the prompt/pause window. The
+// SW CacheFirst layer then serves repeat plays from cache. That's enough
+// to avoid races between cycle entry and audio load — no bulk upfront
+// caching. Learners who want full-course caching get driving mode's
+// chunked accumulation or the future paid "Download for offline" opt-in.
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
@@ -1454,8 +1453,8 @@ simplePlayer.onPhaseChanged((phase) => {
   else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2' }
   if (audioUrl && role) {
     // cacheHit reflects whether AudioCache.persistent has the id at the
-    // moment the cycle begins playing — signal for "did the
-    // BundleDownloader / AudioPrefetcher have time to land this audio
+    // moment the cycle begins playing — signal for "did the per-cycle
+    // resolver / prefetchNextCycle warm have time to land this audio
     // in IndexedDB before the learner reached it." Tri-state: null when
     // we couldn't extract an id (already a blob: URL post-resolution,
     // or an off-format URL) so queries can distinguish "uncached" from
@@ -1825,9 +1824,9 @@ watch(
 // Streaming-first reasoning (same as the INF PLAY no-op):
 //   ~30 KB × 3 audios per cycle = ~90 KB/cycle, ~15s cycle (incl.
 //   speaking pause) = ~6 KB/s steady-state. Comfortable on 3G.
-//   AudioPrefetcher's per-round JIT (persistentLookaheadCycles=3) +
-//   SimplePlayer.prefetchNextCycle priority hints cover the playback
-//   path inside that envelope.
+//   The per-cycle resolver (lands the playing cycle into
+//   AudioCache.persistent) + SimplePlayer.prefetchNextCycle priority
+//   hints cover the playback path inside that envelope.
 //
 // Explicit full-course caching for offline use is provided by
 // driving mode's chunked prefetch and the future paid "Download for
@@ -1836,6 +1835,8 @@ watch(
 // Function kept as a no-op (rather than deleted) so the call site
 // stays in tree-shake-safe shape for the same reasons documented on
 // `warmUpInfPlayRoundsBackground`.
+// KEPT: deliberate no-op + greppable handle for a possible opt-in
+// offline-download revival (see docblock above).
 let deepPrefetchRunning = false
 async function deepPrefetchRestOfCourse() {
   // intentional no-op — see docblock above
@@ -3303,6 +3304,8 @@ const beltProgress = shallowRef(null)
 // are effectively no-ops (always null → [] / never fires). Left in place
 // because they thread into the live offline-play system; retire as part of the
 // offline/buffer rework, not here.
+// KEPT: vestigial ref whose 2 reads thread into the live offline-play
+// system — retire with the offline/buffer rework, not here.
 const beltLoader = shallowRef(null)
 
 // Offline play composable for infinite play when offline
@@ -4382,13 +4385,16 @@ const audioPreloadedRounds = new Set<number>()
  *
  * Same anti-pattern as warmUpInfPlayRoundsBackground (no-op'd) and
  * deepPrefetchRestOfCourse (no-op'd) — speculative bulk warming
- * that streaming-first doesn't need. AudioPrefetcher's
- * persistentLookaheadCycles=3 + SimplePlayer.prefetchNextCycle
- * priority hints cover the playback path within the bandwidth
- * envelope (~6 KB/s steady-state).
+ * that streaming-first doesn't need. The per-cycle resolver (lands
+ * the playing cycle into AudioCache.persistent) + SimplePlayer
+ * .prefetchNextCycle priority hints cover the playback path within
+ * the bandwidth envelope (~6 KB/s steady-state).
  *
  * Callers remain wired (line 1453, 1606, 5537) so the call sites
  * stay greppable. The function is a no-op.
+ *
+ * KEPT: deliberate no-op + greppable handle for a possible opt-in
+ * offline-download revival.
  */
 const preloadSimpleRoundAudio = (_rounds: any[], _maxRounds = 1, _startIndex = 0): Promise<void> => {
   // intentional no-op — see docblock
@@ -5939,10 +5945,10 @@ const handleCycleEvent = async (event) => {
 
           console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
           // Round-boundary audio prefetch used to run a legacy
-          // prefetchRoundAudio() helper here; AudioPrefetcher's
-          // onRoundChanged + onRoundCompleted (wired at lines ~1359
-          // and ~1480) now own that responsibility with proper
-          // ephemeral lifecycle tracking.
+          // prefetchRoundAudio() helper here; streaming-first now
+          // handles it via the per-cycle resolver (lands the playing
+          // cycle into AudioCache.persistent) + SimplePlayer
+          // .prefetchNextCycle warming the upcoming cycle's voices.
         }
 
         // Get next script item and convert to playable
@@ -7142,8 +7148,9 @@ const jumpToRound = async (roundIndex) => {
  * warmUpInfPlayRoundsBackground + shouldSkipCycle gate) with the new
  * cache-based pipeline: generateScript() emits INF PLAY rounds from
  * the bundle, audioCache.persistent.ensure() guarantees the first
- * cycle's audio is in cache before play, and AudioPrefetcher's watch
- * acquires ephemeral + persistent audio for everything that follows.
+ * cycle's audio is in cache before play, and the per-cycle resolver
+ * (+ SimplePlayer.prefetchNextCycle) lands audio for everything that
+ * follows as each cycle is reached.
  *
  * Returns `true` on success, `false` to signal the caller should fall
  * through to the legacy path (bundle not loaded yet, or generateScript
@@ -7192,8 +7199,8 @@ async function enterInfPlayViaBundle(fromInfRound: number, showIntro: boolean): 
   // Pre-cache the first cycle's audio so playback doesn't gap. We
   // extract the audio ids from the cycle's URL fields (`/api/audio/<id>`)
   // and await the persistent.ensure calls before jumpToRound. The
-  // AudioPrefetcher's watch will handle the rest once the round
-  // change fires.
+  // per-cycle resolver + SimplePlayer.prefetchNextCycle handle the
+  // rest as each subsequent cycle is reached.
   const firstCycle = result.rounds[0]?.cycles?.[0]
   const firstAudioIds: string[] = []
   if (firstCycle) {
@@ -8009,12 +8016,12 @@ simplePlayer.setRuntimeOverrides({
   // handled blob URLs fine, masking the bug. Tom verified mobile broken
   // post the IDB-cache work 2026-05-22 ↔ 2026-05-23.
   //
-  // With streaming-first defaults (AudioPrefetcher lookahead=1 + SW
-  // CacheFirst on /api/audio/*), the SW cache is the actual primary
-  // path anyway. The blob URL substitution was a leftover optimisation
-  // from the previous IDB-as-playback-source design.
+  // With streaming-first playback (per-cycle resolution + SW CacheFirst
+  // on /api/audio/*), the SW cache is the actual primary path anyway.
+  // The blob URL substitution was a leftover optimisation from the
+  // previous IDB-as-playback-source design.
   //
-  // IDB is still populated by AudioPrefetcher.persistent.ensure — that's
+  // IDB is still populated by audioCache.persistent.ensure — that's
   // useful for driving mode's chunked accumulation and the future paid
   // "Download for offline" opt-in. It just isn't the source the audio
   // element reads from anymore.
@@ -8075,6 +8082,9 @@ const isWarmingUpInfPlay = ref(false)
 // silently dropped (rather than stalling / playing silently) —
 // because INF PLAY doesn't need any particular cycle, only that
 // SOMETHING with audio plays in each slot.
+// KEPT: permanently empty by design (warm-up is a no-op) → the
+// "empty set short-circuits to don't-skip" branch disables the INF
+// PLAY skip gate intentionally. Load-bearing by documentation.
 const warmedUpAudioUrls = ref<Set<string>>(new Set())
 
 /**
@@ -8127,10 +8137,9 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
  * every cycle's three audio URLs in parallel-5 batches. On Tom's
  * stress test with cold cache + 3G + far belt skip it produced 61,919
  * requests / 623 MB transferred. The streaming-first architecture
- * (AudioPrefetcher with lookahead=1 + persistentLookaheadCycles=3,
- * plus SimplePlayer.prefetchNextCycle warming the SW CacheFirst
- * layer per cycle) covers playback needs without speculative
- * bulk-fetching.
+ * (per-cycle resolution into AudioCache.persistent + SimplePlayer
+ * .prefetchNextCycle warming the SW CacheFirst layer per cycle)
+ * covers playback needs without speculative bulk-fetching.
  *
  * Callers remain wired so the historical call sites are preserved
  * (easy to grep if we ever want to revive an opt-in version, e.g.
@@ -8147,6 +8156,8 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
  * chunked accumulation (createChunkedPrefetch) or the future paid
  * "Download for offline" opt-in.
  */
+// KEPT: deliberate no-op + greppable handle for a possible opt-in
+// offline-download revival (see docblock above).
 function warmUpInfPlayRoundsBackground(_rounds: any[], _skipFirst: number): void {
   // intentional no-op — see docblock
 }
@@ -10011,13 +10022,14 @@ onMounted(async () => {
       })
 
       // ============================================
-      // Bundle load + background downloader (cache-based-content-loading)
+      // Bundle load (cache-based-content-loading)
       // ============================================
-      // Fire bundle fetch + BundleDownloader as early as possible so the
-      // background download has the longest possible runway. Does NOT
-      // block the existing bootstrap path — both run concurrently.
-      // Bundle fetch is cache-first (localStorage), typically resolves
-      // in <10ms for returning learners.
+      // Fire the bundle fetch as early as possible so the rolling
+      // audio filler (fillBuffer / expandScript) has the longest
+      // possible runway ahead of the playhead. Does NOT block the
+      // existing bootstrap path — both run concurrently. Bundle fetch
+      // is cache-first (localStorage), typically resolves in <10ms for
+      // returning learners.
       //
       // Failures are non-fatal: if the bundle endpoint is down or the
       // course isn't migrated to the new format yet, the existing
@@ -10415,14 +10427,14 @@ onMounted(async () => {
             }
           }
 
-          // 5. Background tier 2 + 3 — main-loop only. INF PLAY has
-          //    its own pagination via prefetchNextInfPlayBatch (fired
-          //    by the near-edge watcher below). Tier 2/3 walk the
-          //    round-map by legoId, which doesn't make sense for INF
-          //    PLAY's by-round structure.
+          // 5. Background tier 3 — main-loop only. INF PLAY has its own
+          //    pagination via prefetchNextInfPlayBatch (fired by the
+          //    near-edge watcher below). Tier 3 walks the round-map by
+          //    legoId, which doesn't make sense for INF PLAY's by-round
+          //    structure. (Tier 2 listening-audio prefetch was retired
+          //    2026-05-23 — JIT fetch + SW CacheFirst cover it.)
           if (inferEnrollmentMode !== 'infplay') {
-            void instantPlayback.prefetchTier2()
-              .then(() => instantPlayback.prefetchTier3())
+            void instantPlayback.prefetchTier3()
               .then(() => {
                 // Tier 3 may have brought in the N+1 round's cycles —
                 // fold them into SimplePlayer so the engine can walk
