@@ -66,6 +66,7 @@ import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backe
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
 import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
+import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
 import { type BundleDownloader } from '../cache/BundleDownloader'
 import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
@@ -7971,12 +7972,13 @@ simplePlayer.setRuntimeOverrides({
     // Serve the cached WAV blob when offline OR when online cache-play is on —
     // this is what keeps the MAIN cycle off the network so it survives lock.
     // A genuine cache miss falls through to the network URL (instant first play).
+    // resolveCachedPlaybackUrl is the shared substrate the listening overlay
+    // also plays through — one definition of "id → lock-safe playable URL".
     if (!offlinePlaybackActive() && !cachePlayOnline) return audioUrl
     const id = audioUrl.match(/\/api\/audio\/([^?]+)/)?.[1]
     if (!id) return audioUrl
     // WAV, not the cached mp3 blob — WebKit refuses mp3 blob: URLs.
-    const wavUrl = await audioCache.getWavBlobUrl(id)
-    return wavUrl || audioUrl
+    return resolveCachedPlaybackUrl(audioCache, id, audioUrl)
   },
   // ensureKnownReady: REMOVED 2026-05-23.
   //

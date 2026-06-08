@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.14 (2026-06-08)
+# Version: 2.1.15 (2026-06-08)
 # Status: Production-ready
 
 ## ============================================================================
@@ -327,17 +327,38 @@ LISTENING_OVERLAY:
     no `id` field (a former `s.id === selected.id` undefined comparison
     made every scene "advance" to scene 2).
   background_lock_protocol: |
-    (2026-06-07) The overlay follows the SAME bg/lock rule as the main
-    flow, INF PLAY and pod laps: every playback gap advances on an audio
-    'ended' event, NEVER a bare setTimeout (iOS freezes timers on a
-    backgrounded/locked tab). The 50ms intra-turn and 800ms inter-turn
-    gaps play as genuinely-silent one-shot WAV clips on the same element
-    (ListeningAudioController.playSilence → playback/silentWav.ts, the
-    builder extracted from SimplePlayer's PAUSE fix). playbackRate
-    applies to the silence too, so faster speeds tighten gaps
-    proportionally. The 15s safety timeout inside play() remains as a
-    foreground fallback only. RULE for any new playback surface: a gap
-    is "a phase with audio", never "a phase with only a timer".
+    (2026-06-07, extended 2026-06-08) The overlay follows the SAME bg/lock
+    rules as the main flow, INF PLAY and pod laps, on three axes:
+    1. GAPS = audio, not timers. Every playback gap advances on an audio
+       'ended' event, NEVER a bare setTimeout (iOS freezes timers on a
+       backgrounded/locked tab). The 50ms intra-turn and 800ms inter-turn
+       gaps play as genuinely-silent one-shot WAV clips on the same
+       element (ListeningAudioController.playSilence → playback/silentWav.ts,
+       the builder shared with SimplePlayer's PAUSE fix). playbackRate
+       applies, so faster speeds tighten gaps proportionally.
+    2. BYTES = cached WAV, not streamed mp3. Play URLs resolve through the
+       SHARED substrate resolveCachedPlaybackUrl(audioCache, id, proxyUrl):
+       a WAV blob decoded from IndexedDB when present (real PCM, no network
+       — WebKit plays it locked), else the proxy URL (instant cold-cache
+       first play). This is the ONE definition both the overlay and the
+       main 4-phase cycle (SimplePlayer.resolveAudioUrl) play through. To
+       make the cache HIT ahead of a locked clip, prefetch warms IndexedDB
+       via audioCache.persistent.ensure (warmClip) — top-5 rows on scene
+       open, a rolling +2 warm-ahead each turn, and the next scene's head
+       during the last turn — NOT just the SW fetch (which streams under a
+       Range request iOS stalls on when locked).
+    3. SESSION = live. mediaSession.setPositionState updates on the
+       element's timeupdate (ListeningAudioController) so iOS/Android see
+       an advancing session and are less likely to suspend the tab —
+       same heuristic as SimplePlayer.updateMediaPositionState.
+    The 15s safety timeout inside play() remains a foreground fallback
+    only. RULE for any new playback surface: a gap is "a phase with
+    audio" not "a phase with only a timer", AND bytes reach the speaker
+    via the shared cached-WAV resolver, never a raw streamed URL.
+    CONVERGENCE: the overlay does NOT reuse SimplePlayer's 4-phase CYCLE
+    semantics (it's a flat clip list) — it shares the audio SUBSTRATE
+    (resolver + cache + position + silent-gap advance). One bytes-to-
+    speaker path, two callers.
 
   speaker_colouring: |
     (Tom 2026-06-07) The voice-casting 4-colour-map principle, made

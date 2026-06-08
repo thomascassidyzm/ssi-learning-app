@@ -6,6 +6,7 @@ import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
 import { buildSilentWavDataUri } from '../playback/silentWav'
+import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -18,6 +19,41 @@ class ListeningAudioController {
     this.playbackRate = 1
     // ms → data: URI cache for the silent gap clips (two sizes in practice).
     this.silenceCache = new Map()
+    // Bound timeupdate handler — keeps navigator.mediaSession's position
+    // state advancing so iOS/Android see a LIVE session and are far less
+    // likely to suspend the backgrounded/locked tab. Same heuristic the
+    // main flow uses (SimplePlayer.updateMediaPositionState). Skips the
+    // silent gap clips (their data: URI has no meaningful duration).
+    this._onTimeUpdate = () => this._updatePositionState()
+  }
+
+  /** Ensure the reusable element exists and the position-state listener is
+   *  attached exactly once. */
+  _ensureAudio() {
+    if (!this.audio) {
+      this.audio = new Audio()
+      this.audio.addEventListener('timeupdate', this._onTimeUpdate)
+      this.audio.addEventListener('loadedmetadata', this._onTimeUpdate)
+    }
+    return this.audio
+  }
+
+  _updatePositionState() {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+    if (typeof ms.setPositionState !== 'function') return
+    const a = this.audio
+    if (!a) return
+    const duration = a.duration
+    // Guard against NaN/Infinity (pre-metadata) and out-of-range positions
+    // that would make setPositionState throw.
+    if (!Number.isFinite(duration) || duration <= 0) return
+    const position = Math.min(Math.max(a.currentTime || 0, 0), duration)
+    try {
+      ms.setPositionState({ duration, position, playbackRate: a.playbackRate || 1 })
+    } catch {
+      /* best-effort — never break playback over a position hint */
+    }
   }
 
   setPlaybackRate(rate) {
@@ -52,9 +88,7 @@ class ListeningAudioController {
       return
     }
 
-    if (!this.audio) {
-      this.audio = new Audio()
-    }
+    this._ensureAudio()
 
     this.audio.src = url
     this.audio.load()
@@ -686,10 +720,10 @@ const getAudioUrl = (audioId) => {
  * requests hit it).
  */
 /**
- * Warm the next scene's opening audio while the current scene's last turn
- * plays — the playlist segue then reads straight from the SW cache instead
- * of hitting the network inside the 800ms inter-turn gap. Mirrors the
- * wrap-around logic in handleEndOfList (last scene warms the first).
+ * Warm the next scene's opening audio into IndexedDB while the current
+ * scene's last turn plays — so the playlist segue resolves to a cached WAV
+ * blob (lock-safe) instead of hitting the network inside the 800ms gap.
+ * Mirrors the wrap-around in handleEndOfList (last scene warms the first).
  */
 const prefetchNextSceneHead = () => {
   if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
@@ -699,17 +733,26 @@ const prefetchNextSceneHead = () => {
   if (!next || next.sceneNumber === selectedScene.value.sceneNumber) return
   for (const t of next.turns.slice(0, TAB_PREFETCH_LIMIT)) {
     const id = Array.isArray(t.audioIds) ? t.audioIds[0] : null
-    if (!id) continue
-    const url = getAudioUrl(id)
-    if (url) fetch(url, { priority: 'low' }).catch(() => undefined)
+    if (id) warmClip(id)
   }
+}
+
+/**
+ * Warm one clip into the IndexedDB AudioCache (not just the SW). This is
+ * what lets the play-time resolver hand the <audio> element a cached WAV
+ * blob — the lock-screen-safe path. persistent.ensure de-dupes in-flight
+ * and is a fast no-op when already stored; errors are silent (the JIT
+ * resolve on play falls back to the proxy URL).
+ */
+const warmClip = (id) => {
+  if (!id || audioCache.persistent.has(id)) return
+  audioCache.persistent.ensure(id).catch(() => undefined)
 }
 
 const prefetchTopRows = () => {
   const rows = availablePhrases.value
   if (!rows.length) return
 
-  const urls = []
   for (let i = 0; i < Math.min(TAB_PREFETCH_LIMIT, rows.length); i++) {
     const row = rows[i]
     if (!row) continue
@@ -726,20 +769,9 @@ const prefetchTopRows = () => {
     } else if (row.target2AudioId) {
       id = row.target2AudioId
     }
-    if (!id) continue
-    const url = getAudioUrl(id)
-    if (url) urls.push(url)
-  }
-
-  if (urls.length === 0) return
-
-  // Fire-and-forget. SW CacheFirst writes the response to its cache on
-  // first hit; subsequent fetches (including the player's <audio> src
-  // load) read from the cache. Discard the body — we just want the
-  // cached entry. Silent failure: prefetch errors aren't user-visible;
-  // the JIT fetch on tap will surface real problems.
-  for (const url of urls) {
-    fetch(url, { priority: 'low' }).catch(() => undefined)
+    // Warm into IndexedDB (not just the SW) so the play-time resolver can
+    // hand the element a cached WAV blob — the lock-screen-safe path.
+    warmClip(id)
   }
 }
 
@@ -789,6 +821,15 @@ const playCurrentPhrase = async (myPlaybackId) => {
     clips: playQueue.length,
   })
 
+  // Rolling warm-ahead: pull the next couple of rows into IndexedDB while
+  // this one plays, so a locked screen always finds the upcoming clip
+  // cached (the lock-safe WAV path) rather than hitting the throttled
+  // network mid-list. Cheap + de-duped; covers lists longer than the
+  // initial 5-row prefetch.
+  for (let n = 1; n <= 2; n++) {
+    const ahead = availablePhrases.value[currentIndex.value + n]
+    if (ahead) warmClip(Array.isArray(ahead.audioIds) ? ahead.audioIds[0] : ahead.target1AudioId)
+  }
   // Last turn of a pod scene → warm the NEXT scene's opening clips now,
   // while this turn plays, so the scene segue never waits on the network.
   if (currentIndex.value === availablePhrases.value.length - 1) {
@@ -811,8 +852,16 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // protocol (see SimplePlayer's PAUSE phase).
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
-    const audioUrl = getAudioUrl(playQueue[i])
-    if (!audioUrl) continue
+    const id = playQueue[i]
+    const proxyUrl = getAudioUrl(id)
+    if (!proxyUrl) continue
+    // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
+    // (lock-screen-safe — real PCM, no network) when present, else the proxy
+    // URL (instant first play on a cold cache). Same primitive the main 4-phase
+    // cycle plays through (SimplePlayer.resolveAudioUrl) — this is what makes
+    // listening survive background/lock, not just the silent gaps.
+    const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
+    if (myPlaybackId !== playbackId) return
     try {
       await audioController.value.play(audioUrl)
     } catch (err) {
