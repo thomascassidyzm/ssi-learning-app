@@ -9973,14 +9973,27 @@ onMounted(async () => {
     console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value, cachePlayOnline ? '(cache-play online: ON)' : '')
   }
 
-  // Initialize belt progress (loads from localStorage, merges with Supabase)
-  await initializeBeltProgress()
-
-  // Initialize per-LEGO adaptive pause engine (hydrates mastery from Supabase)
-  await initializeAdaptationEngine()
-
-  // Initialize Layer 1 fire-count persistence (hydrates from learner_l1_state)
-  await initializeListeningProgress()
+  // Cold-start critical path: these three init calls each await a Supabase
+  // round-trip (belt remote merge + getMaxSeedNumber; adaptation mastery
+  // hydration; Layer-1 fire-count hydration). NONE is required before the
+  // first cycle can play — only getEnrollment (resume position, below) is.
+  // Every consumer is null-safe with a default: adaptationEngine.value?.
+  // getPauseMultiplier() ?? 1.0, listeningProgress.value?., and the belt
+  // computeds all `?. ?? <default>`. So we fire them concurrently and DON'T
+  // await — the first cycle plays immediately and the belt readout / pause
+  // tuning / L1 counts hydrate reactively a beat later. Previously these ran
+  // serially ahead of bootstrap, stacking ~4 RTTs onto every cold start.
+  const COLD_T0 = (typeof performance !== 'undefined' ? performance.now() : 0)
+  void Promise.all([
+    initializeBeltProgress(),
+    initializeAdaptationEngine(),
+    initializeListeningProgress(),
+  ]).then(() => {
+    console.log('[ColdStart] background hydration (belt+adaptation+listening) ready in',
+      Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - COLD_T0), 'ms (off critical path)')
+  }).catch((err) => {
+    console.warn('[LearningPlayer] background hydration failed (non-fatal):', err)
+  })
 
   // Load course-wide LEGO known_text lookup (powers the hero highlight in
   // cases where the salient LEGO's round isn't in loadedRounds, especially
@@ -11360,6 +11373,17 @@ onMounted(async () => {
   // Warm the first known audio so the opening sound is instant (bounded).
   await warmFirstKnownAudio()
   setLoadingStage('ready')
+
+  // Cold-start budget instrumentation. performance.now() is measured from
+  // navigation start, so it captures the FULL launch→ready cost (JS bundle
+  // parse + auth/session restore + onMounted), while Date.now()-startTime
+  // isolates just the onMounted portion. animFloor is the deliberate splash
+  // minimum (returnUser 300ms / first-visit 2800ms) — when total ≈ animFloor
+  // the floor is the gate, not data. Compare against '[LearningPlayer] Data
+  // loading complete' above to see whether data or the floor dominated.
+  console.log('[ColdStart] launch→ready',
+    Math.round(typeof performance !== 'undefined' ? performance.now() : 0), 'ms total (incl. app-shell+auth) |',
+    Date.now() - startTime, 'ms in onMounted | animFloor', MINIMUM_ANIMATION_MS, 'ms | returnUser', isReturnUser)
 
   // Preview mode: set position at startup (but defer network population to first play)
   nextTick(async () => {
