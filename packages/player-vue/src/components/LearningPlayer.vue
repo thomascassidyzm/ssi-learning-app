@@ -11199,12 +11199,13 @@ onMounted(async () => {
   // STAGE 4: READY - Splash animation done
   // Show player immediately, orchestrator inits in background
   // ============================================
-  // Warm the first known audio so the opening sound is instant (bounded).
-  // Timed (warmAudioMs): on a cold-cache course this fetch dominates
-  // mount→ready. prewarmInstantCaches now precaches it on course-select, so on
-  // a switch this should hit the SW cache (~0ms) instead of streaming.
+  // Warm the first known audio into the SW cache, but DO NOT await it — blocking
+  // 'ready' on this fetch cost ~600ms on cold-cache loads (measured). Fire it in
+  // the background and go ready immediately; if the learner taps play before it's
+  // warm, the head-miss path streams the first clip. warmAudioMs now reads ~0
+  // (confirms it's off the critical path) — the cold-start budget drops by it.
   const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
-  await warmFirstKnownAudio()
+  void warmFirstKnownAudio()
   const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   setLoadingStage('ready')
 
@@ -11611,8 +11612,10 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // Initialize for new course - legacy initOrchestrator removed
   // The SessionController path handles this automatically
 
-  // Mark as ready (warm the first known audio first, bounded — instant opening)
-  await warmFirstKnownAudio()
+  // Go ready immediately; warm the first known audio in the BACKGROUND (not
+  // awaited — blocking ready on it added ~600ms). Head-miss streams the first
+  // clip if the learner taps before it's warm.
+  void warmFirstKnownAudio()
   setLoadingStage('ready')
   isInitialized.value = true
 
