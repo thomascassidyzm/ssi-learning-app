@@ -808,6 +808,9 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     BELTS,
 
     // Backwards compatibility (deprecated, will be removed)
+    // KEPT: "deprecated" label is aspirational — completedRounds /
+    // setCurrentLegoId / etc. are ACTIVELY consumed (SettingsScreen,
+    // LearningPlayer, HomeScreen). Future refactor, not a dead delete.
     completedRounds,
     currentLegoId,
     setCurrentLegoId,

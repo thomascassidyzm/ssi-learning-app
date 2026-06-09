@@ -32,7 +32,6 @@ import type {
 import {
   selectDebutPhrase,
   selectEternalPhrase,
-  getDebutPhraseCount,
   type PhraseSelectorConfig,
 } from './PhraseSelector';
 
@@ -497,74 +496,4 @@ function advancePhase(
  */
 export function needsRound(progress: LegoProgress): boolean {
   return !progress.introduction_complete;
-}
-
-/**
- * Calculates how many items remain in the current Round.
- *
- * Counts: INTRO (1) + LEGO (1) + BUILD (up to 7) + REVIEW (up to 12) + CONSOLIDATE (2)
- * Components are NOT counted - they're skipped.
- */
-export function getRemainingRoundItems(
-  basket: ClassifiedBasket,
-  progress: LegoProgress,
-  roundState: RoundState,
-  config: RoundEngineConfig = DEFAULT_CONFIG
-): number {
-  let remaining = 0;
-
-  // Calculate actual BUILD phrase count (capped at maxBuildPhrases)
-  const availableBuildPhrases = Math.min(
-    getDebutPhraseCount(basket),
-    config.maxBuildPhrases
-  );
-
-  // Count based on current phase
-  switch (roundState.current_phase) {
-    case 'intro_audio':
-      if (!progress.introduction_played) remaining += 1;
-      // Fall through to count remaining phases (NO components)
-      remaining += 1; // debut_lego (LEGO)
-      remaining += availableBuildPhrases; // BUILD (capped)
-      remaining += config.spacedRepInterleaveCount; // REVIEW
-      remaining += config.consolidationCount; // CONSOLIDATE
-      break;
-
-    case 'components':
-      // Components are always skipped, so this falls through to debut_lego
-      remaining += 1; // debut_lego (LEGO)
-      remaining += availableBuildPhrases; // BUILD
-      remaining += config.spacedRepInterleaveCount; // REVIEW
-      remaining += config.consolidationCount; // CONSOLIDATE
-      break;
-
-    case 'debut_lego':
-      remaining += 1; // LEGO itself
-      remaining += availableBuildPhrases; // BUILD
-      remaining += config.spacedRepInterleaveCount; // REVIEW
-      remaining += config.consolidationCount; // CONSOLIDATE
-      break;
-
-    case 'debut_phrases': {
-      // BUILD phrases remaining (capped)
-      const buildCompleted = progress.introduction_index - 1;
-      remaining += Math.max(0, availableBuildPhrases - buildCompleted);
-      remaining += config.spacedRepInterleaveCount; // REVIEW
-      remaining += config.consolidationCount; // CONSOLIDATE
-      break;
-    }
-
-    case 'spaced_rep':
-      // REVIEW items remaining
-      remaining += roundState.spaced_rep_target - roundState.spaced_rep_completed;
-      remaining += config.consolidationCount; // CONSOLIDATE
-      break;
-
-    case 'consolidation':
-      // CONSOLIDATE items remaining
-      remaining += roundState.consolidation_remaining;
-      break;
-  }
-
-  return remaining;
 }

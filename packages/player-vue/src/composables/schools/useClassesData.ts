@@ -623,7 +623,7 @@ export function useClassesData() {
             if (!resp.ok) {
               const data = await resp.json().catch(() => ({}))
               console.error('[ClassesData] Failed to create invite code for student join code:', data.error || resp.status)
-              // Non-fatal — class still works, just won't resolve through /api/invite/validate
+              // Non-fatal — class still works, just won't resolve through /api/code/validate
             }
           } else {
             console.warn('[ClassesData] No auth token; skipping invite_code creation for class', newClass.id)

@@ -18,7 +18,6 @@ import type {
   Subscription,
   SubscriptionStatus,
   SubscriptionResponse,
-  CheckoutResponse,
   PortalResponse,
 } from '../types/Subscription'
 
@@ -52,8 +51,6 @@ export interface UseSubscriptionReturn {
   status: ComputedRef<SubscriptionStatus>
   /** Initialize — call from App.vue after supabase + auth are ready */
   initialize: () => Promise<void>
-  /** Start checkout for a plan */
-  checkout: (planId: string) => Promise<void>
   /** Open customer portal */
   openPortal: () => Promise<void>
   /** Cancel the subscription at period end (returns the end date if known) */
@@ -201,47 +198,6 @@ export function useSubscription(): UseSubscriptionReturn {
   }
 
   // ============================================================================
-  // CHECKOUT
-  // ============================================================================
-
-  async function checkout(planId: string): Promise<void> {
-    const token = await getAuthToken()
-    if (!token) {
-      error.value = 'Please sign in to subscribe'
-      return
-    }
-
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await fetch('/api/subscription/checkout', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ planId }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Checkout failed')
-      }
-
-      const data: CheckoutResponse = await response.json()
-
-      // Redirect to checkout
-      window.location.href = data.checkoutUrl
-    } catch (err) {
-      console.error('[useSubscription] Checkout error:', err)
-      error.value = err instanceof Error ? err.message : 'Checkout failed'
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  // ============================================================================
   // PORTAL
   // ============================================================================
 
@@ -340,7 +296,6 @@ export function useSubscription(): UseSubscriptionReturn {
     error,
     status,
     initialize,
-    checkout,
     openPortal,
     cancelSubscription,
     refresh,

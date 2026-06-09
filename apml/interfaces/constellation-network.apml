@@ -1,19 +1,39 @@
 # APML Interface: Constellation Network Visualization
 # SSI Learning App v2.0.0
 # Version: 1.0.0 (2026-01-09)
-# Status: Production-ready
+# Last updated: 2026-06-08
+# Status: REMOVED FROM RUNTIME (2026-06-08) — see DELETION NOTE below. Everything
+#         under this header is HISTORICAL DESIGN, not live code.
 
 ## ============================================================================
-## OVERVIEW
+## DELETION NOTE (2026-06-08)
+## ============================================================================
+# The ENTIRE constellation-network subsystem was deleted in the 2026-06-08
+# playback/cache/network cleanup. Verified absent from the tree:
+#   - packages/player-vue/src/components/ConstellationNetworkView.vue   (DELETED)
+#   - packages/player-vue/src/composables/usePrebuiltNetwork.ts          (DELETED)
+#   - packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts (DELETED)
+#   - packages/player-vue/src/composables/useLegoNetwork.ts              (DELETED)
+# Nothing imports or mounts ConstellationNetworkView; the network is no longer
+# populated at runtime. The only remnant is `ensureNetworkInitialized = () => {}`
+# (a no-op) in LearningPlayer.vue (~L9525). The NETWORK_INTEGRATION section in
+# apml/interfaces/learning-player.apml is correspondingly stale/aspirational.
+# decomposePhrase() — formerly hung off useLegoNetwork — survives as a standalone
+# util at packages/player-vue/src/utils/decomposePhrase.ts (see brain-view.apml).
+# Treat the rest of THIS file as archived design intent, not current behaviour.
+
+## ============================================================================
+## OVERVIEW  (HISTORICAL — subsystem deleted 2026-06-08)
 ## ============================================================================
 
 SPECIFICATION:
   name: "Constellation Network View"
+  status: "DELETED 2026-06-08 — no runtime implementation; section is historical"
   purpose: "Pre-built network visualization with hero-centric panning"
-  source: "packages/player-vue/src/components/ConstellationNetworkView.vue"
+  source: "(none — formerly packages/player-vue/src/components/ConstellationNetworkView.vue, DELETED)"
   composables:
-    - "packages/player-vue/src/composables/usePrebuiltNetwork.ts"
-    - "packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts"
+    - "(deleted) packages/player-vue/src/composables/usePrebuiltNetwork.ts"
+    - "(deleted) packages/player-vue/src/composables/usePrebuiltNetworkIntegration.ts"
   version: "1.0.0"
 
 DESIGN_PHILOSOPHY:

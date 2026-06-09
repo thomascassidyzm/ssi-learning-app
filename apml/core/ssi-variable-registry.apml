@@ -19,7 +19,7 @@
 
 registry SSiContent:
   version: "1.8.0"
-  last_updated: "2026-02-02"
+  last_updated: "2026-06-08"
 
   # ============================================================================
   # ENUM DEFINITIONS
@@ -2037,6 +2037,30 @@ registry SSiContent:
 # ============================================================================
 
 version_history:
+  v1.8.1:
+    date: "2026-06-08"
+    changes:
+      - "DOC-ONLY: re-pointed the v1.5.0 implementation_status AdaptationEngine reference to its live replacement. No data structures changed."
+      - "The @ssi/core AdaptationEngine CLASS (and WeightedSelector) were DELETED; live adaptation is now packages/player-vue/src/composables/useAdaptationEngine.ts, which composes the KEPT @ssi/core engines MetricsTracker + SpikeDetector + MasteryStateMachine directly. getPauseMultiplier(legoId) drives pause length."
+      - "Baseline calibration (LearnerBaseline entity, v1.5.0) is unchanged and still persisted via ProgressStore (packages/core/src/persistence/ProgressStore.ts) — ProgressStore and SyncService remain live."
+    note: |
+      Context for this entry (no schema impact, recorded for accuracy):
+      Several @ssi/core orchestration CLASSES referenced by sibling APML specs were
+      deleted this session and replaced by player-vue composables/classes:
+      - CycleOrchestrator + AudioController + RobustAudioController → SimplePlayer.ts
+        + composables/useCyclePlayback.ts + the RealAudioController class inside
+        LearningPlayer.vue. The CyclePhase / TEXT_VISIBILITY enums (engine/types.ts)
+        are KEPT and live.
+      - AdaptationEngine CLASS + WeightedSelector → composables/useAdaptationEngine.ts.
+      - PriorityRoundLoader / SessionController island → composables/useInstantPlayback.ts.
+      - AudioPrefetcher + BundleDownloader → rolling FILLER + AudioCache (IndexedDB) +
+        SW CacheFirst + SimplePlayer.prefetchNextCycle.
+      This registry defines DATA STRUCTURES only, so no entity/enum/parameter here
+      named any of those classes except the one implementation_status line corrected above.
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.8.0:
     date: "2026-02-02"
     changes:
@@ -2145,7 +2169,7 @@ version_history:
       3. completeCalibration() → exportBaseline() → saveBaseline()
       4. Subsequent sessions: importBaseline() → blend with session data
     implementation_status:
-      AdaptationEngine: "Implemented - continuous scoring with baseline blending"
+      AdaptationEngine: "Implemented - the @ssi/core AdaptationEngine CLASS was DELETED (2026-06); live adaptation is packages/player-vue/src/composables/useAdaptationEngine.ts composing the kept @ssi/core engines (MetricsTracker + SpikeDetector + MasteryStateMachine) directly. Continuous scoring with baseline blending retained; getPauseMultiplier(legoId) drives pause length"
       ProgressStore: "Implemented - getBaseline, saveBaseline, updateBaseline"
       SyncService: "Updated - learner_baseline entity type added"
       Migration: "Created - supabase/migrations/20251218130000_learner_baselines.sql"

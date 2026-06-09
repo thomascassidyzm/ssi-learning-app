@@ -203,37 +203,3 @@ export async function triggerServiceWorkerUpdate(): Promise<void> {
   }
 }
 
-/**
- * Get service worker status.
- */
-export async function getServiceWorkerStatus(): Promise<{
-  supported: boolean
-  registered: boolean
-  active: boolean
-  waiting: boolean
-  scope?: string
-}> {
-  if (!('serviceWorker' in navigator)) {
-    return { supported: false, registered: false, active: false, waiting: false }
-  }
-
-  try {
-    const registrations = await navigator.serviceWorker.getRegistrations()
-
-    if (registrations.length === 0) {
-      return { supported: true, registered: false, active: false, waiting: false }
-    }
-
-    const registration = registrations[0]
-    return {
-      supported: true,
-      registered: true,
-      active: !!registration.active,
-      waiting: !!registration.waiting,
-      scope: registration.scope,
-    }
-  } catch (error) {
-    console.error('[SW Safety] Failed to get status:', error)
-    return { supported: true, registered: false, active: false, waiting: false }
-  }
-}

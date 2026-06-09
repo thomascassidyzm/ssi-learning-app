@@ -14,12 +14,15 @@
  *
  * Prefetch tiers run during playback (never block):
  *   - Tier 1: rest of the current round's cycles (limit=15)
- *   - Tier 2: listening audio for tier-1 cycles (delegated to the
- *     existing `usePrefetchManager` / service-worker `CacheFirst`)
- *   - Tier 3: next round's cycles + listening audio
+ *   - Tier 3: next round's cycles
  *
- * Coexists with `usePrefetchManager` (30-min audio buffer) and
- * `PriorityRoundLoader` (legacy upfront-load lazy loader). The new
+ * Listening/presentation audio is NOT bulk-prefetched here (the old
+ * Tier 2 was disabled 2026-05-23) — it JIT-fetches at use time and
+ * rides `audioCache.persistent.ensure` + the service-worker
+ * `CacheFirst` strategy, with `SimplePlayer.prefetchNextCycle`
+ * warming the upcoming cycle's voices during the prompt/pause window.
+ *
+ * Coexists with `usePrefetchManager` (30-min audio buffer). The
  * critical path *replaces* the upfront whole-course assembly when the
  * feature flag is on; the legacy path stays in tree as the flag-off
  * fallback.
@@ -242,6 +245,57 @@ function writeCachedCycles(
     // localStorage may be full (rare — ~5MB budget, our payloads are ~5-10KB).
     // Swallow — cache miss next time is fine; no functional impact.
     console.warn('[InstantPlayback] Failed to write cycles cache:', err)
+  }
+}
+
+// ============================================================================
+// PREWARM (course switch / hover / idle)
+// ============================================================================
+
+/**
+ * Warm the instant-playback localStorage caches for a course WITHOUT mounting
+ * the player, so the next mount's bootstrap() is a cache hit instead of two
+ * cold serial network round-trips. Call on course switch (before the player
+ * remounts), course-card hover, or idle. Reuses the EXACT cache keys the
+ * composable reads. Fire-and-forget; silent on failure; skips work already
+ * cached. round-map is position-independent (helps any switch); the
+ * first-round cycles specifically de-cold the fresh-learner case (no saved
+ * position → bootstrap starts at rounds[0]), which is the slow course-switch.
+ */
+export async function prewarmInstantCaches(
+  courseCode: string,
+  apiBase = '/api/courses',
+): Promise<void> {
+  if (!courseCode) return
+  try {
+    let map = readCachedRoundMap(courseCode)
+    if (!map) {
+      const res = await fetch(`${apiBase}/${encodeURIComponent(courseCode)}/round-map`)
+      if (!res.ok) return
+      map = (await res.json()) as RoundMap
+      writeCachedRoundMap(courseCode, map)
+    }
+    const first = map.rounds?.[0]
+    if (!first) return
+    let cycles = readCachedCycles(courseCode, first.legoId, map.version)
+    if (!cycles) {
+      const res = await fetch(
+        `${apiBase}/${encodeURIComponent(courseCode)}/cycles?from=${encodeURIComponent(first.legoId)}&limit=15`,
+      )
+      if (!res.ok) return
+      cycles = (await res.json()) as CyclesResponse
+      writeCachedCycles(courseCode, first.legoId, cycles)
+    }
+    // Precache the FIRST cycle's audio into the SW CacheFirst layer so
+    // warmFirstKnownAudio (the ready gate) and the opening PROMPT/VOICE plays
+    // hit cache instead of streaming — the dominant cold-switch cost. Plain
+    // GETs (same URL shape warmFirstKnownAudio uses), fire-and-forget.
+    const c0 = cycles.cycles?.[0]
+    for (const id of [c0?.audio?.known_id, c0?.audio?.target1_id, c0?.audio?.target2_id]) {
+      if (id) void fetch(`/api/audio/${encodeURIComponent(id)}`).catch(() => {})
+    }
+  } catch {
+    /* best-effort prewarm — a cold mount just pays the round-trips as before */
   }
 }
 
@@ -712,31 +766,14 @@ export function useInstantPlayback(
   }
 
   /**
-   * Tier 2 — listening audio for the cycles tier 1 fetched.
-   *
-   * 2026-05-23: DISABLED. Used to fire ~15 parallel /api/audio/<id>
-   * fetches for presentation (seed/pod) audios for the current
-   * LEGO. Listening exercises only fire ~5 min into the round, so
-   * there's no actual urgency — JIT-fetch when the listening
-   * exercise actually starts is fine. Bulk prefetching here added
-   * to iOS WebKit's parallel-request pile-up alongside tier 3 and
-   * AudioPrefetcher's own ensures.
-   *
-   * Same streaming-first principle as the other bulk-fetch no-ops.
-   */
-  async function prefetchTier2(): Promise<void> {
-    // intentional no-op — listening audio JIT-fetched at use time
-    return
-  }
-
-  /**
    * Tier 3 — cycles for the NEXT round.
    *
    * The cycle metadata fetch (round queue continuation) stays — it
    * needs to land before round N+1 starts. 2026-05-23: dropped the
-   * inline ~15-audio bulk prefetch that followed it. Same reasoning
-   * as Tier 2: presentation audios don't need to land that early,
-   * AudioPrefetcher's persistentLookaheadCycles=3 + JIT covers it.
+   * inline ~15-audio bulk prefetch that followed it (and the old
+   * Tier 2 listening prefetch). Presentation audios don't need to land
+   * that early; JIT fetch + SW CacheFirst + SimplePlayer.prefetchNextCycle
+   * cover the upcoming cycle's audio.
    */
   async function prefetchTier3(): Promise<void> {
     const map = roundMap.value
@@ -825,7 +862,6 @@ export function useInstantPlayback(
 
     // Prefetch tiers
     prefetchTier1,
-    prefetchTier2,
     prefetchTier3,
 
     // State

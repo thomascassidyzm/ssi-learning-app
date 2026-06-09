@@ -158,6 +158,36 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // Split stable vendor + engine code into their own chunks.
+        // Cold-start parse cost is ~NEUTRAL (the browser still downloads/parses
+        // the same total JS before the player is interactive), but WARM/repeat
+        // loads win big: a routine app-code deploy (LearningPlayer.vue etc.)
+        // rotates only the small app chunks while vendor-vue / vendor-supabase /
+        // core keep their content hashes and stay served from the HTTP cache and
+        // the Workbox precache — so returning users / PWA precache stop
+        // re-downloading ~700-800kB of unchanged vendor on every deploy.
+        manualChunks(id) {
+          const n = id.replace(/\\/g, '/')
+          if (
+            n.includes('/node_modules/vue/') ||
+            n.includes('/node_modules/@vue/') ||
+            n.includes('/node_modules/vue-router/') ||
+            n.includes('/node_modules/@vueuse/')
+          ) {
+            return 'vendor-vue'
+          }
+          if (n.includes('/node_modules/@supabase/')) {
+            return 'vendor-supabase'
+          }
+          // @ssi/core resolves via the pnpm workspace symlink to packages/core/dist
+          if (n.includes('/packages/core/dist') || n.includes('/@ssi/core/')) {
+            return 'core'
+          }
+        },
+      },
+    },
   },
   esbuild: mode === 'production'
     ? { pure: ['console.log', 'console.info', 'console.debug'] }

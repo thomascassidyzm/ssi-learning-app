@@ -1,26 +1,45 @@
 # Adaptation Engine Specification
 # SSi Learning App
 #
-# Version: 1.3.0
-# Date: 2025-12-16
+# Version: 1.4.0
+# Last updated: 2026-06-08
 # Grounded in: Distinction as Primitive (APML Design Principles v2.0.0)
 #
 # Core Insight: We don't measure absolutes. We measure DIFFERENCES.
 # A "slow" response is one that differs from THIS learner's pattern.
 # Everything is a parameter. We're looking for discontinuities.
 #
-# NEW in v1.3.0: HIERARCHICAL ADAPTATION
-# - Level 1 (Global): Learner Tempo Profile - what kind of learner overall?
-# - Level 2 (Local): Differential detection - how is this moment different?
+# ARCHITECTURE NOTE (2026-06-08): There is NO `AdaptationEngine` class anymore.
+# The monolithic @ssi/core AdaptationEngine + WeightedSelector classes were
+# DELETED. Live adaptation is the composable
+#   packages/player-vue/src/composables/useAdaptationEngine.ts
+# which composes the three KEPT @ssi/core engines DIRECTLY:
+#   - MetricsTracker      (packages/core/src/learning/MetricsTracker.ts)
+#   - SpikeDetector       (packages/core/src/learning/SpikeDetector.ts)
+#   - MasteryStateMachine (packages/core/src/learning/MasteryStateMachine.ts)
+# The composable's ONLY adaptive output today is getPauseMultiplier(legoId),
+# which scales the baked PAUSE length by the LEGO's mastery state. It does NOT
+# do selection — phrase/round selection lives in PhraseSelector + RoundEngine,
+# and thread structure in TripleHelixEngine.
 #
-# Implementation Status:
-# - MasteryStateMachine: INTEGRATED
-# - WeightedSelector: INTEGRATED
-# - VoiceActivityDetector: implemented, ready for integration
-# - LearnerTempoProfile: SPECIFIED, ready for implementation
+# This spec keeps the conceptual model (differential measurement, discontinuity
+# detection, mastery progression, VAD, prosody, pause adaptation). Sections that
+# describe APIs/classes that were never built or were deleted are flagged
+# inline as DESIGN-ONLY / NOT IMPLEMENTED.
+#
+# Implementation Status (verified 2026-06-08):
+# - MetricsTracker:        LIVE  (createMetricsTracker, rolling normalized latency)
+# - SpikeDetector:         LIVE  (createSpikeDetector, stddev/ratio severity)
+# - MasteryStateMachine:   LIVE  (createMasteryStateMachine, 4 states, skip map)
+# - useAdaptationEngine:   LIVE  (the real composition layer; gated by consent)
+# - VoiceActivityDetector: LIVE  (+ SpeechTimingAnalyzer wrapper, wired in player)
+# - ProsodyFeedback:       LIVE  (ProsodyFeedback.vue, Pronunciation Practice mode)
+# - WeightedSelector:      DELETED (class gone; WeightedSelectionConfig type lingers, unused)
+# - AdaptationEngine class: DELETED (unified-API section below is HISTORICAL)
+# - LearnerTempoProfile:   NOT IMPLEMENTED (design-only; never built)
 
 spec AdaptationEngine:
-  version: "1.3.0"
+  version: "1.4.0"
   philosophical_grounding: |
     Distinctions cost energy. Observers have finite budgets.
     Therefore: we detect DIFFERENCES, not absolutes.
@@ -160,6 +179,14 @@ spec AdaptationEngine:
   # ===========================================================================
 
   adaptation_responses:
+    status: |
+      PARTIALLY LIVE (2026-06-08). What the live composable actually does on a
+      detected spike: mastery.recordDiscontinuity(legoId, severity) — i.e. the
+      `lego_state_response` (hold / regress per severity) IS live, and it changes
+      the steady-state pause via the mastery ladder. The `immediate_response`
+      transient pause extension and the `selection_weight_response` (weighted
+      selector boost) are DESIGN-ONLY — the WeightedSelector was deleted and the
+      composable does no selection. Treat those sub-blocks as intent, not behaviour.
     description: |
       When we detect a discontinuity, we adjust parameters.
       The adjustments themselves are parameterized.
@@ -239,29 +266,45 @@ spec AdaptationEngine:
   # ===========================================================================
 
   mastery_states:
+    status: "LIVE — MasteryStateMachine.ts (createMasteryStateMachine)"
     description: |
-      Instead of pure Fibonacci positions, we use states with fuzzy transitions.
-      Inspired by Lake Waterfall but without hard resets.
-      Discontinuities affect transition probabilities, not absolute moves.
+      Four states with fuzzy transitions. Inspired by Lake Waterfall but without
+      hard resets. Discontinuities affect transitions, not absolute moves.
+
+      LIVE WIRING (2026-06-08): useAdaptationEngine maps each state to a PAUSE
+      MULTIPLIER (the "ladder") — this is the only thing actually consumed by the
+      player today, via getPauseMultiplier(legoId) → LearningPlayer pause calc:
+        acquisition   → 1.2  (slightly longer pause; unfamiliar)
+        consolidating → 1.0  (anchor / baked pause)
+        confident     → 0.85
+        mastered      → 0.7  (shortest; well drilled)
+      The per-state typical_skip below ALSO exists in MasteryStateMachine
+      (TYPICAL_SKIP map + getTypicalSkip()) but is NOT consumed by the live pause
+      composable — selection/skip is owned by PhraseSelector + RoundEngine +
+      SpacedRepetitionQueue, not this engine.
 
     states:
       acquisition:
         description: "Initial learning - high attention needed"
+        pause_multiplier: 1.2
         typical_skip: 1
         advancement_requires: "consecutive_smooth >= advancement_threshold"
 
       consolidating:
         description: "Pattern forming - moderate attention"
+        pause_multiplier: 1.0
         typical_skip: 3
         advancement_requires: "consecutive_smooth >= advancement_threshold"
 
       confident:
         description: "Pattern stable - occasional reinforcement"
+        pause_multiplier: 0.85
         typical_skip: 8
         advancement_requires: "consecutive_smooth >= advancement_threshold"
 
       mastered:
         description: "In eternal rotation - maintenance only"
+        pause_multiplier: 0.7
         typical_skip: 21
         note: "Can still regress on severe discontinuity"
 
@@ -293,6 +336,18 @@ spec AdaptationEngine:
   # ===========================================================================
 
   weighted_selection:
+    status: "DESIGN-ONLY / NOT IN ADAPTATION ENGINE — WeightedSelector class DELETED"
+    superseded_by: |
+      The @ssi/core WeightedSelector class was deleted. useAdaptationEngine does
+      NO selection. Live phrase/round selection is owned by:
+        - PhraseSelector (packages/core/src/learning/PhraseSelector.ts):
+            classifies baskets into component/build/eternal pools, picks BUILD
+            phrases shortest-first, eternal phrases via random urn.
+        - RoundEngine + TripleHelixEngine: round assembly + thread structure.
+        - SpacedRepetitionQueue: Fibonacci skip numbers for retirement.
+      A WeightedSelectionConfig type still lingers in core/config/types.ts but is
+      unused by the live path. The weight formula below is retained as a record of
+      the original design intent, not as live behaviour.
     description: |
       Instead of just "due / not due", we use weighted selection.
       Every eligible LEGO has a weight. Higher weight = more likely selected.
@@ -384,6 +439,14 @@ spec AdaptationEngine:
   # ===========================================================================
 
   learner_tempo_profile:
+    status: "DESIGN-ONLY / NOT IMPLEMENTED (2026-06-08) — never built; no tempo_band persistence exists"
+    note: |
+      The live composable does NOT classify learners into tempo/consistency bands
+      and applies no global per-band parameter adjustments. The only persisted
+      per-learner adaptation state is per-LEGO mastery rows (lego_metrics:
+      mastery_state, consecutive_smooth, consecutive_fast, last_seen_at) via
+      LegoMetricsStore. The hierarchical (global-tempo + local-differential) model
+      below remains a future design direction.
     description: |
       While differential detection measures deviations from a learner's OWN pattern,
       the Tempo Profile captures their OVERALL learning pace compared to typical ranges.
@@ -671,6 +734,17 @@ spec AdaptationEngine:
   # ===========================================================================
 
   voice_activity_detection:
+    status: "LIVE — VoiceActivityDetector.ts (createVoiceActivityDetector) + SpeechTimingAnalyzer.ts"
+    wiring: |
+      LearningPlayer.vue calls initializeVad() from a user gesture
+      (createVoiceActivityDetector({ energy_threshold_db: -45, min_frames_above: 3 })
+      then .initialize()), wraps it in createSpeechTimingAnalyzer to capture
+      per-phase timing. Active only when isAdaptationActive = adaptationConsent
+      (opt-in, persisted under 'ssi-adaptation-consent') AND vadInitialized.
+      Mic-permission denial is treated as declined consent. The duration signal
+      the analyzer measures is currently NOT routed into the live pause loop —
+      getPauseMultiplier is driven by mastery state (from latency-based spikes),
+      not by VAD speech duration yet.
     description: |
       Real-time detection of learner vocalization during PAUSE phase.
       Uses Web Audio API to monitor microphone energy levels.
@@ -760,9 +834,17 @@ spec AdaptationEngine:
   # ===========================================================================
 
   prosody_analysis:
-    status: "designed, not yet implemented"
+    status: |
+      PARTIALLY SHIPPED as a VISUAL comparator, NOT wired into adaptation (2026-06-08).
+      A peak-morphology pronunciation comparator runs in Pronunciation Practice
+      mode: @ssi/core/audio produces a PronunciationResult, rendered by
+      ProsodyFeedback.vue (native vs learner energy envelopes, green=match /
+      amber=diverge). The prosody differentials below do NOT feed the live
+      adaptation loop — getPauseMultiplier is mastery/latency-driven only. The
+      "prosody → adaptation" wiring remains the open gap.
     description: |
-      Future capability to analyze speech characteristics:
+      Speech-characteristic analysis (live in the pronunciation comparator,
+      not yet in adaptation):
       - Peak detection (syllable timing)
       - Gradient analysis (articulation crispness)
       - Comparison to model voice prosody
@@ -835,6 +917,14 @@ spec AdaptationEngine:
   # ===========================================================================
 
   pause_extension:
+    status: |
+      DESIGN-ONLY (2026-06-08). The transient "extend pause for the next N items
+      after a spike" mechanism (and the getPauseDurationMultiplier() it lived on)
+      was part of the DELETED AdaptationEngine class and is NOT in the live
+      composable. Today the live pause adjustment is the STEADY-STATE mastery
+      ladder (getPauseMultiplier): a spike drives the LEGO toward / holds it in a
+      higher-pause state rather than firing a decaying per-item extension. The
+      decaying-extension design below is retained as a possible refinement.
     description: |
       When discontinuity is detected, extend pause duration for
       subsequent items to give learner more processing time.
@@ -857,7 +947,7 @@ spec AdaptationEngine:
 
     behavior:
       trigger: "On discontinuity detection (spike)"
-      effect: "getPauseDurationMultiplier() returns 1 + extension_factor"
+      effect: "(design) effective_pause = base_pause * (1 + extension_factor)"
       decay: "Decremented each item, resets when itemsRemaining reaches 0"
       stacking: "New trigger resets duration, doesn't stack multipliers"
 
@@ -940,85 +1030,100 @@ spec AdaptationEngine:
   # UNIFIED ADAPTATION ENGINE API
   # ===========================================================================
 
-  unified_api:
-    description: |
-      The AdaptationEngine class provides a unified interface that integrates
-      all adaptive learning subsystems. Callers interact with one object
-      that orchestrates metrics tracking, spike detection, mastery progression,
-      weighted selection, and pause extension.
+  # NOTE: The `AdaptationEngine` CLASS that this section documented was DELETED.
+  # Its processCompletion / selectFromCandidates / getSelectionWeight /
+  # getLegosByMasteryState / getPauseDurationMultiplier etc. NO LONGER EXIST.
+  # The block below documents the LIVE surface (the useAdaptationEngine composable).
 
-    primary_methods:
-      processCompletion:
-        signature: "processCompletion(item, latencyMs, wasFast?) → AdaptedItem + MasteryTransition"
+  live_api:
+    status: "LIVE — packages/player-vue/src/composables/useAdaptationEngine.ts"
+    shape: |
+      useAdaptationEngine(config) is a factory composable (NOT a class). It
+      internally builds createMetricsTracker + createSpikeDetector +
+      createMasteryStateMachine and returns a small handle. It persists per-LEGO
+      mastery via LegoMetricsStore (lego_metrics table) for non-guest learners;
+      guests run in-memory only.
+
+    config:
+      supabase: "SupabaseClient | null (null/guest → no persistence)"
+      learnerId: "string | null (guest- prefix → no persistence)"
+      courseCode: "string"
+
+    methods:
+      initialize:
+        signature: "initialize() → Promise<void>"
         description: |
-          Main entry point. Called after each learning cycle completes.
-          Returns what action to take (continue, repeat, breakdown) and
-          any mastery state transition that occurred.
-        flow:
-          1: "Record response metric (latency, phrase length, thread)"
-          2: "Update weighted selector (mark as recently practiced)"
-          3: "Process through spike detector (detect discontinuity)"
-          4: "Update mastery state (smooth or discontinuity)"
-          5: "If spike: record discontinuity in selector, trigger pause extension"
-          6: "Return adapted item and mastery transition"
+          Hydrate per-LEGO mastery states from Supabase (lego_metrics) and
+          register a pagehide flush. No-op-safe for guests / no client.
 
-      selectFromCandidates:
-        signature: "selectFromCandidates(candidates) → legoId"
-        description: "Weighted random selection from eligible LEGOs"
+      recordCycle:
+        signature: "recordCycle(legoId, responseLatencyMs, phraseLength) → void"
+        description: |
+          Called after each completed cycle. Flow:
+          1: "metrics.recordResponse(legoId, latency, phraseLength, 0, 'practice') → normalized_latency"
+          2: "detector.detectSpike(normalized_latency) → severity"
+          3: "spike → mastery.recordDiscontinuity(legoId, severity);
+              else → mastery.recordSmooth(legoId, wasFast=latency<2000ms)"
+          4: "mark dirty; auto-flush every 10 cycles"
+        note: "threadId(0)/mode('practice') are required by MetricsTracker but unused here — no triple-helix in the pause path."
 
-      getTypicalSkip:
-        signature: "getTypicalSkip(legoId) → number"
-        description: "Returns skip value based on current mastery state"
+      getPauseMultiplier:
+        signature: "getPauseMultiplier(legoId) → number"
+        description: |
+          THE primary live output. Returns the mastery-state multiplier
+          (acquisition 1.2 / consolidating 1.0 / confident 0.85 / mastered 0.7),
+          or 1.0 if the LEGO is unknown. Consumed by LearningPlayer's pause calc,
+          clamped to [min_pause_ms, max_pause_ms].
 
-      getPauseDurationMultiplier:
-        signature: "getPauseDurationMultiplier() → number"
-        description: "Returns 1.0 normally, or (1 + factor) if pause is extended"
+      flush:
+        signature: "flush() → Promise<void>"
+        description: "Upsert dirty mastery rows to lego_metrics; silent on failure (re-marks dirty to retry)."
 
-    mastery_methods:
-      getMasteryState: "Get mastery state for a specific LEGO"
-      getLegosByMasteryState: "Get all LEGOs in a given state (acquisition, etc.)"
-      getMasteryStats: "Aggregate stats: count by state, averages"
+      dispose:
+        signature: "dispose() → void"
+        description: "Remove pagehide listener + final flush."
 
-    selection_methods:
-      getSelectionWeight: "Get calculated weight for a LEGO"
-      getSelectionData: "Get staleness/discontinuity data for a LEGO"
-      getCandidateWeights: "Get weights for all candidates"
-      initializeLego: "Initialize tracking when LEGO is introduced"
-
-    helper_methods:
-      getLegosNeedingAttention: "LEGOs in acquisition OR with discontinuities"
-      resetLegoTracking: "Reset both mastery and selection for a LEGO"
-
-    integration_point:
-      description: |
-        The AdaptationEngine is designed to sit between TripleHelixEngine
-        and CycleOrchestrator. The helix provides structure, the orchestrator
-        plays content, and adaptation makes it personal.
+    underlying_engine_methods:
+      description: "Available on the composed @ssi/core engines, not all surfaced by the composable."
+      MasteryStateMachine:
+        - "getState(legoId) → LegoMasteryState"
+        - "recordSmooth(legoId, wasFast) / recordDiscontinuity(legoId, severity)"
+        - "getTypicalSkip(legoId) → number (skip map; NOT consumed by the pause path)"
+        - "getLegosByState(state) / getStats() / loadStates(states) / getAllStates()"
+      MetricsTracker: "recordResponse(...) → metric with normalized_latency + rolling stats"
+      SpikeDetector: "detectSpike(normalizedLatency) → { is_spike, severity, magnitude }"
 
   # ===========================================================================
   # INTEGRATION WITH TRIPLE HELIX
   # ===========================================================================
 
   integration:
-    triple_helix_provides:
-      - "Thread selection (A, B, C rotation)"
-      - "Eligible LEGOs per thread"
-      - "Interleaving structure"
+    note: |
+      REVISED 2026-06-08. Selection and orchestration are NOT done by this engine
+      anymore. Round/phrase selection lives in RoundEngine + PhraseSelector (+
+      TripleHelixEngine for thread structure); 4-phase cycle playback lives in
+      packages/player-vue/src/playback/SimplePlayer.ts + the RealAudioController
+      class in LearningPlayer.vue (the @ssi/core CycleOrchestrator/AudioController
+      were DELETED). useAdaptationEngine ONLY observes completed cycles and tunes
+      pause length.
+
+    selection_and_playback_provide:
+      - "RoundEngine + PhraseSelector: which phrases/LEGOs to play, in what order"
+      - "TripleHelixEngine: A/B/C thread structure for new-material distribution"
+      - "SimplePlayer + RealAudioController: 4-phase cycle playback, latency capture"
 
     adaptation_engine_provides:
-      - "Weighted selection within thread"
-      - "Discontinuity detection and response"
+      - "Per-LEGO latency → spike/severity classification"
       - "Mastery state transitions"
-      - "Pause duration adjustments"
+      - "Pause-duration multiplier (getPauseMultiplier) — the only consumed output"
 
-    data_flow:
-      1: "TripleHelixEngine.getNextThread() → thread_id"
-      2: "AdaptationEngine.getEligibleLegos(thread_id) → weighted candidates"
-      3: "AdaptationEngine.selectLego(candidates) → lego"
-      4: "CycleOrchestrator.play(lego) → captures latency, length"
-      5: "AdaptationEngine.recordResponse(lego, latency, length)"
-      6: "AdaptationEngine.detectDiscontinuity(lego)"
-      7: "AdaptationEngine.applyAdaptations(lego, discontinuity)"
+    live_data_flow:
+      1: "Player resolves next cycle (RoundEngine/PhraseSelector) and its legoId"
+      2: "Before PAUSE: getPauseMultiplier(legoId) scales the baked pause"
+      3: "SimplePlayer plays PROMPT → PAUSE → VOICE_1 → VOICE_2; latency captured"
+      4: "On cycle complete: recordCycle(legoId, latencyMs, phraseLength)"
+      5: "Internally: MetricsTracker → SpikeDetector → MasteryStateMachine"
+      6: "Dirty mastery rows auto-flush to lego_metrics every 10 cycles / on pagehide"
 
   # ===========================================================================
   # DESIGN DIRECTIONS ALIGNMENT
@@ -1057,6 +1162,31 @@ spec AdaptationEngine:
 # =============================================================================
 
 version_history:
+  v1.4.0:
+    date: "2026-06-08"
+    changes:
+      - "Reconciled spec to live code: the @ssi/core AdaptationEngine CLASS and WeightedSelector CLASS were DELETED."
+      - "Re-pointed to the LIVE composition layer: composables/useAdaptationEngine.ts composing MetricsTracker + SpikeDetector + MasteryStateMachine directly."
+      - "Documented the only live adaptive output: getPauseMultiplier(legoId) → mastery-state pause ladder (1.2 / 1.0 / 0.85 / 0.7)."
+      - "Marked weighted_selection as DESIGN-ONLY (superseded by PhraseSelector + RoundEngine + SpacedRepetitionQueue)."
+      - "Marked learner_tempo_profile as NOT IMPLEMENTED (never built; only per-LEGO mastery rows persist, via LegoMetricsStore/lego_metrics)."
+      - "Updated VAD to LIVE: VoiceActivityDetector + SpeechTimingAnalyzer wired in LearningPlayer, gated by opt-in adaptationConsent + mic permission; VAD duration not yet routed into pause loop."
+      - "Updated prosody to PARTIALLY SHIPPED: peak-morphology comparator + ProsodyFeedback.vue in Pronunciation Practice mode, NOT wired into adaptation."
+      - "Replaced the deleted unified_api with live_api; replaced CycleOrchestrator/TripleHelix data-flow with the real RoundEngine/PhraseSelector + SimplePlayer flow."
+    implementation_status:
+      use_adaptation_engine: "LIVE — the real composition layer (composable, not a class)"
+      metrics_tracker: "LIVE"
+      spike_detector: "LIVE"
+      mastery_state_machine: "LIVE (pause ladder consumed; skip map NOT consumed by pause path)"
+      vad: "LIVE (wired, consent-gated; duration not yet fed to adaptation)"
+      prosody: "Visual comparator SHIPPED (Pronunciation Practice); not in adaptation loop"
+      adaptation_engine_class: "DELETED"
+      weighted_selector: "DELETED"
+      learner_tempo_profile: "NOT IMPLEMENTED"
+    contributors:
+      - "Tom Cassidy"
+      - "Claude (AI Assistant)"
+
   v1.3.0:
     date: "2025-12-16"
     changes:
@@ -1138,6 +1268,6 @@ version_history:
       - "Claude (AI Assistant)"
 
 # =============================================================================
-# Generated: 2025-12-16
+# Last updated: 2026-06-08
 # "We don't measure absolutes. We measure DIFFERENCES."
 # =============================================================================

@@ -150,21 +150,6 @@ export function canAccessSeed(
 }
 
 /**
- * Get the upgrade prompt message for a course
- *
- * @param pricingTier - The course's pricing tier
- * @returns Upgrade prompt message or null if no upgrade needed
- */
-export function getUpgradePrompt(
-  pricingTier: CoursePricingTier
-): string | null {
-  if (pricingTier === 'premium') {
-    return 'Upgrade to continue learning beyond Yellow Belt';
-  }
-  return null;
-}
-
-/**
  * Determine course pricing tier from language codes
  * Used for backwards compatibility when database fields aren't available
  *

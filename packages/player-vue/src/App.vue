@@ -5,6 +5,7 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
+import { prewarmInstantCaches } from './composables/useInstantPlayback'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
@@ -264,6 +265,11 @@ const handleCourseSelect = async (course) => {
   if (supabaseClient.value && eagerScript.courseCode.value !== courseCode) {
     eagerScript.preload(supabaseClient.value, courseCode)
   }
+
+  // Warm the instant-playback caches (round-map + first-round cycles) BEFORE the
+  // remount, so the new course's bootstrap is a cache hit instead of two cold
+  // serial round-trips — the bulk of the ~1.7s course-switch cost. Fire-and-forget.
+  void prewarmInstantCaches(courseCode)
 
   // NOW update activeCourse (triggers LearningPlayer remount via :key)
   activeCourse.value = course
