@@ -56,14 +56,21 @@ git pull origin dev
 
 ## Canonical RLS / auth pattern
 
-User-id columns in this DB are mixed-type — there is no single comparison pattern that works everywhere. **The rule is column-type-dependent:**
+User-id columns in this DB are mixed-type AND mixed-meaning — there is no single comparison pattern that works everywhere. **Before authoring a policy you must know TWO things about the column: its TYPE and WHICH IDENTITY its values hold.** Two different identities flow through same-shaped columns:
 
-| Column type | Pattern | Examples |
-|---|---|---|
-| TEXT user_id | `column = auth.uid()::text` | `learners.user_id`, `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id` |
-| UUID user_id | `column = auth.uid()` (no cast) | `player_events.user_id` |
+- **auth uid** (`auth.uid()`, the Supabase Auth user id — stored in `learners.user_id`)
+- **learner PK** (`learners.id` — the operational identity used across all learner-data tables)
 
-**Why mixed:** A legacy auth migration (`20251219120000`, never shipped) converted `learners.user_id` from UUID to TEXT and several other columns with it. Those weren't reverted. Newer tables (`player_events`) use UUID directly. Before authoring a new policy, **check the column type** (`\d <table>` or look at the create migration).
+| Column | Type | Values hold | Correct predicate |
+|---|---|---|---|
+| `learners.user_id`, `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id` | TEXT | auth uid | `column = auth.uid()::text` |
+| every `learner_id` column (sessions, course_enrollments, lego/seed_progress, response_metrics, spike_events, learner_points…, 17 tables — consistent) | UUID | learners.id | `learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text)` — or the `current_learner_id()` helper once the Lane B identity bridge lands |
+| `player_events.user_id` | UUID | **learners.id, NOT auth uid** (verified live 2026-06-10: 2000/2000 recent rows match the learner PK, 0 match auth uid; null for guests) | same learner-mapping predicate as above — `= auth.uid()` matches NOTHING despite the uuid type |
+| `class_sessions.teacher_user_id` | TEXT | **MIXED — dirty** (81 rows learner.id / 76 auth uid / 8 `guest-<uuid>`, two writer generations) | do not write a policy against this column until the Lane B writer fix + backfill (see `~/Desktop/SSi-secfix-2026-06-09/LANE_B_identity_design.md`) |
+
+**The trap that keeps biting:** the column TYPE does not tell you the identity. A uuid column can hold learner PKs (`player_events`). Verify the VALUES (join a sample against `learners.id` and `learners.user_id`) before writing any new policy.
+
+**Why mixed:** A legacy auth migration (`20251219120000`, never shipped) converted `learners.user_id` from UUID to TEXT and several other columns with it. Those weren't reverted. Newer tables use UUID directly — but not always for the same identity.
 
 **Do not** use any of:
 - Wrong cast direction — throws `operator does not exist: uuid = text` (or vice versa) at policy creation time
