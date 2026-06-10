@@ -5970,10 +5970,20 @@ const handleCycleEvent = async (event) => {
                     audioController.value.stop()
                     const tempAudio = new Audio(normalizeAudioUrl(target1Url))
                     await new Promise<void>((resolve) => {
-                      tempAudio.addEventListener('ended', () => resolve())
-                      tempAudio.addEventListener('error', () => resolve())
-                      tempAudio.play().catch(() => resolve())
+                      // Name the handlers so we can detach them — otherwise the
+                      // listeners keep tempAudio referenced after it leaves scope
+                      // (an HTMLAudioElement leak per component_intro fallback).
+                      const done = () => {
+                        tempAudio.removeEventListener('ended', done)
+                        tempAudio.removeEventListener('error', done)
+                        resolve()
+                      }
+                      tempAudio.addEventListener('ended', done)
+                      tempAudio.addEventListener('error', done)
+                      tempAudio.play().catch(() => done())
                     })
+                    tempAudio.pause()
+                    tempAudio.src = ''
                     await new Promise<void>(r => setTimeout(r, 1000))
                   }
                 }
@@ -11427,6 +11437,7 @@ onUnmounted(() => {
   saveSitting() // persist the sitting so a reopen within the window resumes it
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
+  if (typewriterTimeout) { clearTimeout(typewriterTimeout); typewriterTimeout = null }
 
   // Flush any pending per-LEGO metrics, remove pagehide listener
   adaptationEngine.value?.dispose()

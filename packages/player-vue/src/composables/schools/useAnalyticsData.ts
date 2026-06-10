@@ -226,10 +226,12 @@ export function useAnalyticsData() {
 
         const userIds = [...new Set((tagsData || []).map(t => t.user_id))]
 
-        const { data: learnersData } = await client
+        const { data: learnersData, error: learnersError } = await client
           .from('learners')
           .select('id')
           .in('user_id', userIds)
+
+        if (learnersError) throw learnersError
 
         learnerIds = (learnersData || []).map(l => l.id)
       }
