@@ -4,7 +4,8 @@ import { useAuth } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useActAs } from '@/composables/useActAs'
-import { ACT_AS_PERSONAS, roleLabel } from '@/composables/schools/actAsPersonas'
+import { fetchDemoPersonas, roleLabel } from '@/composables/schools/actAsPersonas'
+import type { ActAsPersona } from '@/composables/useUserRole'
 
 type Mode = 'invite' | 'direct'
 
@@ -421,8 +422,19 @@ function inviteOrgLabel(c: InviteCode): string {
   return c.metadata?.organization_name || '—'
 }
 
+const demoPersonas = ref<ActAsPersona[]>([])
+async function loadDemoPersonas() {
+  if (!canActAs.value) return
+  try {
+    demoPersonas.value = await fetchDemoPersonas(getClient())
+  } catch {
+    demoPersonas.value = []
+  }
+}
+
 onMounted(() => {
   fetchAll()
+  loadDemoPersonas()
 })
 </script>
 
@@ -470,7 +482,7 @@ onMounted(() => {
     </Transition>
 
     <!-- Act as — step into a demo persona to experience the live schools app -->
-    <div v-if="canActAs" class="schools-card act-as-panel">
+    <div v-if="canActAs && demoPersonas.length" class="schools-card act-as-panel">
       <div class="panel-head">
         <span class="schools-kicker">View the app as</span>
       </div>
@@ -480,7 +492,7 @@ onMounted(() => {
       </p>
       <div class="act-as-buttons">
         <button
-          v-for="p in ACT_AS_PERSONAS"
+          v-for="p in demoPersonas"
           :key="p.key"
           type="button"
           class="act-as-btn"
