@@ -225,10 +225,11 @@ export function useAuth(): AuthState & AuthActions {
           // Found! This email belongs to an existing learner — link this auth user to them
           const oldUserId = (linkedLearner as any).user_id
           console.log(`[useAuth] Email ${email} found on learner ${(linkedLearner as any).id} — linking auth user ${userId} (was ${oldUserId})`)
-          await supabase.value
-            .from('learners')
-            .update({ user_id: userId })
-            .eq('id', (linkedLearner as any).id)
+          // learners is RLS-on (own-row) and the linked row still carries the OLD
+          // auth uid, so the re-point runs through SECURITY DEFINER claim_learner
+          // (secfix_16), gated on this JWT's email being in the learner's
+          // verified_emails.
+          await supabase.value.rpc('claim_learner', { p_learner_id: (linkedLearner as any).id })
 
           // Cascade user_id to related tables so dashboard queries find the right records.
           // user_tags is RLS-on (own-row): the OLD rows aren't ours yet, so the re-point
