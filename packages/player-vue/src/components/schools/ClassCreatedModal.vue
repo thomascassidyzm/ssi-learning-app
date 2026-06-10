@@ -36,10 +36,14 @@ async function copyJoinCode() {
     el.value = props.classData.student_join_code
     document.body.appendChild(el)
     el.select()
-    document.execCommand('copy')
+    const ok = document.execCommand('copy')
     document.body.removeChild(el)
-    codeCopied.value = true
-    setTimeout(() => { codeCopied.value = false }, 2000)
+    // Only flash "Copied!" if the fallback actually copied — otherwise we'd
+    // tell the teacher the join code is on their clipboard when it isn't.
+    if (ok) {
+      codeCopied.value = true
+      setTimeout(() => { codeCopied.value = false }, 2000)
+    }
   }
 }
 

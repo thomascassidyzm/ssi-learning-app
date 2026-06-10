@@ -24,6 +24,7 @@ const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
 const isCreatedModalOpen = ref(false)
 const createClassError = ref<string | null>(null)
+const isCreatingClass = ref(false)
 
 const courseFilter = ref<string>('all')
 const sortKey = ref<SortKey>('name')
@@ -162,23 +163,29 @@ function closeCreateModal() {
 }
 
 async function handleCreateClass(params: { class_name: string; course_code: string }) {
+  if (isCreatingClass.value) return
   createClassError.value = null
   const schoolId = selectedUser.value?.school_id
   if (!schoolId) {
     createClassError.value = 'No school found for your account. Please contact an administrator.'
     return
   }
-  const newClass = await createClass({
-    class_name: params.class_name,
-    course_code: params.course_code,
-    school_id: schoolId,
-  })
-  if (newClass) {
-    closeCreateModal()
-    createdClass.value = newClass
-    isCreatedModalOpen.value = true
-  } else {
-    createClassError.value = 'Failed to create class. Please try again.'
+  isCreatingClass.value = true
+  try {
+    const newClass = await createClass({
+      class_name: params.class_name,
+      course_code: params.course_code,
+      school_id: schoolId,
+    })
+    if (newClass) {
+      closeCreateModal()
+      createdClass.value = newClass
+      isCreatedModalOpen.value = true
+    } else {
+      createClassError.value = 'Failed to create class. Please try again.'
+    }
+  } finally {
+    isCreatingClass.value = false
   }
 }
 
@@ -393,6 +400,7 @@ function exportCsv() {
 
     <CreateClassModal
       :isOpen="isCreateModalOpen"
+      :submitting="isCreatingClass"
       @close="closeCreateModal"
       @create="handleCreateClass"
     />

@@ -5,6 +5,14 @@ const props = defineProps({
   isOpen: {
     type: Boolean,
     default: false
+  },
+  // Owned by the parent (it performs the async create). Keeps the button
+  // disabled for the WHOLE in-flight write so a second tap can't queue a
+  // duplicate class — the old local flag reset synchronously, before the
+  // parent's Supabase insert had even started.
+  submitting: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -13,7 +21,6 @@ const emit = defineEmits(['close', 'create'])
 // Form state
 const className = ref('')
 const courseCode = ref('')
-const isSubmitting = ref(false)
 
 // Available courses
 const courses = [
@@ -31,7 +38,6 @@ watch(() => props.isOpen, (newVal) => {
   if (!newVal) {
     className.value = ''
     courseCode.value = ''
-    isSubmitting.value = false
   }
 })
 
@@ -51,18 +57,18 @@ const handleKeydown = (e) => {
   }
 }
 
-const handleSubmit = async () => {
+const handleSubmit = () => {
   if (!className.value.trim() || !courseCode.value) {
     return
   }
-
-  isSubmitting.value = true
-
+  // Re-entry guard: ignore taps while the parent's create is in flight.
+  if (props.submitting) {
+    return
+  }
   emit('create', {
     class_name: className.value.trim(),
     course_code: courseCode.value,
   })
-  isSubmitting.value = false
 }
 </script>
 
@@ -153,10 +159,10 @@ const handleSubmit = async () => {
             <button
               type="submit"
               class="btn-create"
-              :disabled="!className.trim() || !courseCode || isSubmitting"
+              :disabled="!className.trim() || !courseCode || submitting"
               @click="handleSubmit"
             >
-              <span v-if="isSubmitting" class="btn-spinner"></span>
+              <span v-if="submitting" class="btn-spinner"></span>
               <span v-else>Create Class</span>
             </button>
           </footer>
