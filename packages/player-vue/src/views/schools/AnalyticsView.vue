@@ -6,9 +6,9 @@ import { getSchoolsClient } from '@/composables/schools/client'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
+import { deriveBelt as getBelt, type BeltName } from '@/composables/schools/belts'
 
 type Period = 'week' | 'month' | 'term'
-type BeltName = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
 
 const { currentUser } = useSchoolContext()
 const { classes: classesData, fetchClasses } = useClassesData()
@@ -32,15 +32,6 @@ const languageNames: Record<string, string> = {
   'cmn_for_eng': 'Chinese', 'gla_for_eng': 'Scottish Gaelic', 'cor_for_eng': 'Cornish',
   'glv_for_eng': 'Manx', 'eus_for_spa': 'Basque', 'cat_for_spa': 'Catalan',
   'bre_for_fre': 'Breton', 'rus_for_eng': 'Russian', 'pol_for_eng': 'Polish',
-}
-
-function getBelt(seed: number): BeltName {
-  if (seed >= 400) return 'black'
-  if (seed >= 80) return 'blue'
-  if (seed >= 40) return 'green'
-  if (seed >= 20) return 'orange'
-  if (seed >= 8) return 'yellow'
-  return 'white'
 }
 
 const periodDays = computed(() => {

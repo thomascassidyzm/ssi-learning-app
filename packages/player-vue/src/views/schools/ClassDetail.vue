@@ -11,8 +11,8 @@ import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { getLanguageName } from '@/composables/useI18n'
+import { deriveBelt, type Belt } from '@/composables/schools/belts'
 
-type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
@@ -30,15 +30,6 @@ const backToSchool = computed(() => isGovtAdmin.value && !!viewingSchool.value)
 const classReport = ref<ClassReport | null>(null)
 const copySuccess = ref(false)
 const searchQuery = ref('')
-
-function deriveBelt(seeds: number): Belt {
-  if (seeds >= 280) return 'black'
-  if (seeds >= 150) return 'blue'
-  if (seeds >= 80) return 'green'
-  if (seeds >= 40) return 'orange'
-  if (seeds >= 20) return 'yellow'
-  return 'white'
-}
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)

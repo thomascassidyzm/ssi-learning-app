@@ -9,8 +9,8 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { getLanguageName } from '@/composables/useI18n'
+import { deriveBelt, type Belt } from '@/composables/schools/belts'
 
-type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 type SortKey = 'name' | 'students' | 'hours' | 'journey'
 
@@ -42,14 +42,6 @@ async function fetchReportsForClasses() {
   }
 }
 
-function deriveBelt(seeds: number): Belt {
-  if (seeds >= 280) return 'black'
-  if (seeds >= 150) return 'blue'
-  if (seeds >= 80) return 'green'
-  if (seeds >= 40) return 'orange'
-  if (seeds >= 20) return 'yellow'
-  return 'white'
-}
 
 function deriveHealth(report: ClassReport | undefined, studentCount: number): Health {
   if (studentCount === 0) return 'inactive'

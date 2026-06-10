@@ -1,5 +1,5 @@
 <script setup lang="ts">
-type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
+import type { Belt } from '@/composables/schools/belts'
 
 const props = withDefaults(defineProps<{
   belt: Belt

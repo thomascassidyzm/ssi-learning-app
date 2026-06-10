@@ -5,8 +5,7 @@ import { getSchoolsClient } from '@/composables/schools/client'
 import { getLanguageName } from '@/composables/useI18n'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
-
-type BeltName = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
+import { BELTS, type BeltName } from '@/composables/schools/belts'
 
 interface CourseProgress {
   course_id: string
@@ -25,16 +24,6 @@ const courses = ref<CourseProgress[]>([])
 const recentSessions = ref<Array<{ started_at: string; duration_seconds: number | null }>>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
-
-// Belt thresholds — match useBeltProgress (rounded to the schools belt palette)
-const BELTS: { name: string; key: BeltName; min: number }[] = [
-  { name: 'White',  key: 'white',  min: 0 },
-  { name: 'Yellow', key: 'yellow', min: 8 },
-  { name: 'Orange', key: 'orange', min: 20 },
-  { name: 'Green',  key: 'green',  min: 40 },
-  { name: 'Blue',   key: 'blue',   min: 80 },
-  { name: 'Black',  key: 'black',  min: 400 },
-]
 
 function getBeltInfo(seeds: number) {
   let i = BELTS.length - 1

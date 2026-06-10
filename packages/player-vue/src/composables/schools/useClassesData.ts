@@ -11,8 +11,9 @@ import { useSchoolData } from './useSchoolData'
 import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
 import { assertScope } from './rlsGuard'
+import { deriveBelt as bucketBelt, type Belt } from './belts'
 
-export type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
+export type { Belt }
 
 export interface ClassInfo {
   id: string
@@ -36,15 +37,7 @@ export interface ClassInfo {
   journey_total?: number
 }
 
-// Belt buckets keyed off seeds_completed — mirrors deriveBelt() used in views.
-function bucketBelt(seeds: number): Belt {
-  if (seeds >= 280) return 'black'
-  if (seeds >= 150) return 'blue'
-  if (seeds >= 80) return 'green'
-  if (seeds >= 40) return 'orange'
-  if (seeds >= 20) return 'yellow'
-  return 'white'
-}
+// Belt buckets keyed off seeds_completed — canonical deriveBelt (see belts.ts).
 
 // Last 7 days as ISO date strings, oldest first. Index 0 = 6 days ago, 6 = today.
 function last7Days(): string[] {
@@ -229,7 +222,7 @@ export function useClassesData() {
           belts: Record<Belt, number>
         }
         const emptyBelts = (): Record<Belt, number> =>
-          ({ white: 0, yellow: 0, orange: 0, green: 0, blue: 0, black: 0 })
+          ({ white: 0, yellow: 0, orange: 0, green: 0, blue: 0, purple: 0, brown: 0, black: 0 })
         const statsMap = new Map<string, ClassStats>()
 
         progressData?.forEach(p => {
@@ -371,7 +364,7 @@ export function useClassesData() {
       const totalMinutes = students.reduce((sum, s) => sum + s.total_practice_minutes, 0)
 
       // Belt distribution from student seeds_completed
-      const belts: Record<Belt, number> = { white: 0, yellow: 0, orange: 0, green: 0, blue: 0, black: 0 }
+      const belts: Record<Belt, number> = { white: 0, yellow: 0, orange: 0, green: 0, blue: 0, purple: 0, brown: 0, black: 0 }
       students.forEach(s => { belts[bucketBelt(s.seeds_completed || 0)]++ })
 
       // 7-day sparkline from class_sessions for this class
