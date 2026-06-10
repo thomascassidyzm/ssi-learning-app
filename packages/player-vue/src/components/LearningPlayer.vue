@@ -6652,9 +6652,14 @@ const playCourseWelcome = async () => {
       await markWelcomeHeard()
       return false
     }
-    const audioUrl = w.s3_key
-      ? `${AUDIO_S3_BASE_URL}/${w.s3_key}`
-      : `${AUDIO_S3_BASE_URL}/${w.id.toUpperCase()}.mp3`
+    // Route through the same-origin /api/audio proxy (like all lesson audio):
+    // it resolves id -> s3_key server-side, avoids the cross-origin ORB block
+    // that silently killed the welcome intro, and gets SW CacheFirst caching
+    // for free. The old direct-S3 paths 404'd whenever the cached record lacked
+    // s3_key (the id-based URL pointed at a non-existent root object).
+    const audioUrl = w.id
+      ? `/api/audio/${w.id}`
+      : `${AUDIO_S3_BASE_URL}/${w.s3_key}`
     const welcomeAudio = {
       id: w.id,
       url: audioUrl,
