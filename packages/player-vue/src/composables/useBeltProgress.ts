@@ -183,7 +183,10 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     const supabase = getSupabase()
     const learnerId = getLearnerId()
 
-    if (!supabase || !learnerId) return null
+    // Guests are localStorage-only and have no remote enrollment. Their
+    // `guest-<uuid>` id is not a valid uuid, so querying it against the uuid
+    // learner_id column 400s — skip cleanly (matches useContribution).
+    if (!supabase || !learnerId || learnerId.startsWith('guest-')) return null
 
     try {
       const { data, error } = await supabase
@@ -228,7 +231,9 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     const supabase = getSupabase()
     const learnerId = getLearnerId()
 
-    if (!supabase || !learnerId) return
+    // Guests are localStorage-only; their `guest-<uuid>` id 400s against the
+    // uuid learner_id column. Nothing to sync remotely — skip cleanly.
+    if (!supabase || !learnerId || learnerId.startsWith('guest-')) return
 
     isSyncing.value = true
     lastSyncError.value = null
