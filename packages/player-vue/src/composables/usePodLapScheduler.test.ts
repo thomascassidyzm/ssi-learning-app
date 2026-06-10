@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
-import { usePodLapScheduler, podStageFor } from './usePodLapScheduler'
+import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS } from './usePodLapScheduler'
 
 // ============================================================================
 // Supabase mock — covers the four query shapes the scheduler issues:
@@ -80,15 +80,31 @@ describe('podStageFor', () => {
     expect(podStageFor(1, 6)?.stage).toBe(2)
     expect(podStageFor(1, 10)?.stage).toBe(2)
   })
-  it('stage 8 is the eternal hold for alive >= 36 (with default 8-stage playlist)', () => {
-    // 7 transitional stages × 5 rounds = 35 alive; stage 8 = eternal.
-    expect(podStageFor(1, 36)?.stage).toBe(8)
-    expect(podStageFor(1, 100)?.stage).toBe(8)
+  it('stage 9 is the eternal hold for alive >= 41 (default 9-stage playlist, uniform durations)', () => {
+    // 8 transitional stages × 5 rounds = 40 alive; stage 9 = eternal.
+    expect(podStageFor(1, 40)?.stage).toBe(8)
+    expect(podStageFor(1, 41)?.stage).toBe(9)
+    expect(podStageFor(1, 100)?.stage).toBe(9)
   })
   it('honours a custom totalStages so admins can add or remove stages', () => {
     // With totalStages=4, stage 4 is eternal at alive >= 16 (3 × 5).
     expect(podStageFor(1, 16, 5, 4)?.stage).toBe(4)
     expect(podStageFor(1, 15, 5, 4)?.stage).toBe(3)
+  })
+  it('per-stage durations: Phase 0 (2 rounds) then Phase 1 (3 rounds) then uniform', () => {
+    const d = DEFAULT_STAGE_DURATIONS // {1: 2, 2: 3}
+    expect(podStageFor(1, 1, 5, 9, d)).toEqual({ stage: 1, iter: 1 })
+    expect(podStageFor(1, 2, 5, 9, d)).toEqual({ stage: 1, iter: 2 })
+    expect(podStageFor(1, 3, 5, 9, d)).toEqual({ stage: 2, iter: 1 })
+    expect(podStageFor(1, 5, 5, 9, d)).toEqual({ stage: 2, iter: 3 })
+    expect(podStageFor(1, 6, 5, 9, d)).toEqual({ stage: 3, iter: 1 })
+    expect(podStageFor(1, 10, 5, 9, d)).toEqual({ stage: 3, iter: 5 })
+    // Transitional total = 2 + 3 + 6×5 = 35 → eternal stage 9 from alive 36.
+    expect(podStageFor(1, 35, 5, 9, d)?.stage).toBe(8)
+    expect(podStageFor(1, 36, 5, 9, d)?.stage).toBe(9)
+  })
+  it('string-keyed durations (JSON config shape) work the same', () => {
+    expect(podStageFor(1, 3, 5, 9, { '1': 2, '2': 3 })?.stage).toBe(2)
   })
 })
 
@@ -171,7 +187,7 @@ describe('usePodLapScheduler — nextLap composition', () => {
     }
   })
 
-  it('first lap (ratchet=0 → podRound=1) plays sentence 1 at stage 1: ps,ps,trans,ps (explainer dropped)', async () => {
+  it('first lap (ratchet=0 → podRound=1) plays sentence 1 at Phase 0: ps,trans,ps (no explainer audio → translation fallback)', async () => {
     const s = usePodLapScheduler({
       supabase: makeMockSupabase(state),
       courseCode: 'c',
@@ -181,15 +197,46 @@ describe('usePodLapScheduler — nextLap composition', () => {
     const lap = s.nextLap()
     expect(lap).not.toBeNull()
     expect(lap!.podRound).toBe(1)
-    // Stage 1 playlist is ['ps','explainer','ps','trans','ps'] (Aran's 2026-05-07
-    // explainer insertion). This fixture sentence has no explainer_audio_id, so
-    // the explainer slot drops → ['ps','ps','trans','ps']. Still all 1.0× (2×
-    // kicks in from stage 2).
-    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'ps', 'trans', 'ps'])
+    // Stage 1 ("Phase 0", Tom 2026-06-10) playlist is ['ps','explainer','ps'] —
+    // explainer INSTEAD of translation. This fixture sentence has no
+    // explainer_audio_id (fully-repeat line / vocab coda upstream), so the
+    // explainer slot falls back to the TRANSLATION → ['ps','trans','ps'].
+    // Meaning always arrives. Still all 1.0× (speed ramp from stage 3).
+    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps'])
     expect(lap!.plays.every(p => p.sentenceIdx === 1)).toBe(true)
     expect(lap!.plays.every(p => p.playbackSpeed === 1.0)).toBe(true)
     expect(lap!.intro?.id).toBe('intro-1')
     expect(lap!.outro?.id).toBe('outro-1')
+  })
+
+  it('Phase 0 plays the explainer INSTEAD of the translation when explainer audio exists', async () => {
+    state.podSentences = [{ ...podSentence(1), explainer_audio_id: 'exp-1' }]
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLap()
+    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'explainer', 'ps'])
+    expect(lap!.plays.find(p => p.playRole === 'explainer')!.audioId).toBe('exp-1')
+    expect(lap!.plays.find(p => p.playRole === 'trans')).toBeUndefined()
+  })
+
+  it('Phase 0 retires after 2 rounds: alive=3 lands in Phase 1 with the plain translation pattern', async () => {
+    state.enrollment = { pod_activation_round: 6, completed_pod_rounds: 2 }
+    state.podSentences = [{ ...podSentence(1), explainer_audio_id: 'exp-1' }]
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLap()
+    // podRound=3 → sentence 1 alive=3 → stage 2 ('Phase 1': ['ps','trans','ps']).
+    const s1 = lap!.plays.filter(p => p.sentenceIdx === 1)
+    expect(s1.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps'])
+    expect(s1.find(p => p.playRole === 'explainer')).toBeUndefined()
   })
 
   it('second lap (ratchet=1 → podRound=2) covers sentences 1 and 2 both in stage 1', async () => {

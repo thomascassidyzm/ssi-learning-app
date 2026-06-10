@@ -22,6 +22,14 @@
 #   - Speeds: only 1.0× and 2.0× exist for listening playback. The 1.2/1.4/1.6
 #     intermediates are dropped.
 #   - Pod stage definitions corrected (see STAGE_PLAYLIST in player code).
+#   - UPDATE 2026-06-10 (Tom): pod stage 1 is now "Phase 0" — the explainer
+#     plays INSTEAD of the translation for 2 pod-rounds (per-stage durations
+#     via PodsConfig.stageDurations), then retires; stage 2 "Phase 1" is the
+#     plain translation pattern for 3 rounds; speed ramp follows. Sentences
+#     with no explainer audio (first-encounter discipline upstream: fully-
+#     repeat lines, vocab codas) play their translation in the explainer
+#     slot. See DEFAULT_STAGE_PLAYLIST/DEFAULT_STAGE_DURATIONS in
+#     usePodLapScheduler.ts and DEFAULT_PODS in useAlgorithmConfig.ts.
 #   - Reserve overflow (older than active-10 + reserve-50) will eventually
 #     feed into Choice Pods (P1 music / P2 sport / P3 society) — TBD.
 #

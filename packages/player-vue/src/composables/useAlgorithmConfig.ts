@@ -37,11 +37,17 @@ export interface ModeConfig {
  *   ps08x = 0.8×, ps = 1×, ps15x = 1.5×, ps2x = 2×, trans = known audio at 1×
  */
 export type ListeningSlotRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans'
+// Layer-2 pods additionally know 'explainer' (2026-06-10): Tom-voiced bilingual
+// chunk breakdown — Phase 0 plays it INSTEAD of trans. Layer 1 never uses it.
+export type PodSlotRole = ListeningSlotRole | 'explainer'
 
 /** Layer 2 (Listening Pod) scheduler — gap matrix + stage progression. */
 export interface PodsConfig {
-  stagePlaylist: Record<string, ListeningSlotRole[]>  // keyed by stage number as string
+  stagePlaylist: Record<string, PodSlotRole[]>  // keyed by stage number as string
   stageDuration: number       // pod-rounds per transitional stage; highest key = eternal
+  /** Per-stage duration overrides (e.g. {'1': 2, '2': 3} — Phase 0 explainer
+   *  plays twice, Phase 1 three times). Unlisted stages use stageDuration. */
+  stageDurations?: Record<string, number>
   gapSuperTightMs: number     // known→target, target→target
   gapTightMs: number          // target→known
   gapGluedMs: number          // chunk → glued chunk (early stages)
@@ -180,19 +186,26 @@ const DEFAULT_LISTENING: ListeningModeConfig = {
 
 const DEFAULT_PODS: PodsConfig = {
   // Stage count is dynamic — the runtime reads the key count, the
-  // highest-numbered key is the eternal hold. Aran's 2026-05-07 spec
-  // adds a new stage 2 to bridge "no 2×" → "all 2×".
+  // highest-numbered key is the eternal hold.
+  // Stage 1 = "Phase 0" (Tom 2026-06-10): the explainer plays INSTEAD of
+  // the translation, for 2 pod-rounds, then retires for good. Sentences
+  // without explainer audio (fully-repeat lines, vocab codas) play their
+  // translation in that slot via the scheduler fallback.
+  // Stage 2 = "Phase 1": plain translation pattern, 3 rounds. The speed
+  // ramp (Aran's 2026-05-07 bridge) follows from stage 3.
   stagePlaylist: {
-    '1': ['ps', 'trans', 'ps', 'ps'],
-    '2': ['ps', 'trans', 'ps', 'ps2x'],
-    '3': ['ps', 'trans', 'ps2x', 'ps2x'],
-    '4': ['ps', 'trans', 'ps2x'],
-    '5': ['ps2x', 'trans', 'ps2x'],
-    '6': ['ps', 'ps2x'],
-    '7': ['ps2x', 'ps2x'],
-    '8': ['ps2x'],
+    '1': ['ps08x', 'explainer', 'ps08x'],
+    '2': ['ps08x', 'trans', 'ps08x', 'ps08x'],
+    '3': ['ps08x', 'trans', 'ps', 'ps15x'],
+    '4': ['ps', 'trans', 'ps15x', 'ps15x'],
+    '5': ['ps', 'trans', 'ps2x', 'ps2x'],
+    '6': ['ps', 'trans', 'ps2x'],
+    '7': ['ps', 'ps2x'],
+    '8': ['ps2x', 'ps2x'],
+    '9': ['ps2x'],
   },
   stageDuration: 5,
+  stageDurations: { '1': 2, '2': 3 },
   gapSuperTightMs: 100,
   gapTightMs: 200,
   gapGluedMs: 300,
