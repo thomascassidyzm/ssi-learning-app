@@ -134,11 +134,15 @@ export function useAnalyticsData() {
         return
       }
 
-      // Get learner IDs
-      const { data: learnersData } = await client
+      // Get learner IDs. Check the error (learners is RLS-protected as of
+      // 2026-06-10) — a silent failure here would empty the whole analytics
+      // view with no diagnostic, the exact regression rlsGuard warns about.
+      const { data: learnersData, error: learnersError } = await client
         .from('learners')
         .select('id')
         .in('user_id', studentUserIds)
+
+      if (learnersError) throw learnersError
 
       const learnerIds = (learnersData || []).map(l => l.id)
 
@@ -243,12 +247,16 @@ export function useAnalyticsData() {
 
       if (enrollError) throw enrollError
 
-      // Get seed counts per learner/course
-      const { data: seedsData } = await client
+      // Get seed counts per learner/course (seed_progress is RLS-protected;
+      // check the error so an RLS/network failure doesn't silently report 0
+      // seeds completed for everyone).
+      const { data: seedsData, error: seedsError } = await client
         .from('seed_progress')
         .select('learner_id, course_id')
         .in('learner_id', learnerIds)
         .eq('is_introduced', true)
+
+      if (seedsError) throw seedsError
 
       // Aggregate by course
       const courseMap = new Map<string, { count: number; totalMinutes: number; totalSeeds: number }>()

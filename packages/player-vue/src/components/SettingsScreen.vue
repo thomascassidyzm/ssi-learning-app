@@ -235,11 +235,15 @@ const handleSaveDisplayName = async () => {
       return
     }
 
-    // Update learners table
-    await supabase.value
-      .from('learners')
-      .update({ display_name: name })
-      .eq('user_id', auth.userId?.value || auth.learnerId?.value)
+    // Update learners table. Key on the auth uid only — learners.user_id holds
+    // auth.uid()::text, so falling back to learnerId (the learners PK / a
+    // guest id) matches nothing AND fails the own-row RLS WITH CHECK.
+    if (auth.userId?.value) {
+      await supabase.value
+        .from('learners')
+        .update({ display_name: name })
+        .eq('user_id', auth.userId.value)
+    }
 
     // Update local auth user metadata
     if (auth.user?.value) {
@@ -344,12 +348,15 @@ const hasSchoolRole = computed(() => educationalRole.value != null && SCHOOL_ROL
 const hasAdminRole = computed(() => platformRole.value === 'ssi_admin')
 
 watch(isSignedIn, async (signedIn) => {
-  if (signedIn && supabase?.value && (auth?.userId?.value || auth?.learnerId?.value)) {
+  // Key on the auth uid only — learners.user_id holds auth.uid()::text; the
+  // learnerId fallback queried the wrong identity and (under RLS) returned
+  // nothing, leaving roles null for everyone.
+  if (signedIn && supabase?.value && auth?.userId?.value) {
     try {
       const { data } = await supabase.value
         .from('learners')
         .select('educational_role, platform_role')
-        .eq('user_id', auth.userId?.value || auth.learnerId?.value)
+        .eq('user_id', auth.userId.value)
         .single()
       educationalRole.value = data?.educational_role || null
       platformRole.value = data?.platform_role || null
