@@ -69,11 +69,17 @@ export function useSchoolContext() {
    * Shared by loadFromAuth (self) and loadAsPersona (admin act-as).
    */
   async function resolveUser(userId: string, c: SupabaseClient): Promise<SchoolUser | null> {
-    const { data: learner } = await c
+    const { data: learner, error } = await c
       .from('learners')
       .select('id, user_id, display_name, educational_role, platform_role')
       .eq('user_id', userId)
       .single()
+    // PGRST116 = no row (legitimately resolves to null). Surface anything else
+    // (RLS/network) so a regression here — which would silently empty the
+    // schools context / act-as view — is diagnosable instead of invisible.
+    if (error && error.code !== 'PGRST116') {
+      console.warn('[useSchoolContext] resolveUser query failed:', error.message)
+    }
     if (!learner) return null
 
     const user: SchoolUser = {

@@ -229,7 +229,8 @@ export function useAuth(): AuthState & AuthActions {
           // auth uid, so the re-point runs through SECURITY DEFINER claim_learner
           // (secfix_16), gated on this JWT's email being in the learner's
           // verified_emails.
-          await supabase.value.rpc('claim_learner', { p_learner_id: (linkedLearner as any).id })
+          const { error: claimErr } = await supabase.value.rpc('claim_learner', { p_learner_id: (linkedLearner as any).id })
+          if (claimErr) console.warn('[useAuth] claim_learner failed — learner not re-linked to this auth user:', claimErr.message)
 
           // Cascade user_id to related tables so dashboard queries find the right records.
           // user_tags is RLS-on (own-row): the OLD rows aren't ours yet, so the re-point
@@ -238,7 +239,8 @@ export function useAuth(): AuthState & AuthActions {
           // moving its tags to auth.uid(). govt_admins was REVOKEd by 20260521180000,
           // so its cascade goes through /api/auth/cascade-user-id.
           if (oldUserId && oldUserId !== userId) {
-            await supabase.value.rpc('relink_user_tags', { old_user_id: oldUserId })
+            const { error: relinkErr } = await supabase.value.rpc('relink_user_tags', { old_user_id: oldUserId })
+            if (relinkErr) console.warn('[useAuth] relink_user_tags failed — tags not migrated:', relinkErr.message)
 
             try {
               const { data: { session } } = await supabase.value.auth.getSession()
@@ -561,17 +563,11 @@ export function useAuth(): AuthState & AuthActions {
     if (!oldGuestId) {
       return
     }
-    try {
-      const { count } = await supabase.value
-        .from('sessions')
-        .update({ learner_id: learner.value.id }, { count: 'exact' })
-        .eq('learner_id', oldGuestId)
-      if (count && count > 0) {
-        console.log(`[useAuth] Reassigned ${count} guest session(s) to learner ${learner.value.id}`)
-      }
-    } catch (sessionErr) {
-      console.warn('[useAuth] Session reassignment failed (non-critical):', sessionErr)
-    }
+    // No DB sessions to reassign: guests are localStorage-only, and a
+    // `guest-<uuid>` id can't be stored in (or queried against) the uuid
+    // sessions.learner_id column — the old UPDATE only ever 400'd. We just
+    // clear the guest identity + signup-nudge state now that the learner has
+    // a real id. (Learning progress lives under separate keys and is unaffected.)
     clearGuestData()
   }
 
