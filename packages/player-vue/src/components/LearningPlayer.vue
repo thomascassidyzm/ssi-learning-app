@@ -633,6 +633,10 @@ const updateClassLegoProgress = async (classId: string, lastLegoId: string) => {
 // Start a class session
 const startClassSessionTracking = async () => {
   if (!props.classContext || !supabase?.value) return
+  // class_sessions.teacher_user_id holds the AUTH uid (matches classes.teacher_user_id
+  // and the own-row RLS policy) — never learnerId. Guests have no auth uid: skip logging.
+  const teacherUserId = (auth as any)?.userId?.value
+  if (!teacherUserId) return
   const startLegoId = props.classContext.last_lego_id || 'S0001L01'
   classSessionStartTime.value = Date.now()
   classSessionLastLegoId.value = startLegoId
@@ -641,7 +645,7 @@ const startClassSessionTracking = async () => {
     .from('class_sessions')
     .insert({
       class_id: props.classContext.id,
-      teacher_user_id: learnerId.value || 'unknown',
+      teacher_user_id: teacherUserId,
       start_lego_id: startLegoId,
     })
     .select('id')

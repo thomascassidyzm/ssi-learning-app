@@ -231,10 +231,13 @@ export function useAuth(): AuthState & AuthActions {
             .eq('id', (linkedLearner as any).id)
 
           // Cascade user_id to related tables so dashboard queries find the right records.
-          // user_tags is still client-writable; govt_admins was REVOKEd
-          // by 20260521180000, so its cascade goes through /api/auth/cascade-user-id.
+          // user_tags is RLS-on (own-row): the OLD rows aren't ours yet, so the re-point
+          // runs through the SECURITY DEFINER fn relink_user_tags (secfix_15), which
+          // asserts the old identity is orphaned (no learners row holds it) before
+          // moving its tags to auth.uid(). govt_admins was REVOKEd by 20260521180000,
+          // so its cascade goes through /api/auth/cascade-user-id.
           if (oldUserId && oldUserId !== userId) {
-            await supabase.value.from('user_tags').update({ user_id: userId }).eq('user_id', oldUserId)
+            await supabase.value.rpc('relink_user_tags', { old_user_id: oldUserId })
 
             try {
               const { data: { session } } = await supabase.value.auth.getSession()
