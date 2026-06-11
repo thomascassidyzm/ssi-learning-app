@@ -74,21 +74,26 @@ const ROLE_SPEED: Record<string, number> = {
  * insertion (new stage 2) bridges the jump from "no 2×" to "all 2×".
  */
 export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
-  // Stage 1 inserts the bilingual explainer between the first two target
-  // plays so the learner hears the sentence raw, then gets Tom's voice
-  // walking through the chunks ("'X' means Y. 'A' means B."), then hears
-  // the sentence again. Falls out of the playlist by Stage 2+ — by then
-  // the chunks have been internalised and the learner moves on to
-  // speed-up practice. Sentences without an explainer_audio_id (one-chunk
-  // skips, upstream gaps) silently drop the slot.
-  1: ['ps', 'explainer', 'ps', 'trans', 'ps'],
-  2: ['ps', 'trans', 'ps', 'ps2x'],
-  3: ['ps', 'trans', 'ps2x', 'ps2x'],
-  4: ['ps', 'trans', 'ps2x'],
-  5: ['ps2x', 'trans', 'ps2x'],
-  6: ['ps', 'ps2x'],
-  7: ['ps2x', 'ps2x'],
-  8: ['ps2x'],
+  // Stage 1 — "Phase 0" (Tom 2026-06-10): the sentence's introduction.
+  // The explainer plays INSTEAD of the translation — raw target, Tom's
+  // voice walking the chunks ("'X' means Y. 'A' means B."), target again.
+  // Lasts 2 pod-rounds (DEFAULT_STAGE_DURATIONS) so the explainer is
+  // heard exactly twice, then retires for good. A sentence with no
+  // explainer_audio_id (fully-repeat line or vocab coda — the upstream
+  // first-encounter discipline) plays its TRANSLATION in that slot
+  // instead, so meaning always arrives (see the lap composer fallback).
+  1: ['ps', 'explainer', 'ps'],
+  // Stage 2 — "Phase 1": explainer retired, regular translation pattern,
+  // still all 1.0×. Lasts 3 pod-rounds. Aran's 2026-05-07 bridge stage
+  // (no 2× → all 2×) follows from stage 3.
+  2: ['ps', 'trans', 'ps'],
+  3: ['ps', 'trans', 'ps', 'ps2x'],
+  4: ['ps', 'trans', 'ps2x', 'ps2x'],
+  5: ['ps', 'trans', 'ps2x'],
+  6: ['ps2x', 'trans', 'ps2x'],
+  7: ['ps', 'ps2x'],
+  8: ['ps2x', 'ps2x'],
+  9: ['ps2x'],
 }
 
 /**
@@ -97,6 +102,14 @@ export const DEFAULT_STAGE_PLAYLIST: Record<number, PodPlayRole[]> = {
  * the learner more reps at each pattern before the speed/structure changes.
  */
 export const DEFAULT_STAGE_DURATION = 5
+
+/**
+ * Per-stage duration overrides (pod-rounds). Stages not listed fall back
+ * to the uniform stageDuration. Phase 0 (stage 1) = 2 rounds so the
+ * explainer plays exactly twice; Phase 1 (stage 2) = 3 rounds of the
+ * plain translation pattern (Tom 2026-06-10).
+ */
+export const DEFAULT_STAGE_DURATIONS: Record<number, number> = { 1: 2, 2: 3 }
 
 /**
  * Map an alive-count to a stage. Transitional stages 1..(totalStages-1)
@@ -110,14 +123,19 @@ export function podStageFor(
   currentPodRound: number,
   stageDuration: number = DEFAULT_STAGE_DURATION,
   totalStages: number = Object.keys(DEFAULT_STAGE_PLAYLIST).length,
+  /** Per-stage duration overrides (e.g. {1: 2, 2: 3}); unlisted stages use
+   *  the uniform stageDuration. Omit for legacy uniform behaviour. */
+  stageDurations?: Record<string | number, number>,
 ): { stage: number; iter: number | null } | null {
   const alive = currentPodRound - entryPodRound + 1
   if (alive < 1) return null
+  let cum = 0
   for (let stage = 1; stage < totalStages; stage++) {
-    const stageEnd = stage * stageDuration
-    if (alive <= stageEnd) {
-      return { stage, iter: alive - (stage - 1) * stageDuration }
+    const d = stageDurations?.[stage] ?? stageDurations?.[String(stage)] ?? stageDuration
+    if (alive <= cum + d) {
+      return { stage, iter: alive - cum }
     }
+    cum += d
   }
   return { stage: totalStages, iter: null }
 }
@@ -208,6 +226,10 @@ export interface UsePodLapSchedulerOptions {
   stagePlaylist?: Ref<Record<string, PodPlayRole[]>> | Record<string, PodPlayRole[]>
   /** Pod-rounds per stage 1-6. Defaults to DEFAULT_STAGE_DURATION. */
   stageDuration?: Ref<number> | number
+  /** Per-stage duration overrides keyed by stage number (e.g. {'1': 2, '2': 3}
+   *  — Phase 0 plays twice, Phase 1 three times). Unlisted stages use
+   *  stageDuration. Omitted → uniform legacy behaviour. */
+  stageDurations?: Ref<Record<string, number> | undefined> | Record<string, number>
   /** Fire a pod-lap every N main rounds from activation onward. Default 1
    *  (every round). Stretches every stage proportionally because the
    *  pod-round ratchet only ticks on actual fires. */
@@ -406,22 +428,36 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     // add or remove stages from the admin page without code changes.
     const livePlaylist = unwrap(options.stagePlaylist) as Record<string | number, PodPlayRole[]> | undefined
     const liveDuration = unwrap(options.stageDuration) as number | undefined
+    const liveDurations = unwrap(options.stageDurations) as Record<string, number> | undefined
     const stagePlaylistMap: Record<string | number, PodPlayRole[]> = livePlaylist || DEFAULT_STAGE_PLAYLIST
     const stageDuration: number = liveDuration ?? DEFAULT_STAGE_DURATION
+    // Pair per-stage durations with their playlist: a live (admin-saved)
+    // playlist without stageDurations keeps uniform legacy maths; the code
+    // defaults pair DEFAULT_STAGE_PLAYLIST with DEFAULT_STAGE_DURATIONS.
+    const stageDurationsMap: Record<string | number, number> | undefined =
+      liveDurations ?? (livePlaylist ? undefined : DEFAULT_STAGE_DURATIONS)
     const totalStages = Object.keys(stagePlaylistMap).length
 
     const plays: PodPlay[] = []
     for (let i = 1; i <= activeCount; i++) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
-      const stageInfo = podStageFor(i, podRound, stageDuration, totalStages)
+      const stageInfo = podStageFor(i, podRound, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue
       for (let j = 0; j < playlist.length; j++) {
-        const playRole = playlist[j]
+        let playRole = playlist[j]
+        // Phase-0 fallback (Tom 2026-06-10): a sentence with no explainer
+        // audio (fully-repeat line, vocab coda — upstream first-encounter
+        // discipline) plays its TRANSLATION in the explainer slot instead,
+        // so meaning always arrives. Skipped when the same playlist already
+        // carries a 'trans' slot (legacy shapes) to avoid doubling it.
+        if (playRole === 'explainer' && !sentence.explainer_audio_id) {
+          if (playlist.includes('trans')) continue
+          playRole = 'trans'
+        }
         if (playRole === 'trans' && !sentence.known_audio_id) continue
-        if (playRole === 'explainer' && !sentence.explainer_audio_id) continue
         const isTrans = playRole === 'trans'
         const isExplainer = playRole === 'explainer'
         // Per-role audio resolution:

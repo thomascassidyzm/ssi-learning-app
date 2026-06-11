@@ -21,6 +21,10 @@ export interface PodSentence {
   knownText: string
   targetAudioId: string | null
   knownAudioId: string | null
+  /** Tom-voiced chunk breakdown — present only where the sentence carries
+   *  first-encounter material (upstream discipline). Null = play the
+   *  translation instead in any explainer slot. */
+  explainerAudioId: string | null
   globalOrder: number
 }
 
@@ -48,6 +52,16 @@ export interface PodTurn {
   knownText: string
   /** Audio IDs to play in sequence (one per sentence). */
   audioIds: string[]
+  /** Per-sentence detail, aligned 1:1 with the merged texts — drives the
+   *  stage-pattern playback modes (target/translation/explainer per
+   *  sentence) and the interleaved gloss display. */
+  sentences: Array<{
+    targetText: string
+    knownText: string
+    targetAudioId: string | null
+    knownAudioId: string | null
+    explainerAudioId: string | null
+  }>
   /** First sentence's global_order — used for ordering. */
   globalOrder: number
 }
@@ -116,7 +130,7 @@ export function useListeningPods(
       const podId = `${course}:pod-0`
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id')
+        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id')
         .eq('pod_id', podId)
         .order('global_order', { ascending: true })
 
@@ -134,6 +148,7 @@ export function useListeningPods(
           knownText: row.known_text || '',
           targetAudioId: row.target_audio_id || null,
           knownAudioId: row.known_audio_id || null,
+          explainerAudioId: row.explainer_audio_id || null,
           globalOrder: row.global_order,
         })
         buckets.set(row.scene_number, list)
@@ -192,6 +207,13 @@ export function useListeningPods(
        * stable on re-render.
        */
       const mergeTurns = (sentences: PodSentence[]): PodTurn[] => {
+        const sentenceDetail = (s: PodSentence) => ({
+          targetText: s.targetText,
+          knownText: s.knownText,
+          targetAudioId: s.targetAudioId,
+          knownAudioId: s.knownAudioId,
+          explainerAudioId: s.explainerAudioId,
+        })
         const turns: PodTurn[] = []
         for (const s of sentences) {
           const last = turns[turns.length - 1]
@@ -199,6 +221,7 @@ export function useListeningPods(
             last.targetText = `${last.targetText} ${s.targetText}`.trim()
             last.knownText = `${last.knownText} ${s.knownText}`.trim()
             if (s.targetAudioId) last.audioIds.push(s.targetAudioId)
+            last.sentences.push(sentenceDetail(s))
           } else {
             const key = speakerKey(s.speaker)
             turns.push({
@@ -209,6 +232,7 @@ export function useListeningPods(
               targetText: s.targetText,
               knownText: s.knownText,
               audioIds: s.targetAudioId ? [s.targetAudioId] : [],
+              sentences: [sentenceDetail(s)],
               globalOrder: s.globalOrder,
             })
           }

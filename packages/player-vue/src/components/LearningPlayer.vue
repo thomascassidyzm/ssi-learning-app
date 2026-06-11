@@ -3006,6 +3006,7 @@ const podScheduler = supabase?.value
       // Live from algorithm_config.pods — admin tweaks land on next lap.
       stagePlaylist: computed(() => podsConfig.value.stagePlaylist),
       stageDuration: computed(() => podsConfig.value.stageDuration),
+      stageDurations: computed(() => podsConfig.value.stageDurations),
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
