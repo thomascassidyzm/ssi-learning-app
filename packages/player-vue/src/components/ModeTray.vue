@@ -66,8 +66,11 @@ const turboAvailable = computed(() =>
   !props.isListeningMode && !props.isPronunciationMode
 )
 
-// Select an experience mode — deactivates others if a different one is active
+// Select an experience mode — deactivates others if a different one is active.
+// Selecting ALWAYS closes the tray (Tom 2026-06-11): leaving it open forced a
+// second tap (outside to dismiss, then again to start the mode you just chose).
 const selectExperienceMode = (mode: 'normal' | 'listening' | 'pronunciation') => {
+  closeTray()
   if (mode === 'normal') {
     if (props.isListeningMode) emit('toggleListening')
     else if (props.isPronunciationMode) emit('togglePronunciation')
@@ -90,6 +93,7 @@ const activeModeIcon = computed(() => {
 })
 
 const handleMode = (mode: string) => {
+  closeTray() // selection closes the tray — no second tap to get going
   const eventName = `toggle${mode.charAt(0).toUpperCase() + mode.slice(1)}`
   emit(eventName as 'toggleListening' | 'togglePronunciation' | 'toggleTurbo' | 'toggleOffline')
 }
