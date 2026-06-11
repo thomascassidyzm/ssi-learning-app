@@ -745,7 +745,7 @@ const persistCursorAtCurrentRound = async () => {
 // setLivePosition is forward-only-by-round (lte guard) and, unlike
 // setEnrollmentCursor, sets the cycle explicitly so a mid-round resume is
 // never wiped. INF PLAY is skipped: the cursor is frozen at the ceiling.
-const persistLivePositionToDb = (cycleOverride?: number) => {
+const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true) => {
   if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
   if (currentMode.value === 'infplay') return
   const round = simplePlayer.currentRound.value
@@ -754,9 +754,13 @@ const persistLivePositionToDb = (cycleOverride?: number) => {
   // Round-advance callers pass 0 (a new round always starts at cycle 0)
   // rather than reading simplePlayer.cycleIndex, which may be mid-reset on
   // the advance tick. Init passes nothing → uses the live (resumed) cycle.
+  // touchPracticedAt=false for LIFECYCLE saves (init complete, dormant):
+  // they persist position without claiming practice — a boot-time
+  // last_practiced_at stamp defeated the resume gap rule (Aran 2026-06-11).
   const cyc = cycleOverride ?? Math.max(0, simplePlayer.cycleIndex.value)
   progressStore.value.setLivePosition(
     learnerId.value, courseCode.value, round.legoId, idx, cyc,
+    { touchPracticedAt },
   ).catch(err => console.warn('[LearningPlayer] Failed to persist live position:', err))
   liftLocalCeilingIfHigher(round.legoId, idx)
   lastCompletedLegoIdRef.value = round.legoId
@@ -2581,11 +2585,24 @@ const extractSeedNumber = (seedId: string): number => {
  * Uses ABSOLUTE identifiers (LEGO ID, seed number) - not relative round indices
  * This ensures position is valid across script regeneration
  */
-const savePositionToLocalStorage = (cycleOverride?: number) => {
+const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = true) => {
   if (!courseCode.value) return
 
   const round = currentRound.value
   if (!round) return
+
+  // Lifecycle saves (init complete, dormant) persist position but must not
+  // refresh lastUpdated — the gap rule reads it as "when did they last
+  // practise", and a boot-time stamp made a day-long absence look like a
+  // brief pause (Aran 2026-06-11). Carry the previous stamp forward; a
+  // missing stamp fails closed to a round restart on resume.
+  let carriedTimestamp: number | null = null
+  if (!touchTimestamp) {
+    try {
+      const prev = JSON.parse(localStorage.getItem(getPositionStorageKey()) || 'null')
+      carriedTimestamp = typeof prev?.lastUpdated === 'number' ? prev.lastUpdated : null
+    } catch { /* fall through — omit the stamp */ }
+  }
 
   // Prefer the engine's LIVE cycle when the caller passes it (the dormancy
   // flush passes simplePlayer.cycleIndex.value). The Vue mirror
@@ -2609,8 +2626,9 @@ const savePositionToLocalStorage = (cycleOverride?: number) => {
       cycleId: round.cycles?.[cyc]?.id ?? null,
       // Item within the round (positional fallback when cycleId can't match)
       itemInRound: cyc,
-      // Metadata
-      lastUpdated: Date.now(),
+      // Metadata — practice saves stamp now; lifecycle saves carry the
+      // previous stamp (or omit it, which fails closed on resume).
+      lastUpdated: touchTimestamp ? Date.now() : carriedTimestamp,
       courseCode: courseCode.value,
     }
     localStorage.setItem(getPositionStorageKey(), JSON.stringify(position))
@@ -2761,16 +2779,19 @@ watch(() => simplePlayer.phase.value, (phase) => {
 
 // Save once when init completes — captures the resumed position the
 // instant it's loaded, so refreshing again immediately (before any
-// cycle plays) still has a fresh localStorage entry.
+// cycle plays) still has a fresh localStorage entry. Lifecycle save:
+// position only, no practice timestamp (see savePositionToLocalStorage).
 watch(positionInitialized, (init) => {
   if (init && useRoundBasedPlayback.value) {
-    savePositionToLocalStorage()
+    savePositionToLocalStorage(undefined, false)
     // Capture the live cursor in the DB the instant init completes. For a
     // resuming learner this just re-affirms where they already were; for a
     // fresh learner it persists round 0 immediately (the roundIndex watcher
     // only fires on the FIRST advance, so without this their opening round
     // wouldn't be saved until they reached round 1).
-    persistLivePositionToDb()
+    // touchPracticedAt=false: opening the app is not practising — a boot
+    // stamp here made a 23h absence read as a brief pause (Aran 2026-06-11).
+    persistLivePositionToDb(undefined, false)
   }
 })
 
@@ -6879,13 +6900,16 @@ const saveResumeAudio = () => {
   // case where the user backgrounds the app mid-cycle without
   // advancing. Tom 2026-05-26.
   if (positionInitialized.value && useRoundBasedPlayback.value) {
-    savePositionToLocalStorage(simplePlayer.cycleIndex.value)
+    // Lifecycle save: position only, no practice timestamp.
+    savePositionToLocalStorage(simplePlayer.cycleIndex.value, false)
     // Also flush the LIVE position to the DB with the engine's EXACT cycle —
     // the dormant moment is our strongest "about to leave" signal. A
     // cross-device / different-origin resume reads the DB (not this origin's
     // localStorage), so without this it lands at the round's intro. No-op for
     // guests / INF PLAY. Tom 2026-05-30.
-    persistLivePositionToDb(simplePlayer.cycleIndex.value)
+    // touchPracticedAt=false: going dormant isn't practising — if they
+    // played, the phase='prompt' save already stamped it moments ago.
+    persistLivePositionToDb(simplePlayer.cycleIndex.value, false)
   }
 
   const round = simplePlayer.currentRound.value
