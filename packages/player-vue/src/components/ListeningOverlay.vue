@@ -82,7 +82,9 @@ class ListeningAudioController {
     await this.play(uri)
   }
 
-  async play(url) {
+  /** Play one clip. rateOverride (stage-pattern ×2 plays) takes precedence
+   *  over the user's global speed for THIS clip only. */
+  async play(url, rateOverride = null) {
     if (!url) {
       console.warn('[ListeningAudio] No audio URL')
       return
@@ -143,7 +145,7 @@ class ListeningAudioController {
       }, 15000)
 
       // Set playbackRate right before play() - some browsers reset it after load()
-      this.audio.playbackRate = this.playbackRate
+      this.audio.playbackRate = rateOverride ?? this.playbackRate
       this.audio.play().catch(onError)
     })
   }
@@ -221,6 +223,34 @@ const audioController = ref(null)
  *  the top (Spotify-style single-track repeat). Only meaningful in
  *  pods view with a scene selected. */
 const loopScene = ref(false)
+
+// ── Dialogue listening modes (Tom 2026-06-11) ──────────────────────────
+// Pods carry a LOT of content; the speed slider alone doesn't extract it —
+// the REPEATS are the pedagogy. Beyond the plain run-through ('flow'),
+// each turn can play through a stage pattern, sentence by sentence:
+//   learn  — target · explainer · target · target   (the Phase-0 shape;
+//            sentences without an explainer play their translation there)
+//   review — target · translation · target ×2 · target ×2
+//   speed  — target · target ×2 · target ×2
+// 't' = target at the user's speed; rate:2 = absolute 2× for that clip.
+const LISTEN_MODES = [
+  { key: 'flow',   label: 'Flow' },
+  { key: 'learn',  label: 'Learn' },
+  { key: 'review', label: 'Review' },
+  { key: 'speed',  label: 'Speed' },
+]
+const MODE_PATTERNS = {
+  learn:  [{ role: 't' }, { role: 'e' }, { role: 't' }, { role: 't' }],
+  review: [{ role: 't' }, { role: 'k' }, { role: 't', rate: 2 }, { role: 't', rate: 2 }],
+  speed:  [{ role: 't' }, { role: 't', rate: 2 }, { role: 't', rate: 2 }],
+}
+const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'flow')
+watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) } catch {} })
+
+// Known-language glosses can be hidden entirely (long canon-v2 turns make
+// the gloss block heavy when you don't need it).
+const showGloss = ref(localStorage.getItem('ssi-listening-gloss') !== 'off')
+watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 'on' : 'off') } catch {} })
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -368,6 +398,9 @@ const openScene = (scene) => {
     target2AudioId: t.audioIds[0] || '',
     /** Full audio sequence — playPhrase chains these in order. */
     audioIds: t.audioIds,
+    /** Per-sentence detail (aligned target/known/explainer) — drives the
+     *  stage-pattern listening modes + the interleaved gloss display. */
+    sentences: t.sentences,
   }))
   allPhrases.value = phrases
   loadedCount.value = phrases.length
@@ -380,13 +413,17 @@ const openScene = (scene) => {
   // accidentally re-enable it from this surface.
   mode.value = 'ordered'
   updateVisibleWindow()
-  // Warm-up: prefetch the first ~5 turns of the scene. usePodLapScheduler
-  // already prefetches its OWN pod laps for the active LearningPlayer
-  // session — this is independent: the listening-overlay scene is a
-  // separate, learner-driven playback path. SW CacheFirst de-dupes
-  // overlapping URLs, so any shared audio costs nothing extra.
-  prefetchTopRows()
+  // Warm-up: cache the WHOLE scene (every clip the current mode needs)
+  // while the screen is still on — background fetch suspends under lock,
+  // so the horizon must be banked up-front. usePodLapScheduler prefetches
+  // its OWN pod laps for the active LearningPlayer session — this is
+  // independent; SW CacheFirst de-dupes shared audio.
+  warmScene(scene)
 }
+
+// Switching listening mode mid-scene changes which clips a play-through
+// needs (translations/explainers) — top the cache up immediately.
+watch(listenMode, () => { if (selectedScene.value) warmScene(selectedScene.value) })
 
 /** Back from scene-teleprompter to the scene list. */
 const exitScene = () => {
@@ -683,6 +720,36 @@ const updateVisibleWindow = () => {
 }
 
 // ============================================================================
+// Interleaved gloss pairs (Tom 2026-06-11)
+// ============================================================================
+// Long canon-v2 turns made block-target-then-block-known impossible to match
+// up. The turn's per-sentence data gives PERFECTLY aligned (target, known)
+// row pairs; within a row, faithful rendering means sentence counts almost
+// always match too — so sub-split on sentence enders when they do, and fall
+// back to the row pair when they don't. Pure string work, no timing data.
+const splitSentences = (text) =>
+  (String(text || '').match(/[^.!?…。！？]+[.!?…。！？]+["”』」)]*|[^.!?…。！？]+$/gu) || [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+const glossPairsFor = (phrase) => {
+  const units = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
+    ? phrase.sentences
+    : [{ targetText: phrase.targetText, knownText: phrase.knownText }]
+  const pairs = []
+  for (const u of units) {
+    const t = splitSentences(u.targetText)
+    const k = splitSentences(u.knownText)
+    if (t.length > 1 && t.length === k.length) {
+      for (let i = 0; i < t.length; i++) pairs.push({ target: t[i], known: k[i] })
+    } else {
+      pairs.push({ target: u.targetText, known: u.knownText })
+    }
+  }
+  return pairs
+}
+
+// ============================================================================
 // Audio
 // ============================================================================
 
@@ -725,16 +792,24 @@ const getAudioUrl = (audioId) => {
  * blob (lock-safe) instead of hitting the network inside the 800ms gap.
  * Mirrors the wrap-around in handleEndOfList (last scene warms the first).
  */
+/** Warm EVERY clip a scene's turns can need under the current mode —
+ *  targets, and (in stage-pattern modes) translations + explainers. A whole
+ *  canon-v2 scene is ≤ ~60 small clips; cached up-front while the screen is
+ *  still on, so a locked-screen play-through never touches the network. */
+const warmScene = (scene) => {
+  if (!scene) return
+  for (const t of scene.turns) {
+    for (const id of audioIdsForWarm(t)) warmClip(id)
+  }
+}
+
 const prefetchNextSceneHead = () => {
   if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
   const sceneList = pods.scenes.value
   const idx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
   const next = idx >= 0 ? (sceneList[idx + 1] || sceneList[0]) : null
   if (!next || next.sceneNumber === selectedScene.value.sceneNumber) return
-  for (const t of next.turns.slice(0, TAB_PREFETCH_LIMIT)) {
-    const id = Array.isArray(t.audioIds) ? t.audioIds[0] : null
-    if (id) warmClip(id)
-  }
+  warmScene(next)
 }
 
 /**
@@ -794,6 +869,57 @@ const playFromIndex = async (index) => {
   await playCurrentPhrase(myPlaybackId)
 }
 
+/**
+ * Build the play queue for one phrase row as [{ id, rate|null }].
+ * - Dialogue turns in a stage-pattern mode expand each SENTENCE through the
+ *   pattern: 't' = target (user speed), 'k' = translation, 'e' = explainer
+ *   with translation fallback when the sentence has none (the upstream
+ *   first-encounter discipline leaves repeats/codas explainer-less).
+ * - Flow mode / non-pod rows keep the original behaviour.
+ */
+const buildPlayQueue = (phrase) => {
+  const pattern = MODE_PATTERNS[listenMode.value]
+  if (pattern && view.value === 'pods' && Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
+    const queue = []
+    for (const s of phrase.sentences) {
+      for (const step of pattern) {
+        const id = step.role === 't' ? s.targetAudioId
+          : step.role === 'k' ? s.knownAudioId
+          : (s.explainerAudioId || s.knownAudioId) // 'e' — explainer, else translation
+        if (id) queue.push({ id, rate: step.rate || null })
+      }
+    }
+    return queue
+  }
+  if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
+    return phrase.audioIds.filter(Boolean).map((id) => ({ id, rate: null }))
+  }
+  const useVoice1 = Math.random() < 0.5
+  const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
+  return audioId ? [{ id: audioId, rate: null }] : []
+}
+
+/** Every audio id a row can need under the CURRENT mode — the warm-ahead
+ *  must cover explainer/translation clips too, or a stage-pattern play
+ *  hits the network mid-list (fatal under a locked screen). */
+const audioIdsForWarm = (phrase) => {
+  if (!phrase) return []
+  const ids = []
+  if (Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
+    for (const s of phrase.sentences) {
+      if (s.targetAudioId) ids.push(s.targetAudioId)
+      if (listenMode.value !== 'flow') {
+        if (s.knownAudioId) ids.push(s.knownAudioId)
+        if (s.explainerAudioId) ids.push(s.explainerAudioId)
+      }
+    }
+    return ids
+  }
+  if (Array.isArray(phrase.audioIds)) return phrase.audioIds.filter(Boolean)
+  if (phrase.target1AudioId) ids.push(phrase.target1AudioId)
+  return ids
+}
+
 const playCurrentPhrase = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId || !isPlaying.value) return
 
@@ -803,17 +929,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
     return
   }
 
-  // Pod turns carry an audioIds[] sequence (merged consecutive
-  // same-speaker sentences). Phrase rows carry one audio per voice in
-  // target1AudioId / target2AudioId. Build the play queue accordingly.
-  let playQueue = []
-  if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
-    playQueue = phrase.audioIds.filter(Boolean)
-  } else {
-    const useVoice1 = Math.random() < 0.5
-    const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
-    if (audioId) playQueue = [audioId]
-  }
+  const playQueue = buildPlayQueue(phrase)
 
   console.log('[ListeningOverlay] Playing phrase:', {
     index: currentIndex.value,
@@ -821,14 +937,14 @@ const playCurrentPhrase = async (myPlaybackId) => {
     clips: playQueue.length,
   })
 
-  // Rolling warm-ahead: pull the next couple of rows into IndexedDB while
-  // this one plays, so a locked screen always finds the upcoming clip
-  // cached (the lock-safe WAV path) rather than hitting the throttled
-  // network mid-list. Cheap + de-duped; covers lists longer than the
-  // initial 5-row prefetch.
-  for (let n = 1; n <= 2; n++) {
-    const ahead = availablePhrases.value[currentIndex.value + n]
-    if (ahead) warmClip(Array.isArray(ahead.audioIds) ? ahead.audioIds[0] : ahead.target1AudioId)
+  // Rolling warm-ahead: pull the next few rows into IndexedDB while this
+  // one plays, so a locked screen always finds the upcoming clip cached
+  // (the lock-safe WAV path) rather than hitting the throttled network
+  // mid-list. Covers EVERY clip the current mode needs (multi-sentence
+  // turns, translations, explainers) — a single cache miss under lock
+  // stalls with frozen rescue timers, so the horizon must stay ahead.
+  for (let n = 1; n <= 3; n++) {
+    for (const id of audioIdsForWarm(availablePhrases.value[currentIndex.value + n])) warmClip(id)
   }
   // Last turn of a pod scene → warm the NEXT scene's opening clips now,
   // while this turn plays, so the scene segue never waits on the network.
@@ -850,9 +966,13 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // timer-driven gap killed the advance the moment the screen locked.
   // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
   // protocol (see SimplePlayer's PAUSE phase).
+  // Stage-pattern steps breathe a little (350ms) so the repeats read as
+  // deliberate pedagogy; flow mode keeps the tight 50ms that joins a
+  // speaker's consecutive sentences into natural continuous speech.
+  const interClipGap = MODE_PATTERNS[listenMode.value] && view.value === 'pods' ? 350 : 50
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
-    const id = playQueue[i]
+    const { id, rate } = playQueue[i]
     const proxyUrl = getAudioUrl(id)
     if (!proxyUrl) continue
     // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
@@ -863,12 +983,12 @@ const playCurrentPhrase = async (myPlaybackId) => {
     const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
     if (myPlaybackId !== playbackId) return
     try {
-      await audioController.value.play(audioUrl)
+      await audioController.value.play(audioUrl, rate)
     } catch (err) {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
     if (i < playQueue.length - 1) {
-      await audioController.value.playSilence(50)
+      await audioController.value.playSilence(interClipGap)
     }
   }
 
@@ -1448,6 +1568,22 @@ watch(
         </svg>
       </button>
 
+      <!-- Gloss eye: show/hide the known-language lines under the target. -->
+      <button
+        class="gloss-toggle"
+        :class="{ active: showGloss }"
+        type="button"
+        :title="showGloss ? 'Hide translations' : 'Show translations'"
+        :aria-pressed="showGloss"
+        @click="showGloss = !showGloss"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+          <line v-if="!showGloss" x1="3" y1="3" x2="21" y2="21"/>
+        </svg>
+      </button>
+
       <!-- Transport: play/stop + progress bar -->
       <div class="transport-bar">
         <button class="transport-btn" @click="togglePlayback">
@@ -1478,6 +1614,23 @@ watch(
             {{ speed }}x
           </button>
         </div>
+      </div>
+
+      <!-- Dialogue listening mode: how each turn plays through.
+           Flow = the plain run-through; Learn/Review/Speed run every
+           sentence through a stage pattern (repeats are the pedagogy). -->
+      <div v-if="view === 'pods' && selectedScene" class="mode-selector">
+        <button
+          v-for="m in LISTEN_MODES"
+          :key="m.key"
+          class="mode-btn"
+          :class="{ active: listenMode === m.key }"
+          :title="m.key === 'flow' ? 'Play straight through'
+            : m.key === 'learn' ? 'Each sentence: target · explainer · target · target'
+            : m.key === 'review' ? 'Each sentence: target · translation · target ×2 · target ×2'
+            : 'Each sentence: target · target ×2 · target ×2'"
+          @click="listenMode = m.key"
+        >{{ m.label }}</button>
       </div>
     </div>
 
@@ -1561,8 +1714,20 @@ watch(
             <div v-if="phrase.speakerName" class="phrase-speaker" :style="{ color: phrase.speakerColor }">
               <span class="phrase-speaker-dot" :style="{ background: phrase.speakerColor }"></span>{{ phrase.speakerName }}
             </div>
-            <div class="phrase-target">{{ phrase.targetText }}</div>
-            <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+            <!-- Current dialogue turn: interleave target and gloss sentence
+                 by sentence (aligned from per-sentence data + faithful-canon
+                 sentence splitting) so long turns stay matchable. Other rows
+                 keep the plain paragraph. Gloss honours the eye toggle. -->
+            <template v-if="phrase.isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
+              <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
+                <div class="phrase-target">{{ pair.target }}</div>
+                <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="phrase-target">{{ phrase.targetText }}</div>
+              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+            </template>
           </div>
         </template>
       </div>
@@ -1634,11 +1799,16 @@ watch(
 }
 
 /* Controls bar — pushed down to clear the SSi logo */
+/* Compact chrome (Tom 2026-06-11: transport + top menu took too much
+ * vertical space — long canon-v2 turns need it). One wrapped row: small
+ * buttons + transport share the first line; speed + mode wrap under it. */
 .controls-bar {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 3.5rem 1.5rem 0.5rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  padding: 3.1rem 1rem 0.35rem;
   cursor: default;
 }
 
@@ -1681,8 +1851,39 @@ watch(
 .speed-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+}
+
+/* Dialogue listening-mode selector — same pill language as the speed
+ * buttons; sits beside them on the wrapped second line. */
+.mode-selector {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.mode-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border-medium);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mode-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.mode-btn.active {
+  background: var(--belt-color);
+  border-color: var(--belt-color);
+  color: white;
 }
 
 .speed-label {
@@ -1952,12 +2153,14 @@ watch(
 .transport-bar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  flex: 1 1 180px;
+  min-width: 160px;
 }
 
 .transport-btn {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: none;
   background: linear-gradient(145deg, var(--ssi-red-light, #d44545) 0%, var(--ssi-red, #b83232) 100%);
@@ -2287,12 +2490,13 @@ watch(
 /* Dialogues loop toggle — same chrome as scene-back / shuffle so the
  * three sit naturally in a row. Filled with belt colour when active to
  * make the "you're repeating one scene" state unmistakable. */
-.scene-loop-btn {
+.scene-loop-btn,
+.gloss-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   background: transparent;
   border: 1px solid var(--border-medium);
@@ -2301,9 +2505,11 @@ watch(
   cursor: pointer;
   transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 
-.scene-loop-btn:hover {
+.scene-loop-btn:hover,
+.gloss-toggle:hover {
   background: var(--pill-bg-hover);
   color: var(--text-secondary);
 }
@@ -2314,8 +2520,28 @@ watch(
   color: white;
 }
 
-.scene-loop-btn svg {
+/* The gloss eye reads "on" as quiet-default (outlined, current colour) and
+ * "off" as struck-through — active fill would shout for a passive setting. */
+.gloss-toggle:not(.active) {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.scene-loop-btn svg,
+.gloss-toggle svg {
   width: 16px;
   height: 16px;
+}
+
+/* Interleaved gloss pairs — one sentence + its translation, matchable at
+ * a glance even on the long canon-v2 monologue turns. */
+.phrase-pair {
+  margin-bottom: 0.45rem;
+}
+.phrase-pair:last-child {
+  margin-bottom: 0;
+}
+.phrase-known.interleaved {
+  margin-top: 0.1rem;
 }
 </style>
