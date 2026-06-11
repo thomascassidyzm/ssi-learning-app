@@ -233,11 +233,15 @@ const loopScene = ref(false)
 //   review — target · translation · target ×2 · target ×2
 //   speed  — target · target ×2 · target ×2
 // 't' = target at the user's speed; rate:2 = absolute 2× for that clip.
+// Labels are EXPERIENCE levels, not mechanics (Tom 2026-06-11): the learner
+// chooses how much help and how much pace — a difficulty ladder ending on
+// the established SSi "Turbo". Keys are stable (localStorage + code);
+// labels are free to evolve.
 const LISTEN_MODES = [
-  { key: 'flow',   label: 'Flow' },
-  { key: 'learn',  label: 'Learn' },
-  { key: 'review', label: 'Review' },
-  { key: 'speed',  label: 'Speed' },
+  { key: 'flow',   label: 'Flow',     desc: 'Play the dialogues straight through' },
+  { key: 'learn',  label: 'Guided',   desc: 'Every line explained — explainers where they exist, translations where they don\'t' },
+  { key: 'review', label: 'Practice', desc: 'Each line, its meaning, then double-speed reps' },
+  { key: 'speed',  label: 'Turbo',    desc: 'Full speed, no help' },
 ]
 const MODE_PATTERNS = {
   learn:  [{ role: 't' }, { role: 'e' }, { role: 't' }, { role: 't' }],
@@ -983,7 +987,11 @@ const playCurrentPhrase = async (myPlaybackId) => {
     const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
     if (myPlaybackId !== playbackId) return
     try {
-      await audioController.value.play(audioUrl, rate)
+      // Dialogue scenes have no speed UI — the listening level carries the
+      // pace, so pin the base rate to 1× there (a speed picked in Core/All
+      // must not silently leak in). Pattern ×2 steps still override.
+      const effectiveRate = (view.value === 'pods' && selectedScene.value) ? (rate ?? 1) : rate
+      await audioController.value.play(audioUrl, effectiveRate)
     } catch (err) {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
@@ -1600,8 +1608,10 @@ watch(
         <span class="progress-text">{{ progressPercent }}%</span>
       </div>
 
-      <!-- Speed Selector -->
-      <div class="speed-controls">
+      <!-- Speed Selector — Core/All only. In Dialogues the listening modes
+           carry the pace (Flow/Guided/Practice/Turbo); a separate speed row
+           was double chrome (Tom 2026-06-11). -->
+      <div v-if="!(view === 'pods' && selectedScene)" class="speed-controls">
         <span class="speed-label">Speed</span>
         <div class="speed-selector">
           <button
@@ -1616,19 +1626,16 @@ watch(
         </div>
       </div>
 
-      <!-- Dialogue listening mode: how each turn plays through.
-           Flow = the plain run-through; Learn/Review/Speed run every
-           sentence through a stage pattern (repeats are the pedagogy). -->
+      <!-- Dialogue listening level: how much help, how much pace. One
+           full-width segmented row — these ARE the listening difficulty
+           settings, so they get first-class placement. -->
       <div v-if="view === 'pods' && selectedScene" class="mode-selector">
         <button
           v-for="m in LISTEN_MODES"
           :key="m.key"
           class="mode-btn"
           :class="{ active: listenMode === m.key }"
-          :title="m.key === 'flow' ? 'Play straight through'
-            : m.key === 'learn' ? 'Each sentence: target · explainer · target · target'
-            : m.key === 'review' ? 'Each sentence: target · translation · target ×2 · target ×2'
-            : 'Each sentence: target · target ×2 · target ×2'"
+          :title="m.desc"
           @click="listenMode = m.key"
         >{{ m.label }}</button>
       </div>
@@ -1854,36 +1861,43 @@ watch(
   gap: 0.5rem;
 }
 
-/* Dialogue listening-mode selector — same pill language as the speed
- * buttons; sits beside them on the wrapped second line. */
+/* Dialogue listening-level selector — a full-width segmented control on
+ * its own line (these are THE difficulty settings for listening, so they
+ * get first-class placement). Active = ink, matching the view tabs — a
+ * belt-colour fill is invisible on white belt. */
 .mode-selector {
   display: flex;
-  gap: 2px;
-  margin-left: auto;
+  flex: 1 1 100%;
+  gap: 0;
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .mode-btn {
-  padding: 4px 10px;
+  flex: 1;
+  padding: 6px 4px;
   background: transparent;
-  border: 1px solid var(--border-medium);
-  border-radius: 4px;
+  border: 0;
+  border-radius: 999px;
   color: var(--text-muted);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.7rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
-.mode-btn:hover {
-  background: var(--bg-elevated);
+.mode-btn:hover:not(.active) {
   color: var(--text-secondary);
 }
 
 .mode-btn.active {
-  background: var(--belt-color);
-  border-color: var(--belt-color);
-  color: white;
+  background: var(--text-primary);
+  color: var(--bg-primary, #ffffff);
+  font-weight: 600;
 }
 
 .speed-label {
@@ -2515,9 +2529,10 @@ watch(
 }
 
 .scene-loop-btn.active {
-  background: var(--belt-color);
-  border-color: var(--belt-color);
-  color: white;
+  /* Ink, not belt colour — white belt made a belt-colour fill invisible. */
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-primary, #ffffff);
 }
 
 /* The gloss eye reads "on" as quiet-default (outlined, current colour) and
