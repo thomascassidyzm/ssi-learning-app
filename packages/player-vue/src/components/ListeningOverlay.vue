@@ -1446,6 +1446,25 @@ watch(
       </svg>
     </button>
 
+    <!-- Back to scene list — mirrors the close circle at the opposite corner,
+         so the top band reads: [back] [tabs] [close]. -->
+    <button
+      v-if="view === 'pods' && selectedScene"
+      class="close-btn back-fab"
+      :title="`Back to scenes — ${selectedScene.title}`"
+      @click.stop="exitScene"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </button>
+
+    <!-- Ambient progress — a hairline at the top edge, not a transport bar.
+         The scene's position reads like a reading-progress line. -->
+    <div v-if="view === 'pods' && selectedScene" class="top-progress" aria-hidden="true">
+      <div class="top-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+    </div>
+
     <!-- (Offline download button removed 2026-05-20 — being moved to
          Settings. packState / packPercent / downloadListeningPack are
          retained in <script> for the eventual relocation.) -->
@@ -1548,20 +1567,13 @@ watch(
           <line x1="4" y1="4" x2="9" y2="9"/>
         </svg>
       </button>
-      <button
-        v-else-if="view === 'pods' && selectedScene"
-        class="scene-back-btn"
-        type="button"
-        :title="`Back to scenes — ${selectedScene.title}`"
-        @click="exitScene"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-      </button>
+      <!-- Dialogue scene: ONE quiet band — loop · modes · eye. The loop and
+           eye are bare glyphs (hairlines + type, not circle clusters); the
+           back button moved to the top corner; the transport dissolved into
+           the ambient hairline + the paused glyph over the teleprompter. -->
       <button
         v-if="view === 'pods' && selectedScene"
-        class="scene-loop-btn"
+        class="edge-glyph"
         :class="{ active: loopScene }"
         type="button"
         :title="loopScene ? 'Repeat this scene — tap to flow into next scenes instead' : 'Flow into next scene — tap to repeat this scene'"
@@ -1576,24 +1588,9 @@ watch(
         </svg>
       </button>
 
-      <!-- Gloss eye: show/hide the known-language lines under the target. -->
-      <button
-        class="gloss-toggle"
-        :class="{ active: showGloss }"
-        type="button"
-        :title="showGloss ? 'Hide translations' : 'Show translations'"
-        :aria-pressed="showGloss"
-        @click="showGloss = !showGloss"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-          <line v-if="!showGloss" x1="3" y1="3" x2="21" y2="21"/>
-        </svg>
-      </button>
-
-      <!-- Transport: play/stop + progress bar -->
-      <div class="transport-bar">
+      <!-- Transport — Core/All only; Dialogue scenes play through the surface
+           (tap anywhere) with the hairline carrying progress. -->
+      <div v-if="!(view === 'pods' && selectedScene)" class="transport-bar">
         <button class="transport-btn" @click="togglePlayback">
           <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="2"/>
@@ -1626,9 +1623,9 @@ watch(
         </div>
       </div>
 
-      <!-- Dialogue listening level: how much help, how much pace. One
-           full-width segmented row — these ARE the listening difficulty
-           settings, so they get first-class placement. -->
+      <!-- Dialogue listening level: how much help, how much pace. These ARE
+           the listening difficulty settings — first-class placement, sharing
+           the band with the two quiet glyphs. -->
       <div v-if="view === 'pods' && selectedScene" class="mode-selector">
         <button
           v-for="m in LISTEN_MODES"
@@ -1639,6 +1636,28 @@ watch(
           @click="listenMode = m.key"
         >{{ m.label }}</button>
       </div>
+
+      <!-- Gloss eye: show/hide the known-language lines under the target. -->
+      <button
+        class="edge-glyph gloss-toggle"
+        :class="{ active: showGloss }"
+        type="button"
+        :title="showGloss ? 'Hide translations' : 'Show translations'"
+        :aria-pressed="showGloss"
+        @click="showGloss = !showGloss"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+          <line v-if="!showGloss" x1="3" y1="3" x2="21" y2="21"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Scene orientation: a whisper of type, not a band — you always know
+         where you are without the chrome asserting itself. -->
+    <div v-if="view === 'pods' && selectedScene && !isLoading" class="scene-strip" @click.stop>
+      {{ selectedScene.title }}
     </div>
 
     <!-- Loading State (All / Core only — Dialogues has its own loading) -->
@@ -1740,9 +1759,19 @@ watch(
       </div>
 
       <!-- Play/Pause indicator -->
-      <div class="playback-hint" :class="{ playing: isPlaying }">
+      <div v-if="!(view === 'pods' && selectedScene)" class="playback-hint" :class="{ playing: isPlaying }">
         <span v-if="isPlaying">Tap to pause</span>
         <span v-else>Tap to play</span>
+      </div>
+
+      <!-- Paused state, dialogue scenes: a soft glyph floats over the
+           teleprompter — the video-player idiom. While playing there is
+           NOTHING: the dialogue owns the screen. Pointer-events none; the
+           tap lands on the surface beneath, which toggles playback. -->
+      <div v-if="view === 'pods' && selectedScene && !isPlaying" class="paused-glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="8 5 19 12 8 19 8 5"/>
+        </svg>
       </div>
     </div>
   </div>
@@ -1867,7 +1896,8 @@ watch(
  * belt-colour fill is invisible on white belt. */
 .mode-selector {
   display: flex;
-  flex: 1 1 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: 0;
   border: 1px solid var(--border-medium);
   border-radius: 999px;
@@ -2472,80 +2502,122 @@ watch(
   text-transform: capitalize;
 }
 
-/* "Back to scenes" button — occupies the same controls-bar slot as the
- * shuffle toggle does in Phrases view. Same shape/size so the row
- * doesn't reflow between views. */
-.scene-back-btn {
+/* (Back-to-scenes moved to the top corner — see .back-fab.) */
+
+/* Bare glyphs — hairlines and type, never circle clusters. A 40px hit
+ * area around an 18px mark; state is colour, not chrome. */
+.edge-glyph {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   background: transparent;
-  border: 1px solid var(--border-medium);
-  border-radius: 50%;
+  border: 0;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.scene-back-btn:hover {
-  background: var(--pill-bg-hover);
-  color: var(--text-secondary);
-}
-
-.scene-back-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Dialogues loop toggle — same chrome as scene-back / shuffle so the
- * three sit naturally in a row. Filled with belt colour when active to
- * make the "you're repeating one scene" state unmistakable. */
-.scene-loop-btn,
-.gloss-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--border-medium);
-  border-radius: 50%;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, opacity 0.2s ease;
   -webkit-tap-highlight-color: transparent;
   flex-shrink: 0;
+  opacity: 0.65;
 }
 
-.scene-loop-btn:hover,
-.gloss-toggle:hover {
-  background: var(--pill-bg-hover);
+.edge-glyph:hover {
   color: var(--text-secondary);
+  opacity: 1;
 }
 
-.scene-loop-btn.active {
-  /* Ink, not belt colour — white belt made a belt-colour fill invisible. */
-  background: var(--text-primary);
-  border-color: var(--text-primary);
-  color: var(--bg-primary, #ffffff);
+.edge-glyph.active {
+  color: var(--text-primary);
+  opacity: 1;
 }
 
-/* The gloss eye reads "on" as quiet-default (outlined, current colour) and
- * "off" as struck-through — active fill would shout for a passive setting. */
+/* The gloss eye reads "on" as present-but-quiet and "off" as struck-through
+ * and faded — it's a passive setting, it must never shout. */
 .gloss-toggle:not(.active) {
-  color: var(--text-muted);
-  opacity: 0.7;
+  opacity: 0.45;
 }
 
-.scene-loop-btn svg,
-.gloss-toggle svg {
-  width: 16px;
-  height: 16px;
+.edge-glyph svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Back to scenes — mirrors the close circle at the opposite corner. */
+.back-fab {
+  right: auto;
+  left: 16px;
+}
+
+/* Ambient progress — a 2px reading line at the very top edge. Ink at low
+ * opacity; it informs without performing. */
+.top-progress {
+  position: absolute;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 11;
+  background: transparent;
+  pointer-events: none;
+}
+
+.top-progress-fill {
+  height: 100%;
+  background: var(--text-primary);
+  opacity: 0.35;
+  transition: width 0.6s ease;
+}
+
+/* Scene orientation — a whisper of mono caps under the controls. */
+.scene-strip {
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  opacity: 0.8;
+  padding: 0.15rem 1rem 0.3rem;
+  cursor: default;
+}
+
+/* Paused glyph — the surface IS the transport. Soft elevated disc, ink
+ * triangle, floats over the teleprompter only while paused; playing shows
+ * nothing. Taps pass through to the tap-anywhere toggle beneath. */
+.paused-glyph {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-elevated, #ffffff) 88%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  pointer-events: none;
+  z-index: 1500;
+  animation: paused-glyph-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.paused-glyph svg {
+  width: 30px;
+  height: 30px;
+  margin-left: 3px; /* optical centring of the triangle */
+}
+
+@keyframes paused-glyph-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
 /* Interleaved gloss pairs — one sentence + its translation, matchable at
