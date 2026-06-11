@@ -2695,9 +2695,14 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
   // save's OWN timestamp, so it fires even when the player was left up in rest
   // state (DB last_practiced_at not reloaded) — the case that slipped through
   // and kept the exact cycle no matter how long the gap. Tom 2026-06-01.
-  if (cycleIndex > 0 && typeof localPos.lastUpdated === 'number') {
-    const minutesSince = (Date.now() - localPos.lastUpdated) / 60000
-    if (minutesSince >= resumeConfig.value.cycleResetMinutes) cycleIndex = 0
+  // FAIL CLOSED (Aran 2026-06-11: resumed onto a round-tail USE monster after
+  // 23h): a mid-round cycle without a trustworthy timestamp is never honoured —
+  // no timestamp means we cannot prove the pause was brief, so restart the
+  // round. Worst case a brief-pause learner replays the intro; the old fail-
+  // open skipped the rule entirely and parked long-absent learners mid-round.
+  if (cycleIndex > 0) {
+    const ts = typeof localPos.lastUpdated === 'number' ? localPos.lastUpdated : null
+    if (!ts || (Date.now() - ts) / 60000 >= resumeConfig.value.cycleResetMinutes) cycleIndex = 0
   }
   return { roundIndex: idx, cycleIndex }
 }
@@ -10061,9 +10066,11 @@ onMounted(async () => {
                   resumeCycle = inferCursorCycle
                   // Same gap rule on the DB-cursor path (cold localStorage):
                   // a real break restarts the round rather than the exact cycle.
-                  if (resumeCycle > 0 && savedLastPracticedAt.value) {
-                    const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
-                    if (minutesSince >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
+                  // FAIL CLOSED: a missing/not-yet-loaded timestamp can't prove
+                  // a brief pause — restart the round (Aran 2026-06-11).
+                  if (resumeCycle > 0) {
+                    const ts = savedLastPracticedAt.value
+                    if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
                   }
                 } else {
                   const ceilingIdx = findLego(inferCeilingLegoId)
@@ -10458,9 +10465,10 @@ onMounted(async () => {
                   if (trueIdx >= 0 && (landedIdx < 0 || trueIdx > landedIdx)) {
                     // Same gap rule as the other cursor-resume paths: a real
                     // break restarts the round rather than the exact cycle.
-                    if (trueCycle > 0 && savedLastPracticedAt.value) {
-                      const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
-                      if (minutesSince >= resumeConfig.value.cycleResetMinutes) trueCycle = 0
+                    // FAIL CLOSED: no trustworthy timestamp → restart the round.
+                    if (trueCycle > 0) {
+                      const ts = savedLastPracticedAt.value
+                      if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) trueCycle = 0
                     }
                     const trueLegoId = fullRounds[trueIdx]?.legoId
                     console.log(`[InstantPlayback] Stale-matview resume repair: bootstrap landed at ${landedLegoId} (idx ${landedIdx}); true position ${trueLegoId} (idx ${trueIdx} cycle ${trueCycle}) — jumping`)
@@ -10813,6 +10821,13 @@ onMounted(async () => {
                     console.log(`[ResumeTTL] ${Math.round(minutesSince)}m gap → cycle reset (round restart)`)
                     resumeCycle = 0
                   }
+                } else if (resumeCycle > 0) {
+                  // FAIL CLOSED (Aran 2026-06-11: 23h gap resumed onto a
+                  // round-tail USE monster): no saved timestamp means we
+                  // cannot prove the pause was brief — never honour a
+                  // mid-round cycle on faith. Restart the round.
+                  console.log('[ResumeTTL] no last-practiced timestamp → cycle reset (round restart)')
+                  resumeCycle = 0
                 }
 
                 const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
