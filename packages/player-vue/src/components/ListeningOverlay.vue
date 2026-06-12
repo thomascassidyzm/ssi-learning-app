@@ -271,8 +271,7 @@ watch(validModeKeys, (keys) => { if (!keys.has(listenMode.value)) listenMode.val
 
 // Live pod stage config — the SAME source the main-flow scheduler reads, so
 // the audit walk matches main-flow delivery (and Popty tweaks) by construction.
-const supabaseInj = inject('supabase', null)
-const algoConfig = useAlgorithmConfig(supabaseInj)
+const algoConfig = useAlgorithmConfig(supabase)
 // Stage badge for the audit walk — { stage, total, role } | null.
 const auditStatus = ref(null)
 // Warm the config if audit is enabled after the overlay is already open.
@@ -283,15 +282,9 @@ watch(auditAvailable, (v) => { if (v) algoConfig.loadConfigs() })
 const showGloss = ref(localStorage.getItem('ssi-listening-gloss') !== 'off')
 watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 'on' : 'off') } catch {} })
 
-// Dialogue practice modes are target-only — no known-language gloss, and no
-// gloss eye. The admin 'audit' walk is the only Dialogue mode that surfaces
-// English (one chunk at a time, per the live stage config).
-const dialogueTargetOnly = computed(
-  () => view.value === 'pods' && !!selectedScene.value && listenMode.value !== 'audit'
-)
-// Gloss is suppressed entirely in the target-only dialogue modes regardless
-// of the eye toggle (which is hidden there). Elsewhere it follows the toggle.
-const showGlossEffective = computed(() => showGloss.value && !dialogueTargetOnly.value)
+// Dialogue rows are per-CHUNK, so the gloss is a single line under a single
+// phrase (never a paragraph wall) — it follows the gloss eye in every mode,
+// target-first by leaving the eye where the learner sets it.
 // Speed row: always in Core/All; in Dialogues only Immersion exposes it
 // (Drill's pace is fixed, the audit walk follows the config).
 const showSpeedRow = computed(
@@ -419,35 +412,45 @@ const jumpToBelt = (point) => {
 const openScene = (scene) => {
   stopPlayback()
   selectedScene.value = scene
-  // Map pod turns (consecutive same-speaker sentences merged) to the
-  // same shape allPhrases expects. The teleprompter renders each turn
-  // as one row; the audio path plays the turn's audioIds sequentially
-  // with a tight inter-clip gap (see playPhrase).
-  const phrases = scene.turns.map((t) => ({
-    id: t.id,
-    seedNumber: undefined,
-    legoIndex: undefined,
-    legoId: '',
-    legoOrdinal: null,
-    beltIndex: undefined,
-    beltName: '',
-    beltColor: '',
-    knownText: t.knownText,
-    targetText: t.targetText,
-    speaker: t.speaker,
-    speakerName: t.speakerName,
-    // Resolved palette colour from the pod-wide conversation colouring —
-    // character-stable, scene-mates always distinct.
-    speakerColor: SPEAKER_PALETTE[t.colorIndex % SPEAKER_PALETTE.length],
-    position: t.globalOrder,
-    target1AudioId: t.audioIds[0] || '',
-    target2AudioId: t.audioIds[0] || '',
-    /** Full audio sequence — playPhrase chains these in order. */
-    audioIds: t.audioIds,
-    /** Per-sentence detail (aligned target/known/explainer) — drives the
-     *  stage-pattern listening modes + the interleaved gloss display. */
-    sentences: t.sentences,
-  }))
+  // Flatten the scene's turns into ONE ROW PER CHUNK (per-phrase granularity,
+  // Tom 2026-06-12). The turn grouping survives only as presentation: the
+  // speaker chip shows on a turn's FIRST chunk, and the inter-row gap is
+  // turn-aware (tight within a speaker's turn, a full breath on a speaker
+  // change) — so a turn still reads as one person speaking, revealed line by
+  // line, while each row stays a single parseable phrase + its gloss.
+  const phrases = []
+  for (const t of scene.turns) {
+    const color = SPEAKER_PALETTE[t.colorIndex % SPEAKER_PALETTE.length]
+    const chunks = Array.isArray(t.sentences) && t.sentences.length > 0
+      ? t.sentences
+      : [{ targetText: t.targetText, knownText: t.knownText, targetAudioId: t.audioIds[0] || null, knownAudioId: null, explainerAudioId: null }]
+    chunks.forEach((s, idx) => {
+      phrases.push({
+        id: `${t.id}-c${idx}`,
+        seedNumber: undefined,
+        legoIndex: undefined,
+        legoId: '',
+        legoOrdinal: null,
+        beltIndex: undefined,
+        beltName: '',
+        beltColor: '',
+        knownText: s.knownText,
+        targetText: s.targetText,
+        speaker: t.speaker,
+        // Chip only on the turn's first chunk — later chunks group beneath it.
+        speakerName: idx === 0 ? t.speakerName : '',
+        speakerColor: color,
+        position: t.globalOrder * 1000 + idx,
+        target1AudioId: s.targetAudioId || '',
+        target2AudioId: s.targetAudioId || '',
+        audioIds: s.targetAudioId ? [s.targetAudioId] : [],
+        // Single-chunk detail — keeps the play queue + gloss split working.
+        sentences: [s],
+        // True for the first chunk of a turn — drives the turn-aware gap.
+        isTurnStart: idx === 0,
+      })
+    })
+  }
   allPhrases.value = phrases
   loadedCount.value = phrases.length
   totalCount.value = phrases.length
@@ -1106,7 +1109,17 @@ const playCurrentPhrase = async (myPlaybackId) => {
 
   if (myPlaybackId !== playbackId) return
 
-  await audioController.value.playSilence(800)
+  // Inter-row gap. In a dialogue scene the rows are CHUNKS: keep a speaker's
+  // consecutive chunks close (natural continuous speech) and breathe only on
+  // a speaker change (the next row starts a new turn). Elsewhere, the steady
+  // between-phrases pause. Immersion runs the tightest within-turn gap; Drill
+  // gives each phrase a touch more room.
+  const nextPhrase = availablePhrases.value[currentIndex.value + 1]
+  let trailingGap = 800
+  if (view.value === 'pods' && selectedScene.value && nextPhrase && !nextPhrase.isTurnStart) {
+    trailingGap = listenMode.value === 'immersion' ? 50 : 350
+  }
+  await audioController.value.playSilence(trailingGap)
 
   if (myPlaybackId !== playbackId) return
 
@@ -1743,11 +1756,8 @@ watch(
         >{{ m.label }}</button>
       </div>
 
-      <!-- Gloss eye: show/hide the known-language lines under the target.
-           Hidden in the target-only dialogue modes (Immersion / Drill) —
-           there is no English there to toggle. -->
+      <!-- Gloss eye: show/hide the known-language line under each phrase. -->
       <button
-        v-if="!dialogueTargetOnly"
         class="edge-glyph gloss-toggle"
         :class="{ active: showGloss }"
         type="button"
@@ -1868,12 +1878,12 @@ watch(
             <template v-if="phrase.isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
                 <div class="phrase-target">{{ pair.target }}</div>
-                <div v-if="showGlossEffective && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
+                <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
               </div>
             </template>
             <template v-else>
               <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="phrase.isCurrent && showGlossEffective && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
             </template>
           </div>
         </template>

@@ -54,9 +54,15 @@ DIALOGUE_MODES:
   description: |
     Selector shown only in Dialogues with a scene open. Keys are stable
     (localStorage 'ssi-listening-mode' + code); labels may evolve. A retired
-    or unknown stored key migrates to the default (immersion). ALL learner
-    modes are TARGET-ONLY — no known-language gloss, and the gloss eye is
-    hidden. Known-language audio/text appears ONLY in the admin audit mode.
+    or unknown stored key migrates to the default (immersion).
+
+    Rows are ONE PER CHUNK (per-phrase granularity) — openScene flattens the
+    scene's turns into a row per listening_pod_sentences chunk. The turn
+    grouping survives only as presentation: the speaker chip shows on a turn's
+    FIRST chunk, and the inter-row gap is turn-aware. Because a row is a single
+    phrase, the known-language gloss is a single line under it (never a
+    paragraph wall) and follows the gloss eye in EVERY mode — target-first by
+    leaving the eye where the learner sets it.
 
   immersion:
     key: "immersion"
@@ -64,10 +70,9 @@ DIALOGUE_MODES:
     default: true
     desc: "The whole scene in the target language, at your pace."
     audio: |
-      Each chunk (one listening_pod_sentences row) played once, target only,
-      at the learner's chosen speed (the speed row is shown for this mode).
-      Chunks within a turn run tight (50ms) for natural continuous speech;
-      turns are separated by the standard inter-turn gap.
+      Each chunk played once at the learner's chosen speed (the speed row is
+      shown for this mode). Within a speaker's turn chunks run tight (50ms) for
+      natural continuous speech; a speaker change gets the full 800ms breath.
     speed_row: true
 
   drill:
@@ -75,8 +80,8 @@ DIALOGUE_MODES:
     label: "Drill"
     desc: "Each line three times — once normal, then twice fast."
     audio: |
-      Each chunk played three times: 1× · 2× · 2×, target only. A short
-      300ms breath between reps reads as deliberate practice.
+      Each chunk played three times: 1× · 2× · 2× (300ms breath between reps).
+      Row-by-row, so the learner stays on one phrase at a time.
     speed_row: false
 
   audit:
@@ -108,12 +113,17 @@ DIALOGUE_MODES:
 
 PLAYBACK:
   source_unit: |
-    A scene's turns are consecutive same-speaker chunks merged for display
-    (useListeningPods.mergeTurns); each turn carries per-chunk `sentences`
-    detail (targetAudioId / knownAudioId / explainerAudioId). buildPlayQueue
-    maps that per-chunk detail to a clip list [{ id, rate }].
-  immersion: "for each chunk: { target, rate = chosen speed }"
-  drill:     "for each chunk: { target, 1× } · { target, 2× } · { target, 2× }"
+    useListeningPods still merges consecutive same-speaker chunks into turns
+    (for the conversation colouring + speaker chips), but openScene FLATTENS
+    those turns into one row per chunk, tagging each row with speakerName (on
+    the turn's first chunk only) and isTurnStart. Each row carries single-chunk
+    `sentences` detail (targetAudioId / knownAudioId / explainerAudioId).
+  immersion: "row = one chunk: { target, rate = chosen speed }"
+  drill:     "row = one chunk: { target, 1× } · { target, 2× } · { target, 2× }"
+  inter_row_gap: |
+    Turn-aware: when the next row continues the same turn (not isTurnStart),
+    50ms in Immersion / 350ms in Drill; on a speaker change (or any non-
+    dialogue list), the steady 800ms between-phrases pause.
   rate_handling: |
     Dialogue queues always carry an explicit per-clip rate, so a speed picked
     in Core/All never leaks into a dialogue. Core/All pass rate=null and rely
