@@ -50,8 +50,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  */
 export type PodPlayRole = 'ps08x' | 'ps' | 'ps15x' | 'ps2x' | 'trans' | 'explainer'
 
-/** Role → runtime playback rate. Single source of truth. */
-const ROLE_SPEED: Record<string, number> = {
+/** Role → runtime playback rate. Single source of truth (also consumed by
+ *  the admin Listening "Progression" audit walk in ListeningOverlay). */
+export const ROLE_SPEED: Record<string, number> = {
   ps08x: 0.8,
   ps: 1.0,
   ps15x: 1.5,

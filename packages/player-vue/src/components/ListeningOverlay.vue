@@ -5,6 +5,9 @@ import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepaliv
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
+import { useUserRole } from '../composables/useUserRole'
+import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
+import { ROLE_SPEED } from '../composables/usePodLapScheduler'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 
@@ -236,18 +239,44 @@ const loopScene = ref(false)
 //   drill     — each line three times: 1× · 2× · 2×, target only. Tight
 //               repetition to lock a line in.
 // An admin-only 'audit' mode (the real 9-stage progression, read live from
-// algorithm_config.pods) is layered on separately for content tuning.
-// Keys are stable (localStorage + code); labels are free to evolve.
-const LISTEN_MODES = [
+// algorithm_config.pods) is appended for content tuning — gated by both the
+// ssi_admin role AND the Settings → Developer "Listening Progression Audit"
+// toggle. Keys are stable (localStorage + code); labels are free to evolve.
+const BASE_LISTEN_MODES = [
   { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
   { key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' },
 ]
-const LISTEN_MODE_KEYS = new Set(LISTEN_MODES.map((m) => m.key))
-// Migrate retired keys (Flow/Guided/Practice/Turbo) — and any unknown stored
-// value — onto the new default rather than leaving a dead selection.
-const storedListenMode = localStorage.getItem('ssi-listening-mode')
-const listenMode = ref(storedListenMode && LISTEN_MODE_KEYS.has(storedListenMode) ? storedListenMode : 'immersion')
+const AUDIT_LISTEN_MODE = {
+  key: 'audit',
+  label: 'Progression',
+  desc: 'Admin: walk each line through all 9 acquisition stages, live from the listening config',
+}
+// Admin audit availability: role + the Settings toggle (re-read live so
+// flipping the toggle in Settings reflects without a reload).
+const { isSsiAdmin } = useUserRole()
+const auditToggle = ref(localStorage.getItem('ssi-listening-audit') === 'true')
+const onSettingChanged = (e) => {
+  if (e?.detail?.key === 'listeningAudit') auditToggle.value = !!e.detail.value
+}
+const auditAvailable = computed(() => isSsiAdmin.value && auditToggle.value)
+const LISTEN_MODES = computed(() =>
+  auditAvailable.value ? [...BASE_LISTEN_MODES, AUDIT_LISTEN_MODE] : BASE_LISTEN_MODES,
+)
+const validModeKeys = computed(() => new Set(LISTEN_MODES.value.map((m) => m.key)))
+const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')
 watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) } catch {} })
+// Keep the selection valid: a retired key (Flow/Guided/Practice/Turbo) — or
+// 'audit' when it's no longer available — falls back to the default.
+watch(validModeKeys, (keys) => { if (!keys.has(listenMode.value)) listenMode.value = 'immersion' }, { immediate: true })
+
+// Live pod stage config — the SAME source the main-flow scheduler reads, so
+// the audit walk matches main-flow delivery (and Popty tweaks) by construction.
+const supabaseInj = inject('supabase', null)
+const algoConfig = useAlgorithmConfig(supabaseInj)
+// Stage badge for the audit walk — { stage, total, role } | null.
+const auditStatus = ref(null)
+// Warm the config if audit is enabled after the overlay is already open.
+watch(auditAvailable, (v) => { if (v) algoConfig.loadConfigs() })
 
 // Known-language glosses can be hidden entirely (long canon-v2 turns make
 // the gloss block heavy when you don't need it).
@@ -901,6 +930,9 @@ const buildPlayQueue = (phrase) => {
     const sentences = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
       ? phrase.sentences
       : [{ targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null }]
+    if (listenMode.value === 'audit') {
+      return buildAuditQueue(sentences)
+    }
     const queue = []
     if (listenMode.value === 'drill') {
       for (const s of sentences) {
@@ -923,6 +955,48 @@ const buildPlayQueue = (phrase) => {
   const useVoice1 = Math.random() < 0.5
   const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
   return audioId ? [{ id: audioId, rate: null }] : []
+}
+
+/**
+ * Admin "Progression" audit walk — for each chunk, play EVERY stage of the
+ * LIVE pod config (algorithm_config.pods) in order, so the content team hears
+ * a line's whole 1→9 acquisition arc in one pass. Role → audio resolution
+ * mirrors usePodLapScheduler exactly (explainer falls back to translation),
+ * and role → rate reuses the scheduler's ROLE_SPEED — so this matches the
+ * real main-flow delivery by construction. Queue items carry stage metadata
+ * for the on-screen badge.
+ */
+const buildAuditQueue = (sentences) => {
+  const playlist = algoConfig.podsConfig.value?.stagePlaylist || {}
+  const stages = Object.keys(playlist)
+    .map(Number)
+    .filter((n) => !Number.isNaN(n))
+    .sort((a, b) => a - b)
+  const total = stages.length
+  const queue = []
+  for (let ci = 0; ci < sentences.length; ci++) {
+    const s = sentences[ci]
+    for (const stage of stages) {
+      for (const role of playlist[stage] || []) {
+        const id = role === 'trans'
+          ? s.knownAudioId
+          : role === 'explainer'
+            ? (s.explainerAudioId || s.knownAudioId) // explainer → translation fallback
+            : s.targetAudioId // ps / ps08x / ps15x / ps2x
+        if (!id) continue
+        queue.push({
+          id,
+          rate: ROLE_SPEED[role] ?? 1,
+          stage,
+          total,
+          role,
+          chunk: ci + 1,
+          chunks: sentences.length,
+        })
+      }
+    }
+  }
+  return queue
 }
 
 /** Every audio id a row can need under the CURRENT mode — the warm-ahead
@@ -996,10 +1070,13 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // Drill's repeats breathe a little (300ms) so the 1×/2×/2× reps read as
   // deliberate practice; Immersion keeps the tight 50ms that joins a
   // speaker's consecutive chunks into natural continuous speech.
-  const interClipGap = (view.value === 'pods' && selectedScene.value && listenMode.value === 'drill') ? 300 : 50
+  const interClipGap = (view.value === 'pods' && selectedScene.value && (listenMode.value === 'drill' || listenMode.value === 'audit')) ? 300 : 50
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
-    const { id, rate } = playQueue[i]
+    const item = playQueue[i]
+    const { id, rate } = item
+    // Audit walk: surface which stage/role is sounding right now.
+    auditStatus.value = item.stage ? { stage: item.stage, total: item.total, role: item.role, chunk: item.chunk, chunks: item.chunks } : null
     const proxyUrl = getAudioUrl(id)
     if (!proxyUrl) continue
     // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
@@ -1127,6 +1204,7 @@ const togglePlayback = () => {
 const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
+  auditStatus.value = null
   audioController.value?.stop()
 }
 
@@ -1420,6 +1498,10 @@ onMounted(async () => {
   else isLoading.value = false
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('ssi-setting-changed', onSettingChanged)
+  // Warm the live pod stage config for the admin audit walk (cached singleton —
+  // a fast no-op if the main flow already loaded it this session).
+  if (auditAvailable.value) algoConfig.loadConfigs()
   checkPackComplete()
 })
 
@@ -1428,6 +1510,7 @@ onUnmounted(() => {
   releaseWakeLock()
   clearMediaSession()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('ssi-setting-changed', onSettingChanged)
   // Cancel any in-flight pack download
   if (packState.value === 'downloading') {
     packState.value = 'idle'
@@ -1684,6 +1767,18 @@ watch(
          where you are without the chrome asserting itself. -->
     <div v-if="view === 'pods' && selectedScene && !isLoading" class="scene-strip" @click.stop>
       {{ selectedScene.title }}
+    </div>
+
+    <!-- Audit walk: live stage/role badge so the content team can see which
+         of the 9 acquisition stages is sounding as a line walks its arc. -->
+    <div
+      v-if="listenMode === 'audit' && auditStatus"
+      class="audit-badge"
+      @click.stop
+    >
+      <span class="audit-stage">Stage {{ auditStatus.stage }}/{{ auditStatus.total }}</span>
+      <span class="audit-role">{{ auditStatus.role }}</span>
+      <span v-if="auditStatus.chunks > 1" class="audit-chunk">line {{ auditStatus.chunk }}/{{ auditStatus.chunks }}</span>
     </div>
 
     <!-- Loading State (All / Core only — Dialogues has its own loading) -->
@@ -2609,6 +2704,27 @@ watch(
   padding: 0.15rem 1rem 0.3rem;
   cursor: default;
 }
+
+/* Audit walk badge — admin-only. Mono caps, sits under the scene strip and
+ * tracks the live stage/role as a line walks its 1→9 arc. Deliberately plain
+ * (a dev/QA readout, not learner chrome). */
+.audit-badge {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 0.1rem 1rem 0.35rem;
+  cursor: default;
+}
+.audit-badge .audit-stage { color: var(--belt-accent, var(--text-primary)); }
+.audit-badge .audit-role { color: var(--text-muted); }
+.audit-badge .audit-chunk { color: var(--text-muted); opacity: 0.8; }
 
 /* Paused glyph — the surface IS the transport. Soft elevated disc, ink
  * triangle, floats over the teleprompter only while paused; playing shows

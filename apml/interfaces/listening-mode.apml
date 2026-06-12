@@ -82,15 +82,25 @@ DIALOGUE_MODES:
   audit:
     key: "audit"
     label: "Progression"
-    status: "ADMIN-ONLY (planned next slice — Settings → Developer toggle)"
-    visibility: "Gated by isSsiAdmin AND an admin Settings toggle."
+    status: "ADMIN-ONLY (implemented)"
+    visibility: |
+      Gated by isSsiAdmin AND the Settings → Developer "Listening Progression
+      Audit" toggle (localStorage 'ssi-listening-audit'). The overlay appends
+      the mode to LISTEN_MODES only when both hold; flipping the toggle is
+      picked up live via the 'ssi-setting-changed' window event. If audit is
+      selected and then becomes unavailable, the selection falls back to
+      immersion.
     desc: |
       The REAL 9-stage acquisition progression, read live from
       algorithm_config.pods (the same config the main-flow scheduler uses),
       so it matches the main flow by construction and reflects Popty tweaks
-      instantly. Walks a scene's chunks through stages 1→9 so the content
-      team can audit a config change without grinding pod-rounds. This is
-      the ONLY Dialogue mode that surfaces known-language audio/text.
+      instantly. For each chunk, plays EVERY stage of the live config in order
+      (stages 1→N), so the content team hears a line's whole arc in one pass.
+      Role → audio + role → rate resolution reuse the scheduler's helpers
+      (explainer falls back to translation; ROLE_SPEED from usePodLapScheduler).
+      A live badge shows "Stage s/N · role · line c/N". This is the ONLY
+      Dialogue mode that surfaces known-language audio/text, and the only one
+      whose pace comes from the config rather than the learner.
 
 ## ============================================================================
 ## PLAYBACK MAPPING (ListeningOverlay.buildPlayQueue)

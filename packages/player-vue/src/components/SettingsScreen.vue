@@ -197,6 +197,7 @@ const enableQaMode = ref(false) // Show Report Issue button
 const enableAdaptation = ref(false) // Personalised pacing via microphone
 const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
 const enableVerboseLogging = ref(false) // Detailed console logs
+const showListeningAudit = ref(false) // Reveal the 9-stage progression audit mode in Listening → Dialogues
 
 // Theme settings (uses shared composable)
 const { theme, toggleTheme: doToggleTheme, isDark } = useTheme()
@@ -710,6 +711,7 @@ onMounted(async () => {
   enableAdaptation.value = localStorage.getItem('ssi-adaptation-consent') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
+  showListeningAudit.value = localStorage.getItem('ssi-listening-audit') === 'true'
 
   // Pull fresh subscription state so the panel reflects any cancel/renew change.
   refreshSubscription()
@@ -770,6 +772,12 @@ const toggleVerboseLogging = () => {
   enableVerboseLogging.value = !enableVerboseLogging.value
   localStorage.setItem('ssi-verbose-logging', enableVerboseLogging.value ? 'true' : 'false')
   dispatchSettingChanged('enableVerboseLogging', enableVerboseLogging.value)
+}
+
+const toggleListeningAudit = () => {
+  showListeningAudit.value = !showListeningAudit.value
+  localStorage.setItem('ssi-listening-audit', showListeningAudit.value ? 'true' : 'false')
+  dispatchSettingChanged('listeningAudit', showListeningAudit.value)
 }
 
 // Clear all caches and reload (less destructive than ?reset=1 — preserves
@@ -1778,6 +1786,20 @@ const confirmReset = async () => {
               <span class="setting-desc">Enable detailed console logs</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': enableVerboseLogging }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleListeningAudit">
+            <div class="setting-info">
+              <span class="setting-label">Listening Progression Audit</span>
+              <span class="setting-desc">Add a "Progression" mode to Listening → Dialogues that walks each line through all 9 acquisition stages, live from the Popty listening config</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': showListeningAudit }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>
