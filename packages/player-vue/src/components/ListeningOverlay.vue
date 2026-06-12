@@ -224,37 +224,50 @@ const audioController = ref(null)
  *  pods view with a scene selected. */
 const loopScene = ref(false)
 
-// ── Dialogue listening modes (Tom 2026-06-11) ──────────────────────────
-// Pods carry a LOT of content; the speed slider alone doesn't extract it —
-// the REPEATS are the pedagogy. Beyond the plain run-through ('flow'),
-// each turn can play through a stage pattern, sentence by sentence:
-//   learn  — target · explainer · target · target   (the Phase-0 shape;
-//            sentences without an explainer play their translation there)
-//   review — target · translation · target ×2 · target ×2
-//   speed  — target · target ×2 · target ×2
-// 't' = target at the user's speed; rate:2 = absolute 2× for that clip.
-// Labels are EXPERIENCE levels, not mechanics (Tom 2026-06-11): the learner
-// chooses how much help and how much pace — a difficulty ladder ending on
-// the established SSi "Turbo". Keys are stable (localStorage + code);
-// labels are free to evolve.
+// ── Dialogue listening modes (Tom 2026-06-12) ──────────────────────────
+// Listening MODE is for PRACTICE — the learner replays whole scenes with
+// no known-language crutch. The structured 9-stage acquisition delivery
+// already lives in the MAIN FLOW (usePodLapScheduler, driven live from
+// algorithm_config.pods); we deliberately do NOT re-implement a summarised
+// copy of it here — that second engine was the source of the listening-vs-
+// main-flow mismatch. Two target-only practice modes:
+//   immersion — the whole scene, target only, at the learner's chosen speed
+//               (the speed row). Continuous, natural conversation.
+//   drill     — each line three times: 1× · 2× · 2×, target only. Tight
+//               repetition to lock a line in.
+// An admin-only 'audit' mode (the real 9-stage progression, read live from
+// algorithm_config.pods) is layered on separately for content tuning.
+// Keys are stable (localStorage + code); labels are free to evolve.
 const LISTEN_MODES = [
-  { key: 'flow',   label: 'Flow',     desc: 'Play the dialogues straight through' },
-  { key: 'learn',  label: 'Guided',   desc: 'Every line explained — explainers where they exist, translations where they don\'t' },
-  { key: 'review', label: 'Practice', desc: 'Each line, its meaning, then double-speed reps' },
-  { key: 'speed',  label: 'Turbo',    desc: 'Full speed, no help' },
+  { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
+  { key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' },
 ]
-const MODE_PATTERNS = {
-  learn:  [{ role: 't' }, { role: 'e' }, { role: 't' }, { role: 't' }],
-  review: [{ role: 't' }, { role: 'k' }, { role: 't', rate: 2 }, { role: 't', rate: 2 }],
-  speed:  [{ role: 't' }, { role: 't', rate: 2 }, { role: 't', rate: 2 }],
-}
-const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'flow')
+const LISTEN_MODE_KEYS = new Set(LISTEN_MODES.map((m) => m.key))
+// Migrate retired keys (Flow/Guided/Practice/Turbo) — and any unknown stored
+// value — onto the new default rather than leaving a dead selection.
+const storedListenMode = localStorage.getItem('ssi-listening-mode')
+const listenMode = ref(storedListenMode && LISTEN_MODE_KEYS.has(storedListenMode) ? storedListenMode : 'immersion')
 watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) } catch {} })
 
 // Known-language glosses can be hidden entirely (long canon-v2 turns make
 // the gloss block heavy when you don't need it).
 const showGloss = ref(localStorage.getItem('ssi-listening-gloss') !== 'off')
 watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 'on' : 'off') } catch {} })
+
+// Dialogue practice modes are target-only — no known-language gloss, and no
+// gloss eye. The admin 'audit' walk is the only Dialogue mode that surfaces
+// English (one chunk at a time, per the live stage config).
+const dialogueTargetOnly = computed(
+  () => view.value === 'pods' && !!selectedScene.value && listenMode.value !== 'audit'
+)
+// Gloss is suppressed entirely in the target-only dialogue modes regardless
+// of the eye toggle (which is hidden there). Elsewhere it follows the toggle.
+const showGlossEffective = computed(() => showGloss.value && !dialogueTargetOnly.value)
+// Speed row: always in Core/All; in Dialogues only Immersion exposes it
+// (Drill's pace is fixed, the audit walk follows the config).
+const showSpeedRow = computed(
+  () => !(view.value === 'pods' && selectedScene.value) || listenMode.value === 'immersion'
+)
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -875,23 +888,32 @@ const playFromIndex = async (index) => {
 
 /**
  * Build the play queue for one phrase row as [{ id, rate|null }].
- * - Dialogue turns in a stage-pattern mode expand each SENTENCE through the
- *   pattern: 't' = target (user speed), 'k' = translation, 'e' = explainer
- *   with translation fallback when the sentence has none (the upstream
- *   first-encounter discipline leaves repeats/codas explainer-less).
- * - Flow mode / non-pod rows keep the original behaviour.
+ * - Dialogue scenes (Immersion / Drill): TARGET ONLY, mapped from the turn's
+ *   per-chunk sentence detail.
+ *     immersion — each chunk once at the learner's chosen speed.
+ *     drill     — each chunk three times: 1× · 2× · 2×.
+ * - Core / All rows keep the original random-voice behaviour.
  */
 const buildPlayQueue = (phrase) => {
-  const pattern = MODE_PATTERNS[listenMode.value]
-  if (pattern && view.value === 'pods' && Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
+  if (view.value === 'pods' && selectedScene.value) {
+    // Per-chunk detail drives both modes; fall back to the turn's first
+    // audio id if a row somehow lacks sentence detail.
+    const sentences = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
+      ? phrase.sentences
+      : [{ targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null }]
     const queue = []
-    for (const s of phrase.sentences) {
-      for (const step of pattern) {
-        const id = step.role === 't' ? s.targetAudioId
-          : step.role === 'k' ? s.knownAudioId
-          : (s.explainerAudioId || s.knownAudioId) // 'e' — explainer, else translation
-        if (id) queue.push({ id, rate: step.rate || null })
+    if (listenMode.value === 'drill') {
+      for (const s of sentences) {
+        if (!s.targetAudioId) continue
+        queue.push({ id: s.targetAudioId, rate: 1 })
+        queue.push({ id: s.targetAudioId, rate: 2 })
+        queue.push({ id: s.targetAudioId, rate: 2 })
       }
+      return queue
+    }
+    // immersion (default): the whole scene, target only, at the chosen speed.
+    for (const s of sentences) {
+      if (s.targetAudioId) queue.push({ id: s.targetAudioId, rate: playbackSpeed.value })
     }
     return queue
   }
@@ -904,15 +926,16 @@ const buildPlayQueue = (phrase) => {
 }
 
 /** Every audio id a row can need under the CURRENT mode — the warm-ahead
- *  must cover explainer/translation clips too, or a stage-pattern play
- *  hits the network mid-list (fatal under a locked screen). */
+ *  must cover explainer/translation clips too (audit walk only), or a
+ *  staged play hits the network mid-list (fatal under a locked screen).
+ *  Immersion / Drill are target-only, so only targets are warmed. */
 const audioIdsForWarm = (phrase) => {
   if (!phrase) return []
   const ids = []
   if (Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
     for (const s of phrase.sentences) {
       if (s.targetAudioId) ids.push(s.targetAudioId)
-      if (listenMode.value !== 'flow') {
+      if (listenMode.value === 'audit') {
         if (s.knownAudioId) ids.push(s.knownAudioId)
         if (s.explainerAudioId) ids.push(s.explainerAudioId)
       }
@@ -970,10 +993,10 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // timer-driven gap killed the advance the moment the screen locked.
   // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
   // protocol (see SimplePlayer's PAUSE phase).
-  // Stage-pattern steps breathe a little (350ms) so the repeats read as
-  // deliberate pedagogy; flow mode keeps the tight 50ms that joins a
-  // speaker's consecutive sentences into natural continuous speech.
-  const interClipGap = MODE_PATTERNS[listenMode.value] && view.value === 'pods' ? 350 : 50
+  // Drill's repeats breathe a little (300ms) so the 1×/2×/2× reps read as
+  // deliberate practice; Immersion keeps the tight 50ms that joins a
+  // speaker's consecutive chunks into natural continuous speech.
+  const interClipGap = (view.value === 'pods' && selectedScene.value && listenMode.value === 'drill') ? 300 : 50
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
     const { id, rate } = playQueue[i]
@@ -987,9 +1010,9 @@ const playCurrentPhrase = async (myPlaybackId) => {
     const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
     if (myPlaybackId !== playbackId) return
     try {
-      // Dialogue scenes have no speed UI — the listening level carries the
-      // pace, so pin the base rate to 1× there (a speed picked in Core/All
-      // must not silently leak in). Pattern ×2 steps still override.
+      // Dialogue queues always carry an explicit per-clip rate (Immersion =
+      // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
+      // Core/All pass rate=null and lean on the controller's rate watch.
       const effectiveRate = (view.value === 'pods' && selectedScene.value) ? (rate ?? 1) : rate
       await audioController.value.play(audioUrl, effectiveRate)
     } catch (err) {
@@ -1605,10 +1628,10 @@ watch(
         <span class="progress-text">{{ progressPercent }}%</span>
       </div>
 
-      <!-- Speed Selector — Core/All only. In Dialogues the listening modes
-           carry the pace (Flow/Guided/Practice/Turbo); a separate speed row
-           was double chrome (Tom 2026-06-11). -->
-      <div v-if="!(view === 'pods' && selectedScene)" class="speed-controls">
+      <!-- Speed Selector — Core/All always; in Dialogues only Immersion
+           exposes it (Drill's pace is fixed at 1×/2×/2×, the audit walk
+           follows the live stage config). -->
+      <div v-if="showSpeedRow" class="speed-controls">
         <span class="speed-label">Speed</span>
         <div class="speed-selector">
           <button
@@ -1637,8 +1660,11 @@ watch(
         >{{ m.label }}</button>
       </div>
 
-      <!-- Gloss eye: show/hide the known-language lines under the target. -->
+      <!-- Gloss eye: show/hide the known-language lines under the target.
+           Hidden in the target-only dialogue modes (Immersion / Drill) —
+           there is no English there to toggle. -->
       <button
+        v-if="!dialogueTargetOnly"
         class="edge-glyph gloss-toggle"
         :class="{ active: showGloss }"
         type="button"
@@ -1747,12 +1773,12 @@ watch(
             <template v-if="phrase.isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
                 <div class="phrase-target">{{ pair.target }}</div>
-                <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
+                <div v-if="showGlossEffective && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
               </div>
             </template>
             <template v-else>
               <div class="phrase-target">{{ phrase.targetText }}</div>
-              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+              <div v-if="phrase.isCurrent && showGlossEffective && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
             </template>
           </div>
         </template>
