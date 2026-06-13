@@ -7701,6 +7701,22 @@ const handleActivateInfPlay = async () => {
 
 // Jump to any belt (from ProgressModal)
 const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) => {
+  // Belt is the biggest manual difficulty dial (Principle 1) and the loudest
+  // stickability signal there is — belt-back = drowning/consolidating, a dropout
+  // precursor. Every belt move (chevron, pill, and the jump modal) routes through
+  // here, so one emit captures the whole scale with the intent + timing that
+  // position-derivation cannot recover (a rapid jump-back-then-forward that never
+  // crosses a round boundary, and how fast they bailed). Capture fromBelt BEFORE
+  // the jump below mutates playingBelt.
+  const fromBelt = playingBelt.value
+  logEvent('belt_skip', {
+    fromBelt: fromBelt?.name ?? null,
+    toBelt: belt.name,
+    direction: belt.seedsRequired > (fromBelt?.seedsRequired ?? 0) ? 'forward'
+      : belt.seedsRequired < (fromBelt?.seedsRequired ?? 0) ? 'back' : 'restart',
+    targetSeed: belt.seedsRequired === 0 ? 1 : belt.seedsRequired,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+  })
   showProgressModal.value = false
   const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
 

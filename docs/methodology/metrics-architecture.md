@@ -310,16 +310,24 @@ Layer 0 events live in `player_events` (already exists, currently captures `audi
 // Existing
 audio_play: { url, role, legoId, cycleId, cycleType, playbackSpeed }
 
-// Behavioural signals — reality after the A2 audit (2026-05-29). Most already
-// flow: tap_skip (whole-cycle skip), tap_pause / tap_play, round_complete,
-// audio_play. turbo_toggle when used.
+// Behavioural signals — reality after the A2 audit (2026-05-29), re-audited
+// 2026-06-13 against the live handlers. Flowing today: tap_skip (whole-cycle),
+// tap_pause / tap_play, round_complete, audio_play, phase_skip (A1).
 tap_skip:       { during, legoId, cycleType, roundNumber, slot }
-turbo_toggle:   { enabled, sessionPaceMsBefore, sessionPaceMsAfter }
-// DERIVED, not events:
-//   • belt skip (forward/back) — read from a jump in POSITION (roundNumber, via
-//     round_complete), NOT from legoId, which the triple-helix shuffles for
-//     spaced-rep. See docs/position-and-ownership-model.md.
+// belt_skip — the biggest manual difficulty dial; emitted from the common belt
+// executor (handleSkipToBelt) so chevron + pill + jump-modal all land here.
+// Added 2026-06-13: previously DERIVED-only, but derivation can't recover the
+// intent, the timing, or a rapid jump-back-then-forward that never crosses a round.
+belt_skip:      { fromBelt, toBelt, direction, targetSeed, roundNumber }
+// STILL DERIVED:
+//   • belt position cross-check — from a jump in POSITION (roundNumber, via
+//     round_complete). belt_skip is the intent; position is the ground truth.
 //   • recency / active time — from any event's occurred_at + total elapsed.
+// GAPS found in the 2026-06-13 audit (not yet emitted — a follow-up pass):
+//   • turbo_toggle — historically documented but NOT actually logged by the live
+//     turbo handlers today. { enabled, sessionPaceMsBefore, sessionPaceMsAfter } TBD.
+//   • LEGO-level nav — handleRoundForward only emits tap_skip when skipping an
+//     interjection; normal LEGO steps and handleRoundBack are silent.
 // DROPPED: session_start / session_end — session boundaries are irrelevant;
 //   total elapsed + occurred_at cover what we need.
 
