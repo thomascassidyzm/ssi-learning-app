@@ -111,19 +111,30 @@ The live `user_tags_insert` policy (Lane B, `secfix_15:132-139`) **forbids any n
 
 ---
 
-## 5. The RLS rebase (its own migration; RLS is already live)
+## 5. The RLS rebase (its own migration; rides the schools-RLS tightening)
 
-RLS is **applied** on these tables (Lane B / `secfix_15`). The teacher-facing policies key on `c.teacher_user_id = (auth.uid())::text` *ownership*; the rebase replaces that one clause with `public.is_class_teacher(c.id, (auth.uid())::text)`, **keeping the `is_god_user()` and school-admin branches** (dropping either is a regression). `is_class_teacher` is `SECURITY DEFINER` precisely so it can be used inside the `user_tags` policy without recursing through `user_tags`' own RLS.
+**Corrected against the LIVE DB 2026-06-14 (an earlier draft wrongly said "RLS is already live on these tables").** Actual live posture:
+- RLS **ON**: `class_sessions`, `user_tags` (Lane B `secfix_15`); `learners`, `course_enrollments`, `lego_progress`, `seed_progress`, `sessions` (Lane B `secfix_16`).
+- RLS **OFF**: `classes`, `schools` — policies exist but are **dormant/unenforced** (`disable_all_rls` never re-enabled them); `authenticated` holds a plain SELECT grant, so every signed-in user can read every class/school row today.
 
-Concretely, the swap in the live policies (verbatim from `secfix_15`):
+**DO NOT `ENABLE ROW LEVEL SECURITY` on `classes`/`schools` as part of this rebase.** That is a separate, larger change CLAUDE.md gates on "first paying school, with a week's staging soak" — enabling it as a side-effect against the shared DB is the silent-failure detonation that note warns about. Rebase only the already-enforced surfaces.
 
-- **`class_sessions_read`** (`secfix_15:84-97`) — has `teacher_user_id = auth.uid() OR is_god_user() OR (class owner OR school admin)`. Swap the *class-owner* clause `c.teacher_user_id = auth.uid()` → `is_class_teacher(c.id, auth.uid()::text)`, so **all** a class's teachers (and supply) read its sessions/coverage. The school-admin branch already grants leaders read — the coverage lane's audience is covered today; only co-teachers are the gap.
-- **`class_sessions_teacher_insert/update`** (`secfix_15:77-83`) — `teacher_user_id = auth.uid()`. **Unchanged** — writing a session is own-driver-only, correctly.
-- **`user_tags_select`** (`secfix_15:115-128`) and **`user_tags_update`** (`secfix_15:144-171`) — each has a CLASS-scoped branch `c.teacher_user_id = auth.uid() OR <school admin>`. Swap the class-owner clause → `is_class_teacher(...)` in both the `USING` and `WITH CHECK`.
-- **`user_tags_insert`** (`secfix_15:132-139`) — `is_god_user() OR (own row AND role NOT IN ('teacher','admin'))`. **Unchanged** — this is exactly why teacher-tag writes are service-role (§4 write note).
-- **`classes` policies** (`classes_select/insert/update`, live) and any teacher-read policies still active on `course_enrollments` / `lego_progress` / `seed_progress` / `sessions` — read their current predicates at rebase time and apply the same owner→membership swap, preserving god + school-admin. (Legacy `schools_system.sql` versions used the deprecated `auth.jwt()->>'sub'` pattern; if any survive `disable_all_rls` + the secfixes, normalise them too.)
+The teacher-ownership predicate (`c.teacher_user_id = (auth.uid())::text`) lives in exactly these LIVE sites — swap each to `public.is_class_teacher(c.id, (auth.uid())::text)`, **preserving the `is_god_user()` + school-admin (+ govt) branches verbatim**:
 
-If teacher↔class moves to membership but any of these keep the ownership clause, a co-teacher / new teacher / supply gets **zero** of: that class's sessions, its student tags, its student progress — i.e. they'd be a teacher who can see nothing. The rebase is mechanical with `is_class_teacher`, but it must hit every clause.
+1. **`class_sessions_read`** (SELECT) — swap only the *inner class-owner* branch (`c.teacher_user_id`); **keep the leading `teacher_user_id = auth.uid()`** ("I drove this session", not ownership).
+2. **`user_tags_select`** (USING) and **`user_tags_update`** (USING + WITH CHECK) — the CLASS-scoped branch.
+3. **`can_view_learner_data(uuid)` — THE one that's easy to miss.** The 5 learner-data tables don't carry the predicate in their policies; their `*_scoped_select` policies delegate to this SECURITY DEFINER function, whose body holds the ownership clause. Edit the function (one `CREATE OR REPLACE`) and all 5 tables + the `class_student_progress` view inherit it. **Miss it and co-teachers get everything EXCEPT student progress (the gradebook silently empty)** — the worst half-rebase. One function gates six surfaces, so get the god/school-admin/govt branch preservation exactly right here.
+
+**Leave alone / decide deliberately:**
+- `class_sessions_teacher_insert/update`, `user_tags_insert` — write paths (own-driver / god-only); unchanged.
+- `classes_select/insert/update` — **dormant (RLS off); do not touch, do not enable.** Note `classes_select`'s membership branch is role-LESS (matches *students* too); `is_class_teacher` is role-filtered — do **not** copy that role-less `tag_type='class'` shape onto `user_tags`/`class_sessions` or you'd leak classmates' rows to students.
+- `teacher_referrals_select_own_or_admin` — **financial, latent, same predicate, not strictly in scope.** Empty today (no ACT co-teachers). Decide whether to include (widens referral-row *read* to co-teachers; can't expose money — writes are service-role/admin).
+
+**Safety (verified live):** `is_class_teacher` is SECURITY DEFINER owned by `postgres` (bypassrls) → no recursion through `user_tags`. The swap is **monotonic widening**: all 7 current leads hold a tag (0 gaps) so none lose access; **0 co-teachers exist, so it's a no-op for every current reader** — the soak validates the *new* co-teacher path, not existing access. Core learner play (own-row policies) and the paddle/wise money paths (service-role) are **not touched** by any of these sites.
+
+**Pre-conditions before apply:** (a) capture the current `qual`/`with_check` of every edited policy + the `can_view_learner_data` body as the rollback script first; (b) `NOTIFY pgrst, 'reload schema';`; (c) post-apply smoke — lead-gap query = 0, read once as a real co-teacher (rows) and a plain learner (own data only). The client `rlsGuard` re-scope (by class id, not `teacher_user_id`) and the `createClass` tag-seed are **already shipped**, so the "lead-with-no-tag" and "tripwire strips co-teacher rows" traps are closed.
+
+If teacher↔class moves to membership but any of these sites keeps the ownership clause, a co-teacher gets **zero** of that surface — a teacher who can see nothing (or a half-empty gradebook). The rebase is mechanical with `is_class_teacher`, but it must hit all three live sites (the function being the sneaky one).
 
 ---
 
@@ -131,7 +142,7 @@ If teacher↔class moves to membership but any of these keep the ownership claus
 
 0. **Migration** (this file) — apply after review (service-role). Additive; lead pointer stays correct; nothing breaks. *(Tom's gate.)*
 1. **App reads → relationship** (dev) — §4 frontend + server ownership rows; `ClassInfo` gains `teachers[]`; the add/remove/reassign-teacher server endpoint; tests + demo updated. The commission decision (§4) is made here. Lead pointer still used wherever one name is wanted, so the UI never regresses.
-2. **RLS rebase** (its own migration) — §5 owner→membership via `is_class_teacher`, god + school-admin branches preserved.
+2. **RLS rebase** (its own migration) — §5 owner→membership via `is_class_teacher` on the 3 live sites (incl. `can_view_learner_data`), god + school-admin branches preserved. **Do NOT enable `classes`/`schools` RLS** — that rides CLAUDE.md's first-paying-school RLS-tightening with a staging soak. No live consumer yet (0 co-teachers), so this can wait for that gated window.
 3. **Cleanup** — drop `class_student_progress.teacher_user_id` (only after `useTeachersData.ts:89` migrates), then `classes.teacher_user_id` and the `is_lead` derivation, then the comment fossils.
 
 Each step is independently shippable and reversible; the system is correct at every step.
