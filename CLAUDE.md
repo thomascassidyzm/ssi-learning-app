@@ -56,6 +56,15 @@ Tom does not need to be the decision-maker for every call. **An agent may apply 
 
 Under those two conditions, just go ahead (within the usual rails: `dev`-branch hygiene, zero-tolerance schools quality bar, no destructive/irreversible actions without a heads-up). If you can't clear 90%, or the action is destructive/irreversible/a genuine scope change, *then* surface it to Tom — with your BSC narrative attached so the decision is fast.
 
+### Working cadence: the ≤3 checkpoint, alternating code and strategy
+
+Autonomy is bounded so a loop can't drift too far out on a limb before a human re-confirms the direction. Two rules, which compose:
+
+1. **At most three self-directed items per burst.** A "burst" is consecutive self-initiated work with no human turn between. After three, **stop and surface** — what shipped, what's next, the fork if there is one — and wait for an express go-ahead to continue. Reacting to Tom's direct instructions does **not** count toward the three; the counter is only for self-initiated work and **resets whenever Tom takes a turn**.
+2. **Don't let all three be the same kind of work.** Alternate an isolated, modular **code** piece (a scoped 🔨 *To build* item — e.g. the curvature engine) with a **strategic** piece (a 🤔 *Areas to think through* design exploration, or advancing a 🧭 *Direction*). Cranking modular widgets back-to-back optimises a local thing while the strategic picture stalls; alternating keeps both moving and makes each checkpoint a natural place to re-aim.
+
+> The worklist's three item-types are exactly these, and a healthy burst draws across them: **🧭 Directions / bets** (directional, change rarely) · **🔨 To build** (already-scoped work) · **🤔 Areas to think through** (open design / think-pieces). See [`WORKLIST.md`](./WORKLIST.md).
+
 ---
 
 ## TODO: Tighten RLS before first paying school (2026-Q2)
