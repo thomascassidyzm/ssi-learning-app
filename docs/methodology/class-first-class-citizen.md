@@ -23,6 +23,10 @@ Today the schema says the opposite: `classes.teacher_user_id TEXT NOT NULL` make
 
 This is what makes the **coverage lane** (`tutor-insights.md` §2) coherent: coverage belongs to the class and accrues across every session regardless of who drove each one, so a teacher leaving never snaps the curve.
 
+**Two clarifications from the 2026-06-13 review — same shape, different scope:**
+- **A class belongs to a school, and that stays a hard belonging** — `classes.school_id` remains a foreign key, *not* a tag. The only no-school case is the ACT individual tutor (their classes carry `school_id = null`). This is also why the four realities above are **schools-only**: an ACT class has exactly one tutor — no co-teaching, no supply — so the membership change is, for ACT, just "one member," and behaviour there is unchanged.
+- **Grouping *above* the class is flexible — overlapping tags, not a folder tree.** Schools cut classes by year / department / faculty / key stage / whole school at once, and a school can sit in a chain. Each is an overlapping group membership (the same relationship pattern as teacher↔class), so a leader's scope is "every class tagged into the group I lead," and the engine's roll-up (`learner → class → group → school → chain`) works for any shape a school invents. A rigid `groups` path-tree exists in the schema today; lean away from depending on it for anything a tag can express. **This grouping layer is a follow-on — specced separately, not in this migration.**
+
 ---
 
 ## 2. What is already right (the refactor is small because of this)
@@ -82,9 +86,9 @@ So: **four composables plus a view component** (the paper's earlier "three compo
 | `api/teacher/me.ts:71`, `api/teacher/signup.ts:113,157`, `api/teacher/by-code.ts:42,61` | resolve a teacher's classes / a class's teacher by ownership | membership / lead pointer as appropriate |
 | `api/teacher/create-class-join-code.ts:83` authorize | `cls.teacher_user_id === callerUserId` | `is_class_teacher(cls.id, caller)` OR school admin — else a co-teacher/supply can't mint a join code |
 | `api/invite/create.ts:128` "only the class teacher can create student codes" | `.eq('teacher_user_id', userId)` | membership — else co-teachers are locked out |
-| **`api/teacher/paddle-webhook.ts:434-449` (FINANCIAL) — commission payee** | resolves the payee via `classes.teacher_user_id → learners → teachers.id` | **DECISION (money):** once the column is a lead pointer, commission silently routes to the *lead*, which may not be the teacher who enrolled/teaches the paying student. Decide explicitly: lead-gets-commission, or enrolling-teacher-gets-it (and if the latter, capture the enrolling teacher at enrollment time). Until decided, keep it on the lead pointer — but it must not be left implicit. |
+| **`api/teacher/paddle-webhook.ts:434-449` (FINANCIAL) — commission payee** | resolves the payee via `classes.teacher_user_id → learners → teachers.id` | **RESOLVED (2026-06-13): no change needed.** Commissions are an ACT mechanism, and an ACT class has exactly one tutor (co-teaching/supply are schools-only, and schools classes don't generate commissions). So the payee is unambiguous and the lead pointer stays correct here. *Guard:* if commissions ever extend to multi-teacher schools classes, this must be revisited (capture the enrolling teacher). |
 
-`api/teacher/paddle-webhook.ts:372-381` (student-tag upsert) and the `wise-webhook` / `teacher-payouts` cron / `teacher_commissions` pipeline don't read `teacher_user_id` directly but sit downstream of the commission attribution above — they inherit whatever decision is made there.
+`api/teacher/paddle-webhook.ts:372-381` (student-tag upsert) and the `wise-webhook` / `teacher-payouts` cron / `teacher_commissions` pipeline sit downstream of that attribution and inherit it — also fine, single-tutor.
 
 ### Writes — also create the relationship, **server-side only**
 
@@ -134,9 +138,11 @@ Each step is independently shippable and reversible; the system is correct at ev
 
 ---
 
-## 7. Decisions (for Tom)
+## 7. Decisions — settled 2026-06-13 (one open: grouping)
 
-1. **Commission payee under co-teaching (money).** When a paying student enrolls in a class with several teachers, who accrues the £5? The lead, or the teacher who enrolled them? (`paddle-webhook.ts:434-449`.) This is the one decision with cash attached — it shouldn't be left to "whoever the lead pointer happens to be."
-2. **Supply — flavour of teacher, or its own role?** v1 models supply as a `class/teacher` tag with a bounded window (no schema change; the session stamps the actual driver). Making it a distinct `role_in_context='supply'` is **not** additive — it needs a `CHECK`-constraint change *and* an extension to the `user_tags_insert` guard (which currently only blocks `'teacher'`/`'admin'`, so a new `'supply'` value would slip past self-serve forgery protection). Lean: plain `teacher` now; `'supply'` only if a leader asks to see cover distinguished, done as a deliberate constraint+policy change.
-3. **`createClass` / add-teacher route.** Mirror the existing `/api/teacher/create-class-join-code` service-role endpoint for all teacher-tag writes (forced by the live `user_tags_insert` policy). Confirm that's the pattern.
-4. **`ClassInfo` shape & lead pointer.** Add `teachers: {...}[]` alongside a retained `lead_teacher` the dashboard shows by default? And keep `classes.teacher_user_id` as a fast lead pointer through Phase 1–2 (revisit dropping it in Phase 3)? Lean: yes to both.
+1. **Commission payee — RESOLVED, no action.** No co-teachers exist in the ACT model (the only context with commissions); the single tutor is the payee, and the lead pointer is correct (see §4). Revisit only if commissions ever extend to multi-teacher schools classes.
+2. **Supply — a bounded teacher window.** A `class/teacher` tag with a short active window; the session stamps the actual driver. No schema change. (A distinct `role_in_context='supply'` would need a `CHECK` change *and* an `user_tags_insert`-guard extension — it currently only blocks `'teacher'`/`'admin'`, so a new `'supply'` value would slip past forgery protection — so do that only if a leader later asks to see cover distinguished.)
+3. **Teacher-tag writes — a service-role endpoint.** All add/remove/reassign-teacher goes through a service-role route mirroring `/api/teacher/create-class-join-code` (forced by the live `user_tags_insert` policy).
+4. **`ClassInfo` — `teachers[]` + a retained lead pointer** the dashboard shows by default; keep `classes.teacher_user_id` as a fast lead pointer through Phase 1–2, revisit dropping it in Phase 3.
+
+**Open (the follow-on grouping layer, §1):** the tag vocabulary for year / department / faculty / chain, and how a leader declares scope over it. Specced separately; the teacher↔class migration does not depend on it.
