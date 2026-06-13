@@ -1,0 +1,78 @@
+# Local Difficulty Sensing Specification
+# SSi Learning App
+#
+# Version: 1.0.0
+# Last updated: 2026-06-13
+# Grounded in: docs/methodology/metrics-architecture.md §4 (Sensing difficulty locally),
+#              Principle 4 (difficulty is contextual)
+#              docs/methodology/metrics-implementation-plan.md workstream B4
+#              docs/methodology/adaptation-budget.md (the consumer: controller C)
+#
+# Core Insight: Difficulty is not a property of a phrase — it is a property of
+# (THIS learner x THIS unit), NOW, and it moves as the map fills in. Sense it by
+# running the curvature sensor (B1) LOCALLY: per LEGO, per word, and especially
+# per BOUNDARY (the join between units). A developing struggle shows as positive
+# acceleration against the unit's own noise BEFORE the level visibly moves.
+#
+# SENSING ONLY — no policy. Decides nothing about drill-vs-defer or return
+# timing; that is C1, which combines this read with criticality (introduction
+# order) + the spaced-repetition schedule. The sensor senses; the controller decides.
+#
+# Implementation Status (verified 2026-06-13):
+# - assessLocalDifficulty(): LIVE  (packages/core/src/learning/localDifficulty.ts)
+# - rankLocalDifficulty():   LIVE  (severity order; NOT a drill/defer decision)
+# - Built on B1 curvature engine (computeCurvature + accelerationAlarm).
+# - Live wiring to persisted per-(learner,unit) series (Layer 1 / A3 migration):
+#   NOT DONE — caller's job once A3 lands. Pure compute is synthetic-verifiable now.
+
+module: local_difficulty
+  purpose: >
+    Read whether a (learner, unit) is steady, a developing struggle, or easing,
+    by running the curvature sensor over that unit's time-series. The leading
+    indicator the adaptation controller spends as a consolidate/defer/drill budget
+    and the dashboard renders as "dig deeper here".
+
+  input_convention: >
+    Higher value = more difficulty/struggle (e.g. normalised latency, |length-delta|).
+    With that convention, positive acceleration = a struggle DEVELOPING; negative = easing.
+    The sign is only interpretable if the caller honours the convention.
+
+  data:
+    UnitKind: enum [ lego, word, boundary ]
+    UnitSeries:
+      unitId: string
+      unitKind: UnitKind?          # passed through, not interpreted
+      values: number[]             # time-ordered; higher = harder
+      x: number[]?                 # optional cycle-index / timestamp clock
+    LocalDifficultyState: enum [ warming_up, steady, struggling, easing ]
+    LocalDifficulty:
+      unitId: string
+      unitKind: UnitKind?
+      curvature: CurvaturePoint|null   # the B1 read at the latest sample; null while warming up
+      accelerationZ: number|null       # acceleration in units of this unit's own noise
+      flagged: boolean                 # |z| crossed the alarm threshold
+      state: LocalDifficultyState
+      samples: number
+
+  api:
+    assessLocalDifficulty(series, options?) -> LocalDifficulty:
+      >  Run curvature over one unit's series and classify the most recent point.
+         options are curvature/alarm options (window, minSamples, threshold, noiseWindow).
+    rankLocalDifficulty(seriesList, options?) -> LocalDifficulty[]:
+      >  Assess each unit; return most-struggling-first (struggling > easing > steady >
+         warming_up; ties broken by larger own-noise excursion). Severity order only —
+         NOT a drill/defer decision (criticality lives in C1). Returns a sorted copy;
+         does not reorder the caller's array.
+
+  classification:
+    - warming_up:  curvature is null (below the min-cycle gate)
+    - struggling:  flagged AND acceleration > 0
+    - easing:      flagged AND acceleration < 0
+    - steady:      not flagged
+
+  guarantees:
+    - steady_never_flags: an even-paced (sloped) unit reads steady (baseline-free curvature)
+    - boundary_agnostic: boundaries are ordinary units with unitKind='boundary'; no special logic
+    - pure: no mutation of caller input; no app/storage coupling
+
+  tests: packages/core/src/learning/localDifficulty.test.ts   # 9 cases
