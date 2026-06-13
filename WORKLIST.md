@@ -45,6 +45,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - [ ] **Schools loose ends:** bulk-invite-staff endpoint (`SetupView.vue` TODO); wire school/global benchmarks (`AnalyticsView.vue:290` shows class-avg only); verify `contentFriction` RPC migration `20260602` is applied.
 - [x] @web 06-13 **Curvature engine (metrics B1)** — level/velocity/acceleration via trailing local quadratic fit + own-noise alarm; pure `@ssi/core` `learning/curvature.ts` (17 tests, APML spec). The start-now compute primitive; consumers B4/C2/D3 gated on it. → `docs/methodology/metrics-implementation-plan.md` §1 B1
 - [x] @web 06-13 **Competence band (metrics G1)** — flat hours-on-task estimate (30h/100h anchors) in pure `@ssi/core` `learning/competenceBand.ts` (10 tests, APML). Reads `total_practice_minutes` (exists today). Compute only; admin/tutor surface + legal framing copy left for Tom/Aran. → `metrics-implementation-plan.md` §1 G1 / `metrics-architecture.md` §12 H2
+- [x] @web 06-13 **Local difficulty sensing (metrics B4)** — curvature per (learner, unit) in pure `@ssi/core` `learning/localDifficulty.ts` (9 tests, APML). Sensing only (struggling/easing/steady); the bridge from B1 to the M2 controller. Live wiring needs persisted Layer-1 (A3 migration). → `metrics-implementation-plan.md` §1 B4
 
 ## 🤔 Areas to think through   (open design — link the think-piece)
 
