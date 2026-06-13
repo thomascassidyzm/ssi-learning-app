@@ -20,12 +20,16 @@ import {
   LegoMetricsStore,
   DEFAULT_CONFIG,
   type LegoMetricsUpsert,
+  type LegoSeriesUpsert,
   type MasteryState,
   type LegoMasteryState,
 } from '@ssi/core'
 
 const FLUSH_EVERY_N_CYCLES = 10
 const QUICK_RESPONSE_MS = 2000
+// Bound on the per-lego difficulty series persisted for B4 — enough for the
+// curvature window (default 7) plus its own-noise baseline (default 10).
+const SERIES_CAP = 20
 
 // Mastery state → pause multiplier (the "ladder")
 // Slightly slower for unfamiliar LEGOs, progressively shorter as the
@@ -68,6 +72,8 @@ export function useAdaptationEngine(
   const mastery = createMasteryStateMachine()
 
   const dirty = new Set<string>()
+  // Bounded normalized-latency ring per lego — the difficulty series B4 reads.
+  const seriesByLego = new Map<string, number[]>()
   let cyclesSinceFlush = 0
   let initialized = false
   let pageHideHandler: (() => void) | null = null
@@ -109,6 +115,13 @@ export function useAdaptationEngine(
         updated_at: r.last_seen_at,
       }))
       mastery.loadStates(states)
+      // Seed the per-lego difficulty ring so the curvature series (B4) carries
+      // across sessions, not just within one.
+      for (const r of rows) {
+        if (r.recent_latency_samples?.length) {
+          seriesByLego.set(r.lego_id, r.recent_latency_samples.slice(-SERIES_CAP))
+        }
+      }
       console.log(
         `[useAdaptationEngine] Hydrated ${states.length} LEGO mastery states for course ${config.courseCode}`
       )
@@ -142,6 +155,14 @@ export function useAdaptationEngine(
       0,
       'practice'
     )
+
+    // 1b. Accumulate the bounded difficulty series for this lego — the
+    // time-ordered normalized-latency samples B1 curvature / B4 difficulty read
+    // (persisted on flush).
+    const ring = seriesByLego.get(legoId) ?? []
+    ring.push(metric.normalized_latency)
+    if (ring.length > SERIES_CAP) ring.splice(0, ring.length - SERIES_CAP)
+    seriesByLego.set(legoId, ring)
 
     // 2. Detect spike against rolling baseline
     const detection = detector.detectSpike(metric.normalized_latency)
@@ -177,11 +198,11 @@ export function useAdaptationEngine(
     }
 
     const now = new Date()
-    const rows: LegoMetricsUpsert[] = []
-    for (const legoId of dirty) {
+    const legoIds = [...dirty]
+    const rows: LegoMetricsUpsert[] = legoIds.map((legoId) => {
       const state = mastery.getState(legoId)
-      rows.push({
-        learner_id: config.learnerId,
+      return {
+        learner_id: config.learnerId!,
         lego_id: legoId,
         course_code: config.courseCode,
         mastery_state: state.current_state,
@@ -189,8 +210,8 @@ export function useAdaptationEngine(
         consecutive_fast: state.consecutive_fast,
         n_samples: 0, // Not tracked in MasteryStateMachine; reserved for future
         last_seen_at: now,
-      })
-    }
+      }
+    })
 
     // Clear before await so concurrent recordCycle calls accumulate cleanly
     dirty.clear()
@@ -200,8 +221,34 @@ export function useAdaptationEngine(
       await s.upsertMany(rows)
     } catch (err) {
       console.warn('[useAdaptationEngine] Flush failed:', err)
-      // Re-mark as dirty so next flush retries
-      for (const r of rows) dirty.add(r.lego_id)
+      // Re-mark as dirty so next flush retries; skip the series write (the row
+      // may not exist yet, and we don't want to mask the mastery failure).
+      for (const id of legoIds) dirty.add(id)
+      return
+    }
+
+    // B4 difficulty series — a SEPARATE upsert (runs after the mastery row
+    // exists) so a missing `recent_latency_samples` column pre-migration
+    // degrades in isolation and never regresses mastery persistence above.
+    try {
+      const seriesRows: LegoSeriesUpsert[] = legoIds
+        .map((legoId) => {
+          const samples = seriesByLego.get(legoId) ?? []
+          const mean = samples.length
+            ? samples.reduce((a, b) => a + b, 0) / samples.length
+            : null
+          return {
+            learner_id: config.learnerId!,
+            lego_id: legoId,
+            course_code: config.courseCode,
+            recent_latency_samples: samples,
+            mean_latency_ms: mean,
+          }
+        })
+        .filter((r) => r.recent_latency_samples.length > 0)
+      await s.upsertSeries(seriesRows)
+    } catch (err) {
+      console.warn('[useAdaptationEngine] Series flush failed (non-fatal):', err)
     }
   }
 
