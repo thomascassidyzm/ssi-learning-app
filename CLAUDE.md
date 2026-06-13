@@ -54,7 +54,9 @@ Tom does not need to be the decision-maker for every call. **An agent may apply 
 1. has written the Better × Simpler × Cheaper narrative for the action, and
 2. is **>90% confident** that narrative is reasonable.
 
-Under those two conditions, just go ahead (within the usual rails: `dev`-branch hygiene, zero-tolerance schools quality bar, no destructive/irreversible actions without a heads-up). If you can't clear 90%, or the action is destructive/irreversible/a genuine scope change, *then* surface it to Tom — with your BSC narrative attached so the decision is fast.
+Under those two conditions, just go ahead (within the usual rails: `dev`-branch hygiene, zero-tolerance schools quality bar). If you can't clear 90%, or it's a genuine scope change, *then* surface it — with your BSC narrative attached so the decision is fast.
+
+**What does *not* need a heads-up: code and database changes.** Git makes any code change a revert away, and Tom's row-level DB provenance recovers any write — so inside those systems nothing is truly irreversible. Decide and go. **What does: outward-facing actions** that escape git and provenance because the effect lands *outside* the systems Tom can roll back — an OTP/email to real users, a real payment, a production deploy live learners immediately hit, a secret crossing the boundary. Git can revert the commit but can't unsend the email or uncharge the card. But notice those are all *intention*, not detail — "should we touch real people / real money / the outside world now" — so they fold into "surface intention" below rather than being a separate gate.
 
 ### Working cadence: the ≤3 checkpoint, alternating code and strategy
 
@@ -64,6 +66,12 @@ Autonomy is bounded so a loop can't drift too far out on a limb before a human r
 2. **Don't let all three be the same kind of work.** Alternate an isolated, modular **code** piece (a scoped 🔨 *To build* item — e.g. the curvature engine) with a **strategic** piece (a 🤔 *Areas to think through* design exploration, or advancing a 🧭 *Direction*). Cranking modular widgets back-to-back optimises a local thing while the strategic picture stalls; alternating keeps both moving and makes each checkpoint a natural place to re-aim.
 
 > The worklist's three item-types are exactly these, and a healthy burst draws across them: **🧭 Directions / bets** (directional, change rarely) · **🔨 To build** (already-scoped work) · **🤔 Areas to think through** (open design / think-pieces). See [`WORKLIST.md`](./WORKLIST.md).
+
+### Altitude: intention is Tom's, detail is the agent's
+
+Tom works at the level of **intention** — what we're building, what matters, the priorities, the pedagogical and product bets. The agent works at the level of **the code and the detail**, and owns the *decisions* within that layer, made against Tom's intention and filtered through BSC. The test is almost tautological: **if evaluating a decision requires holding the detail Tom has delegated, it is below his altitude by definition, and it is the agent's to make.** "Extend this table vs add a new one," "which columns," "how to structure this function" are opaque to intention not because Tom couldn't follow them but because he shouldn't have to carry them. The agent's job is to *absorb* that load, not hand it back.
+
+**The tell that you've mis-altituded:** you did the analysis, wrote the BSC narrative, reached >90% — and then handed Tom the conclusion as a question to ratify. If you've done the work, the decision is already made; proceed, and report at the intention level ("the sensors now have a persisted home"), rather than asking him to approve the plumbing. When a detail decision secretly carries an intention-level consequence, surface the *implication* in Tom's language and keep moving unless he stops you — not the detail itself. The counterweight to this autonomy is rigour: the >90% must be an honest self-assessment, not a stamp reached for to bless what you already wanted to do.
 
 ---
 
