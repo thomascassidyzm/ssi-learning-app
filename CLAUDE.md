@@ -25,6 +25,8 @@ git checkout dev
 git pull origin dev
 ```
 
+Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-agent worklist (the live "what's next"). Before starting anything substantial, **claim your item there** (`[ ]`→`[~] @you MM-DD`, one-line commit) so parallel agents don't double-grab it. The full protocol is in its header.
+
 **Rules:**
 - `dev` is the **default branch** — new `claude/**` branches cut from it and auto-merge back to it (`.github/workflows/auto-merge-claude.yml`).
 - **Promotion is manual and deliberate** (Tom drives it): merge `dev → staging` only when green; merge `staging → main` weekly, after the external team has vetted staging.
@@ -650,6 +652,8 @@ pnpm --filter @ssi/web dev
 ---
 
 ## What's Built vs What's Next
+
+> ⚠️ **Stale (last refreshed 2026-04-11).** For the live "what's next", see [`WORKLIST.md`](./WORKLIST.md) at repo root — that is the single source of truth for current directions, builds, and open questions. The list below is kept only as historical context.
 
 ### Completed
 - [x] CycleOrchestrator state machine

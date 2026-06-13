@@ -1,0 +1,74 @@
+# WORKLIST — ssi-learning-app · shared, multi-agent. READ THIS HEADER BEFORE EDITING.
+
+The live "what's next" for this repo, for **all** agents (local, cloud/web, any account).
+Coarse on purpose — for Opus: **directions, things to build, areas to think through.** One line per
+item; if it needs detail, **link a doc** (the plans under `docs/methodology/`), don't inline it.
+This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev-branch rail in
+`CLAUDE.md` — it doesn't restate it. Per-doc status lives in `docs/methodology/README.md`.
+
+### How to use (the whole protocol)
+
+**Status marks** — one box + a suffix, nothing else:
+- `[ ]` open — free to grab
+- `[~] @handle MM-DD` — claimed / in progress (e.g. `[~] @tom-local 06-13`)
+- `[x] @handle MM-DD` — done (leave it; the groomer archives it)
+- `[!] @handle MM-DD — why` — blocked / parked
+
+`@handle` = a stable tag you pick for yourself (`@tom-local`, `@cloud-3`, `@web-acctB`). Date = today, `MM-DD`.
+
+- **Grab:** flip `[ ]`→`[~] @you MM-DD` and commit **only that one line** (`worklist: claim <slug>`). If it's already `[~]`, pick another. A `[~]` older than **5 days** with no branch behind it is stale — re-grab it, note `(was @x, stale)`.
+- **Add:** append `[ ]` to the **end** of the relevant section. Never renumber/reorder/reflow existing lines (append-only keeps merges trivial).
+- **Finish:** flip `[~]`→`[x] @you MM-DD`, same one-line commit.
+- **Merge conflicts here are always two independent line edits → keep BOTH, strip the markers.** Never overwrite the other side. Don't bundle worklist edits with code commits.
+- **Branch hygiene** (inherits `CLAUDE.md`): claim/finish commits ride your normal working branch. **Never** add a worklist commit onto someone else's `claude/**` branch (it auto-merges wholesale to dev).
+
+---
+
+## 🧭 Directions / bets   (the why — changes rarely)
+
+- **The Insight Engine is the spine.** Every new analytics surface is an *instance of the engine* (a registry metric + a library widget + a `discover`/`explain` call), never a one-off page. → `docs/methodology/insight-engine.md`
+- **Measure speaking without ASR.** Behavioural tier now (taps, skips, latency, calibration); prosody/VAD later, adoption-paced. → `docs/methodology/metrics-architecture.md`
+- **One substrate, many lenses: `learner → class → group → school → chain`.** Same metrics rolled up a level. The **class is a first-class learner-equivalent** (gets the learner self-view), read by its teacher and the leaders above. → `docs/methodology/tutor-insights.md`
+- **Tags & relationships, not folders & ownership** — but a real *belonging* stays a hard FK (a class belongs to a school). Grouping above the class is flexible overlapping tags.
+- **Database-first; quality bar for schools is zero-tolerance** (no audio that mismatches text). Promotion is `dev → staging → main`.
+
+## 🔨 To build   (claimable — one line, link the plan)
+
+- [ ] **Metrics foundation (workstream A) — the gate.** Persist phase-pill/behavioural metrics; M1+ is blocked on it. In-code stubs at `useLearningSession.ts:601-604`. → `docs/methodology/metrics-implementation-plan.md` §2
+- [ ] **Class-as-first-class, in order:** apply the gated migration → teacher↔class relationship reads → coverage boards. Live stream: branch `feat/class-teachers-edge`. → `docs/methodology/class-first-class-citizen.md` (rollout §6)
+- [ ] **Coverage boards (class-as-learner):** pace / dosage / efficiency over wall-clock, for the leader stack. *After* the migration lands. → `tutor-insights.md` §2
+- [ ] **Teacher-tag write endpoint (service-role)** mirroring `/api/teacher/create-class-join-code` (live RLS forbids non-god teacher tags). → `tutor-insights.md` §7.7
+- [ ] **Insight Engine boards beyond the Discovery feed** — course scoreboard, content-friction queue, health strip. → `docs/methodology/insight-engine-build-plan.md`
+- [ ] **Atom-fusion upstream (Popty):** persist the 3 files + atom map and forced-align the clause once; the compute core already landed on dev. → `docs/atom-fusion-introduction.md`
+- [ ] **Forced-alignment path** (remove the Azure-timings dependency; covers Welsh-human + xAI-no-timings). Re-validation in progress.
+- [ ] **Schools loose ends:** bulk-invite-staff endpoint (`SetupView.vue` TODO); wire school/global benchmarks (`AnalyticsView.vue:290` shows class-avg only); verify `contentFriction` RPC migration `20260602` is applied.
+
+## 🤔 Areas to think through   (open design — link the think-piece)
+
+- [ ] **Flexible grouping layer** — the tag vocabulary for year / department / faculty / chain, and how a leader declares scope over it. The next-design-area for teaching insights. → `tutor-insights.md` §5
+- [ ] **Adaptation engine (M2)** — the defer / drill / consolidate budget driven by curvature. → `metrics-architecture.md` §4
+- [ ] **Prosody / VAD axis (M3)** — what to capture, when; gated on opt-in adoption. Orphaned VAD fields are computed-then-dropped today. → `metrics-architecture.md` §6
+- [ ] **CEFR-via-calibration (M4–M5)** — the research roadmap; pilot-coupled timeframe.
+- [ ] **Daily agent routines** — which sensible analyses are worth a ProMax routine. Repo-only ones (e.g. a WORKLIST groomer) work in cloud today; Supabase ones need the service key in the routine env (no Supabase MCP yet).
+
+## 🚧 In flight / don't collide
+
+- `feat/class-teachers-edge` — the live teacher↔class M2M stream. Coordinate before touching the class/teacher data model.
+- `fix/pod-phase0-explainer-stage` — listening v2 + Phase 0 explainer; awaiting Tom's ear/merge.
+- Atom-fusion **compute core** is on dev (`4cccc6f1`); the Popty persistence upstream is unbuilt (see To build).
+- `worktree-agent-*` branches are parallel scratch — don't reuse those names.
+
+## ⛔ Blocked / parked
+
+- [!] **Migration `20260613_class_first_class_citizen.sql`** — drafted, **NOT applied** (Tom's gate). Apply (service-role) before the class-as-first-class reads.
+- [!] **Metrics M1+** — gated on the M0 foundation (workstream A) and an open owner/resourcing question.
+- [!] **Supabase cloud sentinels** (health pulse / webhook integrity) — need the service key in the routine environment, or a Supabase MCP connector. No path from cloud today.
+
+## ✅ Done (archive — groomer-managed, don't hand-edit)
+
+- 2026-06-13 — Tutor-insights v2 (attention vs coverage; class-as-learner) + class-first-class-citizen migration drafted.
+- 2026-06 — Listening mode v2 (stage modes, teleprompter, cache-horizon, glosses); Insight Engine Discovery feed at `/admin/insights`; secfix #1–16 (RLS hardening + identity bridge).
+
+---
+
+*Cross-SSi: this is the learning-app worklist. Popty (`ssi-dashboard-v7-clean`) and other repos get their own `WORKLIST.md` of the same shape. A daily repo-only "groomer" routine can archive `[x]`s, free stale `[~]`s, and surface shipped/dead items as a commit for review — it never silently rewrites live intent.*
