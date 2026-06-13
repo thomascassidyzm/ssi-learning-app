@@ -161,8 +161,9 @@ export function useSchoolContext() {
    *
    * Unlike loadFromSchoolId/GroupId (which keep the admin's user_id and a
    * fixed role for read-only scope), this sets the persona's OWN user_id —
-   * a teacher's classes are scoped by teacher_user_id, so seeing their real
-   * roster requires being them. This is ephemeral client state: the admin's
+   * a teacher's classes are scoped by their class membership (the
+   * class_teachers relationship), so seeing their real roster requires being
+   * them. This is ephemeral client state: the admin's
    * learner row and auth session are untouched, so no admin↔persona link is
    * ever stored. Exiting just clears the context.
    */

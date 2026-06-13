@@ -12,6 +12,7 @@ import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
 import { assertScope } from './rlsGuard'
 import { deriveBelt as bucketBelt, type Belt } from './belts'
+import { myTaughtClassIds, teachersByClassId, type ClassTeacherRef } from './classTeacherScope'
 
 export type { Belt }
 
@@ -20,7 +21,7 @@ export interface ClassInfo {
   class_name: string
   course_code: string
   school_id: string
-  teacher_user_id: string
+  teacher_user_id: string  // lead-teacher pointer (denormalised); full set in `teachers`
   student_join_code: string
   current_seed: number
   last_lego_id: string | null
@@ -31,6 +32,7 @@ export interface ClassInfo {
   created_at: string
   // Dashboard extras — optional so creators (createClass, demo mode)
   // don't have to populate them. Wired by fetchClasses / fetchClassDetail.
+  teachers?: ClassTeacherRef[]  // active teacher↔class relationships (lead flagged)
   belt_distribution?: Record<Belt, number>
   activity_last_7?: number[]
   journey_done?: number
@@ -140,15 +142,24 @@ export function useClassesData() {
         student_join_code, current_seed, last_lego_id, is_active, created_at
       `)
 
-      // Track scope for the RLS tripwire (rlsGuard.ts). Teachers are
-      // scoped by teacher_user_id (a teacher can legitimately teach at
-      // multiple schools), school/govt admins are scoped by school_id.
+      // Track scope for the RLS tripwire (rlsGuard.ts). Teachers are scoped by
+      // class MEMBERSHIP (the class_teachers relationship, lead + co-taught —
+      // a teacher can legitimately teach at multiple schools); school/govt
+      // admins are scoped by school_id.
       let allowedSchoolIds: string[] = []
-      let allowedTeacherUserId: string | null = null
+      let allowedClassIds: string[] | null = null
 
       if (isTeacher.value) {
-        query = query.eq('teacher_user_id', selectedUser.value.user_id)
-        allowedTeacherUserId = selectedUser.value.user_id
+        // "My classes" = the teacher↔class relationship, not the legacy
+        // ownership column. See classTeacherScope.
+        const myClassIds = await myTaughtClassIds(selectedUser.value.user_id)
+        if (myClassIds.length === 0) {
+          classes.value = []
+          isLoading.value = false
+          return
+        }
+        query = query.in('id', myClassIds)
+        allowedClassIds = myClassIds
       } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school sees all classes in that school
         query = query.eq('school_id', activeSchoolId.value)
@@ -198,10 +209,10 @@ export function useClassesData() {
           caller: 'useClassesData.fetchClasses',
         })
       }
-      if (allowedTeacherUserId) {
-        safeData = assertScope(safeData, 'teacher_user_id', [allowedTeacherUserId], {
+      if (allowedClassIds) {
+        safeData = assertScope(safeData, 'id', allowedClassIds, {
           table: 'classes',
-          caller: 'useClassesData.fetchClasses (teacher)',
+          caller: 'useClassesData.fetchClasses (teacher membership)',
         })
       }
 
@@ -262,6 +273,7 @@ export function useClassesData() {
         // course, then map back. Done per class = current_seed (its seed position).
         const courseCodes = Array.from(new Set(safeData.map(c => c.course_code).filter(Boolean)))
         const courseLegoTotals = await fetchCourseLegoTotals(courseCodes)
+        const teacherMap = await teachersByClassId(classIds)
 
         classes.value = safeData.map(c => {
           const stats = statsMap.get(c.id) || {
@@ -286,6 +298,7 @@ export function useClassesData() {
             activity_last_7: sparkMap.get(c.id) || Array(7).fill(0),
             journey_done: total > 0 ? Math.min(total, c.current_seed || 0) : (c.current_seed || 0),
             journey_total: total,
+            teachers: teacherMap.get(c.id) ?? [],
           }
         })
       } else {
@@ -390,12 +403,16 @@ export function useClassesData() {
       const courseTotals = await fetchCourseLegoTotals([classData.course_code].filter(Boolean))
       const journeyTotal = courseTotals.get(classData.course_code) ?? 0
 
+      // Active teacher↔class relationships for this class (lead + co-taught)
+      const detailTeachers = (await teachersByClassId([classId])).get(classId) ?? []
+
       currentClass.value = {
         id: classData.id,
         class_name: classData.class_name,
         course_code: classData.course_code,
         school_id: classData.school_id,
         teacher_user_id: classData.teacher_user_id,
+        teachers: detailTeachers,
         student_join_code: classData.student_join_code,
         current_seed: classData.current_seed,
         last_lego_id: classData.last_lego_id || null,
