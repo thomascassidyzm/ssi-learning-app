@@ -35,7 +35,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 ## 🔨 To build   (claimable — one line, link the plan)
 
-- [ ] **Metrics foundation (workstream A) — the gate.** Persist phase-pill/behavioural metrics; M1+ is blocked on it. In-code stubs at `useLearningSession.ts:601-604`. **A1 (phase-pill events) already live** (`LearningPlayer.vue:5302`); **A3 migration drafted** `20260613_metrics_a3_learner_lego_state.sql` (extends `learner_lego_metrics`, **not applied** — Tom's keys). After apply: wire the rollup so B1/B4 read live data. → `docs/methodology/metrics-implementation-plan.md` §2
+- [ ] **Metrics foundation (workstream A) — the gate.** Persist phase-pill/behavioural metrics; M1+ is blocked on it. In-code stubs at `useLearningSession.ts:601-604`. **A1 (phase-pill events) live** (`LearningPlayer.vue:5302`); **A3 migration APPLIED 06-13** (`learner_lego_metrics` now carries `mean_latency_ms`/`mean_exec_score`/`skip_back_count`/`skip_forward_count`/`next_due_at`/`device_class_mix`). **Next, now unblocked: wire the rollup** (`useLearningSession.ts:601-604`) that writes these from the session stream, so the B1 curvature + B4 difficulty sensors read live data. → `docs/methodology/metrics-implementation-plan.md` §2
 - [ ] **Class-as-first-class, in order:** ~~migration~~ ✅ → ~~teacher↔class relationship reads~~ ✅ (Phase 1, `90dd857e` — schools composables read `class_teachers`, additive/non-breaking, 344 tests green) → **coverage boards** (next). NB co-teaching/supply only *functions* end-to-end once the **tag-write endpoint** + the **RLS rebase** land (both below) — until then the reads are correct but every teacher is still a lead. → `docs/methodology/class-first-class-citizen.md` (rollout §6)
 - [ ] **Coverage boards (class-as-learner):** pace / dosage / efficiency over wall-clock, for the leader stack. *After* the migration lands. → `tutor-insights.md` §2
 - [ ] **Teacher-tag write endpoint (service-role)** mirroring `/api/teacher/create-class-join-code` (live RLS forbids non-god teacher tags) — *gates co-teaching: lets a class gain/lose/hand-over a teacher.* → `tutor-insights.md` §7.7
@@ -66,7 +66,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 ## ⛔ Blocked / parked
 
 - [x] @tom 06-13 **Migration `20260613_class_first_class_citizen.sql`** — APPLIED & verified (7 lead tags backfilled, `class_teachers` view + `is_class_teacher()` live; additive, app still reads the lead pointer). The app-read migration ownership→membership is the next step (see To build), not this.
-- [!] **Metrics M1+** — gated on the M0 foundation (workstream A) and an open owner/resourcing question.
+- [!] **Metrics M1+** — A1 + A3 now landed; the remaining M0 gate is the **rollup write** (`useLearningSession.ts:601-604`, see To build). After that, M1 (curvature/calibration on live data) is unblocked.
 - [!] **Supabase cloud sentinels** (health pulse / webhook integrity) — need the service key in the routine environment, or a Supabase MCP connector. No path from cloud today.
 
 ## ✅ Done (archive — groomer-managed, don't hand-edit)
