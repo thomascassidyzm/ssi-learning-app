@@ -592,12 +592,60 @@ export function useClassesData() {
     }
   }
 
+  // Service-role write for teacher↔class relationships (RLS forbids a client
+  // teacher-tag insert). Used by createClass to seed the lead, and by the
+  // teacher-management surface to add / remove / hand over teachers.
+  async function callClassTeachersApi(body: {
+    class_id: string
+    action: 'add' | 'remove'
+    target_user_id: string
+    set_lead?: boolean
+  }): Promise<boolean> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        console.warn('[ClassesData] No auth token; skipping class-teacher write')
+        return false
+      }
+      const resp = await fetch('/api/teacher/class-teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        console.error('[ClassesData] class-teacher write failed:', data.error || resp.status)
+        return false
+      }
+      return true
+    } catch (err) {
+      console.error('[ClassesData] class-teacher fetch error:', err)
+      return false
+    }
+  }
+
+  /** Add (or reactivate) a teacher on a class; `lead` also points the lead pointer at them. */
+  async function addClassTeacher(
+    classId: string,
+    targetUserId: string,
+    opts?: { lead?: boolean }
+  ): Promise<boolean> {
+    return callClassTeachersApi({ class_id: classId, action: 'add', target_user_id: targetUserId, set_lead: opts?.lead })
+  }
+
+  /** Soft-remove a teacher from a class; the server hands the lead on if needed. */
+  async function removeClassTeacher(classId: string, targetUserId: string): Promise<boolean> {
+    return callClassTeachersApi({ class_id: classId, action: 'remove', target_user_id: targetUserId })
+  }
+
   async function createClass(params: {
     class_name: string
     course_code: string
     school_id: string
   }): Promise<ClassInfo | null> {
     if (!selectedUser.value) return null
+    const creatorUserId = selectedUser.value.user_id
 
     try {
       const { data: newClass, error: insertError } = await client
@@ -606,7 +654,7 @@ export function useClassesData() {
           class_name: params.class_name,
           course_code: params.course_code,
           school_id: params.school_id,
-          teacher_user_id: selectedUser.value.user_id,
+          teacher_user_id: creatorUserId,
           is_active: true,
         })
         .select('id, class_name, course_code, school_id, teacher_user_id, student_join_code, current_seed, is_active, created_at')
@@ -643,6 +691,12 @@ export function useClassesData() {
         }
       }
 
+      // Seed the creator's teacher↔class relationship (lead) via the service-role
+      // route — the live RLS forbids a client teacher-tag insert. Makes the
+      // relationship the source of truth so the new class appears under
+      // membership reads, not only via the lead pointer.
+      await addClassTeacher(newClass.id, creatorUserId, { lead: true })
+
       const classInfo: ClassInfo = {
         id: newClass.id,
         class_name: newClass.class_name,
@@ -657,6 +711,7 @@ export function useClassesData() {
         avg_seeds_completed: 0,
         avg_practice_minutes: 0,
         created_at: newClass.created_at,
+        teachers: [{ user_id: newClass.teacher_user_id, is_lead: true }],
       }
 
       classes.value = [...classes.value, classInfo]
@@ -698,6 +753,8 @@ export function useClassesData() {
     fetchClassDetail,
     getClassReport,
     createClass,
+    addClassTeacher,
+    removeClassTeacher,
     startClassSession,
     endClassSession,
     getClassSessions,
