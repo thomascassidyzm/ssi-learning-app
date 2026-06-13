@@ -319,15 +319,20 @@ tap_skip:       { during, legoId, cycleType, roundNumber, slot }
 // Added 2026-06-13: previously DERIVED-only, but derivation can't recover the
 // intent, the timing, or a rapid jump-back-then-forward that never crosses a round.
 belt_skip:      { fromBelt, toBelt, direction, targetSeed, roundNumber }
+// lego_skip — the LEGO-axis nav (bottom chevrons), the coarse-grained sibling of
+// belt_skip. forward = "got this / too easy, move on" (confidence); back = restart
+// / re-hear (uncertainty). Emitted from handleRoundForward / handleRoundBack.
+lego_skip:      { direction, fromLegoId, roundNumber, slot }
+// turbo_toggle — manual pace dial. on = "too easy" (confidence/boredom). Emitted
+// from toggleTurbo + confirmTurbo (the first-time enable). No mic needed.
+turbo_toggle:   { enabled, firstTime? }
 // STILL DERIVED:
 //   • belt position cross-check — from a jump in POSITION (roundNumber, via
 //     round_complete). belt_skip is the intent; position is the ground truth.
 //   • recency / active time — from any event's occurred_at + total elapsed.
-// GAPS found in the 2026-06-13 audit (not yet emitted — a follow-up pass):
-//   • turbo_toggle — historically documented but NOT actually logged by the live
-//     turbo handlers today. { enabled, sessionPaceMsBefore, sessionPaceMsAfter } TBD.
-//   • LEGO-level nav — handleRoundForward only emits tap_skip when skipping an
-//     interjection; normal LEGO steps and handleRoundBack are silent.
+// All four nav scales now instrumented (2026-06-13): phase_skip (A1), lego_skip,
+// belt_skip + turbo_toggle. pace before/after on turbo still TBD (the config
+// objects aren't threaded through yet) — a nice-to-have, not load-bearing.
 // DROPPED: session_start / session_end — session boundaries are irrelevant;
 //   total elapsed + occurred_at cover what we need.
 
