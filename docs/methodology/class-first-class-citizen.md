@@ -111,7 +111,9 @@ The live `user_tags_insert` policy (Lane B, `secfix_15:132-139`) **forbids any n
 
 ---
 
-## 5. The RLS rebase (its own migration; rides the schools-RLS tightening)
+## 5. The RLS rebase — SUPERSEDED 2026-06-14 by server-mediated teacher reads
+
+> **Decision (Tom, 2026-06-14): don't do this rebase.** Route the schools dashboard's teacher *reads* through service-role server endpoints (membership authz in code), consistent with how the *writes* already work (`create-class-join-code`, `class-teachers`). Then the schools tables need **no teacher-RLS branch at all** — RLS stays only for the player's own-row learner-data protection (non-negotiable, already on). This kills the delicate live-RLS surgery described below. **Build rides co-teaching:** no live consumer yet (no add-teacher UI, 0 co-teachers), so the reroute earns itself when co-teaching is actually built — same gating the rebase would have had. The membership *reads* already shipped (client-direct via `class_teachers`) keep working for lead teachers today and get replaced by endpoints then. The analysis below is kept as the record of *why* RLS on the schools surface is avoidable, and of the live policy state.
 
 **Corrected against the LIVE DB 2026-06-14 (an earlier draft wrongly said "RLS is already live on these tables").** Actual live posture:
 - RLS **ON**: `class_sessions`, `user_tags` (Lane B `secfix_15`); `learners`, `course_enrollments`, `lego_progress`, `seed_progress`, `sessions` (Lane B `secfix_16`).
