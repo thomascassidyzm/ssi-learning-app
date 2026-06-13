@@ -49,7 +49,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 ## 🤔 Areas to think through   (open design — link the think-piece)
 
 - [ ] **Flexible grouping layer** — the tag vocabulary for year / department / faculty / chain, and how a leader declares scope over it. The next-design-area for teaching insights. → `tutor-insights.md` §5
-- [ ] **Adaptation engine (M2)** — the defer / drill / consolidate budget driven by curvature. → `metrics-architecture.md` §4
+- [ ] **Adaptation engine (M2)** — the defer / drill / consolidate budget driven by curvature. Design explored 06-13 (`docs/methodology/adaptation-budget.md`); **next code step is B4** (curvature per unit) + Layer-1 persistence, not the controller itself. → `metrics-architecture.md` §4
 - [ ] **Prosody / VAD axis (M3)** — what to capture, when; gated on opt-in adoption. Orphaned VAD fields are computed-then-dropped today. → `metrics-architecture.md` §6
 - [ ] **CEFR-via-calibration (M4–M5)** — the research roadmap; pilot-coupled timeframe.
 - [ ] **Daily agent routines** — which sensible analyses are worth a ProMax routine. Repo-only ones (e.g. a WORKLIST groomer) work in cloud today; Supabase ones need the service key in the routine env (no Supabase MCP yet).
