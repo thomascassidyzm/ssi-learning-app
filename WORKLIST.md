@@ -35,7 +35,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 ## 🔨 To build   (claimable — one line, link the plan)
 
-- [ ] **Metrics foundation (workstream A) — the gate.** Persist phase-pill/behavioural metrics; M1+ is blocked on it. In-code stubs at `useLearningSession.ts:601-604`. → `docs/methodology/metrics-implementation-plan.md` §2
+- [ ] **Metrics foundation (workstream A) — the gate.** Persist phase-pill/behavioural metrics; M1+ is blocked on it. In-code stubs at `useLearningSession.ts:601-604`. **A1 (phase-pill events) already live** (`LearningPlayer.vue:5302`); **A3 migration drafted** `20260613_metrics_a3_learner_lego_state.sql` (extends `learner_lego_metrics`, **not applied** — Tom's keys). After apply: wire the rollup so B1/B4 read live data. → `docs/methodology/metrics-implementation-plan.md` §2
 - [ ] **Class-as-first-class, in order:** apply the gated migration → teacher↔class relationship reads → coverage boards. Edge endpoints (`api/teacher/classes.ts`) + migration file already on dev (branch merged); **migration not yet applied** (gated). → `docs/methodology/class-first-class-citizen.md` (rollout §6)
 - [ ] **Coverage boards (class-as-learner):** pace / dosage / efficiency over wall-clock, for the leader stack. *After* the migration lands. → `tutor-insights.md` §2
 - [ ] **Teacher-tag write endpoint (service-role)** mirroring `/api/teacher/create-class-join-code` (live RLS forbids non-god teacher tags). → `tutor-insights.md` §7.7
