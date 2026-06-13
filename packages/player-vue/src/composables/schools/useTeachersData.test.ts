@@ -68,14 +68,18 @@ describe('useTeachersData', () => {
         { id: 'l2', user_id: 'ut2', display_name: 'Alice Teacher' },
       ], error: null },
       classes: { data: [
-        { id: 'c1', teacher_user_id: 'ut1' },
-        { id: 'c2', teacher_user_id: 'ut1' },
-        { id: 'c3', teacher_user_id: 'ut2' },
+        { id: 'c1' }, { id: 'c2' }, { id: 'c3' },
+      ], error: null },
+      // teacher↔class attribution is via the relationship view now
+      class_teachers: { data: [
+        { class_id: 'c1', teacher_user_id: 'ut1', is_lead: true },
+        { class_id: 'c2', teacher_user_id: 'ut1', is_lead: true },
+        { class_id: 'c3', teacher_user_id: 'ut2', is_lead: true },
       ], error: null },
       class_student_progress: { data: [
-        { class_id: 'c1', teacher_user_id: 'ut1', total_practice_seconds: 3600 },
-        { class_id: 'c1', teacher_user_id: 'ut1', total_practice_seconds: 7200 },
-        { class_id: 'c3', teacher_user_id: 'ut2', total_practice_seconds: 1800 },
+        { class_id: 'c1', total_practice_seconds: 3600 },
+        { class_id: 'c1', total_practice_seconds: 7200 },
+        { class_id: 'c3', total_practice_seconds: 1800 },
       ], error: null },
     })
     await td.fetchTeachers()
@@ -92,13 +96,43 @@ describe('useTeachersData', () => {
     expect(zara.total_practice_hours).toBe(3)
   })
 
+  it('attributes a co-taught class to BOTH teachers (relationship, not ownership)', async () => {
+    const td = await setup({
+      user_tags: { data: [
+        { user_id: 'ut1', added_at: '2025-01-01' },
+        { user_id: 'ut2', added_at: '2025-02-01' },
+      ], error: null },
+      learners: { data: [
+        { id: 'l1', user_id: 'ut1', display_name: 'Alice' },
+        { id: 'l2', user_id: 'ut2', display_name: 'Bryn' },
+      ], error: null },
+      classes: { data: [{ id: 'c1' }], error: null },
+      // one class, two teachers — only the relationship can express this
+      class_teachers: { data: [
+        { class_id: 'c1', teacher_user_id: 'ut1', is_lead: true },
+        { class_id: 'c1', teacher_user_id: 'ut2', is_lead: false },
+      ], error: null },
+      class_student_progress: { data: [
+        { class_id: 'c1', total_practice_seconds: 3600 },
+      ], error: null },
+    })
+    await td.fetchTeachers()
+    expect(td.teachers.value).toHaveLength(2)
+    for (const t of td.teachers.value) {
+      expect(t.class_count).toBe(1)
+      expect(t.student_count).toBe(1)
+      expect(t.total_practice_hours).toBe(1)
+    }
+  })
+
   it('rounds practice hours to 1 decimal', async () => {
     const td = await setup({
       user_tags: { data: [{ user_id: 'ut1', added_at: '2025-01-01' }], error: null },
       learners: { data: [{ id: 'l1', user_id: 'ut1', display_name: 'Test' }], error: null },
-      classes: { data: [{ id: 'c1', teacher_user_id: 'ut1' }], error: null },
+      classes: { data: [{ id: 'c1' }], error: null },
+      class_teachers: { data: [{ class_id: 'c1', teacher_user_id: 'ut1', is_lead: true }], error: null },
       class_student_progress: { data: [
-        { class_id: 'c1', teacher_user_id: 'ut1', total_practice_seconds: 5432 },
+        { class_id: 'c1', total_practice_seconds: 5432 },
       ], error: null },
     })
     await td.fetchTeachers()
@@ -110,9 +144,10 @@ describe('useTeachersData', () => {
     const td = await setup({
       user_tags: { data: [{ user_id: 'ut1', added_at: '2025-01-01' }], error: null },
       learners: { data: [{ id: 'l1', user_id: 'ut1', display_name: 'Test' }], error: null },
-      classes: { data: [{ id: 'c1', teacher_user_id: 'ut1' }], error: null },
+      classes: { data: [{ id: 'c1' }], error: null },
+      class_teachers: { data: [{ class_id: 'c1', teacher_user_id: 'ut1', is_lead: true }], error: null },
       class_student_progress: { data: [
-        { class_id: 'c1', teacher_user_id: 'ut1', total_practice_seconds: null },
+        { class_id: 'c1', total_practice_seconds: null },
       ], error: null },
     })
     await td.fetchTeachers()
