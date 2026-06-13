@@ -36,7 +36,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 ## 🔨 To build   (claimable — one line, link the plan)
 
 - [ ] **Metrics foundation (workstream A) — the gate.** Persist phase-pill/behavioural metrics; M1+ is blocked on it. In-code stubs at `useLearningSession.ts:601-604`. **A1 (phase-pill events) already live** (`LearningPlayer.vue:5302`); **A3 migration drafted** `20260613_metrics_a3_learner_lego_state.sql` (extends `learner_lego_metrics`, **not applied** — Tom's keys). After apply: wire the rollup so B1/B4 read live data. → `docs/methodology/metrics-implementation-plan.md` §2
-- [ ] **Class-as-first-class, in order:** apply the gated migration → teacher↔class relationship reads → coverage boards. Edge endpoints (`api/teacher/classes.ts`) + migration file already on dev (branch merged); **migration not yet applied** (gated). → `docs/methodology/class-first-class-citizen.md` (rollout §6)
+- [ ] **Class-as-first-class, in order:** ~~apply the gated migration~~ → **teacher↔class relationship reads** (next, now unblocked) → coverage boards. **Migration APPLIED & verified 06-13** (`class_teachers` view + `is_class_teacher()` live, 7 lead tags backfilled; app still reads the lead pointer so it's additive/no-break). Next claimable step = migrate the app reads ownership→membership (§4 blast radius). → `docs/methodology/class-first-class-citizen.md` (rollout §6)
 - [ ] **Coverage boards (class-as-learner):** pace / dosage / efficiency over wall-clock, for the leader stack. *After* the migration lands. → `tutor-insights.md` §2
 - [ ] **Teacher-tag write endpoint (service-role)** mirroring `/api/teacher/create-class-join-code` (live RLS forbids non-god teacher tags). → `tutor-insights.md` §7.7
 - [ ] **Insight Engine boards beyond the Discovery feed** — course scoreboard, content-friction queue, health strip. → `docs/methodology/insight-engine-build-plan.md`
@@ -57,14 +57,14 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 ## 🚧 In flight / don't collide
 
-- teacher↔class M2M stream — **merged to dev** (edge endpoints + migration `20260613` file landed; migration not yet applied). Branch `feat/class-teachers-edge` cleaned up — don't go looking for it on the remote. Coordinate via dev before touching the class/teacher data model.
+- teacher↔class M2M stream — **merged to dev; migration APPLIED 06-13** (edge endpoints + `20260613` live). Branch `feat/class-teachers-edge` cleaned up — don't go looking for it on the remote. Coordinate via dev before touching the class/teacher data model.
 - `fix/pod-phase0-explainer-stage` — listening v2 + Phase 0 explainer; awaiting Tom's ear/merge.
 - Atom-fusion **compute core** is on dev (`4cccc6f1`); the Popty persistence upstream is unbuilt (see To build).
 - `worktree-agent-*` branches are parallel scratch — don't reuse those names.
 
 ## ⛔ Blocked / parked
 
-- [!] **Migration `20260613_class_first_class_citizen.sql`** — drafted, **NOT applied** (Tom's gate). Apply (service-role) before the class-as-first-class reads.
+- [x] @tom 06-13 **Migration `20260613_class_first_class_citizen.sql`** — APPLIED & verified (7 lead tags backfilled, `class_teachers` view + `is_class_teacher()` live; additive, app still reads the lead pointer). The app-read migration ownership→membership is the next step (see To build), not this.
 - [!] **Metrics M1+** — gated on the M0 foundation (workstream A) and an open owner/resourcing question.
 - [!] **Supabase cloud sentinels** (health pulse / webhook integrity) — need the service key in the routine environment, or a Supabase MCP connector. No path from cloud today.
 
