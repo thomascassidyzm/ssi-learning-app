@@ -7439,6 +7439,16 @@ const handleRoundForward = async () => {
     audioController.value?.stop()
     return
   }
+  // LEGO-axis forward nav (the interjection-skip above logs its own tap_skip).
+  // Forward = "got this / too easy, move on" — the LEGO-scale confidence signal.
+  // One emit covers the normal step, the infplay-advance and the course-end
+  // paths below; mirror of belt_skip on the coarser axis.
+  logEvent('lego_skip', {
+    direction: 'forward',
+    fromLegoId: simplePlayer.currentRound.value?.legoId ?? null,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+    slot: simplePlayer.cycleIndex.value ?? null,
+  })
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
@@ -7579,6 +7589,15 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
 const handleRoundBack = async () => {
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
+  // LEGO-axis back nav — a revisit/re-hear gesture (restart the current LEGO, or
+  // step to the previous one): the LEGO-scale uncertainty signal, mirror of the
+  // forward emit. Covers the infplay step-back and main-loop paths below.
+  logEvent('lego_skip', {
+    direction: 'back',
+    fromLegoId: currentRound?.legoId ?? null,
+    roundNumber: currentRound?.roundNumber ?? null,
+    slot: simplePlayer.cycleIndex.value ?? null,
+  })
   // INF PLAY when either the enrollment mode says so OR the current round is
   // a revival round (no intro/debut/build). The mode flag covers a bootstrap
   // that loaded only infplay rounds; the round-shape check covers in-session
@@ -8430,6 +8449,7 @@ const confirmTurbo = () => {
   showTurboPopup.value = false
   turboPopupShownThisSession.value = true  // Don't show popup again this session
   turboActive.value = true
+  logEvent('turbo_toggle', { enabled: true, firstTime: true })
 }
 
 // Close turbo popup without enabling
@@ -8440,6 +8460,9 @@ const closeTurboPopup = () => {
 
 const toggleTurbo = () => {
   turboActive.value = !turboActive.value
+  // Manual pace control — turbo on = "this is too easy" (confidence/boredom);
+  // off = backing off. A no-mic behavioural signal.
+  logEvent('turbo_toggle', { enabled: turboActive.value })
 }
 
 // Offline mode: a deliberate, opt-in download of the upcoming course content
