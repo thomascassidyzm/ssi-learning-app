@@ -37,6 +37,27 @@ Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-ag
 
 ---
 
+## Decision heuristic: the BSC test (Better × Simpler × Cheaper)
+
+**Every decision to do *anything at all* must pass the BSC test.** Before you build, refactor, add a dependency, a table, a surface, or a routine — and before an agent commits to a course of action — write the narrative for how it is **Better × Simpler × Cheaper.**
+
+- **Multiplicative, not additive.** It's `Better × Simpler × Cheaper`, so a near-zero on any one axis kills the score. This is the whole point: it filters out the things that are *good but complex*, or *good and simple but expensive to run*. "It's a great feature" is not enough if it's a maintenance and runtime tax forever.
+  - **Better:** does it genuinely improve the learner / teacher / leader outcome?
+  - **Simpler:** fewer moving parts, fewer concepts, less surface to maintain — ideally it *deletes* something (reuses an existing lens/primitive instead of adding a parallel one).
+  - **Cheaper:** less build, less runtime/infra, less ongoing operational cost. No new signal before its consumer exists.
+- **Be relentless about the narrative.** We don't just feel that something passes — we *write the three-bullet narrative* (see the worked example in `docs/methodology/tutor-insights.md` §6). If you can't write an honest Better/Simpler/Cheaper story, that's the signal to not do it, or to find the version that does pass.
+- **This generalises an existing principle.** It is *Measuring Progress*' Principle 5 (`better × simpler × cheaper, and never build a signal before its consumer exists`), which already governs the metrics / Insight Engine work — now lifted to govern **all** decisions on this repo, not just analytics.
+
+### Agent autonomy under BSC
+
+Tom does not need to be the decision-maker for every call. **An agent may apply the BSC test itself and proceed without asking**, provided it:
+1. has written the Better × Simpler × Cheaper narrative for the action, and
+2. is **>90% confident** that narrative is reasonable.
+
+Under those two conditions, just go ahead (within the usual rails: `dev`-branch hygiene, zero-tolerance schools quality bar, no destructive/irreversible actions without a heads-up). If you can't clear 90%, or the action is destructive/irreversible/a genuine scope change, *then* surface it to Tom — with your BSC narrative attached so the decision is fast.
+
+---
+
 ## TODO: Tighten RLS before first paying school (2026-Q2)
 
 **Current state (2026-04):** Phase 1 RLS only — own-row learner data locked down, content and schools tables are permissive. Tom has deliberately kept schools tables permissive because proper RLS causes silent failures that are painful to debug during active development.

@@ -31,6 +31,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - **One substrate, many lenses: `learner → class → group → school → chain`.** Same metrics rolled up a level. The **class is a first-class learner-equivalent** (gets the learner self-view), read by its teacher and the leaders above. → `docs/methodology/tutor-insights.md`
 - **Tags & relationships, not folders & ownership** — but a real *belonging* stays a hard FK (a class belongs to a school). Grouping above the class is flexible overlapping tags.
 - **Database-first; quality bar for schools is zero-tolerance** (no audio that mismatches text). Promotion is `dev → staging → main`.
+- **Every decision passes the BSC test — Better × Simpler × Cheaper (multiplicative).** Write the three-bullet narrative or don't do it. Agents self-apply it and proceed at >90% narrative confidence (no need to ask Tom). → `CLAUDE.md` "Decision heuristic: the BSC test"
 
 ## 🔨 To build   (claimable — one line, link the plan)
 
