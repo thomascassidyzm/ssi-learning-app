@@ -25,8 +25,9 @@ const CourseScoreboard = defineAsyncComponent(() => import('./boards/CourseScore
 const ContentFrictionBoard = defineAsyncComponent(() => import('./boards/ContentFrictionBoard.vue'))
 const HealthStrip = defineAsyncComponent(() => import('./boards/HealthStrip.vue'))
 const DifficultyTurnsBoard = defineAsyncComponent(() => import('./boards/DifficultyTurnsBoard.vue'))
+const CoverageBoard = defineAsyncComponent(() => import('./boards/CoverageBoard.vue'))
 
-type BoardId = 'scoreboard' | 'friction' | 'difficulty' | 'health'
+type BoardId = 'scoreboard' | 'friction' | 'difficulty' | 'coverage' | 'health'
 
 interface BoardTab {
   id: BoardId
@@ -53,6 +54,12 @@ const boards: BoardTab[] = [
     label: 'Difficulty turns',
     blurb: "Who's struggling, who just turned",
     component: DifficultyTurnsBoard,
+  },
+  {
+    id: 'coverage',
+    label: 'Coverage',
+    blurb: 'Each class as a learner — pace, dosage, efficiency',
+    component: CoverageBoard,
   },
   {
     id: 'health',

@@ -1,7 +1,7 @@
 # APML Interface: Insight Engine Specification
 # SSI Learning App
-# Version: 1.1.0 (2026-06-14)
-# Status: Integrated — typecheck-green, admin chunk builds; 4 boards (added DifficultyTurnsBoard)
+# Version: 1.2.0 (2026-06-14)
+# Status: Integrated — typecheck-green, admin chunk builds; 5 boards (added CoverageBoard — the coverage lane, demo-first)
 
 ## ============================================================================
 ## OVERVIEW
@@ -107,6 +107,8 @@ REGISTRY:
     retention:        "time-series — days-active + return-rate 7/30/90d; reuses analytics_retention_cohorts (data/retention.ts)"
     health:           "stat — audio_failed rate, cacheHit, client_version + device spread; reuses analytics_overview (data/health.ts)"
     trialConversion:  "funnel — trial → paid; subscriptions has 0 rows today -> returns a well-formed zero-stage funnel (data/trialConversion.ts)"
+    difficultyTurns:  "table — per-(learner,lego) local difficulty via the B4 curvature sensor; analytics_difficulty_turns (DRAFT migration), admin-only (data/difficultyTurns.ts)"
+    coverage:         "table — the COVERAGE lane: the class as a learner (furthest LEGO, pace LEGOs/wk, dosage min/wk, efficiency LEGOs/min); group-by over class_sessions by class_id; analytics_class_coverage (DRAFT migration), admin-only; demo-first via demoCoverage() (data/coverage.ts)"
 
 RESOLVER_CONTRACT:
   source: "packages/player-vue/src/insight/data/<metric>.ts"
@@ -170,6 +172,13 @@ BOARDS:
     widgets: "table (Learner · LEGO · Signal · σ-vs-own-noise) — the loudest struggling turn annotated + graded actions (try/investigate/together)"
     data: "difficultyTurns metric — the B4 curvature sensor (@ssi/core assessLocalDifficulty) over each learner's persisted per-(learner,lego) latency series; analytics_difficulty_turns RPC, per selected window 30d/90d"
     law: "σ is measured against the learner's OWN baseline, not the cohort — the signal is personal, not a comparison; only the two actionable states (struggling ↑ / easing ↓) surface"
+  CoverageBoard:
+    lens: "Coverage · class-as-learner (the SECOND teaching-insights lane — tutor-insights.md §2–§3)"
+    question: "Each class as a learner — coverage, pace, dosage, efficiency over wall-clock?"
+    widgets: "table (Class · Course · Coverage · Pace · Active min/wk · Efficiency, primary, pace-sorted) + ranked-bar (classes by pace, derived) + narrative-card (fastest/slowest read); fastest annotated good, stalled annotated alarm; graded actions (investigate the stalled class / celebrate the top-pace class)"
+    data: "coverage metric — a group-by over class_sessions by the clean class_id (zero new instrumentation, independent of Lane B); analytics_class_coverage RPC (DRAFT migration), per selected window 30d/90d"
+    demo_first: "DEMO short-circuits to demoCoverage() — fully renderable with ZERO database access (?demo). Real path degrades to a well-formed empty state with a note until the analytics_class_coverage migration is applied."
+    law: "Pace (coverage over wall-clock) is the headline — skip-ahead reads as mastery, not missing data. The class is durable, so the curve survives teacher churn. Roll up = same query at a higher GROUP BY (class → group → school → chain)."
 
 ## ============================================================================
 ## THE HOST + INTEGRATION
@@ -177,7 +186,7 @@ BOARDS:
 
 INSIGHTS_VIEW:
   source: "packages/player-vue/src/insight/InsightsView.vue"
-  purpose: "The /admin/insights host — a board switcher rendering the four board components."
+  purpose: "The /admin/insights host — a board switcher rendering the five board components."
   layout: "Frostwell page header (schools-kicker + Arsenal h1 + subtitle) + a segmented board switcher + a lazily-mounted active board."
   lazy: "Boards are defineAsyncComponent imports, so the ECharts widget graph stays out of the initial admin chunk until a board is shown."
 
@@ -198,9 +207,9 @@ STATUS:
   built:
     - "spec.ts spine (frozen contract) + registry.ts + theme.ts"
     - "13 widgets + Stat, all render-only, ECharts lazy-loaded"
-    - "6 resolvers (courseValue, contentFriction, retention, health, trialConversion, difficultyTurns) — RPC-first, zero-safe"
+    - "7 resolvers (courseValue, contentFriction, retention, health, trialConversion, difficultyTurns, coverage) — RPC-first, zero-safe"
     - "InsightWidget wrapper owning the four behaviours"
-    - "4 boards (CourseScoreboard, ContentFrictionBoard, HealthStrip, DifficultyTurnsBoard)"
+    - "5 boards (CourseScoreboard, ContentFrictionBoard, HealthStrip, DifficultyTurnsBoard, CoverageBoard)"
     - "InsightsView host + /admin/insights route + AdminTopBar tab"
   verified:
     - "pnpm --filter player-vue typecheck — PASSES (0 errors)"

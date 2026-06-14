@@ -571,3 +571,116 @@ export function demoDifficultyTurns(): TableData {
   }
 }
 
+// ============================================================================
+// demoCoverage() → TableData (the COVERAGE lane — the class as a learner)
+// Mirrors the coverage resolver's EXACT column/row shape so the demo and real
+// paths render identically through InsightWidget/Table.vue:
+//   columns: class · course · coverage · pace · dosage · efficiency
+//   rows:    { id, tone: paceTone(...), cells: { class, course, coverage, pace, dosage, efficiency } }
+//   order:   fastest pace first; tone graded relative to the fastest class.
+//
+// ~8 deterministic synthetic classes with a clear FAST one and a STALLED one,
+// using a board-local fixed-seed PRNG (independent of the population RNG).
+// ============================================================================
+const CV_COLUMNS: TableData['columns'] = [
+  { key: 'class', label: 'Class', align: 'left' },
+  { key: 'course', label: 'Course', align: 'left' },
+  { key: 'coverage', label: 'Coverage', align: 'left' },
+  { key: 'pace', label: 'Pace (LEGOs/wk)', align: 'right', format: 'number' },
+  { key: 'dosage', label: 'Active min/wk', align: 'right', format: 'number' },
+  { key: 'efficiency', label: 'Efficiency (LEGOs/min)', align: 'right', format: 'number' },
+]
+
+// Synthetic class names (schools-flavoured) + a course code each.
+const CV_CLASSES: { name: string; course: string }[] = [
+  { name: 'Ysgol Bryn · Year 7 Spanish', course: 'spa_for_eng' },
+  { name: 'Ysgol Bryn · Year 8 Spanish', course: 'spa_for_eng' },
+  { name: 'Coleg Tâf · French AS', course: 'fra_for_eng' },
+  { name: 'Coleg Tâf · French A2', course: 'fra_for_eng' },
+  { name: 'Llanfair High · German GCSE', course: 'deu_for_eng' },
+  { name: 'Llanfair High · Italian Club', course: 'ita_for_eng' },
+  { name: 'Penbryn Academy · Welsh (S)', course: 'cym_s_for_eng' },
+  { name: 'Penbryn Academy · Spanish Yr9', course: 'spa_for_eng' },
+]
+
+function cvPaceTone(pace: number, maxPace: number): Tone {
+  if (pace <= 0) return 'alarm'
+  if (maxPace === 0) return 'neutral'
+  const r = pace / maxPace
+  if (r >= 0.66) return 'good'
+  if (r >= 0.33) return 'neutral'
+  return 'warn'
+}
+
+function cvCoverageLabel(seed: number, lego: number): string {
+  return `S${seed} · L${lego}`
+}
+
+export function demoCoverage(): TableData {
+  // Board-local PRNG so this list is stable regardless of other demo calls.
+  const dr = mulberry32(0xc07e2a6e)
+
+  interface ClassAgg {
+    name: string
+    course: string
+    seed: number
+    lego: number
+    pace: number       // LEGOs / week
+    dosage: number     // active min / week
+    efficiency: number // LEGOs / min
+  }
+
+  const aggs: ClassAgg[] = CV_CLASSES.map((c, i) => {
+    // One clear FAST class (index 0) and one STALLED class (last) — the rest spread.
+    const isFast = i === 0
+    const isStalled = i === CV_CLASSES.length - 1
+
+    // weeks of activity (older classes have run longer)
+    const weeks = 2 + Math.floor(dr() * 8) // 2–9 weeks
+    // pace: LEGOs advanced per week
+    const pace = isStalled
+      ? Math.round((0.0 + dr() * 0.3) * 10) / 10            // ~0 — barely moving
+      : isFast
+        ? Math.round((11 + dr() * 4) * 10) / 10             // a strong skip-ahead class
+        : Math.round((3 + dr() * 6) * 10) / 10              // healthy middle
+
+    const legosAdvanced = Math.max(0, Math.round(pace * weeks))
+    // furthest LEGO = a base start + advance, parsed back to seed/lego
+    const startSeed = 3 + Math.floor(dr() * 4)
+    const furthest = startSeed * 100 + 1 + legosAdvanced
+    const seed = Math.floor(furthest / 100)
+    const lego = Math.max(1, furthest % 100)
+
+    // dosage: active minutes per week — the stalled class also barely uses it;
+    // the fast class is efficient (lots covered for moderate minutes).
+    const dosage = isStalled
+      ? Math.round((6 + dr() * 10) * 10) / 10
+      : Math.round((28 + dr() * 48) * 10) / 10
+
+    const totalMinutes = Math.max(dosage * weeks, 1)
+    const efficiency = Math.round((legosAdvanced / totalMinutes) * 100) / 100
+
+    return { name: c.name, course: c.course, seed, lego, pace, dosage, efficiency }
+  })
+
+  const maxPace = aggs.reduce((m, a) => Math.max(m, a.pace), 0)
+  aggs.sort((a, b) => b.pace - a.pace)
+
+  return {
+    kind: 'table',
+    columns: CV_COLUMNS,
+    rows: aggs.map((a) => ({
+      id: `demo:class:${a.name}`,
+      tone: cvPaceTone(a.pace, maxPace),
+      cells: {
+        class: a.name,
+        course: a.course,
+        coverage: cvCoverageLabel(a.seed, a.lego),
+        pace: a.pace,
+        dosage: a.dosage,
+        efficiency: a.efficiency,
+      },
+    })),
+  }
+}
+
