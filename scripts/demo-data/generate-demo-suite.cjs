@@ -23,6 +23,22 @@
  *    get_community_contribution) per migration 20260610_feat_17.
  *  - Engagement follows the Russell-2024 shape: ~20% high / 50% mid / 30%
  *    low, with activity recency to match (sparklines look real).
+ *  - TELEMETRY (added 2026-06-14): per-(learner, LEGO) difficulty SERIES in
+ *    learner_lego_metrics.recent_latency_samples + a bounded set of
+ *    player_events, so the curvature engine (@ssi/core assessLocalDifficulty)
+ *    and the difficulty-turns Insight board have REAL demo learners to show.
+ *    Each student is given a difficulty archetype per recent LEGO
+ *    (struggling / easing / steady) whose normalized-latency series is shaped
+ *    to trip the sensor under its DEFAULT options (window 7, threshold 2 σ) —
+ *    the resolver (insight/data/difficultyTurns.ts) calls the sensor with no
+ *    options, so the shapes here are calibrated against those defaults.
+ *
+ * MIGRATION DEPENDENCY: the telemetry step needs columns + RPC that only exist
+ * after Tom applies migrations 20260613_metrics_a3_learner_lego_state.sql,
+ * 20260613_metrics_lego_latency_series.sql and
+ * 20260614_analytics_difficulty_turns.sql. The script PRE-FLIGHTS for the
+ * recent_latency_samples column; if absent it WARNS and skips telemetry only
+ * (the rest of the suite still generates), so it is safe to run pre-migration.
  *
  * Credentials are written to ~/Desktop/SSi-demo-credentials-<date>.md
  * (never committed).
@@ -54,6 +70,49 @@ function rnd(){ seed|=0; seed=(seed+0x6D2B79F5)|0; let t=Math.imul(seed^(seed>>>
 const pick=a=>a[Math.floor(rnd()*a.length)]
 const between=(lo,hi)=>lo+Math.floor(rnd()*(hi-lo+1))
 const uuid=()=>{const h='0123456789abcdef';let s='';for(let i=0;i<36;i++){if(i===8||i===13||i===18||i===23)s+='-';else if(i===14)s+='4';else if(i===19)s+=h[8+Math.floor(rnd()*4)];else s+=h[Math.floor(rnd()*16)]}return s}
+
+// ---------- difficulty telemetry (curvature-engine demo fuel) ----------
+// Builds per-(learner, LEGO) NORMALIZED-latency series (ms/char) shaped to trip
+// the @ssi/core local-difficulty sensor under its DEFAULT options (window 7,
+// threshold 2σ) — the difficultyTurns resolver calls assessLocalDifficulty()
+// with NO options, so these shapes are calibrated against those exact defaults.
+//   • struggling: a quiet stretch then a sharp upward break → +acceleration > own noise
+//   • easing:     a quiet stretch then a sharp downward break → −acceleration > own noise
+//   • steady:     flat (optionally gently sloped) + modest noise → never flags
+// Validated offline at ~199/200 (struggling/easing) and ~192/200 (steady).
+const QUIET_NOISE = 0.2            // ms/char jitter on the quiet stretch
+const BREAK_STEPS_UP   = [0.5, 1.3, 2.4, 4.0]   // accelerating climb at the trailing edge
+const BREAK_STEPS_DOWN = [0.5, 1.4, 2.6, 4.2]   // accelerating fall at the trailing edge
+const noiseAmt = scale => (rnd()*2-1)*scale
+const round2 = v => Math.round(v*100)/100
+function difficultySeries(archetype){
+  const n = between(12,16)             // 12–16 samples (>= 8 required by the RPC's min)
+  const quiet = n-4                    // the last 4 samples are the "turn"
+  const out=[]
+  if(archetype==='struggling'){
+    const base = 7+rnd()*5            // 7–12 ms/char baseline
+    for(let i=0;i<quiet;i++) out.push(round2(base+0.02*i+noiseAmt(QUIET_NOISE)))
+    const b0 = base+0.02*quiet
+    for(const s of BREAK_STEPS_UP) out.push(round2(b0+s+noiseAmt(0.15)))
+  } else if(archetype==='easing'){
+    const base = 14+rnd()*5           // 14–19 ms/char baseline (was slow, now resolving)
+    for(let i=0;i<quiet;i++) out.push(round2(base-0.02*i+noiseAmt(QUIET_NOISE)))
+    const b0 = base-0.02*quiet
+    for(const s of BREAK_STEPS_DOWN) out.push(round2(b0-s+noiseAmt(0.15)))
+  } else { // steady
+    const base = 8+rnd()*8            // 8–16 ms/char baseline
+    const slope = (rnd()*2-1)*0.05    // gentle, baseline-free slope (reads ~0 acceleration)
+    for(let i=0;i<n;i++) out.push(round2(base+slope*i+noiseAmt(0.25)))
+  }
+  return out
+}
+const MASTERY_BY_ARCHETYPE = {
+  struggling: ['acquisition','consolidating'],
+  easing:     ['consolidating','confident'],
+  steady:     ['confident','mastered'],
+}
+const DEVICE_CLASS = ['class_play','homework']  // demo schools = class-led + homework
+const DEVICE_TYPE  = ['mobile','tablet','desktop']
 
 // ---------- scenarios ----------
 const IRISH_FIRST=['Aoife','Cian','Saoirse','Oisín','Niamh','Fionn','Caoimhe','Darragh','Róisín','Tadhg','Clodagh','Eoin','Aisling','Cathal','Méabh','Rónán','Sadhbh','Donncha','Laoise','Páidí','Gráinne','Lorcán','Bláthnaid','Séamus','Éabha','Colm']
@@ -140,23 +199,39 @@ async function deleteDemoAuthUsers(){
   const db=new Client({connectionString:DATABASE_URL}); await db.connect()
   const q=(sql,params)=>db.query(sql,params)
 
+  // ---- pre-flight: does the telemetry schema exist yet? (migrations 20260613/14) ----
+  // The series column gates BOTH generation and reset of telemetry; if absent we
+  // run everything EXCEPT telemetry, so the suite is safe pre-migration.
+  const colChk=await q(`select 1 from information_schema.columns
+                        where table_schema='public' and table_name='learner_lego_metrics'
+                          and column_name='recent_latency_samples'`)
+  const TELEMETRY=colChk.rowCount>0
+  if(!TELEMETRY) console.warn('⚠ telemetry schema absent (learner_lego_metrics.recent_latency_samples) — apply migrations 20260613_*/20260614_* to get difficulty curves. Skipping telemetry generation; rest of suite proceeds.')
+
   // ---- RESET: wipe every trace of is_demo data, then demo auth users ----
   console.log('— RESET is_demo data —')
   await q('begin')
   const r1=await q(`delete from public.user_tags where added_by='demo-suite'`)
+  // telemetry first: player_events keys on the learner PK (NOT auth uid — see CLAUDE.md);
+  // learner_lego_metrics cascades when learners go, but we delete explicitly for clarity.
+  let rPE={rowCount:0}, rLLM={rowCount:0}
+  if(TELEMETRY){
+    rPE =await q(`delete from public.player_events where user_id in (select id from public.learners where is_demo)`)
+    rLLM=await q(`delete from public.learner_lego_metrics where learner_id in (select id from public.learners where is_demo)`)
+  }
   const r2=await q(`delete from public.classes where school_id in (select id from public.schools where is_demo)`)
   const r3=await q(`delete from public.schools where is_demo`)
   const r4=await q(`delete from public.groups where is_demo`)
   const r5=await q(`delete from public.learners where is_demo`)
   await q('commit')
   const nAuth=await deleteDemoAuthUsers()
-  console.log(`  tags:${r1.rowCount} classes:${r2.rowCount} schools:${r3.rowCount} groups:${r4.rowCount} learners:${r5.rowCount} authUsers:${nAuth}`)
+  console.log(`  tags:${r1.rowCount} playerEvents:${rPE.rowCount} legoMetrics:${rLLM.rowCount} classes:${r2.rowCount} schools:${r3.rowCount} groups:${r4.rowCount} learners:${r5.rowCount} authUsers:${nAuth}`)
   if(resetOnly){ await db.end(); console.log('reset-only done'); return }
 
   const creds=[`# SSi demo suite credentials — generated ${new Date().toISOString().slice(0,10)}`,
                `Password for ALL staff (API/password login): ${STAFF_PASSWORD}`,
                `App login: email OTP — codes arrive at ${EMAIL_BASE}@gmail.com via + addressing.`,'']
-  let totals={students:0,sessions:0,seedRows:0,legoRows:0,classSessions:0}
+  let totals={students:0,sessions:0,seedRows:0,legoRows:0,classSessions:0,legoMetrics:0,playerEvents:0,struggling:0,easing:0,steady:0}
 
   for(const sc of SCENARIOS){
     console.log(`\n— SCENARIO: ${sc.key} (${sc.courseCode}) —`)
@@ -195,6 +270,11 @@ async function deleteDemoAuthUsers(){
 
     const now=Date.now(), DAY=86400000
     const termStart=new Date('2026-04-20T08:00:00Z').getTime()
+    // Per-scenario archetype budget: guarantee a legible handful of clearly
+    // struggling / easing students per scenario (the rest default to steady, so
+    // the board has signal without being all-red). Only students with recent
+    // activity (last_seen within 30d) qualify for an actionable archetype.
+    let strugglersLeft=between(5,7), easersLeft=between(5,7)
 
     for(let ci=0;ci<sc.classes.length;ci++){
       const cls=sc.classes[ci]
@@ -263,6 +343,7 @@ async function deleteDemoAuthUsers(){
 
         // session history (is_demo -> daily_contributions trigger skips these)
         const span=Math.max(1,lastPracticed.getTime()-termStart)
+        const sessionWindows=[]   // {start, end} kept for scattering player_events
         for(let k=0;k<stage.sessions;k++){
           const st=new Date(termStart+rnd()*span)
           const dur=between(480,1500)
@@ -270,8 +351,86 @@ async function deleteDemoAuthUsers(){
           await q(`insert into public.sessions (learner_id, course_id, started_at, ended_at, duration_seconds, items_practiced, points_earned)
                    values ($1,$2,$3,$4,$5,$6,$6)`,
             [lid,sc.courseCode,st.toISOString(),new Date(st.getTime()+dur*1000).toISOString(),dur,items])
+          sessionWindows.push({start:st.getTime(), end:st.getTime()+dur*1000})
         }
         totals.sessions+=stage.sessions; totals.students++
+
+        // ---- difficulty telemetry: latency series + bounded player_events ----
+        // Recent-enough learners feed the 30d curvature board; ancient low-engagers
+        // are skipped (they wouldn't pass the RPC's last_seen window anyway).
+        if(TELEMETRY && stage.recencyDays<=28 && legoRows.length>0){
+          // the most recent ~6–12 legos this student practiced (highest seeds = newest)
+          const recent=legoRows.slice(-between(6,12))
+          // assign this student a primary archetype, drawing down the scenario budget
+          let primary='steady'
+          if(strugglersLeft>0 && rnd()<0.6){ primary='struggling'; strugglersLeft-- }
+          else if(easersLeft>0 && rnd()<0.6){ primary='easing'; easersLeft-- }
+          const llmRows=[]
+          for(let li=0;li<recent.length;li++){
+            const legoId=recent[li][1]
+            // the student's most-recent lego carries the primary signal; the rest
+            // are mostly steady with the odd echo, so each named student reads cleanly.
+            const archetype = li===recent.length-1 ? primary
+              : (primary!=='steady' && rnd()<0.25 ? primary : 'steady')
+            const series=difficultySeries(archetype)
+            const mean=series.reduce((a,b)=>a+b,0)/series.length
+            const ms=pick(MASTERY_BY_ARCHETYPE[archetype])
+            const dclass=pick(DEVICE_CLASS)
+            // last_seen scattered within the student's recent activity (<=30d), per lego
+            const seenMs=Math.min(now-3600000, lastPracticed.getTime()-between(0,4)*DAY-between(0,12)*3600000)
+            const nextDue=new Date(now+between(1,9)*DAY).toISOString()
+            llmRows.push([
+              lid, legoId, sc.courseCode, ms,
+              archetype==='steady'?between(2,5):0,            // consecutive_smooth
+              archetype==='steady'?between(1,4):0,            // consecutive_fast
+              series.length,                                  // n_samples
+              new Date(seenMs).toISOString(),                 // last_seen_at
+              Math.round(mean*100)/100,                       // mean_latency_ms (normalized ms/char)
+              Math.round((archetype==='struggling'?0.45:archetype==='easing'?0.7:0.82)*100)/100, // mean_exec_score
+              archetype==='struggling'?between(1,4):between(0,1), // skip_back_count
+              archetype==='easing'?between(1,3):between(0,1),     // skip_forward_count
+              nextDue,
+              JSON.stringify({[dclass]:series.length}),       // device_class_mix
+              JSON.stringify(series),                         // recent_latency_samples
+            ])
+            if(archetype==='struggling')totals.struggling++; else if(archetype==='easing')totals.easing++; else totals.steady++
+          }
+          for(let i=0;i<llmRows.length;i+=50){
+            const chunk=llmRows.slice(i,i+50)
+            const vals=chunk.map((_,j)=>{const b=j*15;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14}::jsonb,$${b+15}::jsonb)`}).join(',')
+            await q(`insert into public.learner_lego_metrics
+                     (learner_id, lego_id, course_code, mastery_state, consecutive_smooth, consecutive_fast,
+                      n_samples, last_seen_at, mean_latency_ms, mean_exec_score, skip_back_count, skip_forward_count,
+                      next_due_at, device_class_mix, recent_latency_samples) values ${vals}`,chunk.flat())
+          }
+          totals.legoMetrics+=llmRows.length
+
+          // bounded player_events: a handful of audio_play + phase_skip + tap_skip
+          // per session window, plus one session_complete. user_id = learner PK.
+          const peRows=[]
+          for(const w of sessionWindows){
+            const sessionId=uuid()
+            const dev=pick(DEVICE_TYPE)
+            const at=()=> new Date(w.start+rnd()*(w.end-w.start)).toISOString()
+            const someLego=()=> recent.length?recent[Math.floor(rnd()*recent.length)][1]:lastLego
+            const nPlays=between(2,4)
+            for(let p=0;p<nPlays;p++)
+              peRows.push([lid,sc.courseCode,sessionId,'audio_play',JSON.stringify({legoId:someLego(),role:pick(['prompt','target1','target2']),playbackSpeed:1}),dev,at()])
+            if(rnd()<0.6)
+              peRows.push([lid,sc.courseCode,sessionId,'phase_skip',JSON.stringify({direction:pick(['back','forward']),legoId:someLego(),role:'pause'}),dev,at()])
+            if(rnd()<0.3)
+              peRows.push([lid,sc.courseCode,sessionId,'tap_skip',JSON.stringify({legoId:someLego()}),dev,at()])
+            peRows.push([lid,sc.courseCode,sessionId,'session_complete',JSON.stringify({cyclesCompleted:between(20,80)}),dev,new Date(w.end).toISOString()])
+            if(peRows.length>=22) break   // hard cap ~25 events/student to stay bounded
+          }
+          for(let i=0;i<peRows.length;i+=50){
+            const chunk=peRows.slice(i,i+50)
+            const vals=chunk.map((_,j)=>{const b=j*7;return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5}::jsonb,$${b+6},$${b+7})`}).join(',')
+            await q(`insert into public.player_events
+                     (user_id, course_code, session_id, event_type, payload, device_type, occurred_at) values ${vals}`,chunk.flat())
+          }
+          totals.playerEvents+=peRows.length
+        }
       }
       console.log(`  class ${cls.name}: ${cls.students} students`)
     }
@@ -282,5 +441,9 @@ async function deleteDemoAuthUsers(){
   const credPath=path.join(os.homedir(),'Desktop',`SSi-demo-credentials-${new Date().toISOString().slice(0,10)}.md`)
   fs.writeFileSync(credPath,creds.join('\n'))
   console.log(`\nDONE: ${totals.students} students, ${totals.sessions} sessions, ${totals.seedRows} seed rows, ${totals.legoRows} lego rows, ${totals.classSessions} class sessions`)
+  if(TELEMETRY)
+    console.log(`TELEMETRY: ${totals.legoMetrics} learner_lego_metrics rows (${totals.struggling} struggling / ${totals.easing} easing / ${totals.steady} steady series), ${totals.playerEvents} player_events`)
+  else
+    console.log('TELEMETRY: skipped (recent_latency_samples column absent — apply migrations 20260613_*/20260614_*)')
   console.log(`credentials -> ${credPath}`)
 })().catch(e=>{ console.error('FATAL:',e.message); process.exit(1) })
