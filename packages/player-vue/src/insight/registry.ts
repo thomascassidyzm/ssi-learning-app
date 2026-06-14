@@ -101,6 +101,17 @@ export const REGISTRY = {
     },
     load: () => import('./data/trialConversion'),
   }),
+  difficultyTurns: entry({
+    def: {
+      id: 'difficultyTurns',
+      label: 'Difficulty turns',
+      frames: ['world', 'group'],
+      widget: 'table',
+      altWidgets: ['ranked-bar'],
+      description: 'per-(learner,lego) local difficulty — the B4 curvature sensor over the live latency series: who is struggling / just turned. Reads analytics_difficulty_turns (admin-only).',
+    },
+    load: () => import('./data/difficultyTurns'),
+  }),
 } satisfies Record<string, AnyRegistryEntry>
 
 export type MetricId = keyof typeof REGISTRY
