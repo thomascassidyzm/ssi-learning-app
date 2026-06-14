@@ -67,7 +67,7 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 ## ⛔ Blocked / parked
 
 - [x] @tom 06-13 **Migration `20260613_class_first_class_citizen.sql`** — APPLIED & verified (7 lead tags backfilled, `class_teachers` view + `is_class_teacher()` live; additive, app still reads the lead pointer). The app-read migration ownership→membership is the next step (see To build), not this.
-- [ ] **Metrics M1 — UNBLOCKED 06-14** (M0 complete: A1 + A3 + the series write all live). The series now flows; build the M1 consumers that read it — teacher "needs attention" (group-relative + who-just-changed curvature overlay, D3) on real data. → `metrics-implementation-plan.md` §1 D3 / M1
+- [~] @claude-local 06-14 **Metrics M1 consumer — building.** M0 live; surface the now-flowing difficulty series via the B4/curvature sensors — "who's struggling / who just turned." Building admin-Insight-Engine-first (real consumer today, server-gated) to avoid re-entangling with the deferred schools-teacher read-reroute. → `metrics-implementation-plan.md` §1 D3 / M1
 - [!] **Supabase cloud sentinels** (health pulse / webhook integrity) — need the service key in the routine environment, or a Supabase MCP connector. No path from cloud today.
 
 ## ✅ Done (archive — groomer-managed, don't hand-edit)
