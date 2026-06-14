@@ -24,8 +24,9 @@ import DiscoveryFeed from './DiscoveryFeed.vue'
 const CourseScoreboard = defineAsyncComponent(() => import('./boards/CourseScoreboard.vue'))
 const ContentFrictionBoard = defineAsyncComponent(() => import('./boards/ContentFrictionBoard.vue'))
 const HealthStrip = defineAsyncComponent(() => import('./boards/HealthStrip.vue'))
+const DifficultyTurnsBoard = defineAsyncComponent(() => import('./boards/DifficultyTurnsBoard.vue'))
 
-type BoardId = 'scoreboard' | 'friction' | 'health'
+type BoardId = 'scoreboard' | 'friction' | 'difficulty' | 'health'
 
 interface BoardTab {
   id: BoardId
@@ -46,6 +47,12 @@ const boards: BoardTab[] = [
     label: 'Content Friction',
     blurb: 'Where the curriculum stalls everyone',
     component: ContentFrictionBoard,
+  },
+  {
+    id: 'difficulty',
+    label: 'Difficulty turns',
+    blurb: "Who's struggling, who just turned",
+    component: DifficultyTurnsBoard,
   },
   {
     id: 'health',

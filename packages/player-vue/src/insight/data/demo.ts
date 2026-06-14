@@ -15,6 +15,7 @@ import type {
   TimeSeriesData,
   CohortGridData,
   StatData,
+  TableData,
   Tone,
 } from '../spec'
 import type { CourseValueData, CourseValueRow } from './courseValue'
@@ -473,6 +474,100 @@ export function demoHealth(days = 30): HealthPayload {
     totalPlays,
     totalFailures,
     overallFailRatePct,
+  }
+}
+
+// ============================================================================
+// demoDifficultyTurns() → TableData (the B4 curvature sensor, who's struggling /
+// just turned). Mirrors the difficultyTurns resolver's EXACT shape so the demo
+// and real paths render identically through InsightWidget/Table.vue:
+//   columns: learner · unit · signal · z (vs own noise, σ)
+//   rows:    { id, tone: 'alarm'|'good', cells: { learner, unit, signal, z } }
+//   order:   struggling (alarm) first, then easing (good); within each, |z| desc.
+//
+// Determinism comes from a board-local fixed-seed PRNG (not the population RNG),
+// so the demo turns list is stable across reloads independent of mount order.
+// ============================================================================
+const DT_COLUMNS: TableData['columns'] = [
+  { key: 'learner', label: 'Learner', align: 'left' },
+  { key: 'unit', label: 'LEGO', align: 'left' },
+  { key: 'signal', label: 'Signal', align: 'left' },
+  { key: 'z', label: 'vs own noise (σ)', align: 'right', format: 'number' },
+]
+
+const DT_SIGNAL_LABEL: Record<'struggling' | 'easing', string> = {
+  struggling: 'Struggling ↑',
+  easing: 'Easing ↓',
+}
+
+// Named demo learners (synthetic — never a real person).
+const DT_LEARNERS = [
+  'Amara Okafor', 'Bjørn Halvorsen', 'Carmen Ruiz', 'Dafydd Pugh',
+  'Elif Demir', 'Federico Bruno', 'Gráinne Walsh', 'Hana Kobayashi',
+  'Idris Mbeki', 'Júlia Costa', 'Kasia Nowak', 'Liam Devlin',
+  'Mei Lin', 'Noor Haddad',
+] as const
+
+// Plausible LEGO ids (S{seed}L{lego}) — a spread across the early-mid course.
+const DT_LEGOS = [
+  'S0007L01', 'S0014L02', 'S0021L03', 'S0031L01', 'S0042L02',
+  'S0048L04', 'S0055L01', 'S0063L02', 'S0071L03', 'S0084L01',
+  'S0096L02', 'S0102L01', 'S0118L03', 'S0127L02',
+] as const
+
+export function demoDifficultyTurns(): TableData {
+  // Board-local PRNG so this list is stable regardless of other demo calls.
+  const dr = mulberry32(0xb4d1ff)
+
+  const STRUGGLING_COUNT = 7  // alarm rows
+  const EASING_COUNT = 4      // good rows  → 11 rows total (in the 8–14 band)
+
+  interface Turn { state: 'struggling' | 'easing'; learner: string; unit: string; z: number }
+  const turns: Turn[] = []
+  const used = new Set<number>()
+
+  function pick<T>(arr: readonly T[]): T {
+    // sample without replacement on the learner/lego index space for variety
+    let idx = Math.floor(dr() * arr.length)
+    let guard = 0
+    while (used.has(idx) && guard++ < arr.length) idx = (idx + 1) % arr.length
+    used.add(idx)
+    return arr[idx]
+  }
+
+  for (let i = 0; i < STRUGGLING_COUNT + EASING_COUNT; i++) {
+    const state: Turn['state'] = i < STRUGGLING_COUNT ? 'struggling' : 'easing'
+    // struggling: latency bending UP past own noise → positive σ (1.6–4.4)
+    // easing:     latency settling back DOWN        → negative σ (-3.4 to -1.4)
+    const z = state === 'struggling'
+      ? Math.round((1.6 + dr() * 2.8) * 10) / 10
+      : Math.round((-(1.4 + dr() * 2.0)) * 10) / 10
+    turns.push({
+      state,
+      learner: DT_LEARNERS[i % DT_LEARNERS.length],
+      unit: DT_LEGOS[i % DT_LEGOS.length],
+      z,
+    })
+  }
+
+  // Same ordering discipline as the resolver: struggling first, then easing;
+  // within each group, biggest |σ| first (the loudest turn at the top).
+  const rank: Record<Turn['state'], number> = { struggling: 0, easing: 1 }
+  turns.sort((a, b) => (rank[a.state] - rank[b.state]) || (Math.abs(b.z) - Math.abs(a.z)))
+
+  return {
+    kind: 'table',
+    columns: DT_COLUMNS,
+    rows: turns.map((t) => ({
+      id: `demo:${t.learner}:${t.unit}`,
+      tone: (t.state === 'struggling' ? 'alarm' : 'good') as Tone,
+      cells: {
+        learner: t.learner,
+        unit: t.unit,
+        signal: DT_SIGNAL_LABEL[t.state],
+        z: t.z,
+      },
+    })),
   }
 }
 

@@ -1,7 +1,7 @@
 # APML Interface: Insight Engine Specification
 # SSI Learning App
-# Version: 1.0.0 (2026-06-02)
-# Status: Integrated — typecheck-green, admin chunk builds
+# Version: 1.1.0 (2026-06-14)
+# Status: Integrated — typecheck-green, admin chunk builds; 4 boards (added DifficultyTurnsBoard)
 
 ## ============================================================================
 ## OVERVIEW
@@ -164,6 +164,12 @@ BOARDS:
     question: "Is audio breaking? Is my fix live?"
     widgets: "stat (audio_failed rate + cache-hit) + stat (build-SHA spread donut) + time-series (failure-rate trend)"
     data: "health metric (resolveHealthFull, per selected window 7d/14d/30d)"
+  DifficultyTurnsBoard:
+    lens: "Attention · per-pupil (admin-only — rows name learners / PII)"
+    question: "Who's struggling, who just turned?"
+    widgets: "table (Learner · LEGO · Signal · σ-vs-own-noise) — the loudest struggling turn annotated + graded actions (try/investigate/together)"
+    data: "difficultyTurns metric — the B4 curvature sensor (@ssi/core assessLocalDifficulty) over each learner's persisted per-(learner,lego) latency series; analytics_difficulty_turns RPC, per selected window 30d/90d"
+    law: "σ is measured against the learner's OWN baseline, not the cohort — the signal is personal, not a comparison; only the two actionable states (struggling ↑ / easing ↓) surface"
 
 ## ============================================================================
 ## THE HOST + INTEGRATION
@@ -171,7 +177,7 @@ BOARDS:
 
 INSIGHTS_VIEW:
   source: "packages/player-vue/src/insight/InsightsView.vue"
-  purpose: "The /admin/insights host — a board switcher rendering the three board components."
+  purpose: "The /admin/insights host — a board switcher rendering the four board components."
   layout: "Frostwell page header (schools-kicker + Arsenal h1 + subtitle) + a segmented board switcher + a lazily-mounted active board."
   lazy: "Boards are defineAsyncComponent imports, so the ECharts widget graph stays out of the initial admin chunk until a board is shown."
 
@@ -192,9 +198,9 @@ STATUS:
   built:
     - "spec.ts spine (frozen contract) + registry.ts + theme.ts"
     - "13 widgets + Stat, all render-only, ECharts lazy-loaded"
-    - "5 resolvers (courseValue, contentFriction, retention, health, trialConversion) — RPC-first, zero-safe"
+    - "6 resolvers (courseValue, contentFriction, retention, health, trialConversion, difficultyTurns) — RPC-first, zero-safe"
     - "InsightWidget wrapper owning the four behaviours"
-    - "3 boards (CourseScoreboard, ContentFrictionBoard, HealthStrip)"
+    - "4 boards (CourseScoreboard, ContentFrictionBoard, HealthStrip, DifficultyTurnsBoard)"
     - "InsightsView host + /admin/insights route + AdminTopBar tab"
   verified:
     - "pnpm --filter player-vue typecheck — PASSES (0 errors)"
