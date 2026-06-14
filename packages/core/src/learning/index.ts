@@ -6,6 +6,7 @@ export * from './SpikeDetector';
 export * from './MasteryStateMachine';
 export * from './curvature';
 export * from './localDifficulty';
+export * from './syntheticSeries';
 export * from './competenceBand';
 export * from './PhraseSelector';
 export * from './RoundEngine';

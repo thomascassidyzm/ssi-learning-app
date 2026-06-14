@@ -31,7 +31,13 @@
  *    (struggling / easing / steady) whose normalized-latency series is shaped
  *    to trip the sensor under its DEFAULT options (window 7, threshold 2 σ) —
  *    the resolver (insight/data/difficultyTurns.ts) calls the sensor with no
- *    options, so the shapes here are calibrated against those defaults.
+ *    options, so the shapes are calibrated against those defaults. The shapes
+ *    are the CANONICAL, TESTED makeLatencySeries from @ssi/core
+ *    (packages/core/src/learning/syntheticSeries.ts), not magic numbers here.
+ *
+ * BUILD DEPENDENCY (telemetry step): this script requires the built @ssi/core
+ * CJS dist, so run `pnpm --filter @ssi/core build` before generating. (There is
+ * no @ssi/core symlink in the repo-root node_modules; we resolve dist by path.)
  *
  * MIGRATION DEPENDENCY: the telemetry step needs columns + RPC that only exist
  * after Tom applies migrations 20260613_metrics_a3_learner_lego_state.sql,
@@ -72,40 +78,27 @@ const between=(lo,hi)=>lo+Math.floor(rnd()*(hi-lo+1))
 const uuid=()=>{const h='0123456789abcdef';let s='';for(let i=0;i<36;i++){if(i===8||i===13||i===18||i===23)s+='-';else if(i===14)s+='4';else if(i===19)s+=h[8+Math.floor(rnd()*4)];else s+=h[Math.floor(rnd()*16)]}return s}
 
 // ---------- difficulty telemetry (curvature-engine demo fuel) ----------
-// Builds per-(learner, LEGO) NORMALIZED-latency series (ms/char) shaped to trip
-// the @ssi/core local-difficulty sensor under its DEFAULT options (window 7,
-// threshold 2σ) — the difficultyTurns resolver calls assessLocalDifficulty()
-// with NO options, so these shapes are calibrated against those exact defaults.
-//   • struggling: a quiet stretch then a sharp upward break → +acceleration > own noise
-//   • easing:     a quiet stretch then a sharp downward break → −acceleration > own noise
-//   • steady:     flat (optionally gently sloped) + modest noise → never flags
-// Validated offline at ~199/200 (struggling/easing) and ~192/200 (steady).
-const QUIET_NOISE = 0.2            // ms/char jitter on the quiet stretch
-const BREAK_STEPS_UP   = [0.5, 1.3, 2.4, 4.0]   // accelerating climb at the trailing edge
-const BREAK_STEPS_DOWN = [0.5, 1.4, 2.6, 4.2]   // accelerating fall at the trailing edge
-const noiseAmt = scale => (rnd()*2-1)*scale
-const round2 = v => Math.round(v*100)/100
-function difficultySeries(archetype){
-  const n = between(12,16)             // 12–16 samples (>= 8 required by the RPC's min)
-  const quiet = n-4                    // the last 4 samples are the "turn"
-  const out=[]
-  if(archetype==='struggling'){
-    const base = 7+rnd()*5            // 7–12 ms/char baseline
-    for(let i=0;i<quiet;i++) out.push(round2(base+0.02*i+noiseAmt(QUIET_NOISE)))
-    const b0 = base+0.02*quiet
-    for(const s of BREAK_STEPS_UP) out.push(round2(b0+s+noiseAmt(0.15)))
-  } else if(archetype==='easing'){
-    const base = 14+rnd()*5           // 14–19 ms/char baseline (was slow, now resolving)
-    for(let i=0;i<quiet;i++) out.push(round2(base-0.02*i+noiseAmt(QUIET_NOISE)))
-    const b0 = base-0.02*quiet
-    for(const s of BREAK_STEPS_DOWN) out.push(round2(b0-s+noiseAmt(0.15)))
-  } else { // steady
-    const base = 8+rnd()*8            // 8–16 ms/char baseline
-    const slope = (rnd()*2-1)*0.05    // gentle, baseline-free slope (reads ~0 acceleration)
-    for(let i=0;i<n;i++) out.push(round2(base+slope*i+noiseAmt(0.25)))
-  }
-  return out
+// The series SHAPES are NOT defined here any more — they are the canonical,
+// TESTED calibration in @ssi/core (`packages/core/src/learning/syntheticSeries.ts`,
+// guarded by `syntheticSeries.test.ts` which asserts they classify correctly
+// through the REAL sensor under its DEFAULT options). We import `makeLatencySeries`
+// and feed it THIS generator's seeded `rnd` so per-student determinism is
+// preserved. Do NOT re-inline the magic numbers — change them in one place
+// (syntheticSeries.ts) where the regression test will keep them honest.
+//
+// REQUIRES @ssi/core TO BE BUILT FIRST:  pnpm --filter @ssi/core build
+//   (we require the built CJS dist; there is no workspace symlink for @ssi/core
+//    in the repo-root node_modules, so we resolve it by relative path.)
+let makeLatencySeries
+try {
+  ({ makeLatencySeries } = require('../../packages/core/dist/index.js'))
+} catch (e) {
+  console.error('✗ Could not load @ssi/core from packages/core/dist — build it first: pnpm --filter @ssi/core build')
+  throw e
 }
+// Build one normalized-latency series for the given archetype, driven by the
+// generator's seeded PRNG (so suites stay reproducible).
+const difficultySeries = archetype => makeLatencySeries(archetype, { rng: rnd })
 const MASTERY_BY_ARCHETYPE = {
   struggling: ['acquisition','consolidating'],
   easing:     ['consolidating','confident'],
