@@ -285,10 +285,21 @@ watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 
 // Dialogue rows are per-CHUNK, so the gloss is a single line under a single
 // phrase (never a paragraph wall) — it follows the gloss eye in every mode,
 // target-first by leaving the eye where the learner sets it.
-// Speed row: always in Core/All; in Dialogues only Immersion exposes it
-// (Drill's pace is fixed, the audit walk follows the config).
+// True when we're in a dialogue scene (pods + a scene open) — the only place
+// the Immersion/Drill mode-selector and its fixed-pace slot live.
+const isDialogueScene = computed(() => view.value === 'pods' && selectedScene.value !== null)
+
+// Interactive speed buttons: always in Core/All; in Dialogues only Immersion
+// exposes them. In Drill/audit the speed slot stays present but shows a quiet,
+// non-interactive fixed-pace indicator instead (so the toolbar height never
+// changes when you switch modes — see the dialogue layout note in CSS).
 const showSpeedRow = computed(
-  () => !(view.value === 'pods' && selectedScene.value) || listenMode.value === 'immersion'
+  () => !isDialogueScene.value || listenMode.value === 'immersion'
+)
+// Fixed-pace caption for the non-interactive slot (Drill = 1×/2×/2× cadence;
+// audit walks the live stage config). Only read when !showSpeedRow in a scene.
+const fixedPaceLabel = computed(() =>
+  listenMode.value === 'audit' ? 'Live config' : '1× · 2× · 2×'
 )
 
 // Pods state: list of scenes from useListeningPods, plus the currently
@@ -1664,6 +1675,7 @@ watch(
     <div
       v-if="view === 'phrases' || view === 'seeds' || (view === 'pods' && selectedScene)"
       class="controls-bar"
+      :class="{ dialogue: isDialogueScene }"
       @click.stop
     >
       <!-- Leftmost control:
@@ -1724,9 +1736,13 @@ watch(
         <span class="progress-text">{{ progressPercent }}%</span>
       </div>
 
-      <!-- Speed Selector — Core/All always; in Dialogues only Immersion
-           exposes it (Drill's pace is fixed at 1×/2×/2×, the audit walk
-           follows the live stage config). -->
+      <!-- Speed slot — Core/All always shows the interactive selector. In
+           Dialogues the slot is ALWAYS present (its own row under the band)
+           so the toolbar height never changes between modes: Immersion gets
+           the interactive selector; Drill/audit get a quiet, non-interactive
+           fixed-pace caption (Drill's pace is fixed at 1×/2×/2×, the audit
+           walk follows the live stage config) — which also explains WHY there
+           is no speed choice in those modes. -->
       <div v-if="showSpeedRow" class="speed-controls">
         <span class="speed-label">Speed</span>
         <div class="speed-selector">
@@ -1740,6 +1756,14 @@ watch(
             {{ speed }}x
           </button>
         </div>
+      </div>
+      <div
+        v-else-if="isDialogueScene"
+        class="speed-controls pace-fixed"
+        aria-hidden="true"
+      >
+        <span class="speed-label">Pace</span>
+        <span class="pace-fixed-value">{{ fixedPaceLabel }}</span>
       </div>
 
       <!-- Dialogue listening level: how much help, how much pace. These ARE
@@ -2021,19 +2045,22 @@ watch(
   gap: 0.5rem;
 }
 
-/* Dialogue listening-level selector — a full-width segmented control on
- * its own line (these are THE difficulty settings for listening, so they
- * get first-class placement). Active = ink, matching the view tabs — a
- * belt-colour fill is invisible on white belt. */
+/* Dialogue listening-level selector — an iOS-style segmented control sharing
+ * row 1 with the two quiet glyphs (loop · modes · eye). These are THE
+ * difficulty settings for listening, so they get first-class placement.
+ * Active = ink pill, matching the view tabs — a belt-colour fill is invisible
+ * on white belt. The crisp track + padded inset makes the two states read
+ * unmistakably as a toggle. */
 .mode-selector {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
   gap: 0;
+  padding: 2px;
   border: 1px solid var(--border-medium);
   border-radius: 999px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--bg-elevated);
 }
 
 .mode-btn {
@@ -2042,22 +2069,23 @@ watch(
   background: transparent;
   border: 0;
   border-radius: 999px;
-  color: var(--text-muted);
+  /* Inactive reads as tappable, not disabled — secondary ink, not muted. */
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.18s ease, color 0.18s ease, font-weight 0.18s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
 .mode-btn:hover:not(.active) {
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .mode-btn.active {
   background: var(--text-primary);
-  color: var(--bg-primary, #ffffff);
+  color: var(--bg-elevated, #ffffff);
   font-weight: 600;
 }
 
@@ -2067,6 +2095,33 @@ watch(
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+/* Dialogue toolbar: a STABLE two-row band. Row 1 = loop · mode-selector · eye
+ * (forced by reserving a full-width row 2 for the speed/pace slot). The speed
+ * slot is always present in a scene — interactive in Immersion, a quiet
+ * fixed-pace caption in Drill/audit — so switching modes never reflows the
+ * band: the Immersion/Drill toggle stays put and the toolbar height is
+ * constant (no jump, no play-button overlap). Core/All is untouched. */
+.controls-bar.dialogue .speed-controls {
+  order: 2;
+  flex-basis: 100%;
+  justify-content: center;
+  min-height: 30px;
+}
+
+/* Fixed-pace indicator — non-interactive readout for Drill/audit. Quiet mono,
+ * clearly informational rather than a control. */
+.controls-bar.dialogue .speed-controls.pace-fixed {
+  gap: 0.5rem;
+}
+
+.pace-fixed-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
 }
 

@@ -1,7 +1,7 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
 # Version: 1.0.0
-# Last updated: 2026-06-12
+# Last updated: 2026-06-15
 # Source: packages/player-vue/src/components/ListeningOverlay.vue
 #         packages/player-vue/src/composables/useListeningPods.ts
 
@@ -73,7 +73,7 @@ DIALOGUE_MODES:
       Each chunk played once at the learner's chosen speed (the speed row is
       shown for this mode). Within a speaker's turn chunks run tight (50ms) for
       natural continuous speech; a speaker change gets the full 800ms breath.
-    speed_row: true
+    speed_row: true   # interactive 1×/1.2×/1.5×/2× selector on row 2 of the band
 
   drill:
     key: "drill"
@@ -82,7 +82,11 @@ DIALOGUE_MODES:
     audio: |
       Each chunk played three times: 1× · 2× · 2× (300ms breath between reps).
       Row-by-row, so the learner stays on one phrase at a time.
-    speed_row: false
+    speed_row: false   # the interactive selector is hidden, BUT the row-2 slot
+                       # stays present as a non-interactive fixed-pace caption
+                       # ("Pace · 1× · 2× · 2×") so the toolbar height is
+                       # constant — the Immersion/Drill toggle never jumps when
+                       # switching modes. Audit shows "Pace · Live config".
 
   audit:
     key: "audit"
