@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
@@ -7,6 +7,8 @@ import {
   TRACKS,
   coursesForTrack,
   courseLabel,
+  knownLangName,
+  defaultKnownLang,
   type OnboardingTrack,
   type LiveCourse,
 } from '@/lib/onboardingTracks'
@@ -22,14 +24,26 @@ type Step = 'choose' | 'otp' | 'done'
 const step = ref<Step>('choose')
 
 const liveCourses = ref<LiveCourse[]>([])
-const courses = computed(() => coursesForTrack(liveCourses.value, props.track))
-// Search-first picker for the long tracks; the tile view stays for a handful.
+// The track narrows the TARGET set (heritage vs the rest); the known-language
+// switcher narrows the SOURCE. Default the source from the browser locale so the
+// common case (English-speaking schools) is one clean target list, not a wall of
+// "X for Y speakers" pairs.
+const trackCourses = computed(() => coursesForTrack(liveCourses.value, props.track))
+const availableKnownLangs = computed(() => {
+  const seen = new Set<string>()
+  for (const c of trackCourses.value) if (c.known_lang) seen.add(c.known_lang)
+  return Array.from(seen)
+})
+const knownLang = ref('eng')
+const courses = computed(() =>
+  trackCourses.value.filter((c) => c.known_lang === knownLang.value)
+)
+// Search-first only when the target list is long; otherwise browse the tiles.
 const langQuery = ref('')
 const showSearch = computed(() => courses.value.length > 8)
 const visibleCourses = computed(() => {
   const q = langQuery.value.trim().toLowerCase()
-  // Long lists: wait for a search rather than dumping every language.
-  if (showSearch.value && !q) return []
+  if (showSearch.value && !q) return [] // long list: wait for a search, don't dump all
   if (!q) return courses.value
   return courses.value.filter(
     (c) =>
@@ -39,6 +53,11 @@ const visibleCourses = computed(() => {
   )
 })
 const selectedCourse = ref('')
+// Changing the source language invalidates the target choice + any search.
+watch(knownLang, () => {
+  selectedCourse.value = ''
+  langQuery.value = ''
+})
 const email = ref('')
 const otp = ref('')
 const busy = ref(false)
@@ -55,7 +74,7 @@ const institution = ref('')
 const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
 const canSend = computed(() => emailValid.value && !!selectedCourse.value && !busy.value)
 const selectedCourseLabel = computed(() => {
-  const c = courses.value.find((x) => x.course_code === selectedCourse.value)
+  const c = trackCourses.value.find((x) => x.course_code === selectedCourse.value)
   return c ? courseLabel(c) : ''
 })
 const trialEndLabel = computed(() =>
@@ -77,7 +96,11 @@ onMounted(async () => {
   } finally {
     coursesLoaded.value = true
   }
-  // Preselect when the track offers exactly one language (e.g. Welsh-only today).
+  // Default the source language from the visitor's locale (English-speaking
+  // schools land straight on a clean target list; others can switch).
+  const locale = typeof navigator !== 'undefined' ? navigator.language : 'en'
+  knownLang.value = defaultKnownLang(locale, availableKnownLangs.value)
+  // Preselect when the chosen source offers exactly one target.
   if (!selectedCourse.value && courses.value.length === 1) {
     selectedCourse.value = courses.value[0].course_code
   }
@@ -242,8 +265,23 @@ async function continueIn() {
         <section v-if="step === 'choose'" key="choose" class="ob-step">
           <p class="ob-trial">{{ cfg.trialLabel }} — <span>free, no card needed</span></p>
 
-          <h1 class="ob-title">Which language will you speak?</h1>
+          <h1 class="ob-title">Which language will you teach?</h1>
           <p class="ob-sub">{{ cfg.blurb }}</p>
+
+          <!-- Source-language switcher — defaulted from the visitor's locale, so the
+               common case is one clean target list. Most never touch it. -->
+          <div v-if="availableKnownLangs.length > 1" class="ob-known">
+            <span class="ob-known-label">Your learners speak</span>
+            <select
+              v-model="knownLang"
+              class="ob-known-select"
+              aria-label="The language your learners already speak"
+            >
+              <option v-for="k in availableKnownLangs" :key="k" :value="k">
+                {{ knownLangName(k) }}
+              </option>
+            </select>
+          </div>
 
           <!-- Single pre-claimed hero card when the track offers one language -->
           <div v-if="courses.length === 1" class="ob-field">
@@ -767,6 +805,35 @@ async function continueIn() {
 }
 .ob-langset { gap: var(--space-3, 0.75rem); }
 .ob-lang-search { margin-bottom: var(--space-1, 0.25rem); }
+
+/* Source-language switcher — a quiet pill, defaulted from locale */
+.ob-known {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+  align-self: flex-start;
+  padding: 5px 8px 5px 14px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(44, 38, 34, 0.10);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--text-sm, 0.875rem);
+}
+.ob-known-label { color: var(--text-muted, #6a6360); }
+.ob-known-select {
+  font-family: var(--font-body);
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: var(--font-semibold, 600);
+  color: var(--ob-accent-ink);
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.ob-known-select:focus-visible {
+  outline: 2px solid var(--ob-accent-2);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 .ob-label {
   padding: 0;
   font-family: var(--font-body);

@@ -31,7 +31,7 @@ export default async function handler(
   try {
     const { data, error } = await supabase
       .from('courses')
-      .select('course_code, target_lang, pricing_tier, new_app_status, display_name, learner_display_name')
+      .select('course_code, target_lang, known_lang, pricing_tier, new_app_status, display_name, learner_display_name')
       .in('new_app_status', ['live', 'beta'])
       .order('display_name')
 
