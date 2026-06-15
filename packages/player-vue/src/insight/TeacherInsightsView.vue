@@ -8,9 +8,11 @@
 // friction, no board tabs, no "Insight Engine" chrome.
 //
 // HARD SCOPE (non-negotiable):
-//   · The entity is always THEIR class (a single fixed demo class) — or, by
-//     drilling, a learner WITHIN that class. Never another class / school /
-//     course. There is no class picker, no level switch beyond class<->learner.
+//   · The entity is always one of THE TEACHER'S OWN classes (a small fixed demo
+//     set) — or, by drilling, a learner WITHIN the selected class. Never any
+//     class outside the teacher's set, never another school's / teacher's class.
+//     The Class picker only ever offers the teacher's own classes; the level
+//     switch is class<->learner within the selected class.
 //   · An entity is only ever compared to an AGGREGATE/average (course avg /
 //     all-classes avg / peer cohort …). The widget itself enforces this — the
 //     cohort leaves only as an anonymised distribution marking "You" + the
@@ -40,15 +42,35 @@ import '@/styles/schools-tokens.css'
 
 const demoMode = isInsightDemo()
 
-// ── The teacher's fixed scope ───────────────────────────────────────────────
-// THEIR class. Not pickable — a teacher is invested in one class, not browsing.
-// (In the real path this comes from the teacher's session, not a dropdown.)
-const SCHOOL_NAME = 'Ysgol Bryn'
-const CLASS_NAME = 'Year 7 Spanish'
-const COURSE_LABEL = 'Spanish for English speakers'
-// The teacher's ONE class, resolved by name so it stays the same class across
-// every measure. Must equal CLASS_NAMES[0] in demoRates.ts ('Ysgol Bryn · Year 7 Spanish').
-const TEACHER_CLASS_LABEL = `${SCHOOL_NAME} · ${CLASS_NAME}`
+// ── The teacher's OWN classes ───────────────────────────────────────────────
+// A teacher usually teaches more than one class, so they pick among THEIR set —
+// never any class outside it. Every label here must exist verbatim in
+// CLASS_NAMES (demoRates.ts) so it resolves to a real population. The set spans
+// ≥2 courses so switching class also changes the course in the header.
+// (In the real path this set comes from the teacher's session, not hardcoded.)
+interface TeacherClass {
+  label: string      // exact CLASS_NAMES entry — `${school} · ${className}`
+  school: string
+  className: string
+  course: string
+}
+const MY_CLASSES: TeacherClass[] = [
+  { label: 'Ysgol Bryn · Year 7 Spanish', school: 'Ysgol Bryn', className: 'Year 7 Spanish', course: 'Spanish for English speakers' },
+  { label: 'Ysgol Bryn · Year 8 Spanish', school: 'Ysgol Bryn', className: 'Year 8 Spanish', course: 'Spanish for English speakers' },
+  { label: 'Coleg Tâf · French AS',       school: 'Coleg Tâf',  className: 'French AS',       course: 'French for English speakers' },
+]
+
+// The selected class — defaults to the teacher's first class.
+const selectedClassLabel = ref<string>(MY_CLASSES[0].label)
+const selectedClass = computed<TeacherClass>(
+  () => MY_CLASSES.find((c) => c.label === selectedClassLabel.value) ?? MY_CLASSES[0],
+)
+
+// Header fields all derive from the SELECTED class, so switching class updates
+// the title AND the course label.
+const SCHOOL_NAME = computed(() => selectedClass.value.school)
+const CLASS_NAME = computed(() => selectedClass.value.className)
+const COURSE_LABEL = computed(() => selectedClass.value.course)
 
 // ── Drill scope: the class itself, or a learner within it ───────────────────
 type Scope = 'class' | 'learner'
@@ -66,13 +88,14 @@ const currentMetric = computed(
 // Averages valid for the chosen metric — every option is an AGGREGATE cohort.
 const averageOptions = computed(() => listAverages(metricId.value))
 
-// ── The class entity: the teacher's ONE fixed class, resolved by NAME so it is
-// the SAME class across every measure (listEntities is value-sorted, so opts[0]
-// is the top class for the metric, not necessarily ours — match on label).
-// We never expose the rest of the class population as selectable entities.
+// ── The class entity: the SELECTED one of the teacher's own classes, resolved
+// by NAME so it is the SAME class across every measure (listEntities is
+// value-sorted, so opts[0] is the top class for the metric, not necessarily
+// ours — match on label). The picker only ever offers MY_CLASSES, so we never
+// expose any class outside the teacher's set as a selectable entity.
 const classEntityId = computed<string>(() => {
   const opts = listEntities(metricId.value, 'class')
-  return (opts.find((o) => o.label === TEACHER_CLASS_LABEL) ?? opts[0])?.value ?? ''
+  return (opts.find((o) => o.label === selectedClass.value.label) ?? opts[0])?.value ?? ''
 })
 
 // ── The learner drill: learners WITHIN the class (the learner-level population).
@@ -92,14 +115,18 @@ watch(metricId, () => {
   if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'course avg'
 })
 
-// Re-anchor the learner pick to the first learner whenever the metric/scope
-// makes the current pick invalid (e.g. switching into the learner drill).
+// Re-anchor the learner pick to the first learner whenever the metric/scope/
+// class makes the current pick invalid (e.g. switching into the learner drill,
+// or switching to another of the teacher's classes — the drill is always
+// learners WITHIN the selected class).
 watch(
-  [metricId, scope],
-  () => {
+  [metricId, scope, selectedClassLabel],
+  ([, newScope], [, oldScope]) => {
     if (scope.value !== 'learner') return
     const opts = listEntities(metricId.value, 'learner')
-    if (!opts.find((o) => o.value === learnerEntityId.value)) {
+    // On a class change while drilled in, restart from the first learner.
+    const classChanged = newScope === oldScope
+    if (classChanged || !opts.find((o) => o.value === learnerEntityId.value)) {
       learnerEntityId.value = opts[0]?.value ?? ''
     }
   },
@@ -120,8 +147,8 @@ const comparison = computed<RateComparisonData | null>(() => {
 // A friendly scope label for the header line.
 const scopeLabel = computed(() =>
   scope.value === 'class'
-    ? `${CLASS_NAME} · whole class`
-    : `${CLASS_NAME} · one learner`,
+    ? `${CLASS_NAME.value} · whole class`
+    : `${CLASS_NAME.value} · one learner`,
 )
 </script>
 
@@ -137,8 +164,18 @@ const scopeLabel = computed(() =>
       </p>
     </header>
 
-    <!-- ── Controls: drill (class / learner), metric, compare-to ── -->
+    <!-- ── Controls: your class, drill (class / learner), metric, compare-to ── -->
     <div class="tiv-controls">
+      <!-- Your classes — only ever the teacher's OWN set -->
+      <label class="tiv-field tiv-field-wide">
+        <span class="tiv-field-label">Your classes</span>
+        <select v-model="selectedClassLabel" class="tiv-select">
+          <option v-for="c in MY_CLASSES" :key="c.label" :value="c.label">
+            {{ c.label }}
+          </option>
+        </select>
+      </label>
+
       <!-- Drill: the class, or a learner within it -->
       <div class="tiv-field">
         <span class="tiv-field-label">View</span>
