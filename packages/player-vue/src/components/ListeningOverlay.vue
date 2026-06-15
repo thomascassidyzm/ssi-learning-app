@@ -5,7 +5,11 @@ import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepaliv
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
+import { useUserRole } from '../composables/useUserRole'
+import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
+import { ROLE_SPEED } from '../composables/usePodLapScheduler'
 import { buildSilentWavDataUri } from '../playback/silentWav'
+import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -18,6 +22,41 @@ class ListeningAudioController {
     this.playbackRate = 1
     // ms → data: URI cache for the silent gap clips (two sizes in practice).
     this.silenceCache = new Map()
+    // Bound timeupdate handler — keeps navigator.mediaSession's position
+    // state advancing so iOS/Android see a LIVE session and are far less
+    // likely to suspend the backgrounded/locked tab. Same heuristic the
+    // main flow uses (SimplePlayer.updateMediaPositionState). Skips the
+    // silent gap clips (their data: URI has no meaningful duration).
+    this._onTimeUpdate = () => this._updatePositionState()
+  }
+
+  /** Ensure the reusable element exists and the position-state listener is
+   *  attached exactly once. */
+  _ensureAudio() {
+    if (!this.audio) {
+      this.audio = new Audio()
+      this.audio.addEventListener('timeupdate', this._onTimeUpdate)
+      this.audio.addEventListener('loadedmetadata', this._onTimeUpdate)
+    }
+    return this.audio
+  }
+
+  _updatePositionState() {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+    if (typeof ms.setPositionState !== 'function') return
+    const a = this.audio
+    if (!a) return
+    const duration = a.duration
+    // Guard against NaN/Infinity (pre-metadata) and out-of-range positions
+    // that would make setPositionState throw.
+    if (!Number.isFinite(duration) || duration <= 0) return
+    const position = Math.min(Math.max(a.currentTime || 0, 0), duration)
+    try {
+      ms.setPositionState({ duration, position, playbackRate: a.playbackRate || 1 })
+    } catch {
+      /* best-effort — never break playback over a position hint */
+    }
   }
 
   setPlaybackRate(rate) {
@@ -46,15 +85,15 @@ class ListeningAudioController {
     await this.play(uri)
   }
 
-  async play(url) {
+  /** Play one clip. rateOverride (stage-pattern ×2 plays) takes precedence
+   *  over the user's global speed for THIS clip only. */
+  async play(url, rateOverride = null) {
     if (!url) {
       console.warn('[ListeningAudio] No audio URL')
       return
     }
 
-    if (!this.audio) {
-      this.audio = new Audio()
-    }
+    this._ensureAudio()
 
     this.audio.src = url
     this.audio.load()
@@ -109,7 +148,7 @@ class ListeningAudioController {
       }, 15000)
 
       // Set playbackRate right before play() - some browsers reset it after load()
-      this.audio.playbackRate = this.playbackRate
+      this.audio.playbackRate = rateOverride ?? this.playbackRate
       this.audio.play().catch(onError)
     })
   }
@@ -187,6 +226,70 @@ const audioController = ref(null)
  *  the top (Spotify-style single-track repeat). Only meaningful in
  *  pods view with a scene selected. */
 const loopScene = ref(false)
+
+// ── Dialogue listening modes (Tom 2026-06-12) ──────────────────────────
+// Listening MODE is for PRACTICE — the learner replays whole scenes with
+// no known-language crutch. The structured 9-stage acquisition delivery
+// already lives in the MAIN FLOW (usePodLapScheduler, driven live from
+// algorithm_config.pods); we deliberately do NOT re-implement a summarised
+// copy of it here — that second engine was the source of the listening-vs-
+// main-flow mismatch. Two target-only practice modes:
+//   immersion — the whole scene, target only, at the learner's chosen speed
+//               (the speed row). Continuous, natural conversation.
+//   drill     — each line three times: 1× · 2× · 2×, target only. Tight
+//               repetition to lock a line in.
+// An admin-only 'audit' mode (the real 9-stage progression, read live from
+// algorithm_config.pods) is appended for content tuning — gated by both the
+// ssi_admin role AND the Settings → Developer "Listening Progression Audit"
+// toggle. Keys are stable (localStorage + code); labels are free to evolve.
+const BASE_LISTEN_MODES = [
+  { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
+  { key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' },
+]
+const AUDIT_LISTEN_MODE = {
+  key: 'audit',
+  label: 'Progression',
+  desc: 'Admin: walk each line through all 9 acquisition stages, live from the listening config',
+}
+// Admin audit availability: role + the Settings toggle (re-read live so
+// flipping the toggle in Settings reflects without a reload).
+const { isSsiAdmin } = useUserRole()
+const auditToggle = ref(localStorage.getItem('ssi-listening-audit') === 'true')
+const onSettingChanged = (e) => {
+  if (e?.detail?.key === 'listeningAudit') auditToggle.value = !!e.detail.value
+}
+const auditAvailable = computed(() => isSsiAdmin.value && auditToggle.value)
+const LISTEN_MODES = computed(() =>
+  auditAvailable.value ? [...BASE_LISTEN_MODES, AUDIT_LISTEN_MODE] : BASE_LISTEN_MODES,
+)
+const validModeKeys = computed(() => new Set(LISTEN_MODES.value.map((m) => m.key)))
+const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')
+watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) } catch {} })
+// Keep the selection valid: a retired key (Flow/Guided/Practice/Turbo) — or
+// 'audit' when it's no longer available — falls back to the default.
+watch(validModeKeys, (keys) => { if (!keys.has(listenMode.value)) listenMode.value = 'immersion' }, { immediate: true })
+
+// Live pod stage config — the SAME source the main-flow scheduler reads, so
+// the audit walk matches main-flow delivery (and Popty tweaks) by construction.
+const algoConfig = useAlgorithmConfig(supabase)
+// Stage badge for the audit walk — { stage, total, role } | null.
+const auditStatus = ref(null)
+// Warm the config if audit is enabled after the overlay is already open.
+watch(auditAvailable, (v) => { if (v) algoConfig.loadConfigs() })
+
+// Known-language glosses can be hidden entirely (long canon-v2 turns make
+// the gloss block heavy when you don't need it).
+const showGloss = ref(localStorage.getItem('ssi-listening-gloss') !== 'off')
+watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 'on' : 'off') } catch {} })
+
+// Dialogue rows are per-CHUNK, so the gloss is a single line under a single
+// phrase (never a paragraph wall) — it follows the gloss eye in every mode,
+// target-first by leaving the eye where the learner sets it.
+// Speed row: always in Core/All; in Dialogues only Immersion exposes it
+// (Drill's pace is fixed, the audit walk follows the config).
+const showSpeedRow = computed(
+  () => !(view.value === 'pods' && selectedScene.value) || listenMode.value === 'immersion'
+)
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -309,32 +412,45 @@ const jumpToBelt = (point) => {
 const openScene = (scene) => {
   stopPlayback()
   selectedScene.value = scene
-  // Map pod turns (consecutive same-speaker sentences merged) to the
-  // same shape allPhrases expects. The teleprompter renders each turn
-  // as one row; the audio path plays the turn's audioIds sequentially
-  // with a tight inter-clip gap (see playPhrase).
-  const phrases = scene.turns.map((t) => ({
-    id: t.id,
-    seedNumber: undefined,
-    legoIndex: undefined,
-    legoId: '',
-    legoOrdinal: null,
-    beltIndex: undefined,
-    beltName: '',
-    beltColor: '',
-    knownText: t.knownText,
-    targetText: t.targetText,
-    speaker: t.speaker,
-    speakerName: t.speakerName,
-    // Resolved palette colour from the pod-wide conversation colouring —
-    // character-stable, scene-mates always distinct.
-    speakerColor: SPEAKER_PALETTE[t.colorIndex % SPEAKER_PALETTE.length],
-    position: t.globalOrder,
-    target1AudioId: t.audioIds[0] || '',
-    target2AudioId: t.audioIds[0] || '',
-    /** Full audio sequence — playPhrase chains these in order. */
-    audioIds: t.audioIds,
-  }))
+  // Flatten the scene's turns into ONE ROW PER CHUNK (per-phrase granularity,
+  // Tom 2026-06-12). The turn grouping survives only as presentation: the
+  // speaker chip shows on a turn's FIRST chunk, and the inter-row gap is
+  // turn-aware (tight within a speaker's turn, a full breath on a speaker
+  // change) — so a turn still reads as one person speaking, revealed line by
+  // line, while each row stays a single parseable phrase + its gloss.
+  const phrases = []
+  for (const t of scene.turns) {
+    const color = SPEAKER_PALETTE[t.colorIndex % SPEAKER_PALETTE.length]
+    const chunks = Array.isArray(t.sentences) && t.sentences.length > 0
+      ? t.sentences
+      : [{ targetText: t.targetText, knownText: t.knownText, targetAudioId: t.audioIds[0] || null, knownAudioId: null, explainerAudioId: null }]
+    chunks.forEach((s, idx) => {
+      phrases.push({
+        id: `${t.id}-c${idx}`,
+        seedNumber: undefined,
+        legoIndex: undefined,
+        legoId: '',
+        legoOrdinal: null,
+        beltIndex: undefined,
+        beltName: '',
+        beltColor: '',
+        knownText: s.knownText,
+        targetText: s.targetText,
+        speaker: t.speaker,
+        // Chip only on the turn's first chunk — later chunks group beneath it.
+        speakerName: idx === 0 ? t.speakerName : '',
+        speakerColor: color,
+        position: t.globalOrder * 1000 + idx,
+        target1AudioId: s.targetAudioId || '',
+        target2AudioId: s.targetAudioId || '',
+        audioIds: s.targetAudioId ? [s.targetAudioId] : [],
+        // Single-chunk detail — keeps the play queue + gloss split working.
+        sentences: [s],
+        // True for the first chunk of a turn — drives the turn-aware gap.
+        isTurnStart: idx === 0,
+      })
+    })
+  }
   allPhrases.value = phrases
   loadedCount.value = phrases.length
   totalCount.value = phrases.length
@@ -346,13 +462,17 @@ const openScene = (scene) => {
   // accidentally re-enable it from this surface.
   mode.value = 'ordered'
   updateVisibleWindow()
-  // Warm-up: prefetch the first ~5 turns of the scene. usePodLapScheduler
-  // already prefetches its OWN pod laps for the active LearningPlayer
-  // session — this is independent: the listening-overlay scene is a
-  // separate, learner-driven playback path. SW CacheFirst de-dupes
-  // overlapping URLs, so any shared audio costs nothing extra.
-  prefetchTopRows()
+  // Warm-up: cache the WHOLE scene (every clip the current mode needs)
+  // while the screen is still on — background fetch suspends under lock,
+  // so the horizon must be banked up-front. usePodLapScheduler prefetches
+  // its OWN pod laps for the active LearningPlayer session — this is
+  // independent; SW CacheFirst de-dupes shared audio.
+  warmScene(scene)
 }
+
+// Switching listening mode mid-scene changes which clips a play-through
+// needs (translations/explainers) — top the cache up immediately.
+watch(listenMode, () => { if (selectedScene.value) warmScene(selectedScene.value) })
 
 /** Back from scene-teleprompter to the scene list. */
 const exitScene = () => {
@@ -649,6 +769,36 @@ const updateVisibleWindow = () => {
 }
 
 // ============================================================================
+// Interleaved gloss pairs (Tom 2026-06-11)
+// ============================================================================
+// Long canon-v2 turns made block-target-then-block-known impossible to match
+// up. The turn's per-sentence data gives PERFECTLY aligned (target, known)
+// row pairs; within a row, faithful rendering means sentence counts almost
+// always match too — so sub-split on sentence enders when they do, and fall
+// back to the row pair when they don't. Pure string work, no timing data.
+const splitSentences = (text) =>
+  (String(text || '').match(/[^.!?…。！？]+[.!?…。！？]+["”』」)]*|[^.!?…。！？]+$/gu) || [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+const glossPairsFor = (phrase) => {
+  const units = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
+    ? phrase.sentences
+    : [{ targetText: phrase.targetText, knownText: phrase.knownText }]
+  const pairs = []
+  for (const u of units) {
+    const t = splitSentences(u.targetText)
+    const k = splitSentences(u.knownText)
+    if (t.length > 1 && t.length === k.length) {
+      for (let i = 0; i < t.length; i++) pairs.push({ target: t[i], known: k[i] })
+    } else {
+      pairs.push({ target: u.targetText, known: u.knownText })
+    }
+  }
+  return pairs
+}
+
+// ============================================================================
 // Audio
 // ============================================================================
 
@@ -686,30 +836,47 @@ const getAudioUrl = (audioId) => {
  * requests hit it).
  */
 /**
- * Warm the next scene's opening audio while the current scene's last turn
- * plays — the playlist segue then reads straight from the SW cache instead
- * of hitting the network inside the 800ms inter-turn gap. Mirrors the
- * wrap-around logic in handleEndOfList (last scene warms the first).
+ * Warm the next scene's opening audio into IndexedDB while the current
+ * scene's last turn plays — so the playlist segue resolves to a cached WAV
+ * blob (lock-safe) instead of hitting the network inside the 800ms gap.
+ * Mirrors the wrap-around in handleEndOfList (last scene warms the first).
  */
+/** Warm EVERY clip a scene's turns can need under the current mode —
+ *  targets, and (in stage-pattern modes) translations + explainers. A whole
+ *  canon-v2 scene is ≤ ~60 small clips; cached up-front while the screen is
+ *  still on, so a locked-screen play-through never touches the network. */
+const warmScene = (scene) => {
+  if (!scene) return
+  for (const t of scene.turns) {
+    for (const id of audioIdsForWarm(t)) warmClip(id)
+  }
+}
+
 const prefetchNextSceneHead = () => {
   if (view.value !== 'pods' || !selectedScene.value || loopScene.value) return
   const sceneList = pods.scenes.value
   const idx = sceneList.findIndex(s => s.sceneNumber === selectedScene.value.sceneNumber)
   const next = idx >= 0 ? (sceneList[idx + 1] || sceneList[0]) : null
   if (!next || next.sceneNumber === selectedScene.value.sceneNumber) return
-  for (const t of next.turns.slice(0, TAB_PREFETCH_LIMIT)) {
-    const id = Array.isArray(t.audioIds) ? t.audioIds[0] : null
-    if (!id) continue
-    const url = getAudioUrl(id)
-    if (url) fetch(url, { priority: 'low' }).catch(() => undefined)
-  }
+  warmScene(next)
+}
+
+/**
+ * Warm one clip into the IndexedDB AudioCache (not just the SW). This is
+ * what lets the play-time resolver hand the <audio> element a cached WAV
+ * blob — the lock-screen-safe path. persistent.ensure de-dupes in-flight
+ * and is a fast no-op when already stored; errors are silent (the JIT
+ * resolve on play falls back to the proxy URL).
+ */
+const warmClip = (id) => {
+  if (!id || audioCache.persistent.has(id)) return
+  audioCache.persistent.ensure(id).catch(() => undefined)
 }
 
 const prefetchTopRows = () => {
   const rows = availablePhrases.value
   if (!rows.length) return
 
-  const urls = []
   for (let i = 0; i < Math.min(TAB_PREFETCH_LIMIT, rows.length); i++) {
     const row = rows[i]
     if (!row) continue
@@ -726,20 +893,9 @@ const prefetchTopRows = () => {
     } else if (row.target2AudioId) {
       id = row.target2AudioId
     }
-    if (!id) continue
-    const url = getAudioUrl(id)
-    if (url) urls.push(url)
-  }
-
-  if (urls.length === 0) return
-
-  // Fire-and-forget. SW CacheFirst writes the response to its cache on
-  // first hit; subsequent fetches (including the player's <audio> src
-  // load) read from the cache. Discard the body — we just want the
-  // cached entry. Silent failure: prefetch errors aren't user-visible;
-  // the JIT fetch on tap will surface real problems.
-  for (const url of urls) {
-    fetch(url, { priority: 'low' }).catch(() => undefined)
+    // Warm into IndexedDB (not just the SW) so the play-time resolver can
+    // hand the element a cached WAV blob — the lock-screen-safe path.
+    warmClip(id)
   }
 }
 
@@ -762,6 +918,112 @@ const playFromIndex = async (index) => {
   await playCurrentPhrase(myPlaybackId)
 }
 
+/**
+ * Build the play queue for one phrase row as [{ id, rate|null }].
+ * - Dialogue scenes (Immersion / Drill): TARGET ONLY, mapped from the turn's
+ *   per-chunk sentence detail.
+ *     immersion — each chunk once at the learner's chosen speed.
+ *     drill     — each chunk three times: 1× · 2× · 2×.
+ * - Core / All rows keep the original random-voice behaviour.
+ */
+const buildPlayQueue = (phrase) => {
+  if (view.value === 'pods' && selectedScene.value) {
+    // Per-chunk detail drives both modes; fall back to the turn's first
+    // audio id if a row somehow lacks sentence detail.
+    const sentences = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
+      ? phrase.sentences
+      : [{ targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null }]
+    if (listenMode.value === 'audit') {
+      return buildAuditQueue(sentences)
+    }
+    const queue = []
+    if (listenMode.value === 'drill') {
+      for (const s of sentences) {
+        if (!s.targetAudioId) continue
+        queue.push({ id: s.targetAudioId, rate: 1 })
+        queue.push({ id: s.targetAudioId, rate: 2 })
+        queue.push({ id: s.targetAudioId, rate: 2 })
+      }
+      return queue
+    }
+    // immersion (default): the whole scene, target only, at the chosen speed.
+    for (const s of sentences) {
+      if (s.targetAudioId) queue.push({ id: s.targetAudioId, rate: playbackSpeed.value })
+    }
+    return queue
+  }
+  if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
+    return phrase.audioIds.filter(Boolean).map((id) => ({ id, rate: null }))
+  }
+  const useVoice1 = Math.random() < 0.5
+  const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
+  return audioId ? [{ id: audioId, rate: null }] : []
+}
+
+/**
+ * Admin "Progression" audit walk — for each chunk, play EVERY stage of the
+ * LIVE pod config (algorithm_config.pods) in order, so the content team hears
+ * a line's whole 1→9 acquisition arc in one pass. Role → audio resolution
+ * mirrors usePodLapScheduler exactly (explainer falls back to translation),
+ * and role → rate reuses the scheduler's ROLE_SPEED — so this matches the
+ * real main-flow delivery by construction. Queue items carry stage metadata
+ * for the on-screen badge.
+ */
+const buildAuditQueue = (sentences) => {
+  const playlist = algoConfig.podsConfig.value?.stagePlaylist || {}
+  const stages = Object.keys(playlist)
+    .map(Number)
+    .filter((n) => !Number.isNaN(n))
+    .sort((a, b) => a - b)
+  const total = stages.length
+  const queue = []
+  for (let ci = 0; ci < sentences.length; ci++) {
+    const s = sentences[ci]
+    for (const stage of stages) {
+      for (const role of playlist[stage] || []) {
+        const id = role === 'trans'
+          ? s.knownAudioId
+          : role === 'explainer'
+            ? (s.explainerAudioId || s.knownAudioId) // explainer → translation fallback
+            : s.targetAudioId // ps / ps08x / ps15x / ps2x
+        if (!id) continue
+        queue.push({
+          id,
+          rate: ROLE_SPEED[role] ?? 1,
+          stage,
+          total,
+          role,
+          chunk: ci + 1,
+          chunks: sentences.length,
+        })
+      }
+    }
+  }
+  return queue
+}
+
+/** Every audio id a row can need under the CURRENT mode — the warm-ahead
+ *  must cover explainer/translation clips too (audit walk only), or a
+ *  staged play hits the network mid-list (fatal under a locked screen).
+ *  Immersion / Drill are target-only, so only targets are warmed. */
+const audioIdsForWarm = (phrase) => {
+  if (!phrase) return []
+  const ids = []
+  if (Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
+    for (const s of phrase.sentences) {
+      if (s.targetAudioId) ids.push(s.targetAudioId)
+      if (listenMode.value === 'audit') {
+        if (s.knownAudioId) ids.push(s.knownAudioId)
+        if (s.explainerAudioId) ids.push(s.explainerAudioId)
+      }
+    }
+    return ids
+  }
+  if (Array.isArray(phrase.audioIds)) return phrase.audioIds.filter(Boolean)
+  if (phrase.target1AudioId) ids.push(phrase.target1AudioId)
+  return ids
+}
+
 const playCurrentPhrase = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId || !isPlaying.value) return
 
@@ -771,17 +1033,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
     return
   }
 
-  // Pod turns carry an audioIds[] sequence (merged consecutive
-  // same-speaker sentences). Phrase rows carry one audio per voice in
-  // target1AudioId / target2AudioId. Build the play queue accordingly.
-  let playQueue = []
-  if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
-    playQueue = phrase.audioIds.filter(Boolean)
-  } else {
-    const useVoice1 = Math.random() < 0.5
-    const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
-    if (audioId) playQueue = [audioId]
-  }
+  const playQueue = buildPlayQueue(phrase)
 
   console.log('[ListeningOverlay] Playing phrase:', {
     index: currentIndex.value,
@@ -789,6 +1041,15 @@ const playCurrentPhrase = async (myPlaybackId) => {
     clips: playQueue.length,
   })
 
+  // Rolling warm-ahead: pull the next few rows into IndexedDB while this
+  // one plays, so a locked screen always finds the upcoming clip cached
+  // (the lock-safe WAV path) rather than hitting the throttled network
+  // mid-list. Covers EVERY clip the current mode needs (multi-sentence
+  // turns, translations, explainers) — a single cache miss under lock
+  // stalls with frozen rescue timers, so the horizon must stay ahead.
+  for (let n = 1; n <= 3; n++) {
+    for (const id of audioIdsForWarm(availablePhrases.value[currentIndex.value + n])) warmClip(id)
+  }
   // Last turn of a pod scene → warm the NEXT scene's opening clips now,
   // while this turn plays, so the scene segue never waits on the network.
   if (currentIndex.value === availablePhrases.value.length - 1) {
@@ -809,17 +1070,36 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // timer-driven gap killed the advance the moment the screen locked.
   // 'ended'-driven silence matches the main flow / INF PLAY / pod-lap
   // protocol (see SimplePlayer's PAUSE phase).
+  // Drill's repeats breathe a little (300ms) so the 1×/2×/2× reps read as
+  // deliberate practice; Immersion keeps the tight 50ms that joins a
+  // speaker's consecutive chunks into natural continuous speech.
+  const interClipGap = (view.value === 'pods' && selectedScene.value && (listenMode.value === 'drill' || listenMode.value === 'audit')) ? 300 : 50
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
-    const audioUrl = getAudioUrl(playQueue[i])
-    if (!audioUrl) continue
+    const item = playQueue[i]
+    const { id, rate } = item
+    // Audit walk: surface which stage/role is sounding right now.
+    auditStatus.value = item.stage ? { stage: item.stage, total: item.total, role: item.role, chunk: item.chunk, chunks: item.chunks } : null
+    const proxyUrl = getAudioUrl(id)
+    if (!proxyUrl) continue
+    // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
+    // (lock-screen-safe — real PCM, no network) when present, else the proxy
+    // URL (instant first play on a cold cache). Same primitive the main 4-phase
+    // cycle plays through (SimplePlayer.resolveAudioUrl) — this is what makes
+    // listening survive background/lock, not just the silent gaps.
+    const audioUrl = await resolveCachedPlaybackUrl(audioCache, id, proxyUrl)
+    if (myPlaybackId !== playbackId) return
     try {
-      await audioController.value.play(audioUrl)
+      // Dialogue queues always carry an explicit per-clip rate (Immersion =
+      // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
+      // Core/All pass rate=null and lean on the controller's rate watch.
+      const effectiveRate = (view.value === 'pods' && selectedScene.value) ? (rate ?? 1) : rate
+      await audioController.value.play(audioUrl, effectiveRate)
     } catch (err) {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
     if (i < playQueue.length - 1) {
-      await audioController.value.playSilence(50)
+      await audioController.value.playSilence(interClipGap)
     }
   }
 
@@ -829,7 +1109,17 @@ const playCurrentPhrase = async (myPlaybackId) => {
 
   if (myPlaybackId !== playbackId) return
 
-  await audioController.value.playSilence(800)
+  // Inter-row gap. In a dialogue scene the rows are CHUNKS: keep a speaker's
+  // consecutive chunks close (natural continuous speech) and breathe only on
+  // a speaker change (the next row starts a new turn). Elsewhere, the steady
+  // between-phrases pause. Immersion runs the tightest within-turn gap; Drill
+  // gives each phrase a touch more room.
+  const nextPhrase = availablePhrases.value[currentIndex.value + 1]
+  let trailingGap = 800
+  if (view.value === 'pods' && selectedScene.value && nextPhrase && !nextPhrase.isTurnStart) {
+    trailingGap = listenMode.value === 'immersion' ? 50 : 350
+  }
+  await audioController.value.playSilence(trailingGap)
 
   if (myPlaybackId !== playbackId) return
 
@@ -927,6 +1217,7 @@ const togglePlayback = () => {
 const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
+  auditStatus.value = null
   audioController.value?.stop()
 }
 
@@ -1220,6 +1511,10 @@ onMounted(async () => {
   else isLoading.value = false
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('ssi-setting-changed', onSettingChanged)
+  // Warm the live pod stage config for the admin audit walk (cached singleton —
+  // a fast no-op if the main flow already loaded it this session).
+  if (auditAvailable.value) algoConfig.loadConfigs()
   checkPackComplete()
 })
 
@@ -1228,6 +1523,7 @@ onUnmounted(() => {
   releaseWakeLock()
   clearMediaSession()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('ssi-setting-changed', onSettingChanged)
   // Cancel any in-flight pack download
   if (packState.value === 'downloading') {
     packState.value = 'idle'
@@ -1268,6 +1564,25 @@ watch(
         <path d="M18 6L6 18M6 6l12 12"/>
       </svg>
     </button>
+
+    <!-- Back to scene list — mirrors the close circle at the opposite corner,
+         so the top band reads: [back] [tabs] [close]. -->
+    <button
+      v-if="view === 'pods' && selectedScene"
+      class="close-btn back-fab"
+      :title="`Back to scenes — ${selectedScene.title}`"
+      @click.stop="exitScene"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </button>
+
+    <!-- Ambient progress — a hairline at the top edge, not a transport bar.
+         The scene's position reads like a reading-progress line. -->
+    <div v-if="view === 'pods' && selectedScene" class="top-progress" aria-hidden="true">
+      <div class="top-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+    </div>
 
     <!-- (Offline download button removed 2026-05-20 — being moved to
          Settings. packState / packPercent / downloadListeningPack are
@@ -1371,20 +1686,13 @@ watch(
           <line x1="4" y1="4" x2="9" y2="9"/>
         </svg>
       </button>
-      <button
-        v-else-if="view === 'pods' && selectedScene"
-        class="scene-back-btn"
-        type="button"
-        :title="`Back to scenes — ${selectedScene.title}`"
-        @click="exitScene"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-      </button>
+      <!-- Dialogue scene: ONE quiet band — loop · modes · eye. The loop and
+           eye are bare glyphs (hairlines + type, not circle clusters); the
+           back button moved to the top corner; the transport dissolved into
+           the ambient hairline + the paused glyph over the teleprompter. -->
       <button
         v-if="view === 'pods' && selectedScene"
-        class="scene-loop-btn"
+        class="edge-glyph"
         :class="{ active: loopScene }"
         type="button"
         :title="loopScene ? 'Repeat this scene — tap to flow into next scenes instead' : 'Flow into next scene — tap to repeat this scene'"
@@ -1399,8 +1707,9 @@ watch(
         </svg>
       </button>
 
-      <!-- Transport: play/stop + progress bar -->
-      <div class="transport-bar">
+      <!-- Transport — Core/All only; Dialogue scenes play through the surface
+           (tap anywhere) with the hairline carrying progress. -->
+      <div v-if="!(view === 'pods' && selectedScene)" class="transport-bar">
         <button class="transport-btn" @click="togglePlayback">
           <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="2"/>
@@ -1415,8 +1724,10 @@ watch(
         <span class="progress-text">{{ progressPercent }}%</span>
       </div>
 
-      <!-- Speed Selector -->
-      <div class="speed-controls">
+      <!-- Speed Selector — Core/All always; in Dialogues only Immersion
+           exposes it (Drill's pace is fixed at 1×/2×/2×, the audit walk
+           follows the live stage config). -->
+      <div v-if="showSpeedRow" class="speed-controls">
         <span class="speed-label">Speed</span>
         <div class="speed-selector">
           <button
@@ -1430,6 +1741,54 @@ watch(
           </button>
         </div>
       </div>
+
+      <!-- Dialogue listening level: how much help, how much pace. These ARE
+           the listening difficulty settings — first-class placement, sharing
+           the band with the two quiet glyphs. -->
+      <div v-if="view === 'pods' && selectedScene" class="mode-selector">
+        <button
+          v-for="m in LISTEN_MODES"
+          :key="m.key"
+          class="mode-btn"
+          :class="{ active: listenMode === m.key }"
+          :title="m.desc"
+          @click="listenMode = m.key"
+        >{{ m.label }}</button>
+      </div>
+
+      <!-- Gloss eye: show/hide the known-language line under each phrase. -->
+      <button
+        class="edge-glyph gloss-toggle"
+        :class="{ active: showGloss }"
+        type="button"
+        :title="showGloss ? 'Hide translations' : 'Show translations'"
+        :aria-pressed="showGloss"
+        @click="showGloss = !showGloss"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+          <line v-if="!showGloss" x1="3" y1="3" x2="21" y2="21"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Scene orientation: a whisper of type, not a band — you always know
+         where you are without the chrome asserting itself. -->
+    <div v-if="view === 'pods' && selectedScene && !isLoading" class="scene-strip" @click.stop>
+      {{ selectedScene.title }}
+    </div>
+
+    <!-- Audit walk: live stage/role badge so the content team can see which
+         of the 9 acquisition stages is sounding as a line walks its arc. -->
+    <div
+      v-if="listenMode === 'audit' && auditStatus"
+      class="audit-badge"
+      @click.stop
+    >
+      <span class="audit-stage">Stage {{ auditStatus.stage }}/{{ auditStatus.total }}</span>
+      <span class="audit-role">{{ auditStatus.role }}</span>
+      <span v-if="auditStatus.chunks > 1" class="audit-chunk">line {{ auditStatus.chunk }}/{{ auditStatus.chunks }}</span>
     </div>
 
     <!-- Loading State (All / Core only — Dialogues has its own loading) -->
@@ -1512,16 +1871,38 @@ watch(
             <div v-if="phrase.speakerName" class="phrase-speaker" :style="{ color: phrase.speakerColor }">
               <span class="phrase-speaker-dot" :style="{ background: phrase.speakerColor }"></span>{{ phrase.speakerName }}
             </div>
-            <div class="phrase-target">{{ phrase.targetText }}</div>
-            <div v-if="phrase.isCurrent && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+            <!-- Current dialogue turn: interleave target and gloss sentence
+                 by sentence (aligned from per-sentence data + faithful-canon
+                 sentence splitting) so long turns stay matchable. Other rows
+                 keep the plain paragraph. Gloss honours the eye toggle. -->
+            <template v-if="phrase.isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
+              <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
+                <div class="phrase-target">{{ pair.target }}</div>
+                <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
+              </div>
+            </template>
+            <template v-else>
+              <div class="phrase-target">{{ phrase.targetText }}</div>
+              <div v-if="phrase.isCurrent && showGloss && phrase.knownText" class="phrase-known">{{ phrase.knownText }}</div>
+            </template>
           </div>
         </template>
       </div>
 
       <!-- Play/Pause indicator -->
-      <div class="playback-hint" :class="{ playing: isPlaying }">
+      <div v-if="!(view === 'pods' && selectedScene)" class="playback-hint" :class="{ playing: isPlaying }">
         <span v-if="isPlaying">Tap to pause</span>
         <span v-else>Tap to play</span>
+      </div>
+
+      <!-- Paused state, dialogue scenes: a soft glyph floats over the
+           teleprompter — the video-player idiom. While playing there is
+           NOTHING: the dialogue owns the screen. Pointer-events none; the
+           tap lands on the surface beneath, which toggles playback. -->
+      <div v-if="view === 'pods' && selectedScene && !isPlaying" class="paused-glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="8 5 19 12 8 19 8 5"/>
+        </svg>
       </div>
     </div>
   </div>
@@ -1585,11 +1966,16 @@ watch(
 }
 
 /* Controls bar — pushed down to clear the SSi logo */
+/* Compact chrome (Tom 2026-06-11: transport + top menu took too much
+ * vertical space — long canon-v2 turns need it). One wrapped row: small
+ * buttons + transport share the first line; speed + mode wrap under it. */
 .controls-bar {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 3.5rem 1.5rem 0.5rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  padding: 3.1rem 1rem 0.35rem;
   cursor: default;
 }
 
@@ -1632,8 +2018,47 @@ watch(
 .speed-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
+}
+
+/* Dialogue listening-level selector — a full-width segmented control on
+ * its own line (these are THE difficulty settings for listening, so they
+ * get first-class placement). Active = ink, matching the view tabs — a
+ * belt-colour fill is invisible on white belt. */
+.mode-selector {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0;
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 6px 4px;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mode-btn:hover:not(.active) {
+  color: var(--text-secondary);
+}
+
+.mode-btn.active {
+  background: var(--text-primary);
+  color: var(--bg-primary, #ffffff);
+  font-weight: 600;
 }
 
 .speed-label {
@@ -1903,12 +2328,14 @@ watch(
 .transport-bar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  flex: 1 1 180px;
+  min-width: 160px;
 }
 
 .transport-btn {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   border: none;
   background: linear-gradient(145deg, var(--ssi-red-light, #d44545) 0%, var(--ssi-red, #b83232) 100%);
@@ -2206,67 +2633,154 @@ watch(
   text-transform: capitalize;
 }
 
-/* "Back to scenes" button — occupies the same controls-bar slot as the
- * shuffle toggle does in Phrases view. Same shape/size so the row
- * doesn't reflow between views. */
-.scene-back-btn {
+/* (Back-to-scenes moved to the top corner — see .back-fab.) */
+
+/* Bare glyphs — hairlines and type, never circle clusters. A 40px hit
+ * area around an 18px mark; state is colour, not chrome. */
+.edge-glyph {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   background: transparent;
-  border: 1px solid var(--border-medium);
-  border-radius: 50%;
+  border: 0;
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, opacity 0.2s ease;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  opacity: 0.65;
 }
 
-.scene-back-btn:hover {
-  background: var(--pill-bg-hover);
+.edge-glyph:hover {
   color: var(--text-secondary);
+  opacity: 1;
 }
 
-.scene-back-btn svg {
-  width: 16px;
-  height: 16px;
+.edge-glyph.active {
+  color: var(--text-primary);
+  opacity: 1;
 }
 
-/* Dialogues loop toggle — same chrome as scene-back / shuffle so the
- * three sit naturally in a row. Filled with belt colour when active to
- * make the "you're repeating one scene" state unmistakable. */
-.scene-loop-btn {
+/* The gloss eye reads "on" as present-but-quiet and "off" as struck-through
+ * and faded — it's a passive setting, it must never shout. */
+.gloss-toggle:not(.active) {
+  opacity: 0.45;
+}
+
+.edge-glyph svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Back to scenes — mirrors the close circle at the opposite corner. */
+.back-fab {
+  right: auto;
+  left: 16px;
+}
+
+/* Ambient progress — a 2px reading line at the very top edge. Ink at low
+ * opacity; it informs without performing. */
+.top-progress {
+  position: absolute;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 11;
+  background: transparent;
+  pointer-events: none;
+}
+
+.top-progress-fill {
+  height: 100%;
+  background: var(--text-primary);
+  opacity: 0.35;
+  transition: width 0.6s ease;
+}
+
+/* Scene orientation — a whisper of mono caps under the controls. */
+.scene-strip {
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  opacity: 0.8;
+  padding: 0.15rem 1rem 0.3rem;
+  cursor: default;
+}
+
+/* Audit walk badge — admin-only. Mono caps, sits under the scene strip and
+ * tracks the live stage/role as a line walks its 1→9 arc. Deliberately plain
+ * (a dev/QA readout, not learner chrome). */
+.audit-badge {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 0.1rem 1rem 0.35rem;
+  cursor: default;
+}
+.audit-badge .audit-stage { color: var(--belt-accent, var(--text-primary)); }
+.audit-badge .audit-role { color: var(--text-muted); }
+.audit-badge .audit-chunk { color: var(--text-muted); opacity: 0.8; }
+
+/* Paused glyph — the surface IS the transport. Soft elevated disc, ink
+ * triangle, floats over the teleprompter only while paused; playing shows
+ * nothing. Taps pass through to the tap-anywhere toggle beneath. */
+.paused-glyph {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--bg-elevated, #ffffff) 88%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  background: transparent;
-  border: 1px solid var(--border-medium);
-  border-radius: 50%;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
+  color: var(--text-primary);
+  pointer-events: none;
+  z-index: 1500;
+  animation: paused-glyph-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.scene-loop-btn:hover {
-  background: var(--pill-bg-hover);
-  color: var(--text-secondary);
+.paused-glyph svg {
+  width: 30px;
+  height: 30px;
+  margin-left: 3px; /* optical centring of the triangle */
 }
 
-.scene-loop-btn.active {
-  background: var(--belt-color);
-  border-color: var(--belt-color);
-  color: white;
+@keyframes paused-glyph-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-.scene-loop-btn svg {
-  width: 16px;
-  height: 16px;
+/* Interleaved gloss pairs — one sentence + its translation, matchable at
+ * a glance even on the long canon-v2 monologue turns. */
+.phrase-pair {
+  margin-bottom: 0.45rem;
+}
+.phrase-pair:last-child {
+  margin-bottom: 0;
+}
+.phrase-known.interleaved {
+  margin-top: 0.1rem;
 }
 </style>

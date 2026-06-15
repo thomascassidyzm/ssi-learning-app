@@ -14,6 +14,7 @@ import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 
 // Local storage keys
@@ -225,16 +226,22 @@ export function useAuth(): AuthState & AuthActions {
           // Found! This email belongs to an existing learner — link this auth user to them
           const oldUserId = (linkedLearner as any).user_id
           console.log(`[useAuth] Email ${email} found on learner ${(linkedLearner as any).id} — linking auth user ${userId} (was ${oldUserId})`)
-          await supabase.value
-            .from('learners')
-            .update({ user_id: userId })
-            .eq('id', (linkedLearner as any).id)
+          // learners is RLS-on (own-row) and the linked row still carries the OLD
+          // auth uid, so the re-point runs through SECURITY DEFINER claim_learner
+          // (secfix_16), gated on this JWT's email being in the learner's
+          // verified_emails.
+          const { error: claimErr } = await supabase.value.rpc('claim_learner', { p_learner_id: (linkedLearner as any).id })
+          if (claimErr) console.warn('[useAuth] claim_learner failed — learner not re-linked to this auth user:', claimErr.message)
 
           // Cascade user_id to related tables so dashboard queries find the right records.
-          // user_tags is still client-writable; govt_admins was REVOKEd
-          // by 20260521180000, so its cascade goes through /api/auth/cascade-user-id.
+          // user_tags is RLS-on (own-row): the OLD rows aren't ours yet, so the re-point
+          // runs through the SECURITY DEFINER fn relink_user_tags (secfix_15), which
+          // asserts the old identity is orphaned (no learners row holds it) before
+          // moving its tags to auth.uid(). govt_admins was REVOKEd by 20260521180000,
+          // so its cascade goes through /api/auth/cascade-user-id.
           if (oldUserId && oldUserId !== userId) {
-            await supabase.value.from('user_tags').update({ user_id: userId }).eq('user_id', oldUserId)
+            const { error: relinkErr } = await supabase.value.rpc('relink_user_tags', { old_user_id: oldUserId })
+            if (relinkErr) console.warn('[useAuth] relink_user_tags failed — tags not migrated:', relinkErr.message)
 
             try {
               const { data: { session } } = await supabase.value.auth.getSession()
@@ -401,7 +408,7 @@ export function useAuth(): AuthState & AuthActions {
 
     // Listen for auth state changes (sign in, sign out, token refresh)
     // Register listener early so we catch any auth events during session check
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
       handleAuthChange(session?.user ?? null)
       // Keep the iOS install hand-off bridge current (browser context
       // only; writeAuthHandoff no-ops in standalone). null on sign-out
@@ -411,6 +418,11 @@ export function useAuth(): AuthState & AuthActions {
           ? { access_token: session.access_token, refresh_token: session.refresh_token }
           : null,
       )
+      // On sign-in, claim any email-allowlist (pre-granted) free access.
+      // Idempotent and best-effort — never blocks or breaks the auth flow.
+      if (event === 'SIGNED_IN' && session?.access_token) {
+        void useAccessClaim().claimAccess(session.access_token)
+      }
     })
 
     // Check for existing Supabase Auth session with a timeout.
@@ -488,8 +500,20 @@ export function useAuth(): AuthState & AuthActions {
   // ============================================
 
   async function signOut(): Promise<void> {
+    // The network sign-out must NEVER block local teardown. If the Supabase call
+    // hangs or throws (flaky network, an already-expired/invalid session), we
+    // still clear local auth state below — otherwise the button appears to "do
+    // nothing" because the await never resolves and the caller's reload never
+    // runs. Bound it with a timeout and swallow errors.
     if (supabase.value) {
-      await supabase.value.auth.signOut()
+      try {
+        await Promise.race([
+          supabase.value.auth.signOut(),
+          new Promise((resolve) => setTimeout(resolve, 3000)),
+        ])
+      } catch (err) {
+        console.warn('[useAuth] supabase signOut failed (clearing local state anyway):', err)
+      }
     }
     supabaseUser.value = null
     learner.value = null
@@ -557,17 +581,11 @@ export function useAuth(): AuthState & AuthActions {
     if (!oldGuestId) {
       return
     }
-    try {
-      const { count } = await supabase.value
-        .from('sessions')
-        .update({ learner_id: learner.value.id }, { count: 'exact' })
-        .eq('learner_id', oldGuestId)
-      if (count && count > 0) {
-        console.log(`[useAuth] Reassigned ${count} guest session(s) to learner ${learner.value.id}`)
-      }
-    } catch (sessionErr) {
-      console.warn('[useAuth] Session reassignment failed (non-critical):', sessionErr)
-    }
+    // No DB sessions to reassign: guests are localStorage-only, and a
+    // `guest-<uuid>` id can't be stored in (or queried against) the uuid
+    // sessions.learner_id column — the old UPDATE only ever 400'd. We just
+    // clear the guest identity + signup-nudge state now that the learner has
+    // a real id. (Learning progress lives under separate keys and is unaffected.)
     clearGuestData()
   }
 

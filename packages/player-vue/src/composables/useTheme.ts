@@ -53,6 +53,9 @@ export function useTheme() {
     initTheme()
   }
 
+  // KEPT: intentional single-theme (Mist) API-compat shims. Dark mode
+  // is deprecated — do not reintroduce. App.vue/SettingsScreen consume
+  // this contract, so the no-ops must stay.
   /**
    * Set theme — no-op, mist is forced
    */

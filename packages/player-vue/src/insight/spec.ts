@@ -183,3 +183,55 @@ export interface ResolvedInsight {
   isLoading: boolean
   error: string | null
 }
+
+// =====================================================================
+// COMPOSITE WIDGET DATA — RateCompare ("entity vs average" rate widget)
+//
+// NOT part of the WidgetData union and NOT a registry kind: RateCompare is a
+// hand-composed board widget (headline + bar + trend + distribution), the way
+// the Health strip composes several panels, rather than a single dispatcher
+// kind. Its data type lives here (the documented home for widget data types) so
+// the component + the demo data file share one contract. The frozen spine union
+// above is untouched, so the 18-way invariants still hold.
+//
+// Design principle: RATE IS PRIMARY. Every interesting metric is a rate; the
+// entity, the average cohort, and the metric are all swappable. Position (e.g.
+// furthest LEGO) rides along as `contextLine` — secondary, never the hero.
+//
+// PRIVACY (non-negotiable): an entity is compared ONLY to an aggregate/average,
+// NEVER to another named entity. The widget exposes the selected entity ("You")
+// and the chosen average, plus an ANONYMISED distribution summary of the cohort
+// — the other entities are an unlabelled SHAPE only. No other entity's name,
+// label, or identity is ever carried in this contract.
+// =====================================================================
+export interface RateSeries {
+  label: string
+  value: number          // the headline rate for this entity / average
+  trend: number[]        // 8 periods, oldest -> newest
+}
+// An ANONYMISED summary of where the entity sits in its cohort. Carries the
+// shape of the field (quartile band + the raw values for an optional histogram)
+// but NO identities — never a per-entity label. The only two marked points are
+// the entity ("You") and the average; everything else is an unlabelled point.
+export interface RateDistribution {
+  values: number[]       // every cohort value, UNLABELLED + sorted asc (an anonymous shape)
+  min: number
+  q1: number
+  median: number
+  q3: number
+  max: number
+  entityValue: number    // where "You" sits on the strip
+  averageValue: number   // where the chosen average sits on the strip
+  percentile: number     // 0..100 — the entity's rank within the cohort
+}
+export interface RateComparisonData {
+  metricLabel: string    // "Rate of progress"
+  unit: string           // "LEGOs"
+  per: string            // "week"  -> rendered as "LEGOs / week"
+  entity: RateSeries
+  average: RateSeries
+  deltaPct: number       // signed % the entity is above (+) / below (-) the average
+  percentile: number     // 0..100 — the entity's rank within the cohort
+  contextLine?: string   // secondary position context, e.g. "Furthest LEGO · S38 · L02"
+  distribution: RateDistribution  // anonymised cohort shape — entity + average marked, NO other names
+}

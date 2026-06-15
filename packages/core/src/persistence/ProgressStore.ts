@@ -402,17 +402,27 @@ export class ProgressStore implements IProgressStore {
     courseId: string,
     legoId: string,
     roundIndex: number,
-    cycleIndex: number
+    cycleIndex: number,
+    opts?: { touchPracticedAt?: boolean }
   ): Promise<void> {
+    // touchPracticedAt=false (Aran 2026-06-11): lifecycle saves (init
+    // completion, dormant/about-to-leave) persist POSITION but must not
+    // claim PRACTICE — last_practiced_at feeds the resume gap rule, and a
+    // boot-time stamp made a 23-hour absence look like a brief pause, so
+    // the learner resumed mid-round onto a spaced-rep monster. Only real
+    // practice (cycle prompt, round advance) touches the timestamp.
+    const updateData: Record<string, unknown> = {
+      last_completed_lego_id: legoId,
+      last_completed_round_index: roundIndex,
+      current_cycle_index: cycleIndex,
+    };
+    if (opts?.touchPracticedAt !== false) {
+      updateData.last_practiced_at = new Date().toISOString();
+    }
     const { error } = await this.client
       .schema(this.schema)
       .from('course_enrollments')
-      .update({
-        last_completed_lego_id: legoId,
-        last_completed_round_index: roundIndex,
-        current_cycle_index: cycleIndex,
-        last_practiced_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('learner_id', learnerId)
       .eq('course_id', courseId)
       .or(`last_completed_round_index.is.null,last_completed_round_index.lte.${roundIndex}`);
@@ -429,13 +439,22 @@ export class ProgressStore implements IProgressStore {
     practiceMinutes: number
   ): Promise<void> {
     // First get current values to take the max
-    const { data: enrollment } = await this.client
+    const { data: enrollment, error: readErr } = await this.client
       .schema(this.schema)
       .from('course_enrollments')
       .select('highest_completed_seed, total_practice_minutes')
       .eq('learner_id', learnerId)
       .eq('course_id', courseId)
       .single();
+
+    // PGRST116 = no row yet (the UPDATE below would no-op harmlessly). Any
+    // other error (network, RLS) means we can't trust the current totals — bail
+    // rather than overwrite total_practice_minutes from a false zero baseline,
+    // which would wipe the learner's accumulated minutes.
+    if (readErr && readErr.code !== 'PGRST116') {
+      console.warn(`Skipping enrollment activity update (read failed): ${readErr.message}`);
+      return;
+    }
 
     const currentHighest = enrollment?.highest_completed_seed || 0;
     const currentMinutes = enrollment?.total_practice_minutes || 0;

@@ -1,7 +1,11 @@
 # APML Interface: Brain View Specification
 # SSI Learning App
 # Version: 1.0.0 (2025-12-27)
-# Status: Design Complete
+# Last updated: 2026-06-08 (re-pointed decomposePhrase reference: the useLegoNetwork.ts
+#   composable was DELETED 2026-06-08; decomposePhrase() lives on as utils/decomposePhrase.ts.
+#   NOTE: brain-view was superseded by constellation-network.apml, which is itself now
+#   DELETED FROM RUNTIME — this whole view is design-only / not live.)
+# Status: Design Complete (superseded; not in runtime)
 
 ## ============================================================================
 ## OVERVIEW
@@ -130,7 +134,7 @@ DATA_MODEL:
       Note: Non-LEGO words ("en") are skipped but don't break the path.
       The path represents the LEGOs the learner is activating.
 
-    implementation_reference: "useLegoNetwork.ts:decomposePhrase()"
+    implementation_reference: "packages/player-vue/src/utils/decomposePhrase.ts (standalone util; the former useLegoNetwork.ts composable was DELETED 2026-06-08 — decomposePhrase() lives on as a plain util, called from providers/generateLearningScript.ts and LearningPlayer.vue)"
 
 ## ============================================================================
 ## VISUALIZATION BEHAVIOR BY PHASE

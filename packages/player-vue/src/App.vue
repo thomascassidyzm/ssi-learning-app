@@ -5,10 +5,12 @@ import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
+import { prewarmInstantCaches } from './composables/useInstantPlayback'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { useInviteCode } from './composables/useInviteCode'
+import { useAccessClaim } from './composables/useAccessClaim'
 import { useAuthModal } from './composables/useAuthModal'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { useSharedSubscription } from './composables/useSubscription'
@@ -265,6 +267,11 @@ const handleCourseSelect = async (course) => {
     eagerScript.preload(supabaseClient.value, courseCode)
   }
 
+  // Warm the instant-playback caches (round-map + first-round cycles) BEFORE the
+  // remount, so the new course's bootstrap is a cache hit instead of two cold
+  // serial round-trips — the bulk of the ~1.7s course-switch cost. Fire-and-forget.
+  void prewarmInstantCaches(courseCode)
+
   // NOW update activeCourse (triggers LearningPlayer remount via :key)
   activeCourse.value = course
 
@@ -482,6 +489,21 @@ onMounted(async () => {
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
       await Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+
+      // Claim any email-allowlist (pre-granted) free access for a restored /
+      // already-signed-in session — onAuthStateChange's SIGNED_IN doesn't fire
+      // for a session restored on load, so this covers returning users.
+      // Idempotent; refreshes entitlements itself if anything was granted.
+      if (auth.learner.value) {
+        try {
+          const { data: { session } } = await supabaseClient.value.auth.getSession()
+          if (session?.access_token) {
+            await useAccessClaim().claimAccess(session.access_token)
+          }
+        } catch (e) {
+          console.warn('[App] Access claim failed (non-fatal):', e)
+        }
+      }
 
       // Handle ?code= URL parameter for invite codes
       try {

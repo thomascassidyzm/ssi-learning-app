@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, type PropType, type Ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
-  AudioController,
   CyclePhase,
   DEFAULT_CONFIG,
   createVoiceActivityDetector,
@@ -17,9 +16,12 @@ import type { CourseInfo } from '../composables/useEntitlement'
 import { useCyclePlayback } from '../composables/useCyclePlayback'
 import { scriptItemToCycle } from '../utils/scriptItemToCycle'
 import type { Cycle } from '../types/Cycle'
-import SessionComplete from './SessionComplete.vue'
+// Lazy: session-summary screen, only rendered v-if="showSessionComplete"
+// (never on the first-cycle path) — keeps its chunk off cold start.
+const SessionComplete = defineAsyncComponent(() => import('./SessionComplete.vue'))
 // OnboardingTooltips removed - deprecated
-import ReportIssueButton from './ReportIssueButton.vue'
+// Lazy: QA-only affordance, v-if="shouldShowQaMode" — never on learner cold path.
+const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton.vue'))
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
@@ -50,13 +52,20 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { decomposePhrase } from '../utils/decomposePhrase'
 import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
-import ListeningOverlay from './ListeningOverlay.vue'
-import PronunciationOverlay from './PronunciationOverlay.vue'
+// Lazy: opt-in Listening-Pod mode, v-if="showListeningOverlay" — off by default,
+// not on the learning-cycle path. Heaviest clear win.
+const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.vue'))
+// Lazy: opt-in Pronunciation/mic mode, v-if="showPronunciationOverlay" — pulls the
+// prosody/mic subtree off cold start.
+const PronunciationOverlay = defineAsyncComponent(() => import('./PronunciationOverlay.vue'))
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
-import ProgressModal from './ProgressModal.vue'
+// Lazy: progress/contribution/belt modal. Its v-if (contribution.data.value) may
+// mount shortly after ready, but it renders no visible content until
+// showProgressModal opens, so deferring its chunk is flash-free.
+const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -64,12 +73,9 @@ import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
 import { backendCyclesToRounds, infPlayCyclesToRounds } from '../providers/backendCyclesToRounds'
 import type { Round as PlayerRound } from '../playback/SimplePlayer'
-import { useCourseBundle } from '../composables/useCourseBundle'
 import { getAudioCache } from '../cache/createAudioCache'
+import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { createAudioCacheSource, type AudioCacheSource } from '../cache/createAudioCacheSource'
-import { type BundleDownloader } from '../cache/BundleDownloader'
-import { createAudioPrefetcher } from '../cache/AudioPrefetcher'
-import { generateScript as generateBundleScript } from '../script/generateScript'
 
 /**
  * Instant-playback feature flag — courses listed here use the new
@@ -91,6 +97,8 @@ import { generateScript as generateBundleScript } from '../script/generateScript
  * INSTANT_PLAYBACK_ALL on doesn't risk breaking any course that lacks the
  * required round-map data; those just degrade silently to legacy.
  */
+// KEPT: rollout scaffolding — INSTANT_PLAYBACK_COURSES is the per-course
+// rollback lever; the legacy init path is the catch-fallback safety net.
 const INSTANT_PLAYBACK_ALL = true
 const INSTANT_PLAYBACK_COURSES = new Set<string>([
   // Used only when INSTANT_PLAYBACK_ALL is false. Examples:
@@ -98,31 +106,6 @@ const INSTANT_PLAYBACK_COURSES = new Set<string>([
 ])
 function isInstantPlaybackCourse(courseCode: string): boolean {
   return INSTANT_PLAYBACK_ALL || INSTANT_PLAYBACK_COURSES.has(courseCode)
-}
-
-// ============================================================
-// Bundle-based INF PLAY entry rollout flag
-// ============================================================
-// Mirrors the INSTANT_PLAYBACK rollout pattern above. When enabled
-// for a course, the INF PLAY entry path uses the new client-side
-// generateScript() + AudioCache + AudioPrefetcher pipeline instead
-// of the legacy server-side /infplay-cycles + warm-up dance.
-//
-// Bundle load + BundleDownloader fire for ALL courses regardless —
-// the downloader is polite enough now (concurrency=1, jitter,
-// 429/503 backoff per BundleDownloader.ts) that it doesn't need a
-// gate. Only the INF PLAY entry switches per course via this flag.
-//
-// Add a course code below to canary it. Leave empty + ALL=false to
-// keep the new INF PLAY path dormant. Legacy INF PLAY path remains
-// the safety net — the new path falls through to legacy if the
-// bundle isn't loaded or generateScript returns no rounds.
-const BUNDLE_BASED_INFPLAY_ALL = false
-const BUNDLE_BASED_INFPLAY_COURSES = new Set<string>([
-  // Add a single course here to canary, e.g. 'jpn_for_eng'.
-])
-function isBundleBasedInfplayCourse(courseCode: string): boolean {
-  return BUNDLE_BASED_INFPLAY_ALL || BUNDLE_BASED_INFPLAY_COURSES.has(courseCode)
 }
 
 // ============================================================
@@ -557,32 +540,20 @@ const instantPlayback = useInstantPlayback(courseCode, {
 // Bundle-based caching architecture (cache-based-content-loading)
 // ============================================================
 // Single source of truth for "is this audio playable locally."
-// Bundle ships the full course structure in one fetch; AudioCache
-// stores blobs in IndexedDB with quota-aware LRU eviction; the
-// BundleDownloader walks every persistent audio ref in the
-// background so by the time the learner reaches spaced rep /
-// INF PLAY, the audio is already local. The legacy warm-up
-// surface stays alongside for now — this commit only adds the
-// bundle layer; subsequent commits wire the prefetcher and
-// remove the warm-up code.
-const courseBundle = useCourseBundle()
+// AudioCache stores blobs in IndexedDB with quota-aware LRU eviction.
+// Audio is filled by the rolling filler (fillBuffer/expandScript) ahead
+// of the playhead; online plays from cache like offline (cachePlayOnline).
 const audioCache = getAudioCache()
-let bundleDownloader: BundleDownloader | null = null
 // Module-scoped so onUnmounted can revoke its blob URLs. Built per
 // session in onMounted once the courseCode is known.
 let audioCacheSource: AudioCacheSource | null = null
-// JIT prefetcher — ephemeral acquire/release around LEGO debut rounds,
-// persistent backstop for the next ~30 cycles. Replaces the warm-up
-// surface in the existing instant-playback path (next commit removes
-// the now-redundant code).
-// Streaming-first AudioPrefetcher — accepts the library defaults
-// (lookahead=1 LEGO, persistentLookaheadCycles=3) which warm just
-// enough to avoid races between cycle entry and audio load. The
-// SW CacheFirst layer (driven by SimplePlayer.prefetchNextCycle)
-// handles ongoing playback caching. Learners who want full course
-// caching get driving mode's chunked accumulation or the future
-// paid "Download for offline" opt-in.
-const audioPrefetcher = createAudioPrefetcher({ audioCache })
+// Streaming-first audio: per-cycle resolution lands the playing cycle's
+// ids into AudioCache.persistent, and SimplePlayer.prefetchNextCycle
+// warms the upcoming cycle's voices during the prompt/pause window. The
+// SW CacheFirst layer then serves repeat plays from cache. That's enough
+// to avoid races between cycle entry and audio load — no bulk upfront
+// caching. Learners who want full-course caching get driving mode's
+// chunked accumulation or the future paid "Download for offline" opt-in.
 
 // Script mode: toggle between romanized and native script for target text
 const { scriptMode, isNativeScript, toggleScriptMode } = useScriptMode(courseCode)
@@ -662,6 +633,10 @@ const updateClassLegoProgress = async (classId: string, lastLegoId: string) => {
 // Start a class session
 const startClassSessionTracking = async () => {
   if (!props.classContext || !supabase?.value) return
+  // class_sessions.teacher_user_id holds the AUTH uid (matches classes.teacher_user_id
+  // and the own-row RLS policy) — never learnerId. Guests have no auth uid: skip logging.
+  const teacherUserId = (auth as any)?.userId?.value
+  if (!teacherUserId) return
   const startLegoId = props.classContext.last_lego_id || 'S0001L01'
   classSessionStartTime.value = Date.now()
   classSessionLastLegoId.value = startLegoId
@@ -670,7 +645,7 @@ const startClassSessionTracking = async () => {
     .from('class_sessions')
     .insert({
       class_id: props.classContext.id,
-      teacher_user_id: learnerId.value || 'unknown',
+      teacher_user_id: teacherUserId,
       start_lego_id: startLegoId,
     })
     .select('id')
@@ -770,7 +745,7 @@ const persistCursorAtCurrentRound = async () => {
 // setLivePosition is forward-only-by-round (lte guard) and, unlike
 // setEnrollmentCursor, sets the cycle explicitly so a mid-round resume is
 // never wiped. INF PLAY is skipped: the cursor is frozen at the ceiling.
-const persistLivePositionToDb = (cycleOverride?: number) => {
+const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true) => {
   if (isGuestLearner.value || !progressStore?.value || !learnerId.value || !courseCode.value) return
   if (currentMode.value === 'infplay') return
   const round = simplePlayer.currentRound.value
@@ -779,9 +754,13 @@ const persistLivePositionToDb = (cycleOverride?: number) => {
   // Round-advance callers pass 0 (a new round always starts at cycle 0)
   // rather than reading simplePlayer.cycleIndex, which may be mid-reset on
   // the advance tick. Init passes nothing → uses the live (resumed) cycle.
+  // touchPracticedAt=false for LIFECYCLE saves (init complete, dormant):
+  // they persist position without claiming practice — a boot-time
+  // last_practiced_at stamp defeated the resume gap rule (Aran 2026-06-11).
   const cyc = cycleOverride ?? Math.max(0, simplePlayer.cycleIndex.value)
   progressStore.value.setLivePosition(
     learnerId.value, courseCode.value, round.legoId, idx, cyc,
+    { touchPracticedAt },
   ).catch(err => console.warn('[LearningPlayer] Failed to persist live position:', err))
   liftLocalCeilingIfHigher(round.legoId, idx)
   lastCompletedLegoIdRef.value = round.legoId
@@ -1451,8 +1430,8 @@ simplePlayer.onPhaseChanged((phase) => {
   else if (phase === 'voice2') { audioUrl = cycle.target?.voice2Url; role = 'target2' }
   if (audioUrl && role) {
     // cacheHit reflects whether AudioCache.persistent has the id at the
-    // moment the cycle begins playing — signal for "did the
-    // BundleDownloader / AudioPrefetcher have time to land this audio
+    // moment the cycle begins playing — signal for "did the per-cycle
+    // resolver / prefetchNextCycle warm have time to land this audio
     // in IndexedDB before the learner reached it." Tri-state: null when
     // we couldn't extract an id (already a blob: URL post-resolution,
     // or an off-format URL) so queries can distinguish "uncached" from
@@ -1583,13 +1562,6 @@ simplePlayer.onRoundCompleted((round) => {
     legoId: round.legoId,
     seedId: round.seedId,
   })
-
-  // AudioPrefetcher: release the completed LEGO's ephemeral audio
-  // (intro/debut/builds) and acquire the next LEGOs' ephemeral sets.
-  // No-op if the bundle hasn't loaded yet (setBundle hasn't fired).
-  // Errors swallowed inside the prefetcher.
-  void audioPrefetcher.onRoundCompleted(loadedRounds.value as any, completedRoundIndex)
-  void audioPrefetcher.onRoundChanged(loadedRounds.value as any, completedRoundIndex + 1)
 
   // Synchronously pause if a pod is about to fire on this boundary.
   // handleRoundBoundary is async and runs on a later microtask — by the
@@ -1740,28 +1712,6 @@ simplePlayer.onSessionComplete(async () => {
   showPausedSummary()
 })
 
-// AudioPrefetcher initial fire — once the bundle has loaded AND rounds
-// are populated, kick the prefetcher at the current playback position.
-// The watch refires when any of (bundle, rounds, roundIndex) changes,
-// so progressive script loads / belt skips also re-arm the prefetcher.
-// Idempotent inside the prefetcher (cache calls de-dupe).
-watch(
-  () => [
-    courseBundle.bundle.value?.version ?? null,
-    loadedRounds.value.length,
-    simplePlayer.roundIndex.value,
-  ] as const,
-  () => {
-    if (!courseBundle.bundle.value) return
-    if (loadedRounds.value.length === 0) return
-    void audioPrefetcher.onRoundChanged(
-      loadedRounds.value as any,
-      simplePlayer.roundIndex.value,
-    )
-  },
-  { immediate: true },
-)
-
 // Round ENTRY persistence: whenever the player advances or jumps to a
 // new round (skip-forward chevron, jump-to-seed, natural advance after a
 // completed round, anything that changes currentRound.legoId), save the
@@ -1851,9 +1801,9 @@ watch(
 // Streaming-first reasoning (same as the INF PLAY no-op):
 //   ~30 KB × 3 audios per cycle = ~90 KB/cycle, ~15s cycle (incl.
 //   speaking pause) = ~6 KB/s steady-state. Comfortable on 3G.
-//   AudioPrefetcher's per-round JIT (persistentLookaheadCycles=3) +
-//   SimplePlayer.prefetchNextCycle priority hints cover the playback
-//   path inside that envelope.
+//   The per-cycle resolver (lands the playing cycle into
+//   AudioCache.persistent) + SimplePlayer.prefetchNextCycle priority
+//   hints cover the playback path inside that envelope.
 //
 // Explicit full-course caching for offline use is provided by
 // driving mode's chunked prefetch and the future paid "Download for
@@ -1862,6 +1812,8 @@ watch(
 // Function kept as a no-op (rather than deleted) so the call site
 // stays in tree-shake-safe shape for the same reasons documented on
 // `warmUpInfPlayRoundsBackground`.
+// KEPT: deliberate no-op + greppable handle for a possible opt-in
+// offline-download revival (see docblock above).
 let deepPrefetchRunning = false
 async function deepPrefetchRestOfCourse() {
   // intentional no-op — see docblock above
@@ -2633,11 +2585,24 @@ const extractSeedNumber = (seedId: string): number => {
  * Uses ABSOLUTE identifiers (LEGO ID, seed number) - not relative round indices
  * This ensures position is valid across script regeneration
  */
-const savePositionToLocalStorage = (cycleOverride?: number) => {
+const savePositionToLocalStorage = (cycleOverride?: number, touchTimestamp = true) => {
   if (!courseCode.value) return
 
   const round = currentRound.value
   if (!round) return
+
+  // Lifecycle saves (init complete, dormant) persist position but must not
+  // refresh lastUpdated — the gap rule reads it as "when did they last
+  // practise", and a boot-time stamp made a day-long absence look like a
+  // brief pause (Aran 2026-06-11). Carry the previous stamp forward; a
+  // missing stamp fails closed to a round restart on resume.
+  let carriedTimestamp: number | null = null
+  if (!touchTimestamp) {
+    try {
+      const prev = JSON.parse(localStorage.getItem(getPositionStorageKey()) || 'null')
+      carriedTimestamp = typeof prev?.lastUpdated === 'number' ? prev.lastUpdated : null
+    } catch { /* fall through — omit the stamp */ }
+  }
 
   // Prefer the engine's LIVE cycle when the caller passes it (the dormancy
   // flush passes simplePlayer.cycleIndex.value). The Vue mirror
@@ -2661,8 +2626,9 @@ const savePositionToLocalStorage = (cycleOverride?: number) => {
       cycleId: round.cycles?.[cyc]?.id ?? null,
       // Item within the round (positional fallback when cycleId can't match)
       itemInRound: cyc,
-      // Metadata
-      lastUpdated: Date.now(),
+      // Metadata — practice saves stamp now; lifecycle saves carry the
+      // previous stamp (or omit it, which fails closed on resume).
+      lastUpdated: touchTimestamp ? Date.now() : carriedTimestamp,
       courseCode: courseCode.value,
     }
     localStorage.setItem(getPositionStorageKey(), JSON.stringify(position))
@@ -2747,9 +2713,14 @@ const resolveResumePosition = (rounds: any[]): { roundIndex: number; cycleIndex:
   // save's OWN timestamp, so it fires even when the player was left up in rest
   // state (DB last_practiced_at not reloaded) — the case that slipped through
   // and kept the exact cycle no matter how long the gap. Tom 2026-06-01.
-  if (cycleIndex > 0 && typeof localPos.lastUpdated === 'number') {
-    const minutesSince = (Date.now() - localPos.lastUpdated) / 60000
-    if (minutesSince >= resumeConfig.value.cycleResetMinutes) cycleIndex = 0
+  // FAIL CLOSED (Aran 2026-06-11: resumed onto a round-tail USE monster after
+  // 23h): a mid-round cycle without a trustworthy timestamp is never honoured —
+  // no timestamp means we cannot prove the pause was brief, so restart the
+  // round. Worst case a brief-pause learner replays the intro; the old fail-
+  // open skipped the rule entirely and parked long-absent learners mid-round.
+  if (cycleIndex > 0) {
+    const ts = typeof localPos.lastUpdated === 'number' ? localPos.lastUpdated : null
+    if (!ts || (Date.now() - ts) / 60000 >= resumeConfig.value.cycleResetMinutes) cycleIndex = 0
   }
   return { roundIndex: idx, cycleIndex }
 }
@@ -2808,16 +2779,19 @@ watch(() => simplePlayer.phase.value, (phase) => {
 
 // Save once when init completes — captures the resumed position the
 // instant it's loaded, so refreshing again immediately (before any
-// cycle plays) still has a fresh localStorage entry.
+// cycle plays) still has a fresh localStorage entry. Lifecycle save:
+// position only, no practice timestamp (see savePositionToLocalStorage).
 watch(positionInitialized, (init) => {
   if (init && useRoundBasedPlayback.value) {
-    savePositionToLocalStorage()
+    savePositionToLocalStorage(undefined, false)
     // Capture the live cursor in the DB the instant init completes. For a
     // resuming learner this just re-affirms where they already were; for a
     // fresh learner it persists round 0 immediately (the roundIndex watcher
     // only fires on the FIRST advance, so without this their opening round
     // wouldn't be saved until they reached round 1).
-    persistLivePositionToDb()
+    // touchPracticedAt=false: opening the app is not practising — a boot
+    // stamp here made a 23h absence read as a brief pause (Aran 2026-06-11).
+    persistLivePositionToDb(undefined, false)
   }
 })
 
@@ -3058,6 +3032,7 @@ const podScheduler = supabase?.value
       // Live from algorithm_config.pods — admin tweaks land on next lap.
       stagePlaylist: computed(() => podsConfig.value.stagePlaylist),
       stageDuration: computed(() => podsConfig.value.stageDuration),
+      stageDurations: computed(() => podsConfig.value.stageDurations),
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
@@ -3329,6 +3304,8 @@ const beltProgress = shallowRef(null)
 // are effectively no-ops (always null → [] / never fires). Left in place
 // because they thread into the live offline-play system; retire as part of the
 // offline/buffer rework, not here.
+// KEPT: vestigial ref whose 2 reads thread into the live offline-play
+// system — retire with the offline/buffer rework, not here.
 const beltLoader = shallowRef(null)
 
 // Offline play composable for infinite play when offline
@@ -4408,13 +4385,16 @@ const audioPreloadedRounds = new Set<number>()
  *
  * Same anti-pattern as warmUpInfPlayRoundsBackground (no-op'd) and
  * deepPrefetchRestOfCourse (no-op'd) — speculative bulk warming
- * that streaming-first doesn't need. AudioPrefetcher's
- * persistentLookaheadCycles=3 + SimplePlayer.prefetchNextCycle
- * priority hints cover the playback path within the bandwidth
- * envelope (~6 KB/s steady-state).
+ * that streaming-first doesn't need. The per-cycle resolver (lands
+ * the playing cycle into AudioCache.persistent) + SimplePlayer
+ * .prefetchNextCycle priority hints cover the playback path within
+ * the bandwidth envelope (~6 KB/s steady-state).
  *
  * Callers remain wired (line 1453, 1606, 5537) so the call sites
  * stay greppable. The function is a no-op.
+ *
+ * KEPT: deliberate no-op + greppable handle for a possible opt-in
+ * offline-download revival.
  */
 const preloadSimpleRoundAudio = (_rounds: any[], _maxRounds = 1, _startIndex = 0): Promise<void> => {
   // intentional no-op — see docblock
@@ -5965,10 +5945,10 @@ const handleCycleEvent = async (event) => {
 
           console.log('[LearningPlayer] Starting round', currentRoundIndex.value, 'LEGO:', cachedRounds.value[currentRoundIndex.value].legoId)
           // Round-boundary audio prefetch used to run a legacy
-          // prefetchRoundAudio() helper here; AudioPrefetcher's
-          // onRoundChanged + onRoundCompleted (wired at lines ~1359
-          // and ~1480) now own that responsibility with proper
-          // ephemeral lifecycle tracking.
+          // prefetchRoundAudio() helper here; streaming-first now
+          // handles it via the per-cycle resolver (lands the playing
+          // cycle into AudioCache.persistent) + SimplePlayer
+          // .prefetchNextCycle warming the upcoming cycle's voices.
         }
 
         // Get next script item and convert to playable
@@ -6017,10 +5997,20 @@ const handleCycleEvent = async (event) => {
                     audioController.value.stop()
                     const tempAudio = new Audio(normalizeAudioUrl(target1Url))
                     await new Promise<void>((resolve) => {
-                      tempAudio.addEventListener('ended', () => resolve())
-                      tempAudio.addEventListener('error', () => resolve())
-                      tempAudio.play().catch(() => resolve())
+                      // Name the handlers so we can detach them — otherwise the
+                      // listeners keep tempAudio referenced after it leaves scope
+                      // (an HTMLAudioElement leak per component_intro fallback).
+                      const done = () => {
+                        tempAudio.removeEventListener('ended', done)
+                        tempAudio.removeEventListener('error', done)
+                        resolve()
+                      }
+                      tempAudio.addEventListener('ended', done)
+                      tempAudio.addEventListener('error', done)
+                      tempAudio.play().catch(() => done())
                     })
+                    tempAudio.pause()
+                    tempAudio.src = ''
                     await new Promise<void>(r => setTimeout(r, 1000))
                   }
                 }
@@ -6682,15 +6672,31 @@ const markWelcomeHeard = async () => {
 
 const playCourseWelcome = async () => {
   if (welcomeChecked.value) return false
+  // Once ever, PER LEARNER (DB-tracked) — survives PWA reinstall / new device /
+  // a different course. localStorage 'ssi-welcome-heard' (checked in the loader
+  // watchEffect) is just the same-device fast path; learners.welcome_played_at
+  // is the cross-device source of truth. Guests have no DB row → fall through to
+  // localStorage-only. One DB read here is negligible before a ~1-min welcome.
+  if (!isGuestLearner.value && learnerId.value && courseDataProvider.value
+      && await courseDataProvider.value.hasPlayedWelcome(learnerId.value)) {
+    welcomeChecked.value = true
+    localStorage.setItem('ssi-welcome-heard', 'true')
+    return false
+  }
   try {
     const w = cachedCourseWelcome.value
     if (!w || (!w.s3_key && !w.id)) {
       await markWelcomeHeard()
       return false
     }
-    const audioUrl = w.s3_key
-      ? `${AUDIO_S3_BASE_URL}/${w.s3_key}`
-      : `${AUDIO_S3_BASE_URL}/${w.id.toUpperCase()}.mp3`
+    // Route through the same-origin /api/audio proxy (like all lesson audio):
+    // it resolves id -> s3_key server-side, avoids the cross-origin ORB block
+    // that silently killed the welcome intro, and gets SW CacheFirst caching
+    // for free. The old direct-S3 paths 404'd whenever the cached record lacked
+    // s3_key (the id-based URL pointed at a non-existent root object).
+    const audioUrl = w.id
+      ? `/api/audio/${w.id}`
+      : `${AUDIO_S3_BASE_URL}/${w.s3_key}`
     const welcomeAudio = {
       id: w.id,
       url: audioUrl,
@@ -6894,13 +6900,16 @@ const saveResumeAudio = () => {
   // case where the user backgrounds the app mid-cycle without
   // advancing. Tom 2026-05-26.
   if (positionInitialized.value && useRoundBasedPlayback.value) {
-    savePositionToLocalStorage(simplePlayer.cycleIndex.value)
+    // Lifecycle save: position only, no practice timestamp.
+    savePositionToLocalStorage(simplePlayer.cycleIndex.value, false)
     // Also flush the LIVE position to the DB with the engine's EXACT cycle —
     // the dormant moment is our strongest "about to leave" signal. A
     // cross-device / different-origin resume reads the DB (not this origin's
     // localStorage), so without this it lands at the round's intro. No-op for
     // guests / INF PLAY. Tom 2026-05-30.
-    persistLivePositionToDb(simplePlayer.cycleIndex.value)
+    // touchPracticedAt=false: going dormant isn't practising — if they
+    // played, the phase='prompt' save already stamped it moments ago.
+    persistLivePositionToDb(simplePlayer.cycleIndex.value, false)
   }
 
   const round = simplePlayer.currentRound.value
@@ -7147,100 +7156,6 @@ const jumpToRound = async (roundIndex) => {
 }
 
 /**
- * Jump to start of next belt
- * Uses SessionController's lazy loading to load the target round on demand
- */
-/**
- * Bundle-based INF PLAY entry — flag-gated via `isBundleBasedInfplayCourse`.
- *
- * Replaces the legacy warm-up dance (warmUpFirstInfPlayCycle +
- * warmUpInfPlayRoundsBackground + shouldSkipCycle gate) with the new
- * cache-based pipeline: generateScript() emits INF PLAY rounds from
- * the bundle, audioCache.persistent.ensure() guarantees the first
- * cycle's audio is in cache before play, and AudioPrefetcher's watch
- * acquires ephemeral + persistent audio for everything that follows.
- *
- * Returns `true` on success, `false` to signal the caller should fall
- * through to the legacy path (bundle not loaded yet, or generateScript
- * returned no rounds for some reason).
- *
- * Side effects intentionally LEFT to the caller (so they're identical
- * across both paths):
- *  - setMode('infplay') / currentMode update
- *  - highestCompletedLegoId ratchet
- *  - lastMainLoopLegoId anchor
- *  - beltProgress.setPlayingPosition
- *  - persistCursorAtCurrentRound
- */
-async function enterInfPlayViaBundle(fromInfRound: number, showIntro: boolean): Promise<boolean> {
-  const bundle = courseBundle.bundle.value
-  if (!bundle) {
-    console.warn('[INF PLAY bundle] Bundle not loaded yet — falling through to legacy warm-up path')
-    return false
-  }
-  let result: ReturnType<typeof generateBundleScript>
-  try {
-    result = generateBundleScript({
-      bundle,
-      position: { mode: 'infplay', fromInfRound: Math.max(1, fromInfRound) },
-      roundLimit: 15,
-    })
-  } catch (err) {
-    console.warn('[INF PLAY bundle] generateScript threw — falling through to legacy:', err)
-    return false
-  }
-  if (result.rounds.length === 0) {
-    console.warn('[INF PLAY bundle] generateScript returned 0 rounds — falling through to legacy')
-    return false
-  }
-
-  // Append the new INF PLAY rounds and remember where the first one
-  // landed in the queue. appendRounds dedupes by roundNumber, so
-  // calling this twice for the same fromInfRound is a no-op rather
-  // than a duplicate insert.
-  const firstNewIdx = simplePlayer.roundCount.value
-  simplePlayer.appendRounds(result.rounds)
-  // Mirror into cachedRounds for downstream consumers that read the
-  // legacy alias (saveRoundProgress, etc.).
-  loadedRounds.value = [...loadedRounds.value, ...result.rounds]
-
-  // Pre-cache the first cycle's audio so playback doesn't gap. We
-  // extract the audio ids from the cycle's URL fields (`/api/audio/<id>`)
-  // and await the persistent.ensure calls before jumpToRound. The
-  // AudioPrefetcher's watch will handle the rest once the round
-  // change fires.
-  const firstCycle = result.rounds[0]?.cycles?.[0]
-  const firstAudioIds: string[] = []
-  if (firstCycle) {
-    const urls = [firstCycle.known?.audioUrl, firstCycle.target?.voice1Url, firstCycle.target?.voice2Url]
-    for (const url of urls) {
-      const id = url?.split('/').pop()
-      if (id) firstAudioIds.push(id)
-    }
-  }
-
-  isWarmingUpInfPlay.value = true
-  try {
-    const ensurePromise = Promise.all(
-      firstAudioIds.map((id) => audioCache.persistent.ensure(id).catch(() => { /* silent */ })),
-    )
-    if (showIntro) {
-      await Promise.all([ensurePromise, startInfPlayIntro()])
-      markInfPlayIntroSeen(courseCode.value)
-      clearInfPlayIntro()
-    } else {
-      await ensurePromise
-    }
-  } finally {
-    isWarmingUpInfPlay.value = false
-  }
-
-  console.log(`[INF PLAY bundle] Entered at fromInfRound=${fromInfRound}, ${result.rounds.length} rounds appended at index ${firstNewIdx}`)
-  simplePlayer.jumpToRound(firstNewIdx)
-  return true
-}
-
-/**
  * Enter INF PLAY past the course's final LEGO. Called by the header
  * forward round-nav (‹‹ ››) when the learner is at the final introduced
  * LEGO, and by the belt modal when the picked belt is past course content.
@@ -7358,28 +7273,21 @@ const enterInfPlay = async () => {
         // bound, so the audio's cached well before the learner reads
         // the last paragraph.
         const showIntro = !hasSeenInfPlayIntro(courseCode.value)
-        // Bundle-based path (flag-gated). On success, skips the legacy
-        // warm-up dance entirely. On failure (bundle not loaded, gen
-        // returned 0), falls through to the legacy path below.
-        const usedBundle = isBundleBasedInfplayCourse(courseCode.value)
-          && await enterInfPlayViaBundle(infplayRoundIndex.value || 1, showIntro)
-        if (!usedBundle) {
-          isWarmingUpInfPlay.value = true
-          try {
-            const slice = cachedRounds.value.slice(firstInfIdx)
-            const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
-            if (showIntro) {
-              await Promise.all([warmUpPromise, startInfPlayIntro()])
-              markInfPlayIntroSeen(courseCode.value)
-              clearInfPlayIntro()
-            } else {
-              await warmUpPromise
-            }
-          } finally {
-            isWarmingUpInfPlay.value = false
+        isWarmingUpInfPlay.value = true
+        try {
+          const slice = cachedRounds.value.slice(firstInfIdx)
+          const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
+          if (showIntro) {
+            await Promise.all([warmUpPromise, startInfPlayIntro()])
+            markInfPlayIntroSeen(courseCode.value)
+            clearInfPlayIntro()
+          } else {
+            await warmUpPromise
           }
-          simplePlayer.jumpToRound(firstInfIdx)
+        } finally {
+          isWarmingUpInfPlay.value = false
         }
+        simplePlayer.jumpToRound(firstInfIdx)
         // Phase 2 (background): everything else — fetch the rest of
         // round 1's cycles + rounds 2..N in parallel-5. By the time
         // the first cycle finishes (~10s), the next cycles are cached.
@@ -7531,6 +7439,16 @@ const handleRoundForward = async () => {
     audioController.value?.stop()
     return
   }
+  // LEGO-axis forward nav (the interjection-skip above logs its own tap_skip).
+  // Forward = "got this / too easy, move on" — the LEGO-scale confidence signal.
+  // One emit covers the normal step, the infplay-advance and the course-end
+  // paths below; mirror of belt_skip on the coarser axis.
+  logEvent('lego_skip', {
+    direction: 'forward',
+    fromLegoId: simplePlayer.currentRound.value?.legoId ?? null,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+    slot: simplePlayer.cycleIndex.value ?? null,
+  })
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
@@ -7671,6 +7589,15 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
 const handleRoundBack = async () => {
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
+  // LEGO-axis back nav — a revisit/re-hear gesture (restart the current LEGO, or
+  // step to the previous one): the LEGO-scale uncertainty signal, mirror of the
+  // forward emit. Covers the infplay step-back and main-loop paths below.
+  logEvent('lego_skip', {
+    direction: 'back',
+    fromLegoId: currentRound?.legoId ?? null,
+    roundNumber: currentRound?.roundNumber ?? null,
+    slot: simplePlayer.cycleIndex.value ?? null,
+  })
   // INF PLAY when either the enrollment mode says so OR the current round is
   // a revival round (no intro/debut/build). The mode flag covers a bootstrap
   // that loaded only infplay rounds; the round-shape check covers in-session
@@ -7793,6 +7720,22 @@ const handleActivateInfPlay = async () => {
 
 // Jump to any belt (from ProgressModal)
 const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) => {
+  // Belt is the biggest manual difficulty dial (Principle 1) and the loudest
+  // stickability signal there is — belt-back = drowning/consolidating, a dropout
+  // precursor. Every belt move (chevron, pill, and the jump modal) routes through
+  // here, so one emit captures the whole scale with the intent + timing that
+  // position-derivation cannot recover (a rapid jump-back-then-forward that never
+  // crosses a round boundary, and how fast they bailed). Capture fromBelt BEFORE
+  // the jump below mutates playingBelt.
+  const fromBelt = playingBelt.value
+  logEvent('belt_skip', {
+    fromBelt: fromBelt?.name ?? null,
+    toBelt: belt.name,
+    direction: belt.seedsRequired > (fromBelt?.seedsRequired ?? 0) ? 'forward'
+      : belt.seedsRequired < (fromBelt?.seedsRequired ?? 0) ? 'back' : 'restart',
+    targetSeed: belt.seedsRequired === 0 ? 1 : belt.seedsRequired,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+  })
   showProgressModal.value = false
   const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
 
@@ -7971,12 +7914,13 @@ simplePlayer.setRuntimeOverrides({
     // Serve the cached WAV blob when offline OR when online cache-play is on —
     // this is what keeps the MAIN cycle off the network so it survives lock.
     // A genuine cache miss falls through to the network URL (instant first play).
+    // resolveCachedPlaybackUrl is the shared substrate the listening overlay
+    // also plays through — one definition of "id → lock-safe playable URL".
     if (!offlinePlaybackActive() && !cachePlayOnline) return audioUrl
     const id = audioUrl.match(/\/api\/audio\/([^?]+)/)?.[1]
     if (!id) return audioUrl
     // WAV, not the cached mp3 blob — WebKit refuses mp3 blob: URLs.
-    const wavUrl = await audioCache.getWavBlobUrl(id)
-    return wavUrl || audioUrl
+    return resolveCachedPlaybackUrl(audioCache, id, audioUrl)
   },
   // ensureKnownReady: REMOVED 2026-05-23.
   //
@@ -8023,12 +7967,12 @@ simplePlayer.setRuntimeOverrides({
   // handled blob URLs fine, masking the bug. Tom verified mobile broken
   // post the IDB-cache work 2026-05-22 ↔ 2026-05-23.
   //
-  // With streaming-first defaults (AudioPrefetcher lookahead=1 + SW
-  // CacheFirst on /api/audio/*), the SW cache is the actual primary
-  // path anyway. The blob URL substitution was a leftover optimisation
-  // from the previous IDB-as-playback-source design.
+  // With streaming-first playback (per-cycle resolution + SW CacheFirst
+  // on /api/audio/*), the SW cache is the actual primary path anyway.
+  // The blob URL substitution was a leftover optimisation from the
+  // previous IDB-as-playback-source design.
   //
-  // IDB is still populated by AudioPrefetcher.persistent.ensure — that's
+  // IDB is still populated by audioCache.persistent.ensure — that's
   // useful for driving mode's chunked accumulation and the future paid
   // "Download for offline" opt-in. It just isn't the source the audio
   // element reads from anymore.
@@ -8089,6 +8033,9 @@ const isWarmingUpInfPlay = ref(false)
 // silently dropped (rather than stalling / playing silently) —
 // because INF PLAY doesn't need any particular cycle, only that
 // SOMETHING with audio plays in each slot.
+// KEPT: permanently empty by design (warm-up is a no-op) → the
+// "empty set short-circuits to don't-skip" branch disables the INF
+// PLAY skip gate intentionally. Load-bearing by documentation.
 const warmedUpAudioUrls = ref<Set<string>>(new Set())
 
 /**
@@ -8141,10 +8088,9 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
  * every cycle's three audio URLs in parallel-5 batches. On Tom's
  * stress test with cold cache + 3G + far belt skip it produced 61,919
  * requests / 623 MB transferred. The streaming-first architecture
- * (AudioPrefetcher with lookahead=1 + persistentLookaheadCycles=3,
- * plus SimplePlayer.prefetchNextCycle warming the SW CacheFirst
- * layer per cycle) covers playback needs without speculative
- * bulk-fetching.
+ * (per-cycle resolution into AudioCache.persistent + SimplePlayer
+ * .prefetchNextCycle warming the SW CacheFirst layer per cycle)
+ * covers playback needs without speculative bulk-fetching.
  *
  * Callers remain wired so the historical call sites are preserved
  * (easy to grep if we ever want to revive an opt-in version, e.g.
@@ -8161,6 +8107,8 @@ async function warmUpFirstInfPlayCycle(rounds: any[]): Promise<void> {
  * chunked accumulation (createChunkedPrefetch) or the future paid
  * "Download for offline" opt-in.
  */
+// KEPT: deliberate no-op + greppable handle for a possible opt-in
+// offline-download revival (see docblock above).
 function warmUpInfPlayRoundsBackground(_rounds: any[], _skipFirst: number): void {
   // intentional no-op — see docblock
 }
@@ -8501,6 +8449,7 @@ const confirmTurbo = () => {
   showTurboPopup.value = false
   turboPopupShownThisSession.value = true  // Don't show popup again this session
   turboActive.value = true
+  logEvent('turbo_toggle', { enabled: true, firstTime: true })
 }
 
 // Close turbo popup without enabling
@@ -8511,6 +8460,9 @@ const closeTurboPopup = () => {
 
 const toggleTurbo = () => {
   turboActive.value = !turboActive.value
+  // Manual pace control — turbo on = "this is too easy" (confidence/boredom);
+  // off = backing off. A no-mic behavioural signal.
+  logEvent('turbo_toggle', { enabled: turboActive.value })
 }
 
 // Offline mode: a deliberate, opt-in download of the upcoming course content
@@ -9971,14 +9923,27 @@ onMounted(async () => {
     console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value, cachePlayOnline ? '(cache-play online: ON)' : '')
   }
 
-  // Initialize belt progress (loads from localStorage, merges with Supabase)
-  await initializeBeltProgress()
-
-  // Initialize per-LEGO adaptive pause engine (hydrates mastery from Supabase)
-  await initializeAdaptationEngine()
-
-  // Initialize Layer 1 fire-count persistence (hydrates from learner_l1_state)
-  await initializeListeningProgress()
+  // Cold-start critical path: these three init calls each await a Supabase
+  // round-trip (belt remote merge + getMaxSeedNumber; adaptation mastery
+  // hydration; Layer-1 fire-count hydration). NONE is required before the
+  // first cycle can play — only getEnrollment (resume position, below) is.
+  // Every consumer is null-safe with a default: adaptationEngine.value?.
+  // getPauseMultiplier() ?? 1.0, listeningProgress.value?., and the belt
+  // computeds all `?. ?? <default>`. So we fire them concurrently and DON'T
+  // await — the first cycle plays immediately and the belt readout / pause
+  // tuning / L1 counts hydrate reactively a beat later. Previously these ran
+  // serially ahead of bootstrap, stacking ~4 RTTs onto every cold start.
+  const COLD_T0 = (typeof performance !== 'undefined' ? performance.now() : 0)
+  void Promise.all([
+    initializeBeltProgress(),
+    initializeAdaptationEngine(),
+    initializeListeningProgress(),
+  ]).then(() => {
+    console.log('[ColdStart] background hydration (belt+adaptation+listening) ready in',
+      Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - COLD_T0), 'ms (off critical path)')
+  }).catch((err) => {
+    console.warn('[LearningPlayer] background hydration failed (non-fatal):', err)
+  })
 
   // Load course-wide LEGO known_text lookup (powers the hero highlight in
   // cases where the salient LEGO's round isn't in loadedRounds, especially
@@ -10012,13 +9977,14 @@ onMounted(async () => {
       })
 
       // ============================================
-      // Bundle load + background downloader (cache-based-content-loading)
+      // Bundle load (cache-based-content-loading)
       // ============================================
-      // Fire bundle fetch + BundleDownloader as early as possible so the
-      // background download has the longest possible runway. Does NOT
-      // block the existing bootstrap path — both run concurrently.
-      // Bundle fetch is cache-first (localStorage), typically resolves
-      // in <10ms for returning learners.
+      // Fire the bundle fetch as early as possible so the rolling
+      // audio filler (fillBuffer / expandScript) has the longest
+      // possible runway ahead of the playhead. Does NOT block the
+      // existing bootstrap path — both run concurrently. Bundle fetch
+      // is cache-first (localStorage), typically resolves in <10ms for
+      // returning learners.
       //
       // Failures are non-fatal: if the bundle endpoint is down or the
       // course isn't migrated to the new format yet, the existing
@@ -10035,36 +10001,6 @@ onMounted(async () => {
       // this is usually a no-op cache hit. The INF-PLAY build below awaits it
       // explicitly before reading the boundary.
       void ensureMainLoopMap()
-
-      void courseBundle.load(courseCode.value)
-        .then((bundle) => {
-          console.log(`[BundleLoad] Loaded bundle for ${bundle.courseCode} v${bundle.version}: ${bundle.legos.length} LEGOs, ${bundle.phrases.length} phrases`)
-          // Arm the prefetcher with the bundle. The reactive watch
-          // below picks up bundle-ready + rounds-populated transitions
-          // and fires the initial onRoundChanged for the current
-          // playback position.
-          audioPrefetcher.setBundle(bundle)
-          // BundleDownloader (always-on full-course audio prefetch) is
-          // DISABLED. Bandwidth math says it isn't needed: ~30 KB per
-          // audio × 3 audios per cycle = 90 KB/cycle, cycles are ~15s
-          // including the speaking pause, so steady-state need is
-          // ~6 KB/s — comfortable on 3G. AudioPrefetcher's per-round
-          // JIT fetch (fired by the reactive watch below) already
-          // covers that path. Eager-bundling every course also
-          // disadvantaged casual users dipping into multiple courses
-          // — downloading several full courses for a handful of
-          // sentences is gratuitous bandwidth.
-          //
-          // The downloader class is intentionally left intact so a
-          // future "Download for offline" button (e.g. for plane
-          // journeys) can opt in. createBundleDownloader + .start
-          // still work — they're just no longer fired from bootstrap.
-        })
-        .catch((err) => {
-          // Branch-isolated: bundle endpoint may not yet be live on this
-          // course. Legacy warm-up path is the safety net.
-          console.warn('[BundleLoad] Bundle fetch failed — continuing with legacy path:', err)
-        })
 
       // ============================================
       // Instant-playback cutover path (feature-flagged)
@@ -10193,9 +10129,11 @@ onMounted(async () => {
                   resumeCycle = inferCursorCycle
                   // Same gap rule on the DB-cursor path (cold localStorage):
                   // a real break restarts the round rather than the exact cycle.
-                  if (resumeCycle > 0 && savedLastPracticedAt.value) {
-                    const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
-                    if (minutesSince >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
+                  // FAIL CLOSED: a missing/not-yet-loaded timestamp can't prove
+                  // a brief pause — restart the round (Aran 2026-06-11).
+                  if (resumeCycle > 0) {
+                    const ts = savedLastPracticedAt.value
+                    if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
                   }
                 } else {
                   const ceilingIdx = findLego(inferCeilingLegoId)
@@ -10431,14 +10369,14 @@ onMounted(async () => {
             }
           }
 
-          // 5. Background tier 2 + 3 — main-loop only. INF PLAY has
-          //    its own pagination via prefetchNextInfPlayBatch (fired
-          //    by the near-edge watcher below). Tier 2/3 walk the
-          //    round-map by legoId, which doesn't make sense for INF
-          //    PLAY's by-round structure.
+          // 5. Background tier 3 — main-loop only. INF PLAY has its own
+          //    pagination via prefetchNextInfPlayBatch (fired by the
+          //    near-edge watcher below). Tier 3 walks the round-map by
+          //    legoId, which doesn't make sense for INF PLAY's by-round
+          //    structure. (Tier 2 listening-audio prefetch was retired
+          //    2026-05-23 — JIT fetch + SW CacheFirst cover it.)
           if (inferEnrollmentMode !== 'infplay') {
-            void instantPlayback.prefetchTier2()
-              .then(() => instantPlayback.prefetchTier3())
+            void instantPlayback.prefetchTier3()
               .then(() => {
                 // Tier 3 may have brought in the N+1 round's cycles —
                 // fold them into SimplePlayer so the engine can walk
@@ -10590,9 +10528,10 @@ onMounted(async () => {
                   if (trueIdx >= 0 && (landedIdx < 0 || trueIdx > landedIdx)) {
                     // Same gap rule as the other cursor-resume paths: a real
                     // break restarts the round rather than the exact cycle.
-                    if (trueCycle > 0 && savedLastPracticedAt.value) {
-                      const minutesSince = (Date.now() - savedLastPracticedAt.value.getTime()) / 60000
-                      if (minutesSince >= resumeConfig.value.cycleResetMinutes) trueCycle = 0
+                    // FAIL CLOSED: no trustworthy timestamp → restart the round.
+                    if (trueCycle > 0) {
+                      const ts = savedLastPracticedAt.value
+                      if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) trueCycle = 0
                     }
                     const trueLegoId = fullRounds[trueIdx]?.legoId
                     console.log(`[InstantPlayback] Stale-matview resume repair: bootstrap landed at ${landedLegoId} (idx ${landedIdx}); true position ${trueLegoId} (idx ${trueIdx} cycle ${trueCycle}) — jumping`)
@@ -10945,6 +10884,13 @@ onMounted(async () => {
                     console.log(`[ResumeTTL] ${Math.round(minutesSince)}m gap → cycle reset (round restart)`)
                     resumeCycle = 0
                   }
+                } else if (resumeCycle > 0) {
+                  // FAIL CLOSED (Aran 2026-06-11: 23h gap resumed onto a
+                  // round-tail USE monster): no saved timestamp means we
+                  // cannot prove the pause was brief — never honour a
+                  // mid-round cycle on faith. Restart the round.
+                  console.log('[ResumeTTL] no last-practiced timestamp → cycle reset (round restart)')
+                  resumeCycle = 0
                 }
 
                 const modeTag = classLastLegoId ? 'Class mode' : 'Personal'
@@ -10972,27 +10918,23 @@ onMounted(async () => {
                     //
                     // If first-time learner, type intro in parallel.
                     const showIntro = !hasSeenInfPlayIntro(courseCode.value)
-                    const usedBundle = isBundleBasedInfplayCourse(courseCode.value)
-                      && await enterInfPlayViaBundle(infplayRoundIndex.value || 1, showIntro)
-                    if (!usedBundle) {
-                      isWarmingUpInfPlay.value = true
-                      try {
-                        const slice = simpleRounds.slice(firstInfPlayIdx)
-                        const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
-                        if (showIntro) {
-                          await Promise.all([warmUpPromise, startInfPlayIntro()])
-                          markInfPlayIntroSeen(courseCode.value)
-                          clearInfPlayIntro()
-                        } else {
-                          await warmUpPromise
-                        }
-                      } finally {
-                        isWarmingUpInfPlay.value = false
+                    isWarmingUpInfPlay.value = true
+                    try {
+                      const slice = simpleRounds.slice(firstInfPlayIdx)
+                      const warmUpPromise = warmUpFirstInfPlayCycle(slice as any)
+                      if (showIntro) {
+                        await Promise.all([warmUpPromise, startInfPlayIntro()])
+                        markInfPlayIntroSeen(courseCode.value)
+                        clearInfPlayIntro()
+                      } else {
+                        await warmUpPromise
                       }
-                      simplePlayer.jumpToRound(firstInfPlayIdx)
-                      // Phase 2 (background): everything else.
-                      warmUpInfPlayRoundsBackground(simpleRounds as any, firstInfPlayIdx)
+                    } finally {
+                      isWarmingUpInfPlay.value = false
                     }
+                    simplePlayer.jumpToRound(firstInfPlayIdx)
+                    // Phase 2 (background): everything else.
+                    warmUpInfPlayRoundsBackground(simpleRounds as any, firstInfPlayIdx)
                   } else {
                     // Shouldn't happen — endSeed was sized to force
                     // infinite-play emission — but fall through to the
@@ -11355,9 +11297,70 @@ onMounted(async () => {
   // STAGE 4: READY - Splash animation done
   // Show player immediately, orchestrator inits in background
   // ============================================
-  // Warm the first known audio so the opening sound is instant (bounded).
-  await warmFirstKnownAudio()
+  // Warm the first known audio into the SW cache, but DO NOT await it — blocking
+  // 'ready' on this fetch cost ~600ms on cold-cache loads (measured). Fire it in
+  // the background and go ready immediately; if the learner taps play before it's
+  // warm, the head-miss path streams the first clip. warmAudioMs now reads ~0
+  // (confirms it's off the critical path) — the cold-start budget drops by it.
+  const warmT0 = (typeof performance !== 'undefined' ? performance.now() : 0)
+  void warmFirstKnownAudio()
+  const warmAudioMs = Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - warmT0)
   setLoadingStage('ready')
+
+  // Cold-start budget instrumentation. performance.now() is measured from
+  // navigation start, so it captures the FULL launch→ready cost (JS bundle
+  // parse + auth/session restore + onMounted), while Date.now()-startTime
+  // isolates just the onMounted portion. animFloor is the deliberate splash
+  // minimum (returnUser 300ms / first-visit 2800ms) — when total ≈ animFloor
+  // the floor is the gate, not data. Compare against '[LearningPlayer] Data
+  // loading complete' above to see whether data or the floor dominated.
+  const coldTotalMs = Math.round(typeof performance !== 'undefined' ? performance.now() : 0)
+  const coldOnMountedMs = Date.now() - startTime
+  // Course switch is an in-app REMOUNT, not a document load: performance.now()
+  // (coldTotalMs) is relative to the ORIGINAL navigation and the boot marks are
+  // written once in main.js, so the nav-relative numbers are only meaningful on
+  // a genuine fresh document load. Detect it: the player's onMounted starts
+  // shortly after app.mount() on a fresh load, but much later on a switch
+  // (= time the learner spent on the previous course). mountToReadyMs is the
+  // always-valid per-mount cost (the real switch cost; floor-bound on a reload).
+  const boot = (typeof window !== 'undefined' && (window as any).__ssiBoot) || {}
+  const onMountedEntryMs = coldTotalMs - coldOnMountedMs
+  const isFreshLoad = typeof boot.mountedMs === 'number'
+    ? (onMountedEntryMs - boot.mountedMs) < 3000
+    : true
+  console.log('[ColdStart]', isFreshLoad ? 'launch→ready' : 'switch→ready',
+    isFreshLoad ? coldTotalMs : coldOnMountedMs, 'ms |',
+    coldOnMountedMs, 'ms in onMounted | animFloor', MINIMUM_ANIMATION_MS, 'ms | fresh', isFreshLoad, '| returnUser', isReturnUser)
+  // Emit to telemetry so cold starts are measurable in player_events (there is
+  // otherwise NO event before tap_play). Cookie-based so guests are included;
+  // the unmount/visibility beacon flushes it even on load-then-switch.
+  logEvent('cold_start', {
+    isFreshLoad,                                       // true = genuine document load; false = in-app course switch (remount)
+    mountToReadyMs: coldOnMountedMs,                   // ALWAYS valid: this mount's onMounted→ready (real per-load/switch cost)
+    totalMs: isFreshLoad ? coldTotalMs : null,         // nav→ready — only meaningful on a fresh load
+    mainExecMs: isFreshLoad ? (boot.mainExecMs ?? null) : null,   // nav → main bundle evaluated
+    mountedMs: isFreshLoad ? (boot.mountedMs ?? null) : null,     // nav → app.mount() done
+    animFloorMs: MINIMUM_ANIMATION_MS,                 // deliberate splash floor (300 return / 2800 first-visit)
+    warmAudioMs,                                        // time awaited on warmFirstKnownAudio (cold-audio cost; ~0 once prewarm-precached)
+    returnUser: isReturnUser,
+    guest: isGuestLearner.value,
+  })
+
+  // Prewarm the now-lazy overlay/modal chunks on idle — AFTER ready, off the
+  // cold-start path — so entering Listening / Pronunciation mode or opening a
+  // modal mid-session has no chunk-fetch hitch. ListeningOverlay fires
+  // automatically ~5 min in, so it especially must be warm by then.
+  {
+    const idle = (typeof window !== 'undefined' && (window as any).requestIdleCallback)
+      ? (window as any).requestIdleCallback.bind(window)
+      : (cb: () => void) => setTimeout(cb, 1)
+    idle(() => {
+      void import('./ListeningOverlay.vue').catch(() => {})
+      void import('./PronunciationOverlay.vue').catch(() => {})
+      void import('./ProgressModal.vue').catch(() => {})
+      void import('./SessionComplete.vue').catch(() => {})
+    })
+  }
 
   // Preview mode: set position at startup (but defer network population to first play)
   nextTick(async () => {
@@ -11482,14 +11485,6 @@ onUnmounted(() => {
   // pulling data the user just navigated away from.
   instantPlayback.cancel()
 
-  // Stop the bundle downloader if running. Cursor is persisted on
-  // each batch so the next session resumes where we left off.
-  bundleDownloader?.stop()
-  courseBundle.cancel()
-  // Drop the prefetcher's in-memory indices. Cached ephemeral audio
-  // for in-progress LEGOs stays in IndexedDB; the cache's own
-  // lifecycle reclaims it on the next session boundary or eviction.
-  audioPrefetcher.reset()
   // Release any blob: URLs the AudioSource handed out this session so
   // we don't leak. Cached blobs in IndexedDB survive — only the
   // URL.createObjectURL handles are revoked.
@@ -11521,6 +11516,7 @@ onUnmounted(() => {
   saveSitting() // persist the sitting so a reopen within the window resumes it
   if (sessionTimerInterval) clearInterval(sessionTimerInterval)
   if (vadStatusInterval) clearInterval(vadStatusInterval)
+  if (typewriterTimeout) { clearTimeout(typewriterTimeout); typewriterTimeout = null }
 
   // Flush any pending per-LEGO metrics, remove pagehide listener
   adaptationEngine.value?.dispose()
@@ -11715,8 +11711,10 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   // Initialize for new course - legacy initOrchestrator removed
   // The SessionController path handles this automatically
 
-  // Mark as ready (warm the first known audio first, bounded — instant opening)
-  await warmFirstKnownAudio()
+  // Go ready immediately; warm the first known audio in the BACKGROUND (not
+  // awaited — blocking ready on it added ~600ms). Head-miss streams the first
+  // clip if the learner taps before it's warm.
+  void warmFirstKnownAudio()
   setLoadingStage('ready')
   isInitialized.value = true
 

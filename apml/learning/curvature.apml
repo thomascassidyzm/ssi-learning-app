@@ -1,0 +1,89 @@
+# Curvature Engine Specification
+# SSi Learning App
+#
+# Version: 1.0.0
+# Last updated: 2026-06-13
+# Grounded in: docs/methodology/metrics-architecture.md Principle 3 (§3) + §4
+#              docs/methodology/metrics-implementation-plan.md workstream B1
+#
+# Core Insight: The information in a learner signal lives in its RATE OF CHANGE
+# OF THE RATE OF CHANGE — the second derivative — not in its level. Differentiate
+# twice and the constant (the level) and the steady slope (even-paced improvement)
+# vanish by construction; only the INFLECTION remains — the moment the trend turns.
+# A stable-but-slow learner reads ~0 (no alarm, correctly); a learner who suddenly
+# slows or stalls lights up. Baseline-free: no per-learner baseline to store/subtract.
+#
+# Implementation Status (verified 2026-06-13):
+# - computeCurvature:    LIVE  (packages/core/src/learning/curvature.ts)
+# - curvatureSeries:     LIVE  (sliding trajectory of the above)
+# - accelerationAlarm:   LIVE  (the §4 "dig deeper here" detector)
+# - Consumers (B4 local difficulty, C2 controller, D3 who-changed overlay): NOT BUILT
+#   This is workstream B1 — a start-now, zero-dependency primitive whose named
+#   consumers are gated on it. Pure math over number[]; no app/storage coupling.
+
+module: curvature
+  purpose: >
+    Read a learner trajectory's curvature — level, velocity, acceleration —
+    rather than its absolute position, per Principle 3. The headline signal is
+    acceleration: the leading indicator that a trend is turning, available before
+    the level has visibly moved.
+
+  principles:
+    - smooth_before_differentiating: >
+        A single cycle has no curvature. Never differentiate raw samples — fit a
+        local polynomial to a window and read derivatives off the fit. The fit IS
+        the smoothing (Savitzky-Golay-style local least-squares).
+    - stop_at_second_order: >
+        Jerk (3rd derivative) is noise for human behaviour. Fit a quadratic; read
+        level / velocity / acceleration only.
+    - trailing_edge_evaluation: >
+        Evaluate the fit at the MOST RECENT sample, not the window centre. This is
+        an online leading indicator answering "is this learner turning now?"; a
+        centred fit lags by half a window.
+    - min_cycle_gate: >
+        Below a minimum sample count the series is "warming up" — return null, not
+        a misleading number.
+    - own_noise_alarm: >
+        The dashboard "dig deeper here" is, formally, the set of points where
+        |acceleration| is high RELATIVE TO THAT LEARNER'S OWN NOISE — never an
+        absolute cutoff. A steady learner has low acceleration variance and never
+        flags; a real turn is a multi-sigma excursion against their quiet background.
+
+  data:
+    CurvaturePoint:
+      level: number          # smoothed fit at this sample (context)
+      velocity: number       # 1st derivative, per cycle (mild signal)
+      acceleration: number   # 2nd derivative, per cycle² (the leading indicator)
+      samples: number        # how many samples fed the fit
+    CurvatureOptions:
+      window: number?        # trailing window length, default 7
+      minSamples: number?    # gate; clamped >= 3 (a quadratic needs 3 points), default 5
+      x: number[]?           # optional non-uniform x (cycle indices / timestamps); default evenly spaced
+    AlarmPoint:
+      index: number
+      acceleration: number|null
+      z: number|null         # acceleration in units of the learner's own recent noise
+      flagged: boolean       # |z| >= threshold
+    AlarmOptions:            # extends CurvatureOptions
+      noiseWindow: number?   # trailing ready-accelerations for the noise estimate, default 10
+      threshold: number?     # |z| flag cutoff, default 2
+
+  api:
+    computeCurvature(values, options?) -> CurvaturePoint | null:
+      >  Quadratic least-squares fit to the trailing window, evaluated at the most
+         recent sample. Null below minSamples or for a degenerate window (duplicate x).
+    curvatureSeries(values, options?) -> Array<CurvaturePoint | null>:
+      >  Slide the trailing fit across the whole series; null entries while warming up.
+         The trajectory the dashboards read and the source for the alarm's noise baseline.
+    accelerationAlarm(values, options?) -> AlarmPoint[]:
+      >  Per-sample z-score of acceleration against the learner's own rolling noise,
+         with a flag where |z| >= threshold. The §4 "dig deeper here" detector.
+
+  guarantees:
+    - constant_series: velocity ~ 0 and acceleration ~ 0
+    - steady_slope: acceleration ~ 0 (baseline-free — even-paced improvement raises no alarm)
+    - known_quadratic: acceleration recovered exactly (= 2 x leading coefficient)
+    - trailing_window_only: samples outside the window never bias the read
+    - non_uniform_x: derivatives expressed per unit-x when explicit x supplied
+
+  tests: packages/core/src/learning/curvature.test.ts   # 17 cases

@@ -1,22 +1,58 @@
 # APML Engine: Cycle Orchestrator Specification
-# SSI Learning App v1.0.0
-# Version: 1.0.0 (2025-12-03)
-# Status: Production-ready
+# SSI Learning App
+# Version: 2.0.0 (2026-06-08)
+# Status: Production-ready — reconciled to live implementation
+# Last updated: 2026-06-08
 
 ## ============================================================================
 ## OVERVIEW
 ## ============================================================================
 
 SPECIFICATION:
-  name: "Cycle Orchestrator"
+  name: "Cycle Orchestrator (4-phase learning cycle)"
   purpose: "State machine for the 4-phase prompt-response learning cycle"
-  source: "packages/core/src/engine/CycleOrchestrator.ts"
-  version: "1.0.0"
+  version: "2.0.0"
+
+  ⚠️ SUPERSEDED_CLASS:
+    old: "@ssi/core CycleOrchestrator (packages/core/src/engine/CycleOrchestrator.ts)"
+    status: "DELETED — the single-class orchestrator no longer exists"
+    note: |
+      The @ssi/core CycleOrchestrator + AudioController + RobustAudioController
+      classes were removed. The 4-phase cycle logic now lives entirely in the
+      player-vue package. This spec documents that LIVE implementation. The
+      ICycleOrchestrator / IAudioController INTERFACES and the CyclePhase /
+      TEXT_VISIBILITY enums in packages/core/src/engine/types.ts are KEPT
+      (the interface shape is still useful; the concrete class is gone).
+
+  live_implementation:
+    primary_engine: "packages/player-vue/src/playback/SimplePlayer.ts"
+    primary_composable: "packages/player-vue/src/composables/useSimplePlayer.ts"
+    single_cycle_helper: "packages/player-vue/src/composables/useCyclePlayback.ts"
+    audio_controller: "RealAudioController class (defined inline in packages/player-vue/src/components/LearningPlayer.vue)"
+    kept_types: "packages/core/src/engine/types.ts (CyclePhase enum, TEXT_VISIBILITY map, IAudioController/ICycleOrchestrator interfaces)"
+    pause_formula: "packages/player-vue/src/playback/computePauseDuration.ts"
+    docs: "docs/cold-start-and-playback.md (live, traced 2026-06-08); docs/buffer-model.md (superseded design, never built)"
+
+  WHICH_ENGINE_RUNS_WHAT:
+    SimplePlayer:
+      role: "PRIMARY live engine — owns the round/cycle queue and the phase walk"
+      drives: "the main learning loop (every belt round, pods, listening, bookends)"
+      driven_by: "simplePlayer.play() / resume() in LearningPlayer.vue, via useSimplePlayer"
+      phase_machine: "idle → (buffering) → prompt → pause → voice1 → voice2 → next cycle"
+    useCyclePlayback:
+      role: "Single-cycle helper (playCycle(cycle, getAudioSource))"
+      drives: "narrower paths — intro-advance / session-based (demo) progression / next-item follow-on (startCyclePlayback in LearningPlayer.vue)"
+      phase_machine: "IDLE → PROMPT → PAUSE → VOICE_1 → VOICE_2 → IDLE (no buffering phase, no round queue)"
+    RealAudioController:
+      role: "Thin wrapper over the single reusable <audio> element (mobile-unlock-safe), preload LRU, cache-first URL resolution"
+      note: "Replaces the deleted @ssi/core AudioController + RobustAudioController"
 
 CORE_PRINCIPLE: |
   The learning cycle is the fundamental unit of SSI methodology.
   Each cycle takes a learner through PROMPT → PAUSE → VOICE_1 → VOICE_2.
   Text visibility is carefully controlled to force recall, not reading.
+  Audio and text are bound by ID inside an immutable Cycle object (see the
+  January 2026 Cycle refactor) — never looked up by text string at runtime.
 
 ## ============================================================================
 ## THE 4-PHASE LEARNING CYCLE
@@ -24,17 +60,19 @@ CORE_PRINCIPLE: |
 
 CYCLE_PHASES:
   description: |
-    Every learning item goes through exactly 4 phases in fixed order.
+    Every learning item goes through (up to) 4 audible phases in fixed order.
     The phases are designed to maximize active recall and minimize passive reading.
+    SimplePlayer adds a guard phase 'buffering' BEFORE prompt (not a 5th playback
+    phase — see STATE_MACHINE) and an optional post-voice2 'linger' hold.
 
   PHASE_1_PROMPT:
-    name: "PROMPT"
+    name: "PROMPT"  # SimplePlayer Phase: 'prompt'
     purpose: "Play known language audio to prompt learner"
     sequence: 1
     duration: "Audio duration of known phrase"
 
     audio:
-      plays: "known language audio"
+      plays: "known language audio (cycle.known.audioUrl)"
       example: "I want coffee"
 
     text_visibility:
@@ -44,16 +82,24 @@ CYCLE_PHASES:
 
     learner_action: "Listen and prepare to speak"
 
-    next_phase: "PAUSE"
+    next_phase: "PAUSE (or VOICE_1 directly for intro cycles where pauseDuration === 0)"
 
   PHASE_2_PAUSE:
-    name: "PAUSE"
+    name: "PAUSE"  # SimplePlayer Phase: 'pause'
     purpose: "Gap for learner to attempt target language"
     sequence: 2
-    duration: "2x target audio length (dynamic)"
+    duration: "Dynamic — computePauseDuration(t1, t2, modeConfig)"
 
     audio:
-      plays: "nothing (silence)"
+      plays: "A genuinely-silent real-PCM one-shot WAV clip on the MAIN audio element"
+      why: |
+        CRITICAL (SimplePlayer.startPausePhase + silentWav.ts): the pause is NOT
+        a bare setTimeout. It plays SILENT_PAUSE_CLIP (a real silent WAV, longer
+        than any realistic pause) so the now-playing media session stays asserted
+        and the phase advance still fires while the tab is backgrounded / screen
+        locked on iOS. A 'trim timer' (setTimeout for the exact computed duration)
+        OR the clip's own 'ended' event — whichever fires first — advances to
+        VOICE_1 via the same onAudioEnded hub as every other phase.
 
     text_visibility:
       known: true
@@ -63,25 +109,28 @@ CYCLE_PHASES:
     learner_action: "Speak the target language aloud"
 
     timing:
-      calculation: "target_voice1_duration * 2.0"
-      minimum: 1500  # 1.5 seconds
-      maximum: 10000 # 10 seconds
-      default: 3000  # 3 seconds (if duration unknown)
+      source_of_truth: "packages/player-vue/src/playback/computePauseDuration.ts"
+      formula: "clamp(min_pause_ms, max_pause_ms, pause_base_ms + (t1 + t2) * pause_multiplier)"
+      config_table: "algorithm_config (normal_mode + turbo_boost rows) — admin-tunable without redeploy"
+      bake_fallback: "DEFAULT_NORMAL from useAlgorithmConfig at cycle-bake time (toSimpleRounds / scriptItemToCycle); the live runtime override recomputes with live config so admin changes win"
+      simpleplayer_default: "DEFAULT_PAUSE_DURATION = 6500 ms (bootUpTime 2000 + 0.75 × estimatedTarget 6000) when no baked/override value"
 
     adaptation:
-      spike_detection: true
-      description: "If learner hesitates (detected via optional speech recognition), pause can extend"
+      driver: "useAdaptationEngine.getPauseMultiplier(legoId) — per-LEGO multiplier"
+      composed_from: "MetricsTracker + SpikeDetector + MasteryStateMachine (@ssi/core engines, composed directly in the composable — there is NO AdaptationEngine class anymore)"
+      runtime_override: "SimplePlayerRuntimeOverrides.getPauseDuration(cycle) — Turbo/adaptation can shorten the pause; flipping mid-round takes effect on the very next pause"
+      null_safe: "getPauseMultiplier ?? 1.0 — adaptation hydrates off the cold-start critical path"
 
     next_phase: "VOICE_1"
 
   PHASE_3_VOICE_1:
-    name: "VOICE_1"
+    name: "VOICE_1"  # SimplePlayer Phase: 'voice1'
     purpose: "First exposure to correct target pronunciation"
     sequence: 3
     duration: "Audio duration of target voice 1"
 
     audio:
-      plays: "target language voice 1"
+      plays: "target language voice 1 (cycle.target.voice1Url)"
       example: "Voglio caffè (Maria's voice)"
 
     text_visibility:
@@ -94,14 +143,15 @@ CYCLE_PHASES:
     next_phase: "VOICE_2"
 
   PHASE_4_VOICE_2:
-    name: "VOICE_2"
+    name: "VOICE_2"  # SimplePlayer Phase: 'voice2'
     purpose: "Second exposure with visual confirmation"
     sequence: 4
-    duration: "Audio duration of target voice 2"
+    duration: "Audio duration of target voice 2 (+ optional lingerMs hold)"
 
     audio:
-      plays: "target language voice 2"
+      plays: "target language voice 2 (cycle.target.voice2Url)"
       example: "Voglio caffè (Giovanni's voice)"
+      side_effect: "prefetchNextCycle() fires at VOICE_2 start — warms next cycle's known(high)+voice1/voice2(low) URLs during the ~2-3s of playback + inter-cycle gap"
 
     text_visibility:
       known: true
@@ -110,213 +160,198 @@ CYCLE_PHASES:
 
     learner_action: "See and verify the target text"
 
-    next_phase: "END (item complete)"
+    linger:
+      field: "cycle.lingerMs"
+      behaviour: "intro/debut cycles hold the (now-visible) target tiles for lingerMs after voice2 ends before advancing — lets the learner read the tiling"
+
+    next_phase: "END (advance cycle → next cycle / round)"
 
 CYCLE_FLOW_DIAGRAM: |
   ┌───────────────────────────────────────────────────────────────────────┐
-  │                        4-PHASE LEARNING CYCLE                         │
+  │                    4-PHASE LEARNING CYCLE (SimplePlayer)               │
   ├───────────────────────────────────────────────────────────────────────┤
   │                                                                       │
-  │  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐        │
-  │  │  PROMPT  │───▶│  PAUSE   │───▶│ VOICE_1  │───▶│ VOICE_2  │───▶END │
-  │  └──────────┘    └──────────┘    └──────────┘    └──────────┘        │
-  │       │               │               │               │              │
-  │  Known audio    Silence (2x)    Target V1       Target V2           │
-  │  Known text✓    Known text✓     Known text✓     Known text✓         │
-  │  Target text✗   Target text✗    Target text✗    Target text✓        │
+  │ (buffering)─▶┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐           │
+  │   gate only  │ PROMPT │─▶│ PAUSE  │─▶│VOICE_1 │─▶│VOICE_2 │─▶(linger?) │
+  │   pre-prompt └────────┘  └────────┘  └────────┘  └────────┘    │      │
+  │                  │            │           │           │        ▼      │
+  │             Known audio  Silent WAV   Target V1   Target V2   next    │
+  │             Known text✓  Known text✓  Known text✓ Known text✓ cycle   │
+  │             Target ✗     Target ✗     Target ✗    Target ✓            │
   │                                                                       │
   └───────────────────────────────────────────────────────────────────────┘
 
 ## ============================================================================
-## STATE MACHINE DEFINITION
+## STATE MACHINE DEFINITION (SimplePlayer — primary engine)
 ## ============================================================================
 
 STATE_MACHINE:
-  name: "CycleOrchestrator"
-  initial_state: "IDLE"
+  name: "SimplePlayer"
+  file: "packages/player-vue/src/playback/SimplePlayer.ts"
+  state_type: "Phase = 'idle' | 'buffering' | 'prompt' | 'pause' | 'voice1' | 'voice2'"
+  state_shape: "PlaybackState { roundIndex, cycleIndex, phase, isPlaying }"
+  initial_state: "idle"
 
   states:
-    IDLE:
-      description: "No active cycle, waiting for input"
-      enters_from: [initial, VOICE_2, aborted]
-      exits_to: [PROMPT]
-      actions_allowed: [startItem]
+    idle:
+      description: "Not playing — between cycles / before start / after stop"
+      enters_from: [initial, stop, jumpToRound]
+      exits_to: [buffering, prompt]
+      actions_allowed: [play, resume, jumpToRound, jumpToSeed, jumpToLegoId, skipToPhase]
 
-    PROMPT:
+    buffering:
+      description: |
+        GUARD phase before PROMPT, not a 5th playback phase. Only entered when the
+        cycle's known audio URL points at the network proxy (not a local blob) AND
+        a runtime ensureKnownReady override is wired. Lets the UI surface a subtle
+        'still fetching' message instead of starting PROMPT over silence. Skipped
+        for single-audio cycles (listening / pod / bookend).
+      enters_from: [prompt-entry gate]
+      exits_to: [prompt]
+      auto_transition: "On ensureKnownReady resolve/reject (bounded ~5s), then re-enters prompt"
+
+    prompt:
       description: "Playing known language audio"
-      enters_from: [IDLE]
-      exits_to: [PAUSE]
-      actions_allowed: [skip, abort]
-      auto_transition: "On audio ended"
+      enters_from: [idle, buffering]
+      exits_to: [pause]  # or voice1 directly if pauseDuration === 0 (intro cycles)
+      actions_allowed: [skipToPhase, skipRound, stepCycle, pause, stop]
+      auto_transition: "On audio 'ended' → onAudioEnded → getNextPhase"
 
-    PAUSE:
-      description: "Waiting for learner response"
-      enters_from: [PROMPT]
-      exits_to: [VOICE_1]
-      actions_allowed: [skip, abort, extend]
-      auto_transition: "On timer complete"
+    pause:
+      description: "Silent WAV clip plays; learner attempts target"
+      enters_from: [prompt]
+      exits_to: [voice1]
+      actions_allowed: [skipToPhase, skipRound, stepCycle, pause, stop]
+      auto_transition: "On trim-timer OR silent-clip 'ended' (whichever first) → endPausePhase → onAudioEnded"
 
-    VOICE_1:
+    voice1:
       description: "Playing first target voice"
-      enters_from: [PAUSE]
-      exits_to: [VOICE_2]
-      actions_allowed: [skip, abort]
-      auto_transition: "On audio ended"
+      enters_from: [pause]
+      exits_to: [voice2]
+      actions_allowed: [skipToPhase, skipRound, stepCycle, pause, stop]
+      auto_transition: "On audio 'ended' → onAudioEnded → getNextPhase"
 
-    VOICE_2:
-      description: "Playing second target voice"
-      enters_from: [VOICE_1]
-      exits_to: [IDLE]
-      actions_allowed: [skip, abort]
-      auto_transition: "On audio ended"
+    voice2:
+      description: "Playing second target voice (target text now visible); prefetchNextCycle fires"
+      enters_from: [voice1]
+      exits_to: [idle / next cycle]
+      actions_allowed: [skipToPhase, skipRound, stepCycle, pause, stop]
+      auto_transition: "On audio 'ended' → onAudioEnded → (lingerMs hold?) → advanceCycle"
 
-  transitions:
-    start_item:
-      from: IDLE
-      to: PROMPT
-      trigger: "startItem(item) called"
-      action: "Begin playing known audio"
+  transition_table:
+    note: "Literal SimplePlayer.getNextPhase() transitions"
+    idle: null
+    buffering: null  # startPhase('prompt') handles buffering→prompt explicitly, not via getNextPhase
+    prompt: "pause (or voice1 if currentCycle.pauseDuration === 0)"
+    pause: "voice1"
+    voice1: "voice2"
+    voice2: null  # end of cycle → advanceCycle → next cycle / advanceRound
 
-    prompt_complete:
-      from: PROMPT
-      to: PAUSE
-      trigger: "Audio playback ended"
-      action: "Start pause timer"
+  advance:
+    advanceCycle: "emit cycle_completed → next cycle in round, or advanceRound"
+    advanceRound: "emit round_completed (LearningPlayer.handleRoundBoundary runs) → next round, or session_complete"
 
-    pause_complete:
-      from: PAUSE
-      to: VOICE_1
-      trigger: "Timer elapsed"
-      action: "Begin playing target voice 1"
+## ============================================================================
+## STATE MACHINE DEFINITION (useCyclePlayback — single-cycle helper)
+## ============================================================================
 
-    voice1_complete:
-      from: VOICE_1
-      to: VOICE_2
-      trigger: "Audio playback ended"
-      action: "Begin playing target voice 2"
-
-    voice2_complete:
-      from: VOICE_2
-      to: IDLE
-      trigger: "Audio playback ended"
-      action: "Emit item_completed event"
-
-    skip:
-      from: [PROMPT, PAUSE, VOICE_1, VOICE_2]
-      to: IDLE
-      trigger: "User presses skip"
-      action: "Stop audio, emit item_skipped event"
-
-    abort:
-      from: [PROMPT, PAUSE, VOICE_1, VOICE_2]
-      to: IDLE
-      trigger: "Session ends or error"
-      action: "Stop audio, cleanup"
+USE_CYCLE_PLAYBACK:
+  file: "packages/player-vue/src/composables/useCyclePlayback.ts"
+  used_for: "intro-advance, demo session-based progression, next-item follow-on (startCyclePlayback in LearningPlayer.vue)"
+  phase_type: "CyclePhase = 'PROMPT' | 'PAUSE' | 'VOICE_1' | 'VOICE_2' | 'IDLE'"
+  api: "const { state, playCycle, stop } = useCyclePlayback(); await playCycle(cycle, getAudioSource)"
+  flow: |
+    playCycle runs the 4 phases sequentially as awaited promises:
+      PROMPT  → playAudio(known)
+      PAUSE   → wait(cycle.pauseDurationMs)        # plain setTimeout, NO silent WAV here
+      VOICE_1 → playAudio(target.voice1AudioId)
+      VOICE_2 → playAudio(target.voice2AudioId)
+      → IDLE
+  differences_from_SimplePlayer:
+    - "No round/cycle queue — plays exactly one Cycle and resolves"
+    - "No 'buffering' guard phase"
+    - "PAUSE is a bare wait() timer (no background-safe silent clip)"
+    - "Single reusable <audio> element with stall detection (1.5s interval) + 15s absolute safety timeout"
+    - "getAudioSource returns { type:'url'|'blob' } resolved by resolveAudioFromCache"
 
 ## ============================================================================
 ## EVENTS
 ## ============================================================================
 
 EVENTS:
-  description: "Events emitted by the orchestrator for UI updates"
+  description: "Events emitted by SimplePlayer (subscribed via useSimplePlayer's onX callbacks)"
+  emitter: "SimplePlayer.emit(name, data)"
+
+  state_changed:
+    description: "Emitted whenever PlaybackState changes (roundIndex/cycleIndex/phase/isPlaying)"
 
   phase_changed:
-    description: "Emitted when transitioning between phases"
-    payload:
-      phase: "CyclePhase"
-      item: "LearningItem"
-      previousPhase: "CyclePhase | null"
-    use_cases:
-      - "Update phase indicator dots"
-      - "Update text visibility"
-      - "Update ring progress animation"
+    description: "Emitted on entering each phase"
+    payload: "{ phase, cycle, round }"
+    subscribed: "simplePlayer.onPhaseChanged((phase) => …) — drives text visibility, phase strip, ring"
 
-  pause_started:
-    description: "Emitted when PAUSE phase begins"
-    payload:
-      duration_ms: number
-      item: "LearningItem"
-    use_cases:
-      - "Start countdown ring animation"
-      - "Optionally start speech recognition"
+  cycle_completed:
+    description: "Emitted when a full cycle completes (after voice2 + any linger)"
+    payload: "{ cycle, round }"
+    subscribed: "simplePlayer.onCycleCompleted(...)"
 
-  pause_progress:
-    description: "Emitted periodically during PAUSE"
-    payload:
-      elapsed_ms: number
-      total_ms: number
-      percent: number
-    use_cases:
-      - "Update ring progress animation"
+  round_completed:
+    description: "Emitted when the last cycle of a round completes"
+    payload: "{ round }"
+    subscribed: "simplePlayer.onRoundCompleted(...) → LearningPlayer.handleRoundBoundary (encouragements / interjections / belt advance)"
 
-  item_completed:
-    description: "Emitted when full cycle completes"
-    payload:
-      item: "LearningItem"
-      duration_ms: number
-    use_cases:
-      - "Update progress counters"
-      - "Request next item"
-      - "Record completion metrics"
+  session_complete:
+    description: "Emitted when there is no next round to advance to"
+    subscribed: "simplePlayer.onSessionComplete(...) → SessionComplete screen"
 
-  item_skipped:
-    description: "Emitted when user skips"
-    payload:
-      item: "LearningItem"
-      skipped_at_phase: "CyclePhase"
-    use_cases:
-      - "Log skip for analytics"
-      - "Request next item"
-
-  error:
-    description: "Emitted on audio or timing errors"
-    payload:
-      error: "Error"
-      phase: "CyclePhase"
-      item: "LearningItem | null"
-    use_cases:
-      - "Show error to user"
-      - "Log for debugging"
-      - "Attempt recovery"
+  audio_failed:
+    description: "Emitted when audio cannot play (iOS autoplay gesture lost, or a play-error)"
+    payload: "AudioFailedEvent { reason: 'needs-gesture' | 'play-error', role?, cycleType?, legoId?, cycleId?, errorCode?, attempt?, lastError? }"
+    behaviour: |
+      reason='needs-gesture' (NotAllowedError from a backgrounded tab) → halt, UI prompts
+      'tap to resume'. reason='play-error' (404/decode/CORS/blob-URL race) is emitted
+      twice: attempt=1 just before a single silent retry, attempt=2 (accompanying a halt)
+      if the retry also fails. Advancing the phase machine while no sound played would
+      lie to the learner about what they heard, so the player halts and offers tap-to-retry.
+    subscribed: "simplePlayer.onAudioFailed(...) → audioFailedBanner"
 
 ## ============================================================================
-## AUDIO CONTROLLER INTERFACE
+## AUDIO CONTROLLER (RealAudioController + cache-first source)
 ## ============================================================================
 
-AUDIO_CONTROLLER_INTERFACE:
-  description: "Interface that CycleOrchestrator uses for audio playback"
+AUDIO_CONTROLLER:
+  description: |
+    The deleted @ssi/core AudioController / RobustAudioController are replaced by
+    RealAudioController (inline class in LearningPlayer.vue) plus a cache-first
+    audio source. SimplePlayer owns its OWN single <audio> element directly and
+    plays via private playAudio(url); it does not depend on RealAudioController.
 
-  methods:
-    play:
-      signature: "(audioRef: AudioRef) => Promise<void>"
-      description: "Play audio, resolve when started or on error"
-      error_handling: "Resolve with no-op if audioRef is null/undefined"
+  RealAudioController:
+    file: "packages/player-vue/src/components/LearningPlayer.vue (class RealAudioController)"
+    owns: "ONE reusable HTMLAudioElement created in the constructor (mobile unlock preserved across intro + cycle audio)"
+    methods:
+      play: "(audioRef) => Promise<void> — stop()s prior audio, resolves URL via audioSource (blob: if cached), plays, notifies endedCallbacks"
+      stop: "() => void — bumps playGeneration to invalidate pending callbacks"
+      setAudioSource: "(audioSource) — cache-first URL resolution (createAudioCacheSource over AudioCache)"
+      setPlaybackRate: "(rate) — re-applied after audio.load() (resets to 1.0); used by the pod 2× lap"
+      onEnded / offEnded: "register/unregister ended callbacks"
+    preload_lru: "MAX_PRELOAD_CACHE_SIZE = 50 — evicts oldest preloaded URLs to bound memory in long sessions"
 
-    stop:
-      signature: "() => void"
-      description: "Stop any currently playing audio"
-
-    preload:
-      signature: "(audioRefs: AudioRef[]) => Promise<void>"
-      description: "Pre-fetch audio for upcoming items"
-
-    onEnded:
-      signature: "(callback: () => void) => void"
-      description: "Register callback for when audio playback ends"
-
-    offEnded:
-      signature: "(callback: () => void) => void"
-      description: "Remove callback registration"
+  cache_first_source:
+    persistent_path: "createAudioCacheSource(audioCache, courseCode, () => offlinePlaybackActive() || cachePlayOnline)"
+    simpleplayer_resolver: "SimplePlayerRuntimeOverrides.resolveAudioUrl — resolves the URL just before playAudio (sub-ms); falls back to original URL on reject (never breaks playback)"
+    online_equals_offline: "cachePlayOnline default-ON (?stream=1 forces the legacy streaming path); cached MP3 → WAV blob (AudioCache.getWavBlobUrl) on the cache path"
 
   implementation_notes:
     mobile_safari: |
-      CRITICAL: Must reuse a single Audio element to preserve "user gesture unlock" state.
-      Creating new Audio() elements per playback breaks autoplay on iOS Safari.
-
-    callback_safety: |
-      When iterating ended callbacks, snapshot the Set first:
-      const callbacks = [...this.endedCallbacks]
-      This prevents issues if callbacks modify the Set during iteration.
+      CRITICAL: reuse a SINGLE Audio element to preserve the iOS 'user gesture unlock'
+      state. Creating new Audio() per playback breaks autoplay on iOS Safari. Both
+      RealAudioController and useCyclePlayback hold one reused element each.
+    background_safe_pause: |
+      The PAUSE phase plays a real silent WAV (not a bare timer) so the locked-screen
+      media session stays alive on iOS. Holding the locked session is a SEPARATE concern
+      from audio supply — see docs/cold-start-and-playback.md. Do NOT add element-level
+      silent keepalive (CLAUDE.md).
 
 ## ============================================================================
 ## CONFIGURATION
@@ -324,28 +359,24 @@ AUDIO_CONTROLLER_INTERFACE:
 
 CONFIGURATION:
   pause_duration:
-    description: "How to calculate PAUSE phase duration"
-    strategy: "dynamic"
-    calculation: "target_audio_duration * multiplier"
-    multiplier:
-      default: 2.0
-      range: [1.5, 3.0]
-    fallback:
-      value: 3000
-      when: "Target audio duration unknown"
-    limits:
-      minimum: 1500
-      maximum: 10000
+    source_of_truth: "computePauseDuration.ts + algorithm_config table (normal_mode / turbo_boost)"
+    formula: "clamp(min_pause_ms, max_pause_ms, pause_base_ms + (t1 + t2) * pause_multiplier)"
+    runtime_override: "SimplePlayerRuntimeOverrides.getPauseDuration(cycle) — Turbo/adaptation, applied per cycle"
+    fallback: "DEFAULT_PAUSE_DURATION = 6500 ms when no baked or override value"
 
-  auto_advance:
-    description: "Whether to automatically advance between phases"
-    default: true
-    override: "User can set manual mode"
+  turbo:
+    overrides: "getPauseDuration (shorter pause), getPlaybackSpeedMultiplier (target voices), shouldSkipCycle (cull turboOmit-tagged cycles)"
+    note: "Pure callbacks read at each phase — toggling Turbo mid-round takes effect on the next cycle boundary"
 
-  preload_ahead:
-    description: "How many items to preload"
-    default: 3
-    benefit: "Reduces latency between items"
+  prefetch:
+    next_cycle: "SimplePlayer.prefetchNextCycle() at VOICE_2 start — known(high)+voice1/voice2(low), crosses round boundaries"
+    rolling_filler: "fillBuffer / expandScript in LearningPlayer.vue warm ~20 min of cycles+pods+L1 ahead of the playhead (even while locked)"
+    removed: "AudioPrefetcher + BundleDownloader (deleted 2026-06-08); preloadSimpleRoundAudio / warmUpInfPlayRoundsBackground / deepPrefetchRestOfCourse are no-op'd (mobile WebKit connection-queue hazard)"
+
+  instant_playback:
+    flag: "const INSTANT_PLAYBACK_ALL = true (LearningPlayer.vue) — every course uses the instant-playback bootstrap"
+    loader: "useInstantPlayback.bootstrap() — round-map + first-round cycles, localStorage-cached (warm = 0 network)"
+    legacy: "The old upfront-load path is kept only as a catch-fallback; PriorityRoundLoader was DELETED 2026-06-08 (never instantiated with INSTANT_PLAYBACK_ALL)"
 
 ## ============================================================================
 ## TEXT VISIBILITY RULES
@@ -354,53 +385,52 @@ CONFIGURATION:
 TEXT_VISIBILITY:
   description: "Rules for when to show known/target text"
   principle: "Force active recall, prevent passive reading"
+  source: "packages/core/src/engine/types.ts → TEXT_VISIBILITY map (KEPT; still the canonical table)"
 
-  rules:
-    show_known:
-      phases: [PROMPT, PAUSE, VOICE_1, VOICE_2]
-      always: true
-      rationale: "Learner always knows what they're translating"
-
-    show_target:
-      phases: [VOICE_2]
-      hidden_until: "VOICE_2 begins"
-      rationale: "Only reveal answer after learner has heard it twice"
+  map:
+    IDLE:       { known: false, target: false }
+    PROMPT:     { known: true,  target: false }
+    PAUSE:      { known: true,  target: false }
+    VOICE_1:    { known: true,  target: false }
+    VOICE_2:    { known: true,  target: true }   # ← target revealed ONLY here
+    TRANSITION: { known: false, target: false }
 
   implementation:
-    computed_property: |
-      const showTargetText = computed(() =>
-        currentPhase.value === 'VOICE_2'
-      )
+    note: |
+      The Vue UI reacts to phase_changed (SimplePlayer) / cyclePlaybackState.phase
+      (useCyclePlayback). showTargetText is true only at VOICE_2. Phase names map:
+      SimplePlayer 'voice2' ↔ CyclePhase.VOICE_2.
 
 ## ============================================================================
-## INTEGRATION EXAMPLE
+## INTEGRATION EXAMPLE (live)
 ## ============================================================================
 
 INTEGRATION_EXAMPLE:
   vue_component: |
     ```javascript
-    // In LearningPlayer.vue setup()
-    const orchestrator = new CycleOrchestrator(audioController, config)
+    // In LearningPlayer.vue setup() — primary engine
+    const simplePlayer = useSimplePlayer()
 
-    orchestrator.addEventListener((event) => {
-      switch (event.type) {
-        case 'phase_changed':
-          currentPhase.value = event.payload.phase
-          break
-        case 'pause_started':
-          startRingAnimation(event.payload.duration_ms)
-          break
-        case 'pause_progress':
-          ringProgress.value = event.payload.percent
-          break
-        case 'item_completed':
-          requestNextItem()
-          break
-      }
+    simplePlayer.onPhaseChanged((phase) => { currentPhase.value = phase })
+    simplePlayer.onCycleCompleted((cycle) => { /* progress, telemetry */ })
+    simplePlayer.onRoundCompleted((round) => handleRoundBoundary(round))
+    simplePlayer.onSessionComplete(() => showSessionComplete())
+    simplePlayer.onAudioFailed((event) => { audioFailedBanner.value = event })
+
+    simplePlayer.setRuntimeOverrides({
+      getPauseDuration: (cycle) => adaptiveOrTurboPause(cycle),
+      getPlaybackSpeedMultiplier: (cycle) => turboActive ? 1.5 : 1.0,
+      shouldSkipCycle: (cycle) => turboActive && cycle.turboOmit === true,
+      ensureKnownReady: (cycle) => warmKnownAudio(cycle),
+      resolveAudioUrl: (url) => resolveFromCache(url),
     })
 
-    // Start a cycle
-    await orchestrator.startItem(learningItem)
+    simplePlayer.initialize(rounds)   // build the queue (via useInstantPlayback)
+    simplePlayer.play()               // first user-gesture play (unlocks iOS audio)
+
+    // --- narrower single-cycle path (intro / demo / next-item follow-on) ---
+    const { state, playCycle, stop } = useCyclePlayback()
+    await playCycle(cycle, resolveAudioFromCache)   // runs one 4-phase cycle
     ```
 
 ## ============================================================================
@@ -408,20 +438,25 @@ INTEGRATION_EXAMPLE:
 ## ============================================================================
 
 VALIDATION:
+  cycle_integrity:
+    - "A Cycle is complete (known + target voice1 + voice2 bound by ID/URL) or it does not play"
+    - "Audio bound by ID/URL on the immutable Cycle — never looked up by text string at runtime (Jan-2026 Cycle refactor)"
+    - "Single-audio cycles (listening / pod / bookend) legitimately lack some phases' audio — the missing-audio warning is suppressed for them"
+
   state_integrity:
-    - "Can only be in one state at a time"
-    - "Transitions must follow defined paths"
-    - "Cannot skip phases (PROMPT→VOICE_2 invalid)"
+    - "Exactly one Phase at a time"
+    - "Transitions follow getNextPhase() (prompt→pause→voice1→voice2); intro cycles (pauseDuration===0) skip pause"
+    - "endPausePhase is idempotent (playGeneration guard) — trim timer and clip 'ended' cannot double-advance"
 
   timing_integrity:
-    - "PAUSE duration must be positive"
-    - "Audio durations must be non-negative"
+    - "Pause duration is clamped [min_pause_ms, max_pause_ms]"
+    - "Per-clip absolute safety timeout caps any single clip (useCyclePlayback: 15s)"
 
   audio_integrity:
-    - "Each item must have known audio"
-    - "Each item must have at least one target voice"
+    - "Speaking cycles must have known audio + at least one target voice"
+    - "Audio failures emit audio_failed for telemetry; the player retries once then halts (never silently fakes a phase)"
 
 ## ============================================================================
-## GENERATED: 2025-12-03
-## APML v1.0.0
+## GENERATED: 2026-06-08
+## APML v2.0.0 — reconciled to live SimplePlayer / useCyclePlayback / RealAudioController
 ## ============================================================================

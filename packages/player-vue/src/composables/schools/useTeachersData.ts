@@ -9,6 +9,7 @@ import { getSchoolsClient } from './client'
 import { useSchoolContext } from './useSchoolContext'
 import { useSchoolData } from './useSchoolData'
 import { isDemoMode } from '../demo/demoMode'
+import { teachersByClassId } from './classTeacherScope'
 
 export interface Teacher {
   user_id: string
@@ -71,42 +72,51 @@ export function useTeachersData() {
 
       if (learnersError) throw learnersError
 
-      // Get class counts and student counts per teacher
-      const { data: classesData, error: classesError } = await client
+      // Class & student counts per teacher, attributed via the teacher↔class
+      // RELATIONSHIP (class_teachers: lead + co-taught) rather than the legacy
+      // ownership column — so a co-teacher's counts include classes they share,
+      // and a class with two teachers counts for both. See classTeacherScope.
+      const { data: schoolClasses, error: classesError } = await client
         .from('classes')
-        .select('id, teacher_user_id')
+        .select('id')
         .eq('school_id', targetSchoolId)
         .eq('is_active', true)
-        .in('teacher_user_id', teacherUserIds)
 
       if (classesError) throw classesError
 
-      const classIds = (classesData || []).map(c => c.id)
+      const classIds = (schoolClasses || []).map(c => c.id)
+      const teacherMap = await teachersByClassId(classIds) // class_id -> [{user_id,is_lead}]
 
-      // Count students per teacher via class_student_progress
+      // Per-class student count + practice seconds, from class_student_progress
       const { data: progressData, error: progressError } = await client
         .from('class_student_progress')
-        .select('class_id, teacher_user_id, total_practice_seconds')
+        .select('class_id, total_practice_seconds')
         .in('class_id', classIds)
 
       if (progressError) throw progressError
 
-      // Aggregate stats per teacher
-      const statsMap = new Map<string, { classes: Set<string>; students: number; practiceSeconds: number }>()
-
-      classesData?.forEach(c => {
-        const existing = statsMap.get(c.teacher_user_id) || { classes: new Set(), students: 0, practiceSeconds: 0 }
-        existing.classes.add(c.id)
-        statsMap.set(c.teacher_user_id, existing)
-      })
-
+      const perClass = new Map<string, { students: number; seconds: number }>()
       progressData?.forEach(p => {
-        const existing = statsMap.get(p.teacher_user_id)
-        if (existing) {
-          existing.students++
-          existing.practiceSeconds += p.total_practice_seconds || 0
-        }
+        const e = perClass.get(p.class_id) || { students: 0, seconds: 0 }
+        e.students++
+        e.seconds += p.total_practice_seconds || 0
+        perClass.set(p.class_id, e)
       })
+
+      // Aggregate stats per teacher, restricted to this school's teacher list
+      const teacherIdSet = new Set(teacherUserIds)
+      const statsMap = new Map<string, { classes: Set<string>; students: number; practiceSeconds: number }>()
+      for (const [cid, list] of teacherMap) {
+        const cls = perClass.get(cid) || { students: 0, seconds: 0 }
+        for (const t of list) {
+          if (!teacherIdSet.has(t.user_id)) continue
+          const existing = statsMap.get(t.user_id) || { classes: new Set(), students: 0, practiceSeconds: 0 }
+          existing.classes.add(cid)
+          existing.students += cls.students
+          existing.practiceSeconds += cls.seconds
+          statsMap.set(t.user_id, existing)
+        }
+      }
 
       teachers.value = (learners || []).map(l => {
         const stats = statsMap.get(l.user_id) || { classes: new Set(), students: 0, practiceSeconds: 0 }

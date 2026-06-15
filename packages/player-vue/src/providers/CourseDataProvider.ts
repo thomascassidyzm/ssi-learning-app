@@ -177,7 +177,6 @@ export class CourseDataProvider {
   async loadSessionItems(startSeed: number = 1, count: number = 30): Promise<LearningItem[]> {
     // If no Supabase client, return empty array (caller will use demo fallback)
     if (!this.client) {
-      // console.warn('[CourseDataProvider] No Supabase client configured, using demo mode')
       return []
     }
 
@@ -211,7 +210,6 @@ export class CourseDataProvider {
       // Transform database records to LearningItem format
       return this.transformToLearningItems(data)
     } catch (err) {
-      // console.error('[CourseDataProvider] Failed to load items:', err)
       return []
     }
   }
@@ -318,7 +316,6 @@ export class CourseDataProvider {
       const warnKey = `invalid-audioId-${audioId}`
       if (!this.warnedOnce.has(warnKey)) {
         this.warnedOnce.add(warnKey)
-        // console.warn('[CourseDataProvider] Invalid audioId for proxy URL:', audioId, '(further occurrences suppressed)')
       }
       return ''
     }
@@ -339,13 +336,11 @@ export class CourseDataProvider {
         .single()
 
       if (error) {
-        // console.error('[CourseDataProvider] Failed to get course metadata:', error)
         return null
       }
 
       return data
     } catch (err) {
-      // console.error('[CourseDataProvider] Error fetching metadata:', err)
       return null
     }
   }
@@ -376,7 +371,6 @@ export class CourseDataProvider {
         text: data.text || null,
       }
     } catch (err) {
-      // console.error('[CourseDataProvider] Error loading welcome audio:', err)
       return null
     }
   }
@@ -389,47 +383,50 @@ export class CourseDataProvider {
   }
 
   /**
-   * Check if learner has already heard the welcome audio
+   * Has this learner EVER heard the welcome? Per-learner, course-agnostic —
+   * the welcome plays once ever, not once per course. Source of truth is
+   * learners.welcome_played_at (set via /api/welcome/played). Guests have no
+   * DB row → false here (the caller's localStorage gate covers same-device).
+   * On error: false (play it) — better to occasionally replay than to silently
+   * deny a genuine first-timer their one welcome.
    */
   async hasPlayedWelcome(learnerId: string): Promise<boolean> {
-    // Guests don't have persistent welcome tracking - always play
     if (!this.client || this.isGuestLearner(learnerId)) return false
 
     try {
       const { data, error } = await this.client
-        .from('course_enrollments')
-        .select('welcome_played')
-        .eq('learner_id', learnerId)
-        .eq('course_id', this.courseId)
+        .from('learners')
+        .select('welcome_played_at')
+        .eq('id', learnerId)
         .single()
 
-      if (error || !data) return false // Not enrolled = hasn't played
-      return data.welcome_played === true
+      if (error || !data) return false
+      return data.welcome_played_at != null
     } catch (err) {
-      // console.error('[CourseDataProvider] Error checking welcome status:', err)
-      return true // Assume played on error
+      return false
     }
   }
 
   /**
-   * Mark welcome audio as played (or skipped) for a learner
+   * Mark the welcome as played for this learner, once ever. learners is
+   * column-write-locked for clients (20260521180000), so this goes through the
+   * service-role /api/welcome/played endpoint (JWT-gated: marks only the
+   * caller's own row). Guests skip — their same-device gate is localStorage.
+   * Idempotent server-side (won't overwrite the original timestamp).
    */
   async markWelcomePlayed(learnerId: string): Promise<void> {
-    // Guests don't have persistent welcome tracking - skip silently
     if (!this.client || this.isGuestLearner(learnerId)) return
 
     try {
-      const { error } = await this.client
-        .from('course_enrollments')
-        .update({ welcome_played: true })
-        .eq('learner_id', learnerId)
-        .eq('course_id', this.courseId)
-
-      if (error) {
-        // console.error('[CourseDataProvider] Error marking welcome played:', error)
-      }
+      const { data: { session } } = await this.client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return // no auth session — same-device localStorage gate still applies
+      await fetch('/api/welcome/played', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      })
     } catch (err) {
-      // console.error('[CourseDataProvider] Error updating welcome status:', err)
+      // silent — diagnostic/non-critical; localStorage still prevents same-device replay
     }
   }
 
@@ -440,7 +437,6 @@ export class CourseDataProvider {
    */
   async getLegoBasket(legoId: string, lego?: LegoPair): Promise<ClassifiedBasket | null> {
     if (!this.client) {
-      // console.warn('[CourseDataProvider] No Supabase client, returning empty basket')
       return this.createEmptyBasket(legoId, lego)
     }
 
@@ -467,7 +463,6 @@ export class CourseDataProvider {
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
-        // console.error('[CourseDataProvider] Failed to load basket:', error)
         return this.createEmptyBasket(legoId, lego)
       }
 
@@ -476,7 +471,6 @@ export class CourseDataProvider {
         const warnKey = `no-phrases-${legoId}`
         if (!this.warnedOnce.has(warnKey)) {
           this.warnedOnce.add(warnKey)
-          // console.warn('[CourseDataProvider] No phrases found for LEGO:', legoId)
         }
         return this.createEmptyBasket(legoId, lego)
       }
@@ -484,7 +478,6 @@ export class CourseDataProvider {
       // Transform to ClassifiedBasket
       return this.transformToBasket(legoId, data, lego)
     } catch (err) {
-      // console.error('[CourseDataProvider] Error loading basket:', err)
       return this.createEmptyBasket(legoId, lego)
     }
   }
@@ -502,7 +495,6 @@ export class CourseDataProvider {
       // Convert seed_id (e.g., "S0001") to seed_number (e.g., 1)
       const seedNumber = parseInt(seedId.replace(/^S0*/, ''), 10)
       if (isNaN(seedNumber)) {
-        // console.warn('[CourseDataProvider] Invalid seed_id format:', seedId)
         return baskets
       }
 
@@ -521,7 +513,6 @@ export class CourseDataProvider {
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
-        // console.error('[CourseDataProvider] Failed to load seed baskets:', error)
         return baskets
       }
 
@@ -549,7 +540,6 @@ export class CourseDataProvider {
       // this.logOnce('baskets-loaded', 'log', '[CourseDataProvider] Loaded baskets for', baskets.size, 'LEGOs')
       return baskets
     } catch (err) {
-      // console.error('[CourseDataProvider] Error loading seed baskets:', err)
       return baskets
     }
   }
@@ -577,7 +567,6 @@ export class CourseDataProvider {
         .maybeSingle()
 
       if (error) {
-        // console.warn('[CourseDataProvider] Presentation audio query error:', error.message)
         return null
       }
 
@@ -592,7 +581,6 @@ export class CourseDataProvider {
 
       return null
     } catch (err) {
-      // console.error('[CourseDataProvider] Error loading intro audio:', err)
       return null
     }
   }
@@ -669,7 +657,6 @@ export class CourseDataProvider {
         .order('id', { ascending: true })
 
       if (error || !data) {
-        // console.warn('[CourseDataProvider] No instructions found:', error?.message)
         return []
       }
 
@@ -681,7 +668,6 @@ export class CourseDataProvider {
         position: index, // 0-based position in sequence
       }))
     } catch (err) {
-      // console.error('[CourseDataProvider] Error loading instructions:', err)
       return []
     }
   }
@@ -706,7 +692,6 @@ export class CourseDataProvider {
         .eq('language', knownLang)
 
       if (error || !data) {
-        // console.warn('[CourseDataProvider] No encouragements found:', error?.message)
         return []
       }
 
@@ -717,7 +702,6 @@ export class CourseDataProvider {
         text: row.text,
       }))
     } catch (err) {
-      // console.error('[CourseDataProvider] Error loading encouragements:', err)
       return []
     }
   }
@@ -844,14 +828,13 @@ export class CourseDataProvider {
    */
   async loadLegoAtPosition(seedNumber: number): Promise<LearningItem | null> {
     if (!this.client) {
-      // console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO at position')
       return null
     }
 
     try {
       // Same audio-completeness invariant as loadSessionItems — a seed with
       // missing audio IDs resolves to null here, and callers treat null as
-      // "skip this seed" (not "course ended"). See PriorityRoundLoader.
+      // "skip this seed" (not "course ended").
       const { data, error } = await this.client
         .from('course_legos')
         .select('*')
@@ -865,12 +848,10 @@ export class CourseDataProvider {
         .maybeSingle()
 
       if (error) {
-        // console.error('[CourseDataProvider] Query error:', error)
         return null
       }
 
       if (!data) {
-        // console.warn('[CourseDataProvider] No LEGO found at seed position:', seedNumber)
         return null
       }
 
@@ -878,7 +859,6 @@ export class CourseDataProvider {
       const items = this.transformToLearningItems([data])
       return items[0] ?? null
     } catch (err) {
-      // console.error('[CourseDataProvider] Failed to load LEGO at position:', err)
       return null
     }
   }
@@ -892,7 +872,6 @@ export class CourseDataProvider {
    */
   async loadLegoRange(startSeed: number, endSeed: number): Promise<LearningItem[]> {
     if (!this.client) {
-      // console.warn('[CourseDataProvider] No Supabase client, cannot load LEGO range')
       return []
     }
 
@@ -910,12 +889,10 @@ export class CourseDataProvider {
         .order('lego_index', { ascending: true })
 
       if (error) {
-        // console.error('[CourseDataProvider] Query error:', error)
         return []
       }
 
       if (!data || data.length === 0) {
-        // console.warn('[CourseDataProvider] No LEGOs found in range:', startSeed, '-', endSeed)
         return []
       }
 
@@ -929,10 +906,8 @@ export class CourseDataProvider {
         return true
       })
 
-      // console.log(`[CourseDataProvider] Loaded ${uniqueRecords.length} LEGOs from range ${startSeed}-${endSeed}`)
       return this.transformToLearningItems(uniqueRecords)
     } catch (err) {
-      // console.error('[CourseDataProvider] Failed to load LEGO range:', err)
       return []
     }
   }
@@ -981,7 +956,6 @@ export class CourseDataProvider {
         .order('target1_duration_ms', { ascending: true, nullsFirst: false })
 
       if (error) {
-        // console.error('[CourseDataProvider] Batch basket query error:', error)
         // Fall back to individual loading for failed batch
         for (const legoId of legoIds) {
           const basket = await this.getLegoBasket(legoId, legos?.get(legoId))
@@ -991,7 +965,6 @@ export class CourseDataProvider {
       }
 
       if (!data || data.length === 0) {
-        // console.warn('[CourseDataProvider] No practice phrases found for LEGOs:', legoIds)
         // Create empty baskets for each LEGO
         for (const legoId of legoIds) {
           baskets.set(legoId, this.createEmptyBasket(legoId, legos?.get(legoId)))
@@ -1023,10 +996,8 @@ export class CourseDataProvider {
         }
       }
 
-      // console.log(`[CourseDataProvider] Batch loaded ${baskets.size} baskets for ${legoIds.length} LEGOs`)
       return baskets
     } catch (err) {
-      // console.error('[CourseDataProvider] Batch basket loading error:', err)
       return baskets
     }
   }

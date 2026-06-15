@@ -1,0 +1,63 @@
+# Competence Band Specification (flat hours-on-task)
+# SSi Learning App
+#
+# Version: 1.0.0
+# Last updated: 2026-06-13
+# Grounded in: docs/methodology/metrics-architecture.md §2 (empirical baseline),
+#              §10 Step 2a + §12 H2 row (flat hours band, ships now)
+#              docs/methodology/metrics-implementation-plan.md workstream G1
+#
+# Core Insight: ~17 years of SSi data show practice TIME predicts conversational
+# ability on the central tendency — ~30h ≈ entry-conversational, ~100h ≈ ~B1.
+# This is empirical ground truth needing no external validation, but it is FLAT
+# (same number for everyone). This is the honest, crude, ship-now assessment
+# signal; per-learner finesse (execution axis, calibration, clusters) is the
+# longer roadmap.
+#
+# DISCIPLINE (Principle 5 / §10): NOT a CEFR assessment, never a hard level.
+# A time-on-task population anchor. The result carries the honesty in-band
+# (basis='time-on-task', confidence='flat-anchor') so any surface inherits it.
+#
+# Implementation Status (verified 2026-06-13):
+# - competenceBand():   LIVE  (packages/core/src/learning/competenceBand.ts)
+# - admin/tutor surface: NOT BUILT — deliberately deferred. Placement + the
+#   user-facing/legal framing copy ("not a CEFR assessment", range-not-level)
+#   is a product/legal decision (Tom/Aran), not encoded here.
+
+module: competence_band
+  purpose: >
+    Map total practice minutes to the flat hours-on-task band. The ship-now
+    competence signal; reads total_practice_minutes which exists today.
+
+  anchors:
+    entry_conversational_hours: 30   # can get into conversations
+    b1_conversational_hours: 100     # genuinely conversational, ~B1
+
+  data:
+    CompetenceBandId: enum [ warming_up, entry_conversational, b1_conversational, beyond_anchor ]
+    CompetenceBand:
+      band: CompetenceBandId
+      label: string                  # short neutral label for logs/admin, NOT learner copy
+      hoursOnTask: number            # minutes / 60, clamped >= 0
+      progressToNext: number         # [0,1] through the current band toward the next anchor; 1 at/after final
+      basis: 'time-on-task'          # NOT prosody, NOT a formal assessment — load-bearing for honesty
+      confidence: 'flat-anchor'      # deliberately-humble single tier (population average, not per-learner)
+
+  api:
+    competenceBand(totalPracticeMinutes) -> CompetenceBand:
+      >  Pure mapping. Non-finite or negative input is treated as zero practice
+         (warming up), not an error — callers pass raw, possibly null-coalesced DB values.
+
+  bands:
+    - warming_up:           hoursOnTask < 30
+    - entry_conversational: 30 <= hoursOnTask < 100
+    - b1_conversational:    100 <= hoursOnTask < 200
+    - beyond_anchor:        hoursOnTask >= 200   # 2x the final anchor; flat anchor stops resolving
+
+  guarantees:
+    - anchors_exact: band crosses precisely at 30h and 100h
+    - monotonic: band rank is non-decreasing as minutes increase
+    - honest_framing: basis and confidence are constant across all bands (never a hard level)
+    - robust_input: NaN / Infinity / negative -> warming_up at 0h
+
+  tests: packages/core/src/learning/competenceBand.test.ts   # 10 cases

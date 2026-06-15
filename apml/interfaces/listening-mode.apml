@@ -1,0 +1,142 @@
+# APML Interface: Listening MODE — Dialogue surface
+# SSI Learning App
+# Version: 1.0.0
+# Last updated: 2026-06-12
+# Source: packages/player-vue/src/components/ListeningOverlay.vue
+#         packages/player-vue/src/composables/useListeningPods.ts
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Listening MODE — Dialogues"
+  purpose: |
+    A standalone PRACTICE surface where the learner replays the course's
+    listening-pod dialogues (Layer 2 content) on demand. Distinct from the
+    MAIN FLOW, where the same pod content is delivered through the staged
+    9-stage acquisition progression (usePodLapScheduler, driven live from
+    algorithm_config.pods).
+  principle: |
+    Listening MODE is for PRACTICE, not acquisition. The structured staged
+    delivery lives ONCE, in the main flow. This surface does NOT re-implement
+    a summarised copy of it — a second, drifting engine was the root cause of
+    the listening-vs-main-flow mismatch (Tom, 2026-06-12). The two learner
+    modes here are deliberately simple and TARGET-ONLY.
+
+## ============================================================================
+## TABS
+## ============================================================================
+
+TABS:
+  dialogues:
+    key: "pods"
+    label: "Dialogues"
+    content: "Listening-pod scenes for the course (useListeningPods)."
+    flow: |
+      Scene list → tap a scene → teleprompter plays the scene through.
+      On scene end: advance to the next scene (continuous), unless the
+      loop toggle is on (repeat current scene, Spotify single-track style).
+  core:
+    key: "seeds"
+    label: "Core"
+    content: "Seed sentences. Has the speed selector (1× / 1.2× / 1.5× / 2×)."
+  all:
+    key: "phrases"
+    label: "All"
+    content: "Every practice phrase. Has the speed selector."
+
+## ============================================================================
+## DIALOGUE MODES (the difficulty/practice selector, scene view only)
+## ============================================================================
+
+DIALOGUE_MODES:
+  description: |
+    Selector shown only in Dialogues with a scene open. Keys are stable
+    (localStorage 'ssi-listening-mode' + code); labels may evolve. A retired
+    or unknown stored key migrates to the default (immersion).
+
+    Rows are ONE PER CHUNK (per-phrase granularity) — openScene flattens the
+    scene's turns into a row per listening_pod_sentences chunk. The turn
+    grouping survives only as presentation: the speaker chip shows on a turn's
+    FIRST chunk, and the inter-row gap is turn-aware. Because a row is a single
+    phrase, the known-language gloss is a single line under it (never a
+    paragraph wall) and follows the gloss eye in EVERY mode — target-first by
+    leaving the eye where the learner sets it.
+
+  immersion:
+    key: "immersion"
+    label: "Immersion"
+    default: true
+    desc: "The whole scene in the target language, at your pace."
+    audio: |
+      Each chunk played once at the learner's chosen speed (the speed row is
+      shown for this mode). Within a speaker's turn chunks run tight (50ms) for
+      natural continuous speech; a speaker change gets the full 800ms breath.
+    speed_row: true
+
+  drill:
+    key: "drill"
+    label: "Drill"
+    desc: "Each line three times — once normal, then twice fast."
+    audio: |
+      Each chunk played three times: 1× · 2× · 2× (300ms breath between reps).
+      Row-by-row, so the learner stays on one phrase at a time.
+    speed_row: false
+
+  audit:
+    key: "audit"
+    label: "Progression"
+    status: "ADMIN-ONLY (implemented)"
+    visibility: |
+      Gated by isSsiAdmin AND the Settings → Developer "Listening Progression
+      Audit" toggle (localStorage 'ssi-listening-audit'). The overlay appends
+      the mode to LISTEN_MODES only when both hold; flipping the toggle is
+      picked up live via the 'ssi-setting-changed' window event. If audit is
+      selected and then becomes unavailable, the selection falls back to
+      immersion.
+    desc: |
+      The REAL 9-stage acquisition progression, read live from
+      algorithm_config.pods (the same config the main-flow scheduler uses),
+      so it matches the main flow by construction and reflects Popty tweaks
+      instantly. For each chunk, plays EVERY stage of the live config in order
+      (stages 1→N), so the content team hears a line's whole arc in one pass.
+      Role → audio + role → rate resolution reuse the scheduler's helpers
+      (explainer falls back to translation; ROLE_SPEED from usePodLapScheduler).
+      A live badge shows "Stage s/N · role · line c/N". This is the ONLY
+      Dialogue mode that surfaces known-language audio/text, and the only one
+      whose pace comes from the config rather than the learner.
+
+## ============================================================================
+## PLAYBACK MAPPING (ListeningOverlay.buildPlayQueue)
+## ============================================================================
+
+PLAYBACK:
+  source_unit: |
+    useListeningPods still merges consecutive same-speaker chunks into turns
+    (for the conversation colouring + speaker chips), but openScene FLATTENS
+    those turns into one row per chunk, tagging each row with speakerName (on
+    the turn's first chunk only) and isTurnStart. Each row carries single-chunk
+    `sentences` detail (targetAudioId / knownAudioId / explainerAudioId).
+  immersion: "row = one chunk: { target, rate = chosen speed }"
+  drill:     "row = one chunk: { target, 1× } · { target, 2× } · { target, 2× }"
+  inter_row_gap: |
+    Turn-aware: when the next row continues the same turn (not isTurnStart),
+    50ms in Immersion / 350ms in Drill; on a speaker change (or any non-
+    dialogue list), the steady 800ms between-phrases pause.
+  rate_handling: |
+    Dialogue queues always carry an explicit per-clip rate, so a speed picked
+    in Core/All never leaks into a dialogue. Core/All pass rate=null and rely
+    on the audio controller's playback-rate watch.
+  warm_ahead: |
+    Immersion / Drill warm only TARGET clips ahead (lock-screen-safe). Aux
+    clips (known / explainer) are warmed only in the audit walk.
+
+## ============================================================================
+## RELATED
+## ============================================================================
+
+RELATED:
+  main_flow_delivery: "packages/player-vue/src/composables/usePodLapScheduler.ts"
+  live_config:        "algorithm_config.pods (useAlgorithmConfig.DEFAULT_PODS fallback)"
+  scheduling_spec:    "apml/learning/listening-layers.apml"

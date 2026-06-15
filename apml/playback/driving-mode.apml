@@ -1,23 +1,118 @@
 # APML v2.0.0 - Driving Mode (Background Audio Playback)
 # SSI Learning App
-# Last Updated: 2026-01-29
+# Last Updated: 2026-06-08
 
 spec driving_mode:
-  version: "1.0.0"
-  status: "planned"
-  date: "2026-01-29"
+  version: "2.0.0"
+  status: "superseded — goal achieved a different way; the concatenator design was never built"
+  date: "2026-06-08"
 
   description: |
     Background audio playback for hands-free learning while driving, walking, or
-    doing other activities. Solves the iOS Safari limitation where changing
-    audio.src while backgrounded is blocked.
+    doing other activities. Solves the iOS Safari limitation around backgrounded /
+    locked playback.
 
-    Core insight: SSi is radio, not Duolingo. The screen is theater for the sale;
-    the ears do the work. Users MUST be able to learn while looking at their satnav.
+    Core insight (still true): SSi is radio, not Duolingo. The screen is theater
+    for the sale; the ears do the work. Users MUST be able to learn while looking
+    at their satnav.
 
-    Solution: Concatenate rounds into single audio files. Each round becomes a "song"
-    that plays continuously. Use the "silent audio placeholder" trick to maintain
-    iOS audio session between rounds.
+  ## ==========================================================================
+  ## STATUS: WHAT ACTUALLY SHIPPED (2026-06-08)
+  ## ==========================================================================
+
+  reality:
+    summary: |
+      The "concatenate each round into one big WAV song" design in this spec was
+      NEVER built, and its files were deleted. None of these exist:
+        - packages/player-vue/src/composables/useDrivingMode.ts        (never created)
+        - packages/player-vue/src/components/DrivingModeToggle.vue      (never created)
+        - packages/player-vue/src/utils/audioConcatenator.ts           (DELETED, commit 59a17a7b^)
+        - packages/player-vue/src/utils/silentAudio.ts                 (DELETED — the LOOPED-silence landmine)
+        - packages/player-vue/src/playback/SessionController.ts        (DELETED — whole playback island gone)
+
+      There is no separate "Driving Mode" toggle. Instead the SAME normal player
+      now plays correctly while backgrounded / on the lock screen, so the
+      hands-free goal is met without a distinct mode. The live mechanism is three
+      independent pieces (NOT round concatenation, NOT the silent-placeholder
+      LOOP trick this spec described):
+
+      1. Media Session API — lock-screen + car-bluetooth metadata and controls.
+         setupMediaSession() / clearMediaSession() in
+         packages/player-vue/src/components/LearningPlayer.vue (~line 4744),
+         wired to the live SimplePlayer (resume/pause/skipRound/jumpToRound).
+         A parallel copy lives in ListeningOverlay.vue for pod playback.
+
+      2. AudioContext silent-oscillator keepalive — holds the iOS audio session
+         alive across PAUSE phases and inter-clip gaps. Sits UNDERNEATH the
+         <audio> element (never on it). composables/useAudioSessionKeepalive.ts.
+         Per CLAUDE.md this is verified ~30+ min locked; field notes dispute
+         sufficiency for true screen-off lock (see buffer-model.md open question).
+
+      3. Silent one-shot pause clip — during PAUSE, SimplePlayer plays a
+         genuinely-silent real-PCM WAV (buildSilentWavDataUri, playback/silentWav.ts)
+         on the SAME element the cycle uses, so PAUSE advances on the audio
+         element's natural 'ended' (a clock iOS does not throttle when locked)
+         instead of a backgrounded setTimeout. STRICTLY one-shot — never looped
+         (looping is the disabled 2026-05-23 oscillation landmine, and is exactly
+         what the old silentAudio.ts "driving mode" did wrong).
+
+    do_not_reintroduce: |
+      NEVER add silent audio ON or ALONGSIDE the main <audio> element to "keep it
+      alive" (no silent-WAV LOOP, no playSilentKeepalive, no second <audio>). The
+      tell is the lock widget flickering play/pause and playback dying after ~1
+      cycle even fully cached. Re-introduced and reverted twice. The round-concat
+      "song" + looped silent-placeholder design below is the abandoned approach;
+      it is kept only as design archaeology. Keepalive (Web Audio, below the
+      element) and supply (the buffer) are orthogonal and must never be conflated.
+
+  ## ==========================================================================
+  ## OFFLINE SUPPLY (LIVE) — how hands-free audio stays fed without network
+  ## ==========================================================================
+
+  offline_supply:
+    summary: |
+      "Driving mode" needs audio to keep arriving with no network. That is the
+      buffer/cache layer, NOT a separate mode. One system: online just fills the
+      same cache from the network instead of from a pre-download; the player only
+      ever reads from the cache. See docs/buffer-model.md + docs/cold-start-and-playback.md.
+
+    one_system:
+      cachePlayOnline: |
+        const cachePlayOnline (LearningPlayer.vue) defaults ON — online playback
+        reads WAV blobs decoded from cached MP3s (createAudioCacheSource →
+        AudioCache.getWavBlobUrl), exactly like offline. ?stream bypasses it.
+      rolling_filler: |
+        LearningPlayer's rolling FILLER (fillBuffer/expandScript, ROLLING_SPAN_MS
+        ~20 min) walks forward from the cursor collecting unique /api/audio ids
+        and lands them via audioCache.persistent.ensure (IndexedDB). Plus
+        SimplePlayer.prefetchNextCycle warms the next cycle, and the SW caches the
+        app shell only — the SW is NOT in the audio path.
+      blob_play_caveat: |
+        WebKit won't play a blob: URL backed by mp3 bytes from IDB, so the offline
+        resolve path decodes each cached MP3 → 16-bit WAV blob (cache/wav.ts). This
+        is the surviving fragment of the deleted audioConcatenator.
+
+    deliberate_download: |
+      A user-initiated deep download exists and is LIVE (this is the closest thing
+      to the spec's "download the course" idea — not parked, but depth-based not
+      ms-based):
+        - LearningPlayer.downloadForOffline() collects audio ids round-by-round
+          (depth chosen as a % / span of the course) and calls
+          audioCache.persistent.ensure on each.
+        - Progress is shared via composables/useOfflineDownloadStatus.ts
+          (offlineDlState idle|preparing|downloading|complete|error, done/total/failed)
+          and drawn as a ring on the mode button + the Offline row in ModeTray
+          (no floating banner).
+      AudioCache namespaces: persistent (survives, used here) vs ephemeral
+      (vestigial — kept for now, not the offline store).
+
+  ## ==========================================================================
+  ## ARCHIVED DESIGN (NOT BUILT) — the original concatenate-per-round proposal
+  ## Everything below documents the abandoned approach. The iOS *problem* it
+  ## frames is real and still solved; the *solution* it proposes (round
+  ## concatenation + looped silent placeholder) was replaced by the three-piece
+  ## mechanism in `reality:` above. Read for rationale, not as current code.
+  ## ==========================================================================
 
   ## ==========================================================================
   ## THE iOS PROBLEM
@@ -103,7 +198,16 @@ spec driving_mode:
 
   audio_concatenation:
     purpose: "Create single audio file per round for uninterrupted playback"
-    file: "packages/player-vue/src/utils/audioConcatenator.ts"
+    status: "ARCHIVED — utils/audioConcatenator.ts DELETED (commit 59a17a7b^)"
+    surviving_descendant: |
+      The per-round concatenation was abandoned, but its decode-mp3-bytes →
+      re-encode-16-bit-WAV core was lifted (minus concat/normalisation) into
+      packages/player-vue/src/cache/wav.ts. That powers OFFLINE playback only:
+      WebKit refuses to play a blob: URL backed by mp3 bytes from IndexedDB, but
+      plays WAV blobs fine, so the offline resolve path decodes each cached MP3
+      clip to a WAV blob (AudioCache.getWavBlobUrl via createAudioCacheSource).
+      Online streaming hands the proxy /api/audio URL straight to the element.
+    file: "(DELETED) packages/player-vue/src/utils/audioConcatenator.ts → see cache/wav.ts"
 
     process:
       1: "Fetch all audio files for round (via getAudioSource)"
@@ -158,7 +262,9 @@ spec driving_mode:
       on_exit: |
         Map current segment to {roundIndex, cycleIndex, phase}
         Return position for normal mode resume
-        SessionController.jumpToPosition(roundIndex, cycleIndex)
+        (ARCHIVED) the deleted SessionController.jumpToPosition() did this.
+        Live equivalent: SimplePlayer.jumpToRound(roundIndex, cycleIndex)
+        in packages/player-vue/src/playback/SimplePlayer.ts.
 
   ## ==========================================================================
   ## CHAIN LOADING
@@ -191,22 +297,29 @@ spec driving_mode:
 
   media_session:
     purpose: "Lock screen and car bluetooth controls"
-    file: "Integrated in useDrivingMode.ts"
+    status: "LIVE — this part DID ship (the only part of this spec that did)"
+    file: "packages/player-vue/src/components/LearningPlayer.vue (setupMediaSession ~L4744); pod copy in components/ListeningOverlay.vue"
 
-    metadata:
+    metadata_as_built:
+      title: "'SSi Learning'  (static — NOT 'Round N of total')"
+      artist: "'Practice Session'"
+      album: "'Player'"
+      note: "The dynamic per-round metadata below was the archived design and is not implemented."
+
+    action_handlers_as_built:
+      play: "if not playing → simplePlayer.resume()"
+      pause: "if playing → simplePlayer.pause()"
+      nexttrack: "simplePlayer.skipRound()"
+      previoustrack: "if roundIndex>0 → simplePlayer.jumpToRound(idx-1)"
+      not_wired: "seekbackward / seekforward / seekto / scrubber are NOT registered in the live player"
+    playback_state: "watch(isPlaying) → navigator.mediaSession.playbackState = 'playing'|'paused'"
+
+    archived_design_metadata:
       title: "Round {N} of {total}"
       artist: "SSi Learning"
       album: "Driving Mode"
       artwork: "Belt-colored icon (192px, 512px)"
-
-    action_handlers:
-      play: "Resume playback"
-      pause: "Pause playback"
-      nexttrack: "Skip to next round (loads if needed)"
-      previoustrack: "Restart current or go to previous round"
-      seekbackward: "Seek back 10 seconds"
-      seekforward: "Seek forward 10 seconds"
-      seekto: "Direct seek (scrubber)"
+      seek_handlers: "seekbackward 10s / seekforward 10s / seekto (scrubber)"
 
     position_state:
       duration: "Round total duration"
@@ -220,11 +333,22 @@ spec driving_mode:
       This means nexttrack/previoustrack CAN change audio.src.
 
   ## ==========================================================================
-  ## SESSION CONTROLLER INTEGRATION
+  ## SESSION CONTROLLER INTEGRATION  (ARCHIVED — SessionController is DELETED)
   ## ==========================================================================
 
   session_controller_additions:
-    file: "packages/player-vue/src/playback/SessionController.ts"
+    status: "VOID — packages/player-vue/src/playback/SessionController.ts no longer exists"
+    live_replacement: |
+      The whole SessionController/CyclePlayer/PriorityRoundLoader/RoundBuilder
+      playback island was deleted. Round/cycle navigation now lives on the
+      SimplePlayer class (packages/player-vue/src/playback/SimplePlayer.ts):
+        - roundIndex (state) replaces currentRoundIndex
+        - skipRound() / jumpToRound(index, cycleIndex?) replace jumpToPosition()
+        - skipToPhase() / next / prev cycle nav also live here
+      Round loading is now composables/useInstantPlayback.ts (bootstrap →
+      round-map + cycles, localStorage-cached), with INSTANT_PLAYBACK_ALL=true
+      in LearningPlayer.vue. The methods below were never added anywhere.
+    file: "(none — formerly packages/player-vue/src/playback/SessionController.ts, deleted)"
 
     new_methods:
       getCyclesForRound:
@@ -248,7 +372,7 @@ spec driving_mode:
       totalRounds: "Total number of loaded rounds"
 
   ## ==========================================================================
-  ## DATA FLOW
+  ## DATA FLOW  (ARCHIVED — describes the unbuilt concatenator mode)
   ## ==========================================================================
 
   data_flow:
@@ -292,7 +416,7 @@ spec driving_mode:
           → cleanup() - stop audio, revoke URLs, clear handlers
           → state = 'inactive'
           → Return position to parent
-          → SessionController.jumpToPosition(round, cycle)
+          → (ARCHIVED) SessionController.jumpToPosition — now SimplePlayer.jumpToRound
           → Normal mode resumes
 
   ## ==========================================================================
@@ -300,31 +424,39 @@ spec driving_mode:
   ## ==========================================================================
 
   files:
-    new:
+    archived_never_built:
       - path: "packages/player-vue/src/utils/silentAudio.ts"
-        purpose: "Generate silent WAV blob via Web Audio API"
-        exports: ["getSilentAudioUrl()"]
+        purpose: "(DELETED) Generate looped silent WAV blob — the disabled landmine"
+        note: "Replaced by playback/silentWav.ts (one-shot data: URI, never looped)"
 
       - path: "packages/player-vue/src/utils/audioConcatenator.ts"
-        purpose: "Concatenate audio files into single WAV blob"
-        exports: ["concatenateRound()", "AudioSegment", "ConcatenatedAudio"]
+        purpose: "(DELETED, 59a17a7b^) Concatenate audio files into single WAV blob"
+        note: "Decode/encode core survives in cache/wav.ts for offline playback"
 
       - path: "packages/player-vue/src/composables/useDrivingMode.ts"
-        purpose: "Main driving mode orchestrator"
-        exports: ["useDrivingMode()", "DrivingModeState", "DrivingModePosition"]
+        purpose: "(NEVER CREATED) Main driving mode orchestrator"
 
       - path: "packages/player-vue/src/components/DrivingModeToggle.vue"
-        purpose: "UI component for entering/exiting driving mode"
+        purpose: "(NEVER CREATED) UI toggle — there is no separate driving mode"
 
-    modified:
-      - path: "packages/player-vue/src/playback/SessionController.ts"
-        changes: |
-          Add getCyclesForRound(), getCyclesForRoundRange(),
-          jumpToPosition(), getAudioSourceFn(),
-          Expose currentRoundIndex and totalRounds
-
+    live_files_that_deliver_the_goal:
       - path: "packages/player-vue/src/components/LearningPlayer.vue"
-        changes: "Add DrivingModeToggle component"
+        role: "setupMediaSession()/clearMediaSession() (~L4744); owns useAudioSessionKeepalive; hosts SimplePlayer"
+
+      - path: "packages/player-vue/src/composables/useAudioSessionKeepalive.ts"
+        role: "Session-wide silent-oscillator AudioContext holding the iOS audio session alive"
+
+      - path: "packages/player-vue/src/playback/silentWav.ts"
+        role: "buildSilentWavDataUri() — one-shot silent PAUSE clip so locked playback advances on 'ended'"
+
+      - path: "packages/player-vue/src/playback/SimplePlayer.ts"
+        role: "Live cycle/round playback engine; skipRound()/jumpToRound() drive the Media Session handlers"
+
+      - path: "packages/player-vue/src/cache/wav.ts"
+        role: "mp3→16-bit-WAV per-clip decode for offline play (descendant of audioConcatenator)"
+
+      - path: "packages/player-vue/src/components/ListeningOverlay.vue"
+        role: "Parallel Media Session + keepalive for Listening-Pod playback"
 
   ## ==========================================================================
   ## QUALITY REQUIREMENTS

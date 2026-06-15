@@ -1,0 +1,233 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildAtomFusionPlan > full-plan snapshot: "Ideš na posao, Maria?" → [Ideš][na posao][Maria-passthrough] 1`] = `
+{
+  "fusibleAtomIdxs": [
+    0,
+    1,
+    2,
+  ],
+  "fusionTierCount": 2,
+  "steps": [
+    {
+      "play": {
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": false,
+      },
+      "tier": "orientation",
+    },
+    {
+      "play": {
+        "sliceMs": [
+          0,
+          620,
+        ],
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          0,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "legoKey": "ides",
+        "source": "inventory_explainer",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          0,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "sliceMs": [
+          0,
+          620,
+        ],
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          0,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "sliceMs": [
+          620,
+          1450,
+        ],
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          1,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "legoKey": "na_posao",
+        "source": "inventory_explainer",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          1,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "sliceMs": [
+          620,
+          1450,
+        ],
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          1,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "sliceMs": [
+          0,
+          620,
+        ],
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          0,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "legoKey": "ides",
+        "source": "inventory_explainer",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          0,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "sliceMs": [
+          620,
+          1450,
+        ],
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          1,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "legoKey": "na_posao",
+        "source": "inventory_explainer",
+      },
+      "screen": {
+        "glossVisible": true,
+        "highlightAtomIdxs": [
+          1,
+        ],
+      },
+      "tier": "meet",
+    },
+    {
+      "play": {
+        "gapInsertsMs": [
+          {
+            "atMs": 1450,
+            "gapMs": 350,
+          },
+        ],
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": false,
+        "mergedGroups": [
+          [
+            0,
+            1,
+          ],
+          [
+            2,
+          ],
+        ],
+      },
+      "tier": "fuse-1",
+    },
+    {
+      "play": {
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": false,
+        "mergedGroups": [
+          [
+            0,
+            1,
+            2,
+          ],
+        ],
+      },
+      "tier": "fuse-2",
+    },
+    {
+      "play": {
+        "source": "target_clause",
+      },
+      "screen": {
+        "glossVisible": false,
+      },
+      "tier": "arrive",
+    },
+    {
+      "play": {
+        "source": "known_clause",
+      },
+      "screen": {
+        "glossVisible": true,
+      },
+      "tier": "arrive",
+    },
+  ],
+  "teachableAtomIdxs": [
+    0,
+    1,
+  ],
+}
+`;

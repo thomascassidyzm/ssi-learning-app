@@ -5,8 +5,8 @@ import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
+import { deriveBelt, type Belt } from '@/composables/schools/belts'
 
-type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
@@ -18,15 +18,6 @@ const searchQuery = ref('')
 const classFilter = ref<string>('all')
 const beltFilter = ref<string>('all')
 const healthFilter = ref<string>('all')
-
-function deriveBelt(seeds: number): Belt {
-  if (seeds >= 280) return 'black'
-  if (seeds >= 150) return 'blue'
-  if (seeds >= 80) return 'green'
-  if (seeds >= 40) return 'orange'
-  if (seeds >= 20) return 'yellow'
-  return 'white'
-}
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)

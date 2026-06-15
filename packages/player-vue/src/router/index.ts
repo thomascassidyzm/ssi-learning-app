@@ -9,7 +9,6 @@ const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
-const SimpleSessionTest = () => import('@/components/SimpleSessionTest.vue')
 const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
@@ -186,13 +185,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Listening Pods',
     },
   },
-  // Test route for simple session flow
+  // Teacher / tutor insights — the calm single-widget Rate-compare view.
+  // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
+  // login (the global admin guard only fires on /admin + /methodology). It is
+  // scoped to THEIR class (or a learner within it) and shows nothing but the
+  // entity-vs-average Rate-compare widget — the opposite of /admin/insights.
   {
-    path: '/test/simple-session',
-    name: 'simple-session-test',
-    component: SimpleSessionTest,
+    path: '/teacher-insights',
+    name: 'teacher-insights',
+    component: () => import('@/insight/TeacherInsightsView.vue'),
     meta: {
-      title: 'Simple Session Test',
+      title: 'Your class',
+      description: 'Your class vs the average — the Rate-compare widget, teacher-framed',
     },
   },
   // Admin panel

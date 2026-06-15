@@ -139,7 +139,7 @@ export interface AudioFailedEvent {
    *   resume" and a user tap restores playback. The browser will not
    *   play ANY audio until that tap, so we must halt.
    * - 'play-error': audio element fired `error` (bad UUID / 404 / decode
-   *   / CORS / blob-URL race against BundleDownloader). Emitted twice
+   *   / CORS / blob-URL race against the per-cycle resolver). Emitted twice
    *   per cycle in the failure path: once with attempt=1 just before
    *   the silent retry, and once with attempt=2 if the retry also
    *   fails. The attempt=2 emission accompanies a halt — the player
@@ -151,7 +151,7 @@ export interface AudioFailedEvent {
   /**
    * Cycle role the failure occurred on — lets diagnostics see whether
    * blob-URL races skew toward target voices (the bigger files that
-   * BundleDownloader fetches later) vs the known prompt.
+   * prefetchNextCycle warms later) vs the known prompt.
    */
   role?: 'known' | 'target1' | 'target2'
   cycleType?: string
@@ -258,7 +258,7 @@ export class SimplePlayer {
   // advancing the phase machine from a superseded audio request.
   private playGeneration: number = 0
   // Single silent retry for transient audio failures. Most production
-  // errors are blob-URL races (BundleDownloader hasn't reached this
+  // errors are blob-URL races (the per-cycle resolver hasn't landed this
   // audio yet) — re-setting src + calling load()/play() against the
   // proxy URL almost always succeeds the second time. Tracks the URL
   // so we don't retry a different audio if playAudio fired in between.
@@ -403,8 +403,8 @@ export class SimplePlayer {
   /**
    * Re-set the audio src and call load()+play() against the same URL.
    * Browsers retry the network fetch — most blob-URL races against
-   * BundleDownloader resolve here because by the time we re-fetch the
-   * bundle has reached this audio. Reuses the same Audio element so
+   * the per-cycle resolver resolve here because by the time we re-fetch
+   * the audio has landed in cache. Reuses the same Audio element so
    * the mobile gesture unlock stays intact.
    */
   private retryCurrentAudio(): void {
@@ -880,7 +880,7 @@ export class SimplePlayer {
         // Warm the SW cache for THIS cycle's voice1/voice2 during the
         // PROMPT + PAUSE window (5-8s of dead network time). For LEGOs
         // already in AudioCache the URL is blob: and prefetchUrl no-ops;
-        // for proxy URLs not yet covered by BundleDownloader, this lands
+        // for proxy URLs not yet covered by the SW cache, this lands
         // them in the SW cache before VOICE_1 needs them — closes the
         // weak-cellular race window where the audio element's own fetch
         // could fail mid-cycle.

@@ -9,8 +9,8 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { getLanguageName } from '@/composables/useI18n'
+import { deriveBelt, type Belt } from '@/composables/schools/belts'
 
-type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 type SortKey = 'name' | 'students' | 'hours' | 'journey'
 
@@ -24,6 +24,7 @@ const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
 const isCreatedModalOpen = ref(false)
 const createClassError = ref<string | null>(null)
+const isCreatingClass = ref(false)
 
 const courseFilter = ref<string>('all')
 const sortKey = ref<SortKey>('name')
@@ -42,14 +43,6 @@ async function fetchReportsForClasses() {
   }
 }
 
-function deriveBelt(seeds: number): Belt {
-  if (seeds >= 280) return 'black'
-  if (seeds >= 150) return 'blue'
-  if (seeds >= 80) return 'green'
-  if (seeds >= 40) return 'orange'
-  if (seeds >= 20) return 'yellow'
-  return 'white'
-}
 
 function deriveHealth(report: ClassReport | undefined, studentCount: number): Health {
   if (studentCount === 0) return 'inactive'
@@ -170,23 +163,29 @@ function closeCreateModal() {
 }
 
 async function handleCreateClass(params: { class_name: string; course_code: string }) {
+  if (isCreatingClass.value) return
   createClassError.value = null
   const schoolId = selectedUser.value?.school_id
   if (!schoolId) {
     createClassError.value = 'No school found for your account. Please contact an administrator.'
     return
   }
-  const newClass = await createClass({
-    class_name: params.class_name,
-    course_code: params.course_code,
-    school_id: schoolId,
-  })
-  if (newClass) {
-    closeCreateModal()
-    createdClass.value = newClass
-    isCreatedModalOpen.value = true
-  } else {
-    createClassError.value = 'Failed to create class. Please try again.'
+  isCreatingClass.value = true
+  try {
+    const newClass = await createClass({
+      class_name: params.class_name,
+      course_code: params.course_code,
+      school_id: schoolId,
+    })
+    if (newClass) {
+      closeCreateModal()
+      createdClass.value = newClass
+      isCreatedModalOpen.value = true
+    } else {
+      createClassError.value = 'Failed to create class. Please try again.'
+    }
+  } finally {
+    isCreatingClass.value = false
   }
 }
 
@@ -401,6 +400,7 @@ function exportCsv() {
 
     <CreateClassModal
       :isOpen="isCreateModalOpen"
+      :submitting="isCreatingClass"
       @close="closeCreateModal"
       @create="handleCreateClass"
     />

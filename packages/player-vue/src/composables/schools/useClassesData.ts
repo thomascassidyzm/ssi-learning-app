@@ -11,15 +11,17 @@ import { useSchoolData } from './useSchoolData'
 import { useStudentsData } from './useStudentsData'
 import { isDemoMode } from '../demo/demoMode'
 import { assertScope } from './rlsGuard'
+import { deriveBelt as bucketBelt, type Belt } from './belts'
+import { myTaughtClassIds, teachersByClassId, type ClassTeacherRef } from './classTeacherScope'
 
-export type Belt = 'white' | 'yellow' | 'orange' | 'green' | 'blue' | 'black'
+export type { Belt }
 
 export interface ClassInfo {
   id: string
   class_name: string
   course_code: string
   school_id: string
-  teacher_user_id: string
+  teacher_user_id: string  // lead-teacher pointer (denormalised); full set in `teachers`
   student_join_code: string
   current_seed: number
   last_lego_id: string | null
@@ -30,21 +32,14 @@ export interface ClassInfo {
   created_at: string
   // Dashboard extras — optional so creators (createClass, demo mode)
   // don't have to populate them. Wired by fetchClasses / fetchClassDetail.
+  teachers?: ClassTeacherRef[]  // active teacher↔class relationships (lead flagged)
   belt_distribution?: Record<Belt, number>
   activity_last_7?: number[]
   journey_done?: number
   journey_total?: number
 }
 
-// Belt buckets keyed off seeds_completed — mirrors deriveBelt() used in views.
-function bucketBelt(seeds: number): Belt {
-  if (seeds >= 280) return 'black'
-  if (seeds >= 150) return 'blue'
-  if (seeds >= 80) return 'green'
-  if (seeds >= 40) return 'orange'
-  if (seeds >= 20) return 'yellow'
-  return 'white'
-}
+// Belt buckets keyed off seeds_completed — canonical deriveBelt (see belts.ts).
 
 // Last 7 days as ISO date strings, oldest first. Index 0 = 6 days ago, 6 = today.
 function last7Days(): string[] {
@@ -147,15 +142,24 @@ export function useClassesData() {
         student_join_code, current_seed, last_lego_id, is_active, created_at
       `)
 
-      // Track scope for the RLS tripwire (rlsGuard.ts). Teachers are
-      // scoped by teacher_user_id (a teacher can legitimately teach at
-      // multiple schools), school/govt admins are scoped by school_id.
+      // Track scope for the RLS tripwire (rlsGuard.ts). Teachers are scoped by
+      // class MEMBERSHIP (the class_teachers relationship, lead + co-taught —
+      // a teacher can legitimately teach at multiple schools); school/govt
+      // admins are scoped by school_id.
       let allowedSchoolIds: string[] = []
-      let allowedTeacherUserId: string | null = null
+      let allowedClassIds: string[] | null = null
 
       if (isTeacher.value) {
-        query = query.eq('teacher_user_id', selectedUser.value.user_id)
-        allowedTeacherUserId = selectedUser.value.user_id
+        // "My classes" = the teacher↔class relationship, not the legacy
+        // ownership column. See classTeacherScope.
+        const myClassIds = await myTaughtClassIds(selectedUser.value.user_id)
+        if (myClassIds.length === 0) {
+          classes.value = []
+          isLoading.value = false
+          return
+        }
+        query = query.in('id', myClassIds)
+        allowedClassIds = myClassIds
       } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school sees all classes in that school
         query = query.eq('school_id', activeSchoolId.value)
@@ -205,10 +209,10 @@ export function useClassesData() {
           caller: 'useClassesData.fetchClasses',
         })
       }
-      if (allowedTeacherUserId) {
-        safeData = assertScope(safeData, 'teacher_user_id', [allowedTeacherUserId], {
+      if (allowedClassIds) {
+        safeData = assertScope(safeData, 'id', allowedClassIds, {
           table: 'classes',
-          caller: 'useClassesData.fetchClasses (teacher)',
+          caller: 'useClassesData.fetchClasses (teacher membership)',
         })
       }
 
@@ -229,7 +233,7 @@ export function useClassesData() {
           belts: Record<Belt, number>
         }
         const emptyBelts = (): Record<Belt, number> =>
-          ({ white: 0, yellow: 0, orange: 0, green: 0, blue: 0, black: 0 })
+          ({ white: 0, yellow: 0, orange: 0, green: 0, blue: 0, purple: 0, brown: 0, black: 0 })
         const statsMap = new Map<string, ClassStats>()
 
         progressData?.forEach(p => {
@@ -269,6 +273,7 @@ export function useClassesData() {
         // course, then map back. Done per class = current_seed (its seed position).
         const courseCodes = Array.from(new Set(safeData.map(c => c.course_code).filter(Boolean)))
         const courseLegoTotals = await fetchCourseLegoTotals(courseCodes)
+        const teacherMap = await teachersByClassId(classIds)
 
         classes.value = safeData.map(c => {
           const stats = statsMap.get(c.id) || {
@@ -293,6 +298,7 @@ export function useClassesData() {
             activity_last_7: sparkMap.get(c.id) || Array(7).fill(0),
             journey_done: total > 0 ? Math.min(total, c.current_seed || 0) : (c.current_seed || 0),
             journey_total: total,
+            teachers: teacherMap.get(c.id) ?? [],
           }
         })
       } else {
@@ -371,7 +377,7 @@ export function useClassesData() {
       const totalMinutes = students.reduce((sum, s) => sum + s.total_practice_minutes, 0)
 
       // Belt distribution from student seeds_completed
-      const belts: Record<Belt, number> = { white: 0, yellow: 0, orange: 0, green: 0, blue: 0, black: 0 }
+      const belts: Record<Belt, number> = { white: 0, yellow: 0, orange: 0, green: 0, blue: 0, purple: 0, brown: 0, black: 0 }
       students.forEach(s => { belts[bucketBelt(s.seeds_completed || 0)]++ })
 
       // 7-day sparkline from class_sessions for this class
@@ -397,12 +403,16 @@ export function useClassesData() {
       const courseTotals = await fetchCourseLegoTotals([classData.course_code].filter(Boolean))
       const journeyTotal = courseTotals.get(classData.course_code) ?? 0
 
+      // Active teacher↔class relationships for this class (lead + co-taught)
+      const detailTeachers = (await teachersByClassId([classId])).get(classId) ?? []
+
       currentClass.value = {
         id: classData.id,
         class_name: classData.class_name,
         course_code: classData.course_code,
         school_id: classData.school_id,
         teacher_user_id: classData.teacher_user_id,
+        teachers: detailTeachers,
         student_join_code: classData.student_join_code,
         current_seed: classData.current_seed,
         last_lego_id: classData.last_lego_id || null,
@@ -582,12 +592,60 @@ export function useClassesData() {
     }
   }
 
+  // Service-role write for teacher↔class relationships (RLS forbids a client
+  // teacher-tag insert). Used by createClass to seed the lead, and by the
+  // teacher-management surface to add / remove / hand over teachers.
+  async function callClassTeachersApi(body: {
+    class_id: string
+    action: 'add' | 'remove'
+    target_user_id: string
+    set_lead?: boolean
+  }): Promise<boolean> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        console.warn('[ClassesData] No auth token; skipping class-teacher write')
+        return false
+      }
+      const resp = await fetch('/api/teacher/class-teachers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        console.error('[ClassesData] class-teacher write failed:', data.error || resp.status)
+        return false
+      }
+      return true
+    } catch (err) {
+      console.error('[ClassesData] class-teacher fetch error:', err)
+      return false
+    }
+  }
+
+  /** Add (or reactivate) a teacher on a class; `lead` also points the lead pointer at them. */
+  async function addClassTeacher(
+    classId: string,
+    targetUserId: string,
+    opts?: { lead?: boolean }
+  ): Promise<boolean> {
+    return callClassTeachersApi({ class_id: classId, action: 'add', target_user_id: targetUserId, set_lead: opts?.lead })
+  }
+
+  /** Soft-remove a teacher from a class; the server hands the lead on if needed. */
+  async function removeClassTeacher(classId: string, targetUserId: string): Promise<boolean> {
+    return callClassTeachersApi({ class_id: classId, action: 'remove', target_user_id: targetUserId })
+  }
+
   async function createClass(params: {
     class_name: string
     course_code: string
     school_id: string
   }): Promise<ClassInfo | null> {
     if (!selectedUser.value) return null
+    const creatorUserId = selectedUser.value.user_id
 
     try {
       const { data: newClass, error: insertError } = await client
@@ -596,7 +654,7 @@ export function useClassesData() {
           class_name: params.class_name,
           course_code: params.course_code,
           school_id: params.school_id,
-          teacher_user_id: selectedUser.value.user_id,
+          teacher_user_id: creatorUserId,
           is_active: true,
         })
         .select('id, class_name, course_code, school_id, teacher_user_id, student_join_code, current_seed, is_active, created_at')
@@ -623,7 +681,7 @@ export function useClassesData() {
             if (!resp.ok) {
               const data = await resp.json().catch(() => ({}))
               console.error('[ClassesData] Failed to create invite code for student join code:', data.error || resp.status)
-              // Non-fatal — class still works, just won't resolve through /api/invite/validate
+              // Non-fatal — class still works, just won't resolve through /api/code/validate
             }
           } else {
             console.warn('[ClassesData] No auth token; skipping invite_code creation for class', newClass.id)
@@ -632,6 +690,12 @@ export function useClassesData() {
           console.error('[ClassesData] invite_code fetch error:', codeErr)
         }
       }
+
+      // Seed the creator's teacher↔class relationship (lead) via the service-role
+      // route — the live RLS forbids a client teacher-tag insert. Makes the
+      // relationship the source of truth so the new class appears under
+      // membership reads, not only via the lead pointer.
+      await addClassTeacher(newClass.id, creatorUserId, { lead: true })
 
       const classInfo: ClassInfo = {
         id: newClass.id,
@@ -647,6 +711,7 @@ export function useClassesData() {
         avg_seeds_completed: 0,
         avg_practice_minutes: 0,
         created_at: newClass.created_at,
+        teachers: [{ user_id: newClass.teacher_user_id, is_lead: true }],
       }
 
       classes.value = [...classes.value, classInfo]
@@ -688,6 +753,8 @@ export function useClassesData() {
     fetchClassDetail,
     getClassReport,
     createClass,
+    addClassTeacher,
+    removeClassTeacher,
     startClassSession,
     endClassSession,
     getClassSessions,

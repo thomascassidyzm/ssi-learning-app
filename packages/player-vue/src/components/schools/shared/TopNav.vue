@@ -102,12 +102,19 @@ const toggleUserMenu = () => {
   isUserMenuOpen.value = !isUserMenuOpen.value
 }
 
-// Sign out
+// Sign out — go through the auth composable (clears app auth state + caches),
+// not the raw client (which left local state intact, so the click did nothing),
+// then reload. The reload always runs, even if sign-out throws.
 const handleSignOut = async () => {
   isUserMenuOpen.value = false
-  const client = supabaseRef?.value
-  if (client) {
-    await client.auth.signOut()
+  try {
+    if (auth?.signOut) {
+      await auth.signOut()
+    } else {
+      await supabaseRef?.value?.auth.signOut()
+    }
+  } finally {
+    window.location.reload()
   }
 }
 

@@ -9,6 +9,7 @@ import { getSchoolsClient } from './client'
 import { useSchoolContext } from './useSchoolContext'
 import { useSchoolData } from './useSchoolData'
 import { isDemoMode } from '../demo/demoMode'
+import { myTaughtClassIds } from './classTeacherScope'
 
 export interface Student {
   user_id: string
@@ -50,15 +51,9 @@ export function useStudentsData() {
       let classIds: string[] = []
 
       if (isTeacher.value) {
-        // Get teacher's class IDs
-        const { data: classesData, error: classesError } = await client
-          .from('classes')
-          .select('id')
-          .eq('teacher_user_id', selectedUser.value.user_id)
-          .eq('is_active', true)
-
-        if (classesError) throw classesError
-        classIds = (classesData || []).map(c => c.id)
+        // "My classes" = the teacher↔class relationship (lead + co-taught),
+        // not the legacy ownership column. See classTeacherScope.
+        classIds = await myTaughtClassIds(selectedUser.value.user_id)
       } else if (isGovtAdmin.value && isViewingSchool.value && activeSchoolId.value) {
         // Govt admin drilled into a school - get all class IDs in that school
         const { data: classesData, error: classesError } = await client

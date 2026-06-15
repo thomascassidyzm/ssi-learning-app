@@ -1,7 +1,12 @@
 # APML Persistence: Progressive Loading + Progress Persistence
 # SSI Learning App v2.1.0
 # Version: 1.0.0 (2026-01-18)
-# Status: Implemented
+# Last updated: 2026-06-08 (reconciled — useBeltLoader.ts + usePrefetchManager.ts
+#   DELETED in the 2026-06-08 playback/cache cleanup; loading is now
+#   useInstantPlayback.ts + rolling filler + AudioCache. The belt-aware
+#   priority-queue sections below are HISTORICAL. Progress persistence
+#   (ProgressStore/SessionStore), useOfflinePlay + useBeltProgress remain live.)
+# Status: Partly superseded
 
 ## ============================================================================
 ## OVERVIEW
@@ -16,7 +21,10 @@ SPECIFICATION:
   date: "2026-01-18"
 
   sources:
-    useBeltLoader: "packages/player-vue/src/composables/useBeltLoader.ts"
+    # useBeltLoader.ts was DELETED 2026-06-08 (whole belt-aware loading island gone).
+    # Loading is now packages/player-vue/src/composables/useInstantPlayback.ts
+    # (rolling filler + AudioCache); see apml/playback/lazy-loading.apml.
+    useInstantPlayback: "packages/player-vue/src/composables/useInstantPlayback.ts (replaced useBeltLoader, 2026-06-08)"
     useOfflinePlay: "packages/player-vue/src/composables/useOfflinePlay.ts"
     useBeltProgress: "packages/player-vue/src/composables/useBeltProgress.ts"
     migration: "supabase/migrations/20260118100000_highest_completed_seed.sql"
@@ -251,8 +259,9 @@ SYNC_STRATEGY:
 
 COMPOSABLE_BELT_LOADER:
   name: "useBeltLoader"
-  source: "packages/player-vue/src/composables/useBeltLoader.ts"
-  purpose: "Progressive loading with belt-aware priority queue"
+  status: "DELETED 2026-06-08 — file no longer exists; the belt-aware priority queue below is HISTORICAL. Live loading = useInstantPlayback.ts (rolling filler + AudioCache). See apml/playback/lazy-loading.apml."
+  source: "(none — formerly packages/player-vue/src/composables/useBeltLoader.ts)"
+  purpose: "Progressive loading with belt-aware priority queue (historical design)"
 
   state:
     readyRounds: "Map<number, Round> - Rounds ready to play"
@@ -541,10 +550,10 @@ AUDIO_CACHING_V2:
     see: "apml/cache/audio-architecture.apml"
 
   prefetch_buffer:
-    target: "30 minutes cached ahead"
+    target: "~20 minutes warmed ahead (rolling filler)"
     trigger: "After each cycle completes"
     batch_size: "20 cycles"
-    composable: "usePrefetchManager.ts"
+    composable: "DELETED 2026-06-08 — usePrefetchManager.ts is gone; audio supply is now the rolling FILLER (fillBuffer/expandScript in LearningPlayer.vue) + AudioCache (IndexedDB) + SW CacheFirst + SimplePlayer.prefetchNextCycle. See apml/cache/audio-architecture.apml."
 
   graceful_degradation:
     hierarchy:
@@ -562,7 +571,7 @@ AUDIO_CACHING_V2:
 
   files_added:
     - "api/audio/[audioId].ts"
-    - "packages/player-vue/src/composables/usePrefetchManager.ts"
+    - "(deleted 2026-06-08) packages/player-vue/src/composables/usePrefetchManager.ts → rolling filler + AudioCache"
     - "packages/player-vue/src/config/audioConfig.ts"
     - "supabase/migrations/20260125000000_audio_plays.sql"
     - "apml/cache/audio-architecture.apml"

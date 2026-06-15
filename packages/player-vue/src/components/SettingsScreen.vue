@@ -120,6 +120,13 @@ const onLatestNoteVersion = computed(() => !!latestNote.value && latestNote.valu
 const noteIndicatesNewer = computed(() => {
   const n = latestNote.value
   if (!n || onLatestNoteVersion.value) return false
+  // PROD-only nudge: dev/staging run DIFFERENT SHAs than the prod-stamped note
+  // (same content, different commits), so version !== buildNumber there and the
+  // date check below would false-fire a permanent "Update available". The newer-
+  // version nudge only makes sense for real prod learners — gate to the production
+  // host (same hostname convention as LearningPlayer.vue's env detection).
+  const host = typeof window !== 'undefined' ? window.location.hostname : ''
+  if (host !== 'saysomethingin.app' && host !== 'www.saysomethingin.app') return false
   if (!buildTime || buildNumber === 'dev') return false
   const bt = Date.parse(buildTime)
   if (Number.isNaN(bt)) return false
@@ -190,6 +197,7 @@ const enableQaMode = ref(false) // Show Report Issue button
 const enableAdaptation = ref(false) // Personalised pacing via microphone
 const showDebugOverlay = ref(false) // Show phase/round/LEGO info overlay
 const enableVerboseLogging = ref(false) // Detailed console logs
+const showListeningAudit = ref(false) // Reveal the 9-stage progression audit mode in Listening → Dialogues
 
 // Theme settings (uses shared composable)
 const { theme, toggleTheme: doToggleTheme, isDark } = useTheme()
@@ -228,11 +236,15 @@ const handleSaveDisplayName = async () => {
       return
     }
 
-    // Update learners table
-    await supabase.value
-      .from('learners')
-      .update({ display_name: name })
-      .eq('user_id', auth.userId?.value || auth.learnerId?.value)
+    // Update learners table. Key on the auth uid only — learners.user_id holds
+    // auth.uid()::text, so falling back to learnerId (the learners PK / a
+    // guest id) matches nothing AND fails the own-row RLS WITH CHECK.
+    if (auth.userId?.value) {
+      await supabase.value
+        .from('learners')
+        .update({ display_name: name })
+        .eq('user_id', auth.userId.value)
+    }
 
     // Update local auth user metadata
     if (auth.user?.value) {
@@ -337,12 +349,15 @@ const hasSchoolRole = computed(() => educationalRole.value != null && SCHOOL_ROL
 const hasAdminRole = computed(() => platformRole.value === 'ssi_admin')
 
 watch(isSignedIn, async (signedIn) => {
-  if (signedIn && supabase?.value && (auth?.userId?.value || auth?.learnerId?.value)) {
+  // Key on the auth uid only — learners.user_id holds auth.uid()::text; the
+  // learnerId fallback queried the wrong identity and (under RLS) returned
+  // nothing, leaving roles null for everyone.
+  if (signedIn && supabase?.value && auth?.userId?.value) {
     try {
       const { data } = await supabase.value
         .from('learners')
         .select('educational_role, platform_role')
-        .eq('user_id', auth.userId?.value || auth.learnerId?.value)
+        .eq('user_id', auth.userId.value)
         .single()
       educationalRole.value = data?.educational_role || null
       platformRole.value = data?.platform_role || null
@@ -448,12 +463,16 @@ const handleJoinRedeem = async () => {
   }
 }
 
-// Sign out
+// Sign out — the reload must always run, even if signOut throws, so the button
+// never appears to "do nothing".
 const handleSignOut = async () => {
-  if (auth?.signOut) {
-    await auth.signOut()
+  try {
+    if (auth?.signOut) {
+      await auth.signOut()
+    }
+  } finally {
+    window.location.reload()
   }
-  window.location.reload()
 }
 
 // Password management
@@ -696,6 +715,7 @@ onMounted(async () => {
   enableAdaptation.value = localStorage.getItem('ssi-adaptation-consent') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
   enableVerboseLogging.value = localStorage.getItem('ssi-verbose-logging') === 'true'
+  showListeningAudit.value = localStorage.getItem('ssi-listening-audit') === 'true'
 
   // Pull fresh subscription state so the panel reflects any cancel/renew change.
   refreshSubscription()
@@ -756,6 +776,12 @@ const toggleVerboseLogging = () => {
   enableVerboseLogging.value = !enableVerboseLogging.value
   localStorage.setItem('ssi-verbose-logging', enableVerboseLogging.value ? 'true' : 'false')
   dispatchSettingChanged('enableVerboseLogging', enableVerboseLogging.value)
+}
+
+const toggleListeningAudit = () => {
+  showListeningAudit.value = !showListeningAudit.value
+  localStorage.setItem('ssi-listening-audit', showListeningAudit.value ? 'true' : 'false')
+  dispatchSettingChanged('listeningAudit', showListeningAudit.value)
 }
 
 // Clear all caches and reload (less destructive than ?reset=1 — preserves
@@ -1028,7 +1054,6 @@ const confirmReset = async () => {
         .update({
           total_practice_minutes: 0,
           last_practiced_at: null,
-          welcome_played: false,
           highest_completed_seed: 0,
           last_completed_lego_id: null,
         })
@@ -1765,6 +1790,20 @@ const confirmReset = async () => {
               <span class="setting-desc">Enable detailed console logs</span>
             </div>
             <div class="toggle-switch" :class="{ 'is-on': enableVerboseLogging }">
+              <div class="toggle-track">
+                <div class="toggle-thumb"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row clickable" @click="toggleListeningAudit">
+            <div class="setting-info">
+              <span class="setting-label">Listening Progression Audit</span>
+              <span class="setting-desc">Add a "Progression" mode to Listening → Dialogues that walks each line through all 9 acquisition stages, live from the Popty listening config</span>
+            </div>
+            <div class="toggle-switch" :class="{ 'is-on': showListeningAudit }">
               <div class="toggle-track">
                 <div class="toggle-thumb"></div>
               </div>

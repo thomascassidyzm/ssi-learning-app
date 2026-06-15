@@ -260,6 +260,11 @@ export class AudioCacheImpl implements AudioCache {
       if (row.lifecycle === 'persistent') {
         total -= row.size
         this.persistentIds.delete(row.id)
+        // The bytes are gone — drop any cached WAV blob URL for this id too,
+        // else a held blob: URL points at deleted data and plays silence/stalls.
+        // Revoke it to release the blob.
+        const staleWavUrl = this.wavUrlCache.get(row.id)
+        if (staleWavUrl) { URL.revokeObjectURL(staleWavUrl); this.wavUrlCache.delete(row.id) }
         await cursor.delete()
       }
       cursor = await cursor.continue()
@@ -476,6 +481,8 @@ export class AudioCacheImpl implements AudioCache {
       const row = cursor.value
       if (row.lifecycle === 'persistent') this.persistentIds.delete(row.id)
       else this.ephemeralIds.delete(row.id)
+      const staleWavUrl = this.wavUrlCache.get(row.id)
+      if (staleWavUrl) { URL.revokeObjectURL(staleWavUrl); this.wavUrlCache.delete(row.id) }
       await cursor.delete()
       cursor = await cursor.continue()
     }
@@ -499,6 +506,10 @@ export class AudioCacheImpl implements AudioCache {
     this.ephemeralIds.clear()
     this.inflight.clear()
     this.legoAborts.clear()
+    // Revoke any outstanding WAV blob URLs so they don't leak across a close/
+    // re-open (and so a stale URL can't survive the DB being recreated).
+    for (const url of this.wavUrlCache.values()) URL.revokeObjectURL(url)
+    this.wavUrlCache.clear()
     this.statsCache = null
   }
 }

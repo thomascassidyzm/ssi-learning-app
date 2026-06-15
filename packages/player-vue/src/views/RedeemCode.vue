@@ -9,7 +9,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth', null)
 const supabase = inject<any>('supabase', ref(null))
-const { validateCode, redeemCode, pendingCode, clearPendingCode } = useInviteCode()
+const { validateCode, redeemCode, pendingCode, clearPendingCode, validationError } = useInviteCode()
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
 // --- State ---
@@ -118,7 +118,9 @@ onMounted(async () => {
   }
   const valid = await validateCode(code.value)
   if (!valid) {
-    error.value = 'This code is invalid or has expired'
+    // Surface the API's specific reason ('Code expired' / 'Code fully used' /
+    // 'Invalid code') when available, rather than a generic catch-all.
+    error.value = validationError.value || 'This code is invalid or has expired'
     step.value = 'invalid'
     return
   }

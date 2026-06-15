@@ -1,0 +1,167 @@
+# APML Interface: Atom-Fusion Stage-one Ladder — computation core
+# SSI Learning App
+# Version: 1.0.0
+# Last updated: 2026-06-13
+# Source: packages/player-vue/src/composables/usePodAtomFusion.ts
+# Spec:   docs/atom-fusion-introduction.md (this repo)
+#         docs/architecture/atom-fusion-introduction.md (Popty repo, fuller v2)
+
+## ============================================================================
+## OVERVIEW
+## ============================================================================
+
+SPECIFICATION:
+  name: "Atom-Fusion Stage-one ladder — pure plan builder"
+  purpose: |
+    Compute the Stage-one introduction ladder for ONE listening-pod clause
+    from its per-sentence atom map (the Popty → app data contract) plus live
+    config knobs. Output is a deterministic, serializable PLAY PLAN — ordered
+    steps the overlay will later execute (slice / insert-gap playback +
+    visual atom highlight). Stages 2-9 (usePodLapScheduler's translation +
+    speed ladder) are untouched: Stage one BUILDS the phrase, later stages
+    lock it in.
+  principle: |
+    Pure computation — no Supabase, no audio, no DOM, no randomness. The
+    module encodes the LAWS (ladder shape, pairwise fusion rule, note
+    placement); all CALIBRATION (gap lengths, scaffold fade, anchoring)
+    arrives through knobs, algorithm_config-style, so admins tune by ear
+    without code changes. Same input always yields the identical plan.
+  status: |
+    Computation core only (this commit). Overlay integration (playback of
+    the plan inside ListeningOverlay) lands separately — parallel agents own
+    that file. Upstream Popty persistence (pod_legos inventory + atom_map
+    offsets) is built but offsets are not yet rendered, so the plan builder
+    REQUIRES offsets and throws on incomplete maps.
+
+## ============================================================================
+## INPUT CONTRACT (per listening_pod_sentences row)
+## ============================================================================
+
+INPUT:
+  atoms: |
+    Ordered array, one entry per atom-map unit. Each entry references a
+    pod-LEGO inventory unit (identity: gloss, canonical explainer clip) by
+    lego_key and carries this clause's physical offsets (position layer).
+  atom_fields:
+    lego_key:          "→ pod-LEGO inventory; cites the canonical explainer clip"
+    kind:              "atom | passthrough | note"
+    gloss:             "known-language text for the screen"
+    target_start_ms:   "offset into target_clause (fusible kinds; REQUIRED)"
+    target_end_ms:     "offset into target_clause (fusible kinds; REQUIRED)"
+    explainer_start_ms: "offset into per-clause note_audio (notes; REQUIRED)"
+    explainer_end_ms:  "offset into per-clause note_audio (notes; REQUIRED)"
+    spans:             "notes only — atoms-array indices the note is about"
+  kinds:
+    atom:        { spoken: yes, fuses: yes, met: yes,  notes: "the normal teachable unit" }
+    passthrough: { spoken: yes, fuses: yes, met: no,   notes: "names + units taught in an earlier sentence" }
+    note:        { spoken: no,  fuses: no,  met: "plays from note_audio", notes: "clarifying aside over a combination of atoms" }
+  knobs:
+    gapCurveMs:   "silence per fusion tier; monotonically decreasing, MUST end at 0"
+    scaffoldFade: "'two-pass' (full sweep + lighter no-echo sweep) | 'one-pass' (full sweep only)"
+    anchoring:    "'per-tier' (untouched clause after each non-final fuse tier) | 'ends-only'"
+  defaults: "DEFAULT_FUSION_KNOBS = { gapCurveMs: [350, 200, 100, 0], scaffoldFade: 'two-pass', anchoring: 'ends-only' }"
+
+## ============================================================================
+## THE LADDER (rules encoded)
+## ============================================================================
+
+LADDER:
+  orientation: "Whole target_clause once — the destination."
+  meet: |
+    For each TEACHABLE atom (kind 'atom'), in clause order:
+    target slice → inventory explainer clip (whole, cited by lego_key) →
+    target slice echo. scaffoldFade 'two-pass' adds a second, lighter sweep
+    (target + explainer, no echo); 'one-pass' has no second sweep.
+    Single-span notes play here, immediately after the entry they span.
+    'passthrough' atoms are NOT met.
+  fuse: |
+    TARGET-ONLY tiers over everything with clause audio (atom + passthrough).
+    Fusion rule: pairwise adjacent merge; odd count → the odd atom stays
+    un-fused that tier and joins the PRECEDING pair next tier as a three.
+    Each tier plays the CONTINUOUS clause take with inserted silences at the
+    remaining seams (gap from gapCurveMs[tier]); the final tier is the
+    untouched take (one group, no seams). Multi-span notes fire at the first
+    tier where ALL their spanned atoms share a fused group, right after that
+    tier's take. Self-scaling: 2 atoms → 1 tier; 6 atoms → 3 tiers.
+  arrive: "Whole target_clause untouched, then known_clause caps the meaning."
+
+FUSION_EXAMPLES:
+  two_atoms:  "[0,1] → tier1 [01] (untouched)"
+  three:      "tier1 [01],[2] → tier2 [012]"
+  five:       "tier1 [01],[23],[4] → tier2 [01],[234] → tier3 [01234]"
+  six:        "tier1 [01],[23],[45] → tier2 [0123],[45] → tier3 [012345]"
+
+## ============================================================================
+## OUTPUT (AtomFusionPlan — serializable)
+## ============================================================================
+
+OUTPUT:
+  plan:
+    steps:             "ordered PlanStep[] — the whole ladder"
+    fusionTierCount:   "number of fuse-N tiers (self-scaled)"
+    fusibleAtomIdxs:   "atoms-array indices with clause audio"
+    teachableAtomIdxs: "atoms-array indices that get met"
+  step:
+    tier: "'orientation' | 'meet' | 'fuse-N' | 'arrive'"
+    play:
+      source:       "'target_clause' | 'inventory_explainer' | 'note_audio' | 'known_clause'"
+      sliceMs:      "[start, end] into the source; omitted = play whole"
+      gapInsertsMs: "[{ atMs, gapMs }] — silences into the continuous take (fuse tiers)"
+      legoKey:      "inventory_explainer only — which canonical clip"
+      noteIdx:      "note_audio only — the note's index in the atoms array"
+    screen:
+      highlightAtomIdxs: "atoms-array indices to highlight (meet / note steps)"
+      mergedGroups:      "fuse tiers — current visual grouping, arrays of indices"
+      glossVisible:      "known-language gloss line on/off (target-only middle: off)"
+
+EXPORTS:
+  buildAtomFusionPlan:  "(atoms, knobs?) → AtomFusionPlan; throws on invalid input"
+  computeFusionTiers:   "(fusibleIdxs) → number[][][] — the merge law alone"
+  validateFusionInput:  "(atoms, knobs) → string[] of problems; [] = valid"
+  resolveFusionKnobs:   "(partial?) → FusionKnobs merged over defaults"
+  usePodAtomFusion:     "thin reactive wrapper — { plan, errors } computeds"
+  DEFAULT_FUSION_KNOBS: "the calibration starting point"
+
+## ============================================================================
+## RESOLVED AMBIGUITIES (R1-R9 — pending ratification, mirrored in the module)
+## ============================================================================
+
+RESOLUTIONS:
+  R1_index_space: |
+    spans + all plan indices are 0-based indices into the INPUT atoms array
+    as given (notes included). Spans may only point at fusible entries.
+  R2_meet_passes: |
+    The lighter pass is a second SWEEP over all teachable atoms (not
+    interleaved per atom); notes play in the FIRST sweep only.
+  R3_passthrough_note: |
+    A single-span note on a passthrough still plays in meet, at its
+    atom-order position, even though the passthrough isn't met.
+  R4_seam_position: "seam atMs = target_start_ms of the FOLLOWING group's first atom."
+  R5_curve_consumption: |
+    gapCurveMs read by literal tier index, clamped to its last entry when
+    the clause has more tiers than entries; zero-gap seams are still emitted
+    (they carry the screen grouping).
+  R6_odd_generalisation: |
+    Beyond the spec's 3/5-atom cases: the unpaired group joins its PRECEDING
+    group next tier; other adjacent pairs still merge that tier within the
+    contiguous runs either side of the join; rightmost unpaired group is the
+    tracked leftover; a leftover at line start degrades to plain pairwise.
+  R7_junction_note_position: "multi-span note plays immediately AFTER its tier's take."
+  R8_anchoring: |
+    'per-tier' replays the untouched clause after each NON-final fuse tier
+    (the final take already IS the untouched clause). 'ends-only' adds nothing.
+  R9_offsets_required: |
+    Fusible atoms must carry target offsets, notes explainer offsets —
+    buildAtomFusionPlan throws otherwise (rows with null offsets aren't
+    ladder-ready; Popty's offset persistence is a separate pass).
+
+## ============================================================================
+## RELATED
+## ============================================================================
+
+RELATED:
+  design_spec:        "docs/atom-fusion-introduction.md"
+  popty_v2_spec:      "ssi-dashboard-v7-clean/docs/architecture/atom-fusion-introduction.md"
+  stages_2_to_9:      "packages/player-vue/src/composables/usePodLapScheduler.ts"
+  listening_surface:  "apml/interfaces/listening-mode.apml"
+  tests:              "packages/player-vue/src/composables/usePodAtomFusion.test.ts"

@@ -24,8 +24,11 @@ import DiscoveryFeed from './DiscoveryFeed.vue'
 const CourseScoreboard = defineAsyncComponent(() => import('./boards/CourseScoreboard.vue'))
 const ContentFrictionBoard = defineAsyncComponent(() => import('./boards/ContentFrictionBoard.vue'))
 const HealthStrip = defineAsyncComponent(() => import('./boards/HealthStrip.vue'))
+const DifficultyTurnsBoard = defineAsyncComponent(() => import('./boards/DifficultyTurnsBoard.vue'))
+const CoverageBoard = defineAsyncComponent(() => import('./boards/CoverageBoard.vue'))
+const RatesBoard = defineAsyncComponent(() => import('./boards/RatesBoard.vue'))
 
-type BoardId = 'scoreboard' | 'friction' | 'health'
+type BoardId = 'rates' | 'scoreboard' | 'friction' | 'difficulty' | 'coverage' | 'health'
 
 interface BoardTab {
   id: BoardId
@@ -35,6 +38,12 @@ interface BoardTab {
 }
 
 const boards: BoardTab[] = [
+  {
+    id: 'rates',
+    label: 'Rate compare',
+    blurb: 'Any metric as a rate — entity vs average',
+    component: RatesBoard,
+  },
   {
     id: 'scoreboard',
     label: 'Course Scoreboard',
@@ -48,6 +57,18 @@ const boards: BoardTab[] = [
     component: ContentFrictionBoard,
   },
   {
+    id: 'difficulty',
+    label: 'Difficulty turns',
+    blurb: "Who's struggling, who just turned",
+    component: DifficultyTurnsBoard,
+  },
+  {
+    id: 'coverage',
+    label: 'Coverage',
+    blurb: 'Each class as a learner — pace, dosage, efficiency',
+    component: CoverageBoard,
+  },
+  {
     id: 'health',
     label: 'Health strip',
     blurb: 'Is audio breaking, is my fix live',
@@ -55,7 +76,7 @@ const boards: BoardTab[] = [
   },
 ]
 
-const activeBoard = ref<BoardId>('scoreboard')
+const activeBoard = ref<BoardId>('rates')
 
 const activeComponent = computed<Component>(() => {
   const found = boards.find(b => b.id === activeBoard.value)

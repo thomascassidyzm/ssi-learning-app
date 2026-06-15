@@ -15,13 +15,12 @@ import type {
   TimeSeriesData,
   CohortGridData,
   StatData,
-  FunnelData,
+  TableData,
   Tone,
 } from '../spec'
 import type { CourseValueData, CourseValueRow } from './courseValue'
 import type { RetentionResolverResult } from './retention'
 import type { HealthPayload, HealthFailureTrendPoint, HealthVersionStat, HealthDeviceStat } from './health'
-import type { TrialConversionResult } from './trialConversion'
 
 // ── Demo flag helper ────────────────────────────────────────────────────────
 // True when the URL carries ?demo or ?demo=1 (or any value). Cheap, no caching:
@@ -479,44 +478,209 @@ export function demoHealth(days = 30): HealthPayload {
 }
 
 // ============================================================================
-// demoTrialConversion() → TrialConversionResult (the RPC-row shape the resolver
-// indexes). The board/resolver maps these to FunnelData stages. A clear day-4 leak.
+// demoDifficultyTurns() → TableData (the B4 curvature sensor, who's struggling /
+// just turned). Mirrors the difficultyTurns resolver's EXACT shape so the demo
+// and real paths render identically through InsightWidget/Table.vue:
+//   columns: learner · unit · signal · z (vs own noise, σ)
+//   rows:    { id, tone: 'alarm'|'good', cells: { learner, unit, signal, z } }
+//   order:   struggling (alarm) first, then easing (good); within each, |z| desc.
+//
+// Determinism comes from a board-local fixed-seed PRNG (not the population RNG),
+// so the demo turns list is stable across reloads independent of mount order.
 // ============================================================================
-export function demoTrialConversion(): TrialConversionResult {
-  const started = 1200
-  const day1 = Math.round(started * 0.78)   // strong day-1
-  const day4 = Math.round(day1 * 0.41)      // <-- the leak: big drop at day-4
-  const day7 = Math.round(day4 * 0.72)
-  const converted = Math.round(day7 * 0.55)
-  return [
-    { stage: 'trial_started', label: 'Trial started', learner_count: started },
-    { stage: 'day1_session',  label: 'Day-1 session', learner_count: day1 },
-    { stage: 'day4_return',   label: 'Day-4 return',  learner_count: day4 },
-    { stage: 'day7_active',   label: 'Day-7 active',  learner_count: day7 },
-    { stage: 'converted',     label: 'Converted',     learner_count: converted },
-  ]
+const DT_COLUMNS: TableData['columns'] = [
+  { key: 'learner', label: 'Learner', align: 'left' },
+  { key: 'unit', label: 'LEGO', align: 'left' },
+  { key: 'signal', label: 'Signal', align: 'left' },
+  { key: 'z', label: 'vs own noise (σ)', align: 'right', format: 'number' },
+]
+
+const DT_SIGNAL_LABEL: Record<'struggling' | 'easing', string> = {
+  struggling: 'Struggling ↑',
+  easing: 'Easing ↓',
+}
+
+// Named demo learners (synthetic — never a real person).
+const DT_LEARNERS = [
+  'Amara Okafor', 'Bjørn Halvorsen', 'Carmen Ruiz', 'Dafydd Pugh',
+  'Elif Demir', 'Federico Bruno', 'Gráinne Walsh', 'Hana Kobayashi',
+  'Idris Mbeki', 'Júlia Costa', 'Kasia Nowak', 'Liam Devlin',
+  'Mei Lin', 'Noor Haddad',
+] as const
+
+// Plausible LEGO ids (S{seed}L{lego}) — a spread across the early-mid course.
+const DT_LEGOS = [
+  'S0007L01', 'S0014L02', 'S0021L03', 'S0031L01', 'S0042L02',
+  'S0048L04', 'S0055L01', 'S0063L02', 'S0071L03', 'S0084L01',
+  'S0096L02', 'S0102L01', 'S0118L03', 'S0127L02',
+] as const
+
+export function demoDifficultyTurns(): TableData {
+  // Board-local PRNG so this list is stable regardless of other demo calls.
+  const dr = mulberry32(0xb4d1ff)
+
+  const STRUGGLING_COUNT = 7  // alarm rows
+  const EASING_COUNT = 4      // good rows  → 11 rows total (in the 8–14 band)
+
+  interface Turn { state: 'struggling' | 'easing'; learner: string; unit: string; z: number }
+  const turns: Turn[] = []
+  const used = new Set<number>()
+
+  function pick<T>(arr: readonly T[]): T {
+    // sample without replacement on the learner/lego index space for variety
+    let idx = Math.floor(dr() * arr.length)
+    let guard = 0
+    while (used.has(idx) && guard++ < arr.length) idx = (idx + 1) % arr.length
+    used.add(idx)
+    return arr[idx]
+  }
+
+  for (let i = 0; i < STRUGGLING_COUNT + EASING_COUNT; i++) {
+    const state: Turn['state'] = i < STRUGGLING_COUNT ? 'struggling' : 'easing'
+    // struggling: latency bending UP past own noise → positive σ (1.6–4.4)
+    // easing:     latency settling back DOWN        → negative σ (-3.4 to -1.4)
+    const z = state === 'struggling'
+      ? Math.round((1.6 + dr() * 2.8) * 10) / 10
+      : Math.round((-(1.4 + dr() * 2.0)) * 10) / 10
+    turns.push({
+      state,
+      learner: DT_LEARNERS[i % DT_LEARNERS.length],
+      unit: DT_LEGOS[i % DT_LEGOS.length],
+      z,
+    })
+  }
+
+  // Same ordering discipline as the resolver: struggling first, then easing;
+  // within each group, biggest |σ| first (the loudest turn at the top).
+  const rank: Record<Turn['state'], number> = { struggling: 0, easing: 1 }
+  turns.sort((a, b) => (rank[a.state] - rank[b.state]) || (Math.abs(b.z) - Math.abs(a.z)))
+
+  return {
+    kind: 'table',
+    columns: DT_COLUMNS,
+    rows: turns.map((t) => ({
+      id: `demo:${t.learner}:${t.unit}`,
+      tone: (t.state === 'struggling' ? 'alarm' : 'good') as Tone,
+      cells: {
+        learner: t.learner,
+        unit: t.unit,
+        signal: DT_SIGNAL_LABEL[t.state],
+        z: t.z,
+      },
+    })),
+  }
 }
 
 // ============================================================================
-// demoTrialFunnel() → FunnelData directly, for any board that wants the rendered
-// funnel rather than the raw rows. Tone derivation mirrors trialConversion.ts.
+// demoCoverage() → TableData (the COVERAGE lane — the class as a learner)
+// Mirrors the coverage resolver's EXACT column/row shape so the demo and real
+// paths render identically through InsightWidget/Table.vue:
+//   columns: class · course · coverage · pace · dosage · efficiency
+//   rows:    { id, tone: paceTone(...), cells: { class, course, coverage, pace, dosage, efficiency } }
+//   order:   fastest pace first; tone graded relative to the fastest class.
+//
+// ~8 deterministic synthetic classes with a clear FAST one and a STALLED one,
+// using a board-local fixed-seed PRNG (independent of the population RNG).
 // ============================================================================
-export function demoTrialFunnel(): FunnelData {
-  const rows = demoTrialConversion()
-  const thresholds: Record<string, number> = {
-    day1_session: 0.4, day4_return: 0.3, day7_active: 0.3,
-  }
-  const stages: FunnelData['stages'] = []
-  let prev = 0
-  rows.forEach((r, i) => {
-    let tone: Tone = 'neutral'
-    if (i > 0 && prev > 0) {
-      const share = r.learner_count / prev
-      const th = thresholds[r.stage] ?? 0
-      tone = r.learner_count === 0 ? 'alarm' : th > 0 && share < th ? 'warn' : 'good'
-    }
-    stages.push({ id: r.stage, label: r.label, value: r.learner_count, tone })
-    prev = r.learner_count
-  })
-  return { kind: 'funnel', stages }
+const CV_COLUMNS: TableData['columns'] = [
+  { key: 'class', label: 'Class', align: 'left' },
+  { key: 'course', label: 'Course', align: 'left' },
+  { key: 'coverage', label: 'Coverage', align: 'left' },
+  { key: 'pace', label: 'Pace (LEGOs/wk)', align: 'right', format: 'number' },
+  { key: 'dosage', label: 'Active min/wk', align: 'right', format: 'number' },
+  { key: 'efficiency', label: 'Efficiency (LEGOs/min)', align: 'right', format: 'number' },
+]
+
+// Synthetic class names (schools-flavoured) + a course code each.
+const CV_CLASSES: { name: string; course: string }[] = [
+  { name: 'Ysgol Bryn · Year 7 Spanish', course: 'spa_for_eng' },
+  { name: 'Ysgol Bryn · Year 8 Spanish', course: 'spa_for_eng' },
+  { name: 'Coleg Tâf · French AS', course: 'fra_for_eng' },
+  { name: 'Coleg Tâf · French A2', course: 'fra_for_eng' },
+  { name: 'Llanfair High · German GCSE', course: 'deu_for_eng' },
+  { name: 'Llanfair High · Italian Club', course: 'ita_for_eng' },
+  { name: 'Penbryn Academy · Welsh (S)', course: 'cym_s_for_eng' },
+  { name: 'Penbryn Academy · Spanish Yr9', course: 'spa_for_eng' },
+]
+
+function cvPaceTone(pace: number, maxPace: number): Tone {
+  if (pace <= 0) return 'alarm'
+  if (maxPace === 0) return 'neutral'
+  const r = pace / maxPace
+  if (r >= 0.66) return 'good'
+  if (r >= 0.33) return 'neutral'
+  return 'warn'
 }
+
+function cvCoverageLabel(seed: number, lego: number): string {
+  return `S${seed} · L${lego}`
+}
+
+export function demoCoverage(): TableData {
+  // Board-local PRNG so this list is stable regardless of other demo calls.
+  const dr = mulberry32(0xc07e2a6e)
+
+  interface ClassAgg {
+    name: string
+    course: string
+    seed: number
+    lego: number
+    pace: number       // LEGOs / week
+    dosage: number     // active min / week
+    efficiency: number // LEGOs / min
+  }
+
+  const aggs: ClassAgg[] = CV_CLASSES.map((c, i) => {
+    // One clear FAST class (index 0) and one STALLED class (last) — the rest spread.
+    const isFast = i === 0
+    const isStalled = i === CV_CLASSES.length - 1
+
+    // weeks of activity (older classes have run longer)
+    const weeks = 2 + Math.floor(dr() * 8) // 2–9 weeks
+    // pace: LEGOs advanced per week
+    const pace = isStalled
+      ? Math.round((0.0 + dr() * 0.3) * 10) / 10            // ~0 — barely moving
+      : isFast
+        ? Math.round((11 + dr() * 4) * 10) / 10             // a strong skip-ahead class
+        : Math.round((3 + dr() * 6) * 10) / 10              // healthy middle
+
+    const legosAdvanced = Math.max(0, Math.round(pace * weeks))
+    // furthest LEGO = a base start + advance, parsed back to seed/lego
+    const startSeed = 3 + Math.floor(dr() * 4)
+    const furthest = startSeed * 100 + 1 + legosAdvanced
+    const seed = Math.floor(furthest / 100)
+    const lego = Math.max(1, furthest % 100)
+
+    // dosage: active minutes per week — the stalled class also barely uses it;
+    // the fast class is efficient (lots covered for moderate minutes).
+    const dosage = isStalled
+      ? Math.round((6 + dr() * 10) * 10) / 10
+      : Math.round((28 + dr() * 48) * 10) / 10
+
+    const totalMinutes = Math.max(dosage * weeks, 1)
+    const efficiency = Math.round((legosAdvanced / totalMinutes) * 100) / 100
+
+    return { name: c.name, course: c.course, seed, lego, pace, dosage, efficiency }
+  })
+
+  const maxPace = aggs.reduce((m, a) => Math.max(m, a.pace), 0)
+  aggs.sort((a, b) => b.pace - a.pace)
+
+  return {
+    kind: 'table',
+    columns: CV_COLUMNS,
+    rows: aggs.map((a) => ({
+      id: `demo:class:${a.name}`,
+      tone: cvPaceTone(a.pace, maxPace),
+      cells: {
+        class: a.name,
+        course: a.course,
+        coverage: cvCoverageLabel(a.seed, a.lego),
+        pace: a.pace,
+        dosage: a.dosage,
+        efficiency: a.efficiency,
+      },
+    })),
+  }
+}
+

@@ -56,13 +56,17 @@ export default async function handler(
     for (let attempt = 0; attempt < 10; attempt++) {
       const candidate = generateCode()
 
-      const [{ data: t }, { data: i }, { data: e }] = await Promise.all([
+      const [tr, ir, er] = await Promise.all([
         supabase.from('try_links').select('id').eq('code', candidate).maybeSingle(),
         supabase.from('invite_codes').select('id').eq('code', candidate).maybeSingle(),
         supabase.from('entitlement_codes').select('id').eq('code', candidate).maybeSingle(),
       ])
 
-      if (!t && !i && !e) {
+      // If any uniqueness probe errored, don't treat the code as free — that
+      // could mint a duplicate. Skip this candidate and try another.
+      if (tr.error || ir.error || er.error) continue
+
+      if (!tr.data && !ir.data && !er.data) {
         newCode = candidate
         break
       }

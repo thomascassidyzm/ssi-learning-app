@@ -77,24 +77,3 @@ export function canAccessCourse(
 
   return user.subscription_tier === 'paid';
 }
-
-/**
- * Get display text for course access
- * Used in UI to show lock status or upgrade prompts
- */
-export function getCourseAccessStatus(
-  user: { subscription_tier: SubscriptionTier },
-  course: { target_lang: string; course_type?: CourseType }
-): 'free' | 'locked' | 'accessible' {
-  if (course.course_type === 'community') {
-    return 'free';
-  }
-
-  const requiresPaid = isBig10Language(course.target_lang);
-
-  if (!requiresPaid) {
-    return 'free';
-  }
-
-  return user.subscription_tier === 'paid' ? 'accessible' : 'locked';
-}

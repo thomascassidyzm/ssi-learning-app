@@ -2,29 +2,20 @@
 
 > **Welcome, future agent!** This document contains everything you need to work effectively on the SSi Learning App without creating chaos.
 
-## CRITICAL: Work Strategy — two lanes (updated 2026-06-01)
+## CRITICAL: Branch Policy
 
-Two categorically different kinds of work, two pipelines. The deciding question is
-**what kind of risk the change carries**, which dictates **where it gets verified**:
-
-- A **fix** risks *regression* — breaking something that already works. Prove that
-  **in isolation**, against live production, with nothing else moving.
-- A **feature** risks *interaction* — not playing nicely with other in-flight work.
-  Prove that **in integration**, with that work present.
-
-Isolated preview vs shared soak. That's the whole split.
+Three-tier promotion flow (set up 2026-05-24). **ALL work goes to `dev`. NEVER push to `staging` or `main` directly.**
 
 ```
-FIX LANE      fix/<name> off main → own preview (test, test, test) → staging|main → back-merge
-FEATURE LANE  feature/<name> → dev (combine) → staging (soak) → main
+dev  ──promote──▶  staging  ──promote──▶  main
+(rapid)            (stable soak)          (production)
 ```
 
-| Branch | Purpose | Deploys to |
-|--------|---------|------------|
-| `main` | Production — real users. The trunk and the only production truth; **everything branches off it.** | `saysomethingin.app` |
-| `staging` | Stable soak — the candidate the external/Colombo team vets | `staging.saysomethingin.app` |
-| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions auto-merge here; the only branch safe to thrash | Vercel git-branch alias `ssi-learning-app-git-dev-zenjin.vercel.app` (**no `dev.saysomethingin.app` — it 404s**) |
-| `fix/<name>` | One isolated fix off `main`, verified on its own preview | per-branch Vercel preview |
+| Branch | Purpose | Deploys to | Who |
+|--------|---------|------------|-----|
+| `dev` | Rapid integration — Tom's rapid work + ALL `claude/**` web sessions auto-merge here | `ssi-learning-app-git-dev-zenjin.vercel.app` (stable Vercel git-branch alias — **there is NO `dev.saysomethingin.app`, it 404s**) | Tom + Claude |
+| `staging` | Stable soak — frozen-ish candidate the external/Colombo test team vets | `staging.saysomethingin.app` | promoted from `dev` |
+| `main` | Production — real users | `saysomethingin.app` | promoted from `staging` |
 
 > **Dev URL note.** The only stable non-prod custom domain is `staging.saysomethingin.app`. The `dev` branch has **no** custom domain — use its Vercel git-branch alias `https://ssi-learning-app-git-dev-zenjin.vercel.app` (always tracks dev's latest build; dev auto-updates the SW so a reload gets fresh code). Per-commit hash URLs also work but rotate every push. Dev test cheats: append `?fc=1` (force interjections every boundary), `?stream` (bypass cache play), `?reset=1` (full state wipe).
 
@@ -34,29 +25,53 @@ git checkout dev
 git pull origin dev
 ```
 
-### Fix lane
-1. Branch `fix/<name>` **off `main`** — a fix must apply to *what's actually live*. **Never** branch a fix off `dev`/feature churn, or you can't ship it without shipping that churn.
-2. Verify on its **own preview deploy** — hard, in isolation. The fix's job is "don't regress," and isolation is how you prove it. Test, test, test.
-3. Pick the merge target by **urgency × blast-radius**:
-   - **urgent + small** (site down, login/payment broken) → merge to **`main`**, deploy, then **back-merge** into `staging`, `dev`, and any active feature branch. Speed; the smallness *is* the safety.
-   - **not-urgent, or delicate/wide** (touches every learner, subtle logic) → merge to **`staging`** to soak with the external team first, then promote `staging → main`. Rushing a wide fix to prod is how a fix becomes a regression.
-4. Always **back-merge** a main-landed fix into every long-lived branch so it isn't lost.
+Then **read [`WORKLIST.md`](./WORKLIST.md) (repo root)** — the shared multi-agent worklist (the live "what's next"). Before starting anything substantial, **claim your item there** (`[ ]`→`[~] @you MM-DD`, one-line commit) so parallel agents don't double-grab it. The full protocol is in its header.
 
-### Feature lane
-1. Branch `feature/<name>` off `main` (or work on `dev`).
-2. Integrate on **`dev`** — features combine here; it's the only branch safe to thrash. External team and prod never see its churn.
-3. Soak on **`staging`** — promoted from `dev` when green.
-4. Promote `staging → main` — manual and deliberate (Tom drives it).
+**Rules:**
+- `dev` is the **default branch** — new `claude/**` branches cut from it and auto-merge back to it (`.github/workflows/auto-merge-claude.yml`).
+- **Promotion is manual and deliberate** (Tom drives it): merge `dev → staging` only when green; merge `staging → main` weekly, after the external team has vetted staging.
+- Do all feature/debug work on `dev` — it's the only environment that's safe to thrash. The external team and prod never see `dev`'s churn.
+- If you find yourself on `staging` or `main`, switch to `dev` before making changes.
 
-### Which lane am I in?
-- Reproducing a reported bug, restoring intended behaviour, small surface → **fix lane**.
-- Building something new, larger surface, exploratory/iterable → **feature lane**.
-- Unsure? If the change must apply to *what's live right now*, it's a fix (off `main`). If it only makes sense alongside other unreleased work, it's a feature (via `dev`).
+**Hotfix lane (production emergencies only):** a critical prod bug that can't wait for the promotion train goes straight to `main` via a `hotfix/<desc>` branch off `main`, then is **back-merged into `staging` AND `dev`** so the fix isn't lost on the next promotion. Use this sparingly — normal fixes ride the dev→staging→main train.
 
-### Shared rules
-- Never do feature/debug *work* directly on `staging` or `main` — they receive merges, not edits.
-- The working tree may be **shared** — `git rev-parse --abbrev-ref HEAD` to confirm your branch before committing; land work via a refspec push (`git push origin X:main`) or a `git worktree`, never by switching someone else's checkout.
-- Start a fix from fresh: `git fetch origin && git worktree add ../<dir> -b fix/<name> origin/main`.
+---
+
+## Decision heuristic: the BSC test (Better × Simpler × Cheaper)
+
+**Every decision to do *anything at all* must pass the BSC test.** Before you build, refactor, add a dependency, a table, a surface, or a routine — and before an agent commits to a course of action — write the narrative for how it is **Better × Simpler × Cheaper.**
+
+- **Multiplicative, not additive.** It's `Better × Simpler × Cheaper`, so a near-zero on any one axis kills the score. This is the whole point: it filters out the things that are *good but complex*, or *good and simple but expensive to run*. "It's a great feature" is not enough if it's a maintenance and runtime tax forever.
+  - **Better:** does it genuinely improve the learner / teacher / leader outcome?
+  - **Simpler:** fewer moving parts, fewer concepts, less surface to maintain — ideally it *deletes* something (reuses an existing lens/primitive instead of adding a parallel one).
+  - **Cheaper:** less build, less runtime/infra, less ongoing operational cost. No new signal before its consumer exists.
+- **Be relentless about the narrative.** We don't just feel that something passes — we *write the three-bullet narrative* (see the worked example in `docs/methodology/tutor-insights.md` §6). If you can't write an honest Better/Simpler/Cheaper story, that's the signal to not do it, or to find the version that does pass.
+- **This generalises an existing principle.** It is *Measuring Progress*' Principle 5 (`better × simpler × cheaper, and never build a signal before its consumer exists`), which already governs the metrics / Insight Engine work — now lifted to govern **all** decisions on this repo, not just analytics.
+
+### Agent autonomy under BSC
+
+Tom does not need to be the decision-maker for every call. **An agent may apply the BSC test itself and proceed without asking**, provided it:
+1. has written the Better × Simpler × Cheaper narrative for the action, and
+2. is **>90% confident** that narrative is reasonable.
+
+Under those two conditions, just go ahead (within the usual rails: `dev`-branch hygiene, zero-tolerance schools quality bar). If you can't clear 90%, or it's a genuine scope change, *then* surface it — with your BSC narrative attached so the decision is fast.
+
+**What does *not* need a heads-up: code and database changes.** Git makes any code change a revert away, and Tom's row-level DB provenance recovers any write — so inside those systems nothing is truly irreversible. Decide and go. **What does: outward-facing actions** that escape git and provenance because the effect lands *outside* the systems Tom can roll back — an OTP/email to real users, a real payment, a production deploy live learners immediately hit, a secret crossing the boundary. Git can revert the commit but can't unsend the email or uncharge the card. But notice those are all *intention*, not detail — "should we touch real people / real money / the outside world now" — so they fold into "surface intention" below rather than being a separate gate.
+
+### Working cadence: the ≤3 checkpoint, alternating code and strategy
+
+Autonomy is bounded so a loop can't drift too far out on a limb before a human re-confirms the direction. Two rules, which compose:
+
+1. **At most three self-directed items per burst.** A "burst" is consecutive self-initiated work with no human turn between. After three, **stop and surface** — what shipped, what's next, the fork if there is one — and wait for an express go-ahead to continue. Reacting to Tom's direct instructions does **not** count toward the three; the counter is only for self-initiated work and **resets whenever Tom takes a turn**.
+2. **Don't let all three be the same kind of work.** Alternate an isolated, modular **code** piece (a scoped 🔨 *To build* item — e.g. the curvature engine) with a **strategic** piece (a 🤔 *Areas to think through* design exploration, or advancing a 🧭 *Direction*). Cranking modular widgets back-to-back optimises a local thing while the strategic picture stalls; alternating keeps both moving and makes each checkpoint a natural place to re-aim.
+
+> The worklist's three item-types are exactly these, and a healthy burst draws across them: **🧭 Directions / bets** (directional, change rarely) · **🔨 To build** (already-scoped work) · **🤔 Areas to think through** (open design / think-pieces). See [`WORKLIST.md`](./WORKLIST.md).
+
+### Altitude: intention is Tom's, detail is the agent's
+
+Tom works at the level of **intention** — what we're building, what matters, the priorities, the pedagogical and product bets. The agent works at the level of **the code and the detail**, and owns the *decisions* within that layer, made against Tom's intention and filtered through BSC. The test is almost tautological: **if evaluating a decision requires holding the detail Tom has delegated, it is below his altitude by definition, and it is the agent's to make.** "Extend this table vs add a new one," "which columns," "how to structure this function" are opaque to intention not because Tom couldn't follow them but because he shouldn't have to carry them. The agent's job is to *absorb* that load, not hand it back.
+
+**The tell that you've mis-altituded:** you did the analysis, wrote the BSC narrative, reached >90% — and then handed Tom the conclusion as a question to ratify. If you've done the work, the decision is already made; proceed, and report at the intention level ("the sensors now have a persisted home"), rather than asking him to approve the plumbing. When a detail decision secretly carries an intention-level consequence, surface the *implication* in Tom's language and keep moving unless he stops you — not the detail itself. The counterweight to this autonomy is rigour: the >90% must be an honest self-assessment, not a stamp reached for to bless what you already wanted to do.
 
 ---
 
@@ -81,14 +96,21 @@ git pull origin dev
 
 ## Canonical RLS / auth pattern
 
-User-id columns in this DB are mixed-type — there is no single comparison pattern that works everywhere. **The rule is column-type-dependent:**
+User-id columns in this DB are mixed-type AND mixed-meaning — there is no single comparison pattern that works everywhere. **Before authoring a policy you must know TWO things about the column: its TYPE and WHICH IDENTITY its values hold.** Two different identities flow through same-shaped columns:
 
-| Column type | Pattern | Examples |
-|---|---|---|
-| TEXT user_id | `column = auth.uid()::text` | `learners.user_id`, `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id` |
-| UUID user_id | `column = auth.uid()` (no cast) | `player_events.user_id` |
+- **auth uid** (`auth.uid()`, the Supabase Auth user id — stored in `learners.user_id`)
+- **learner PK** (`learners.id` — the operational identity used across all learner-data tables)
 
-**Why mixed:** A legacy auth migration (`20251219120000`, never shipped) converted `learners.user_id` from UUID to TEXT and several other columns with it. Those weren't reverted. Newer tables (`player_events`) use UUID directly. Before authoring a new policy, **check the column type** (`\d <table>` or look at the create migration).
+| Column | Type | Values hold | Correct predicate |
+|---|---|---|---|
+| `learners.user_id`, `schools.admin_user_id`, `classes.teacher_user_id`, `user_tags.user_id`, `govt_admins.user_id` | TEXT | auth uid | `column = auth.uid()::text` |
+| every `learner_id` column (sessions, course_enrollments, lego/seed_progress, response_metrics, spike_events, learner_points…, 17 tables — consistent) | UUID | learners.id | `learner_id IN (SELECT id FROM learners WHERE user_id = auth.uid()::text)` — or the `current_learner_id()` helper once the Lane B identity bridge lands |
+| `player_events.user_id` | UUID | **learners.id, NOT auth uid** (verified live 2026-06-10: 2000/2000 recent rows match the learner PK, 0 match auth uid; null for guests) | same learner-mapping predicate as above — `= auth.uid()` matches NOTHING despite the uuid type |
+| `class_sessions.teacher_user_id` | TEXT | **MIXED — dirty** (81 rows learner.id / 76 auth uid / 8 `guest-<uuid>`, two writer generations) | do not write a policy against this column until the Lane B writer fix + backfill (see `~/Desktop/SSi-secfix-2026-06-09/LANE_B_identity_design.md`) |
+
+**The trap that keeps biting:** the column TYPE does not tell you the identity. A uuid column can hold learner PKs (`player_events`). Verify the VALUES (join a sample against `learners.id` and `learners.user_id`) before writing any new policy.
+
+**Why mixed:** A legacy auth migration (`20251219120000`, never shipped) converted `learners.user_id` from UUID to TEXT and several other columns with it. Those weren't reverted. Newer tables use UUID directly — but not always for the same identity.
 
 **Do not** use any of:
 - Wrong cast direction — throws `operator does not exist: uuid = text` (or vice versa) at policy creation time
@@ -668,6 +690,8 @@ pnpm --filter @ssi/web dev
 ---
 
 ## What's Built vs What's Next
+
+> ⚠️ **Stale (last refreshed 2026-04-11).** For the live "what's next", see [`WORKLIST.md`](./WORKLIST.md) at repo root — that is the single source of truth for current directions, builds, and open questions. The list below is kept only as historical context.
 
 ### Completed
 - [x] CycleOrchestrator state machine

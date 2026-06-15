@@ -163,6 +163,7 @@ export function useListeningProgress(
 
     const now = new Date()
     const rows: LegoListeningUpsert[] = []
+    const processed: number[] = []
     const skipped: number[] = []
     for (const sNum of dirty) {
       const legoId = seedToLastLegoId.get(sNum)
@@ -173,6 +174,7 @@ export function useListeningProgress(
         skipped.push(sNum)
         continue
       }
+      processed.push(sNum)
       rows.push({
         learner_id: config.learnerId,
         course_code: config.courseCode,
@@ -186,19 +188,16 @@ export function useListeningProgress(
       console.warn('[useListeningProgress] Skipped unmapped seeds:', skipped)
     }
 
-    dirty.clear()
-    bumpsSinceFlush = 0
-
+    // Don't clear `dirty` until the write succeeds — clearing first lost the
+    // fire-count bumps on any upsert failure (network/RLS/quota). On success
+    // remove only the seeds we actually flushed, so bumps that arrived during
+    // the await survive for the next flush.
     try {
       await s.upsertMany(rows)
+      for (const sNum of processed) dirty.delete(sNum)
+      bumpsSinceFlush = 0
     } catch (err) {
-      console.warn('[useListeningProgress] Flush failed:', err)
-      // Re-mark as dirty so next flush retries (only the ones we actually
-      // had a lego_id for — the orphans stay logged but not retried).
-      for (const r of rows) {
-        const sNum = parseSeedNum(r.lego_id)
-        if (sNum !== null) dirty.add(sNum)
-      }
+      console.warn('[useListeningProgress] Flush failed; keeping dirty for retry:', err)
     }
   }
 

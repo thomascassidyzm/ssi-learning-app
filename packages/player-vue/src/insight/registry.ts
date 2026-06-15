@@ -101,6 +101,28 @@ export const REGISTRY = {
     },
     load: () => import('./data/trialConversion'),
   }),
+  difficultyTurns: entry({
+    def: {
+      id: 'difficultyTurns',
+      label: 'Difficulty turns',
+      frames: ['world', 'group'],
+      widget: 'table',
+      altWidgets: ['ranked-bar'],
+      description: 'per-(learner,lego) local difficulty — the B4 curvature sensor over the live latency series: who is struggling / just turned. Reads analytics_difficulty_turns (admin-only).',
+    },
+    load: () => import('./data/difficultyTurns'),
+  }),
+  coverage: entry({
+    def: {
+      id: 'coverage',
+      label: 'Coverage',
+      frames: ['group', 'world'],
+      widget: 'table',
+      altWidgets: ['ranked-bar', 'time-series'],
+      description: 'the COVERAGE lane — the class as a learner: furthest LEGO reached (coverage), pace (LEGOs/wk over wall-clock), dosage (active min/wk), efficiency (LEGOs/min). A group-by over class_sessions by class_id. Reads analytics_class_coverage (DRAFT migration).',
+    },
+    load: () => import('./data/coverage'),
+  }),
 } satisfies Record<string, AnyRegistryEntry>
 
 export type MetricId = keyof typeof REGISTRY

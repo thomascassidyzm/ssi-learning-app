@@ -436,9 +436,8 @@ onMounted(() => {
   }
 
   // 'Or browse our free courses' on /premium pushes here with ?openCourses=1
-  // — open the Choose Your Course modal directly. The modal lives in this
-  // container (CourseSelector at the bottom of the template), not in
-  // HomeScreen (which is dead code).
+  // — open the Choose Your Course modal directly. The modal (CourseSelector)
+  // lives at the bottom of this container's template.
   if (urlParams.get('openCourses') === '1') {
     showCourseSelector.value = true
     // Strip the param so a refresh doesn't keep re-opening the modal.

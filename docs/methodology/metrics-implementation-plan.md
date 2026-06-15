@@ -62,7 +62,7 @@ Turns raw state into the signals the spec defines. Pure-ish compute — **can be
 |---|---|---|
 | D1 | **The comparison primitive** — one curve-overlay chart: entity vs aggregate band, in-app/wall-clock clock toggle, efficiency/intensity readout. | **none** (synthetic) — prototype exists in `metrics-vision.html` Figure B |
 | D2 | **Sovereign comparison engine** — entity→aggregate resolution; *like-with-like* aggregation; **k-anonymity** floor; visibility-vs-comparison separation. | A4 (Layer 2/3) |
-| D3 | **Teacher dashboard** — "needs attention" list = group-relative position **+** who-just-changed (curvature) overlay; class scatter (execution axis arrives with F). Extends `DashboardView.vue` / `useAnalyticsData.ts`. | B + D2 |
+| D3 | **Teacher dashboard** — "needs attention" list = group-relative position **+** who-just-changed (curvature) overlay; class scatter (execution axis arrives with F). Extends `DashboardView.vue` / `useAnalyticsData.ts`. _(admin-side render shipped: the curvature "who's struggling / just turned" list lands as the `DifficultyTurnsBoard` at `/admin/insights` — the B4 sensor over the persisted per-(learner,lego) latency series; the teacher-facing `DashboardView` overlay is the remaining piece.)_ | B + D2 |
 | D4 | **Admin / gov views** — aggregations over the hierarchy drill-down (drill-down already shipped); add the metrics + comparison bands. | D2 + D3 |
 | D5 | **Tutor dashboard (ACT private)** — attention-score-ranked student list + calibration indicator. | B + D2 |
 

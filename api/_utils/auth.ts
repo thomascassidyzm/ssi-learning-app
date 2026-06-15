@@ -91,11 +91,18 @@ export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string 
       global: { headers: { Authorization: `Bearer ${token}` } },
     })
 
-    const { data: learner } = await supabase
+    const { data: learner, error } = await supabase
       .from('learners')
       .select('platform_role, educational_role')
       .eq('user_id', authResult.userId)
       .single()
+
+    // PGRST116 = no matching row => genuinely not an admin (falls through to
+    // 403). Any OTHER error (network/RLS/transient) must NOT be read as "not an
+    // admin" — that would lock a real admin out on a blip. Surface it as 500.
+    if (error && error.code !== 'PGRST116') {
+      return { error: 'Admin verification failed', status: 500 }
+    }
 
     const isAdmin = learner?.platform_role === 'ssi_admin' ||
       learner?.educational_role === 'god'
