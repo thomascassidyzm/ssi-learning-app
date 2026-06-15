@@ -25,6 +25,8 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
 const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
 const WithTeacher = () => import('@/views/teach/WithTeacher.vue')
+// Onboarding — the three signup doors (/schools1, /schools2, /tutors)
+const Onboarding = () => import('@/views/onboarding/Onboarding.vue')
 
 const routes: RouteRecordRaw[] = [
   // Learning player (default)
@@ -175,6 +177,29 @@ const routes: RouteRecordRaw[] = [
     name: 'with-teacher',
     component: WithTeacher,
     meta: { title: 'Learning with your teacher' },
+  },
+  // Signup doors — three configured entries into one onboarding flow.
+  // The landing pages (saysomethingin.com) link here.
+  {
+    path: '/schools1',
+    name: 'onboard-school-minority',
+    component: Onboarding,
+    props: { track: 'school_minority' },
+    meta: { title: 'Set up your school' },
+  },
+  {
+    path: '/schools2',
+    name: 'onboard-school-standard',
+    component: Onboarding,
+    props: { track: 'school_standard' },
+    meta: { title: 'Set up your school' },
+  },
+  {
+    path: '/tutors',
+    name: 'onboard-tutor',
+    component: Onboarding,
+    props: { track: 'tutor' },
+    meta: { title: 'Start teaching' },
   },
   // Listening Pods
   {
