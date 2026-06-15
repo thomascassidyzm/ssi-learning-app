@@ -3,8 +3,9 @@
 // components/RateCompare.vue — the reusable "entity vs average" RATE widget.
 //
 // Renders a RateComparisonData (from data/demoRates.ts in demo, or a resolver on
-// the real path). RATE IS PRIMARY throughout: the big entity rate leads and the
-// delta-vs-average sits beside it.
+// the real path). RATE IS PRIMARY throughout: the headline is a two-number
+// "entity / average" stat (the two numbers ARE the comparison, split by a thin
+// angled slash), with the delta + percentile kept as small secondary chips.
 //
 // PRIVACY (non-negotiable): an entity is compared ONLY to an aggregate/average,
 // NEVER to another named entity. The centrepiece is an ANONYMISED distribution
@@ -34,6 +35,15 @@ const perLabel = computed(() => {
   const { unit, per } = props.data
   return per ? `${unit} / ${per}` : unit
 })
+
+// Percent metrics suffix "%" onto each big number; otherwise the numbers are
+// bare and the unit lives in the caption beneath.
+const isPercent = computed(() => props.data.unit.trim() === '%')
+const valueSuffix = computed(() => (isPercent.value ? '%' : ''))
+
+// Caption tail after the entity-blue "YOU": "{average.label} · {unit} / {per}"
+// e.g. "YOU / COURSE AVG · LEGOs / WEEK" (uppercased via CSS).
+const captionRest = computed(() => `${props.data.average.label} · ${perLabel.value}`)
 
 // Format a rate value: integers plain, otherwise pick precision from magnitude
 // (sub-10 → 2dp for ratio-style metrics, else 1dp).
@@ -124,15 +134,20 @@ const cohortTicks = computed<number[]>(() => {
     </div>
 
     <template v-else>
-      <!-- ── Headline: the entity RATE leads ── -->
+      <!-- ── Headline: two-number "entity / average" stat ── -->
+      <!-- The two big numbers ARE the comparison (the delta + percentile stay as
+           small secondary chips for tone + rank). -->
       <header class="rc-headline">
         <div class="rc-head-main">
           <span class="rc-metric-kicker">{{ data.metricLabel }}</span>
-          <div class="rc-value-row">
-            <span class="rc-value">{{ fmt(data.entity.value) }}</span>
-            <span class="rc-unit">{{ perLabel }}</span>
+          <div class="rc-stat-row">
+            <span class="rc-value entity">{{ fmt(data.entity.value) }}{{ valueSuffix }}</span>
+            <span class="rc-slash" aria-hidden="true" />
+            <span class="rc-value average">{{ fmt(data.average.value) }}{{ valueSuffix }}</span>
           </div>
-          <span class="rc-entity-label">{{ data.entity.label }}</span>
+          <span class="rc-stat-caption">
+            <span class="rc-cap-you">YOU</span> / {{ captionRest }}
+          </span>
         </div>
 
         <div class="rc-head-delta">
@@ -140,7 +155,6 @@ const cohortTicks = computed<number[]>(() => {
             <span class="rc-delta-arrow">{{ deltaUp ? '▲' : '▼' }}</span>
             {{ deltaLabel }}
           </span>
-          <span class="rc-delta-vs">vs {{ data.average.label }} ({{ fmt(data.average.value) }})</span>
           <span :class="['rc-pct-chip', pctTone]">{{ data.percentile }}th pctl</span>
         </div>
       </header>
@@ -277,19 +291,39 @@ const cohortTicks = computed<number[]>(() => {
   /* deeper blue so the small kicker stays legible on the white card (HIG) */
   color: rgba(var(--rc-entity-ink, var(--rc-entity)), 1);
 }
-.rc-value-row { display: flex; align-items: baseline; gap: 8px; }
+/* Two-number stat row: [entity] ╱ [average] — the numbers ARE the comparison */
+.rc-stat-row { display: flex; align-items: center; gap: 22px; }
 .rc-value {
   font-family: var(--font-display);
   font-size: clamp(38px, 6vw, 56px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+/* entity = primary: ink + the subtle blue glow */
+.rc-value.entity {
   color: var(--ink-primary);
-  /* hero stays ink, lifted by a subtle blue glow (STEP 5) */
   text-shadow: 0 0 18px rgba(var(--rc-glow), 0.20);
 }
-.rc-unit { font-size: 15px; color: var(--ink-secondary); }
-.rc-entity-label { font-size: 13px; color: var(--ink-muted); }
+/* average = secondary: same size, quieter, no glow */
+.rc-value.average { color: var(--ink-secondary); }
+/* thin ANGLED divider — a rotated 1px rule, clearly a divider not a number */
+.rc-slash {
+  width: 1px;
+  height: 44px;
+  flex: none;
+  background: rgba(44, 38, 34, 0.18);
+  transform: rotate(18deg);
+}
+/* mono uppercase caption beneath — "YOU / {avg} · {unit} / {per}" */
+.rc-stat-caption {
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.rc-cap-you { color: rgba(var(--rc-entity-ink, var(--rc-entity)), 1); }
 
 .rc-head-delta {
   display: flex;
@@ -308,7 +342,6 @@ const cohortTicks = computed<number[]>(() => {
 .rc-delta.good { color: rgba(var(--rc-positive), 1); }
 .rc-delta.warn { color: rgba(var(--tone-gold), 1); }
 .rc-delta-arrow { font-size: 16px; }
-.rc-delta-vs { font-size: 11.5px; color: var(--ink-muted); }
 .rc-pct-chip {
   font-size: 10.5px;
   letter-spacing: 0.04em;
