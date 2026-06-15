@@ -185,6 +185,20 @@ const routes: RouteRecordRaw[] = [
       title: 'Listening Pods',
     },
   },
+  // Teacher / tutor insights — the calm single-widget Rate-compare view.
+  // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
+  // login (the global admin guard only fires on /admin + /methodology). It is
+  // scoped to THEIR class (or a learner within it) and shows nothing but the
+  // entity-vs-average Rate-compare widget — the opposite of /admin/insights.
+  {
+    path: '/teacher-insights',
+    name: 'teacher-insights',
+    component: () => import('@/insight/TeacherInsightsView.vue'),
+    meta: {
+      title: 'Your class',
+      description: 'Your class vs the average — the Rate-compare widget, teacher-framed',
+    },
+  },
   // Admin panel
   {
     path: '/admin',

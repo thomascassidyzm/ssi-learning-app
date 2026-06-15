@@ -1,7 +1,7 @@
 # APML Interface: Insight Engine Specification
 # SSI Learning App
-# Version: 1.3.0 (2026-06-15)
-# Status: Integrated — typecheck-green, admin chunk builds; 6 boards (added RatesBoard — reusable "entity vs average" rate widget, demo-first, first/default tab)
+# Version: 1.4.0 (2026-06-15)
+# Status: Integrated — typecheck-green, admin chunk builds; 6 admin boards + a teacher-framed TeacherInsightsView (single RateCompare widget, scope-locked to their class/learner, /teacher-insights un-gated ?demo)
 
 ## ============================================================================
 ## OVERVIEW
@@ -175,7 +175,8 @@ BOARDS:
   RatesBoard:
     lens: "Rates · entity vs average (reusable across levels — learner / class / school / course)"
     question: "Any metric as a rate — how does this entity's rate compare to a chosen average cohort?"
-    widgets: "ONE reusable composite widget (RateCompare.vue): big entity rate + delta-vs-average (▲/▼ %) + percentile chip + entity-vs-average comparison bars + small ECharts trend (RateTrend.vue, entity vs average, 8 periods) + the cohort league (ranked CSS bar list, selected entity highlighted, a vertical average marker — the centrepiece) + a small secondary position contextLine"
+    widgets: "ONE reusable composite widget (RateCompare.vue): big entity rate + delta-vs-average (▲/▼ %) + percentile chip + entity-vs-average comparison bars + small ECharts trend (RateTrend.vue, entity vs average, 8 periods) + an ANONYMISED distribution strip (privacy fix — the centrepiece: quartile band + unlabelled cohort points, marking only 'You' + the chosen average; NO other named entity, the old named cohort-league was removed) + a small secondary position contextLine"
+    privacy: "An entity is compared ONLY to an aggregate/average, never to another named entity — enforced in the widget (getRateComparison returns an anonymised distribution; no other entity's name/label ever renders)."
     selectors: "Metric (6 HERO_RATES) · Entity (a learner/class/school/course LEVEL switch + an entity picker) · Average (the metric's swappable cohorts). Default: progressPace / a class entity / course avg."
     metrics: "6 HERO_RATES, all expressed as a RATE: progressPace (Rate of progress — LEGOs/wk, THE headline) · appMinutesDay (min/day) · newLegosHr (LEGOs/hr) · repeatsRatio (repeat:new/session) · interactionsMin (cycles/min) · daysActiveWk (days/wk)"
     data: "data/demoRates.ts — seeded mulberry32 synthetic population per (metric, level); getRateComparison(metric, level, entity, average) → RateComparisonData, total + deterministic + never throws. Real-path resolver is a TODO."
@@ -209,6 +210,14 @@ TOPBAR_TAB:
   source: "packages/player-vue/src/components/admin/AdminTopBar.vue"
   entry: "{ label: 'Insights', to: '/admin/insights', match: p => p.startsWith('/admin/insights') } — placed after Methodology."
 
+TEACHER_INSIGHTS_VIEW:
+  source: "packages/player-vue/src/insight/TeacherInsightsView.vue"
+  purpose: "The TEACHER/TUTOR view — the calm, single-purpose opposite of the /admin/insights cockpit. Contains NOTHING but the entity-vs-average RateCompare widget, framed for a teacher looking at THEIR class. No course value / health / friction, no board tabs, no Insight Engine chrome."
+  reuse: "Reuses RateCompare.vue + demoRates.ts unchanged — does NOT fork the widget."
+  scope: "Entity is always THEIR class (a single fixed demo class), or — via a class/learner drill — a learner WITHIN that class. Never another class / school / course (no class picker, no level switch beyond class<->learner). Selectors: View (Whole class / A learner) · Measure (6 HERO_RATES) · Compare to (the metric's aggregate cohorts only)."
+  route: "{ path: '/teacher-insights', name: 'teacher-insights' } — TOP-LEVEL + UN-GATED so it opens with ?demo WITHOUT a teacher login (the global beforeEach guard only fires on /admin + /methodology). URL: /teacher-insights?demo"
+  demo_first: "?demo short-circuits to demoRates (ZERO database access); without ?demo a 'preview with ?demo' note (no teacher RPC wired yet)."
+
 ## ============================================================================
 ## STATUS / NOT-YET
 ## ============================================================================
@@ -222,6 +231,7 @@ STATUS:
     - "RateCompare composite widget (RateCompare.vue + RateTrend.vue) — the reusable 'entity vs average' rate widget"
     - "6 boards (RatesBoard, CourseScoreboard, ContentFrictionBoard, HealthStrip, DifficultyTurnsBoard, CoverageBoard)"
     - "InsightsView host + /admin/insights route + AdminTopBar tab"
+    - "TeacherInsightsView (teacher-framed, single RateCompare widget, scope-locked to their class/learner) + /teacher-insights un-gated route (?demo)"
   verified:
     - "pnpm --filter player-vue typecheck — PASSES (0 errors)"
     - "pnpm --filter player-vue build — admin chunk builds (InsightsView, all boards, widgets, InsightWidget, resolvers code-split)"
