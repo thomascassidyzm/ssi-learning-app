@@ -298,7 +298,7 @@ const cohortTicks = computed<number[]>(() => {
   font-size: 24px;
   font-weight: 700;
 }
-.rc-delta.good { color: rgba(var(--tone-green), 1); }
+.rc-delta.good { color: rgba(var(--tone-green-ink), 1); }
 .rc-delta.warn { color: rgba(var(--tone-gold), 1); }
 .rc-delta-arrow { font-size: 16px; }
 .rc-delta-vs { font-size: 11.5px; color: var(--ink-muted); }
@@ -308,7 +308,7 @@ const cohortTicks = computed<number[]>(() => {
   padding: 2px 8px;
   border-radius: 999px;
 }
-.rc-pct-chip.good { background: rgba(var(--tone-green), 0.12); color: rgba(var(--tone-green), 1); }
+.rc-pct-chip.good { background: rgba(var(--tone-green), 0.18); color: rgba(var(--tone-green-ink), 1); }
 .rc-pct-chip.neutral { background: rgba(var(--tone-blue), 0.12); color: rgba(var(--tone-blue), 1); }
 .rc-pct-chip.warn { background: rgba(var(--tone-gold), 0.14); color: rgba(var(--tone-gold), 1); }
 
@@ -396,8 +396,8 @@ const cohortTicks = computed<number[]>(() => {
   top: 50%;
   transform: translateY(-50%);
   height: 22px;
-  background: rgba(var(--tone-green), 0.16);
-  border: 1px solid rgba(var(--tone-green), 0.40);
+  background: rgba(var(--tone-green), 0.22);
+  border: 1px solid rgba(var(--tone-green-ink), 0.55);
   border-radius: 6px;
 }
 /* median tick inside the band */
@@ -407,7 +407,7 @@ const cohortTicks = computed<number[]>(() => {
   transform: translateY(-50%);
   width: 2px;
   height: 22px;
-  background: rgba(var(--tone-green), 0.85);
+  background: rgba(var(--tone-green-ink), 0.9);
 }
 /* unlabelled cohort points — anonymous shape only */
 .rc-strip-tick {

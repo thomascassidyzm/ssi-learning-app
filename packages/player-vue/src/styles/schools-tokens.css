@@ -25,6 +25,7 @@
   --tone-gold: 212, 168, 83;
   --tone-red: 217, 69, 69;
   --tone-green: 74, 222, 128;
+  --tone-green-ink: 21, 128, 61; /* #15803D — deep legible green for green text/lines on light bg */
 
   --ink-primary: #2C2622;
   --ink-secondary: #4A4440;

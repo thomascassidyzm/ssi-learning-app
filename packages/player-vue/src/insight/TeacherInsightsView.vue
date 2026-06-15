@@ -46,6 +46,9 @@ const demoMode = isInsightDemo()
 const SCHOOL_NAME = 'Ysgol Bryn'
 const CLASS_NAME = 'Year 7 Spanish'
 const COURSE_LABEL = 'Spanish for English speakers'
+// The teacher's ONE class, resolved by name so it stays the same class across
+// every measure. Must equal CLASS_NAMES[0] in demoRates.ts ('Ysgol Bryn · Year 7 Spanish').
+const TEACHER_CLASS_LABEL = `${SCHOOL_NAME} · ${CLASS_NAME}`
 
 // ── Drill scope: the class itself, or a learner within it ───────────────────
 type Scope = 'class' | 'learner'
@@ -63,12 +66,13 @@ const currentMetric = computed(
 // Averages valid for the chosen metric — every option is an AGGREGATE cohort.
 const averageOptions = computed(() => listAverages(metricId.value))
 
-// ── The class entity: a single fixed demo class (the FIRST class-level entity
-// of the chosen metric's population). We never expose the rest of the class
-// population — the teacher cannot browse other classes as entities.
+// ── The class entity: the teacher's ONE fixed class, resolved by NAME so it is
+// the SAME class across every measure (listEntities is value-sorted, so opts[0]
+// is the top class for the metric, not necessarily ours — match on label).
+// We never expose the rest of the class population as selectable entities.
 const classEntityId = computed<string>(() => {
   const opts = listEntities(metricId.value, 'class')
-  return opts[0]?.value ?? ''
+  return (opts.find((o) => o.label === TEACHER_CLASS_LABEL) ?? opts[0])?.value ?? ''
 })
 
 // ── The learner drill: learners WITHIN the class (the learner-level population).
@@ -221,7 +225,7 @@ const scopeLabel = computed(() =>
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(var(--tone-green), 1);
+  color: rgba(var(--tone-green-ink), 1);
 }
 .tiv-title {
   font-family: var(--font-display);
@@ -295,7 +299,7 @@ const scopeLabel = computed(() =>
 }
 .tiv-seg + .tiv-seg { border-left: 1px solid rgba(44, 38, 34, 0.12); }
 .tiv-seg:hover:not(.active) { color: var(--ink-primary); }
-.tiv-seg.active { background: rgba(var(--tone-green), 0.12); color: rgba(var(--tone-green), 1); }
+.tiv-seg.active { background: rgba(var(--tone-green), 0.16); color: rgba(var(--tone-green-ink), 1); }
 
 /* ── Measure description ── */
 .tiv-metric-desc {
