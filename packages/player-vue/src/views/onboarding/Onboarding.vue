@@ -1026,20 +1026,24 @@ async function continueIn() {
   border: none;
   background: transparent;
   outline: none;
-  text-align: justify;
-  text-align-last: justify;
-  padding: 0 calc(var(--ob-cell) / 2 - 0.5ch);
+  /* One bound input drawn over six cells: a monospace digit advances by exactly
+     one cell-pitch (cell + gap), and a left pad centres the first digit in cell 1,
+     so every digit lands in its own box. (text-align-last:justify is unreliable on
+     <input> — that's what made the digits bunch into the first cells.) */
+  box-sizing: border-box;
+  text-align: left;
+  padding: 0 0 0 calc((var(--ob-cell) - 1ch) / 2);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: clamp(1.4rem, 6vw, 1.85rem);
   font-weight: var(--font-semibold, 600);
-  letter-spacing: 0;
+  letter-spacing: calc(var(--ob-cell) + var(--ob-gap) - 1ch);
   color: var(--text-primary, #2c2622);
   caret-color: var(--ob-accent-2);
 }
 .ob-otp-input::placeholder {
+  /* Inherit the input's letter-spacing so the placeholder dots sit one-per-cell. */
   color: var(--text-muted, #b5aea6);
-  letter-spacing: 0;
 }
 .ob-otp-wrap:focus-within .ob-otp-cell:not(.is-set) {
   border-color: var(--ob-accent-2);
