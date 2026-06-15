@@ -4,8 +4,9 @@
 //
 // Renders a RateComparisonData (from data/demoRates.ts in demo, or a resolver on
 // the real path). RATE IS PRIMARY throughout: the headline is a two-number
-// "entity / average" stat (the two numbers ARE the comparison, split by a thin
-// angled slash), with the delta + percentile kept as small secondary chips.
+// "entity v average" stat — the ENTITY is the hero (a glassy outlined lozenge
+// with the blue glow) and the average recedes (smaller, muted), split by a quiet
+// "v" (versus). The delta + percentile are kept as small secondary chips.
 //
 // PRIVACY (non-negotiable): an entity is compared ONLY to an aggregate/average,
 // NEVER to another named entity. The centrepiece is an ANONYMISED distribution
@@ -141,12 +142,14 @@ const cohortTicks = computed<number[]>(() => {
         <div class="rc-head-main">
           <span class="rc-metric-kicker">{{ data.metricLabel }}</span>
           <div class="rc-stat-row">
-            <span class="rc-value entity">{{ fmt(data.entity.value) }}{{ valueSuffix }}</span>
-            <span class="rc-slash" aria-hidden="true" />
+            <span class="rc-hero-box">
+              <span class="rc-value entity">{{ fmt(data.entity.value) }}{{ valueSuffix }}</span>
+            </span>
+            <span class="rc-vs" aria-hidden="true">v</span>
             <span class="rc-value average">{{ fmt(data.average.value) }}{{ valueSuffix }}</span>
           </div>
           <span class="rc-stat-caption">
-            <span class="rc-cap-you">YOU</span> / {{ captionRest }}
+            <span class="rc-cap-you">YOU</span> v {{ captionRest }}
           </span>
         </div>
 
@@ -291,7 +294,8 @@ const cohortTicks = computed<number[]>(() => {
   /* deeper blue so the small kicker stays legible on the white card (HIG) */
   color: rgba(var(--rc-entity-ink, var(--rc-entity)), 1);
 }
-/* Two-number stat row: [entity] ╱ [average] — the numbers ARE the comparison */
+/* Two-number stat row: [HERO entity] v [muted average] — the entity is the hero,
+   the average recedes; centred so the smaller average + "v" sit against the box */
 .rc-stat-row { display: flex; align-items: center; gap: 22px; }
 .rc-value {
   font-family: var(--font-display);
@@ -301,22 +305,43 @@ const cohortTicks = computed<number[]>(() => {
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
-/* entity = primary: ink + the subtle blue glow */
+/* The HERO: entity number in a glassy outlined lozenge that floats off the card */
+.rc-hero-box {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 2px 18px 6px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.42)),
+    rgba(var(--rc-entity), 0.06);
+  border: 1px solid rgba(var(--rc-entity), 0.40);     /* the outline */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),          /* top sheen */
+    0 6px 20px rgba(var(--rc-glow), 0.20);            /* soft blue float/glow */
+  backdrop-filter: blur(8px) saturate(1.4);
+  -webkit-backdrop-filter: blur(8px) saturate(1.4);
+}
+/* entity = the hero number: full scale, ink + the subtle blue glow */
 .rc-value.entity {
   color: var(--ink-primary);
-  text-shadow: 0 0 18px rgba(var(--rc-glow), 0.20);
+  text-shadow: 0 0 18px rgba(var(--rc-glow), 0.22);
 }
-/* average = secondary: same size, quieter, no glow */
-.rc-value.average { color: var(--ink-secondary); }
-/* thin ANGLED divider — a rotated 1px rule, clearly a divider not a number */
-.rc-slash {
-  width: 1px;
-  height: 44px;
-  flex: none;
-  background: rgba(44, 38, 34, 0.18);
-  transform: rotate(18deg);
+/* average = baseline: ~0.62× the entity, muted, no glow, no box */
+.rc-value.average {
+  font-size: clamp(24px, 3.6vw, 34px);
+  color: var(--ink-muted);
+  text-shadow: none;
 }
-/* mono uppercase caption beneath — "YOU / {avg} · {unit} / {per}" */
+/* quiet "v" (versus) separator — clearly a join, not a number */
+.rc-vs {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 20px;
+  color: var(--ink-faint);
+  margin: 0 6px;
+  align-self: center;
+}
+/* mono uppercase caption beneath — "YOU v {avg} · {unit} / {per}" */
 .rc-stat-caption {
   font-size: 11.5px;
   letter-spacing: 0.12em;
