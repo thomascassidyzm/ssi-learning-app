@@ -50,17 +50,20 @@ CREATE INDEX IF NOT EXISTS idx_invite_codes_normalized
 -- did, then leave the secfix lock-down untouched). Re-applying security_invoker
 -- after CREATE OR REPLACE because a replace can reset view options.
 
+-- NOTE: CREATE OR REPLACE VIEW can only APPEND new columns at the END (it cannot
+-- reorder/rename existing ones), so code_normalized is added LAST, after the
+-- exact existing column list/order. validate.ts only FILTERS on code_normalized
+-- (it doesn't select it), so the view just needs to expose the column.
 CREATE OR REPLACE VIEW public.invite_code_validation AS
-  SELECT id, code, code_normalized, code_type, grants_region, grants_school_id,
-         grants_class_id, metadata, max_uses, use_count, expires_at, is_active
+  SELECT id, code, code_type, grants_region, grants_school_id, grants_class_id,
+         metadata, max_uses, use_count, expires_at, is_active, code_normalized
   FROM invite_codes;
 ALTER VIEW public.invite_code_validation SET (security_invoker = on);
 GRANT SELECT ON public.invite_code_validation TO anon;
 
 CREATE OR REPLACE VIEW public.entitlement_code_validation AS
-  SELECT id, code, code_normalized, access_type, granted_courses, duration_type,
-         duration_days, label, max_uses, use_count, expires_at, is_active,
-         grants_platform_role, grants_dashboard_courses
+  SELECT id, code, access_type, granted_courses, duration_type, duration_days,
+         label, max_uses, use_count, expires_at, is_active, code_normalized
   FROM entitlement_codes;
 ALTER VIEW public.entitlement_code_validation SET (security_invoker = on);
 GRANT SELECT ON public.entitlement_code_validation TO anon;
