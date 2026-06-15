@@ -183,3 +183,40 @@ export interface ResolvedInsight {
   isLoading: boolean
   error: string | null
 }
+
+// =====================================================================
+// COMPOSITE WIDGET DATA — RateCompare ("entity vs average" rate widget)
+//
+// NOT part of the WidgetData union and NOT a registry kind: RateCompare is a
+// hand-composed board widget (headline + bar + trend + cohort), the way the
+// Health strip composes several panels, rather than a single dispatcher kind.
+// Its data type lives here (the documented home for widget data types) so the
+// component + the demo data file share one contract. The frozen spine union
+// above is untouched, so the 18-way invariants still hold.
+//
+// Design principle: RATE IS PRIMARY. Every interesting metric is a rate; the
+// entity, the average cohort, and the metric are all swappable. Position (e.g.
+// furthest LEGO) rides along as `contextLine` — secondary, never the hero.
+// =====================================================================
+export interface RateSeries {
+  label: string
+  value: number          // the headline rate for this entity / average
+  trend: number[]        // 8 periods, oldest -> newest
+}
+export interface RateCohortEntry {
+  label: string
+  value: number
+  isEntity: boolean      // true for the currently-selected entity (highlighted in the cohort list)
+  belowAvg: boolean      // value < the chosen average (so the cohort list can two-tone)
+}
+export interface RateComparisonData {
+  metricLabel: string    // "Rate of progress"
+  unit: string           // "LEGOs"
+  per: string            // "week"  -> rendered as "LEGOs / week"
+  entity: RateSeries
+  average: RateSeries
+  deltaPct: number       // signed % the entity is above (+) / below (-) the average
+  percentile: number     // 0..100 — the entity's rank within the cohort
+  contextLine?: string   // secondary position context, e.g. "Furthest LEGO · S38 · L02"
+  cohort: RateCohortEntry[]  // ALL entities for the metric/level, sorted by value desc
+}

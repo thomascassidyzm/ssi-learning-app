@@ -1,0 +1,303 @@
+<script setup lang="ts">
+// ============================================================================
+// boards/RatesBoard.vue — "Rate compare": any metric as a rate, entity vs average.
+//
+// ONE reusable widget (RateCompare.vue) wrapped by three selectors:
+//   · Metric   — the 6 HERO_RATES (progressPace leads — the headline rate)
+//   · Entity   — a LEVEL switch (learner / class / school / course) + an entity picker
+//   · Average  — the metric's swappable comparison cohorts
+//
+// Design principle: RATE IS PRIMARY. Rate of progress matters more than
+// position; position rides along only as the small secondary contextLine.
+//
+// DEMO-FIRST: with ?demo the board reads data/demoRates.ts (seeded, deterministic,
+// NO DB call) — exactly the short-circuit pattern the sibling boards use. The
+// real-data path (a getRateComparison RPC) is a TODO; without ?demo the board
+// shows a "preview with ?demo" note rather than hitting an unbuilt resolver.
+//
+// Frostwell Courtyard chrome — matches CoverageBoard's header + segmented
+// controls. No hardcoded hex; tokens carry every colour.
+// ============================================================================
+import { ref, computed, watch } from 'vue'
+import RateCompare from '../components/RateCompare.vue'
+import { isInsightDemo } from '../data/demo'
+import {
+  HERO_RATES,
+  getRateComparison,
+  listEntities,
+  listAverages,
+  listEntityLevels,
+  type EntityLevel,
+} from '../data/demoRates'
+import type { RateComparisonData } from '../spec'
+
+const demoMode = isInsightDemo()
+
+// ── Selection state ─────────────────────────────────────────────────────────
+const metricId = ref<string>('progressPace')          // headline rate by default
+const entityLevel = ref<EntityLevel>('class')          // default: a class entity
+const entityId = ref<string>('')
+const averageId = ref<string>('course avg')            // default: course avg
+
+const ALL_LEVELS: { value: EntityLevel; label: string }[] = [
+  { value: 'learner', label: 'Learner' },
+  { value: 'class', label: 'Class' },
+  { value: 'school', label: 'School' },
+  { value: 'course', label: 'Course' },
+]
+
+const currentMetric = computed(
+  () => HERO_RATES.find((m) => m.id === metricId.value) ?? HERO_RATES[0],
+)
+
+// Levels valid for the chosen metric (the level switch only shows these).
+const availableLevels = computed(() => {
+  const valid = new Set(listEntityLevels(metricId.value))
+  return ALL_LEVELS.filter((l) => valid.has(l.value))
+})
+
+// Entities for the chosen (metric, level) — the entity picker's options.
+const entityOptions = computed(() => listEntities(metricId.value, entityLevel.value))
+
+// Averages valid for the chosen metric — the average picker's options.
+const averageOptions = computed(() => listAverages(metricId.value))
+
+// ── Keep the selection coherent as dropdowns change ─────────────────────────
+// When metric changes: snap level + average into the metric's valid sets.
+watch(metricId, () => {
+  const levels = listEntityLevels(metricId.value)
+  if (!levels.includes(entityLevel.value)) entityLevel.value = levels[0] ?? 'class'
+  const avgs = listAverages(metricId.value)
+  if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'course avg'
+})
+
+// When metric or level changes: re-anchor the entity to the cohort leader (first).
+watch([metricId, entityLevel], () => {
+  const opts = listEntities(metricId.value, entityLevel.value)
+  if (!opts.find((o) => o.value === entityId.value)) {
+    entityId.value = opts[0]?.value ?? ''
+  }
+}, { immediate: true })
+
+// ── The resolved comparison (demo: deterministic; real path: TODO) ──────────
+const comparison = computed<RateComparisonData | null>(() => {
+  if (!demoMode) return null
+  return getRateComparison(
+    metricId.value,
+    entityLevel.value,
+    entityId.value,
+    averageId.value,
+  )
+})
+</script>
+
+<template>
+  <section class="rtb">
+    <!-- ── Board header ── -->
+    <header class="rtb-head">
+      <div class="rtb-title-block">
+        <span class="rtb-lens-kicker">Lens · rates</span>
+        <h2 class="rtb-title">Rate compare</h2>
+        <p class="rtb-sub">
+          Any metric as a rate — entity vs average. Pick the metric, the entity (at any
+          level), and the cohort to compare against. Rate of progress matters more than
+          position: lead with the rate, treat the furthest LEGO as context.
+        </p>
+      </div>
+    </header>
+
+    <!-- ── Selectors ── -->
+    <div class="rtb-controls">
+      <!-- Metric -->
+      <label class="rtb-field rtb-field-wide">
+        <span class="rtb-field-label">Metric</span>
+        <select v-model="metricId" class="rtb-select">
+          <option v-for="m in HERO_RATES" :key="m.id" :value="m.id">
+            {{ m.label }} ({{ m.unit }} / {{ m.per }})
+          </option>
+        </select>
+      </label>
+
+      <!-- Entity level switch -->
+      <div class="rtb-field">
+        <span class="rtb-field-label">Entity level</span>
+        <div class="rtb-segs" role="group" aria-label="Entity level">
+          <button
+            v-for="l in availableLevels"
+            :key="l.value"
+            type="button"
+            :class="['rtb-seg', { active: entityLevel === l.value }]"
+            :aria-pressed="entityLevel === l.value"
+            @click="entityLevel = l.value"
+          >{{ l.label }}</button>
+        </div>
+      </div>
+
+      <!-- Entity picker -->
+      <label class="rtb-field rtb-field-wide">
+        <span class="rtb-field-label">Entity</span>
+        <select v-model="entityId" class="rtb-select">
+          <option v-for="e in entityOptions" :key="e.value" :value="e.value">
+            {{ e.label }}
+          </option>
+        </select>
+      </label>
+
+      <!-- Average picker -->
+      <label class="rtb-field">
+        <span class="rtb-field-label">Compare to</span>
+        <select v-model="averageId" class="rtb-select">
+          <option v-for="a in averageOptions" :key="a" :value="a">{{ a }}</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- ── Metric description (the read this rate carries) ── -->
+    <p class="rtb-metric-desc">{{ currentMetric.description }}</p>
+
+    <!-- ── The widget ── -->
+    <div class="rtb-widget-card">
+      <RateCompare v-if="comparison" :data="comparison" />
+
+      <!-- Real-path note (no ?demo): no DB call, point to the preview. -->
+      <div v-else class="rtb-real-note">
+        <p class="rtb-real-lead">Rate compare runs in preview today.</p>
+        <p class="rtb-real-fine">
+          The real-data path resolves <code>getRateComparison(metric, level, entity, average)</code>
+          from the analytics tables — not yet wired. Append <code>?demo</code> to preview the
+          widget now with a seeded synthetic cohort.
+        </p>
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.rtb {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* ── Header ── */
+.rtb-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.rtb-title-block { display: flex; flex-direction: column; gap: 4px; }
+.rtb-lens-kicker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(var(--tone-red), 1);
+}
+.rtb-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  color: var(--ink-primary);
+  margin: 0;
+}
+.rtb-sub {
+  font-size: 13.5px;
+  color: var(--ink-muted);
+  margin: 0;
+  max-width: 52rem;
+}
+
+/* ── Controls ── */
+.rtb-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 16px 18px;
+  background: var(--schools-card, #fff);
+  border: 1px solid rgba(44, 38, 34, 0.10);
+  border-radius: 12px;
+}
+.rtb-field { display: flex; flex-direction: column; gap: 6px; min-width: 150px; }
+.rtb-field-wide { flex: 1 1 220px; min-width: 220px; }
+.rtb-field-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.rtb-select {
+  appearance: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-primary);
+  background: var(--schools-card, #fff);
+  border: 1px solid rgba(44, 38, 34, 0.18);
+  border-radius: 9px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: border-color 140ms ease;
+}
+.rtb-select:hover { border-color: rgba(var(--tone-red), 0.35); }
+.rtb-select:focus { outline: none; border-color: rgba(var(--tone-red), 0.55); box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.08); }
+
+/* ── Segmented level switch ── */
+.rtb-segs { display: inline-flex; border: 1px solid rgba(44, 38, 34, 0.15); border-radius: 9px; overflow: hidden; }
+.rtb-seg {
+  appearance: none;
+  background: var(--schools-card, #fff);
+  border: none;
+  padding: 9px 13px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.rtb-seg + .rtb-seg { border-left: 1px solid rgba(44, 38, 34, 0.12); }
+.rtb-seg:hover:not(.active) { color: var(--ink-primary); }
+.rtb-seg.active { background: rgba(var(--tone-red), 0.10); color: rgba(var(--tone-red), 1); }
+
+/* ── Metric description ── */
+.rtb-metric-desc {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+  margin: 0;
+  max-width: 64rem;
+}
+
+/* ── Widget card ── */
+.rtb-widget-card {
+  padding: 24px 26px;
+  background: var(--schools-card, #fff);
+  border: 1px solid rgba(44, 38, 34, 0.10);
+  border-radius: 16px;
+}
+
+/* ── Real-path note ── */
+.rtb-real-note { display: flex; flex-direction: column; gap: 6px; }
+.rtb-real-lead { font-size: 14px; color: var(--ink-secondary); margin: 0; }
+.rtb-real-fine {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  margin: 0;
+}
+.rtb-real-fine code {
+  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--ink-primary) 6%, transparent);
+  padding: 1px 5px;
+  border-radius: 5px;
+  color: var(--ink-secondary);
+}
+
+/* ── Responsive ── */
+@media (max-width: 860px) {
+  .rtb-head { flex-direction: column; align-items: flex-start; }
+  .rtb-field, .rtb-field-wide { width: 100%; min-width: 0; }
+}
+</style>
