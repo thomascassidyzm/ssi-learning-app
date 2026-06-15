@@ -210,15 +210,6 @@ const routes: RouteRecordRaw[] = [
       title: 'Listening Pods',
     },
   },
-  // Stage-0 pod-explainer ladder — demo surface (DB-backed, tuner-config-driven).
-  {
-    path: '/pods/stage0',
-    name: 'pod-stage0-ladder',
-    component: () => import('@/components/PodStage0LadderPlayer.vue'),
-    meta: {
-      title: 'Stage-0 Pod Explainer Ladder',
-    },
-  },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
   // login (the global admin guard only fires on /admin + /methodology). It is
@@ -289,6 +280,12 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-courses',
         component: () => import('@/views/admin/AdminCourses.vue'),
         meta: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
+      },
+      {
+        path: 'pod-auditioner',
+        name: 'admin-pod-auditioner',
+        component: () => import('@/components/PodStageAuditioner.vue'),
+        meta: { title: 'Pod stage auditioner', description: 'One sentence through all 10 pod stages (Stage-0 tiers + Stages 1-9)' },
       },
       {
         path: 'entitlements',

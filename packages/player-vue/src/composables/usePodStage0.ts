@@ -35,7 +35,17 @@ interface PodSentenceRow {
   known_text: string
   target_audio_id: string | null
   known_audio_id: string | null
+  explainer_audio_id: string | null
+  glue_to_next: boolean
   atom_map: AtomMapEntry[] | null
+}
+
+/** Whole-sentence audio + flags the main Stages 1-9 preview needs. */
+export interface SentenceMainAudio {
+  targetAudioId: string | null
+  knownAudioId: string | null
+  explainerAudioId: string | null
+  glueToNext: boolean
 }
 
 /** A sentence plus its resolution status, for the picker UI. */
@@ -84,7 +94,7 @@ export function usePodStage0(courseCode: Ref<string>) {
         supabase
           .from('listening_pod_sentences')
           .select(
-            'id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, atom_map',
+            'id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map',
           )
           .like('id', `${course}:pod-0:%`)
           .order('global_order', { ascending: true }),
@@ -170,5 +180,17 @@ export function usePodStage0(courseCode: Ref<string>) {
     return { atoms, clips }
   }
 
-  return { sentences, isLoading, error, load, resolveSentence }
+  /** Whole-sentence audio for the main Stages 1-9 preview. Null if not loaded. */
+  const mainAudioFor = (sentenceId: string): SentenceMainAudio | null => {
+    const row = rowById.get(sentenceId)
+    if (!row) return null
+    return {
+      targetAudioId: row.target_audio_id,
+      knownAudioId: row.known_audio_id,
+      explainerAudioId: row.explainer_audio_id,
+      glueToNext: !!row.glue_to_next,
+    }
+  }
+
+  return { sentences, isLoading, error, load, resolveSentence, mainAudioFor }
 }
