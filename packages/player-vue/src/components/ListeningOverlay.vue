@@ -296,11 +296,6 @@ const isDialogueScene = computed(() => view.value === 'pods' && selectedScene.va
 const showSpeedRow = computed(
   () => !isDialogueScene.value || listenMode.value === 'immersion'
 )
-// Fixed-pace caption for the non-interactive slot (Drill = 1×/2×/2× cadence;
-// audit walks the live stage config). Only read when !showSpeedRow in a scene.
-const fixedPaceLabel = computed(() =>
-  listenMode.value === 'audit' ? 'Live config' : '1× · 2× · 2×'
-)
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -1757,14 +1752,13 @@ watch(
           </button>
         </div>
       </div>
+      <!-- Drill/audit: no speed choice and nothing to show, but we keep an empty
+           slot of the same height so switching modes never shifts the layout. -->
       <div
         v-else-if="isDialogueScene"
-        class="speed-controls pace-fixed"
+        class="speed-controls pace-spacer"
         aria-hidden="true"
-      >
-        <span class="speed-label">Pace</span>
-        <span class="pace-fixed-value">{{ fixedPaceLabel }}</span>
-      </div>
+      ></div>
 
       <!-- Dialogue listening level: how much help, how much pace. These ARE
            the listening difficulty settings — first-class placement, sharing
@@ -2075,7 +2069,13 @@ watch(
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.18s ease, color 0.18s ease, font-weight 0.18s ease;
+  /* Only transition colour — NOT background. Animating the pill's background on
+   * iOS Safari (inside an overflow:hidden rounded track) can fail to composite
+   * until a forced repaint, leaving white text on an unpainted white pill (the
+   * "invisible selected button until you toggle the eye" bug). Painting the fill
+   * instantly + a stable own-layer (translateZ) makes the active state reliable. */
+  transition: color 0.15s ease;
+  transform: translateZ(0);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -2085,7 +2085,7 @@ watch(
 
 .mode-btn.active {
   background: var(--text-primary);
-  color: var(--bg-elevated, #ffffff);
+  color: #ffffff;
   font-weight: 600;
 }
 
@@ -2111,19 +2111,8 @@ watch(
   min-height: 30px;
 }
 
-/* Fixed-pace indicator — non-interactive readout for Drill/audit. Quiet mono,
- * clearly informational rather than a control. */
-.controls-bar.dialogue .speed-controls.pace-fixed {
-  gap: 0.5rem;
-}
-
-.pace-fixed-value {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
+/* Drill/audit: an empty slot that only reserves the row's height, so switching
+ * modes never shifts the layout (nothing is shown under Drill). */
 
 .speed-selector {
   display: flex;
