@@ -30,7 +30,14 @@ export default async function handler(
     return
   }
 
-  const normalizedCode = code.trim().toUpperCase()
+  // Forgiving lookup: strip everything non-alphanumeric and uppercase, so
+  // 'ZVK-078', 'zvk-078', 'ZVK 078', 'zvk078' all resolve to the same code.
+  // This matches the STORED `code_normalized` column on both code tables.
+  const stripped = String(code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!stripped) {
+    res.status(200).json({ valid: false, error: 'Invalid code' })
+    return
+  }
 
   try {
     // Service-role client (this is a server-side route). The *_code_validation
@@ -44,7 +51,7 @@ export default async function handler(
     const { data: inviteRow } = await supabase
       .from('invite_code_validation')
       .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, metadata, max_uses, use_count, expires_at, is_active')
-      .eq('code', normalizedCode)
+      .eq('code_normalized', stripped)
       .eq('is_active', true)
       .maybeSingle()
 
@@ -111,7 +118,7 @@ export default async function handler(
         }
       }
 
-      console.log('[CodeValidate] Valid invite code:', normalizedCode, codeType)
+      console.log('[CodeValidate] Valid invite code:', inviteRow.code, codeType)
       res.status(200).json({
         valid: true,
         codeKind: 'invite',
@@ -126,7 +133,7 @@ export default async function handler(
     const { data: entitlementRow } = await supabase
       .from('entitlement_code_validation')
       .select('id, code, access_type, granted_courses, duration_type, duration_days, label, max_uses, use_count, expires_at, is_active')
-      .eq('code', normalizedCode)
+      .eq('code_normalized', stripped)
       .eq('is_active', true)
       .maybeSingle()
 
@@ -157,7 +164,7 @@ export default async function handler(
         durationDescription = `${entitlementRow.duration_days} days`
       }
 
-      console.log('[CodeValidate] Valid entitlement code:', normalizedCode, entitlementRow.label)
+      console.log('[CodeValidate] Valid entitlement code:', entitlementRow.code, entitlementRow.label)
       res.status(200).json({
         valid: true,
         codeKind: 'entitlement',
@@ -174,7 +181,7 @@ export default async function handler(
     }
 
     // 3. Neither found
-    console.log('[CodeValidate] Code not found:', normalizedCode)
+    console.log('[CodeValidate] Code not found:', stripped)
     res.status(200).json({ valid: false, error: 'Invalid code' })
   } catch (error) {
     console.error('[CodeValidate] Error:', error)

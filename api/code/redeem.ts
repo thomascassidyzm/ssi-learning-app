@@ -9,6 +9,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -43,14 +44,20 @@ export default async function handler(
     return
   }
 
-  const normalizedCode = code.trim().toUpperCase()
+  // Forgiving lookup: match the STORED `code_normalized` column so the typed
+  // code resolves regardless of case, hyphens, or spaces.
+  const stripped = String(code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!stripped) {
+    res.status(200).json({ success: false, error: 'Invalid code' })
+    return
+  }
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   try {
     if (codeKind === 'invite') {
-      await redeemInviteCode(supabase, normalizedCode, userId, res)
+      await redeemInviteCode(supabase, stripped, userId, res)
     } else {
-      await redeemEntitlementCode(supabase, normalizedCode, userId, res)
+      await redeemEntitlementCode(supabase, stripped, userId, res)
     }
   } catch (error) {
     console.error('[CodeRedeem] Error:', error)
@@ -64,15 +71,15 @@ export default async function handler(
 
 async function redeemInviteCode(
   supabase: ReturnType<typeof createClient>,
-  normalizedCode: string,
+  strippedCode: string,
   userId: string,
   res: VercelResponse
 ): Promise<void> {
-  // Re-validate code
+  // Re-validate code (forgiving: match the normalized column)
   const { data: inviteRow, error: inviteError } = await supabase
     .from('invite_codes')
     .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, metadata, max_uses, use_count, expires_at, is_active')
-    .eq('code', normalizedCode)
+    .eq('code_normalized', strippedCode)
     .eq('is_active', true)
     .single()
 
@@ -280,7 +287,7 @@ async function redeemInviteCode(
     : ['god', 'govt_admin', 'school_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
     : '/'
 
-  console.log('[CodeRedeem] Redeemed invite code:', normalizedCode, 'for user:', userId, 'role:', codeType)
+  console.log('[CodeRedeem] Redeemed invite code:', inviteRow.code, 'for user:', userId, 'role:', codeType)
   res.status(200).json({
     success: true,
     codeKind: 'invite',
@@ -295,15 +302,15 @@ async function redeemInviteCode(
 
 async function redeemEntitlementCode(
   supabase: ReturnType<typeof createClient>,
-  normalizedCode: string,
+  strippedCode: string,
   userId: string,
   res: VercelResponse
 ): Promise<void> {
-  // Re-validate code
+  // Re-validate code (forgiving: match the normalized column)
   const { data: entitlementRow, error: entitlementError } = await supabase
     .from('entitlement_codes')
     .select('id, code, access_type, granted_courses, duration_type, duration_days, label, max_uses, use_count, expires_at, is_active, grants_platform_role, grants_dashboard_courses')
-    .eq('code', normalizedCode)
+    .eq('code_normalized', strippedCode)
     .eq('is_active', true)
     .single()
 
@@ -349,12 +356,7 @@ async function redeemEntitlementCode(
   }
 
   // Compute expires_at for the entitlement
-  let entitlementExpiresAt: string | null = null
-  if (entitlementRow.duration_type === 'time_limited' && entitlementRow.duration_days) {
-    const expires = new Date()
-    expires.setDate(expires.getDate() + entitlementRow.duration_days)
-    entitlementExpiresAt = expires.toISOString()
-  }
+  const entitlementExpiresAt = computeEntitlementExpiry(entitlementRow)
 
   // Create user_entitlements row
   const { error: insertError } = await supabase
@@ -384,30 +386,12 @@ async function redeemEntitlementCode(
     // Non-fatal: entitlement was created
   }
 
-  // If code grants dashboard access, update the learner's platform_role and dashboard_courses
-  if (entitlementRow.grants_platform_role) {
-    const learnerUpdate: Record<string, unknown> = {
-      platform_role: entitlementRow.grants_platform_role,
-    }
-    if (entitlementRow.grants_dashboard_courses) {
-      learnerUpdate.dashboard_courses = entitlementRow.grants_dashboard_courses
-    }
-    const { error: roleError } = await supabase
-      .from('learners')
-      .update(learnerUpdate)
-      .eq('id', learner.id)
-
-    if (roleError) {
-      console.error('[CodeRedeem] Failed to update platform_role:', roleError)
-      // Non-fatal: entitlement was created, dashboard access just won't work yet
-    } else {
-      console.log('[CodeRedeem] Granted dashboard access:', entitlementRow.grants_platform_role, 'courses:', entitlementRow.grants_dashboard_courses)
-    }
-  }
+  // If code grants dashboard access, apply platform_role + dashboard_courses.
+  await applyDashboardRole(supabase, learner.id as string, entitlementRow)
 
   const redirectTo = entitlementRow.grants_platform_role ? '/' : '/'
 
-  console.log('[CodeRedeem] Redeemed entitlement code:', normalizedCode, 'for user:', userId, 'label:', entitlementRow.label)
+  console.log('[CodeRedeem] Redeemed entitlement code:', entitlementRow.code, 'for user:', userId, 'label:', entitlementRow.label)
   res.status(200).json({
     success: true,
     codeKind: 'entitlement',

@@ -54,6 +54,19 @@ interface CourseOption {
   target_lang: string
 }
 
+interface EmailAccessGrant {
+  id: string
+  email: string
+  access_type: 'full' | 'courses'
+  granted_courses: string[] | null
+  duration_type: 'lifetime' | 'time_limited'
+  duration_days: number | null
+  label: string | null
+  is_active: boolean
+  created_at: string
+  redeemed_at: string | null
+}
+
 type Row =
   | { kind: 'invite'; row: InviteCode; createdAt: string }
   | { kind: 'direct'; row: EntitlementCode; createdAt: string }
@@ -114,6 +127,84 @@ function toggleCourse(code: string) {
 
 function courseLabel(c: CourseOption): string {
   return c.display_name || `${c.target_lang} for ${c.known_lang}`
+}
+
+// ─── Allowlist (grant by email) ──────────────────────────────────────────────
+const allowlistEmails = ref('')
+const allowlistLabel = ref('')
+const allowlistAccessType = ref<'full' | 'courses'>('full')
+const allowlistGrants = ref<EmailAccessGrant[]>([])
+const isGrantingEmails = ref(false)
+const allowlistResult = ref<string | null>(null)
+
+const parsedAllowlistEmails = computed<string[]>(() => {
+  return allowlistEmails.value
+    .split(/[\n,;]+/)
+    .map(e => e.trim())
+    .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+})
+
+async function fetchAllowlist(): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    if (!token) return
+    const res = await fetch('/api/access/list-grants', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) {
+      console.warn('[AdminAccess] allowlist load failed:', res.status)
+      return
+    }
+    const json = await res.json()
+    allowlistGrants.value = json.grants || []
+  } catch (err) {
+    console.warn('[AdminAccess] allowlist fetch error:', err)
+  }
+}
+
+async function grantEmails(): Promise<void> {
+  if (parsedAllowlistEmails.value.length === 0) {
+    error.value = 'Enter at least one valid email'
+    return
+  }
+  isGrantingEmails.value = true
+  error.value = null
+  allowlistResult.value = null
+  try {
+    const token = await getAuthToken()
+    if (!token) {
+      error.value = 'Not authenticated'
+      return
+    }
+    const body: Record<string, unknown> = {
+      emails: parsedAllowlistEmails.value,
+      access_type: allowlistAccessType.value,
+      duration_type: 'lifetime',
+    }
+    if (allowlistLabel.value.trim()) body.label = allowlistLabel.value.trim()
+
+    const res = await fetch('/api/access/grant-emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `Request failed: ${res.status}`)
+    }
+    const result = await res.json()
+    allowlistResult.value =
+      `${result.created} grant${result.created === 1 ? '' : 's'} created` +
+      (result.applied_now > 0 ? ` · ${result.applied_now} applied to existing account${result.applied_now === 1 ? '' : 's'} now` : '')
+    allowlistEmails.value = ''
+    allowlistLabel.value = ''
+    await fetchAllowlist()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to grant access'
+    console.error('[AdminAccess] grant emails error:', err)
+  } finally {
+    isGrantingEmails.value = false
+  }
 }
 
 // ─── Combined view ─────────────────────────────────────────────────────────
@@ -432,8 +523,17 @@ async function loadDemoPersonas() {
   }
 }
 
+function formatGrantAccess(g: EmailAccessGrant): string {
+  const access = g.access_type === 'full'
+    ? 'Full'
+    : (g.granted_courses?.length ? `${g.granted_courses.length} course${g.granted_courses.length > 1 ? 's' : ''}` : 'Courses')
+  const duration = g.duration_type === 'lifetime' ? 'Lifetime' : (g.duration_days ? `${g.duration_days}d` : '—')
+  return `${access} · ${duration}`
+}
+
 onMounted(() => {
   fetchAll()
+  fetchAllowlist()
   loadDemoPersonas()
 })
 </script>
@@ -690,6 +790,105 @@ onMounted(() => {
           </button>
         </div>
       </form>
+    </div>
+
+    <!-- Allowlist (grant by email) — pre-grant free access, no code needed -->
+    <div class="schools-card allowlist-panel">
+      <div class="panel-head">
+        <span class="schools-kicker">Allowlist — grant access by email</span>
+      </div>
+
+      <Transition name="fade">
+        <div v-if="allowlistResult" class="banner banner-success allowlist-banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+          <span>{{ allowlistResult }}</span>
+        </div>
+      </Transition>
+
+      <form class="allowlist-form" @submit.prevent="grantEmails">
+        <p class="allowlist-hint">
+          Paste emails (one per line, or comma-separated). Those users get free
+          access automatically when they sign in — no code to type. Already
+          signed-up waiting users are granted immediately.
+        </p>
+
+        <div class="field field-wide">
+          <label class="schools-kicker">Emails</label>
+          <textarea
+            v-model="allowlistEmails"
+            class="frost-input allowlist-textarea"
+            rows="5"
+            placeholder="alice@example.com&#10;bob@example.com, carol@example.com"
+          ></textarea>
+          <span v-if="parsedAllowlistEmails.length" class="allowlist-count">
+            {{ parsedAllowlistEmails.length }} valid email{{ parsedAllowlistEmails.length > 1 ? 's' : '' }}
+          </span>
+        </div>
+
+        <div class="allowlist-row">
+          <div class="field">
+            <label class="schools-kicker">Access</label>
+            <select v-model="allowlistAccessType" class="frost-select">
+              <option value="full">Full / Lifetime (default)</option>
+              <option value="courses" disabled>Specific courses — use a code for now</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="schools-kicker">Label <span class="optional">(optional)</span></label>
+            <input
+              v-model="allowlistLabel"
+              type="text"
+              class="frost-input"
+              placeholder="e.g. Surrey pilot waitlist"
+            />
+          </div>
+        </div>
+
+        <div class="field-actions">
+          <button
+            type="submit"
+            class="btn-primary"
+            :disabled="isGrantingEmails || parsedAllowlistEmails.length === 0"
+          >
+            <svg v-if="!isGrantingEmails" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span v-else class="spinner"></span>
+            {{ isGrantingEmails ? 'Granting…' : 'Grant access' }}
+          </button>
+        </div>
+      </form>
+
+      <div v-if="allowlistGrants.length" class="allowlist-list">
+        <table class="codes-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Access</th>
+              <th>Label</th>
+              <th>Claimed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="g in allowlistGrants" :key="g.id" :class="{ 'is-inactive': !g.is_active }">
+              <td class="cell-org">{{ g.email }}</td>
+              <td class="cell-muted">{{ formatGrantAccess(g) }}</td>
+              <td class="cell-muted">{{ g.label || '—' }}</td>
+              <td>
+                <span class="status-pill" :class="g.redeemed_at ? 'is-active' : 'is-disabled'">
+                  <span class="status-dot"></span>
+                  {{ g.redeemed_at ? 'Claimed' : 'Pending' }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Codes list — table inside panel canon §5.3 -->
@@ -1207,6 +1406,58 @@ onMounted(() => {
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Allowlist panel */
+.allowlist-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.allowlist-banner {
+  margin: var(--space-3) var(--space-6) 0;
+}
+
+.allowlist-form {
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.allowlist-hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--schools-fg-2, #6b6258);
+  max-width: 64ch;
+}
+
+.allowlist-textarea {
+  resize: vertical;
+  min-height: 96px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.allowlist-count {
+  font-size: var(--text-xs);
+  color: rgb(var(--tone-green));
+  font-weight: var(--font-medium);
+}
+
+.allowlist-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.allowlist-list {
+  border-top: 1px solid rgba(44, 38, 34, 0.06);
+}
+
+@media (max-width: 768px) {
+  .allowlist-row { grid-template-columns: 1fr; }
+}
 
 /* Codes table */
 .codes-panel {

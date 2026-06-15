@@ -14,6 +14,7 @@ import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 
 // Local storage keys
@@ -407,7 +408,7 @@ export function useAuth(): AuthState & AuthActions {
 
     // Listen for auth state changes (sign in, sign out, token refresh)
     // Register listener early so we catch any auth events during session check
-    supabaseClient.auth.onAuthStateChange((_event, session) => {
+    supabaseClient.auth.onAuthStateChange((event, session) => {
       handleAuthChange(session?.user ?? null)
       // Keep the iOS install hand-off bridge current (browser context
       // only; writeAuthHandoff no-ops in standalone). null on sign-out
@@ -417,6 +418,11 @@ export function useAuth(): AuthState & AuthActions {
           ? { access_token: session.access_token, refresh_token: session.refresh_token }
           : null,
       )
+      // On sign-in, claim any email-allowlist (pre-granted) free access.
+      // Idempotent and best-effort — never blocks or breaks the auth flow.
+      if (event === 'SIGNED_IN' && session?.access_token) {
+        void useAccessClaim().claimAccess(session.access_token)
+      }
     })
 
     // Check for existing Supabase Auth session with a timeout.

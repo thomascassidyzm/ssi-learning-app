@@ -10,6 +10,7 @@ import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { useInviteCode } from './composables/useInviteCode'
+import { useAccessClaim } from './composables/useAccessClaim'
 import { useAuthModal } from './composables/useAuthModal'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { useSharedSubscription } from './composables/useSubscription'
@@ -488,6 +489,21 @@ onMounted(async () => {
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
       await Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+
+      // Claim any email-allowlist (pre-granted) free access for a restored /
+      // already-signed-in session — onAuthStateChange's SIGNED_IN doesn't fire
+      // for a session restored on load, so this covers returning users.
+      // Idempotent; refreshes entitlements itself if anything was granted.
+      if (auth.learner.value) {
+        try {
+          const { data: { session } } = await supabaseClient.value.auth.getSession()
+          if (session?.access_token) {
+            await useAccessClaim().claimAccess(session.access_token)
+          }
+        } catch (e) {
+          console.warn('[App] Access claim failed (non-fatal):', e)
+        }
+      }
 
       // Handle ?code= URL parameter for invite codes
       try {
