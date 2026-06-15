@@ -268,9 +268,9 @@ const cohortTicks = computed<number[]>(() => {
 .rc-head-main { display: flex; flex-direction: column; gap: 4px; }
 .rc-metric-kicker {
   font-size: 10px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(var(--tone-red), 1);
+  color: rgba(var(--tone-accent), 1);
 }
 .rc-value-row { display: flex; align-items: baseline; gap: 8px; }
 .rc-value {
@@ -280,6 +280,7 @@ const cohortTicks = computed<number[]>(() => {
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--ink-primary);
+  text-shadow: 0 0 18px rgba(var(--tone-accent), 0.28);
 }
 .rc-unit { font-size: 15px; color: var(--ink-secondary); }
 .rc-entity-label { font-size: 13px; color: var(--ink-muted); }
@@ -339,7 +340,7 @@ const cohortTicks = computed<number[]>(() => {
   overflow: visible;
 }
 .rc-bar { height: 100%; border-radius: 5px; }
-.rc-bar.entity { background: rgba(var(--tone-blue), 0.85); }
+.rc-bar.entity { background: rgba(var(--tone-accent), 0.88); }
 .rc-bar.average { background: rgba(44, 38, 34, 0.28); }
 .rc-avg-line {
   position: absolute;
@@ -373,7 +374,7 @@ const cohortTicks = computed<number[]>(() => {
 .rc-dist-legend { display: inline-flex; align-items: center; gap: 14px; font-size: 10.5px; color: var(--ink-muted); }
 .rc-leg-item { display: inline-flex; align-items: center; gap: 6px; }
 .rc-leg-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.rc-leg-dot.you { background: rgba(var(--tone-blue), 0.95); box-shadow: 0 0 0 2px rgba(var(--tone-blue), 0.25); }
+.rc-leg-dot.you { background: rgba(var(--tone-accent), 0.95); box-shadow: 0 0 0 2px rgba(var(--tone-accent), 0.25); }
 .rc-leg-line { width: 14px; height: 0; border-top: 2px dashed var(--ink-secondary); display: inline-block; opacity: 0.8; }
 
 /* The strip itself */
@@ -396,8 +397,8 @@ const cohortTicks = computed<number[]>(() => {
   top: 50%;
   transform: translateY(-50%);
   height: 22px;
-  background: rgba(var(--tone-green), 0.22);
-  border: 1px solid rgba(var(--tone-green-ink), 0.55);
+  background: rgba(44, 38, 34, 0.05);
+  border: 1px solid rgba(44, 38, 34, 0.14);
   border-radius: 6px;
 }
 /* median tick inside the band */
@@ -407,7 +408,7 @@ const cohortTicks = computed<number[]>(() => {
   transform: translateY(-50%);
   width: 2px;
   height: 22px;
-  background: rgba(var(--tone-green-ink), 0.9);
+  background: rgba(44, 38, 34, 0.32);
 }
 /* unlabelled cohort points — anonymous shape only */
 .rc-strip-tick {
@@ -450,8 +451,8 @@ const cohortTicks = computed<number[]>(() => {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: rgba(var(--tone-blue), 0.95);
-  box-shadow: 0 0 0 3px rgba(var(--tone-blue), 0.22);
+  background: rgba(var(--tone-accent), 1);
+  box-shadow: 0 0 0 3px rgba(var(--tone-accent), 0.18), 0 0 10px rgba(var(--tone-accent), 0.55);
 }
 .rc-strip-you-cap {
   position: absolute;
@@ -460,7 +461,7 @@ const cohortTicks = computed<number[]>(() => {
   transform: translateX(-50%);
   font-size: 11px;
   font-weight: 600;
-  color: rgba(var(--tone-blue), 1);
+  color: rgba(var(--tone-accent), 1);
   white-space: nowrap;
 }
 /* quartile scale labels */

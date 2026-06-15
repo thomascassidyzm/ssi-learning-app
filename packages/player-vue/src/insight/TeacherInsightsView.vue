@@ -257,12 +257,21 @@ const scopeLabel = computed(() =>
 
 /* ── Warm teacher header ── */
 .tiv-head { display: flex; flex-direction: column; gap: 6px; padding-bottom: 6px; }
+/* One subtle brand mark — a short SSi-red rule under the header block. */
+.tiv-head::after {
+  content: '';
+  width: 40px;
+  height: 2px;
+  margin-top: 4px;
+  border-radius: 1px;
+  background: rgba(var(--tone-accent), 0.9);
+}
 .tiv-kicker {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(var(--tone-green-ink), 1);
+  color: rgba(var(--tone-accent), 1);
 }
 .tiv-title {
   font-family: var(--font-display);
@@ -314,11 +323,11 @@ const scopeLabel = computed(() =>
   cursor: pointer;
   transition: border-color 140ms ease;
 }
-.tiv-select:hover { border-color: rgba(var(--tone-green), 0.40); }
+.tiv-select:hover { border-color: rgba(var(--tone-accent), 0.55); }
 .tiv-select:focus {
   outline: none;
-  border-color: rgba(var(--tone-green), 0.55);
-  box-shadow: 0 0 0 3px rgba(var(--tone-green), 0.10);
+  border-color: rgba(var(--tone-accent), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--tone-accent), 0.12);
 }
 
 /* ── Segmented drill switch ── */
@@ -336,7 +345,11 @@ const scopeLabel = computed(() =>
 }
 .tiv-seg + .tiv-seg { border-left: 1px solid rgba(44, 38, 34, 0.12); }
 .tiv-seg:hover:not(.active) { color: var(--ink-primary); }
-.tiv-seg.active { background: rgba(var(--tone-green), 0.16); color: rgba(var(--tone-green-ink), 1); }
+.tiv-seg.active {
+  background: rgba(var(--tone-accent), 0.10);
+  color: rgba(var(--tone-accent), 1);
+  box-shadow: inset 0 -2px 0 rgba(var(--tone-accent), 0.9);
+}
 
 /* ── Measure description ── */
 .tiv-metric-desc {

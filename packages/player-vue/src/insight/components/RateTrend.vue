@@ -46,6 +46,12 @@ const periodLabels = computed(() => {
   return Array.from({ length: n }, (_, i) => (i === n - 1 ? 'now' : `-${n - 1 - i}`))
 })
 
+// Entity = SSi brand red (#c23a3a / --tone-accent); average = neutral grey
+// (--ink-muted #8A8078). Kept as literals so the entity/average split is the
+// fixed brand scheme regardless of the resolved Frostwell palette.
+const ENTITY_RED = '#c23a3a'
+const AVERAGE_GREY = '#8A8078'
+
 function buildOption(): Record<string, unknown> {
   const p = palette()
   return {
@@ -87,8 +93,9 @@ function buildOption(): Record<string, unknown> {
         symbol: 'circle',
         symbolSize: 5,
         showSymbol: false,
-        lineStyle: { color: p.blue, width: 2.4 },
-        itemStyle: { color: p.blue },
+        // SSi brand red (#c23a3a / --tone-accent) — the entity is the identity/focus line.
+        lineStyle: { color: ENTITY_RED, width: 2.4, shadowColor: 'rgba(194,58,58,0.5)', shadowBlur: 8 },
+        itemStyle: { color: ENTITY_RED },
         data: props.entity ?? [],
         z: 3,
       },
@@ -97,8 +104,9 @@ function buildOption(): Record<string, unknown> {
         type: 'line',
         smooth: true,
         symbol: 'none',
-        lineStyle: { color: p.ink3, width: 1.6, type: 'dashed' },
-        itemStyle: { color: p.ink3 },
+        // Neutral grey dashed — clearly the secondary cohort line.
+        lineStyle: { color: AVERAGE_GREY, width: 1.6, type: 'dashed' },
+        itemStyle: { color: AVERAGE_GREY },
         data: props.average ?? [],
         z: 2,
       },
