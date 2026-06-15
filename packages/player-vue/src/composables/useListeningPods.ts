@@ -56,6 +56,9 @@ export interface PodTurn {
    *  stage-pattern playback modes (target/translation/explainer per
    *  sentence) and the interleaved gloss display. */
   sentences: Array<{
+    /** listening_pod_sentences.id — lets the admin audit walk resolve the
+     *  per-atom Stage-0 clips for this sentence. */
+    id: string
     targetText: string
     knownText: string
     targetAudioId: string | null
@@ -208,6 +211,7 @@ export function useListeningPods(
        */
       const mergeTurns = (sentences: PodSentence[]): PodTurn[] => {
         const sentenceDetail = (s: PodSentence) => ({
+          id: s.id,
           targetText: s.targetText,
           knownText: s.knownText,
           targetAudioId: s.targetAudioId,

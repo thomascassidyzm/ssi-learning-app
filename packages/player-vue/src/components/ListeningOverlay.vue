@@ -8,6 +8,8 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { useUserRole } from '../composables/useUserRole'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { ROLE_SPEED } from '../composables/usePodLapScheduler'
+import { usePodStage0 } from '../composables/usePodStage0'
+import { tierSequence, foldEventsToPlays } from '../composables/stage0Sequence'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 
@@ -306,6 +308,12 @@ const showSpeedRow = computed(
 // selected scene (null = scene list visible, set = teleprompter mode).
 const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
+// Stage-0 atom resolution for the admin Progression walk — lets buildAuditQueue
+// prepend the 5-tier breakdown before Stages 1-N. Loaded lazily when audit is on.
+const podStage0 = usePodStage0(courseCodeRef)
+watch([() => isSsiAdmin.value, courseCodeRef], ([admin, code]) => {
+  if (admin && code) podStage0.load()
+}, { immediate: true })
 const selectedScene = ref(null)
 
 // Pagination
@@ -986,10 +994,26 @@ const buildAuditQueue = (sentences) => {
     .map(Number)
     .filter((n) => !Number.isNaN(n))
     .sort((a, b) => a - b)
-  const total = stages.length
+  const podsTotal = stages.length
+  const s0cfg = algoConfig.stage0Config.value
+  const s0tiers = s0cfg?.tiers || []
   const queue = []
   for (let ci = 0; ci < sentences.length; ci++) {
     const s = sentences[ci]
+    const chunk = ci + 1
+    const chunks = sentences.length
+    // STAGE 0 FIRST — the 5-tier per-atom breakdown (live from algorithm_config
+    // .stage0), resolved to its [atom] / means-gloss / take / translation clips.
+    // (Was missing: the Progression walk used to start at Stage 1.)
+    const resolved = s.id ? podStage0.resolveSentence(s.id) : null
+    if (resolved && s0tiers.length) {
+      for (const tier of s0tiers) {
+        for (const p of foldEventsToPlays(tierSequence(tier, resolved.atoms, resolved.clips, s0cfg))) {
+          queue.push({ id: p.audioId, rate: p.speed || 1, stage: `0 · ${tier.key}`, total: podsTotal, role: p.role, chunk, chunks })
+        }
+      }
+    }
+    // THEN Stages 1-N — the whole-sentence behaviours from algorithm_config.pods.
     for (const stage of stages) {
       for (const role of playlist[stage] || []) {
         const id = role === 'trans'
@@ -998,15 +1022,7 @@ const buildAuditQueue = (sentences) => {
             ? (s.explainerAudioId || s.knownAudioId) // explainer → translation fallback
             : s.targetAudioId // ps / ps08x / ps15x / ps2x
         if (!id) continue
-        queue.push({
-          id,
-          rate: ROLE_SPEED[role] ?? 1,
-          stage,
-          total,
-          role,
-          chunk: ci + 1,
-          chunks: sentences.length,
-        })
+        queue.push({ id, rate: ROLE_SPEED[role] ?? 1, stage: String(stage), total: podsTotal, role, chunk, chunks })
       }
     }
   }
@@ -1026,6 +1042,13 @@ const audioIdsForWarm = (phrase) => {
       if (listenMode.value === 'audit') {
         if (s.knownAudioId) ids.push(s.knownAudioId)
         if (s.explainerAudioId) ids.push(s.explainerAudioId)
+        // Stage-0 walk also plays each atom's [atom] target + means-gloss clip —
+        // warm those too or the breakdown stutters fetching mid-list.
+        const resolved = s.id ? podStage0.resolveSentence(s.id) : null
+        for (const a of resolved?.atoms || []) {
+          if (a.targetClipId) ids.push(a.targetClipId)
+          if (a.meansGlossClipId) ids.push(a.meansGlossClipId)
+        }
       }
     }
     return ids
@@ -1814,7 +1837,7 @@ watch(
       class="audit-badge"
       @click.stop
     >
-      <span class="audit-stage">Stage {{ auditStatus.stage }}/{{ auditStatus.total }}</span>
+      <span class="audit-stage">Stage {{ auditStatus.stage }}</span>
       <span class="audit-role">{{ auditStatus.role }}</span>
       <span v-if="auditStatus.chunks > 1" class="audit-chunk">line {{ auditStatus.chunk }}/{{ auditStatus.chunks }}</span>
     </div>
