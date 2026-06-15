@@ -249,21 +249,26 @@ const BASE_LISTEN_MODES = [
 const AUDIT_LISTEN_MODE = {
   key: 'audit',
   label: 'Progression',
-  desc: 'Admin: walk each line through all 9 acquisition stages, live from the listening config',
+  desc: 'Admin: walk each line through every acquisition stage, live from the listening config',
 }
-// Admin audit availability: role + the Settings toggle (re-read live so
-// flipping the toggle in Settings reflects without a reload).
+// Admin audit availability: just the ssi_admin role. (Previously also required a
+// Settings → Developer toggle, which only buried the pill — admins want it as a
+// plain third pill alongside Immersion/Drill. Tom 2026-06-15.)
 const { isSsiAdmin } = useUserRole()
-const auditToggle = ref(localStorage.getItem('ssi-listening-audit') === 'true')
-const onSettingChanged = (e) => {
-  if (e?.detail?.key === 'listeningAudit') auditToggle.value = !!e.detail.value
-}
-const auditAvailable = computed(() => isSsiAdmin.value && auditToggle.value)
+const auditAvailable = computed(() => isSsiAdmin.value)
 const LISTEN_MODES = computed(() =>
   auditAvailable.value ? [...BASE_LISTEN_MODES, AUDIT_LISTEN_MODE] : BASE_LISTEN_MODES,
 )
 const validModeKeys = computed(() => new Set(LISTEN_MODES.value.map((m) => m.key)))
 const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')
+// Index of the active mode — drives the segmented control's sliding thumb (a
+// persistent pill moved by transform, NOT a per-button background that toggles;
+// iOS Safari fails to repaint a toggled background inside the rounded track,
+// which left the selected pill rendering as invisible white-on-white).
+const activeModeIndex = computed(() => {
+  const i = LISTEN_MODES.value.findIndex((m) => m.key === listenMode.value)
+  return i < 0 ? 0 : i
+})
 watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) } catch {} })
 // Keep the selection valid: a retired key (Flow/Guided/Practice/Turbo) — or
 // 'audit' when it's no longer available — falls back to the default.
@@ -1517,7 +1522,6 @@ onMounted(async () => {
   else isLoading.value = false
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('ssi-setting-changed', onSettingChanged)
   // Warm the live pod stage config for the admin audit walk (cached singleton —
   // a fast no-op if the main flow already loaded it this session).
   if (auditAvailable.value) algoConfig.loadConfigs()
@@ -1529,7 +1533,6 @@ onUnmounted(() => {
   releaseWakeLock()
   clearMediaSession()
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  window.removeEventListener('ssi-setting-changed', onSettingChanged)
   // Cancel any in-flight pack download
   if (packState.value === 'downloading') {
     packState.value = 'idle'
@@ -2047,7 +2050,12 @@ watch(
  * unmistakably as a toggle. */
 .mode-selector {
   display: flex;
-  flex: 1 1 auto;
+  /* Sit at content width, centred between the loop glyph and the gloss eye —
+   * NOT full-width (it looked absurd stretched edge-to-edge on desktop). Caps
+   * at a sensible pill-group width; still shrinks on narrow screens. */
+  flex: 0 1 auto;
+  max-width: 24rem;
+  margin-inline: auto;
   min-width: 0;
   gap: 0;
   padding: 2px;
@@ -2055,6 +2063,11 @@ watch(
   border-radius: 999px;
   overflow: hidden;
   background: var(--bg-elevated);
+}
+
+.mode-btn {
+  /* a comfortable readable pill, not a stretched bar */
+  min-width: 5.5rem;
 }
 
 .mode-btn {
