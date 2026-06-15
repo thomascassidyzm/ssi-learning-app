@@ -3,6 +3,8 @@ import {
   tierSequence,
   buildLadder,
   sequenceDurationMs,
+  foldEventsToPlays,
+  stage0ViewFor,
   DEFAULT_STAGE0,
   type ResolvedAtom,
   type SentenceClips,
@@ -122,5 +124,46 @@ describe('buildLadder', () => {
     const ms = sequenceDurationMs(tierSequence(tierByKey('intention'), ATOMS, CLIPS, DEFAULT_STAGE0), dur)
     // whole(1000) + tm gap(500) + trans(1000) = 2500
     expect(ms).toBe(2500)
+  })
+})
+
+describe('foldEventsToPlays', () => {
+  it('folds gaps onto the preceding clip; last clip omits gapAfterMs', () => {
+    const events = tierSequence(tierByKey('pairs200'), ATOMS, CLIPS, DEFAULT_STAGE0)
+    const plays = foldEventsToPlays(events)
+    expect(plays.map((p) => p.audioId)).toEqual(['t1', 't2', 't3', 'trans'])
+    expect(plays[0].gapAfterMs).toBe(DEFAULT_STAGE0.gaps.fusionPairs) // 200 after t1
+    expect(plays[1].gapAfterMs).toBe(DEFAULT_STAGE0.gaps.fusionPairs) // 200 after t2
+    expect(plays[2].gapAfterMs).toBe(DEFAULT_STAGE0.gaps.targetMeaning) // 500 t3→trans
+    expect(plays[3].gapAfterMs).toBeUndefined() // last clip → caller supplies the inter-sentence gap
+  })
+
+  it('sums consecutive gaps onto one clip', () => {
+    const events: Stage0Event[] = [
+      { type: 'clip', audioId: 'a', role: 'target', label: 'a', speed: 1, tier: 'x' },
+      { type: 'gap', ms: 100, kind: 'g', tier: 'x' },
+      { type: 'gap', ms: 50, kind: 'g', tier: 'x' },
+      { type: 'clip', audioId: 'b', role: 'target', label: 'b', speed: 1, tier: 'x' },
+    ]
+    const plays = foldEventsToPlays(events)
+    expect(plays[0].gapAfterMs).toBe(150)
+    expect(plays[1].gapAfterMs).toBeUndefined()
+  })
+})
+
+describe('stage0ViewFor — the prepend mapping', () => {
+  it('first 5 views are Stage-0 tiers 0..4 (one per view)', () => {
+    expect(stage0ViewFor(1, 5)).toEqual({ phase: 'stage0', tierIndex: 0 })
+    expect(stage0ViewFor(5, 5)).toEqual({ phase: 'stage0', tierIndex: 4 })
+  })
+
+  it('view 6 enters main stages with entry shifted by the tier count', () => {
+    expect(stage0ViewFor(6, 5)).toEqual({ phase: 'main', shift: 5 })
+    expect(stage0ViewFor(20, 5)).toEqual({ phase: 'main', shift: 5 })
+  })
+
+  it('tierCount 0 (Stage-0 disabled) → always main, no shift', () => {
+    expect(stage0ViewFor(1, 0)).toEqual({ phase: 'main', shift: 0 })
+    expect(stage0ViewFor(9, 0)).toEqual({ phase: 'main', shift: 0 })
   })
 })

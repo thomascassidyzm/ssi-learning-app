@@ -30,6 +30,15 @@
 
 import { ref, shallowRef, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  tierSequence,
+  resolveAtoms,
+  clipsFromRow,
+  foldEventsToPlays,
+  stage0ViewFor,
+  type Stage0Config,
+  type AtomMapEntry,
+} from './stage0Sequence'
 
 // ============================================================================
 // Pod stage logic — mirrors what was in generateLearningScript.ts
@@ -173,6 +182,10 @@ export interface PodSentenceRow {
    *  flow tight; the last chunk of an utterance gets the longer
    *  between-phrases pause. */
   glue_to_next: boolean
+  /** Ordered atom breakdown (Stage-0). Null/absent when the sentence wasn't
+   *  decomposed. Drives the prepended Stage-0 ladder; absent → the sentence
+   *  behaves exactly as before (no Stage-0 views). */
+  atom_map?: AtomMapEntry[] | null
 }
 
 export interface BookendAudio {
@@ -202,6 +215,12 @@ export interface PodPlay {
    *  the next play, rather than the standard between-phrases gap. False
    *  for plays mid-sentence — those use the within-chunk gap matrix. */
   glueToNextChunk: boolean
+  /** Stage-0 only: explicit gap (ms) to wait AFTER this play, taken from the
+   *  stage0 config rather than the role gap-matrix. When set, the runtime
+   *  player uses it verbatim; when undefined the normal matrix/glue logic
+   *  applies (so a Stage-0 sentence's LAST play still gets the between-phrases
+   *  gap to the next sentence). */
+  gapAfterMs?: number
 }
 
 export interface PodLap {
@@ -235,6 +254,11 @@ export interface UsePodLapSchedulerOptions {
    *  (every round). Stretches every stage proportionally because the
    *  pod-round ratchet only ticks on actual fires. */
   roundInterval?: Ref<number> | number
+  /** Stage-0 ladder config (algorithm_config['stage0']). When provided AND a
+   *  sentence has resolvable atoms, the sentence's first N views (N = number
+   *  of tiers) play the Stage-0 ladder before its existing Stages 1-9. Omit
+   *  (or empty tiers) → no Stage-0; behaviour identical to before. */
+  stage0?: Ref<Stage0Config | null | undefined> | Stage0Config | null
 }
 
 const isGuestLearner = (id: string | null | undefined): boolean => {
@@ -259,6 +283,12 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const introAudio = ref<BookendAudio | null>(null)
   const outroAudio = ref<BookendAudio | null>(null)
 
+  // Stage-0 course-wide lookups (built in init): lego_key → "means <gloss>"
+  // clip, and target_surface → "[atom] <target>" clip. Empty when the course
+  // has no Stage-0 data, which disables the prepend for every sentence.
+  let stage0MeansGloss = new Map<string, string>()
+  let stage0TargetClip = new Map<string, string>()
+
   /** Main-round at which pods START FIRING. NULL → use default 6. */
   const podActivationRound = ref<number>(DEFAULT_POD_ACTIVATION)
   /** Independent ratchet counter. Increments only on completed laps. */
@@ -279,7 +309,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
-          .select('global_order, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next')
+          .select('id, global_order, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true }),
         supabase
@@ -302,6 +332,25 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
 
       podSentences.value = (podsResult.data || []) as PodSentenceRow[]
+
+      // Stage-0 lookups — only when the ladder is enabled (config present) and
+      // at least one sentence carries an atom_map. Two small course-wide reads.
+      stage0MeansGloss = new Map()
+      stage0TargetClip = new Map()
+      const stage0Enabled = !!unwrap(options.stage0) && podSentences.value.some((s) => Array.isArray(s.atom_map) && s.atom_map.length > 0)
+      if (stage0Enabled) {
+        const [legoRes, atomRes] = await Promise.all([
+          supabase.from('pod_legos').select('lego_key, explainer_audio_id').eq('course_code', courseCode),
+          supabase.from('course_audio').select('id, text').eq('course_code', courseCode).eq('role', 'pod_explainer').like('text', '[atom] %'),
+        ])
+        for (const l of (legoRes.data || []) as Array<{ lego_key: string; explainer_audio_id: string | null }>) {
+          if (l.explainer_audio_id) stage0MeansGloss.set(l.lego_key, l.explainer_audio_id)
+        }
+        for (const a of (atomRes.data || []) as Array<{ id: string; text: string }>) {
+          const surface = a.text.slice('[atom] '.length)
+          if (!stage0TargetClip.has(surface)) stage0TargetClip.set(surface, a.id)
+        }
+      }
 
       const byRole = new Map<string, BookendAudio>()
       for (const row of (bookendsResult.data || []) as Array<{
@@ -411,6 +460,40 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
+   * Stage-0: build the PodPlays for ONE tier of one sentence. Resolves the
+   * sentence's atoms, runs the pure sequencer, and folds the inter-clip gaps
+   * into each play's gapAfterMs. The tier's LAST play omits gapAfterMs, so the
+   * normal between-phrases gap carries through to the next sentence.
+   */
+  const buildStage0Plays = (
+    sentence: PodSentenceRow,
+    tierKey: string,
+    sentenceIdx: number,
+    cfg: Stage0Config,
+  ): PodPlay[] => {
+    const tier = cfg.tiers.find((t) => t.key === tierKey)
+    if (!tier) return []
+    const atoms = resolveAtoms(sentence.atom_map, stage0MeansGloss, stage0TargetClip)
+    const events = tierSequence(tier, atoms, clipsFromRow(sentence), cfg)
+    return foldEventsToPlays(events).map((tp): PodPlay => {
+      const meaningRole = tp.role === 'translation' || tp.role === 'meaning' || tp.role === 'meansGloss'
+      return {
+        sentenceIdx,
+        stage: 0,
+        // playRole is cosmetic for Stage-0 (real speed + gap come from the
+        // fields below); kept to a known PodPlayRole so downstream role
+        // switches never hit an unexpected value.
+        playRole: meaningRole ? 'trans' : 'ps',
+        audioId: tp.audioId,
+        text: tp.label,
+        playbackSpeed: tp.speed || 1,
+        glueToNextChunk: false,
+        ...(tp.gapAfterMs != null ? { gapAfterMs: tp.gapAfterMs } : {}),
+      }
+    })
+  }
+
+  /**
    * Compose the lap that should play right now, based on the current ratchet
    * value. Returns null if there's nothing to play (no sentences, or every
    * sentence's audio is missing).
@@ -439,11 +522,32 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       liveDurations ?? (livePlaylist ? undefined : DEFAULT_STAGE_DURATIONS)
     const totalStages = Object.keys(stagePlaylistMap).length
 
+    const s0cfg = unwrap(options.stage0) as Stage0Config | null | undefined
+    const stage0Tiers = s0cfg?.tiers?.length ?? 0
+
     const plays: PodPlay[] = []
     for (let i = 1; i <= activeCount; i++) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
-      const stageInfo = podStageFor(i, podRound, stageDuration, totalStages, stageDurationsMap)
+
+      // ── Stage-0 prepend: a sentence with resolvable atoms spends its first
+      // N views (N = tier count) in the Stage-0 ladder, one tier per view,
+      // before its existing Stages 1-9. Sentences with no atoms are untouched.
+      const sentenceHasStage0 =
+        !!s0cfg &&
+        stage0Tiers > 0 &&
+        resolveAtoms(sentence.atom_map, stage0MeansGloss, stage0TargetClip).some((a) => a.targetClipId)
+      const alive = podRound - i + 1
+      const view = stage0ViewFor(alive, sentenceHasStage0 ? stage0Tiers : 0)
+      if (view.phase === 'stage0') {
+        // s0cfg is guaranteed truthy here (sentenceHasStage0 requires it), but
+        // guard for the type-checker — fall through harmlessly if ever null.
+        if (s0cfg) plays.push(...buildStage0Plays(sentence, s0cfg.tiers[view.tierIndex].key, i, s0cfg))
+        continue
+      }
+
+      // Main stages — entry shifts past the Stage-0 views so view N+1 = Stage 1.
+      const stageInfo = podStageFor(i + view.shift, podRound, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue

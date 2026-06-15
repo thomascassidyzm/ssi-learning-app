@@ -339,6 +339,7 @@ const {
   normalConfig,
   listeningConfig,
   podsConfig,
+  stage0Config,
   scriptShapeConfig,
   resumeConfig,
   isLoaded: algorithmConfigLoaded
@@ -3036,6 +3037,9 @@ const podScheduler = supabase?.value
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
+      // Stage-0 ladder (algorithm_config.stage0) — prepends 5 explainer views
+      // before Stages 1-9 for any sentence with atom data. Live-tunable.
+      stage0: computed(() => stage0Config.value),
     })
   : null
 
@@ -3768,6 +3772,10 @@ const eternalStage = computed(() => {
 })
 const podGapMs = (curr: PodPlay, next: PodPlay | null): number => {
   if (!next) return 0
+  // Stage-0 plays carry their own config-driven gap; honour it verbatim and
+  // bypass the role gap-matrix. (The tier's last play leaves gapAfterMs unset,
+  // so the between-phrases gap to the next sentence still comes from below.)
+  if (curr.gapAfterMs != null) return curr.gapAfterMs
   const gaps = podsConfig.value
   // Same chunk → role transition decides
   if (curr.sentenceIdx === next.sentenceIdx) {

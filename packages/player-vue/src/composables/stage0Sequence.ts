@@ -96,6 +96,57 @@ export interface SentenceClips {
   knownText: string
 }
 
+/** One entry of listening_pod_sentences.atom_map (ordered). */
+export interface AtomMapEntry {
+  lego_key: string
+  kind: 'atom' | 'passthrough' | 'note'
+  gloss: string
+  target_surface: string
+  target_start_ms?: number | null
+  target_end_ms?: number | null
+}
+
+/** Minimal sentence-row shape clipsFromRow reads (atom_map not needed here). */
+export interface PodSentenceLike {
+  target_audio_id: string | null
+  known_audio_id: string | null
+  target_text: string
+  known_text: string
+}
+
+/**
+ * Resolve a sentence's atom_map to playable ResolvedAtoms, joining two
+ * course-wide lookup maps:
+ *   - meansGlossByLego: lego_key → pod_legos.explainer_audio_id ("means <gloss>")
+ *   - targetClipBySurface: target_surface → course_audio "[atom] <target>" id
+ * Includes atom + passthrough entries in order (passthrough usually has no
+ * target clip and is skipped cleanly by the sequencer).
+ */
+export function resolveAtoms(
+  atomMap: AtomMapEntry[] | null | undefined,
+  meansGlossByLego: Map<string, string>,
+  targetClipBySurface: Map<string, string>,
+): ResolvedAtom[] {
+  return (atomMap || [])
+    .filter((e) => e.kind === 'atom' || e.kind === 'passthrough')
+    .map((e) => ({
+      targetSurface: e.target_surface,
+      gloss: e.gloss,
+      targetClipId: targetClipBySurface.get(e.target_surface) ?? null,
+      meansGlossClipId: meansGlossByLego.get(e.lego_key) ?? null,
+    }))
+}
+
+/** Pull the whole-take / translation clips off a sentence row. */
+export function clipsFromRow(row: PodSentenceLike): SentenceClips {
+  return {
+    wholeTakeId: row.target_audio_id,
+    translationId: row.known_audio_id,
+    targetText: row.target_text,
+    knownText: row.known_text,
+  }
+}
+
 export type Stage0Role =
   | 'target'
   | 'meaning'
@@ -252,4 +303,63 @@ export function sequenceDurationMs(
     else t += durMs(e.audioId) / (e.speed || 1)
   }
   return t
+}
+
+/** A clip ready to schedule: audio + the gap to wait AFTER it (if any). */
+export interface TimedPlay {
+  audioId: string
+  role: Stage0Role
+  label: string
+  speed: number
+  /** ms to wait after this clip. Undefined on the FINAL clip — the caller
+   *  supplies the inter-unit gap (e.g. the between-phrases gap to the next
+   *  sentence) so Stage-0 doesn't have to know about the surrounding lap. */
+  gapAfterMs?: number
+}
+
+/**
+ * Fold a clip/gap event list into clips that each carry their trailing gap.
+ * Consecutive gaps are summed onto the preceding clip; the final clip omits
+ * gapAfterMs. Used to drive a per-clip scheduler from a tier's events.
+ */
+export function foldEventsToPlays(events: Stage0Event[]): TimedPlay[] {
+  const out: TimedPlay[] = []
+  for (let k = 0; k < events.length; k++) {
+    const e = events[k]
+    if (e.type !== 'clip') continue
+    let gapAfter = 0
+    let hasNextClip = false
+    for (let m = k + 1; m < events.length; m++) {
+      const nx = events[m]
+      if (nx.type === 'gap') gapAfter += nx.ms
+      else {
+        hasNextClip = true
+        break
+      }
+    }
+    out.push({
+      audioId: e.audioId,
+      role: e.role,
+      label: e.label,
+      speed: e.speed,
+      ...(hasNextClip ? { gapAfterMs: gapAfter } : {}),
+    })
+  }
+  return out
+}
+
+/**
+ * Map a sentence's view count (1-based "alive") to where it sits in the
+ * prepended ladder: its first `tierCount` views are Stage-0 tiers (one per
+ * view), and everything after maps to the existing stages with the entry
+ * shifted by `tierCount` (so view tierCount+1 == Stage 1).
+ */
+export function stage0ViewFor(
+  alive: number,
+  tierCount: number,
+): { phase: 'stage0'; tierIndex: number } | { phase: 'main'; shift: number } {
+  if (tierCount > 0 && alive >= 1 && alive <= tierCount) {
+    return { phase: 'stage0', tierIndex: alive - 1 }
+  }
+  return { phase: 'main', shift: Math.max(0, tierCount) }
 }
