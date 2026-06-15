@@ -44,7 +44,7 @@ export const TRACKS: Record<OnboardingTrack, TrackConfig> = {
     trialDays: 365,
     trialLabel: '1 year free',
     heading: 'Set up your school',
-    blurb: 'Bring your minority language into every classroom — free for a full year.',
+    blurb: 'A full year free to bring your language to every classroom.',
     collectInstitution: true,
   },
   school_standard: {

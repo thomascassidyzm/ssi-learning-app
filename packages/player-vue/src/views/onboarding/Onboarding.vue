@@ -23,6 +23,21 @@ const step = ref<Step>('choose')
 
 const liveCourses = ref<LiveCourse[]>([])
 const courses = computed(() => coursesForTrack(liveCourses.value, props.track))
+// Search-first picker for the long tracks; the tile view stays for a handful.
+const langQuery = ref('')
+const showSearch = computed(() => courses.value.length > 8)
+const visibleCourses = computed(() => {
+  const q = langQuery.value.trim().toLowerCase()
+  // Long lists: wait for a search rather than dumping every language.
+  if (showSearch.value && !q) return []
+  if (!q) return courses.value
+  return courses.value.filter(
+    (c) =>
+      courseLabel(c).toLowerCase().includes(q) ||
+      c.course_code.toLowerCase().includes(q) ||
+      (c.target_lang || '').toLowerCase().includes(q)
+  )
+})
 const selectedCourse = ref('')
 const email = ref('')
 const otp = ref('')
@@ -249,9 +264,17 @@ async function continueIn() {
                real ARIA + keyboard/arrow navigation for free. -->
           <fieldset v-else class="ob-field ob-langset">
             <legend class="ob-label">Choose your language</legend>
-            <div v-if="courses.length" class="ob-lang-grid">
+            <input
+              v-if="showSearch"
+              v-model="langQuery"
+              type="search"
+              class="ob-input ob-lang-search"
+              placeholder="Search languages…"
+              aria-label="Search languages"
+            />
+            <div v-if="visibleCourses.length" class="ob-lang-grid">
               <label
-                v-for="c in courses"
+                v-for="c in visibleCourses"
                 :key="c.course_code"
                 class="ob-lang-tile"
                 :class="{ 'is-selected': selectedCourse === c.course_code }"
@@ -276,6 +299,8 @@ async function continueIn() {
               </label>
             </div>
             <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
+            <p v-else-if="showSearch && !langQuery" class="ob-muted">Start typing to find your language.</p>
+            <p v-else-if="langQuery" class="ob-muted">No languages match “{{ langQuery }}”.</p>
             <p v-else class="ob-muted">No languages available for this signup yet.</p>
           </fieldset>
 
@@ -741,6 +766,7 @@ async function continueIn() {
   min-width: 0;
 }
 .ob-langset { gap: var(--space-3, 0.75rem); }
+.ob-lang-search { margin-bottom: var(--space-1, 0.25rem); }
 .ob-label {
   padding: 0;
   font-family: var(--font-body);
