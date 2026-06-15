@@ -57,6 +57,18 @@ watch(knownLang, () => {
   selectedCourse.value = ''
   langQuery.value = ''
 })
+
+// Custom source-language dropdown (English pinned first, then A–Z).
+const knownOpen = ref(false)
+const knownOptions = computed(() =>
+  [...availableKnownLangs.value]
+    .map((code) => ({ code, name: knownLangName(code) }))
+    .sort((a, b) => (a.code === 'eng' ? -1 : b.code === 'eng' ? 1 : a.name.localeCompare(b.name)))
+)
+function selectKnown(code: string) {
+  knownLang.value = code
+  knownOpen.value = false
+}
 const email = ref('')
 const otp = ref('')
 const busy = ref(false)
@@ -267,19 +279,44 @@ async function continueIn() {
           <h1 class="ob-title">Which language will you teach?</h1>
           <p class="ob-sub">{{ cfg.blurb }}</p>
 
-          <!-- Source-language switcher — defaulted from the visitor's locale, so the
-               common case is one clean target list. Most never touch it. -->
-          <div v-if="availableKnownLangs.length > 1" class="ob-known">
-            <span class="ob-known-label">Your learners speak</span>
-            <select
-              v-model="knownLang"
-              class="ob-known-select"
-              aria-label="The language your learners already speak"
+          <!-- Source-language switcher — defaulted from locale; a custom on-brand
+               menu (not the native OS select). Most never touch it. -->
+          <div
+            v-if="availableKnownLangs.length > 1"
+            class="ob-known-wrap"
+            @keyup.escape="knownOpen = false"
+          >
+            <button
+              type="button"
+              class="ob-known"
+              :aria-expanded="knownOpen"
+              aria-haspopup="listbox"
+              @click="knownOpen = !knownOpen"
             >
-              <option v-for="k in availableKnownLangs" :key="k" :value="k">
-                {{ knownLangName(k) }}
-              </option>
-            </select>
+              <span class="ob-known-label">Your learners speak</span>
+              <span class="ob-known-value">{{ knownLangName(knownLang) }}</span>
+              <svg class="ob-known-caret" :class="{ open: knownOpen }" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M5 8l5 5 5-5" />
+              </svg>
+            </button>
+            <div v-if="knownOpen" class="ob-known-backdrop" @click="knownOpen = false"></div>
+            <ul v-if="knownOpen" class="ob-known-menu" role="listbox">
+              <li v-for="o in knownOptions" :key="o.code">
+                <button
+                  type="button"
+                  class="ob-known-opt"
+                  :class="{ 'is-on': o.code === knownLang }"
+                  role="option"
+                  :aria-selected="o.code === knownLang"
+                  @click="selectKnown(o.code)"
+                >
+                  <span>{{ o.name }}</span>
+                  <svg v-if="o.code === knownLang" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12.5l4.2 4.2L19 7" />
+                  </svg>
+                </button>
+              </li>
+            </ul>
           </div>
 
           <!-- Single pre-claimed hero card when the track offers one language -->
@@ -837,33 +874,83 @@ async function continueIn() {
 .ob-langset { gap: var(--space-3, 0.75rem); }
 .ob-lang-search { margin-bottom: var(--space-1, 0.25rem); }
 
-/* Source-language switcher — a quiet pill, defaulted from locale */
+/* Source-language switcher — a custom on-brand menu (not the native OS select) */
+.ob-known-wrap { position: relative; align-self: flex-start; }
 .ob-known {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2, 0.5rem);
-  align-self: flex-start;
-  padding: 5px 8px 5px 14px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(44, 38, 34, 0.10);
+  padding: 7px 10px 7px 16px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-full, 999px);
-  font-size: var(--text-sm, 0.875rem);
-}
-.ob-known-label { color: var(--text-muted, #6a6360); }
-.ob-known-select {
   font-family: var(--font-body);
   font-size: var(--text-sm, 0.875rem);
-  font-weight: var(--font-semibold, 600);
-  color: var(--ob-accent-ink);
-  background: transparent;
-  border: none;
-  padding: 2px 4px;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
-.ob-known-select:focus-visible {
-  outline: 2px solid var(--ob-accent-2);
-  outline-offset: 2px;
-  border-radius: 4px;
+.ob-known:hover { background: rgba(255, 255, 255, 0.92); border-color: rgba(44, 38, 34, 0.2); }
+.ob-known:focus-visible {
+  outline: none;
+  border-color: var(--ob-accent-2);
+  box-shadow: 0 0 0 3px var(--ob-accent-soft);
+}
+.ob-known-label { color: var(--text-muted, #6a6360); }
+.ob-known-value { color: var(--ob-accent-ink); font-weight: var(--font-semibold, 600); }
+.ob-known-caret {
+  width: 16px; height: 16px;
+  fill: none; stroke: var(--text-muted, #6a6360);
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  transition: transform 0.2s ease;
+}
+.ob-known-caret.open { transform: rotate(180deg); }
+.ob-known-backdrop { position: fixed; inset: 0; z-index: 40; }
+.ob-known-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 240px;
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 245, 0.96));
+  border: 1px solid rgba(44, 38, 34, 0.12);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: 0 20px 48px rgba(73, 3, 0, 0.18), 0 4px 12px rgba(73, 3, 0, 0.08);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+}
+.ob-known-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md, 8px);
+  font-family: var(--font-body);
+  font-size: var(--text-base, 1rem);
+  color: var(--text-primary, #0f1212);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.ob-known-opt:hover { background: var(--ob-accent-soft); }
+.ob-known-opt:focus-visible {
+  outline: none;
+  background: var(--ob-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--ob-accent-2);
+}
+.ob-known-opt.is-on { color: var(--ob-accent-ink); font-weight: var(--font-semibold, 600); }
+.ob-known-tick {
+  width: 18px; height: 18px; flex: none;
+  fill: none; stroke: var(--ob-accent-ink);
+  stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
 }
 .ob-label {
   padding: 0;
