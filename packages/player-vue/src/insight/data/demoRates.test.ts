@@ -53,17 +53,47 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     expect(out.entity.label).toBe(opts[0].label)
     expect(out.entity.trend).toHaveLength(8)
     expect(out.average.trend).toHaveLength(8)
-    // cohort lists ALL entities, sorted by value desc, exactly one flagged isEntity
-    expect(out.cohort.length).toBe(opts.length)
-    for (let i = 1; i < out.cohort.length; i++) {
-      expect(out.cohort[i - 1].value).toBeGreaterThanOrEqual(out.cohort[i].value)
-    }
-    expect(out.cohort.filter((c) => c.isEntity)).toHaveLength(1)
     // percentile in range; deltaPct sign agrees with entity-vs-average
     expect(out.percentile).toBeGreaterThanOrEqual(0)
     expect(out.percentile).toBeLessThanOrEqual(100)
     const expectUp = out.entity.value >= out.average.value
     expect(out.deltaPct >= 0).toBe(expectUp)
+  })
+
+  it('returns an ANONYMISED distribution summary (no other-entity identities)', () => {
+    const opts = listEntities('progressPace', 'class')
+    const out = getRateComparison('progressPace', 'class', opts[0].value, 'course avg')
+    const d = out.distribution
+
+    // PRIVACY: the contract carries NO cohort league and no other entity labels.
+    expect((out as unknown as Record<string, unknown>).cohort).toBeUndefined()
+    // Distribution exposes only numbers — no strings/labels for other points.
+    expect(Array.isArray(d.values)).toBe(true)
+    expect(d.values.every((v) => typeof v === 'number')).toBe(true)
+    // No other entity's name leaks anywhere in the serialised comparison.
+    const serialised = JSON.stringify(out)
+    for (const o of opts) {
+      if (o.label === out.entity.label) continue // "You" is allowed to appear
+      expect(serialised).not.toContain(o.label)
+    }
+
+    // Coherent quartile band: ordered, in-range, entity + average present.
+    expect(d.values.length).toBe(opts.length)
+    expect(d.min).toBeLessThanOrEqual(d.q1)
+    expect(d.q1).toBeLessThanOrEqual(d.median)
+    expect(d.median).toBeLessThanOrEqual(d.q3)
+    expect(d.q3).toBeLessThanOrEqual(d.max)
+    expect(typeof d.entityValue).toBe('number')
+    expect(d.entityValue).toBe(out.entity.value)
+    expect(d.averageValue).toBe(out.average.value)
+    // values are sorted ascending (an anonymous shape, not a ranked league)
+    for (let i = 1; i < d.values.length; i++) {
+      expect(d.values[i - 1]).toBeLessThanOrEqual(d.values[i])
+    }
+    // percentile mirrors the headline percentile, 0..100
+    expect(d.percentile).toBe(out.percentile)
+    expect(d.percentile).toBeGreaterThanOrEqual(0)
+    expect(d.percentile).toBeLessThanOrEqual(100)
   })
 
   it('the cohort leader is at-or-above every average cohort and reads as top percentile', () => {
@@ -73,6 +103,8 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     expect(out.entity.value).toBeGreaterThanOrEqual(out.average.value)
     expect(out.percentile).toBe(100)
     expect(out.deltaPct).toBeGreaterThanOrEqual(0)
+    // the leader is the max of the anonymised distribution
+    expect(out.distribution.entityValue).toBe(out.distribution.max)
   })
 
   it('attaches a position contextLine only for position-bearing metrics', () => {
@@ -90,12 +122,12 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
   it('falls back gracefully on unknown metric / entity / average (never throws)', () => {
     // unknown metric → empty shape
     const bad = getRateComparison('nope', 'class', 'x', 'course avg')
-    expect(bad.cohort).toEqual([])
+    expect(bad.distribution.values).toEqual([])
     expect(() => getRateComparison('nope', 'class', 'x', 'course avg')).not.toThrow()
 
     // unknown entity id → falls back to the leader (first), still coherent
     const out = getRateComparison('progressPace', 'class', 'does-not-exist', 'course avg')
-    expect(out.cohort.length).toBeGreaterThan(0)
+    expect(out.distribution.values.length).toBeGreaterThan(0)
     expect(out.entity.label).toBe(listEntities('progressPace', 'class')[0].label)
 
     // unknown average → falls back to the metric's first average

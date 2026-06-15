@@ -6,18 +6,24 @@
 // the METRIC, the ENTITY (and its level), and the AVERAGE cohort are all
 // swappable. RATE IS PRIMARY — position is only secondary `contextLine` context.
 //
-// Determinism: a seeded mulberry32 PRNG (mirrors demo.ts) so every named entity,
-// its headline rate, and its 8-period trend are stable across reloads. Each
-// (metric, entityLevel) pair gets its own derived seed so the populations don't
-// collide. getRateComparison() is total: it NEVER throws and always returns a
-// well-formed RateComparisonData (a clearly-labelled empty shape if a selection
-// is unknown), exactly like a resolver on the real path would.
+// Determinism: a seeded mulberry32 PRNG (mirrors demo.ts) so every synthetic
+// entity, its headline rate, and its 8-period trend are stable across reloads.
+// Each (metric, entityLevel) pair gets its own derived seed so the populations
+// don't collide. getRateComparison() is total: it NEVER throws and always
+// returns a well-formed RateComparisonData (a clearly-labelled empty shape if a
+// selection is unknown), exactly like a resolver on the real path would.
+//
+// PRIVACY (non-negotiable): the comparison is entity-vs-AGGREGATE only. Internal
+// synthetic names exist purely to seed the populations + drive the entity picker
+// (listEntities), but getRateComparison NEVER returns any other entity's name —
+// the cohort leaves only as an ANONYMISED distribution summary (a quartile band
+// + unlabelled values), with just the entity ("You") and the average marked.
 // ============================================================================
 
 import type {
   RateComparisonData,
   RateSeries,
-  RateCohortEntry,
+  RateDistribution,
 } from '../spec'
 
 // ── Seeded PRNG (mulberry32) — same shape as demo.ts ────────────────────────
@@ -334,6 +340,43 @@ function averageTrend(metric: HeroRate, pop: RateEntity[], averageId: string): n
   return out
 }
 
+// ── Anonymised distribution summary ─────────────────────────────────────────
+// Reduce the population to a privacy-safe SHAPE: the sorted (unlabelled) values
+// + a quartile band, with the entity ("You") and the average marked. NO entity
+// names leave this function — the cohort is an anonymous field of points.
+function linearQuantile(sortedAsc: number[], q: number): number {
+  const n = sortedAsc.length
+  if (n === 0) return 0
+  if (n === 1) return sortedAsc[0]
+  const pos = (n - 1) * q
+  const lo = Math.floor(pos)
+  const hi = Math.ceil(pos)
+  if (lo === hi) return sortedAsc[lo]
+  return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (pos - lo)
+}
+
+function buildDistribution(
+  metric: HeroRate,
+  pop: RateEntity[],
+  entityValue: number,
+  averageValue: number,
+  percentile: number,
+): RateDistribution {
+  // Sorted, UNLABELLED values — the anonymous shape of the field.
+  const values = pop.map((e) => e.value).sort((a, b) => a - b)
+  return {
+    values,
+    min: values.length ? values[0] : 0,
+    q1: round(linearQuantile(values, 0.25), metric.dp),
+    median: round(linearQuantile(values, 0.5), metric.dp),
+    q3: round(linearQuantile(values, 0.75), metric.dp),
+    max: values.length ? values[values.length - 1] : 0,
+    entityValue,
+    averageValue,
+    percentile,
+  }
+}
+
 // ── Public list helpers (the board's dropdowns read these) ──────────────────
 
 /** Entity options for a (metric, level): { value: id, label } sorted by value desc. */
@@ -365,7 +408,17 @@ function emptyComparison(metric?: HeroRate): RateComparisonData {
     deltaPct: 0,
     percentile: 0,
     contextLine: undefined,
-    cohort: [],
+    distribution: {
+      values: [],
+      min: 0,
+      q1: 0,
+      median: 0,
+      q3: 0,
+      max: 0,
+      entityValue: 0,
+      averageValue: 0,
+      percentile: 0,
+    },
   }
 }
 
@@ -414,12 +467,8 @@ export function getRateComparison(
     trend: avgTrend,
   }
 
-  const cohort: RateCohortEntry[] = pop.map((e) => ({
-    label: e.label,
-    value: e.value,
-    isEntity: e.id === entity.id,
-    belowAvg: e.value < avgValue,
-  }))
+  // PRIVACY: the cohort leaves only as an anonymised shape — no other names.
+  const distribution = buildDistribution(metric, pop, entity.value, avgValue, percentile)
 
   return {
     metricLabel: metric.label,
@@ -430,6 +479,6 @@ export function getRateComparison(
     deltaPct,
     percentile,
     contextLine: entity.context,
-    cohort,
+    distribution,
   }
 }

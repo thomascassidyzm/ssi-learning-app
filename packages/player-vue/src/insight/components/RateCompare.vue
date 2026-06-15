@@ -3,9 +3,14 @@
 // components/RateCompare.vue — the reusable "entity vs average" RATE widget.
 //
 // Renders a RateComparisonData (from data/demoRates.ts in demo, or a resolver on
-// the real path). RATE IS PRIMARY throughout: the big entity rate leads, the
-// delta-vs-average sits beside it, and the cohort league is the visual
-// centrepiece. Position (furthest LEGO) rides along as a small secondary line.
+// the real path). RATE IS PRIMARY throughout: the big entity rate leads and the
+// delta-vs-average sits beside it.
+//
+// PRIVACY (non-negotiable): an entity is compared ONLY to an aggregate/average,
+// NEVER to another named entity. The centrepiece is an ANONYMISED distribution
+// strip — a quartile band over the cohort with just TWO marks: "You" (the
+// selected entity) and the chosen average, plus the entity's percentile. No
+// other entity's name, label, or identity renders anywhere in this widget.
 //
 // Frostwell Courtyard chrome: schools-surface tokens, mono labels, Arsenal
 // display. NO hardcoded hex — tone/percentile colours come from CSS tokens.
@@ -19,7 +24,7 @@ import RateTrend from './RateTrend.vue'
 
 const props = defineProps<{ data: RateComparisonData }>()
 
-const isEmpty = computed(() => props.data.cohort.length === 0)
+const isEmpty = computed(() => props.data.distribution.values.length === 0)
 
 const perLabel = computed(() => {
   const { unit, per } = props.data
@@ -40,16 +45,16 @@ const deltaLabel = computed(() => {
   return `${sign}${Math.abs(d)}%`
 })
 
-// Cohort bar geometry: scale every bar against the max so the league reads clearly.
-const cohortMax = computed(() =>
-  props.data.cohort.reduce((m, c) => Math.max(m, c.value), 0) || 1,
+// Comparison-bar geometry: scale both bars against the entity/average max.
+const cmpMax = computed(() =>
+  Math.max(props.data.entity.value, props.data.average.value) || 1,
 )
 function barPct(v: number): number {
-  return Math.max(2, Math.round((v / cohortMax.value) * 100))
+  return Math.max(2, Math.round((v / cmpMax.value) * 100))
 }
-// Where the average marker line sits (as a % of the same scale).
+// Where the average marker line sits (as a % of the comparison scale).
 const avgLinePct = computed(() =>
-  Math.min(100, Math.round((props.data.average.value / cohortMax.value) * 100)),
+  Math.min(100, Math.round((props.data.average.value / cmpMax.value) * 100)),
 )
 
 // Percentile chip tone: top third good, mid neutral, bottom third warn.
@@ -58,6 +63,52 @@ const pctTone = computed(() => {
   if (p >= 66) return 'good'
   if (p >= 33) return 'neutral'
   return 'warn'
+})
+
+// ── Anonymised distribution strip geometry ──────────────────────────────────
+// The strip spans [min, max] of the cohort, padded a touch so the entity and
+// average markers never clip at the edges. Every position is a % along that
+// padded domain. Marks ONLY: the quartile band (Q1..Q3), the median tick, the
+// "You" dot, and the average line. The other cohort points are an unlabelled
+// shape (light ticks) — no names, ever.
+const dist = computed(() => props.data.distribution)
+
+const domain = computed(() => {
+  const d = dist.value
+  // Include the entity + average so their markers always sit inside the strip.
+  const lo = Math.min(d.min, d.entityValue, d.averageValue)
+  const hi = Math.max(d.max, d.entityValue, d.averageValue)
+  const span = hi - lo
+  const pad = span > 0 ? span * 0.06 : Math.abs(hi) * 0.06 || 1
+  return { lo: lo - pad, hi: hi + pad }
+})
+
+// Map a value to a 0..100 position along the padded domain.
+function pos(v: number): number {
+  const { lo, hi } = domain.value
+  if (hi <= lo) return 50
+  return Math.min(100, Math.max(0, ((v - lo) / (hi - lo)) * 100))
+}
+
+// Quartile band geometry (Q1 → Q3) and the median tick within it.
+const bandLeft = computed(() => pos(dist.value.q1))
+const bandWidth = computed(() => Math.max(0, pos(dist.value.q3) - pos(dist.value.q1)))
+const medianPos = computed(() => pos(dist.value.median))
+const youPos = computed(() => pos(dist.value.entityValue))
+const avgPos = computed(() => pos(dist.value.averageValue))
+
+// Unlabelled cohort points — an anonymous shape only (deduped positions so the
+// strip doesn't stack identical ticks). Carry NO label/identity, just a %.
+const cohortTicks = computed<number[]>(() => {
+  const seen = new Set<number>()
+  const out: number[] = []
+  for (const v of dist.value.values) {
+    const p = Math.round(pos(v) * 2) / 2 // 0.5% buckets
+    if (seen.has(p)) continue
+    seen.add(p)
+    out.push(p)
+  }
+  return out
 })
 </script>
 
@@ -120,32 +171,58 @@ const pctTone = computed(() => {
         />
       </div>
 
-      <!-- ── Cohort league — the centrepiece ── -->
-      <div class="rc-cohort">
-        <div class="rc-cohort-head">
-          <span class="rc-section-label">Cohort · all {{ data.cohort.length }}, ranked by rate</span>
-          <span class="rc-cohort-legend">
-            <span class="rc-legend-dot avg" /> {{ data.average.label }} ({{ fmt(data.average.value) }})
+      <!-- ── Anonymised distribution — the centrepiece (privacy-safe) ── -->
+      <!-- The whole cohort as a SHAPE: quartile band + unlabelled points, with
+           only "You" and the average marked. No other entity is named. -->
+      <div class="rc-dist">
+        <div class="rc-dist-head">
+          <span class="rc-section-label">
+            Where you sit · cohort of {{ data.distribution.values.length }} (anonymised)
+          </span>
+          <span class="rc-dist-legend">
+            <span class="rc-leg-item"><span class="rc-leg-dot you" /> You</span>
+            <span class="rc-leg-item"><span class="rc-leg-line avg" /> {{ data.average.label }}</span>
           </span>
         </div>
-        <ul class="rc-cohort-list">
-          <li
-            v-for="(c, i) in data.cohort"
-            :key="c.label + i"
-            :class="['rc-cohort-item', { selected: c.isEntity }]"
-          >
-            <span class="rc-cohort-rank">{{ i + 1 }}</span>
-            <span class="rc-cohort-name">{{ c.label }}</span>
-            <div class="rc-cohort-track">
-              <div
-                :class="['rc-cohort-bar', c.belowAvg ? 'below' : 'above', { selected: c.isEntity }]"
-                :style="{ width: barPct(c.value) + '%' }"
-              />
-              <div class="rc-cohort-avg" :style="{ left: avgLinePct + '%' }" />
-            </div>
-            <span class="rc-cohort-val">{{ fmt(c.value) }}</span>
-          </li>
-        </ul>
+
+        <div class="rc-strip">
+          <!-- whiskers: min → max baseline -->
+          <div class="rc-strip-axis" />
+          <!-- quartile band Q1..Q3 -->
+          <div class="rc-strip-band" :style="{ left: bandLeft + '%', width: bandWidth + '%' }" />
+          <!-- median tick -->
+          <div class="rc-strip-median" :style="{ left: medianPos + '%' }" />
+          <!-- unlabelled cohort points — an anonymous shape, no identities -->
+          <div
+            v-for="(p, i) in cohortTicks"
+            :key="'tk' + i"
+            class="rc-strip-tick"
+            :style="{ left: p + '%' }"
+            aria-hidden="true"
+          />
+          <!-- the chosen AVERAGE line -->
+          <div class="rc-strip-avg" :style="{ left: avgPos + '%' }">
+            <span class="rc-strip-avg-cap">avg</span>
+          </div>
+          <!-- YOU — the only named entity (the selected one) -->
+          <div class="rc-strip-you" :style="{ left: youPos + '%' }">
+            <span class="rc-strip-you-dot" />
+            <span class="rc-strip-you-cap">You · {{ fmt(data.distribution.entityValue) }}</span>
+          </div>
+        </div>
+
+        <!-- quartile scale labels (values only — no identities) -->
+        <div class="rc-strip-scale">
+          <span>min {{ fmt(data.distribution.min) }}</span>
+          <span>Q1 {{ fmt(data.distribution.q1) }}</span>
+          <span>med {{ fmt(data.distribution.median) }}</span>
+          <span>Q3 {{ fmt(data.distribution.q3) }}</span>
+          <span>max {{ fmt(data.distribution.max) }}</span>
+        </div>
+
+        <p class="rc-dist-foot">
+          You're at the <strong>{{ data.percentile }}th percentile</strong> of this cohort.
+        </p>
       </div>
 
       <!-- ── Secondary position context (rate stays the hero) ── -->
@@ -276,68 +353,131 @@ const pctTone = computed(() => {
 /* ── Trend ── */
 .rc-trend-block { display: flex; flex-direction: column; gap: 8px; }
 
-/* ── Cohort centrepiece ── */
-.rc-cohort {
+/* ── Anonymised distribution centrepiece ── */
+.rc-dist {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 18px;
+  gap: 12px;
+  padding: 18px 20px 16px;
   background: var(--schools-card, #fff);
   border: 1px solid rgba(44, 38, 34, 0.10);
   border-radius: 12px;
 }
-.rc-cohort-head {
+.rc-dist-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
 }
-.rc-cohort-legend { font-size: 10.5px; color: var(--ink-muted); display: inline-flex; align-items: center; gap: 6px; }
-.rc-legend-dot { display: inline-block; width: 14px; height: 0; border-top: 2px solid var(--ink-secondary); opacity: 0.7; }
-.rc-cohort-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-.rc-cohort-item {
-  display: grid;
-  grid-template-columns: 22px 150px 1fr 52px;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px;
-  border-radius: 7px;
-  transition: background 140ms ease;
+.rc-dist-legend { display: inline-flex; align-items: center; gap: 14px; font-size: 10.5px; color: var(--ink-muted); }
+.rc-leg-item { display: inline-flex; align-items: center; gap: 6px; }
+.rc-leg-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.rc-leg-dot.you { background: rgba(var(--tone-blue), 0.95); box-shadow: 0 0 0 2px rgba(var(--tone-blue), 0.25); }
+.rc-leg-line { width: 14px; height: 0; border-top: 2px dashed var(--ink-secondary); display: inline-block; opacity: 0.8; }
+
+/* The strip itself */
+.rc-strip {
+  position: relative;
+  height: 56px;
+  margin-top: 18px;     /* headroom for the "You" caption above */
 }
-.rc-cohort-item.selected {
-  background: rgba(var(--tone-blue), 0.08);
-  box-shadow: inset 0 0 0 1px rgba(var(--tone-blue), 0.30);
+.rc-strip-axis {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px solid rgba(44, 38, 34, 0.18);
 }
-.rc-cohort-rank { font-size: 10.5px; color: var(--ink-faint); text-align: right; }
-.rc-cohort-name {
+/* quartile band Q1..Q3 */
+.rc-strip-band {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 22px;
+  background: rgba(var(--tone-green), 0.16);
+  border: 1px solid rgba(var(--tone-green), 0.40);
+  border-radius: 6px;
+}
+/* median tick inside the band */
+.rc-strip-median {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 22px;
+  background: rgba(var(--tone-green), 0.85);
+}
+/* unlabelled cohort points — anonymous shape only */
+.rc-strip-tick {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 9px;
+  background: rgba(44, 38, 34, 0.30);
+  border-radius: 1px;
+}
+/* the chosen AVERAGE line */
+.rc-strip-avg {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  height: 30px;
+  border-left: 2px dashed var(--ink-secondary);
+  opacity: 0.85;
+}
+.rc-strip-avg-cap {
+  position: absolute;
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+/* YOU — the only named (selected) entity */
+.rc-strip-you {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.rc-strip-you-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(var(--tone-blue), 0.95);
+  box-shadow: 0 0 0 3px rgba(var(--tone-blue), 0.22);
+}
+.rc-strip-you-cap {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(var(--tone-blue), 1);
+  white-space: nowrap;
+}
+/* quartile scale labels */
+.rc-strip-scale {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+.rc-dist-foot {
+  margin: 0;
   font-size: 12px;
   color: var(--ink-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.rc-cohort-item.selected .rc-cohort-name { color: var(--ink-primary); font-weight: 600; }
-.rc-cohort-track {
-  position: relative;
-  height: 14px;
-  background: rgba(44, 38, 34, 0.04);
-  border-radius: 4px;
-}
-.rc-cohort-bar { height: 100%; border-radius: 4px; opacity: 0.55; }
-.rc-cohort-bar.above { background: rgba(var(--tone-green), 0.75); }
-.rc-cohort-bar.below { background: rgba(var(--tone-gold), 0.65); }
-.rc-cohort-bar.selected { opacity: 1; background: rgba(var(--tone-blue), 0.9); }
-.rc-cohort-avg {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  width: 2px;
-  background: var(--ink-secondary);
-  opacity: 0.55;
-}
-.rc-cohort-val { font-size: 12px; text-align: right; color: var(--ink-secondary); }
-.rc-cohort-item.selected .rc-cohort-val { color: var(--ink-primary); font-weight: 600; }
+.rc-dist-foot strong { color: var(--ink-primary); }
 
 /* ── Secondary position context (rate stays hero) ── */
 .rc-context {
@@ -349,6 +489,6 @@ const pctTone = computed(() => {
 
 @media (max-width: 720px) {
   .rc-compare-row { grid-template-columns: 100px 1fr 46px; }
-  .rc-cohort-item { grid-template-columns: 18px 96px 1fr 44px; }
+  .rc-strip-scale { font-size: 9px; }
 }
 </style>
