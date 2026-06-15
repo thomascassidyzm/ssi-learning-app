@@ -9,7 +9,6 @@ const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
-const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
@@ -200,15 +199,6 @@ const routes: RouteRecordRaw[] = [
     component: Onboarding,
     props: { track: 'tutor' },
     meta: { title: 'Start teaching' },
-  },
-  // Listening Pods
-  {
-    path: '/pods',
-    name: 'listening-pods',
-    component: ListeningPodPlayer,
-    meta: {
-      title: 'Listening Pods',
-    },
   },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
