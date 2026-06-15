@@ -136,6 +136,10 @@ const allowlistAccessType = ref<'full' | 'courses'>('full')
 const allowlistGrants = ref<EmailAccessGrant[]>([])
 const isGrantingEmails = ref(false)
 const allowlistResult = ref<string | null>(null)
+// Allowlist errors render INSIDE the panel (not via the shared `error` banner at
+// the top of the page, which is off-screen from here — that made a failed grant
+// look like a dead "flicker").
+const allowlistError = ref<string | null>(null)
 
 const parsedAllowlistEmails = computed<string[]>(() => {
   return allowlistEmails.value
@@ -163,17 +167,17 @@ async function fetchAllowlist(): Promise<void> {
 }
 
 async function grantEmails(): Promise<void> {
+  allowlistError.value = null
+  allowlistResult.value = null
   if (parsedAllowlistEmails.value.length === 0) {
-    error.value = 'Enter at least one valid email'
+    allowlistError.value = 'Enter at least one valid email'
     return
   }
   isGrantingEmails.value = true
-  error.value = null
-  allowlistResult.value = null
   try {
     const token = await getAuthToken()
     if (!token) {
-      error.value = 'Not authenticated'
+      allowlistError.value = 'Your admin session has expired — reload the page and sign in again, then retry.'
       return
     }
     const body: Record<string, unknown> = {
@@ -193,14 +197,20 @@ async function grantEmails(): Promise<void> {
       throw new Error(data.error || `Request failed: ${res.status}`)
     }
     const result = await res.json()
-    allowlistResult.value =
-      `${result.created} grant${result.created === 1 ? '' : 's'} created` +
-      (result.applied_now > 0 ? ` · ${result.applied_now} applied to existing account${result.applied_now === 1 ? '' : 's'} now` : '')
-    allowlistEmails.value = ''
-    allowlistLabel.value = ''
+    if (result.created === 0 && result.applied_now === 0) {
+      // Nothing new — almost always because an active grant for that email
+      // already exists. Say so instead of looking like a no-op.
+      allowlistError.value = 'Already granted — an active grant for that email already exists (see the list below).'
+    } else {
+      allowlistResult.value =
+        `${result.created} grant${result.created === 1 ? '' : 's'} created` +
+        (result.applied_now > 0 ? ` · ${result.applied_now} applied to existing account${result.applied_now === 1 ? '' : 's'} now` : '')
+      allowlistEmails.value = ''
+      allowlistLabel.value = ''
+    }
     await fetchAllowlist()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to grant access'
+    allowlistError.value = err instanceof Error ? err.message : 'Failed to grant access'
     console.error('[AdminAccess] grant emails error:', err)
   } finally {
     isGrantingEmails.value = false
@@ -805,6 +815,17 @@ onMounted(() => {
             <polyline points="22 4 12 14.01 9 11.01"/>
           </svg>
           <span>{{ allowlistResult }}</span>
+        </div>
+      </Transition>
+
+      <Transition name="fade">
+        <div v-if="allowlistError" class="banner banner-error allowlist-banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>{{ allowlistError }}</span>
         </div>
       </Transition>
 
