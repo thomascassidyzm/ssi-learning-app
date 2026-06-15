@@ -210,6 +210,15 @@ const routes: RouteRecordRaw[] = [
       title: 'Listening Pods',
     },
   },
+  // Stage-0 pod-explainer ladder — demo surface (DB-backed, tuner-config-driven).
+  {
+    path: '/pods/stage0',
+    name: 'pod-stage0-ladder',
+    component: () => import('@/components/PodStage0LadderPlayer.vue'),
+    meta: {
+      title: 'Stage-0 Pod Explainer Ladder',
+    },
+  },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
   // login (the global admin guard only fires on /admin + /methodology). It is

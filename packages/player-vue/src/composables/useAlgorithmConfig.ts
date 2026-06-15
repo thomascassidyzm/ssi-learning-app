@@ -11,6 +11,7 @@
  */
 
 import { ref, computed, type Ref } from 'vue'
+import { type Stage0Config, DEFAULT_STAGE0 } from './stage0Sequence'
 
 // Type definitions for algorithm configs
 export interface ModeConfig {
@@ -127,7 +128,8 @@ export interface AlgorithmConfigs {
   pods: PodsConfig
   script_shape: ScriptShapeConfig
   resume: ResumeConfig
-  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig
+  stage0: Stage0Config
+  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config
 }
 
 // Default fallbacks (used if DB fetch fails)
@@ -246,6 +248,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     pods: DEFAULT_PODS,
     script_shape: DEFAULT_SCRIPT_SHAPE,
     resume: DEFAULT_RESUME,
+    stage0: DEFAULT_STAGE0,
   })
   const isLoaded = ref(false)
   const loadError = ref<string | null>(null)
@@ -295,6 +298,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           pods: { ...DEFAULT_PODS, ...(loaded.pods || {}) },
           script_shape: { ...DEFAULT_SCRIPT_SHAPE, ...(loaded.script_shape || {}) },
           resume: { ...DEFAULT_RESUME, ...(loaded.resume || {}) },
+          stage0: { ...DEFAULT_STAGE0, ...(loaded.stage0 || {}) },
         }
 
         // Update cache
@@ -319,9 +323,10 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const podsConfig = computed(() => configs.value.pods as PodsConfig)
   const scriptShapeConfig = computed(() => configs.value.script_shape as ScriptShapeConfig)
   const resumeConfig = computed(() => configs.value.resume as ResumeConfig)
+  const stage0Config = computed(() => configs.value.stage0 as Stage0Config)
 
   // Get any config by key
-  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | null => {
+  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | null => {
     return configs.value[key] || null
   }
 
@@ -348,6 +353,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     podsConfig,
     scriptShapeConfig,
     resumeConfig,
+    stage0Config,
     getConfig,
     calculatePause,
     invalidateCache,
