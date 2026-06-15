@@ -22,7 +22,14 @@ import { computed } from 'vue'
 import type { RateComparisonData } from '../spec'
 import RateTrend from './RateTrend.vue'
 
-const props = defineProps<{ data: RateComparisonData }>()
+// `look` is forwarded to RateTrend so the ECharts trend re-resolves its colours
+// when the teacher flips the look. RateCompare's own colours are pure CSS (role
+// tokens cascading from [data-look] on the teacher root), so it needs no other
+// use of the prop.
+const props = defineProps<{
+  data: RateComparisonData
+  look?: string
+}>()
 
 const isEmpty = computed(() => props.data.distribution.values.length === 0)
 
@@ -168,6 +175,7 @@ const cohortTicks = computed<number[]>(() => {
           :entity="data.entity.trend"
           :average-label="data.average.label"
           :average="data.average.trend"
+          :look="look"
         />
       </div>
 
@@ -270,7 +278,7 @@ const cohortTicks = computed<number[]>(() => {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(var(--tone-accent), 1);
+  color: rgba(var(--rc-entity), 1);
 }
 .rc-value-row { display: flex; align-items: baseline; gap: 8px; }
 .rc-value {
@@ -280,7 +288,7 @@ const cohortTicks = computed<number[]>(() => {
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--ink-primary);
-  text-shadow: 0 0 18px rgba(var(--tone-accent), 0.28);
+  text-shadow: 0 0 22px rgba(var(--rc-glow), 0.34);
 }
 .rc-unit { font-size: 15px; color: var(--ink-secondary); }
 .rc-entity-label { font-size: 13px; color: var(--ink-muted); }
@@ -299,7 +307,7 @@ const cohortTicks = computed<number[]>(() => {
   font-size: 24px;
   font-weight: 700;
 }
-.rc-delta.good { color: rgba(var(--tone-green-ink), 1); }
+.rc-delta.good { color: rgba(var(--rc-positive), 1); }
 .rc-delta.warn { color: rgba(var(--tone-gold), 1); }
 .rc-delta-arrow { font-size: 16px; }
 .rc-delta-vs { font-size: 11.5px; color: var(--ink-muted); }
@@ -309,8 +317,8 @@ const cohortTicks = computed<number[]>(() => {
   padding: 2px 8px;
   border-radius: 999px;
 }
-.rc-pct-chip.good { background: rgba(var(--tone-green), 0.18); color: rgba(var(--tone-green-ink), 1); }
-.rc-pct-chip.neutral { background: rgba(var(--tone-blue), 0.12); color: rgba(var(--tone-blue), 1); }
+.rc-pct-chip.good { background: rgba(var(--rc-positive), 0.16); color: rgba(var(--rc-positive), 1); }
+.rc-pct-chip.neutral { background: rgba(var(--rc-secondary), 0.16); color: rgba(var(--rc-secondary), 1); }
 .rc-pct-chip.warn { background: rgba(var(--tone-gold), 0.14); color: rgba(var(--tone-gold), 1); }
 
 /* ── Section labels ── */
@@ -340,15 +348,18 @@ const cohortTicks = computed<number[]>(() => {
   overflow: visible;
 }
 .rc-bar { height: 100%; border-radius: 5px; }
-.rc-bar.entity { background: rgba(var(--tone-accent), 0.88); }
-.rc-bar.average { background: rgba(44, 38, 34, 0.28); }
+.rc-bar.entity {
+  background: rgba(var(--rc-entity), 0.92);
+  box-shadow: 0 0 12px rgba(var(--rc-glow), 0.28);
+}
+.rc-bar.average { background: rgba(var(--rc-secondary), 0.42); }
 .rc-avg-line {
   position: absolute;
   top: -3px;
   bottom: -3px;
   width: 2px;
-  background: var(--ink-secondary);
-  opacity: 0.6;
+  background: rgba(var(--rc-secondary), 1);
+  opacity: 0.7;
 }
 
 /* ── Trend ── */
@@ -374,8 +385,8 @@ const cohortTicks = computed<number[]>(() => {
 .rc-dist-legend { display: inline-flex; align-items: center; gap: 14px; font-size: 10.5px; color: var(--ink-muted); }
 .rc-leg-item { display: inline-flex; align-items: center; gap: 6px; }
 .rc-leg-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.rc-leg-dot.you { background: rgba(var(--tone-accent), 0.95); box-shadow: 0 0 0 2px rgba(var(--tone-accent), 0.25); }
-.rc-leg-line { width: 14px; height: 0; border-top: 2px dashed var(--ink-secondary); display: inline-block; opacity: 0.8; }
+.rc-leg-dot.you { background: rgba(var(--rc-entity), 0.95); box-shadow: 0 0 0 2px rgba(var(--rc-entity), 0.25), 0 0 8px rgba(var(--rc-glow), 0.45); }
+.rc-leg-line { width: 14px; height: 0; border-top: 2px dashed rgba(var(--rc-secondary), 1); display: inline-block; opacity: 0.9; }
 
 /* The strip itself */
 .rc-strip {
@@ -391,14 +402,14 @@ const cohortTicks = computed<number[]>(() => {
   height: 0;
   border-top: 1px solid rgba(44, 38, 34, 0.18);
 }
-/* quartile band Q1..Q3 */
+/* quartile band Q1..Q3 — a faint per-look tint (NOT dead grey, the drab mistake) */
 .rc-strip-band {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   height: 22px;
-  background: rgba(44, 38, 34, 0.05);
-  border: 1px solid rgba(44, 38, 34, 0.14);
+  background: rgba(var(--rc-band), 0.14);
+  border: 1px solid rgba(var(--rc-band), 0.34);
   border-radius: 6px;
 }
 /* median tick inside the band */
@@ -408,7 +419,7 @@ const cohortTicks = computed<number[]>(() => {
   transform: translateY(-50%);
   width: 2px;
   height: 22px;
-  background: rgba(44, 38, 34, 0.32);
+  background: rgba(var(--rc-band), 0.6);
 }
 /* unlabelled cohort points — anonymous shape only */
 .rc-strip-tick {
@@ -417,7 +428,7 @@ const cohortTicks = computed<number[]>(() => {
   transform: translate(-50%, -50%);
   width: 2px;
   height: 9px;
-  background: rgba(44, 38, 34, 0.30);
+  background: rgba(var(--rc-secondary), 0.55);
   border-radius: 1px;
 }
 /* the chosen AVERAGE line */
@@ -427,8 +438,8 @@ const cohortTicks = computed<number[]>(() => {
   transform: translate(-50%, -50%);
   width: 0;
   height: 30px;
-  border-left: 2px dashed var(--ink-secondary);
-  opacity: 0.85;
+  border-left: 2px dashed rgba(var(--rc-secondary), 1);
+  opacity: 0.9;
 }
 .rc-strip-avg-cap {
   position: absolute;
@@ -451,8 +462,8 @@ const cohortTicks = computed<number[]>(() => {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: rgba(var(--tone-accent), 1);
-  box-shadow: 0 0 0 3px rgba(var(--tone-accent), 0.18), 0 0 10px rgba(var(--tone-accent), 0.55);
+  background: rgba(var(--rc-entity), 1);
+  box-shadow: 0 0 0 3px rgba(var(--rc-glow), 0.20), 0 0 14px rgba(var(--rc-glow), 0.6);
 }
 .rc-strip-you-cap {
   position: absolute;
@@ -461,7 +472,7 @@ const cohortTicks = computed<number[]>(() => {
   transform: translateX(-50%);
   font-size: 11px;
   font-weight: 600;
-  color: rgba(var(--tone-accent), 1);
+  color: rgba(var(--rc-entity), 1);
   white-space: nowrap;
 }
 /* quartile scale labels */

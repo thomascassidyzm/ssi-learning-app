@@ -42,6 +42,34 @@ import '@/styles/schools-tokens.css'
 
 const demoMode = isInsightDemo()
 
+// ── Look (demo-only colour theme) ───────────────────────────────────────────
+// Three cohesive "looks" the user can flip between live in demo mode to pick the
+// one that pops. Each look only overrides a small set of ROLE tokens (--rc-*)
+// scoped to [data-look] on the teacher root; nothing about layout/data changes.
+// The switcher is a DEMO-ONLY affordance (mirrors the admin boards' ?demo gate).
+// `?look=` persists the choice in the URL; default is `warm`.
+type Look = 'warm' | 'electric' | 'jewel'
+const LOOKS: { id: Look; label: string }[] = [
+  { id: 'warm', label: 'Warm' },
+  { id: 'electric', label: 'Electric' },
+  { id: 'jewel', label: 'Jewel' },
+]
+function readLook(): Look {
+  if (typeof window === 'undefined') return 'warm'
+  const q = new URLSearchParams(window.location.search).get('look')
+  return q === 'electric' || q === 'jewel' ? q : 'warm'
+}
+const look = ref<Look>(readLook())
+function setLook(next: Look) {
+  look.value = next
+  if (typeof window === 'undefined') return
+  const url = new URL(window.location.href)
+  url.searchParams.set('look', next)
+  window.history.replaceState({}, '', url)
+}
+// Pass a re-render key to the trend chart so it re-resolves the look's colours.
+const lookKey = computed(() => `look-${look.value}`)
+
 // ── The teacher's OWN classes ───────────────────────────────────────────────
 // A teacher usually teaches more than one class, so they pick among THEIR set —
 // never any class outside it. Every label here must exist verbatim in
@@ -153,10 +181,26 @@ const scopeLabel = computed(() =>
 </script>
 
 <template>
-  <div class="tiv schools-surface">
+  <div class="tiv schools-surface" :data-look="look">
     <!-- ── Warm, minimal teacher header (NOT the admin "Insight Engine") ── -->
     <header class="tiv-head">
-      <span class="tiv-kicker">Your class</span>
+      <div class="tiv-head-top">
+        <span class="tiv-kicker">Your class</span>
+        <!-- Demo-only "Look" switcher — flip between the three colour themes -->
+        <div v-if="demoMode" class="tiv-look" role="group" aria-label="Look">
+          <span class="tiv-look-label">Look</span>
+          <div class="tiv-segs tiv-look-segs">
+            <button
+              v-for="l in LOOKS"
+              :key="l.id"
+              type="button"
+              :class="['tiv-seg', { active: look === l.id }]"
+              :aria-pressed="look === l.id"
+              @click="setLook(l.id)"
+            >{{ l.label }}</button>
+          </div>
+        </div>
+      </div>
       <h1 class="tiv-title">{{ SCHOOL_NAME }} · {{ scopeLabel }}</h1>
       <p class="tiv-sub">
         How you're doing on <strong>{{ COURSE_LABEL }}</strong> — your class compared
@@ -229,7 +273,7 @@ const scopeLabel = computed(() =>
 
     <!-- ── The one widget — nothing else on this page ── -->
     <div class="tiv-widget-card">
-      <RateCompare v-if="comparison" :data="comparison" />
+      <RateCompare v-if="comparison" :key="lookKey" :data="comparison" :look="look" />
 
       <!-- Real-path note (no ?demo): no DB call, point to the preview. -->
       <div v-else class="tiv-real-note">
@@ -244,7 +288,24 @@ const scopeLabel = computed(() =>
 </template>
 
 <style scoped>
+/* ============================================================================
+ * ROLE TOKENS — the small palette every coloured element references, so the
+ * three "looks" only have to override these five tokens (not hunt every rule).
+ * Defaults below ARE the WARM look; [data-look] blocks re-tint them. Each token
+ * is an "r, g, b" triplet consumed as rgba(var(--rc-…), α).
+ *   --rc-entity    identity / "You" / active states / eyebrows
+ *   --rc-positive  the genuinely-good delta + chip
+ *   --rc-secondary average / cohort secondary ink
+ *   --rc-band      distribution band tint base (low alpha)
+ *   --rc-glow      glow colour (hero number, You-dot, trend line)
+ * ============================================================================ */
 .tiv {
+  --rc-entity:    194, 58, 58;
+  --rc-positive:  184, 146, 61;
+  --rc-secondary: 138, 128, 120;
+  --rc-band:      184, 146, 61;
+  --rc-glow:      194, 58, 58;
+
   max-width: 980px;
   margin: 0 auto;
   padding: 32px 24px 56px;
@@ -252,7 +313,60 @@ const scopeLabel = computed(() =>
   flex-direction: column;
   gap: 18px;
   min-height: 100vh;
+  position: relative;
+  isolation: isolate;
   background: var(--schools-bg, #f6f5f1);
+}
+
+/* Atmosphere — a subtle lit sheen behind the page (per look). The drab pass had
+ * none; this is what gives each look its glow without touching any element. */
+.tiv::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 400px at 25% -5%, rgba(194, 58, 58, 0.06), transparent 60%),
+    radial-gradient(700px 360px at 90% 0%, rgba(212, 168, 83, 0.07), transparent 55%);
+}
+
+/* ── WARM (default) — red + gold, premium, no green ── */
+.tiv[data-look='warm'] {
+  --rc-entity:    194, 58, 58;
+  --rc-positive:  184, 146, 61;
+  --rc-secondary: 138, 128, 120;
+  --rc-band:      212, 168, 83;
+  --rc-glow:      194, 58, 58;
+}
+
+/* ── ELECTRIC — red + vivid emerald + slate-blue, saturated & glowing ── */
+.tiv[data-look='electric'] {
+  --rc-entity:    224, 40, 46;
+  --rc-positive:  22, 178, 96;
+  --rc-secondary: 90, 124, 210;
+  --rc-band:      90, 124, 210;
+  --rc-glow:      224, 40, 46;
+}
+.tiv[data-look='electric']::before {
+  background:
+    radial-gradient(900px 420px at 20% -5%, rgba(224, 40, 46, 0.07), transparent 60%),
+    radial-gradient(760px 380px at 88% 0%, rgba(22, 178, 96, 0.07), transparent 55%);
+}
+
+/* ── JEWEL — saturated crimson / teal / indigo, richest ── */
+.tiv[data-look='jewel'] {
+  --rc-entity:    178, 30, 59;
+  --rc-positive:  16, 150, 112;
+  --rc-secondary: 96, 84, 184;
+  --rc-band:      96, 84, 184;
+  --rc-glow:      178, 30, 59;
+}
+.tiv[data-look='jewel']::before {
+  background:
+    radial-gradient(900px 440px at 22% -8%, rgba(178, 30, 59, 0.09), transparent 62%),
+    radial-gradient(780px 400px at 90% 0%, rgba(16, 150, 112, 0.08), transparent 55%),
+    radial-gradient(1200px 900px at 50% 120%, rgba(20, 16, 30, 0.05), transparent 70%);
 }
 
 /* ── Warm teacher header ── */
@@ -264,14 +378,33 @@ const scopeLabel = computed(() =>
   height: 2px;
   margin-top: 4px;
   border-radius: 1px;
-  background: rgba(var(--tone-accent), 0.9);
+  background: rgba(var(--rc-entity), 0.9);
+  box-shadow: 0 0 10px rgba(var(--rc-glow), 0.35);
+}
+/* header top row: kicker + the demo-only Look switcher */
+.tiv-head-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 .tiv-kicker {
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(var(--tone-accent), 1);
+  color: rgba(var(--rc-entity), 1);
+}
+
+/* ── Demo-only Look switcher ── */
+.tiv-look { display: inline-flex; align-items: center; gap: 8px; }
+.tiv-look-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
 }
 .tiv-title {
   font-family: var(--font-display);
@@ -323,11 +456,11 @@ const scopeLabel = computed(() =>
   cursor: pointer;
   transition: border-color 140ms ease;
 }
-.tiv-select:hover { border-color: rgba(var(--tone-accent), 0.55); }
+.tiv-select:hover { border-color: rgba(var(--rc-entity), 0.55); }
 .tiv-select:focus {
   outline: none;
-  border-color: rgba(var(--tone-accent), 0.55);
-  box-shadow: 0 0 0 3px rgba(var(--tone-accent), 0.12);
+  border-color: rgba(var(--rc-entity), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--rc-entity), 0.12);
 }
 
 /* ── Segmented drill switch ── */
@@ -346,10 +479,12 @@ const scopeLabel = computed(() =>
 .tiv-seg + .tiv-seg { border-left: 1px solid rgba(44, 38, 34, 0.12); }
 .tiv-seg:hover:not(.active) { color: var(--ink-primary); }
 .tiv-seg.active {
-  background: rgba(var(--tone-accent), 0.10);
-  color: rgba(var(--tone-accent), 1);
-  box-shadow: inset 0 -2px 0 rgba(var(--tone-accent), 0.9);
+  background: rgba(var(--rc-entity), 0.10);
+  color: rgba(var(--rc-entity), 1);
+  box-shadow: inset 0 -2px 0 rgba(var(--rc-entity), 0.9);
 }
+/* the Look switcher's segments are a touch more compact than the View ones */
+.tiv-look-segs .tiv-seg { padding: 7px 11px; font-size: 11px; }
 
 /* ── Measure description ── */
 .tiv-metric-desc {
