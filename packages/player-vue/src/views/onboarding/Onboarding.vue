@@ -1223,4 +1223,53 @@ async function continueIn() {
   .ob-lang-check { transition: opacity 0.12s linear; }
   .ob-lang-tile:hover { transform: none; }
 }
+
+/* ================================================================
+ * MATCH THE LANDING PAGES (saysomethingin.com) — extracted from the
+ * deployed design system. Overrides the player tokens above so the
+ * signup is a seamless continuation of the marketing site:
+ *   Arsenal (serif display) + Open Sans (body); brandRed #db1e17,
+ *   gold #fec902, deep red #490300, off-white #fdf5f5.
+ * ================================================================ */
+.onboard {
+  --font-display: "Arsenal", "Georgia", "Times New Roman", serif;
+  --font-body: "Open Sans", "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", Arial, sans-serif;
+  --ssi-red: #db1e17;
+  --ssi-red-dark: #900600;
+  --ssi-gold: #fec902;
+  --ssi-gold-dark: #c99f00;
+  --bg-primary: #fdf5f5;
+  --text-primary: #0f1212;
+  --text-secondary: #333333;
+  --text-muted: #6a6360;
+  --ob-accent: #fec902;
+  --ob-accent-ink: #c99f00;
+  --ob-accent-2: #db1e17;
+  --ob-accent-soft: rgba(254, 201, 2, 0.18);
+  --ob-accent-glow: rgba(254, 201, 2, 0.32);
+}
+.onboard.track-school_standard {
+  --ob-accent: #db1e17;
+  --ob-accent-ink: #900600;
+  --ob-accent-2: #fec902;
+  --ob-accent-soft: rgba(219, 30, 23, 0.10);
+  --ob-accent-glow: rgba(219, 30, 23, 0.24);
+}
+.onboard.track-tutor {
+  --ob-accent: #c99f00;
+  --ob-accent-ink: #900600;
+  --ob-accent-2: #db1e17;
+  --ob-accent-soft: rgba(254, 201, 2, 0.18);
+  --ob-accent-glow: rgba(254, 201, 2, 0.30);
+}
+/* Arsenal reads as the landing's elegant serif at weight 400, not 700 */
+.onboard .ob-title,
+.onboard .ob-wordmark,
+.onboard .ob-proof-years,
+.onboard .ob-claim-endonym,
+.onboard .ob-lang-endonym { font-weight: 400; }
+/* Primary CTA — the landing's flat brandRed button, not the player gradient */
+.onboard :deep(.btn-primary) { background: #db1e17; border-radius: 8px; }
+.onboard :deep(.btn-primary:hover) { background: #900600; }
+.onboard :deep(.btn-primary:active) { background: #490300; }
 </style>
