@@ -13,8 +13,8 @@
 // other entity's name, label, or identity renders anywhere in this widget.
 //
 // Frostwell Courtyard chrome: schools-surface tokens, mono labels, Arsenal
-// display. NO hardcoded hex — tone/percentile colours come from CSS tokens.
-// The ECharts trend is delegated to RateTrend.vue (keeps this file < ~300 lines).
+// display. NO hardcoded hex — the green/blue scheme comes from the --rc-* role
+// tokens. The ECharts trend is delegated to RateTrend.vue (keeps this < ~300 ln).
 //
 // Never throws: an empty/zero RateComparisonData renders a quiet empty state.
 // ============================================================================
@@ -22,13 +22,10 @@ import { computed } from 'vue'
 import type { RateComparisonData } from '../spec'
 import RateTrend from './RateTrend.vue'
 
-// `look` is forwarded to RateTrend so the ECharts trend re-resolves its colours
-// when the teacher flips the look. RateCompare's own colours are pure CSS (role
-// tokens cascading from [data-look] on the teacher root), so it needs no other
-// use of the prop.
+// RateCompare's own colours are pure CSS (the --rc-* role tokens cascading from
+// the teacher root). The ECharts trend resolves those same tokens off the DOM.
 const props = defineProps<{
   data: RateComparisonData
-  look?: string
 }>()
 
 const isEmpty = computed(() => props.data.distribution.values.length === 0)
@@ -175,7 +172,6 @@ const cohortTicks = computed<number[]>(() => {
           :entity="data.entity.trend"
           :average-label="data.average.label"
           :average="data.average.trend"
-          :look="look"
         />
       </div>
 
@@ -278,7 +274,8 @@ const cohortTicks = computed<number[]>(() => {
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(var(--rc-entity), 1);
+  /* deeper blue so the small kicker stays legible on the white card (HIG) */
+  color: rgba(var(--rc-entity-ink, var(--rc-entity)), 1);
 }
 .rc-value-row { display: flex; align-items: baseline; gap: 8px; }
 .rc-value {
@@ -288,7 +285,8 @@ const cohortTicks = computed<number[]>(() => {
   line-height: 1;
   letter-spacing: -0.02em;
   color: var(--ink-primary);
-  text-shadow: 0 0 22px rgba(var(--rc-glow), 0.34);
+  /* hero stays ink, lifted by a subtle blue glow (STEP 5) */
+  text-shadow: 0 0 18px rgba(var(--rc-glow), 0.20);
 }
 .rc-unit { font-size: 15px; color: var(--ink-secondary); }
 .rc-entity-label { font-size: 13px; color: var(--ink-muted); }
@@ -317,7 +315,12 @@ const cohortTicks = computed<number[]>(() => {
   padding: 2px 8px;
   border-radius: 999px;
 }
-.rc-pct-chip.good { background: rgba(var(--rc-positive), 0.16); color: rgba(var(--rc-positive), 1); }
+/* good chip = green tint + deep-green ink + a hairline green edge (STEP 5) */
+.rc-pct-chip.good {
+  background: rgba(var(--rc-band), 0.20);
+  color: rgba(var(--rc-positive), 1);
+  border: 1px solid rgba(var(--rc-positive), 0.30);
+}
 .rc-pct-chip.neutral { background: rgba(var(--rc-secondary), 0.16); color: rgba(var(--rc-secondary), 1); }
 .rc-pct-chip.warn { background: rgba(var(--tone-gold), 0.14); color: rgba(var(--tone-gold), 1); }
 
@@ -347,10 +350,13 @@ const cohortTicks = computed<number[]>(() => {
   border-radius: 5px;
   overflow: visible;
 }
-.rc-bar { height: 100%; border-radius: 5px; }
+.rc-bar { height: 100%; border-radius: 6px; }
+/* entity bar = blue, with a crisp blue edge + soft blue glow (STEP 5) */
 .rc-bar.entity {
   background: rgba(var(--rc-entity), 0.92);
-  box-shadow: 0 0 12px rgba(var(--rc-glow), 0.28);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--rc-entity), 0.55),
+    0 0 12px rgba(var(--rc-glow), 0.28);
 }
 .rc-bar.average { background: rgba(var(--rc-secondary), 0.42); }
 .rc-avg-line {
@@ -402,15 +408,15 @@ const cohortTicks = computed<number[]>(() => {
   height: 0;
   border-top: 1px solid rgba(44, 38, 34, 0.18);
 }
-/* quartile band Q1..Q3 — a faint per-look tint (NOT dead grey, the drab mistake) */
+/* quartile band Q1..Q3 — a green tint with a deep-green hairline edge (STEP 5) */
 .rc-strip-band {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   height: 22px;
-  background: rgba(var(--rc-band), 0.14);
-  border: 1px solid rgba(var(--rc-band), 0.34);
-  border-radius: 6px;
+  background: rgba(var(--rc-band), 0.22);
+  border: 1px solid rgba(var(--rc-positive), 0.45);
+  border-radius: 8px;
 }
 /* median tick inside the band */
 .rc-strip-median {
@@ -457,13 +463,14 @@ const cohortTicks = computed<number[]>(() => {
   top: 50%;
   transform: translate(-50%, -50%);
 }
+/* You-dot = blue + light (STEP 5) */
 .rc-strip-you-dot {
   display: block;
   width: 14px;
   height: 14px;
   border-radius: 50%;
   background: rgba(var(--rc-entity), 1);
-  box-shadow: 0 0 0 3px rgba(var(--rc-glow), 0.20), 0 0 14px rgba(var(--rc-glow), 0.6);
+  box-shadow: 0 0 0 3px rgba(var(--rc-glow), 0.20), 0 0 14px rgba(var(--rc-glow), 0.5);
 }
 .rc-strip-you-cap {
   position: absolute;
@@ -472,7 +479,8 @@ const cohortTicks = computed<number[]>(() => {
   transform: translateX(-50%);
   font-size: 11px;
   font-weight: 600;
-  color: rgba(var(--rc-entity), 1);
+  /* deeper blue so the "You" caption stays legible on the white card (HIG) */
+  color: rgba(var(--rc-entity-ink, var(--rc-entity)), 1);
   white-space: nowrap;
 }
 /* quartile scale labels */

@@ -5,13 +5,13 @@
 // A sub-component of RateCompare.vue (kept separate so RateCompare stays under
 // ~300 lines and so the ECharts lazy-import lives in one focused place). Mirrors
 // the widget convention exactly:
-//   · props { entityLabel, entity[], averageLabel, average[], look? }
+//   · props { entityLabel, entity[], averageLabel, average[] }
 //   · emits NOTHING — purely presentational
 //   · lazy-imports echarts in onMounted (stays in the admin chunk)
 //   · registerInsightTheme(echarts) → option from theme tokens
-//   · ENTITY/AVERAGE colours come from the active LOOK's role tokens
-//     (--rc-entity / --rc-secondary / --rc-glow), resolved off the live DOM
-//     since ECharts can't read CSS vars; re-renders when `look` changes.
+//   · ENTITY = blue (--rc-entity / --rc-glow), AVERAGE = grey dashed
+//     (--rc-secondary); resolved off the live DOM once since ECharts can't read
+//     CSS vars. One green/blue scheme — no look switching.
 //   · ResizeObserver → chart.resize()
 // ============================================================================
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
@@ -25,11 +25,6 @@ const props = defineProps<{
   entity: number[]
   averageLabel: string
   average: number[]
-  // The active "look" (warm | electric | jewel). ECharts paints to canvas and
-  // can't read CSS vars, so we resolve the look's role tokens off the live DOM
-  // and re-render whenever this changes. Optional so the widget still works
-  // outside the teacher view (falls back to the brand red/grey).
-  look?: string
 }>()
 
 let echarts: (EChartsLike & {
@@ -54,15 +49,15 @@ const periodLabels = computed(() => {
   return Array.from({ length: n }, (_, i) => (i === n - 1 ? 'now' : `-${n - 1 - i}`))
 })
 
-// The entity (identity) and average colours come from the active LOOK's role
-// tokens (--rc-entity / --rc-secondary / --rc-glow), resolved off the live DOM
-// because ECharts can't read CSS vars. Fallbacks = the brand red / neutral grey
-// so the chart still renders correctly outside the teacher view.
-const ENTITY_FALLBACK = '194, 58, 58'   // SSi brand red triplet
+// The entity (identity) and average colours come from the green/blue role tokens
+// (--rc-entity = blue / --rc-secondary = grey / --rc-glow = blue), resolved off
+// the live DOM because ECharts can't read CSS vars. Fallbacks = the same scheme's
+// literals so the chart still renders correctly outside the teacher view.
+const ENTITY_FALLBACK = '96, 165, 250'   // blue entity triplet
 const AVERAGE_FALLBACK = '138, 128, 120' // neutral secondary triplet
 
-// Read an "r, g, b" role token off the chart element (it inherits [data-look]
-// from the teacher root), falling back to .schools-surface then a literal.
+// Read an "r, g, b" role token off the chart element (it inherits the --rc-*
+// tokens from the teacher root), falling back to .schools-surface then a literal.
 function roleTriplet(name: string, fallback: string): string {
   if (typeof getComputedStyle === 'undefined') return fallback
   const host = chartEl.value ?? document.querySelector('.schools-surface')
@@ -73,7 +68,7 @@ function roleTriplet(name: string, fallback: string): string {
 
 function buildOption(): Record<string, unknown> {
   const p = palette()
-  // Resolve the active look's colours fresh on every build (look may have changed).
+  // Resolve the scheme's colours off the DOM (the tokens are static now).
   const entityRgb = roleTriplet('--rc-entity', ENTITY_FALLBACK)
   const glowRgb = roleTriplet('--rc-glow', entityRgb)
   const avgRgb = roleTriplet('--rc-secondary', AVERAGE_FALLBACK)
@@ -118,8 +113,8 @@ function buildOption(): Record<string, unknown> {
         symbol: 'circle',
         symbolSize: 5,
         showSymbol: false,
-        // The entity is the identity/focus line — look's --rc-entity, with a
-        // tasteful glow from --rc-glow.
+        // The entity is the identity/focus line — blue (--rc-entity), lifted by
+        // a soft blue glow (--rc-glow).
         lineStyle: { color: entityColor, width: 2.4, shadowColor: `rgba(${glowRgb}, 0.55)`, shadowBlur: 10 },
         itemStyle: { color: entityColor },
         data: props.entity ?? [],
@@ -130,7 +125,7 @@ function buildOption(): Record<string, unknown> {
         type: 'line',
         smooth: true,
         symbol: 'none',
-        // The secondary cohort line — look's --rc-secondary, dashed.
+        // The secondary cohort line — grey (--rc-secondary), dashed.
         lineStyle: { color: averageColor, width: 1.6, type: 'dashed' },
         itemStyle: { color: averageColor },
         data: props.average ?? [],
@@ -160,7 +155,7 @@ onMounted(async () => {
   }
 })
 
-watch(() => [props.entity, props.average, props.entityLabel, props.averageLabel, props.look],
+watch(() => [props.entity, props.average, props.entityLabel, props.averageLabel],
   () => { ensureChart() }, { deep: true })
 
 onBeforeUnmount(() => {
