@@ -500,8 +500,20 @@ export function useAuth(): AuthState & AuthActions {
   // ============================================
 
   async function signOut(): Promise<void> {
+    // The network sign-out must NEVER block local teardown. If the Supabase call
+    // hangs or throws (flaky network, an already-expired/invalid session), we
+    // still clear local auth state below — otherwise the button appears to "do
+    // nothing" because the await never resolves and the caller's reload never
+    // runs. Bound it with a timeout and swallow errors.
     if (supabase.value) {
-      await supabase.value.auth.signOut()
+      try {
+        await Promise.race([
+          supabase.value.auth.signOut(),
+          new Promise((resolve) => setTimeout(resolve, 3000)),
+        ])
+      } catch (err) {
+        console.warn('[useAuth] supabase signOut failed (clearing local state anyway):', err)
+      }
     }
     supabaseUser.value = null
     learner.value = null

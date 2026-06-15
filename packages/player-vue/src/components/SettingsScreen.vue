@@ -463,12 +463,16 @@ const handleJoinRedeem = async () => {
   }
 }
 
-// Sign out
+// Sign out — the reload must always run, even if signOut throws, so the button
+// never appears to "do nothing".
 const handleSignOut = async () => {
-  if (auth?.signOut) {
-    await auth.signOut()
+  try {
+    if (auth?.signOut) {
+      await auth.signOut()
+    }
+  } finally {
+    window.location.reload()
   }
-  window.location.reload()
 }
 
 // Password management
