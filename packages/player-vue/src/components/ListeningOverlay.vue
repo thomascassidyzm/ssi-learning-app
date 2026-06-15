@@ -1766,7 +1766,14 @@ watch(
       <!-- Dialogue listening level: how much help, how much pace. These ARE
            the listening difficulty settings — first-class placement, sharing
            the band with the two quiet glyphs. -->
-      <div v-if="view === 'pods' && selectedScene" class="mode-selector">
+      <div
+        v-if="view === 'pods' && selectedScene"
+        class="mode-selector"
+        :style="{ '--mode-count': LISTEN_MODES.length, '--active-index': activeModeIndex }"
+      >
+        <!-- Sliding thumb: a persistent dark pill moved by transform (composites
+             reliably on iOS, unlike a toggled per-button background). -->
+        <span class="mode-thumb" aria-hidden="true"></span>
         <button
           v-for="m in LISTEN_MODES"
           :key="m.key"
@@ -2050,6 +2057,7 @@ watch(
  * unmistakably as a toggle. */
 .mode-selector {
   display: flex;
+  position: relative;            /* anchors the sliding thumb */
   /* Sit at content width, centred between the loop glyph and the gloss eye —
    * NOT full-width (it looked absurd stretched edge-to-edge on desktop). Caps
    * at a sensible pill-group width; still shrinks on narrow screens. */
@@ -2061,19 +2069,34 @@ watch(
   padding: 2px;
   border: 1px solid var(--border-medium);
   border-radius: 999px;
-  overflow: hidden;
   background: var(--bg-elevated);
 }
 
-.mode-btn {
-  /* a comfortable readable pill, not a stretched bar */
-  min-width: 5.5rem;
+/* The selected-state pill. It is ALWAYS painted and only MOVES (transform) when
+ * the mode changes — iOS Safari composites transforms reliably, whereas it
+ * failed to repaint a per-button background toggle inside the rounded track
+ * (the "invisible white-on-white selected button until you toggle the eye"
+ * bug). Width = one slot; translateX by whole slots to the active index. */
+.mode-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--mode-count, 2));
+  border-radius: 999px;
+  background: var(--text-primary);
+  transform: translateX(calc(var(--active-index, 0) * 100%));
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
 .mode-btn {
+  position: relative;            /* sits above the thumb */
+  z-index: 1;
   flex: 1;
+  min-width: 5.5rem;             /* a comfortable readable pill, not a stretched bar */
   padding: 6px 4px;
-  background: transparent;
+  background: transparent;       /* the thumb provides the fill, not the button */
   border: 0;
   border-radius: 999px;
   /* Inactive reads as tappable, not disabled — secondary ink, not muted. */
@@ -2082,13 +2105,7 @@ watch(
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  /* Only transition colour — NOT background. Animating the pill's background on
-   * iOS Safari (inside an overflow:hidden rounded track) can fail to composite
-   * until a forced repaint, leaving white text on an unpainted white pill (the
-   * "invisible selected button until you toggle the eye" bug). Painting the fill
-   * instantly + a stable own-layer (translateZ) makes the active state reliable. */
-  transition: color 0.15s ease;
-  transform: translateZ(0);
+  transition: color 0.18s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -2096,8 +2113,9 @@ watch(
   color: var(--text-primary);
 }
 
+/* Active = white text over the dark thumb. No background here — the thumb owns
+ * the fill, so there is no toggled-background paint to fail. */
 .mode-btn.active {
-  background: var(--text-primary);
   color: #ffffff;
   font-weight: 600;
 }
