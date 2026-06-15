@@ -108,3 +108,20 @@ export function coursesForTrack(courses: LiveCourse[], track: OnboardingTrack): 
 export function courseLabel(c: LiveCourse): string {
   return c.learner_display_name || c.display_name || c.course_code
 }
+
+/**
+ * The TARGET language name only — the source ("for English speakers") is already
+ * shown by the known-language switcher, so it's redundant on every tile AND it
+ * breaks search (every label contains "Speakers"). "Spanish for English Speakers"
+ * → "Spanish"; "Catalán para hispanohablantes" → "Catalán"; variants like
+ * "Brazilian Portuguese" / "Welsh (Northern)" are preserved.
+ */
+export function targetLabel(c: LiveCourse): string {
+  const full = courseLabel(c)
+  const stripped = full
+    .replace(/\s+for\s+.+?\s+speakers?$/i, '')
+    .replace(/\s+para\s+\S.*$/i, '')
+    .replace(/\s+pour\s+\S.*$/i, '')
+    .trim()
+  return stripped || full
+}

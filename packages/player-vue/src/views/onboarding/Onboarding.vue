@@ -6,7 +6,7 @@ import Button from '@/components/schools/shared/Button.vue'
 import {
   TRACKS,
   coursesForTrack,
-  courseLabel,
+  targetLabel,
   knownLangName,
   defaultKnownLang,
   type OnboardingTrack,
@@ -43,13 +43,12 @@ const langQuery = ref('')
 const showSearch = computed(() => courses.value.length > 8)
 const visibleCourses = computed(() => {
   const q = langQuery.value.trim().toLowerCase()
-  if (showSearch.value && !q) return [] // long list: wait for a search, don't dump all
-  if (!q) return courses.value
+  if (!q) return courses.value // browse by default; search filters
   return courses.value.filter(
     (c) =>
-      courseLabel(c).toLowerCase().includes(q) ||
-      c.course_code.toLowerCase().includes(q) ||
-      (c.target_lang || '').toLowerCase().includes(q)
+      targetLabel(c).toLowerCase().includes(q) ||
+      (c.target_lang || '').toLowerCase().includes(q) ||
+      c.course_code.toLowerCase().includes(q)
   )
 })
 const selectedCourse = ref('')
@@ -75,7 +74,7 @@ const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
 const canSend = computed(() => emailValid.value && !!selectedCourse.value && !busy.value)
 const selectedCourseLabel = computed(() => {
   const c = trackCourses.value.find((x) => x.course_code === selectedCourse.value)
-  return c ? courseLabel(c) : ''
+  return c ? targetLabel(c) : ''
 })
 const trialEndLabel = computed(() =>
   trial.value
@@ -286,8 +285,8 @@ async function continueIn() {
           <!-- Single pre-claimed hero card when the track offers one language -->
           <div v-if="courses.length === 1" class="ob-field">
             <FrostCard variant="tile" class="ob-claim is-claimed">
-              <span class="ob-claim-eyebrow">You're learning</span>
-              <span class="ob-claim-endonym">{{ courseLabel(courses[0]) }}</span>
+              <span class="ob-claim-eyebrow">You're teaching</span>
+              <span class="ob-claim-endonym">{{ targetLabel(courses[0]) }}</span>
               <span class="ob-claim-echo">
                 {{ cfg.trialLabel }}
                 <span v-if="courses[0].new_app_status === 'beta'" class="ob-beta">in beta</span>
@@ -298,48 +297,77 @@ async function continueIn() {
             </FrostCard>
           </div>
 
-          <!-- Grid of language tiles when there are many. Native radios =
-               real ARIA + keyboard/arrow navigation for free. -->
           <fieldset v-else class="ob-field ob-langset">
             <legend class="ob-label">Choose your language</legend>
-            <input
-              v-if="showSearch"
-              v-model="langQuery"
-              type="search"
-              class="ob-input ob-lang-search"
-              placeholder="Search languages…"
-              aria-label="Search languages"
-            />
-            <div v-if="visibleCourses.length" class="ob-lang-grid">
-              <label
-                v-for="c in visibleCourses"
-                :key="c.course_code"
-                class="ob-lang-tile"
-                :class="{ 'is-selected': selectedCourse === c.course_code }"
-              >
-                <input
-                  type="radio"
-                  name="ob-language"
-                  class="ob-lang-radio"
-                  :value="c.course_code"
-                  :checked="selectedCourse === c.course_code"
-                  @change="selectedCourse = c.course_code"
-                />
-                <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
-                <span class="ob-lang-endonym">{{ courseLabel(c) }}</span>
-                <span class="ob-lang-gloss">
-                  {{ c.course_code }}
+
+            <!-- LONG list (tutors / non-heritage): browse a compact, scrollable
+                 list AND filter with the search box. -->
+            <template v-if="showSearch">
+              <input
+                v-model="langQuery"
+                type="search"
+                class="ob-input ob-lang-search"
+                placeholder="Search languages…"
+                aria-label="Search languages"
+              />
+              <div v-if="visibleCourses.length" class="ob-lang-list" role="radiogroup">
+                <label
+                  v-for="c in visibleCourses"
+                  :key="c.course_code"
+                  class="ob-lang-row"
+                  :class="{ 'is-selected': selectedCourse === c.course_code }"
+                >
+                  <input
+                    type="radio"
+                    name="ob-language"
+                    class="ob-lang-radio"
+                    :value="c.course_code"
+                    :checked="selectedCourse === c.course_code"
+                    @change="selectedCourse = c.course_code"
+                  />
+                  <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
+                  <span class="ob-row-name">{{ targetLabel(c) }}</span>
                   <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
-                </span>
-                <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12.5l4.2 4.2L19 7" />
-                </svg>
-              </label>
-            </div>
-            <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
-            <p v-else-if="showSearch && !langQuery" class="ob-muted">Start typing to find your language.</p>
-            <p v-else-if="langQuery" class="ob-muted">No languages match “{{ langQuery }}”.</p>
-            <p v-else class="ob-muted">No languages available for this signup yet.</p>
+                  <svg class="ob-row-check" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12.5l4.2 4.2L19 7" />
+                  </svg>
+                </label>
+              </div>
+              <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
+              <p v-else-if="langQuery" class="ob-muted">No languages match “{{ langQuery }}”.</p>
+              <p v-else class="ob-muted">No languages available for this signup yet.</p>
+            </template>
+
+            <!-- SHORT showcase (heritage set): a few considered cards. -->
+            <template v-else>
+              <div v-if="courses.length" class="ob-lang-grid">
+                <label
+                  v-for="c in courses"
+                  :key="c.course_code"
+                  class="ob-lang-tile"
+                  :class="{ 'is-selected': selectedCourse === c.course_code }"
+                >
+                  <input
+                    type="radio"
+                    name="ob-language"
+                    class="ob-lang-radio"
+                    :value="c.course_code"
+                    :checked="selectedCourse === c.course_code"
+                    @change="selectedCourse = c.course_code"
+                  />
+                  <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
+                  <span class="ob-lang-endonym">{{ targetLabel(c) }}</span>
+                  <span v-if="c.new_app_status === 'beta'" class="ob-lang-gloss">
+                    <span class="ob-beta ob-beta-sm">beta</span>
+                  </span>
+                  <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12.5l4.2 4.2L19 7" />
+                  </svg>
+                </label>
+              </div>
+              <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
+              <p v-else class="ob-muted">No languages available for this signup yet.</p>
+            </template>
           </fieldset>
 
           <div class="ob-field">
@@ -733,9 +761,12 @@ async function continueIn() {
   position: relative;
   z-index: 1;
   display: flex;
+  flex-direction: column;
+  /* Top-aligned, not centred: flex centring CLIPS an over-tall form so its bottom
+     can't be scrolled to. Top-align + page scroll keeps everything reachable. */
   align-items: center;
-  justify-content: center;
-  padding: clamp(2rem, 5vw, var(--space-12, 3rem)) clamp(1.5rem, 5vw, 4rem);
+  justify-content: flex-start;
+  padding: clamp(2.5rem, 6vh, 5rem) clamp(1.5rem, 5vw, 4rem) clamp(2rem, 5vh, 4rem);
   min-height: 100vh;
   min-height: 100dvh;
 }
@@ -947,6 +978,68 @@ async function continueIn() {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3, 0.75rem);
 }
+
+/* Long set (tutors / broad): a compact, scannable, SCROLLABLE list — browse it or
+   filter with the search box. Bounded height so the email + button stay in view. */
+.ob-lang-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: clamp(220px, 40vh, 420px);
+  overflow-y: auto;
+  padding: 2px;
+  margin: 0 -2px;
+  -webkit-overflow-scrolling: touch;
+}
+.ob-lang-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 9px 14px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ob-lang-row:hover { background: rgba(255, 255, 255, 0.82); }
+.ob-lang-row .ob-lang-dot { position: static; flex: none; width: 9px; height: 9px; }
+.ob-row-name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-lg, 1.125rem);
+  line-height: 1.2;
+  color: var(--text-primary, #0f1212);
+}
+.ob-row-check {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  padding: 4px;
+  border-radius: 50%;
+  background: var(--ob-accent);
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.15s ease, transform 0.2s ease;
+}
+.ob-lang-row.is-selected {
+  background: var(--ob-accent-soft);
+  border-color: color-mix(in srgb, var(--ob-accent) 55%, transparent);
+  box-shadow: 0 0 0 1px var(--ob-accent);
+}
+.ob-lang-row.is-selected .ob-row-name { color: var(--ob-accent-ink); }
+.ob-lang-row.is-selected .ob-row-check { opacity: 1; transform: scale(1); }
+.ob-lang-row:focus-within {
+  border-color: var(--ob-accent-2);
+  box-shadow: 0 0 0 2px var(--ob-accent-soft);
+}
+
 .ob-lang-tile {
   position: relative;
   display: flex;
