@@ -39,7 +39,7 @@ export default async function handler(
     // Look up class by join code
     const { data: classRow, error: classError } = await supabase
       .from('classes')
-      .select('id, class_name, course_code, teacher_user_id, is_active, student_join_code')
+      .select('id, class_name, course_code, teacher_user_id, is_active, student_join_code, school_id')
       .eq('student_join_code', code)
       .maybeSingle()
 
@@ -106,6 +106,8 @@ export default async function handler(
         class_name: classRow.class_name,
         course_code: classRow.course_code,
         student_join_code: classRow.student_join_code,
+        // null = tutor/ACT class (£10 student); set = school class (£5 student).
+        school_id: classRow.school_id,
       },
       teacher: {
         id: teacherId,

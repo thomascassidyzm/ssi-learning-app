@@ -125,10 +125,31 @@ export default async function handler(
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const transferIdStr = String(transferId)
 
+  // Idempotency: Wise can re-deliver the same state-change. Key on
+  // transfer+state+occurred_at. 23505 = already processed → no-op. Fails OPEN if
+  // the ledger table is absent (pre-migration).
+  const eventKey = `${transferIdStr}:${currentState}:${event.data?.occurred_at || ''}`
+  try {
+    const { error: dedupErr } = await supabase
+      .from('processed_webhook_events')
+      .insert({ provider: 'wise', event_id: eventKey, event_type: eventType })
+    if (dedupErr && dedupErr.code === '23505') {
+      res.status(200).json({ received: true, deduped: true })
+      return
+    }
+    if (dedupErr) {
+      console.warn('[wise-webhook] Event dedup unavailable (proceeding):', dedupErr.code, dedupErr.message)
+    }
+  } catch (e: any) {
+    console.warn('[wise-webhook] Event dedup threw (proceeding):', e?.message)
+  }
+
   try {
     if (PAID_STATES.has(currentState)) {
       const paidAt = event.data?.occurred_at || new Date().toISOString()
-      const { error } = await supabase
+      // Monotonic: only promote a row that's awaiting payout. Never resurrect a
+      // failed/charged-back row to paid on a replayed/out-of-order delivery.
+      const { data: updated, error } = await supabase
         .from('teacher_commissions')
         .update({
           status: 'paid',
@@ -136,16 +157,23 @@ export default async function handler(
           updated_at: new Date().toISOString(),
         })
         .eq('wise_transfer_id', transferIdStr)
+        .in('status', ['pending_payout'])
+        .select('id')
 
       if (error) {
-        console.error('[wise-webhook] Failed to mark paid:', error)
-        res.status(500).json({ error: error.message })
-        return
+        // Throw so the catch clears the dedup row and Wise's retry reprocesses,
+        // rather than silently losing the paid transition.
+        throw new Error(`mark paid failed: ${error.message}`)
       }
 
-      console.log('[wise-webhook] Marked paid: transfer', transferIdStr)
+      console.log('[wise-webhook] Marked paid:', updated?.length ?? 0, 'row(s), transfer', transferIdStr)
     } else if (FAILED_STATES.has(currentState)) {
-      const { error } = await supabase
+      // A genuine chargeback can arrive AFTER a transfer was marked paid, so it may
+      // demote pending_payout OR paid → failed. Other failures act only on a row
+      // still awaiting payout. Idempotent: re-delivery of an already-failed row no-ops.
+      const promotable =
+        currentState === 'charged_back' ? ['pending_payout', 'paid'] : ['pending_payout']
+      const { data: updated, error } = await supabase
         .from('teacher_commissions')
         .update({
           status: 'failed',
@@ -153,15 +181,17 @@ export default async function handler(
           updated_at: new Date().toISOString(),
         })
         .eq('wise_transfer_id', transferIdStr)
+        .in('status', promotable)
+        .select('id')
 
       if (error) {
-        console.error('[wise-webhook] Failed to mark failed:', error)
-        res.status(500).json({ error: error.message })
-        return
+        throw new Error(`mark failed failed: ${error.message}`)
       }
 
       console.log(
-        '[wise-webhook] Marked failed: transfer',
+        '[wise-webhook] Marked failed:',
+        updated?.length ?? 0,
+        'row(s), transfer',
         transferIdStr,
         'state:',
         currentState
@@ -179,6 +209,17 @@ export default async function handler(
     res.status(200).json({ received: true })
   } catch (err: any) {
     console.error('[wise-webhook] Handler error:', err)
+    // Clear the dedup row so Wise's retry of this state-change reprocesses rather
+    // than being deduped into permanent loss of the paid/failed transition.
+    try {
+      await supabase
+        .from('processed_webhook_events')
+        .delete()
+        .eq('provider', 'wise')
+        .eq('event_id', eventKey)
+    } catch (cleanupErr: any) {
+      console.warn('[wise-webhook] dedup cleanup failed:', cleanupErr?.message)
+    }
     res.status(500).json({ error: err?.message || 'Internal error' })
   }
 }

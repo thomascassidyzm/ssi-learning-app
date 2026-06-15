@@ -25,13 +25,24 @@ interface PublicClass {
   class_name: string
   course_code: string
   student_join_code: string
+  // null = tutor/ACT class (£10); set = school class (£5). Drives price + commission.
+  school_id: string | null
 }
 
-// Locked pricing — single Paddle Price ID
-const STUDENT_MONTHLY_PRICE = 10
+// Price by class type. The webhook re-derives the SAME fact from class.school_id
+// server-side and freezes it into teacher_referrals.locked_price_pence, so the
+// client price is display + checkout only — it never decides commission.
 const STANDARD_SSI_PRICE = 15
-const STUDENT_PADDLE_PRICE_ID =
-  paddleConfig.studentMonthlyPriceId || 'pri_01kpxh6hq7se3yqndd4k6xb457'
+const isSchoolClass = computed(() => !!classInfo.value?.school_id)
+const STUDENT_MONTHLY_PRICE = computed(() => (isSchoolClass.value ? 5 : 10))
+// Env wins; the hardcoded fallbacks are the live Paddle prices on the SSi Student
+// product (pro_01kqq83bayhsvdtk9cttvar9aw). A school class falls back ONLY to the
+// dedicated £5 price — never to the £10 tutor price — so it can't over-charge.
+const studentPriceId = computed(() =>
+  isSchoolClass.value
+    ? (paddleConfig.studentSchoolMonthlyPriceId || 'pri_01kv5wrc5cz17pwgeva4zk8s0r')
+    : (paddleConfig.studentMonthlyPriceId || 'pri_01kqq89qwnsd3qwxvyybsc6ey1')
+)
 
 const teacher = ref<PublicTeacher | null>(null)
 const classInfo = ref<PublicClass | null>(null)
@@ -118,7 +129,7 @@ async function openCheckout() {
   if (!teacher.value || !classInfo.value || !userId.value || !userEmail.value) return
   if (isOpeningCheckout.value) return
 
-  if (!STUDENT_PADDLE_PRICE_ID) {
+  if (!studentPriceId.value) {
     checkoutError.value = 'Student plan price not configured'
     return
   }
@@ -128,7 +139,7 @@ async function openCheckout() {
   try {
     const paddle = await getPaddle()
     paddle.Checkout.open({
-      items: [{ priceId: STUDENT_PADDLE_PRICE_ID, quantity: 1 }],
+      items: [{ priceId: studentPriceId.value, quantity: 1 }],
       customer: { email: userEmail.value },
       customData: {
         kind: 'student_via_teacher',
