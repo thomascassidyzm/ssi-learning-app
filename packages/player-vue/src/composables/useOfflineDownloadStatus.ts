@@ -9,7 +9,10 @@
  */
 import { ref, computed } from 'vue'
 
-export type OfflineDlState = 'idle' | 'preparing' | 'downloading' | 'complete' | 'error'
+// 'locked' = a 30-day offline lease expired and we couldn't re-validate online
+// (offline whole time / sub lapsed past the graceful tail). Bytes are preserved;
+// a reconnect re-validates and unlocks. Distinct from 'error' (download failed).
+export type OfflineDlState = 'idle' | 'preparing' | 'downloading' | 'complete' | 'error' | 'locked'
 
 export const offlineDlState = ref<OfflineDlState>('idle')
 export const offlineDlDone = ref(0)     // audio files genuinely cached (successes only)
@@ -62,6 +65,8 @@ export const offlineDownloadLabel = computed(() => {
       return 'Ready to play offline ✓'
     case 'error':
       return `Download incomplete — ${offlineDlFailed.value} failed, needs better signal`
+    case 'locked':
+      return 'Offline paused — reconnect to renew'
     default:
       return ''
   }
@@ -82,6 +87,8 @@ export const offlineDownloadHeadline = computed(() => {
       return 'Ready to play offline ✓'
     case 'error':
       return 'Download incomplete — needs better signal'
+    case 'locked':
+      return 'Offline paused — reconnect to renew'
     default:
       return ''
   }

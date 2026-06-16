@@ -68,6 +68,7 @@ import LanguageFlag from './schools/shared/LanguageFlag.vue'
 const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
+import { useOfflineLease } from '../composables/useOfflineLease'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
@@ -3559,6 +3560,12 @@ const initializeOfflinePlay = () => {
   const handleOnline = () => {
     isOnline.value = true
     console.log('[LearningPlayer] Network: online')
+    // Back online → renew the lease then clear the lock if we're re-validated.
+    // useOfflineLease also renews on its own 'online' listener; we await it here
+    // so the lock UI for THIS course clears promptly on reconnect.
+    if (offlineLeaseLocked.value) {
+      void offlineLease.renewLeases().then(() => checkOfflineLease()).catch(() => {})
+    }
   }
   const handleOffline = () => {
     isOnline.value = false
@@ -8588,7 +8595,79 @@ const offlineActive = ref(false)
 // cached but none played, because offlineActive had reset after a reload, so the
 // player streamed /api/audio and every clip failed offline.) Download gates stay
 // on the explicit toggle — downloading is a deliberate, online action.
-const offlinePlaybackActive = (): boolean => offlineActive.value || !isOnline.value
+// 30-day offline lease (the "Spotify handshake"). The lease is granted at the
+// end of a deliberate download and slid forward by useOfflineLease's renewals.
+// When it expires (offline >30d or sub lapsed past the graceful tail) offline
+// playback LOCKS — the bytes stay, a reconnect re-validates and unlocks.
+const offlineLease = useOfflineLease()
+// Reactive lock flag for THIS course, set by checkOfflineLease() at the offline
+// boot fast-path and whenever we fall into offline playback. Drives the lock UI.
+const offlineLeaseLocked = ref(false)
+const offlineLeaseExpiryLabel = ref<string | null>(null)
+
+// Re-validate the lease for the current course. Returns true if offline play is
+// allowed. Sets the lock flag + expiry label for the UI. The hot playback path
+// reads the cheap `offlineLeaseLocked` flag; this async check refreshes it.
+const checkOfflineLease = async (): Promise<boolean> => {
+  const code = courseCode.value
+  if (!code) return true
+  const ok = await offlineLease.isCourseLeaseValid(code)
+  // Only LOCK a course that actually carries a lease (was downloaded). A 'none'
+  // status means no deliberate download → nothing to lock (the user streams).
+  let locked = !ok && offlineLease.statusFor(code) !== 'none'
+  // Self-heal when ONLINE: an expired lease on an active user just means the
+  // renew hasn't landed yet (App.vue's boot renew may still be in flight, or
+  // this is a different tab). Renew now and re-read before declaring a lock —
+  // never lock a user who can reach the server. Offline → trust the read.
+  if (locked && navigator.onLine) {
+    try {
+      await offlineLease.renewLeases()
+      const okAfter = await offlineLease.isCourseLeaseValid(code)
+      locked = !okAfter && offlineLease.statusFor(code) !== 'none'
+    } catch { /* keep the pre-renew decision */ }
+  }
+  offlineLeaseLocked.value = locked
+  if (locked) {
+    offlineLeaseExpiryLabel.value = await offlineLease.expiryLabelFor(code)
+    offlineDlState.value = 'locked'  // ModeTray Offline row + ring (amber)
+  } else if (offlineDlState.value === 'locked') {
+    offlineDlState.value = 'idle'    // re-validated → drop the locked badge
+  }
+  return locked ? false : ok
+}
+
+// Soonest entitlement-code expiry that grants offline for THIS course (epoch ms),
+// or null for an open-ended subscription / admin / full grant. The lease clamps
+// to this so it can't outlive a time-boxed code.
+const entitlementExpiryForCurrentCourse = (): number | null => {
+  const code = courseCode.value
+  let soonest: number | null = null
+  for (const e of liveEntitlements.value || []) {
+    const grantsThis =
+      e.accessType === 'full' ||
+      (e.accessType === 'courses' && !!code && (e.grantedCourses || []).includes(code))
+    if (!grantsThis) continue
+    if (!e.expiresAt) return null // an open-ended grant means no clamp
+    const ms = new Date(e.expiresAt).getTime()
+    if (Number.isFinite(ms)) soonest = soonest == null ? ms : Math.min(soonest, ms)
+  }
+  return soonest
+}
+
+const grantOfflineLeaseForCurrentCourse = async (): Promise<void> => {
+  const code = courseCode.value
+  if (!code) return
+  try {
+    await offlineLease.grantLease(code, entitlementExpiryForCurrentCourse())
+    offlineLeaseLocked.value = false
+    offlineLeaseExpiryLabel.value = await offlineLease.expiryLabelFor(code)
+  } catch (e) {
+    console.warn('[Offline] grantLease failed (non-fatal):', e)
+  }
+}
+
+const offlinePlaybackActive = (): boolean =>
+  (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
 // from useOfflineDownloadStatus and written by downloadForOffline below. The UI
 // for it now lives on the mode button (the ring) + the Offline row in ModeTray,
@@ -9021,6 +9100,10 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   } catch (e) {
     console.warn('[Offline] setCachedScript during download failed (non-fatal):', e)
   }
+
+  // Stamp the 30-day offline lease now the bytes + script are durably cached.
+  // Clamp to an entitlement-code expiry so the lease can't outlive the code.
+  await grantOfflineLeaseForCurrentCourse()
 
   if (offlineDlFailed.value > 0) {
     // Stays on screen (no auto-hide) so the user knows to retry on better signal.
@@ -9477,6 +9560,9 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   } catch (e) {
     console.warn('[Offline] INF PLAY setCachedScript during download failed (non-fatal):', e)
   }
+
+  // Stamp the 30-day offline lease (same as the mid-course download).
+  await grantOfflineLeaseForCurrentCourse()
 
   if (offlineDlFailed.value > 0) {
     offlineDlState.value = 'error'
@@ -9966,6 +10052,14 @@ onMounted(async () => {
     const learnerId = (auth as any)?.learnerId?.value || null
     contribution.fetch(courseCode.value, learnerId).catch(() => {})
   }
+
+  // 30-day offline lease gate. Before any offline-cold-reopen fast-path engages,
+  // re-validate the lease for this course so a lapsed/expired download locks
+  // (bytes preserved) instead of playing. When ONLINE we let useOfflineLease's
+  // boot renew (App.vue) slide the lease forward — so this is mostly meaningful
+  // when offline (the lock decision). Cheap IndexedDB read; awaited so the
+  // fast-path below sees the correct offlineLeaseLocked value.
+  await checkOfflineLease().catch(() => { /* fail-open: never block boot on this */ })
 
   // Load developer settings
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
@@ -12133,6 +12227,28 @@ defineExpose({
           >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
           <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
           <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Maybe later</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Offline-lease lock overlay. Shown only when the lease has expired AND we
+       can't reach the network to renew (genuinely offline). The bytes are still
+       on disk — one reconnect re-validates and unlocks. Reuses the paywall shell. -->
+  <Transition name="fade">
+    <div v-if="offlineLeaseLocked && !isOnline" class="paywall-overlay">
+      <div class="paywall-card">
+        <h2 class="paywall-title">Offline access paused</h2>
+        <p class="paywall-subtitle">
+          Your downloads need a quick online check to keep playing.
+          Connect to the internet and they'll unlock straight away — nothing is lost.
+          <template v-if="offlineLeaseExpiryLabel"><br />Offline access lapsed on {{ offlineLeaseExpiryLabel }}.</template>
+        </p>
+        <div class="paywall-actions">
+          <button
+            class="paywall-btn paywall-btn-primary"
+            @click="void offlineLease.renewLeases().then(() => checkOfflineLease())"
+          >Try to reconnect</button>
         </div>
       </div>
     </div>

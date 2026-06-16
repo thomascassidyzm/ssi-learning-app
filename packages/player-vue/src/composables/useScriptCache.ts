@@ -11,6 +11,7 @@
 import { ref, type Ref } from 'vue'
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { OfflineLease } from '../config/offlineLease'
 
 // Cache configuration
 // Scripts live in IndexedDB. localStorage's ~5MB cap overflowed on big
@@ -116,6 +117,13 @@ export interface CachedScript {
   // course_round_index matview. Optional for backward-compat with caches written
   // before this field existed (they fall back to the matview, as before).
   mainLoopRoundCount?: number
+  // 30-day offline lease (the "Spotify handshake"). Stamped at the end of a
+  // deliberate premium download; slid forward +30d by every successful online
+  // entitlement re-validation (useOfflineLease). When it expires (offline >30d
+  // or sub lapsed past the graceful tail), offline playback LOCKS — the bytes
+  // stay, one reconnect re-validates and unlocks. Absent on free/legacy caches
+  // (a download made before leasing existed has no lease → treated as 'none').
+  offlineLease?: OfflineLease
 }
 
 // ============================================================================
@@ -161,6 +169,68 @@ export const setCachedScript = async (
   } catch (err) {
     // IndexedDB has GBs of room, so this should be rare (quota pressure only).
     console.warn('[ScriptCache] Write failed:', (err as any)?.name, '—', (err as any)?.message, err)
+  }
+}
+
+// ── Offline lease (read / patch in place) ──────────────────────────────────
+// The lease lives on the CachedScript row, but the renew/lock paths only touch
+// the lease field — they must NOT rewrite the (large) rounds blob. These two
+// helpers read just the lease and patch it back onto the existing row.
+
+export const getOfflineLease = async (
+  courseCode: string,
+): Promise<OfflineLease | null> => {
+  const script = await getCachedScript(courseCode)
+  return script?.offlineLease ?? null
+}
+
+/**
+ * Patch the lease onto an existing cached script in place. No-op (returns false)
+ * if there's no cached script for the course — you can't lease content you never
+ * downloaded. Read-modify-write of the single row; the rounds blob is preserved
+ * untouched by reusing the loaded object.
+ */
+export const setOfflineLease = async (
+  courseCode: string,
+  lease: OfflineLease,
+): Promise<boolean> => {
+  try {
+    const db = await scriptDb()
+    const existing = (await db.get(SCRIPT_STORE, idbKey(courseCode))) as
+      | CachedScript
+      | undefined
+    if (!existing || !existing.rounds || existing.rounds.length === 0) return false
+    const next: CachedScript = { ...existing, offlineLease: lease }
+    // CachedScript is pure data; round-trip to drop any Vue proxies safely.
+    const plain = JSON.parse(JSON.stringify(next)) as CachedScript
+    await db.put(SCRIPT_STORE, plain, idbKey(courseCode))
+    return true
+  } catch (err) {
+    console.warn('[ScriptCache] setOfflineLease failed:', (err as any)?.message, err)
+    return false
+  }
+}
+
+/** All cached-script entries that carry a lease — used by the renewer to slide
+ *  every downloaded course forward in one online check. Returns [code, lease]. */
+export const getAllOfflineLeases = async (): Promise<
+  Array<{ courseCode: string; lease: OfflineLease }>
+> => {
+  try {
+    const db = await scriptDb()
+    const out: Array<{ courseCode: string; lease: OfflineLease }> = []
+    let cursor = await db.transaction(SCRIPT_STORE).store.openCursor()
+    while (cursor) {
+      const val = cursor.value as CachedScript | undefined
+      if (val?.offlineLease && val.courseCode) {
+        out.push({ courseCode: val.courseCode, lease: val.offlineLease })
+      }
+      cursor = await cursor.continue()
+    }
+    return out
+  } catch (err) {
+    console.warn('[ScriptCache] getAllOfflineLeases failed:', (err as any)?.message)
+    return []
   }
 }
 
@@ -567,6 +637,9 @@ export function useScriptCache() {
     currentCourseCode,
     getCachedScript,
     setCachedScript,
+    getOfflineLease,
+    setOfflineLease,
+    getAllOfflineLeases,
     checkContentVersion,
     loadIntroAudio,
     lookupAudioLazy,

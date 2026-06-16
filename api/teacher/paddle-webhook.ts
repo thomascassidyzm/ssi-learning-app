@@ -13,6 +13,13 @@
  *     → upsert subscriptions row, upsert teacher_referrals (class-scoped),
  *       insert user_tags row linking student to class
  *
+ *   subscription.* with customData.kind = 'school_platform'  (lever-3)
+ *     → SET schools.platform_status/expires_at/teacher_seats (=item quantity)
+ *       + provider ids, from the Paddle payload (absolute, idempotent).
+ *
+ *   subscription.* with customData.kind = 'tutor_platform'   (lever-3)
+ *     → SET teachers.platform_status/expires_at from the Paddle payload.
+ *
  *   transaction.paid (any subscription kind)
  *     → if associated subscription is student-via-teacher, accrue teacher
  *       commission (= flat £5 / 500 pence per transaction) to the current
@@ -186,9 +193,116 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
     await handlePremiumSubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
+  } else if (kind === 'school_platform') {
+    await handleSchoolPlatformSubscription(supabase, data, customData)
+  } else if (kind === 'tutor_platform') {
+    await handleTutorPlatformSubscription(supabase, data, customData)
   } else {
     console.log('[paddle-webhook] Skipping subscription event for kind:', kind)
   }
+}
+
+// ============================================
+// PLATFORM SUBSCRIPTION — schools (£15/teacher/mo) + tutors (£15/mo)
+// ============================================
+//
+// Lever-3: the school/tutor pays for the DASHBOARD (not student play). On a
+// paid subscription event we SET the platform columns absolutely from Paddle's
+// own period end (idempotent on retries / out-of-order deliveries) and the
+// teacher_seats from the per-seat price QUANTITY. Money values come from the
+// webhook payload, never the client. The dashboard gate (SchoolsContainer /
+// TeachContainer / api/school/subscription) reads these.
+
+// Paddle subscription status → our platform_status enum (schools/teachers).
+const PLATFORM_STATUS_MAP: Record<string, string> = {
+  active: 'active',
+  trialing: 'active', // a Paddle-managed trial still entitles the dashboard
+  past_due: 'past_due',
+  paused: 'cancelled',
+  canceled: 'cancelled',
+}
+
+async function handleSchoolPlatformSubscription(
+  supabase: any,
+  data: any,
+  customData: Record<string, unknown>
+): Promise<void> {
+  const schoolId = customData.school_id as string | undefined
+  if (!schoolId) {
+    console.error('[paddle-webhook] school_platform subscription missing school_id in customData')
+    return
+  }
+
+  const status = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
+  // ABSOLUTE set from Paddle's billing period (idempotent on retry/out-of-order).
+  const periodEnd: string | null =
+    data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+  // Per-teacher pricing = Paddle quantity on the single per-seat price.
+  const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
+  const seats =
+    firstItem && Number.isFinite(Number(firstItem.quantity)) && Number(firstItem.quantity) > 0
+      ? Number(firstItem.quantity)
+      : 1
+
+  const { error } = await supabase
+    .from('schools')
+    .update({
+      platform_status: status,
+      platform_expires_at: periodEnd,
+      teacher_seats: seats,
+      provider_subscription_id: data.id,
+      provider_customer_id: data.customerId,
+    })
+    .eq('id', schoolId)
+
+  if (error) {
+    console.error('[paddle-webhook] Failed to update school platform subscription:', error)
+    return
+  }
+  console.log(
+    '[paddle-webhook] School platform subscription:',
+    schoolId,
+    'status:',
+    status,
+    'seats:',
+    seats,
+    'period_end:',
+    periodEnd
+  )
+}
+
+async function handleTutorPlatformSubscription(
+  supabase: any,
+  data: any,
+  customData: Record<string, unknown>
+): Promise<void> {
+  const teacherId = customData.teacher_id as string | undefined
+  if (!teacherId) {
+    console.error('[paddle-webhook] tutor_platform subscription missing teacher_id in customData')
+    return
+  }
+
+  const status = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
+  const periodEnd: string | null =
+    data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+
+  const { error } = await supabase
+    .from('teachers')
+    .update({ platform_status: status, platform_expires_at: periodEnd })
+    .eq('id', teacherId)
+
+  if (error) {
+    console.error('[paddle-webhook] Failed to update tutor platform subscription:', error)
+    return
+  }
+  console.log(
+    '[paddle-webhook] Tutor platform subscription:',
+    teacherId,
+    'status:',
+    status,
+    'period_end:',
+    periodEnd
+  )
 }
 
 async function handlePremiumSubscription(

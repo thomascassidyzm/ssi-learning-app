@@ -43,6 +43,7 @@ const offlineRingVars = computed(() => {
   let color = '#16a34a'
   if (offlineDlState.value === 'complete') pct = 100
   else if (offlineDlState.value === 'error') { pct = 100; color = '#ef4444' }
+  else if (offlineDlState.value === 'locked') { pct = 100; color = '#f59e0b' }  // amber: lease paused
   else if (offlineDownloadPct.value !== null) pct = offlineDownloadPct.value
   else if (offlineDlState.value === 'preparing') pct = 12   // small green arc + pulse (no total yet)
   return { '--dl-pct': pct, '--dl-color': color }

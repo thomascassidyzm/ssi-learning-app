@@ -210,7 +210,7 @@ ssi-learning-app/
 │   │   │   ├── learning/        # TripleHelix, SpacedRepetition, Adaptation
 │   │   │   ├── data/            # Type definitions for LEGOs, Seeds, Phrases
 │   │   │   ├── config/          # Configuration defaults and types
-│   │   │   ├── cache/           # OfflineCache, DownloadManager, AudioSource
+│   │   │   ├── cache/           # (stale — does NOT exist; real offline stack is in player-vue: cache/AudioCache.ts, composables/useScriptCache.ts, useOfflineDownloadStatus.ts, useOfflineLease.ts)
 │   │   │   └── persistence/     # ProgressStore, SessionStore, SyncService
 │   │   └── package.json
 │   ├── player-vue/              # Vue 3 unified SPA (learning + schools)

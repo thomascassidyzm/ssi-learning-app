@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
+# Last Updated: 2026-06-16 (offline downloads now PREMIUM-gated at the trigger + a Spotify-style 30-day re-validation LEASE — see premium_gate + offline_lease sections; config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts)
+# Prev: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
 
 spec audio_caching_architecture:
   version: "3.0.0"
@@ -261,8 +262,42 @@ spec audio_caching_architecture:
       collectRoundsAudioIds: "unique /api/audio ids over N rounds ahead of cursor"
       downloadForOffline: "(roundsAhead) — ensure + collect + fetch missing into IndexedDB"
 
+    premium_gate:
+      requirement: "Offline download is a PREMIUM perk for EVERY course (incl. free/community)."
+      why: >
+        Without it a free user downloads the whole course once and never returns —
+        the leak this gate closes. Online play to Yellow stays free (gateSeed);
+        only the deliberate offline DOWNLOAD is premium.
+      where: >
+        useEntitlement.canDownloadOffline(course) — true for an active subscription,
+        a full/course entitlement code (non-expired), or an admin/tester/god role.
+        Checked at the trigger in LearningPlayer: toggleOffline (before the picker
+        opens), startOfflineDownload, startOfflineDownloadInfPlay. Not entitled →
+        showPaywall (→ useCheckout.startCheckout, the £15 trigger), never the picker.
+
+    offline_lease:
+      requirement: "Spotify-style 30-day lease — downloads re-validate online or lock."
+      files:
+        - "config/offlineLease.ts — LEASE_DAYS=30, computeExpiry, isLeaseValid, isClockTrustworthy, leaseStatus (pure, unit-tested in offlineLease.test.ts)"
+        - "composables/useOfflineLease.ts — renew (boot/online/6h timer) + lock/unlock orchestration (shared singleton, wired once in App.vue after useSubscription.initialize)"
+        - "api/entitlement/offline-lease.ts — stateless server authority: {valid, blanket, leaseDays, serverNow, courses[]}; serverNow is the clock-tamper anchor"
+        - "useScriptCache.ts — lease stored on CachedScript.offlineLease (no new store); getOfflineLease/setOfflineLease/getAllOfflineLeases patch it in place"
+      grant: "downloadForOffline / startOfflineDownloadInfPlay end → grantLease(course, entitlementExpiryClamp) — expiresAt = min(now+30d, entitlement-code expiry)"
+      renew: "every successful online validation slides expiresAt = serverNow+30d (active users never approach the edge)"
+      lock: >
+        isCourseLeaseValid(course) gates offlinePlaybackActive(): expired/clock-wound-back
+        → false → falls back to network (fails gracefully when truly offline → lock UI).
+        Bytes are PRESERVED; one reconnect re-validates and unlocks instantly.
+      cardinal_sin_guards:
+        fail_open: "infra failure (network/5xx/401) → keep the existing lease, retry later. Never lock a user who can't be checked."
+        graceful_tail: "explicit {valid:false} (sub lapsed) → STOP renewing, do NOT cut — the remaining days run out (§5 default a)."
+        clock_tamper: "a device clock wound back before lastValidatedAt → clock-untrusted → locked (server serverNow is the renew anchor)."
+        dev_demo_bypass: "ssi-demo-tier / dev paid flags → infinite lease, never locks."
+        entitlement_clamp: "lease can't outlive a time-boxed entitlement code (computeExpiry clamps)."
+      deferred: "server-side offline_leases revocation table (chargeback/refund kill-switch) — defer until that consumer exists; v1 client holds the lease, server is stateless authority."
+
     progress:
-      state: "offlineDlState: idle | preparing | downloading | complete | error"
+      state: "offlineDlState: idle | preparing | downloading | complete | error | locked  (locked = lease paused, reconnect to renew)"
       counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done)"
       shared_state: >
         useOfflineDownloadStatus.ts — module-level refs (offlineDlState/Done/Total/
@@ -280,9 +315,7 @@ spec audio_caching_architecture:
         "Downloading… N% (x/y)" detail shows on the tray's Offline row (open the tray
         for it) — green while active, red on error.
 
-    deferred:
-      premium_gate: "useEntitlement.canDownload exists but NOT wired to download (no premium users yet)"
-      expiry_30_day: "Spotify-style purge-if-not-online-in-30-days — not built yet"
+    # premium_gate + expiry_30_day: BUILT (see premium_gate + offline_lease sections above).
 
   ## ==========================================================================
   ## GRACEFUL DEGRADATION (INFINITE PLAY)

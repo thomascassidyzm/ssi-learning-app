@@ -15,6 +15,7 @@ import { useAccessClaim } from './composables/useAccessClaim'
 import { useAuthModal } from './composables/useAuthModal'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { useSharedSubscription } from './composables/useSubscription'
+import { useOfflineLease } from './composables/useOfflineLease'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
@@ -508,6 +509,15 @@ onMounted(async () => {
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
       await Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+
+      // 30-day offline lease (the "Spotify handshake"). Wire boot/reconnect/timer
+      // renewals AFTER subscription is initialised, so the first renew sees the
+      // freshest entitlement state. Idempotent + best-effort (fail-open offline).
+      try {
+        useOfflineLease().initialize(supabaseClient)
+      } catch (e) {
+        console.warn('[App] Offline-lease init failed (non-fatal):', e)
+      }
 
       // Claim any email-allowlist (pre-granted) free access for a restored /
       // already-signed-in session — onAuthStateChange's SIGNED_IN doesn't fire
