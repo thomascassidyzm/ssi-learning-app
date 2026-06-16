@@ -431,12 +431,26 @@ const openScene = (scene) => {
   // change) — so a turn still reads as one person speaking, revealed line by
   // line, while each row stays a single parseable phrase + its gloss.
   const phrases = []
+  // The unit is now one sentence per turn (the split), so "turn start" can no
+  // longer mean idx===0 — every sentence would be one, and the inter-row gap
+  // would always be the full breath. It means a SPEAKER CHANGE: consecutive
+  // same-speaker sentences are one paragraph (tight inter-sentence gap), and a
+  // speaker change gets a full breath. (Tom 2026-06-16: same-speaker gap <
+  // speaker-change gap — there's a difference between sentences inside a
+  // speaker's paragraph and those across a speaker change.)
+  let prevSpeakerKey = null
   for (const t of scene.turns) {
     const color = SPEAKER_PALETTE[t.colorIndex % SPEAKER_PALETTE.length]
     const chunks = Array.isArray(t.sentences) && t.sentences.length > 0
       ? t.sentences
       : [{ targetText: t.targetText, knownText: t.knownText, targetAudioId: t.audioIds[0] || null, knownAudioId: null, explainerAudioId: null }]
+    const curKey = (t.speakerName || t.speaker || '').trim().toLowerCase()
+    const speakerChanged = prevSpeakerKey === null || curKey !== prevSpeakerKey
+    prevSpeakerKey = curKey
     chunks.forEach((s, idx) => {
+      // A paragraph opens on the first chunk of a turn whose speaker differs
+      // from the previous turn's — that's where the breath + chip belong.
+      const paragraphStart = idx === 0 && speakerChanged
       phrases.push({
         id: `${t.id}-c${idx}`,
         seedNumber: undefined,
@@ -449,8 +463,9 @@ const openScene = (scene) => {
         knownText: s.knownText,
         targetText: s.targetText,
         speaker: t.speaker,
-        // Chip only on the turn's first chunk — later chunks group beneath it.
-        speakerName: idx === 0 ? t.speakerName : '',
+        // Chip only when the speaker changes — a same-speaker run of sentences
+        // groups under one chip (the paragraph), like the pre-split design.
+        speakerName: paragraphStart ? t.speakerName : '',
         speakerColor: color,
         position: t.globalOrder * 1000 + idx,
         target1AudioId: s.targetAudioId || '',
@@ -458,8 +473,9 @@ const openScene = (scene) => {
         audioIds: s.targetAudioId ? [s.targetAudioId] : [],
         // Single-chunk detail — keeps the play queue + gloss split working.
         sentences: [s],
-        // True for the first chunk of a turn — drives the turn-aware gap.
-        isTurnStart: idx === 0,
+        // True only on a speaker change — drives the speaker-aware gap (tight
+        // within a paragraph, a full breath across speakers).
+        isTurnStart: paragraphStart,
       })
     })
   }
@@ -1144,6 +1160,16 @@ const playCurrentPhrase = async (myPlaybackId) => {
   }
 
   if (myPlaybackId !== playbackId) return
+
+  // Progression (audit) plays ONE line's whole acquisition arc — Stage-0's 5
+  // distinct tiers, then each Stage 1-N once — then STOPS. It's a tool to HEAR
+  // the progression, not drill it; auto-walking every line would replay Stages
+  // 1-N once per line (the "play each Stage 5×" Tom flagged 2026-06-16). Tap
+  // any line to hear its progression.
+  if (view.value === 'pods' && selectedScene.value && listenMode.value === 'audit') {
+    isPlaying.value = false
+    return
+  }
 
   // Inter-row gap. In a dialogue scene the rows are CHUNKS: keep a speaker's
   // consecutive chunks close (natural continuous speech) and breathe only on
