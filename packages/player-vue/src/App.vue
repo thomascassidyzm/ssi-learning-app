@@ -329,7 +329,10 @@ const canAccessCourse = (course) => {
     entitlements.value,
     platformRole.value
   )
-  return result.canAccess
+  // Premium courses are enterable/defaultable on preview — everyone can PLAY
+  // every course through end-of-Yellow (seed 19). The seed-19 wall still gates
+  // play via canAccessSeed in LearningPlayer; this only opens the door.
+  return result.canAccess || result.canPreview
 }
 
 // Fetch enrolled courses from Supabase
@@ -411,7 +414,13 @@ const fetchEnrolledCourses = async () => {
       // is gated for this user), leave defaultCourse null so no premium
       // course gets auto-loaded; the CourseSelector picker will open.
       if (!defaultCourse) {
-        defaultCourse = data.find(c => canAccessCourse(c)) || null
+        // Prefer Chinese as the first thing a fresh/anon visitor lands on,
+        // falling back to the first accessible course (now incl. previewable
+        // premium courses) if it isn't in the catalogue for this user.
+        const PREFERRED_DEFAULT = 'zho_for_eng'
+        defaultCourse =
+          data.find(c => c.course_code === PREFERRED_DEFAULT && canAccessCourse(c)) ||
+          data.find(c => canAccessCourse(c)) || null
         noPriorCourseSelection.value = true
       }
 

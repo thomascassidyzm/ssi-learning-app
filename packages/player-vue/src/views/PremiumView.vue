@@ -22,7 +22,7 @@ const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
 
 const { open: openAuth, close: closeAuth } = useAuthModal()
 
-// When a signed-out visitor clicks "Start free trial", we open the sign-in
+// When a signed-out visitor clicks "Subscribe", we open the sign-in
 // modal and (on success) chain straight into Paddle checkout — saves them
 // a second click and matches the obvious "Sign up → pay" mental model.
 const pendingCheckout = ref(false)
@@ -314,13 +314,13 @@ onMounted(async () => {
         <template v-if="contextHeadline">
           <h1 class="frost-display contextual">{{ contextHeadline }}</h1>
           <p class="lede">
-            Plus {{ otherPremiumCourses.length }} other Premium course{{ otherPremiumCourses.length === 1 ? '' : 's' }}. Free for 7 days. £{{ PREMIUM_PRICE }}/month from day 8. Cancel anytime.
+            £{{ PREMIUM_PRICE }}/month — unlimited access to all languages. Cancel anytime.
           </p>
         </template>
         <template v-else>
           <h1 class="frost-display">All courses. All features.</h1>
           <p class="lede">
-            Free for 7 days. £{{ PREMIUM_PRICE }}/month from day 8. Cancel anytime.
+            £{{ PREMIUM_PRICE }}/month — unlimited access to all languages. Cancel anytime.
           </p>
         </template>
       </header>
@@ -333,13 +333,13 @@ onMounted(async () => {
 
         <!-- Not signed in -->
         <div v-else-if="!isAuthenticated" class="cta">
-          <p>Take it for a test drive — 7 days free, no commitment. £{{ PREMIUM_PRICE }}/month from day 8 unless you cancel. We'll email a one-time code to sign you in — no password to remember.</p>
+          <p>£{{ PREMIUM_PRICE }}/month for unlimited access to all languages. Cancel anytime. We'll email a one-time code to sign you in — no password to remember.</p>
           <ul class="benefit-list">
             <li>All paid SSi courses, every language pair</li>
             <li>Teacher tools — run your own classes at no extra cost</li>
             <li>Offline-capable, sync across devices</li>
           </ul>
-          <Button variant="primary" size="lg" @click="handleSignedOutCta">Start free trial</Button>
+          <Button variant="primary" size="lg" @click="handleSignedOutCta">Subscribe — £{{ PREMIUM_PRICE }}/month</Button>
         </div>
 
         <!-- Loading sub -->
@@ -375,7 +375,7 @@ onMounted(async () => {
             <li>Offline-capable, sync across devices</li>
           </ul>
           <div v-if="checkoutError" class="error">{{ checkoutError }}</div>
-          <Button variant="primary" size="lg" :loading="isOpeningCheckout" @click="startCheckout">Start free trial</Button>
+          <Button variant="primary" size="lg" :loading="isOpeningCheckout" @click="startCheckout">Subscribe — £{{ PREMIUM_PRICE }}/month</Button>
         </div>
       </FrostCard>
 

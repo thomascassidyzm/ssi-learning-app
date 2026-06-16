@@ -12018,9 +12018,9 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay">
       <div class="paywall-card">
         <h2 class="paywall-title">You've completed the free preview!</h2>
-        <p class="paywall-subtitle">SSi Premium unlocks every paid course. Free for 7 days, £15/month from day 8. Cancel anytime.</p>
+        <p class="paywall-subtitle">£15/month — unlimited access to all languages. Cancel anytime.</p>
         <div class="paywall-actions">
-          <button class="paywall-btn paywall-btn-primary" @click="router.push({ name: 'premium', query: { course: courseCode } })">Start 7-day free trial</button>
+          <button class="paywall-btn paywall-btn-primary" @click="router.push({ name: 'premium', query: { course: courseCode } })">Subscribe — £15/month</button>
           <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
           <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep previewing</button>
         </div>

@@ -1714,7 +1714,7 @@ const confirmReset = async () => {
           <div v-else class="setting-row clickable" @click="goPremium">
             <div class="setting-info">
               <span class="setting-label">Go Premium</span>
-              <span class="setting-desc">Unlock all courses — free for 7 days</span>
+              <span class="setting-desc">£15/month — unlimited access to all languages</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
