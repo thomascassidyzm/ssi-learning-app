@@ -2063,12 +2063,14 @@ watch(
  * Active = ink pill, matching the view tabs — a belt-colour fill is invisible
  * on white belt. The crisp track + padded inset makes the two states read
  * unmistakably as a toggle. */
-/* Segmented control. The active fill lives ON THE BUTTON itself (no separate
- * thumb layer). An earlier "sliding thumb" used position:absolute + transform,
- * which on iOS Safari painted BEHIND its siblings inside the overlay's
- * backdrop-filtered ancestor — the dark fill rendered but was obscured by the
- * white track ("black threatens from behind"). A solid background on the button
- * box can't be painted behind anything, so the selected state is reliable. */
+/* Segmented control. THE FIX: its own backdrop-filter — exactly like the
+ * sibling .view-tabs (Dialogues/Core/All), which uses the identical active
+ * background yet always paints correctly. The overlay root has a backdrop-filter,
+ * and on iOS Safari a passive descendant's PAINT-ONLY change (the active button's
+ * background) is dropped until a relayout — which is why toggling the gloss eye
+ * (a layout change) made the black appear. Giving .mode-selector its OWN
+ * backdrop-filter promotes it to its own compositing layer, so its children's
+ * background changes repaint on that layer immediately. */
 .mode-selector {
   display: flex;
   /* Sit at content width, centred between the loop glyph and the gloss eye —
@@ -2082,7 +2084,9 @@ watch(
   padding: 3px;
   border: 1px solid var(--border-medium);
   border-radius: 999px;
-  background: var(--bg-elevated);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .mode-btn {
