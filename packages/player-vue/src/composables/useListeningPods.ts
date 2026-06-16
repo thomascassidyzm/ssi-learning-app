@@ -133,7 +133,7 @@ export function useListeningPods(
       const podId = `${course}:pod-0`
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids')
+        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids')
         .eq('pod_id', podId)
         .order('global_order', { ascending: true })
 
@@ -150,6 +150,7 @@ export function useListeningPods(
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
         const clips: string[] = Array.isArray(row.sentence_audio_ids) ? row.sentence_audio_ids.filter(Boolean) : []
+        const knownClips: string[] = Array.isArray(row.sentence_known_audio_ids) ? row.sentence_known_audio_ids.filter(Boolean) : []
         if (clips.length >= 2) {
           const tSents = splitText(row.target_text)
           const kSents = splitText(row.known_text)
@@ -160,9 +161,9 @@ export function useListeningPods(
               targetText: tSents[i] || tSents[tSents.length - 1] || row.target_text || '',
               knownText: kSents[i] || '',
               targetAudioId: clips[i],
-              // per-sentence English audio isn't split (yet); the gloss text still
-              // shows. The trans slot drops gracefully when knownAudioId is null.
-              knownAudioId: null,
+              // per-sentence English clip when the known side was split; null (gloss
+              // text still shows, trans slot drops) when it wasn't (count mismatch).
+              knownAudioId: knownClips.length === clips.length ? knownClips[i] : null,
               explainerAudioId: null,
               globalOrder: row.global_order + i * 0.001,
             })
