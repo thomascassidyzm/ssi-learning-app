@@ -136,3 +136,34 @@ from player_events pe where pe.event_type='audio_play' order by pe.occurred_at d
 If `audio_play` rows are plentiful and carry `seedId`/`legoId`, the RPC rebuild is a
 straight win. If `with_seed`/`with_lego` is low, check that older clients emitted those
 payload keys (they were added alongside the Cycle refactor).
+
+---
+
+## Bonus lane: behavioural-navigation metrics (the buttons ARE the data)
+
+`player_events` already logs the interaction vocabulary — and the skip events carry a
+`direction`, so "forward vs back vs replay" is computable from existing data:
+
+| event_type | direction values | signal |
+|---|---|---|
+| `tap_skip` | `forward` / `back` | forward = confident move-on; back = regress/revisit (instrumented 2026-06-16 — `handleSkip` + `handleRevisit`) |
+| `lego_skip` | `forward` / `back` | jump a whole LEGO fwd/back |
+| `phase_skip` | `forward` / `back` / `replay` | within-cycle nav; **`replay` = repeat / consolidation** |
+| `belt_skip` | `forward` / `back` / `restart` | belt-level jumps |
+| `turbo_toggle` | (speed in payload) | speeding up ≈ confidence / ease |
+| `tap_pause` / `tap_play` | — | hesitation / drop-off points |
+
+**The lens (Tom's idea):** per-learner and per-seed navigation profile —
+- **forward skips / turbo** → confidence (caveat: could also be *boredom / too easy* — needs pairing with completion to disambiguate),
+- **back skips + `phase_skip:replay`** → struggle / revisiting → a *reliable behavioural friction map*,
+- ratio of forward:back over a window → a single "flow" score per learner.
+
+Why this matters: the current **Friction** insight reads `0.0% spike` — it's built on the
+VAD/spike path (the same unreliable source as the dead admin tiles). This behavioural
+data is **reliable and currently has no consumer**. Per CLAUDE.md Principle 5 ("never
+build a signal before its consumer exists") this is the inverse case — the *signal*
+already exists, so building the consumer is justified.
+
+**Build:** fold into the same per-learner RPC (counts of each event_type × direction
+over a window), and/or a per-seed aggregate RPC for the friction map. Same SECURITY
+DEFINER pattern. Cheap — it's all `group by` over rows we already write.
