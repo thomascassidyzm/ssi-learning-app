@@ -57,11 +57,14 @@ const isStudent = computed(() => currentRole.value === 'student')
 
 /**
  * The platform-subscription gate (lever-3). FAIL-OPEN by design:
- *   active = status === 'active' || (status === 'trial' && expires_at > now)
- * but a NULL/absent status (legacy school, pre-migration DB, govt/admin context,
- * or a demo persona) resolves to ACTIVE so the dashboard never locks out anyone
- * the migration hasn't reached. Only an explicit expired/past_due/cancelled (or
- * an elapsed trial) returns false.
+ *   active = status === 'active'
+ *         || status == null                       (legacy / pre-migration)
+ *         || (status === 'trial' && (expires_at == null || expires_at > now))
+ * A NULL/absent status (legacy school, pre-migration DB, govt/admin context, or
+ * a demo persona) resolves to ACTIVE, AND a 'trial' with no expiry resolves to
+ * ACTIVE (the bare DEFAULT 'trial' the migration writes before provision.ts
+ * stamps a real window — see below). Only an explicit expired/past_due/cancelled
+ * or an ELAPSED trial (non-null expiry in the past) returns false.
  */
 const platformActive = computed((): boolean => {
   const u = currentUser.value
@@ -72,7 +75,13 @@ const platformActive = computed((): boolean => {
   if (status == null) return true // legacy / pre-migration / unloaded → fail open
   if (status === 'active') return true
   if (status === 'trial') {
-    return !!u.platform_expires_at && new Date(u.platform_expires_at).getTime() > Date.now()
+    // A 'trial' with NO expiry = grandfathered / not-yet-stamped: the bare
+    // schools.platform_status DEFAULT 'trial' (migration 20260616) before
+    // provision.ts stamps an expiry, a pre-lever-3 school, or an orphaned row
+    // left by an email-burn 409. Treat as active — only an ELAPSED trial (a
+    // real, non-null expiry in the past) locks the dashboard.
+    if (!u.platform_expires_at) return true
+    return new Date(u.platform_expires_at).getTime() > Date.now()
   }
   return false // expired | past_due | cancelled
 })

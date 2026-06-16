@@ -40,13 +40,19 @@ function isMissingPlatformSchema(err: { code?: string; message?: string } | null
 
 /**
  * The platform gate, applied identically client + server:
- *   active = status === 'active' || (status === 'trial' && expires_at > now)
+ *   active = status === 'active'
+ *         || status == null                       (legacy / pre-migration)
+ *         || (status === 'trial' && (expires_at == null || expires_at > now))
  * NULL / absent status fails OPEN (true) — legacy rows and pre-migration DBs.
+ * A 'trial' with NO expiry also fails OPEN: that is the bare schools.platform_status
+ * DEFAULT 'trial' (migration 20260616) before provision.ts stamps a real window,
+ * a pre-lever-3 school, or a row orphaned by an email-burn 409. Only an ELAPSED
+ * trial (non-null expiry in the past) or an explicit expired/past_due/cancelled locks.
  */
 function isPlatformActive(status: string | null | undefined, expiresAt: string | null | undefined): boolean {
   if (status == null) return true // legacy / pre-migration → fail open
   if (status === 'active') return true
-  if (status === 'trial') return !!expiresAt && new Date(expiresAt).getTime() > Date.now()
+  if (status === 'trial') return !expiresAt || new Date(expiresAt).getTime() > Date.now()
   return false // past_due | expired | cancelled
 }
 
