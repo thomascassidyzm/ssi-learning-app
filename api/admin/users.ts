@@ -104,6 +104,116 @@ function enrich(
   })
 }
 
+type Tier = 'admin' | 'school' | 'premium' | 'free'
+
+interface EnrollmentAgg {
+  last_active: string | null
+  practice_minutes: number
+  course_ids: string[]
+}
+
+/** learner_ids that have an ACTIVE paid subscription (status active + not expired). */
+async function loadActiveSubscriptions(
+  supabase: SupabaseClient,
+  learnerIds: string[],
+): Promise<Set<string>> {
+  const active = new Set<string>()
+  if (learnerIds.length === 0) return active
+  const now = Date.now()
+  const results = await Promise.all(
+    chunk(learnerIds, EMAIL_FETCH_CHUNK_SIZE).map(ids =>
+      supabase
+        .from('subscriptions')
+        .select('learner_id, status, current_period_end')
+        .in('learner_id', ids)
+        .eq('status', 'active'),
+    ),
+  )
+  for (const { data: rows, error } of results) {
+    if (error) { console.warn('[AdminUsers] subscriptions chunk error:', error); continue }
+    for (const r of rows || []) {
+      // null current_period_end = lifetime; else must be in the future
+      if (!r.current_period_end || new Date(r.current_period_end).getTime() > now) {
+        active.add(r.learner_id)
+      }
+    }
+  }
+  return active
+}
+
+/** learner_ids with an ACTIVE entitlement granting paid access (full | courses, not expired). */
+async function loadActiveEntitlements(
+  supabase: SupabaseClient,
+  learnerIds: string[],
+): Promise<Set<string>> {
+  const has = new Set<string>()
+  if (learnerIds.length === 0) return has
+  const now = Date.now()
+  const results = await Promise.all(
+    chunk(learnerIds, EMAIL_FETCH_CHUNK_SIZE).map(ids =>
+      supabase
+        .from('user_entitlements')
+        .select('learner_id, access_type, expires_at')
+        .in('learner_id', ids),
+    ),
+  )
+  for (const { data: rows, error } of results) {
+    if (error) { console.warn('[AdminUsers] entitlements chunk error:', error); continue }
+    for (const r of rows || []) {
+      if (r.expires_at && new Date(r.expires_at).getTime() <= now) continue
+      if (r.access_type === 'full' || r.access_type === 'courses') has.add(r.learner_id)
+    }
+  }
+  return has
+}
+
+/** Per-learner enrollment rollup: most-recent activity, total practice, course list. */
+async function loadEnrollmentAgg(
+  supabase: SupabaseClient,
+  learnerIds: string[],
+): Promise<Map<string, EnrollmentAgg>> {
+  const out = new Map<string, EnrollmentAgg>()
+  if (learnerIds.length === 0) return out
+  const results = await Promise.all(
+    chunk(learnerIds, EMAIL_FETCH_CHUNK_SIZE).map(ids =>
+      supabase
+        .from('course_enrollments')
+        .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
+        .in('learner_id', ids),
+    ),
+  )
+  for (const { data: rows, error } of results) {
+    if (error) { console.warn('[AdminUsers] enrollments chunk error:', error); continue }
+    for (const e of rows || []) {
+      let entry = out.get(e.learner_id)
+      if (!entry) { entry = { last_active: null, practice_minutes: 0, course_ids: [] }; out.set(e.learner_id, entry) }
+      entry.course_ids.push(e.course_id)
+      entry.practice_minutes += e.total_practice_minutes || 0
+      if (e.last_practiced_at && (!entry.last_active || e.last_practiced_at > entry.last_active)) {
+        entry.last_active = e.last_practiced_at
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Authoritative access tier, mirroring core/src/pricing/access.ts precedence:
+ *   ssi_admin/tester role > school role > active subscription > active entitlement > free.
+ */
+function tierFor(
+  l: LearnerRow,
+  activeSubs: Set<string>,
+  activeEnts: Set<string>,
+): Tier {
+  if (l.platform_role === 'ssi_admin' || l.platform_role === 'tester') return 'admin'
+  if (l.educational_role === 'teacher' || l.educational_role === 'school_admin' || l.educational_role === 'govt_admin') {
+    return 'school'
+  }
+  if (activeSubs.has(l.id) || activeEnts.has(l.id)) return 'premium'
+  return 'free'
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
@@ -184,7 +294,31 @@ export default async function handler(
     if (lErr) throw lErr
 
     const learnerIds = (learners || []).map(l => l.id)
-    const emailMap = await loadEmails(supabase, learnerIds)
+
+    // Fetch everything the list needs in ONE server round-trip (service role,
+    // indexed on learner_id) so the client renders immediately instead of
+    // firing its own per-learner enrollment fetches. Each user comes back
+    // self-contained: emails, access tier, and an activity rollup.
+    const [emailMap, activeSubs, activeEnts, enrollAgg] = await Promise.all([
+      loadEmails(supabase, learnerIds),
+      loadActiveSubscriptions(supabase, learnerIds),
+      loadActiveEntitlements(supabase, learnerIds),
+      loadEnrollmentAgg(supabase, learnerIds),
+    ])
+
+    const users = (learners || []).map(l => {
+      const emails = emailMap.get(l.id)
+      const agg = enrollAgg.get(l.id)
+      return {
+        ...l,
+        primary_email: emails?.primary || emails?.all[0] || null,
+        emails: emails?.all || [],
+        tier: tierFor(l, activeSubs, activeEnts),
+        last_active: agg?.last_active ?? null,
+        practice_minutes: agg?.practice_minutes ?? 0,
+        course_ids: agg?.course_ids ?? [],
+      }
+    })
 
     const { count: totalUsers } = await supabase
       .from('learners')
@@ -198,7 +332,7 @@ export default async function handler(
       .gte('created_at', weekAgo.toISOString())
 
     res.status(200).json({
-      users: enrich(learners || [], emailMap),
+      users,
       totalCount: count || 0,
       totalUsers: totalUsers || 0,
       newThisWeek: newThisWeek || 0,

@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useAdminUsers } from '@/composables/admin/useAdminUsers'
+import { useAdminUsers, type Tier, type SortKey } from '@/composables/admin/useAdminUsers'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
@@ -16,18 +16,20 @@ const {
   currentPage,
   totalPages,
   courseFilter,
+  tierFilter,
+  sortKey,
   isLoading,
   error,
   totalUsers,
   newThisWeek,
+  tierCounts,
   allEnrolledCourseIds,
   fetchAll,
   setPage,
   setSearch,
   setCourseFilter,
-  getUserEnrollments,
-  getLastActive,
-  getTotalPracticeMinutes,
+  setTierFilter,
+  setSort,
 } = useAdminUsers(getClient())
 
 const searchInput = ref('')
@@ -40,6 +42,34 @@ const courseOptions = computed(() =>
     label: parseCourseCode(c).label,
   })),
 )
+
+// Tier filter chips — count badges let an admin see the permission split at a
+// glance (the page's core job: find users / check access). null = All.
+const tierChips = computed<Array<{ value: Tier | null; label: string; count: number | null }>>(() => [
+  { value: null, label: 'All', count: totalUsers.value },
+  { value: 'premium', label: 'Premium', count: tierCounts.value.premium },
+  { value: 'free', label: 'Free', count: tierCounts.value.free },
+  { value: 'admin', label: 'Admin', count: tierCounts.value.admin },
+  { value: 'school', label: 'School', count: tierCounts.value.school },
+])
+
+const sortChips: Array<{ value: SortKey; label: string }> = [
+  { value: 'active', label: 'Recently active' },
+  { value: 'practice', label: 'Most practice' },
+  { value: 'joined', label: 'Newest' },
+  { value: 'name', label: 'Name' },
+]
+
+// Tier → Badge variant + label (premium = gold, admin = red, school = blue/info).
+const TIER_VARIANT: Record<Tier, 'ssi-gold' | 'ssi-red' | 'info' | 'default'> = {
+  premium: 'ssi-gold',
+  admin: 'ssi-red',
+  school: 'info',
+  free: 'default',
+}
+const TIER_LABEL: Record<Tier, string> = {
+  premium: 'Premium', admin: 'Admin', school: 'School', free: 'Free',
+}
 
 function handleSearch() {
   setSearch(searchInput.value)
@@ -103,6 +133,34 @@ onMounted(async () => {
       />
     </div>
 
+    <!-- Quick chips: tier filter (left) + sort (right) -->
+    <div class="chips-bar">
+      <div class="chip-group" role="group" aria-label="Filter by access tier">
+        <button
+          v-for="chip in tierChips"
+          :key="chip.label"
+          class="chip"
+          :class="{ 'chip-active': tierFilter === chip.value }"
+          @click="setTierFilter(chip.value)"
+        >
+          {{ chip.label }}
+          <span v-if="chip.count != null" class="chip-count mono-nums">{{ chip.count }}</span>
+        </button>
+      </div>
+      <div class="chip-group chip-group--sort" role="group" aria-label="Sort users">
+        <span class="chip-group-label">Sort</span>
+        <button
+          v-for="chip in sortChips"
+          :key="chip.value"
+          class="chip chip--sort"
+          :class="{ 'chip-active': sortKey === chip.value }"
+          @click="setSort(chip.value)"
+        >
+          {{ chip.label }}
+        </button>
+      </div>
+    </div>
+
     <!-- Error -->
     <div v-if="error" class="error-banner">{{ error }}</div>
 
@@ -134,12 +192,9 @@ onMounted(async () => {
           >
             <td class="cell-name">
               <span class="name-text">{{ user.display_name || 'Anonymous' }}</span>
-              <Badge
-                v-if="user.platform_role === 'ssi_admin'"
-                variant="ssi-red"
-                size="sm"
-                pill
-              >admin</Badge>
+              <Badge :variant="TIER_VARIANT[user.tier]" size="sm" pill>
+                {{ TIER_LABEL[user.tier] }}
+              </Badge>
             </td>
             <td class="cell-email">
               <template v-if="user.primary_email">
@@ -160,22 +215,22 @@ onMounted(async () => {
             <td>
               <div class="course-badges">
                 <Badge
-                  v-for="enrollment in getUserEnrollments(user.id)"
-                  :key="enrollment.course_id"
+                  v-for="courseId in user.course_ids"
+                  :key="courseId"
                   variant="default"
                   size="sm"
                   pill
                 >
-                  {{ parseCourseCode(enrollment.course_id).label }}
+                  {{ parseCourseCode(courseId).label }}
                 </Badge>
-                <span v-if="getUserEnrollments(user.id).length === 0" class="cell-faint">—</span>
+                <span v-if="user.course_ids.length === 0" class="cell-faint">—</span>
               </div>
             </td>
             <td class="cell-muted">
-              {{ getLastActive(user.id) ? timeAgo(getLastActive(user.id)!) : '—' }}
+              {{ user.last_active ? timeAgo(user.last_active) : '—' }}
             </td>
             <td class="cell-muted mono-nums">
-              {{ getTotalPracticeMinutes(user.id) > 0 ? formatDuration(getTotalPracticeMinutes(user.id)) : '—' }}
+              {{ user.practice_minutes > 0 ? formatDuration(user.practice_minutes) : '—' }}
             </td>
             <td class="cell-actions">
               <button
@@ -288,6 +343,75 @@ onMounted(async () => {
 .filters-bar :deep(.search-box) {
   flex: 1;
   min-width: 0;
+}
+
+/* Quick chips — tier filter + sort */
+.chips-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.chip-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip-group-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--schools-fg-3);
+  margin-right: 2px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(44, 38, 34, 0.1);
+  color: var(--schools-fg-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  white-space: nowrap;
+}
+
+.chip:hover {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(44, 38, 34, 0.18);
+  color: var(--schools-fg);
+}
+
+.chip-active {
+  background: var(--schools-fg);
+  border-color: var(--schools-fg);
+  color: var(--bg-primary, #fff);
+}
+
+.chip-active:hover {
+  background: var(--schools-fg);
+  color: var(--bg-primary, #fff);
+}
+
+.chip-count {
+  font-size: var(--text-xs);
+  opacity: 0.7;
+}
+
+.chip-active .chip-count {
+  opacity: 0.85;
 }
 
 /* Error / loading */
