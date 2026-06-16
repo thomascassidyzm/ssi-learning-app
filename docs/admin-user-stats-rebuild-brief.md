@@ -83,10 +83,12 @@ active_days        := count(distinct day) from learner_speaking_opportunities ..
 last_active        := max(occurred_at) ...
 ```
 **Full copy-paste migration is at the end of this doc** (`## Migration SQL`). It gates
-inside the function on `is_ssi_admin()` (same helper the `player_events` read policy
-uses) so the admin can call it directly via the Supabase client with their own JWT —
-no separate `/api/admin` endpoint needed, though you can still wrap it if you prefer.
-Remember `NOTIFY pgrst, 'reload schema';` (included).
+inside the function on `is_ssi_admin() OR is_god_user()` — the exact union the client's
+`canAccessAdmin` enforces (`platform_role='ssi_admin'` OR `educational_role='god'`,
+verified in `useUserRole.ts`), so anyone who can open the admin page can call it. The
+admin calls it directly via the authed Supabase client with their own JWT — no separate
+`/api/admin` endpoint needed, though you can still wrap it if you prefer. Remember
+`NOTIFY pgrst, 'reload schema';` (included).
 
 ### 2. Rewire `useAdminUserDetail.ts`
 Replace the `learner_l1_state` / `learner_lego_metrics` read for the general tiles with
@@ -175,8 +177,12 @@ DEFINER pattern. Cheap — it's all `group by` over rows we already write.
 ## Migration SQL
 
 Save as e.g. `supabase/migrations/20260616_admin_user_stats_rpcs.sql`, apply, done.
-All three are `SECURITY DEFINER`, `search_path`-pinned, and gated on `is_ssi_admin()`
-(swap to `is_god_user()` if that's the admin tool's gate). Schema facts they rely on:
+All three are `SECURITY DEFINER`, `search_path`-pinned, and gated on
+`is_ssi_admin() OR is_god_user()` — the union the admin page's `canAccessAdmin` already
+enforces (`platform_role='ssi_admin'` OR `educational_role='god'`). NB the existing
+`analytics_*` RPCs gate on `is_god_user()` alone, so they're effectively god-only — if
+you want those reachable by every ssi_admin too, widen them the same way. Schema facts
+they rely on:
 `player_events.user_id` = learner PK; `audio_play.payload` carries `seedId`/`legoId`;
 skip events carry `direction` (+ `legoId` on `tap_skip`/`lego_skip`);
 `learner_speaking_opportunities` is keyed by learner PK; `course_enrollments.course_id`
@@ -205,8 +211,12 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $function$
 BEGIN
-  IF NOT is_ssi_admin() THEN
-    RAISE EXCEPTION 'Forbidden: ssi_admin required';
+  -- Gate = the client's canAccessAdmin: platform_role='ssi_admin' OR
+  -- educational_role='god'. (is_god_user alone — as the analytics_* RPCs use —
+  -- would 403 an ssi_admin who isn't god; is_ssi_admin alone would 403 a
+  -- god-only admin. The page admits either, so the RPC must too.)
+  IF NOT (is_ssi_admin() OR is_god_user()) THEN
+    RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
   RETURN QUERY
@@ -278,8 +288,12 @@ DECLARE
   v_turbo bigint; v_pause bigint; v_play bigint;
   v_skip_events text[] := ARRAY['tap_skip','lego_skip','phase_skip','belt_skip'];
 BEGIN
-  IF NOT is_ssi_admin() THEN
-    RAISE EXCEPTION 'Forbidden: ssi_admin required';
+  -- Gate = the client's canAccessAdmin: platform_role='ssi_admin' OR
+  -- educational_role='god'. (is_god_user alone — as the analytics_* RPCs use —
+  -- would 403 an ssi_admin who isn't god; is_ssi_admin alone would 403 a
+  -- god-only admin. The page admits either, so the RPC must too.)
+  IF NOT (is_ssi_admin() OR is_god_user()) THEN
+    RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
   SELECT
@@ -320,8 +334,12 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $function$
 BEGIN
-  IF NOT is_ssi_admin() THEN
-    RAISE EXCEPTION 'Forbidden: ssi_admin required';
+  -- Gate = the client's canAccessAdmin: platform_role='ssi_admin' OR
+  -- educational_role='god'. (is_god_user alone — as the analytics_* RPCs use —
+  -- would 403 an ssi_admin who isn't god; is_ssi_admin alone would 403 a
+  -- god-only admin. The page admits either, so the RPC must too.)
+  IF NOT (is_ssi_admin() OR is_god_user()) THEN
+    RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
   RETURN QUERY
