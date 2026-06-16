@@ -34,6 +34,8 @@
 // ============================================================================
 import { ref, computed, watch } from 'vue'
 import RateCompare from './components/RateCompare.vue'
+import FrostSelect from '@/components/FrostSelect.vue'
+import TopNav from '@/components/schools/shared/TopNav.vue'
 import { isInsightDemo } from './data/demo'
 import {
   HERO_RATES,
@@ -84,14 +86,21 @@ const entityLevel = computed<EntityLevel>(() => (scope.value === 'class' ? 'clas
 
 // ── Metric + average selection (rate metrics; aggregate cohorts only) ────────
 const metricId = ref<string>('progressPace') // headline rate by default
-const averageId = ref<string>('course avg')
+const averageId = ref<string>('class avg')   // most-local cohort by default
 
 const currentMetric = computed(
   () => HERO_RATES.find((m) => m.id === metricId.value) ?? HERO_RATES[0],
 )
 
-// Averages valid for the chosen metric — every option is an AGGREGATE cohort.
+// Averages valid for the chosen metric — every option is an AGGREGATE cohort,
+// escalating class → year → school → region → country → global → all participants.
 const averageOptions = computed(() => listAverages(metricId.value))
+
+// FrostSelect option lists ({ value, label }). learnerOptions is already in that
+// shape; the others are mapped from their sources.
+const classSelectOptions = computed(() => MY_CLASSES.map((c) => ({ value: c.label, label: c.label })))
+const metricSelectOptions = computed(() => HERO_RATES.map((m) => ({ value: m.id, label: `${m.label} (${m.unit} / ${m.per})` })))
+const averageSelectOptions = computed(() => averageOptions.value.map((a) => ({ value: a, label: a })))
 
 // ── The class entity: the SELECTED one of the teacher's own classes, resolved
 // by NAME so it is the SAME class across every measure (listEntities is
@@ -117,7 +126,7 @@ const entityId = computed<string>(() =>
 // Snap the average into the metric's valid (aggregate) set.
 watch(metricId, () => {
   const avgs = listAverages(metricId.value)
-  if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'course avg'
+  if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'class avg'
 })
 
 // Re-anchor the learner pick to the first learner whenever the metric/scope/
@@ -158,6 +167,9 @@ const scopeLabel = computed(() =>
 </script>
 
 <template>
+  <!-- The teacher's dashboard nav is always present (wayfinding + escape). -->
+  <TopNav :force-tabs="true" />
+
   <div class="tiv-scroll">
   <div class="tiv schools-surface">
     <!-- ── Calm, minimal teacher header (NOT the admin "Insight Engine") ── -->
@@ -177,11 +189,7 @@ const scopeLabel = computed(() =>
       <!-- Your classes — only ever the teacher's OWN set -->
       <label class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Your classes</span>
-        <select v-model="selectedClassLabel" class="tiv-select">
-          <option v-for="c in MY_CLASSES" :key="c.label" :value="c.label">
-            {{ c.label }}
-          </option>
-        </select>
+        <FrostSelect v-model="selectedClassLabel" :options="classSelectOptions" aria-label="Your classes" />
       </label>
 
       <!-- Drill: the class, or a learner within it -->
@@ -206,29 +214,19 @@ const scopeLabel = computed(() =>
       <!-- Learner picker — only when drilled in; learners within THIS class -->
       <label v-if="scope === 'learner'" class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Learner in {{ CLASS_NAME }}</span>
-        <select v-model="learnerEntityId" class="tiv-select">
-          <option v-for="l in learnerOptions" :key="l.value" :value="l.value">
-            {{ l.label }}
-          </option>
-        </select>
+        <FrostSelect v-model="learnerEntityId" :options="learnerOptions" :aria-label="`Learner in ${CLASS_NAME}`" />
       </label>
 
       <!-- Metric -->
       <label class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Measure</span>
-        <select v-model="metricId" class="tiv-select">
-          <option v-for="m in HERO_RATES" :key="m.id" :value="m.id">
-            {{ m.label }} ({{ m.unit }} / {{ m.per }})
-          </option>
-        </select>
+        <FrostSelect v-model="metricId" :options="metricSelectOptions" aria-label="Measure" />
       </label>
 
       <!-- Average (aggregate cohorts only — never another named entity) -->
       <label class="tiv-field">
         <span class="tiv-field-label">Compare to</span>
-        <select v-model="averageId" class="tiv-select">
-          <option v-for="a in averageOptions" :key="a" :value="a">{{ a }}</option>
-        </select>
+        <FrostSelect v-model="averageId" :options="averageSelectOptions" aria-label="Compare to" />
       </label>
     </div>
 
@@ -278,6 +276,8 @@ const scopeLabel = computed(() =>
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--bg-primary, #e8e3dd);
+  /* Clear the fixed TopNav so content starts below it. */
+  padding-top: calc(var(--nav-height, 80px) + env(safe-area-inset-top, 0px));
 }
 
 .tiv {
@@ -294,7 +294,7 @@ const scopeLabel = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 18px;
-  min-height: 100vh;
+  min-height: calc(100dvh - var(--nav-height, 80px));
   position: relative;
   isolation: isolate;
   /* STEP 4 — the soft green/blue colour atmosphere UNDER the content, so the

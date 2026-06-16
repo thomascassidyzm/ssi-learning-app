@@ -217,6 +217,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: 'Your class',
       description: 'Your class vs the average — the Rate-compare widget, teacher-framed',
+      hideAppEscape: true, // carries the full TopNav, so no floating Back needed
     },
   },
   // Admin panel
