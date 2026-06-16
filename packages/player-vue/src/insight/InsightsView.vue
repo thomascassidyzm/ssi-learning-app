@@ -27,8 +27,9 @@ const HealthStrip = defineAsyncComponent(() => import('./boards/HealthStrip.vue'
 const DifficultyTurnsBoard = defineAsyncComponent(() => import('./boards/DifficultyTurnsBoard.vue'))
 const CoverageBoard = defineAsyncComponent(() => import('./boards/CoverageBoard.vue'))
 const RatesBoard = defineAsyncComponent(() => import('./boards/RatesBoard.vue'))
+const LifecycleBoard = defineAsyncComponent(() => import('./boards/LifecycleBoard.vue'))
 
-type BoardId = 'rates' | 'scoreboard' | 'friction' | 'difficulty' | 'coverage' | 'health'
+type BoardId = 'lifecycle' | 'rates' | 'scoreboard' | 'friction' | 'difficulty' | 'coverage' | 'health'
 
 interface BoardTab {
   id: BoardId
@@ -38,6 +39,12 @@ interface BoardTab {
 }
 
 const boards: BoardTab[] = [
+  {
+    id: 'lifecycle',
+    label: 'Lifecycle',
+    blurb: 'Free · paid · at-risk · ready-to-convert',
+    component: LifecycleBoard,
+  },
   {
     id: 'rates',
     label: 'Rate compare',
@@ -76,7 +83,7 @@ const boards: BoardTab[] = [
   },
 ]
 
-const activeBoard = ref<BoardId>('rates')
+const activeBoard = ref<BoardId>('lifecycle')
 
 const activeComponent = computed<Component>(() => {
   const found = boards.find(b => b.id === activeBoard.value)
