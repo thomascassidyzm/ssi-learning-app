@@ -5667,12 +5667,14 @@ class RealAudioController {
       // Set source and play
       this.audio.src = url
       this.audio.load()
-      // load() resets playbackRate to 1.0 — re-apply any pending rate
-      // (set by setPlaybackRate before this play() call). Pod ps2x relies
-      // on this to actually play at 2×.
-      if (this.pendingPlaybackRate && this.pendingPlaybackRate !== 1.0) {
-        this.audio.playbackRate = this.pendingPlaybackRate
-      }
+      // load() is SUPPOSED to reset playbackRate to 1.0, but WebKit/Safari
+      // doesn't reliably do so — a prior 2× segment leaks into the next play.
+      // So ALWAYS force the intended rate, not just when it's ≠ 1.0: otherwise
+      // a 1.0× bookend ("now just listen for a while…") played after a 2× floor
+      // seed inherits the stale 2× on Safari and chipmunks. Pod ps2x relies on
+      // this too. (Tom 2026-06-16 — heard the bookends at 2× on Safari/WebKit;
+      // Chromium resets on load() so the bug was invisible there.)
+      this.audio.playbackRate = this.pendingPlaybackRate || 1.0
 
       const playPromise = this.audio.play()
       if (playPromise) {
