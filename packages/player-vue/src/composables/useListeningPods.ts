@@ -133,27 +133,52 @@ export function useListeningPods(
       const podId = `${course}:pod-0`
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id')
+        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids')
         .eq('pod_id', podId)
         .order('global_order', { ascending: true })
 
       if (fetchErr) throw new Error(`listening_pod_sentences: ${fetchErr.message}`)
       if (myFetch !== activeFetch) return
 
-      // Bucket by scene_number.
+      // Bucket by scene_number. A multi-sentence TURN row that's been split
+      // (sentence_audio_ids set, one clip per sentence) becomes one PodSentence
+      // PER SENTENCE — the unit is the sentence (Tom 2026-06-16). Otherwise the
+      // row is one PodSentence as before.
+      const splitText = (t: string): string[] =>
+        (t || '').split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean)
       const buckets = new Map<number, PodSentence[]>()
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
-        list.push({
-          id: row.id,
-          speaker: row.speaker || '',
-          targetText: row.target_text || '',
-          knownText: row.known_text || '',
-          targetAudioId: row.target_audio_id || null,
-          knownAudioId: row.known_audio_id || null,
-          explainerAudioId: row.explainer_audio_id || null,
-          globalOrder: row.global_order,
-        })
+        const clips: string[] = Array.isArray(row.sentence_audio_ids) ? row.sentence_audio_ids.filter(Boolean) : []
+        if (clips.length >= 2) {
+          const tSents = splitText(row.target_text)
+          const kSents = splitText(row.known_text)
+          for (let i = 0; i < clips.length; i++) {
+            list.push({
+              id: `${row.id}:s${i}`,
+              speaker: row.speaker || '',
+              targetText: tSents[i] || tSents[tSents.length - 1] || row.target_text || '',
+              knownText: kSents[i] || '',
+              targetAudioId: clips[i],
+              // per-sentence English audio isn't split (yet); the gloss text still
+              // shows. The trans slot drops gracefully when knownAudioId is null.
+              knownAudioId: null,
+              explainerAudioId: null,
+              globalOrder: row.global_order + i * 0.001,
+            })
+          }
+        } else {
+          list.push({
+            id: row.id,
+            speaker: row.speaker || '',
+            targetText: row.target_text || '',
+            knownText: row.known_text || '',
+            targetAudioId: row.target_audio_id || null,
+            knownAudioId: row.known_audio_id || null,
+            explainerAudioId: row.explainer_audio_id || null,
+            globalOrder: row.global_order,
+          })
+        }
         buckets.set(row.scene_number, list)
       }
 
