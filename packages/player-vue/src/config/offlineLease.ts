@@ -38,13 +38,43 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
 export const LEASE_DURATION_MS = LEASE_DAYS * MS_PER_DAY
 
 /**
- * How often the running app tries to slide the lease forward while open.
- * 6h — frequent enough that an active learner who opens the app daily never
- * approaches the 30-day edge, infrequent enough to be free (one cheap auth'd
- * GET). Boot + the `online` event are the primary renewers; this is the
- * long-session backstop.
+ * How often the running app *considers* sliding the lease forward while open.
+ * 6h — the long-session backstop. Each tick is GATED (see leaseShouldRevalidate
+ * + the throttle): it only actually hits the network when a lease is near expiry
+ * or hasn't been checked in a day, so most ticks are a no-op.
  */
 export const RENEW_INTERVAL_MS = 6 * 60 * 60 * 1000
+
+/**
+ * Only proactively re-validate a lease when it's within this of expiry. A user
+ * with 25 days of runway makes ZERO lease network calls — the whole point is the
+ * check is invisible until it's actually needed. Each successful check buys
+ * another 30 days, so a regular user is topped up long before the edge.
+ */
+export const RENEW_AHEAD_MS = 7 * MS_PER_DAY
+
+/**
+ * Re-validate at most ~once a day even when there's plenty of runway, so a
+ * server-side REVOCATION (chargeback/refund kill-switch) is discovered within a
+ * day without nagging the network on every app open.
+ */
+export const STALE_AFTER_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Throttle: never fire two validations within this window, whatever the trigger
+ * (boot / reconnect / timer). Stops a flaky connection that flaps online/offline
+ * from spamming the endpoint — the Spotify "weak signal gets bent out of shape"
+ * failure mode.
+ */
+export const MIN_RENEW_INTERVAL_MS = 60 * 60 * 1000
+
+/**
+ * Abort the validation fetch after this long. On a WEAK signal the request must
+ * fail FAST and fail OPEN (keep the existing lease) rather than hang the app —
+ * airplane mode is fine (we don't even try); it's the half-connected case that
+ * annoys, so we cap how long we'll ever wait on it.
+ */
+export const VALIDATE_TIMEOUT_MS = 5000
 
 // ============================================================================
 // TYPES
@@ -66,6 +96,17 @@ export interface OfflineLease {
   /** Subscription id at last validation (diagnostic; not load-bearing). */
   subscriptionId?: string | null
   /**
+   * Server-set REVOCATION flag (chargeback/refund kill-switch). When the server
+   * reports the lease revoked, offline locks regardless of expiry. Sticky on the
+   * client until a successful validate clears it.
+   */
+  revoked?: boolean
+  /**
+   * Whether this is a free 30-day TASTE (non-payer) vs a renewing entitlement.
+   * Server-anchored where possible; diagnostic for the lock UI copy.
+   */
+  isTrial?: boolean
+  /**
    * Opaque hash of the entitlement shape at grant/renew time — lets us notice
    * a materially-changed entitlement later if we ever want to. Diagnostic only.
    */
@@ -77,6 +118,7 @@ export type LeaseStatus =
   | 'valid' // within the window, clock trustworthy
   | 'none' // never leased (free user, or download predates leasing)
   | 'expired' // window elapsed — locked until a successful online renew
+  | 'revoked' // server kill-switch (chargeback/refund) — locked
   | 'clock-untrusted' // device clock wound back behind lastValidatedAt — locked
 
 // ============================================================================
@@ -128,9 +170,27 @@ export function leaseStatus(
   nowMs: number = Date.now(),
 ): LeaseStatus {
   if (!lease || !Number.isFinite(lease.expiresAt)) return 'none'
+  if (lease.revoked) return 'revoked'
   if (!isClockTrustworthy(lease, nowMs)) return 'clock-untrusted'
   if (nowMs >= lease.expiresAt) return 'expired'
   return 'valid'
+}
+
+/**
+ * Is it worth hitting the network to re-validate this lease right now? True only
+ * when there's a real reason — near expiry, already expired, or not checked in a
+ * day (to catch a revocation). A healthy lease with lots of runway returns false,
+ * so the common case makes NO network call (esp. on first load). Revoked is left
+ * to the daily/near-expiry cadence — we don't poll aggressively for it.
+ */
+export function leaseShouldRevalidate(
+  lease: OfflineLease | null | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!lease || !Number.isFinite(lease.expiresAt)) return false
+  if (lease.expiresAt - nowMs <= RENEW_AHEAD_MS) return true
+  const lastValidated = Number.isFinite(lease.lastValidatedAt) ? lease.lastValidatedAt : 0
+  return nowMs - lastValidated >= STALE_AFTER_MS
 }
 
 /**
