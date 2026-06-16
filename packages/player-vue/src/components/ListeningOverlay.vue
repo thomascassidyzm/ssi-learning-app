@@ -263,14 +263,6 @@ const LISTEN_MODES = computed(() =>
 )
 const validModeKeys = computed(() => new Set(LISTEN_MODES.value.map((m) => m.key)))
 const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')
-// Index of the active mode — drives the segmented control's sliding thumb (a
-// persistent pill moved by transform, NOT a per-button background that toggles;
-// iOS Safari fails to repaint a toggled background inside the rounded track,
-// which left the selected pill rendering as invisible white-on-white).
-const activeModeIndex = computed(() => {
-  const i = LISTEN_MODES.value.findIndex((m) => m.key === listenMode.value)
-  return i < 0 ? 0 : i
-})
 watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) } catch {} })
 // Keep the selection valid: a retired key (Flow/Guided/Practice/Turbo) — or
 // 'audit' when it's no longer available — falls back to the default.
@@ -1789,14 +1781,7 @@ watch(
       <!-- Dialogue listening level: how much help, how much pace. These ARE
            the listening difficulty settings — first-class placement, sharing
            the band with the two quiet glyphs. -->
-      <div
-        v-if="view === 'pods' && selectedScene"
-        class="mode-selector"
-        :style="{ '--mode-count': LISTEN_MODES.length, '--active-index': activeModeIndex }"
-      >
-        <!-- Sliding thumb: a persistent dark pill moved by transform (composites
-             reliably on iOS, unlike a toggled per-button background). -->
-        <span class="mode-thumb" aria-hidden="true"></span>
+      <div v-if="view === 'pods' && selectedScene" class="mode-selector">
         <button
           v-for="m in LISTEN_MODES"
           :key="m.key"
@@ -2078,9 +2063,14 @@ watch(
  * Active = ink pill, matching the view tabs — a belt-colour fill is invisible
  * on white belt. The crisp track + padded inset makes the two states read
  * unmistakably as a toggle. */
+/* Segmented control. The active fill lives ON THE BUTTON itself (no separate
+ * thumb layer). An earlier "sliding thumb" used position:absolute + transform,
+ * which on iOS Safari painted BEHIND its siblings inside the overlay's
+ * backdrop-filtered ancestor — the dark fill rendered but was obscured by the
+ * white track ("black threatens from behind"). A solid background on the button
+ * box can't be painted behind anything, so the selected state is reliable. */
 .mode-selector {
   display: flex;
-  position: relative;            /* anchors the sliding thumb */
   /* Sit at content width, centred between the loop glyph and the gloss eye —
    * NOT full-width (it looked absurd stretched edge-to-edge on desktop). Caps
    * at a sensible pill-group width; still shrinks on narrow screens. */
@@ -2088,38 +2078,18 @@ watch(
   max-width: 24rem;
   margin-inline: auto;
   min-width: 0;
-  gap: 0;
-  padding: 2px;
+  gap: 4px;
+  padding: 3px;
   border: 1px solid var(--border-medium);
   border-radius: 999px;
   background: var(--bg-elevated);
 }
 
-/* The selected-state pill. It is ALWAYS painted and only MOVES (transform) when
- * the mode changes — iOS Safari composites transforms reliably, whereas it
- * failed to repaint a per-button background toggle inside the rounded track
- * (the "invisible white-on-white selected button until you toggle the eye"
- * bug). Width = one slot; translateX by whole slots to the active index. */
-.mode-thumb {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 2px;
-  width: calc((100% - 4px) / var(--mode-count, 2));
-  border-radius: 999px;
-  background: var(--text-primary);
-  transform: translateX(calc(var(--active-index, 0) * 100%));
-  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none;
-}
-
 .mode-btn {
-  position: relative;            /* sits above the thumb */
-  z-index: 1;
   flex: 1;
   min-width: 5.5rem;             /* a comfortable readable pill, not a stretched bar */
   padding: 6px 4px;
-  background: transparent;       /* the thumb provides the fill, not the button */
+  background: transparent;
   border: 0;
   border-radius: 999px;
   /* Inactive reads as tappable, not disabled — secondary ink, not muted. */
@@ -2128,7 +2098,7 @@ watch(
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: color 0.18s ease;
+  transition: color 0.15s ease, background-color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -2136,9 +2106,10 @@ watch(
   color: var(--text-primary);
 }
 
-/* Active = white text over the dark thumb. No background here — the thumb owns
- * the fill, so there is no toggled-background paint to fail. */
+/* Active = solid dark fill on the button itself + white text. Explicit ink
+ * (not a theme var) so it can never resolve light. */
 .mode-btn.active {
+  background: #2C2622;
   color: #ffffff;
   font-weight: 600;
 }
