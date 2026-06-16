@@ -20,7 +20,6 @@
 // ============================================================================
 import { ref, computed, watch } from 'vue'
 import RateCompare from '../components/RateCompare.vue'
-import { isInsightDemo } from '../data/demo'
 import {
   HERO_RATES,
   getRateComparison,
@@ -30,8 +29,6 @@ import {
   type EntityLevel,
 } from '../data/demoRates'
 import type { RateComparisonData } from '../spec'
-
-const demoMode = isInsightDemo()
 
 // ── Selection state ─────────────────────────────────────────────────────────
 const metricId = ref<string>('progressPace')          // headline rate by default
@@ -79,16 +76,18 @@ watch([metricId, entityLevel], () => {
   }
 }, { immediate: true })
 
-// ── The resolved comparison (demo: deterministic; real path: TODO) ──────────
-const comparison = computed<RateComparisonData | null>(() => {
-  if (!demoMode) return null
-  return getRateComparison(
+// ── The resolved comparison ─────────────────────────────────────────────────
+// Seeded synthetic data renders BY DEFAULT — a live preview of what this widget
+// surfaces once real learners arrive (no ?demo gate). The real-data resolver
+// swaps in here when the analytics path is wired.
+const comparison = computed<RateComparisonData>(() =>
+  getRateComparison(
     metricId.value,
     entityLevel.value,
     entityId.value,
     averageId.value,
-  )
-})
+  ),
+)
 </script>
 
 <template>
@@ -157,18 +156,11 @@ const comparison = computed<RateComparisonData | null>(() => {
 
     <!-- ── The widget ── -->
     <div class="rtb-widget-card">
-      <RateCompare v-if="comparison" :data="comparison" />
-
-      <!-- Real-path note (no ?demo): no DB call, point to the preview. -->
-      <div v-else class="rtb-real-note">
-        <p class="rtb-real-lead">Rate compare runs in preview today.</p>
-        <p class="rtb-real-fine">
-          The real-data path resolves <code>getRateComparison(metric, level, entity, average)</code>
-          from the analytics tables — not yet wired. Append <code>?demo</code> to preview the
-          widget now with a seeded synthetic cohort.
-        </p>
-      </div>
+      <RateCompare :data="comparison" />
     </div>
+    <p class="rtb-preview-note">
+      Seeded synthetic cohort — a live preview of what this surfaces once learners arrive.
+    </p>
   </section>
 </template>
 
@@ -277,22 +269,14 @@ const comparison = computed<RateComparisonData | null>(() => {
   border-radius: 16px;
 }
 
-/* ── Real-path note ── */
-.rtb-real-note { display: flex; flex-direction: column; gap: 6px; }
-.rtb-real-lead { font-size: 14px; color: var(--ink-secondary); margin: 0; }
-.rtb-real-fine {
+/* ── Preview note ── */
+.rtb-preview-note {
   font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: var(--ink-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
   margin: 0;
-}
-.rtb-real-fine code {
-  font-family: var(--font-mono);
-  background: color-mix(in srgb, var(--ink-primary) 6%, transparent);
-  padding: 1px 5px;
-  border-radius: 5px;
-  color: var(--ink-secondary);
+  text-align: center;
 }
 
 /* ── Responsive ── */

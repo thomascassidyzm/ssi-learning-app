@@ -36,7 +36,6 @@ import { ref, computed, watch } from 'vue'
 import RateCompare from './components/RateCompare.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
-import { isInsightDemo } from './data/demo'
 import {
   HERO_RATES,
   getRateComparison,
@@ -46,8 +45,6 @@ import {
 } from './data/demoRates'
 import type { RateComparisonData } from './spec'
 import '@/styles/schools-tokens.css'
-
-const demoMode = isInsightDemo()
 
 // ── The teacher's OWN classes ───────────────────────────────────────────────
 // A teacher usually teaches more than one class, so they pick among THEIR set —
@@ -147,16 +144,18 @@ watch(
   { immediate: true },
 )
 
-// ── The resolved comparison (demo: deterministic; real path: TODO) ──────────
-const comparison = computed<RateComparisonData | null>(() => {
-  if (!demoMode) return null
-  return getRateComparison(
+// ── The resolved comparison ─────────────────────────────────────────────────
+// Seeded synthetic data renders BY DEFAULT — a live preview of what a teacher
+// sees once their class has real telemetry (no ?demo gate). The real teacher
+// data path swaps in here when wired.
+const comparison = computed<RateComparisonData>(() =>
+  getRateComparison(
     metricId.value,
     entityLevel.value,
     entityId.value,
     averageId.value,
-  )
-})
+  ),
+)
 
 // A friendly scope label for the header line.
 const scopeLabel = computed(() =>
@@ -235,16 +234,7 @@ const scopeLabel = computed(() =>
 
     <!-- ── The one widget — nothing else on this page ── -->
     <div class="tiv-widget-card">
-      <RateCompare v-if="comparison" :data="comparison" />
-
-      <!-- Real-path note (no ?demo): no DB call, point to the preview. -->
-      <div v-else class="tiv-real-note">
-        <p class="tiv-real-lead">This view runs in preview today.</p>
-        <p class="tiv-real-fine">
-          The live teacher data path isn't wired yet. Append <code>?demo</code> to
-          the URL to preview your class vs the average now.
-        </p>
-      </div>
+      <RateCompare :data="comparison" />
     </div>
   </div>
   </div>
@@ -468,24 +458,6 @@ const scopeLabel = computed(() =>
   box-shadow:
     0 1px 2px rgba(44, 38, 34, 0.05),
     0 14px 34px rgba(44, 38, 34, 0.08);
-}
-
-/* ── Real-path note ── */
-.tiv-real-note { display: flex; flex-direction: column; gap: 6px; }
-.tiv-real-lead { font-size: 14px; color: var(--ink-secondary); margin: 0; }
-.tiv-real-fine {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: var(--ink-muted);
-  margin: 0;
-}
-.tiv-real-fine code {
-  font-family: var(--font-mono);
-  background: color-mix(in srgb, var(--ink-primary) 6%, transparent);
-  padding: 1px 5px;
-  border-radius: 5px;
-  color: var(--ink-secondary);
 }
 
 /* ── Responsive ── */
