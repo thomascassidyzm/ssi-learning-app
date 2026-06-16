@@ -141,6 +141,28 @@ export function useListeningPods(
       if (fetchErr) throw new Error(`listening_pod_sentences: ${fetchErr.message}`)
       if (myFetch !== activeFetch) return
 
+      // Per-sentence DISPLAY text must come from each split clip's OWN stored text
+      // (authoritative + language-agnostic). The Latin boundary regex in
+      // splitRowUnits can't split CJK/Indic/Thai targets (Japanese 。/no-spaces,
+      // Thai no punctuation), so without this every split card would show the whole
+      // turn. Batch-load every split clip's text for this pod (chunked to keep the
+      // PostgREST `in()` URL short).
+      const clipIds = new Set<string>()
+      for (const row of data || []) {
+        for (const id of (row.sentence_audio_ids || [])) if (id) clipIds.add(id)
+        for (const id of (row.sentence_known_audio_ids || [])) if (id) clipIds.add(id)
+      }
+      const textById = new Map<string, string>()
+      const idArr = Array.from(clipIds)
+      for (let i = 0; i < idArr.length; i += 150) {
+        const { data: clips } = await supabase
+          .from('course_audio')
+          .select('id, text')
+          .in('id', idArr.slice(i, i + 150))
+        for (const c of clips || []) if (c.text) textById.set(c.id, c.text)
+      }
+      if (myFetch !== activeFetch) return
+
       // Bucket by scene_number. A multi-sentence TURN row that's been split
       // (sentence_audio_ids set, one clip per sentence) becomes one PodSentence
       // PER SENTENCE — the unit is the sentence (Tom 2026-06-16). Otherwise the
@@ -149,7 +171,7 @@ export function useListeningPods(
       const buckets = new Map<number, PodSentence[]>()
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
-        for (const u of splitRowUnits(row)) {
+        for (const u of splitRowUnits(row, textById)) {
           list.push({
             id: u.isSplit ? `${row.id}:s${u.index}` : row.id,
             speaker: row.speaker || '',

@@ -52,8 +52,15 @@ const splitText = (t: string | null | undefined): string[] =>
  * the row hasn't been split (fewer than 2 sentence clips) — backwards
  * compatible: every course works, split or not. Otherwise returns one unit per
  * sentence clip, pairing target ⇄ known by index.
+ *
+ * `textById` maps a split clip's id → its stored course_audio text. When given,
+ * each sentence's display text comes from its OWN clip — authoritative and
+ * language-agnostic. This is essential for CJK/Indic/Thai, where the Latin
+ * boundary regex can't split the target (Japanese 。/no-spaces, Thai no
+ * punctuation at all) so the regex would show the whole turn on every card.
+ * The regex remains the fallback for legacy/un-enriched callers.
  */
-export function splitRowUnits(row: SplittableRow): PodSplitUnit[] {
+export function splitRowUnits(row: SplittableRow, textById?: Map<string, string>): PodSplitUnit[] {
   const clips = (Array.isArray(row.sentence_audio_ids) ? row.sentence_audio_ids : []).filter(Boolean) as string[]
   const knownClips = (Array.isArray(row.sentence_known_audio_ids) ? row.sentence_known_audio_ids : []).filter(Boolean) as string[]
 
@@ -71,13 +78,17 @@ export function splitRowUnits(row: SplittableRow): PodSplitUnit[] {
   const tSents = splitText(row.target_text)
   const kSents = splitText(row.known_text)
   const knownMatches = knownClips.length === clips.length
-  return clips.map((clip, i) => ({
-    index: i,
-    // Pad defensively if the text split produced fewer parts than clips.
-    targetText: tSents[i] || tSents[tSents.length - 1] || row.target_text || '',
-    knownText: kSents[i] || '',
-    targetAudioId: clip,
-    knownAudioId: knownMatches ? knownClips[i] : null,
-    isSplit: true,
-  }))
+  return clips.map((clip, i) => {
+    const knownClip = knownMatches ? knownClips[i] : null
+    return {
+      index: i,
+      // Prefer the clip's own stored text; fall back to the regex split (padding
+      // defensively if it produced fewer parts than clips, e.g. CJK that didn't split).
+      targetText: textById?.get(clip) || tSents[i] || tSents[tSents.length - 1] || row.target_text || '',
+      knownText: (knownClip && textById?.get(knownClip)) || kSents[i] || '',
+      targetAudioId: clip,
+      knownAudioId: knownClip,
+      isSplit: true,
+    }
+  })
 }

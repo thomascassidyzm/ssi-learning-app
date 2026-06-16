@@ -37,6 +37,29 @@ describe('splitRowUnits', () => {
     expect(units[1]).toMatchObject({ index: 1, isSplit: true, targetText: 'Come stai?', targetAudioId: 't1', knownText: 'How are you?', knownAudioId: 'k1' })
   })
 
+  it('uses each clip\'s own stored text for CJK (the Latin regex cannot split 。/no-spaces)', () => {
+    // The exact bug Tom caught: a Japanese turn whose target_text the boundary
+    // regex leaves whole — without textById both cards showed the whole turn.
+    const textById = new Map([
+      ['t0', 'マンチェスター出身ですが、今はロンドンに住んでいます。'],
+      ['t1', 'あなたは？'],
+      ['k0', "I'm from Manchester, but now I live in London."],
+      ['k1', 'And you?'],
+    ])
+    const row = {
+      target_text: 'マンチェスター出身ですが、今はロンドンに住んでいます。あなたは？',
+      known_text: "I'm from Manchester, but now I live in London. And you?",
+      sentence_audio_ids: ['t0', 't1'],
+      sentence_known_audio_ids: ['k0', 'k1'],
+    }
+    // Without the map: the regex can't split Japanese → both cards show the whole turn.
+    expect(splitRowUnits(row)[1].targetText).toBe(row.target_text)
+    // With the map: each card shows its own sentence.
+    const units = splitRowUnits(row, textById)
+    expect(units[0]).toMatchObject({ targetText: 'マンチェスター出身ですが、今はロンドンに住んでいます。', knownText: "I'm from Manchester, but now I live in London." })
+    expect(units[1]).toMatchObject({ targetText: 'あなたは？', knownText: 'And you?' })
+  })
+
   it('drops the known clip (null) when the known side count mismatches the target side', () => {
     const units = splitRowUnits({
       target_text: 'Sì, è libero. Prego, si accomodi.',
