@@ -22,7 +22,7 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isActingAs, restoreFromCache } = useUserRole()
 restoreFromCache()
 
 // Load the school context for the real authenticated user — the schools
@@ -57,8 +57,26 @@ const isEmailValid = computed(() =>
 // when isAuthenticated is false. Real sign-ins also populate ctx.
 const hasSchoolContext = computed(() => !!ctx.currentUser.value)
 
+// Platform-subscription gate (lever-3). FAIL-OPEN: ctx.platformActive defaults
+// to true for legacy rows / pre-migration DBs / unloaded context, so this never
+// locks anyone out before the migration lands. ssi_admins, act-as sessions, and
+// demo (no real auth) all bypass — only a real, expired school/tutor is blocked.
+const platformBypass = computed(
+  () => isSsiAdmin.value || isActingAs.value || !isAuthenticated.value,
+)
+const platformActive = computed(() => platformBypass.value || ctx.platformActive.value)
+
 const showDashboard = computed(() =>
-  (isAuthenticated.value || hasSchoolContext.value) && canAccessSchools.value,
+  (isAuthenticated.value || hasSchoolContext.value) &&
+  canAccessSchools.value &&
+  platformActive.value,
+)
+
+// Signed in, allowed by role, but the platform trial/subscription has lapsed.
+const showExpired = computed(() =>
+  (isAuthenticated.value || hasSchoolContext.value) &&
+  canAccessSchools.value &&
+  !platformActive.value,
 )
 
 const showNoAccess = computed(() =>
@@ -381,6 +399,26 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
       </section>
     </div>
 
+    <!-- Platform trial / subscription expired — renew panel -->
+    <div v-else-if="showExpired" class="schools-expired">
+      <div class="expired-card">
+        <span class="expired-pill">● Trial ended</span>
+        <h1 class="arsenal expired-headline">Your free month has ended</h1>
+        <p class="expired-lede">
+          Your school dashboard ran on a free trial. To keep your classes,
+          analytics and student progress, subscribe at
+          <strong>£15 per teacher / month</strong>.
+        </p>
+        <a class="btn-play btn-play--block expired-cta" href="mailto:hello@saysomethingin.com?subject=School%20subscription">
+          Subscribe to keep your dashboard →
+        </a>
+        <p class="expired-note">
+          Your data is safe — nothing is deleted. Get in touch and we'll switch
+          you back on straight away.
+        </p>
+      </div>
+    </div>
+
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
       <SchoolsTopBar />
@@ -435,6 +473,63 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
   height: 100vh;
   gap: 16px;
   color: var(--text-muted, #8A8078);
+}
+
+/* Expired / renew panel */
+.schools-expired {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--schools-page-backdrop, #e8e5dd);
+}
+.expired-card {
+  max-width: 480px;
+  width: 100%;
+  background: #fdf9f0;
+  border: 1px solid var(--schools-border, rgba(44, 38, 34, 0.12));
+  border-radius: 16px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(44, 38, 34, 0.1);
+}
+.expired-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: #fff5e5;
+  border: 1px solid #f4d28a;
+  color: #7a5418;
+  border-radius: 30px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.expired-headline {
+  font-size: 30px;
+  line-height: 1.1;
+  margin: 0 0 14px;
+}
+.expired-lede {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--schools-fg-2, #5a534c);
+  margin: 0 0 24px;
+}
+.expired-cta {
+  justify-content: center;
+  padding: 14px 18px;
+  font-size: 15px;
+  text-decoration: none;
+}
+.expired-note {
+  font-size: 13px;
+  color: var(--schools-fg-3, #8a8078);
+  margin: 18px 0 0;
 }
 
 .loading-spinner {

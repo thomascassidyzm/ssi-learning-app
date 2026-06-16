@@ -8,6 +8,9 @@
  *   VITE_PADDLE_TEACHER_PRICE_ANNUAL  — pri_… for £150/yr SSi Premium (unwired)
  *   VITE_PADDLE_STUDENT_PRICE_MONTHLY        — pri_… for £10/mo student-via-TUTOR (ACT)
  *   VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY — pri_… for £5/mo student-via-SCHOOL (no commission)
+ *   VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY — pri_… for £15/teacher/mo SCHOOL PLATFORM
+ *                                              (per-seat; checkout sends quantity = teacher seats).
+ *                                              ⚠️ Tom must create this price in Paddle + set the env.
  *   VITE_PADDLE_EXTRA_CLASS_MONTHLY   — pri_… (optional, future)
  *   VITE_PADDLE_EXTRA_CLASS_ANNUAL    — pri_… (optional, future)
  *
@@ -30,6 +33,9 @@ export const paddleConfig = {
   teacherAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
   studentMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_MONTHLY as string | undefined),
   studentSchoolMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY as string | undefined),
+  // School platform — £15/teacher/mo, per-seat. The school checkout sends
+  // quantity = teacher seats; the webhook (kind:'school_platform') reads it back.
+  schoolTeacherMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined),
   extraClassMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_MONTHLY as string | undefined),
   extraClassAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_ANNUAL as string | undefined),
 } as const

@@ -38,6 +38,10 @@ export interface SchoolUser {
   group_path?: string
   organization_name?: string
   class_ids?: string[]
+  // Platform-subscription gate (lever-3). Populated for school_admin / teacher.
+  // Absent/undefined (legacy row or pre-migration DB) ⇒ treated as ACTIVE.
+  platform_status?: string | null
+  platform_expires_at?: string | null
 }
 
 // Module-level shared state so every caller sees the same context.
@@ -50,6 +54,28 @@ const isGovtAdmin = computed(() => currentRole.value === 'govt_admin')
 const isSchoolAdmin = computed(() => currentRole.value === 'school_admin')
 const isTeacher = computed(() => currentRole.value === 'teacher')
 const isStudent = computed(() => currentRole.value === 'student')
+
+/**
+ * The platform-subscription gate (lever-3). FAIL-OPEN by design:
+ *   active = status === 'active' || (status === 'trial' && expires_at > now)
+ * but a NULL/absent status (legacy school, pre-migration DB, govt/admin context,
+ * or a demo persona) resolves to ACTIVE so the dashboard never locks out anyone
+ * the migration hasn't reached. Only an explicit expired/past_due/cancelled (or
+ * an elapsed trial) returns false.
+ */
+const platformActive = computed((): boolean => {
+  const u = currentUser.value
+  if (!u) return true
+  // govt admins / cross-school views aren't gated by a single school's billing.
+  if (u.educational_role === 'govt_admin' || u.educational_role === 'god') return true
+  const status = u.platform_status
+  if (status == null) return true // legacy / pre-migration / unloaded → fail open
+  if (status === 'active') return true
+  if (status === 'trial') {
+    return !!u.platform_expires_at && new Date(u.platform_expires_at).getTime() > Date.now()
+  }
+  return false // expired | past_due | cancelled
+})
 
 export function useSchoolContext() {
   /**
@@ -126,32 +152,95 @@ export function useSchoolContext() {
       if (tag) {
         const schoolId = tag.tag_value.replace('SCHOOL:', '')
         user.school_id = schoolId
-        const { data: school } = await c
-          .from('schools')
-          .select('school_name, region_code')
-          .eq('id', schoolId)
-          .single()
+        const school = await loadSchoolRow(c, 'id', schoolId)
         if (school) {
           user.school_name = school.school_name
           user.region_code = school.region_code
+          user.platform_status = school.platform_status
+          user.platform_expires_at = school.platform_expires_at
         }
       } else {
         // Fallback: check if they're the admin_user_id on a school.
-        const { data: school } = await c
-          .from('schools')
-          .select('id, school_name, region_code')
-          .eq('admin_user_id', userId)
-          .limit(1)
-          .single()
+        const school = await loadSchoolRow(c, 'admin_user_id', userId)
         if (school) {
           user.school_id = school.id
           user.school_name = school.school_name
           user.region_code = school.region_code
+          user.platform_status = school.platform_status
+          user.platform_expires_at = school.platform_expires_at
         }
+      }
+
+      // Tutors (no school) carry the gate on their teacher row. When a teacher
+      // row exists, its platform columns take precedence for the tutor gate.
+      const teacher = await loadTeacherRow(c, learner.id)
+      if (teacher && !user.school_id) {
+        user.platform_status = teacher.platform_status
+        user.platform_expires_at = teacher.platform_expires_at
       }
     }
 
     return user
+  }
+
+  /**
+   * Read a school row + its platform columns, FAILING OPEN if the platform
+   * columns don't exist yet (pre-migration). A missing-column error retries
+   * with just the legacy columns so the dashboard still renders; the platform
+   * fields come back undefined ⇒ the gate treats the account as active.
+   */
+  async function loadSchoolRow(
+    c: SupabaseClient,
+    keyCol: 'id' | 'admin_user_id',
+    keyVal: string,
+  ): Promise<{
+    id: string
+    school_name: string
+    region_code: string | null
+    platform_status: string | null
+    platform_expires_at: string | null
+  } | null> {
+    const { data, error } = await c
+      .from('schools')
+      .select('id, school_name, region_code, platform_status, platform_expires_at')
+      .eq(keyCol, keyVal)
+      .limit(1)
+      .maybeSingle()
+    if (!error) return (data as any) ?? null
+    if (isMissingColumn(error)) {
+      const { data: legacy } = await c
+        .from('schools')
+        .select('id, school_name, region_code')
+        .eq(keyCol, keyVal)
+        .limit(1)
+        .maybeSingle()
+      if (!legacy) return null
+      return { ...(legacy as any), platform_status: null, platform_expires_at: null }
+    }
+    return null
+  }
+
+  /** Read a teacher row's platform columns (fail-open on missing column). */
+  async function loadTeacherRow(
+    c: SupabaseClient,
+    learnerId: string,
+  ): Promise<{ platform_status: string | null; platform_expires_at: string | null } | null> {
+    const { data, error } = await c
+      .from('teachers')
+      .select('platform_status, platform_expires_at')
+      .eq('learner_id', learnerId)
+      .limit(1)
+      .maybeSingle()
+    if (!error) return (data as any) ?? null
+    // Missing column (pre-migration) or no teacher row → no gate data (active).
+    return null
+  }
+
+  /** PostgREST/Postgres "column does not exist" detection (pre-migration). */
+  function isMissingColumn(err: { code?: string; message?: string } | null): boolean {
+    if (!err) return false
+    if (['PGRST204', '42703'].includes(err.code || '')) return true
+    return /column .* does not exist|could not find the .* column|schema cache/i.test(err.message || '')
   }
 
   /**
@@ -289,6 +378,7 @@ export function useSchoolContext() {
     isSchoolAdmin,
     isTeacher,
     isStudent,
+    platformActive,
     loadFromAuth,
     loadAsPersona,
     loadFromSchoolId,

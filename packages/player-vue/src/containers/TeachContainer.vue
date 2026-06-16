@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, inject, computed } from 'vue'
+import { ref, inject, computed, watch } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { useUserRole } from '@/composables/useUserRole'
 import '@/styles/schools-tokens.css'
 
 // Supabase + auth from App.vue
@@ -15,7 +16,63 @@ const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
 
+const { isSsiAdmin, isActingAs, restoreFromCache } = useUserRole()
+restoreFromCache()
+
 const showLogin = computed(() => !isAuthenticated.value && !isAuthLoading.value)
+
+// Platform-subscription gate (tutor = 1 month free, then £15/mo). Read from the
+// server (api/school/subscription) which FAILS OPEN: a pre-migration DB, a
+// legacy tutor with no platform record, or any infra blip all resolve to active.
+// We only flip to expired on an explicit { active: false } from the server.
+// ssi_admins and act-as sessions bypass entirely.
+const platformExpired = ref(false)
+const platformChecked = ref(false)
+
+async function checkPlatform() {
+  if (isSsiAdmin.value || isActingAs.value) {
+    platformExpired.value = false
+    platformChecked.value = true
+    return
+  }
+  try {
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) {
+      platformChecked.value = true
+      return
+    }
+    const res = await fetch('/api/school/subscription', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      // Fail open: only an explicit active:false locks the dashboard.
+      platformExpired.value = data?.active === false
+    }
+  } catch {
+    // Network / server blip → fail open (leave platformExpired false).
+  } finally {
+    platformChecked.value = true
+  }
+}
+
+watch(
+  () => isAuthenticated.value && !!supabase.value,
+  (ready) => {
+    if (ready) checkPlatform()
+  },
+  { immediate: true },
+)
+
+// Only gate once we have a definitive server answer; until then render normally
+// (fail open) so a slow check never flashes a renew wall at an active tutor.
+const showExpired = computed(
+  () => isAuthenticated.value && platformChecked.value && platformExpired.value,
+)
+const showDashboard = computed(
+  () => isAuthenticated.value && !showExpired.value && !isAuthLoading.value,
+)
 
 // Inline OTP login (mirrors SchoolsContainer pattern; no role gate — anyone
 // signed in can claim a teacher profile via /teach/setup)
@@ -168,7 +225,27 @@ const handleAuthSuccess = () => closeAuth()
       </FrostCard>
     </div>
 
-    <template v-else>
+    <div v-else-if="showExpired" class="teach-expired">
+      <FrostCard variant="panel" class="expired-card">
+        <span class="expired-pill">● Trial ended</span>
+        <h1 class="expired-headline">Your free month has ended</h1>
+        <p class="expired-lede">
+          Your teacher dashboard ran on a one-month free trial. To keep running
+          classes and earning, subscribe for <strong>£15/month</strong>.
+        </p>
+        <a
+          class="expired-cta"
+          href="mailto:hello@saysomethingin.com?subject=Teacher%20subscription"
+        >
+          Subscribe to keep teaching →
+        </a>
+        <p class="expired-note">
+          Your classes and students are safe — nothing is deleted.
+        </p>
+      </FrostCard>
+    </div>
+
+    <template v-else-if="showDashboard">
       <TopNav mode="teach" @sign-in="openAuth" @sign-up="openAuth" />
       <main class="main-content">
         <router-view v-slot="{ Component }">
@@ -235,6 +312,66 @@ const handleAuthSuccess = () => closeAuth()
   justify-content: center;
   min-height: 100vh;
   padding: var(--space-6);
+}
+
+/* Expired / renew panel */
+.teach-expired {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+.expired-card {
+  max-width: 440px;
+  width: 100%;
+  padding: var(--space-10) var(--space-8);
+  text-align: center;
+}
+.expired-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  background: rgba(var(--tone-gold, 196, 154, 58), 0.12);
+  border: 1px solid rgba(var(--tone-gold, 196, 154, 58), 0.3);
+  color: #7a5418;
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-5);
+}
+.expired-headline {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  margin: 0 0 var(--space-3);
+  color: var(--ink-primary);
+}
+.expired-lede {
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--ink-muted);
+  margin: 0 0 var(--space-6);
+}
+.expired-cta {
+  display: inline-block;
+  padding: var(--space-4) var(--space-6);
+  background: var(--ssi-red);
+  color: #fff;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  text-decoration: none;
+}
+.expired-note {
+  font-size: var(--text-xs);
+  color: var(--ink-faint);
+  margin: var(--space-5) 0 0;
 }
 
 .login-card {

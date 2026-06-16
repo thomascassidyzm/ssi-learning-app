@@ -527,7 +527,8 @@ async function submitRecipient() {
       <div class="section-head">
         <span class="frost-section-title">Teacher plan</span>
         <p v-if="!hasSubscription" class="section-sub">
-          Start your 7-day free trial. Card not charged until day 8. Cancel anytime.
+          You're on your 1 month free trial. Then it's £{{ TEACHER_MONTHLY_PRICE }}/month —
+          your dashboard pauses if the trial lapses. Cancel anytime.
         </p>
         <p v-else class="section-sub">
           £{{ TEACHER_MONTHLY_PRICE }}/month — up to {{ MAX_CLASSES }} classes,
@@ -547,7 +548,7 @@ async function submitRecipient() {
           subscription. Every student after that is profit.
         </p>
         <Button variant="primary" :loading="isStartingTrial" @click="startTrial">
-          Start 7-day free trial
+          Subscribe — £{{ TEACHER_MONTHLY_PRICE }}/month
         </Button>
       </div>
 

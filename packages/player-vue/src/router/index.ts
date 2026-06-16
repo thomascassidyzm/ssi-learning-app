@@ -43,6 +43,17 @@ const routes: RouteRecordRaw[] = [
     path: '/schools',
     component: SchoolsContainer,
     meta: { hideAppEscape: true }, // SchoolsContainer carries its own nav
+    // Parent-level guard so a deep-link (e.g. /schools/analytics) still primes
+    // the role cache before the container's gate runs. The platform-subscription
+    // gate itself (lever-3) is enforced in SchoolsContainer, which wraps EVERY
+    // child route — it's async (loads platform_status), and a router guard can't
+    // resolve it synchronously, so the container is the right place. This guard
+    // just makes sure the role cache is restored first (no flash of wrong state).
+    beforeEnter: (_to, _from, next) => {
+      const { restoreFromCache } = useUserRole()
+      restoreFromCache()
+      next()
+    },
     children: [
       {
         path: 'setup',
@@ -158,6 +169,13 @@ const routes: RouteRecordRaw[] = [
     path: '/teach',
     component: TeachContainer,
     meta: { hideAppEscape: true }, // TeachContainer carries its own nav
+    // See the /schools guard note: primes the role cache; the platform gate
+    // (1mo tutor trial → £15/mo) is enforced async in TeachContainer.
+    beforeEnter: (_to, _from, next) => {
+      const { restoreFromCache } = useUserRole()
+      restoreFromCache()
+      next()
+    },
     children: [
       {
         path: '',
