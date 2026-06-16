@@ -246,7 +246,7 @@ export function useEntitlement(): UseEntitlementReturn {
    */
   function offlineRenews(course: CourseInfo): boolean {
     const role = platformRole.value
-    if (role === 'ssi_admin' || role === 'god' || role === 'tester') return true
+    if (role === 'ssi_admin' || role === 'tester') return true
 
     const sub = getSubscriptionStatus()
     if (sub.isActive && sub.tier === 'paid') return true

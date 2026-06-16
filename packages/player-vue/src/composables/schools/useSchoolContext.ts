@@ -23,7 +23,7 @@ import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSchoolsClient } from './client'
 
-export type EducationalRole = 'god' | 'student' | 'teacher' | 'school_admin' | 'govt_admin'
+export type EducationalRole = 'student' | 'teacher' | 'school_admin' | 'govt_admin'
 
 export interface SchoolUser {
   user_id: string
@@ -70,7 +70,7 @@ const platformActive = computed((): boolean => {
   const u = currentUser.value
   if (!u) return true
   // govt admins / cross-school views aren't gated by a single school's billing.
-  if (u.educational_role === 'govt_admin' || u.educational_role === 'god') return true
+  if (u.educational_role === 'govt_admin') return true
   const status = u.platform_status
   if (status == null) return true // legacy / pre-migration / unloaded → fail open
   if (status === 'active') return true

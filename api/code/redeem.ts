@@ -210,7 +210,8 @@ async function redeemInviteCode(
 
   // Update learner role and invite_code_id
   const learnerUpdate: Record<string, unknown> = { invite_code_id: inviteRow.id }
-  if (codeType === 'ssi_admin') {
+  if (codeType === 'ssi_admin' || codeType === 'god') {
+    // 'god' collapsed into 'ssi_admin' (2026-06-16); legacy god codes grant admin.
     learnerUpdate.platform_role = 'ssi_admin'
   } else if (codeType === 'tester') {
     learnerUpdate.platform_role = 'tester'

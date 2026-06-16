@@ -394,9 +394,8 @@ async function handleRevoke(entitlementId: string) {
               </div>
               <div class="profile-badges">
                 <Badge v-if="profile.platform_role === 'ssi_admin'" variant="ssi-red" pill>Admin</Badge>
-                <Badge v-if="profile.educational_role === 'god'" variant="ssi-gold" pill>God</Badge>
                 <Badge
-                  v-if="profile.educational_role && profile.educational_role !== 'god'"
+                  v-if="profile.educational_role"
                   variant="info"
                   pill
                 >
