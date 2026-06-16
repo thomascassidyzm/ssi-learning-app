@@ -6,6 +6,7 @@ import Button from '@/components/schools/shared/Button.vue'
 import {
   TRACKS,
   coursesForTrack,
+  isFreeTier,
   targetLabel,
   knownLangName,
   defaultKnownLang,
@@ -97,6 +98,18 @@ const trialEndLabel = computed(() =>
       })
     : ''
 )
+
+// The offer is per-COURSE (its pricing_tier), not per-door: Free = free, Premium = trial.
+const selectedCourseObj = computed(
+  () => trackCourses.value.find((x) => x.course_code === selectedCourse.value) || null
+)
+const selectedIsFree = computed(() =>
+  selectedCourseObj.value ? isFreeTier(selectedCourseObj.value) : false
+)
+const offerLine = computed(() => {
+  if (!selectedCourseObj.value) return ''
+  return selectedIsFree.value ? 'Free — no card, ever' : '1 month free trial — no card needed'
+})
 
 onMounted(async () => {
   try {
@@ -274,7 +287,7 @@ async function continueIn() {
       <Transition name="ob-swap" mode="out-in">
         <!-- STEP 1: choose language + email -->
         <section v-if="step === 'choose'" key="choose" class="ob-step">
-          <p class="ob-trial">{{ cfg.trialLabel }} — <span>free, no card needed</span></p>
+          <p v-if="offerLine" class="ob-trial">{{ offerLine }}</p>
 
           <h1 class="ob-title">Which language will you teach?</h1>
           <p class="ob-sub">{{ cfg.blurb }}</p>
@@ -325,7 +338,7 @@ async function continueIn() {
               <span class="ob-claim-eyebrow">You're teaching</span>
               <span class="ob-claim-endonym">{{ targetLabel(courses[0]) }}</span>
               <span class="ob-claim-echo">
-                {{ cfg.trialLabel }}
+                {{ isFreeTier(courses[0]) ? 'Free' : '1 month free trial' }}
                 <span v-if="courses[0].new_app_status === 'beta'" class="ob-beta">in beta</span>
               </span>
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
@@ -364,6 +377,7 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-row-name">{{ targetLabel(c) }}</span>
+                  <span v-if="isFreeTier(c)" class="ob-tier">Free</span>
                   <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
                   <svg class="ob-row-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
@@ -394,8 +408,9 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-lang-endonym">{{ targetLabel(c) }}</span>
-                  <span v-if="c.new_app_status === 'beta'" class="ob-lang-gloss">
-                    <span class="ob-beta ob-beta-sm">beta</span>
+                  <span v-if="isFreeTier(c) || c.new_app_status === 'beta'" class="ob-lang-gloss">
+                    <span v-if="isFreeTier(c)" class="ob-tier">Free</span>
+                    <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
                   </span>
                   <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
@@ -508,9 +523,8 @@ async function continueIn() {
 
           <h1 class="ob-title ob-title-done">{{ selectedCourseLabel }} is ready</h1>
           <p class="ob-sub">
-            Free until
-            <strong class="ob-date">{{ trialEndLabel }}</strong>.
-            No card needed to start.
+            <template v-if="selectedIsFree">It's yours — free, no card ever.</template>
+            <template v-else>Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.</template>
           </p>
 
           <div class="ob-finishing">
@@ -586,7 +600,7 @@ async function continueIn() {
   --ob-accent-soft: rgba(212, 168, 83, 0.16);
   --ob-accent-glow: rgba(212, 168, 83, 0.30);
 }
-.onboard.track-school_standard {
+.onboard.track-school {
   --ob-accent: var(--ssi-red, #c23a3a);
   --ob-accent-ink: var(--ssi-red-dark, #9a2e2e);
   --ob-accent-2: var(--ssi-gold, #d4a853);
@@ -1059,6 +1073,17 @@ async function continueIn() {
 }
 .ob-beta-sm { font-size: 0.7rem; padding: 0 6px; }
 
+/* Free-tier tag — the attractive signal (paid courses just have no tag) */
+.ob-tier {
+  font-family: var(--font-body);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: var(--font-semibold, 600);
+  color: #15803d;
+  background: rgba(21, 128, 61, 0.10);
+  padding: 1px 8px;
+  border-radius: var(--radius-full, 999px);
+}
+
 /* --- Language grid (native radios styled as tiles) --- */
 .ob-lang-grid {
   display: grid;
@@ -1499,7 +1524,7 @@ async function continueIn() {
   --ob-accent-soft: rgba(254, 201, 2, 0.18);
   --ob-accent-glow: rgba(254, 201, 2, 0.32);
 }
-.onboard.track-school_standard {
+.onboard.track-school {
   --ob-accent: #db1e17;
   --ob-accent-ink: #900600;
   --ob-accent-2: #fec902;

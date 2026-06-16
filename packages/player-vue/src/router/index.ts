@@ -177,20 +177,22 @@ const routes: RouteRecordRaw[] = [
     component: WithTeacher,
     meta: { title: 'Learning with your teacher' },
   },
-  // Signup doors — three configured entries into one onboarding flow.
-  // The landing pages (saysomethingin.com) link here.
+  // Signup doors — two roles (school / tutor); the offer is per-course (pricing_tier),
+  // not per-door. /schools1 + /schools2 both run the ONE school flow (kept as two
+  // paths so existing landing-page links don't break). Note: bare /schools is the
+  // school DASHBOARD, not a signup door.
   {
     path: '/schools1',
-    name: 'onboard-school-minority',
+    name: 'onboard-school-1',
     component: Onboarding,
-    props: { track: 'school_minority' },
+    props: { track: 'school' },
     meta: { title: 'Set up your school' },
   },
   {
     path: '/schools2',
-    name: 'onboard-school-standard',
+    name: 'onboard-school-2',
     component: Onboarding,
-    props: { track: 'school_standard' },
+    props: { track: 'school' },
     meta: { title: 'Set up your school' },
   },
   {

@@ -13,7 +13,7 @@
  * double-grants or double-creates. Price/trial is decided SERVER-SIDE from the
  * track + the course's live status; the client choice is never trusted blindly.
  *
- * Body: { track: 'school_minority' | 'school_standard' | 'tutor', course_code }
+ * Body: { track: 'school' | 'tutor', course_code }
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -23,9 +23,9 @@ import { verifyAuthToken } from '../_utils/auth'
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
-// Minority/heritage target languages — the £5 / year-free mission track.
-const MINORITY_TARGET_LANGS = new Set(['cym', 'gle', 'bre', 'gla', 'eus', 'cat', 'glv', 'cor', 'gd'])
-const TRACKS = new Set(['school_minority', 'school_standard', 'tutor'])
+const TRACKS = new Set(['school', 'tutor'])
+// Premium courses get a free trial then convert to paid; Free/Community are free.
+const PREMIUM_TRIAL_DAYS = 30
 
 export default async function handler(
   req: VercelRequest,
@@ -60,7 +60,7 @@ export default async function handler(
     //    client to pick a not_available/draft or wrong-track course.
     const { data: course, error: courseErr } = await supabase
       .from('courses')
-      .select('course_code, target_lang, new_app_status')
+      .select('course_code, pricing_tier, new_app_status')
       .eq('course_code', course_code)
       .maybeSingle()
     if (courseErr) throw new Error(`course lookup failed: ${courseErr.message}`)
@@ -68,15 +68,9 @@ export default async function handler(
       res.status(400).json({ error: 'That course is not available yet' })
       return
     }
-    const isMinority = MINORITY_TARGET_LANGS.has(course.target_lang)
-    if (track === 'school_minority' && !isMinority) {
-      res.status(400).json({ error: 'That is not a minority-language course' })
-      return
-    }
-    if (track === 'school_standard' && isMinority) {
-      res.status(400).json({ error: 'Minority languages use the minority-language signup' })
-      return
-    }
+    // The OFFER is the course's tier: Free/Community = free (no grant needed — free
+    // courses are already accessible to everyone); Premium = a free trial then paid.
+    const isFree = course.pricing_tier === 'free' || course.pricing_tier === 'community'
 
     // 2. Ensure a learner row.
     let { data: learner } = await supabase
@@ -114,42 +108,43 @@ export default async function handler(
       }
     }
 
-    const trialDays = track === 'school_minority' ? 365 : 30
-    const expiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString()
-
-    // 3. Trial entitlement for THIS user. Idempotent on the same course, AND
-    //    capped: a single OTP'd account can't farm a free premium trial for the
-    //    whole catalogue — it gets a small number of concurrent self-service trials.
-    const SELF_SERVICE_TRIAL_CAP = 3
-    const { data: existingEnts } = await supabase
-      .from('user_entitlements')
-      .select('id, granted_courses, expires_at')
-      .eq('learner_id', learner.id)
-      .is('entitlement_code_id', null)
-      .is('email_access_grant_id', null)
-    const nowMs = Date.now()
-    const activeTrialCourses = new Set<string>()
-    for (const e of existingEnts || []) {
-      const active = !e.expires_at || new Date(e.expires_at).getTime() > nowMs
-      if (active && Array.isArray(e.granted_courses)) {
-        for (const cc of e.granted_courses) activeTrialCourses.add(cc)
+    // 3. Access. Free/Community courses are already accessible to everyone, so no
+    //    grant is needed. Premium courses get a free trial entitlement, capped so a
+    //    single OTP'd account can't farm a trial for the whole premium catalogue.
+    let expiresAt: string | null = null
+    if (!isFree) {
+      expiresAt = new Date(Date.now() + PREMIUM_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString()
+      const SELF_SERVICE_TRIAL_CAP = 3
+      const { data: existingEnts } = await supabase
+        .from('user_entitlements')
+        .select('id, granted_courses, expires_at')
+        .eq('learner_id', learner.id)
+        .is('entitlement_code_id', null)
+        .is('email_access_grant_id', null)
+      const nowMs = Date.now()
+      const activeTrialCourses = new Set<string>()
+      for (const e of existingEnts || []) {
+        const active = !e.expires_at || new Date(e.expires_at).getTime() > nowMs
+        if (active && Array.isArray(e.granted_courses)) {
+          for (const cc of e.granted_courses) activeTrialCourses.add(cc)
+        }
       }
-    }
-    const alreadyGranted = activeTrialCourses.has(course_code)
-    if (!alreadyGranted && activeTrialCourses.size >= SELF_SERVICE_TRIAL_CAP) {
-      res.status(409).json({
-        error: 'You already have active free trials — get in touch if you need more languages.',
-      })
-      return
-    }
-    if (!alreadyGranted) {
-      const { error: entErr } = await supabase.from('user_entitlements').insert({
-        learner_id: learner.id,
-        access_type: 'courses',
-        granted_courses: [course_code],
-        expires_at: expiresAt,
-      })
-      if (entErr) throw new Error(`trial grant failed: ${entErr.message}`)
+      const alreadyGranted = activeTrialCourses.has(course_code)
+      if (!alreadyGranted && activeTrialCourses.size >= SELF_SERVICE_TRIAL_CAP) {
+        res.status(409).json({
+          error: 'You already have active free trials — get in touch if you need more languages.',
+        })
+        return
+      }
+      if (!alreadyGranted) {
+        const { error: entErr } = await supabase.from('user_entitlements').insert({
+          learner_id: learner.id,
+          access_type: 'courses',
+          granted_courses: [course_code],
+          expires_at: expiresAt,
+        })
+        if (entErr) throw new Error(`trial grant failed: ${entErr.message}`)
+      }
     }
 
     // 4. Role.
@@ -203,28 +198,32 @@ export default async function handler(
         if (sErr || !school) throw new Error(`school create failed: ${sErr?.message}`)
         schoolId = school.id
       }
-      // School-level trial grant so a joining student's access cascades. Non-fatal.
-      const { data: existingGrants } = await supabase
-        .from('entitlement_grants')
-        .select('id, granted_courses')
-        .eq('school_id', schoolId)
-        .eq('is_active', true)
-      const grantCovers = (existingGrants || []).some(
-        (g: any) => Array.isArray(g.granted_courses) && g.granted_courses.includes(course_code)
-      )
-      if (!grantCovers) {
-        const { error: gErr } = await supabase.from('entitlement_grants').insert({
-          school_id: schoolId,
-          granted_courses: [course_code],
-          granted_by: auth.userId,
-          expires_at: expiresAt,
-        })
-        if (gErr) console.warn('[onboarding/provision] school grant failed (non-fatal):', gErr.message)
+      // School-level trial grant so a joining student's access cascades — ONLY for
+      // Premium courses (free courses are already accessible, no grant needed). Non-fatal.
+      if (!isFree) {
+        const { data: existingGrants } = await supabase
+          .from('entitlement_grants')
+          .select('id, granted_courses')
+          .eq('school_id', schoolId)
+          .eq('is_active', true)
+        const grantCovers = (existingGrants || []).some(
+          (g: any) => Array.isArray(g.granted_courses) && g.granted_courses.includes(course_code)
+        )
+        if (!grantCovers) {
+          const { error: gErr } = await supabase.from('entitlement_grants').insert({
+            school_id: schoolId,
+            granted_courses: [course_code],
+            granted_by: auth.userId,
+            expires_at: expiresAt,
+          })
+          if (gErr) console.warn('[onboarding/provision] school grant failed (non-fatal):', gErr.message)
+        }
       }
     }
 
     res.status(200).json({
-      trial: { course_code, expires_at: expiresAt, days: trialDays },
+      trial: isFree ? null : { course_code, expires_at: expiresAt, days: PREMIUM_TRIAL_DAYS },
+      free: isFree,
       role,
       redirect: track === 'tutor' ? '/teach' : '/schools',
     })
