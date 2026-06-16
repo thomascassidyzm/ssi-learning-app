@@ -4183,9 +4183,33 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     if (podCadenceFiresAtRound(completedRoundIndex)) {
       const lap = podScheduler.nextLap()
       if (lap) {
-        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
+        // SEGUE LAYER 1 → LAYER 2. On a pod round the cup wheel is also turning,
+        // so instead of two separately-bracketed listening blocks (intro/seeds/
+        // outro, then intro/pod/outro), prepend THIS round's L1 cup seeds onto the
+        // FRONT of the pod lap and play it as ONE lap: single intro bookend → L1
+        // seeds → pod → single outro bookend (Tom 2026-06-16, "just segue them").
+        // The standalone L1 block below is gated on !pod so it won't also fire.
+        // Skipped in INF PLAY (L1 doesn't run there) — pod plays alone, as before.
+        let lapToPlay = lap
+        if (l1Scheduler && l1Scheduler.isInitialized.value && currentMode.value !== 'infplay') {
+          const l1Cup = l1Scheduler.nextLap((completedRoundIndex || 0) + 1)
+          if (l1Cup && l1Cup.plays.length > 0) {
+            const l1AsPodPlays: PodPlay[] = l1Cup.plays.map((p) => ({
+              sentenceIdx: p.seedNumber,
+              stage: 0,
+              playRole: p.playbackSpeed >= 2 ? 'ps2x' : 'ps',
+              audioId: p.audioId,
+              text: p.text,
+              playbackSpeed: p.playbackSpeed,
+              glueToNextChunk: false,
+            }))
+            lapToPlay = { ...lap, plays: [...l1AsPodPlays, ...lap.plays] }
+            console.log(`[LearningPlayer] Seguing L1 cup ${l1Cup.cupIndex} (${l1Cup.bucketSize} seeds) into pod lap ${lap.podRound}`)
+          }
+        }
+        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lapToPlay.plays.length} plays)`)
         simplePlayer.pause()
-        const completed = await playPodLap(lap, l1FiredThisRound)
+        const completed = await playPodLap(lapToPlay, l1FiredThisRound)
         // Ratchet writes are fire-and-forget — awaiting the Supabase
         // round-trip put a 200-1000ms silence between the lap outro and
         // the next round's intro on mobile networks. The audible audio
@@ -4244,7 +4268,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           // skipping silently into round N+1. Re-fire uses omitIntro=true
           // so the bookend doesn't double up.
           userStoppedDuringLap.value = false
-          pendingLapResume.value = lap
+          pendingLapResume.value = lapToPlay
         } else {
           simplePlayer.resume()
         }
@@ -8802,10 +8826,10 @@ const collectPodSpanAudioIds = (spanMs: number): string[] => {
 
 // Layer-1 listening audio ids that WILL play within the next `spanMs`. Unlike
 // pods, an L1 lap is a PURE function of (catalogue, round, learner) —
-// nextLap(mainRound) is fully deterministic — so we enumerate every L1 lap due
-// in the round window ahead of the cursor and warm all their audio. Skips rounds
-// where a pod pre-empts L1 (same priority rule the boundary handler enforces:
-// pod > L1). Returns [] when no L1 lap falls in the span (cheap no-op).
+// nextLap(mainRound) is fully deterministic — so we enumerate every L1 cup due
+// in the round window ahead of the cursor and warm all their audio. Includes pod
+// rounds (the cup now segues in front of the pod, so its audio plays there too).
+// Returns [] when no L1 cup falls in the span (cheap no-op).
 const collectLayer1SpanAudioIds = (spanMs: number): string[] => {
   if (!l1Scheduler || !l1Scheduler.isInitialized.value) return []
   const cursor = Math.max(0, currentRoundIndex.value)
@@ -8813,7 +8837,8 @@ const collectLayer1SpanAudioIds = (spanMs: number): string[] => {
   const ids = new Set<string>()
   for (let mr = cursor + 1; mr <= lastRound + 1; mr++) {
     if (!l1Scheduler.shouldFireLapAt(mr)) continue
-    if (podScheduler?.shouldFireLapAt(mr)) continue // pod pre-empts L1 this round
+    // L1 cups now also play on pod rounds — segued in front of the pod under one
+    // set of bookends — so their cup audio needs warming too (no pod-round skip).
     const lap = l1Scheduler.nextLap(mr)
     if (!lap) continue
     if (lap.intro?.id) ids.add(lap.intro.id)

@@ -108,6 +108,24 @@ background maintenance. The `2×2×` is only ever the transient "this just got
 
 ---
 
+## Layer-2 pods: segue, don't double-bracket
+
+Layer-2 listening pods still fire on their own cadence (every ~5 rounds, owned by
+`usePodLapScheduler`). On a pod round the cup wheel is *also* turning, and we don't
+want two separately-bracketed listening blocks (`intro/seeds/outro` then
+`intro/pod/outro`). Instead, **this round's L1 cup seeds are prepended onto the
+front of the pod lap and played as one lap**:
+
+```
+intro bookend → L1 cup seeds → pod plays → outro bookend   (single bookend pair)
+```
+
+Seeds first, then the pod, segued. Implemented in `LearningPlayer.handleRoundBoundary`:
+the pod block prepends the cup's plays to `lap.plays`; the standalone L1 block is
+already gated on `!podFiresThisBoundary`, so nothing double-fires. The pod's ratchet
+still advances on the combined lap's completion (L1 has no ratchet). Skipped in INF
+PLAY (L1 doesn't run there — the pod plays alone with its own bookends, as before).
+
 ## Cup composition, fully specified
 
 For `seedsPerCup = p` (1…20), let `C = largest multiple of 5 ≤ p` (the current
