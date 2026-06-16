@@ -198,27 +198,14 @@ export default async function handler(
         if (sErr || !school) throw new Error(`school create failed: ${sErr?.message}`)
         schoolId = school.id
       }
-      // School-level trial grant so a joining student's access cascades — ONLY for
-      // Premium courses (free courses are already accessible, no grant needed). Non-fatal.
-      if (!isFree) {
-        const { data: existingGrants } = await supabase
-          .from('entitlement_grants')
-          .select('id, granted_courses')
-          .eq('school_id', schoolId)
-          .eq('is_active', true)
-        const grantCovers = (existingGrants || []).some(
-          (g: any) => Array.isArray(g.granted_courses) && g.granted_courses.includes(course_code)
-        )
-        if (!grantCovers) {
-          const { error: gErr } = await supabase.from('entitlement_grants').insert({
-            school_id: schoolId,
-            granted_courses: [course_code],
-            granted_by: auth.userId,
-            expires_at: expiresAt,
-          })
-          if (gErr) console.warn('[onboarding/provision] school grant failed (non-fatal):', gErr.message)
-        }
-      }
+      // NB: self-service school signup deliberately creates NO entitlement_grant.
+      // A school grant cascades to students as FREE play access (get_cascade_courses
+      // → api/entitlement/user.ts), and students are NOT meant to play free — the
+      // school relationship entitles them to the cheaper £5 price (driven by
+      // class.school_id in WithTeacher), not free access. Free access via the
+      // hierarchy is reserved for DELIBERATE ssi_admin/govt comps through
+      // api/entitlement/grant.ts, which keeps its full group→school→class heritage.
+      // Do not re-add an auto-grant here.
     }
 
     res.status(200).json({
