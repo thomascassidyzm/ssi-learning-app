@@ -7091,6 +7091,7 @@ const prepareAndJump = async (
 
 const handleSkip = async () => {
   logEvent('tap_skip', {
+    direction: 'forward',
     during: playingPodLapAudio.value ? 'pod_lap'
       : playingCommentaryAudio.value ? 'commentary'
       : isPlayingIntroduction.value ? 'intro'
@@ -7186,6 +7187,19 @@ const handleRevisit = async () => {
   if (!useRoundBasedPlayback.value || cachedRounds.value.length === 0) return
 
   console.log('[LearningPlayer] ========== CYCLE REGRESS (‹) REQUESTED ==========')
+
+  // Mirror handleSkip's tap_skip so the back/regress button is captured with the
+  // same shape — forward vs back then reads as a single queryable signal
+  // (skipping forward ≈ confidence; stepping back ≈ revisiting / struggle).
+  logEvent('tap_skip', {
+    direction: 'back',
+    during: 'cycle',
+    roundIndex: simplePlayer.roundIndex.value,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+    cycleIndex: simplePlayer.cycleIndex.value,
+    cycleType: simplePlayer.currentCycle.value?.type ?? null,
+    legoId: simplePlayer.currentRound.value?.legoId ?? null,
+  })
 
   haltAllPlayback()
   simplePlayer.stepCycle(-1)
