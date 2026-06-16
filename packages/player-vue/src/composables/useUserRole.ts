@@ -58,7 +58,11 @@ const isTester = computed(() => platformRole.value === 'tester' || isSsiAdmin.va
 
 // Capabilities
 const canAccessAdmin = computed(() => isSsiAdmin.value)
-const canAccessSchools = computed(() => isTeacher.value)
+// ssi_admins reach the schools area too — they're the platform operator, not a
+// school member, so they must never hit the "no school access / join code" wall
+// (which is for a signed-in learner with no school). Restores the pre-collapse
+// behaviour, where god — now folded into ssi_admin — passed this gate.
+const canAccessSchools = computed(() => isTeacher.value || isSsiAdmin.value)
 const canImpersonate = computed(() => isSsiAdmin.value)
 // Who may step into a persona's shoes (the act-as feature).
 const canActAs = computed(() => isSsiAdmin.value)
