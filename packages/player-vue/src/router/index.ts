@@ -50,8 +50,18 @@ const routes: RouteRecordRaw[] = [
     // resolve it synchronously, so the container is the right place. This guard
     // just makes sure the role cache is restored first (no flash of wrong state).
     beforeEnter: (_to, _from, next) => {
-      const { restoreFromCache } = useUserRole()
+      const { canAccessAdmin, hasSchoolRole, restoreFromCache } = useUserRole()
       restoreFromCache()
+      // ssi_admins have their OWN schools surface (/admin/schools read-views) and
+      // aren't members of any school — so redirect them OUT of the member-facing
+      // /schools tree from ANY entry point (a deep-link to /schools/teachers must
+      // never dump them on the learner "no school access / join code" wall).
+      // When acting-as a persona, hasSchoolRole is the PERSONA's, so they pass
+      // through to the live school experience as intended. (Guard on the PARENT
+      // so it covers every child route, not just the bare dashboard.)
+      if (canAccessAdmin.value && !hasSchoolRole.value) {
+        return next('/admin/schools')
+      }
       next()
     },
     children: [
@@ -68,14 +78,6 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'schools-dashboard',
         component: DashboardView,
-        beforeEnter: (_to, _from, next) => {
-          const { canAccessAdmin, hasSchoolRole, restoreFromCache } = useUserRole()
-          restoreFromCache()
-          if (canAccessAdmin.value && !hasSchoolRole.value) {
-            return next('/admin/schools')
-          }
-          next()
-        },
         meta: {
           title: 'Dashboard',
           description: 'Overview of school learning activity',
