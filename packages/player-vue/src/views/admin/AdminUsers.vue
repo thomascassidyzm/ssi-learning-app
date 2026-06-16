@@ -199,23 +199,27 @@ onMounted(async () => {
             @keydown.enter="navigateToUser(user.id)"
           >
             <td class="cell-name">
-              <span class="name-text">{{ user.display_name || 'Anonymous' }}</span>
-              <Badge :variant="TIER_VARIANT[user.tier]" size="sm" pill>
-                {{ TIER_LABEL[user.tier] }}
-              </Badge>
+              <div class="cell-name-inner">
+                <span class="name-text">{{ user.display_name || 'Anonymous' }}</span>
+                <Badge :variant="TIER_VARIANT[user.tier]" size="sm" pill>
+                  {{ TIER_LABEL[user.tier] }}
+                </Badge>
+              </div>
             </td>
             <td class="cell-email">
-              <template v-if="user.primary_email">
-                <span class="email-text" :title="user.emails.join(', ')">{{ user.primary_email }}</span>
-                <span
-                  v-if="user.emails.length > 1"
-                  class="email-extras"
-                  :title="user.emails.filter(e => e !== user.primary_email).join('\n')"
-                >
-                  +{{ user.emails.length - 1 }}
-                </span>
-              </template>
-              <span v-else class="cell-faint">—</span>
+              <div class="cell-email-inner">
+                <template v-if="user.primary_email">
+                  <span class="email-text" :title="user.emails.join(', ')">{{ user.primary_email }}</span>
+                  <span
+                    v-if="user.emails.length > 1"
+                    class="email-extras"
+                    :title="user.emails.filter(e => e !== user.primary_email).join('\n')"
+                  >
+                    +{{ user.emails.length - 1 }}
+                  </span>
+                </template>
+                <span v-else class="cell-faint">—</span>
+              </div>
             </td>
             <td class="cell-muted mono-nums">
               {{ new Date(user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) }}
@@ -497,6 +501,9 @@ onMounted(async () => {
 
 .cell-name {
   min-width: 220px;
+}
+
+.cell-name-inner {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -520,6 +527,9 @@ onMounted(async () => {
 
 .cell-email {
   max-width: 280px;
+}
+
+.cell-email-inner {
   display: flex;
   align-items: center;
   gap: 6px;
