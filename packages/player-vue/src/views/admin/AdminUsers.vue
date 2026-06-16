@@ -71,6 +71,14 @@ const TIER_LABEL: Record<Tier, string> = {
   premium: 'Premium', admin: 'Admin', school: 'School', free: 'Free',
 }
 
+// Show at most a couple of course chips per row, then collapse the rest to a
+// "+N" count — otherwise power users (and admins enrolled in everything) turn
+// every row into a wall of badges. Full list is on the +N hover and the detail.
+const COURSE_BADGE_CAP = 2
+function courseLabels(ids: string[]): string {
+  return ids.map(c => parseCourseCode(c).label).join(', ')
+}
+
 function handleSearch() {
   setSearch(searchInput.value)
 }
@@ -215,7 +223,7 @@ onMounted(async () => {
             <td>
               <div class="course-badges">
                 <Badge
-                  v-for="courseId in user.course_ids"
+                  v-for="courseId in user.course_ids.slice(0, COURSE_BADGE_CAP)"
                   :key="courseId"
                   variant="default"
                   size="sm"
@@ -223,6 +231,11 @@ onMounted(async () => {
                 >
                   {{ parseCourseCode(courseId).label }}
                 </Badge>
+                <span
+                  v-if="user.course_ids.length > COURSE_BADGE_CAP"
+                  class="course-more"
+                  :title="courseLabels(user.course_ids)"
+                >+{{ user.course_ids.length - COURSE_BADGE_CAP }}</span>
                 <span v-if="user.course_ids.length === 0" class="cell-faint">—</span>
               </div>
             </td>
@@ -540,7 +553,22 @@ onMounted(async () => {
 .course-badges {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-1);
+  max-width: 260px;
+}
+
+.course-more {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  color: var(--schools-fg-3);
+  background: rgba(44, 38, 34, 0.06);
+  border: 1px solid rgba(44, 38, 34, 0.12);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  cursor: help;
+  white-space: nowrap;
 }
 
 /* Hover-reveal row actions — canon §5.6 */
