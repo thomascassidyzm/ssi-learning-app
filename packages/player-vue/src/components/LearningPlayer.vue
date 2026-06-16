@@ -3094,28 +3094,24 @@ const podScheduler = supabase?.value
   : null
 
 // ============================================
-// LAYER-1 LISTENING SCHEDULER (drained-seed fluency maintenance)
-// Sibling of podScheduler but simpler: no stages, no ratchet. Fires every
-// ~50 main rounds (DEFAULT_LAYER1_CONFIG) once seeds have fully drained from
-// spaced rep; the lap is a pure function of (catalogue, round, learner) so
-// it's resume-safe with no persisted state. See useLayer1Scheduler.ts.
+// LAYER-1 LISTENING SCHEDULER (30-cup fluency maintenance)
+// Sibling of podScheduler but simpler: no stages, no ratchet. Fires EVERY clean
+// non-pod boundary once ≥1 seed/cup is available; pours one cup of a 30-slot
+// wheel of *introduced* seeds. Pure function of (catalogue, round, learner,
+// cluster templates) → resume-safe with no persisted state.
+// See useLayer1Scheduler.ts + docs/methodology/layer1-listening-cups.md.
 // ============================================
-// Dev cheat (?l1test): make Layer-1 listening fire early + often so it can be
-// verified without playing ~100 rounds. Default config (activation@100, every
-// 50 rounds, 90-round graduation offset) is correct for real learners but
-// untestable by hand. ?l1test → first lap at round 2, every 3 rounds, offset 0
-// (every already-debuted seed is immediately eligible, so the bucket is full
-// from the start). Optional ?l1every=N overrides the interval. Mirrors ?fc.
+// Dev cheat (?l1test): shrink the wheel so the cup model's milestones (fill,
+// cluster at 5/cup, re-cluster, freeze) are reachable by hand instead of after
+// hundreds of introduced seeds. Default (30 cups, activate at 30 introduced,
+// cap 20/cup) is right for real learners but untestable manually. ?l1test →
+// a 2-cup wheel, activate at 2 introduced, cap 10/cup — so 1/cup at 2 introduced,
+// first cluster at 10 introduced (5/cup), etc. Mirrors ?fc.
 const l1TestConfig = ((): Partial<Layer1Config> | undefined => {
   try {
     const p = new URLSearchParams(window.location.search)
     if (!p.has('l1test')) return undefined
-    const every = parseInt(p.get('l1every') || '', 10)
-    return {
-      activationRound: 2,
-      interval: Number.isFinite(every) && every > 0 ? every : 3,
-      offset: 0,
-    }
+    return { cups: 2, activationCount: 2, maxSeedsPerCup: 10 }
   } catch { return undefined }
 })()
 
@@ -4100,17 +4096,21 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // Pod cadence uses the INF-PLAY-aware helper (dev): main-loop defers to the
   // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
   const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
-  // Layer-1 fires only on a clean boundary with no pod (pod wins priority).
-  // Listening items must sit between main rounds, so an encouragement adjacent
-  // to an L1 lap is suppressed too — boundaryBetweenSpeakingRounds excludes it.
+  // Layer-1 fires every clean boundary with no pod (pod wins priority).
   const l1FiresThisBoundary = !!l1Scheduler
     && l1Scheduler.isInitialized.value
     && currentMode.value !== 'infplay'
     && !podFiresThisBoundary
     && l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  // L1 now fires EVERY clean non-pod boundary (30-cup model), so suppressing
+  // encouragements next to it would starve them entirely. The old "don't butt a
+  // clip onto a 10-min listen" reason is gone — an L1 cup is only ~1 min — so an
+  // encouragement MAY co-fire with an L1 lap: commentary plays, THEN the lap (the
+  // commentary block defers its resume to the lap block to avoid a resume()/pause()
+  // race). Pods still pre-empt both. Tom 2026-06-16.
   const boundaryBetweenSpeakingRounds =
     !isListeningRound(completedRound) && !isListeningRound(nextRound)
-    && !podFiresThisBoundary && !l1FiresThisBoundary
+    && !podFiresThisBoundary
 
   // Dev cheat (?fc / ?forceEncouragements): relax the placement rule so an
   // interjection can fire at ANY boundary that isn't a pod lap — otherwise a
@@ -4119,7 +4119,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // boundaries (firing there would overlap/race the lap). Pairs with the
   // service's forceFire (which drops the ~10-min interval).
   const canFireInterjection = forceInterjectionsCheat
-    ? (!podFiresThisBoundary && !l1FiresThisBoundary)
+    ? !podFiresThisBoundary
     : boundaryBetweenSpeakingRounds
 
   // No random encouragements in INF PLAY — the locked model has none, and a
@@ -4148,9 +4148,11 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       metaCommentary.finishCommentaryPlayback()
       if (userStoppedDuringLap.value) {
         userStoppedDuringLap.value = false
-      } else {
+      } else if (!l1FiresThisBoundary) {
         simplePlayer.resume()
       }
+      // else: an L1 lap fires this boundary and owns the resume — deferring
+      // avoids a resume()/pause() race between commentary and the lap.
     }
   }
 
@@ -4251,13 +4253,14 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   }
 
   // ============================================
-  // LAYER-1 LISTENING (runtime — drained-seed fluency maintenance)
-  // Fires every ~50 main rounds once seeds have fully drained from spaced
-  // rep. Plays the bucket (each drained seed's target sentence) at normal
-  // speed, then the whole list again at 2×. No ratchet: the lap is a pure
-  // function of (catalogue, round, learner), so it's resume-safe with nothing
-  // to persist. l1FiresThisBoundary already gated it on a clean, pod-free
-  // boundary (pod wins priority); a due-but-empty bucket no-ops via nextLap.
+  // LAYER-1 LISTENING (runtime — 30-cup fluency maintenance)
+  // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
+  // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
+  // played per its decay tier (1×2× → 2×2× → 2× floor), target audio only. No
+  // ratchet: the lap is a pure function of (catalogue, round, learner, cluster
+  // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
+  // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
+  // See docs/methodology/layer1-listening-cups.md.
   // ============================================
   if (l1Scheduler && l1FiresThisBoundary && !beltJustEarned.value) {
     const completedMainRound = (completedRoundIndex || 0) + 1
@@ -4271,7 +4274,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
 
     const l1Lap = l1Scheduler.nextLap(completedMainRound)
     if (l1Lap) {
-      console.log(`[LearningPlayer] Playing L1 listening lap @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
+      console.log(`[LearningPlayer] Playing L1 cup ${l1Lap.cupIndex} @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
       simplePlayer.pause()
 
       // Reuse the proven pod playback path — shape the L1 lap into a PodLap.
