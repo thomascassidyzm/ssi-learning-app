@@ -39,6 +39,7 @@ import {
   type Stage0Config,
   type AtomMapEntry,
 } from './stage0Sequence'
+import { splitRowUnits } from './podSentenceSplit'
 
 // ============================================================================
 // Pod stage logic — mirrors what was in generateLearningScript.ts
@@ -186,6 +187,142 @@ export interface PodSentenceRow {
    *  decomposed. Drives the prepended Stage-0 ladder; absent → the sentence
    *  behaves exactly as before (no Stage-0 views). */
   atom_map?: AtomMapEntry[] | null
+  /** Speaker label (used to compute speaker-aware gaps: a run of same-speaker
+   *  sentences glues tight; a speaker change breathes). Optional — speakerless
+   *  pods fall back to the row's own glue_to_next. */
+  speaker?: string | null
+}
+
+/**
+ * Raw listening_pod_sentences row as fetched — a whole speaker TURN. Flattened
+ * into per-SENTENCE PodSentenceRow units by flattenPodRows when the turn was
+ * silence-split (sentence_audio_ids present).
+ */
+interface RawPodRow {
+  id: string
+  global_order: number
+  speaker: string | null
+  target_text: string
+  known_text: string
+  target_audio_id: string | null
+  known_audio_id: string | null
+  explainer_audio_id: string | null
+  glue_to_next: boolean
+  atom_map?: AtomMapEntry[] | null
+  sentence_audio_ids?: string[] | null
+  sentence_known_audio_ids?: string[] | null
+}
+
+/** Strip everything but letters/numbers/combining-marks for a script-agnostic
+ *  structural comparison (NOT a linguistic judgment — just whitespace/
+ *  punctuation normalisation so pre-decided atom surfaces can be matched to
+ *  pre-decided sentence text). \p{M} (combining marks) MUST be kept — dropping
+ *  it would collapse e.g. Devanagari नमस्ते vs नमस्तें to the same string and
+ *  wrongly accept a misaligned partition. Letters/numbers/marks cover every
+ *  script; only separators + punctuation are stripped. */
+const alnumOnly = (s: string): string => (s || '').toLowerCase().replace(/[^\p{L}\p{N}\p{M}]/gu, '')
+
+/**
+ * Partition a turn's FLAT atom_map across its sentences, so each split sentence
+ * gets only its OWN atoms for Stage-0. The atom_map is ordered and its atom
+ * surfaces tile the turn's target text in order, so we walk the atoms
+ * accumulating their surfaces and close a group when the accumulation exactly
+ * covers the next sentence. Returns one atom group per sentence, or NULL if the
+ * atoms don't cleanly align (then the caller drops Stage-0 for that turn's
+ * splits — never a WRONG ladder). 'note' entries (no spoken surface) ride along
+ * in the current group; only atom/passthrough surfaces are matched.
+ */
+export function partitionAtomMap(
+  atomMap: AtomMapEntry[] | null | undefined,
+  sentenceTexts: string[],
+): AtomMapEntry[][] | null {
+  if (!Array.isArray(atomMap) || atomMap.length === 0) return null
+  if (sentenceTexts.length < 2) return null
+  const targets = sentenceTexts.map(alnumOnly)
+  if (targets.some((t) => !t)) return null
+  const groups: AtomMapEntry[][] = sentenceTexts.map(() => [])
+  let si = 0
+  let acc = ''
+  for (const entry of atomMap) {
+    if (si >= groups.length) return null // more atoms than sentences to hold them
+    groups[si].push(entry)
+    if (entry.kind === 'atom' || entry.kind === 'passthrough') {
+      const surf = alnumOnly(entry.target_surface || '')
+      if (surf) {
+        acc += surf
+        if (acc === targets[si]) { si++; acc = '' }
+        else if (!targets[si].startsWith(acc)) return null // misalignment
+      }
+    }
+  }
+  // Every sentence must be consumed exactly, every group non-empty.
+  if (si !== groups.length || acc !== '') return null
+  if (groups.some((g) => g.length === 0)) return null
+  return groups
+}
+
+/**
+ * Flatten raw turn-rows into per-SENTENCE PodSentenceRows. A row with a
+ * silence-split (sentence_audio_ids ≥ 2) becomes one row per sentence, each
+ * carrying its OWN target/known clip + text + partitioned atom_map; a row
+ * without a split passes through unchanged. glue_to_next is recomputed
+ * speaker-aware: a sentence glues to the next when they share a speaker (a
+ * paragraph runs tight; a speaker change breathes). Split siblings of one turn
+ * always glue; speakerless pods fall back to the row's original glue_to_next.
+ */
+export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
+  type Expanded = PodSentenceRow & { _turnId: string; _origGlue: boolean }
+  const expanded: Expanded[] = []
+  // Sibling detection keys off the SOURCE-ROW index (unique per turn), not
+  // row.id — robust to a missing/duplicate id; sub-sentences of one turn share it.
+  rawRows.forEach((row, rowIdx) => {
+    const turnId = String(rowIdx)
+    const units = splitRowUnits(row)
+    if (units.length === 1) {
+      expanded.push({
+        global_order: row.global_order,
+        target_text: row.target_text,
+        known_text: row.known_text,
+        target_audio_id: row.target_audio_id ?? null,
+        known_audio_id: row.known_audio_id ?? null,
+        explainer_audio_id: row.explainer_audio_id ?? null,
+        glue_to_next: !!row.glue_to_next,
+        atom_map: row.atom_map ?? null,
+        speaker: row.speaker ?? null,
+        _turnId: turnId,
+        _origGlue: !!row.glue_to_next,
+      })
+    } else {
+      const atomGroups = partitionAtomMap(row.atom_map, units.map((u) => u.targetText))
+      units.forEach((u, k) => {
+        expanded.push({
+          global_order: row.global_order + k * 0.001,
+          target_text: u.targetText,
+          known_text: u.knownText,
+          target_audio_id: u.targetAudioId,
+          known_audio_id: u.knownAudioId,
+          // No per-sentence explainer (it was per-turn) — Stage 1's explainer
+          // slot falls back to this sentence's own translation.
+          explainer_audio_id: null,
+          glue_to_next: false, // set in the speaker-aware pass below
+          atom_map: atomGroups ? atomGroups[k] : null,
+          speaker: row.speaker ?? null,
+          _turnId: turnId,
+          _origGlue: !!row.glue_to_next,
+        })
+      })
+    }
+  })
+  for (let k = 0; k < expanded.length; k++) {
+    const cur = expanded[k]
+    const next = expanded[k + 1]
+    if (!next) { cur.glue_to_next = false; continue }
+    if (next._turnId === cur._turnId) { cur.glue_to_next = true; continue } // sibling sentence of one turn
+    const a = (cur.speaker || '').trim().toLowerCase()
+    const b = (next.speaker || '').trim().toLowerCase()
+    cur.glue_to_next = a && b ? a === b : cur._origGlue
+  }
+  return expanded.map(({ _turnId: _t, _origGlue: _g, ...row }) => row)
 }
 
 export interface BookendAudio {
@@ -309,7 +446,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
-          .select('id, global_order, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map')
+          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true }),
         supabase
@@ -331,7 +468,12 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       if (podsResult.error) throw new Error(`pod sentences: ${podsResult.error.message}`)
       if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
 
-      podSentences.value = (podsResult.data || []) as PodSentenceRow[]
+      // Flatten turn-rows into per-SENTENCE units: a silence-split turn plays
+      // as target→known→target PER SENTENCE (not 3 target sentences then 3
+      // known — too hard to follow, Tom 2026-06-16). Rows without a split pass
+      // through unchanged. Everything downstream (stages, Stage-0, gaps) then
+      // works per-sentence by construction.
+      podSentences.value = flattenPodRows((podsResult.data || []) as RawPodRow[])
 
       // Stage-0 lookups — only when the ladder is enabled (config present) and
       // at least one sentence carries an atom_map. Two small course-wide reads.

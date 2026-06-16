@@ -13,6 +13,7 @@
 
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { splitRowUnits } from './podSentenceSplit'
 
 export interface PodSentence {
   id: string
@@ -143,41 +144,24 @@ export function useListeningPods(
       // Bucket by scene_number. A multi-sentence TURN row that's been split
       // (sentence_audio_ids set, one clip per sentence) becomes one PodSentence
       // PER SENTENCE — the unit is the sentence (Tom 2026-06-16). Otherwise the
-      // row is one PodSentence as before.
-      const splitText = (t: string): string[] =>
-        (t || '').split(/(?<=[.!?…])\s+/).map((s) => s.trim()).filter(Boolean)
+      // row is one PodSentence as before. The split itself lives in the shared
+      // splitRowUnits helper so the overlay + the main-flow scheduler never drift.
       const buckets = new Map<number, PodSentence[]>()
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
-        const clips: string[] = Array.isArray(row.sentence_audio_ids) ? row.sentence_audio_ids.filter(Boolean) : []
-        const knownClips: string[] = Array.isArray(row.sentence_known_audio_ids) ? row.sentence_known_audio_ids.filter(Boolean) : []
-        if (clips.length >= 2) {
-          const tSents = splitText(row.target_text)
-          const kSents = splitText(row.known_text)
-          for (let i = 0; i < clips.length; i++) {
-            list.push({
-              id: `${row.id}:s${i}`,
-              speaker: row.speaker || '',
-              targetText: tSents[i] || tSents[tSents.length - 1] || row.target_text || '',
-              knownText: kSents[i] || '',
-              targetAudioId: clips[i],
-              // per-sentence English clip when the known side was split; null (gloss
-              // text still shows, trans slot drops) when it wasn't (count mismatch).
-              knownAudioId: knownClips.length === clips.length ? knownClips[i] : null,
-              explainerAudioId: null,
-              globalOrder: row.global_order + i * 0.001,
-            })
-          }
-        } else {
+        for (const u of splitRowUnits(row)) {
           list.push({
-            id: row.id,
+            id: u.isSplit ? `${row.id}:s${u.index}` : row.id,
             speaker: row.speaker || '',
-            targetText: row.target_text || '',
-            knownText: row.known_text || '',
-            targetAudioId: row.target_audio_id || null,
-            knownAudioId: row.known_audio_id || null,
-            explainerAudioId: row.explainer_audio_id || null,
-            globalOrder: row.global_order,
+            targetText: u.targetText,
+            knownText: u.knownText,
+            targetAudioId: u.targetAudioId,
+            // per-sentence English clip when the known side was split; null (gloss
+            // text still shows, trans slot drops) when it wasn't (count mismatch).
+            knownAudioId: u.knownAudioId,
+            // The Tom-voiced explainer is per-TURN; a split sentence has none.
+            explainerAudioId: u.isSplit ? null : (row.explainer_audio_id || null),
+            globalOrder: row.global_order + u.index * 0.001,
           })
         }
         buckets.set(row.scene_number, list)
