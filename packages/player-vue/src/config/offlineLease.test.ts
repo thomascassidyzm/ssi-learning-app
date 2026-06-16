@@ -11,10 +11,13 @@ import { describe, expect, it } from 'vitest'
 import {
   LEASE_DAYS,
   LEASE_DURATION_MS,
+  RENEW_AHEAD_MS,
+  STALE_AFTER_MS,
   computeExpiry,
   isClockTrustworthy,
   isLeaseValid,
   leaseStatus,
+  leaseShouldRevalidate,
   leaseDaysRemaining,
   leaseExpiryLabel,
   type OfflineLease,
@@ -98,6 +101,39 @@ describe('leaseStatus / isLeaseValid', () => {
     const lease = makeLease({ expiresAt: NOW + 3 * DAY })
     expect(isLeaseValid(lease, NOW + 2 * DAY)).toBe(true) // day 2: still plays
     expect(isLeaseValid(lease, NOW + 4 * DAY)).toBe(false) // day 4: locked
+  })
+
+  it('revoked locks regardless of a future expiry (chargeback kill-switch)', () => {
+    const lease = makeLease({ revoked: true }) // expiry still ~30d out
+    expect(leaseStatus(lease, NOW + 5 * DAY)).toBe('revoked')
+    expect(isLeaseValid(lease, NOW + 5 * DAY)).toBe(false)
+  })
+})
+
+describe('leaseShouldRevalidate', () => {
+  it('skips the network when there is plenty of runway (the quiet common case)', () => {
+    // 30d lease, validated now, checked "today" → no reason to phone home.
+    expect(leaseShouldRevalidate(makeLease(), NOW)).toBe(false)
+  })
+
+  it('revalidates when within the near-expiry window', () => {
+    const nearEdge = NOW + (LEASE_DURATION_MS - RENEW_AHEAD_MS) + DAY
+    expect(leaseShouldRevalidate(makeLease(), nearEdge)).toBe(true)
+  })
+
+  it('revalidates when already expired', () => {
+    expect(leaseShouldRevalidate(makeLease({ expiresAt: NOW - DAY }), NOW)).toBe(true)
+  })
+
+  it('revalidates ~daily even with runway, to catch a revocation', () => {
+    // Long lease but last validated > a day ago → due a check.
+    const lease = makeLease({ expiresAt: NOW + 60 * DAY, lastValidatedAt: NOW })
+    expect(leaseShouldRevalidate(lease, NOW + STALE_AFTER_MS + 1000)).toBe(true)
+  })
+
+  it('never revalidates a missing lease (nothing downloaded)', () => {
+    expect(leaseShouldRevalidate(null, NOW)).toBe(false)
+    expect(leaseShouldRevalidate(undefined, NOW)).toBe(false)
   })
 })
 

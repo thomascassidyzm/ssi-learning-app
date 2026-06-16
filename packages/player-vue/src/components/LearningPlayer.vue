@@ -8612,27 +8612,28 @@ const offlineLeaseExpiryLabel = ref<string | null>(null)
 const checkOfflineLease = async (): Promise<boolean> => {
   const code = courseCode.value
   if (!code) return true
-  const ok = await offlineLease.isCourseLeaseValid(code)
+  const ok = await offlineLease.isCourseLeaseValid(code) // local IndexedDB read — cheap, no network
   // Only LOCK a course that actually carries a lease (was downloaded). A 'none'
   // status means no deliberate download → nothing to lock (the user streams).
-  let locked = !ok && offlineLease.statusFor(code) !== 'none'
-  // Self-heal when ONLINE: an expired lease on an active user just means the
-  // renew hasn't landed yet (App.vue's boot renew may still be in flight, or
-  // this is a different tab). Renew now and re-read before declaring a lock —
-  // never lock a user who can reach the server. Offline → trust the read.
-  if (locked && navigator.onLine) {
-    try {
-      await offlineLease.renewLeases()
-      const okAfter = await offlineLease.isCourseLeaseValid(code)
-      locked = !okAfter && offlineLease.statusFor(code) !== 'none'
-    } catch { /* keep the pre-renew decision */ }
-  }
+  const locked = !ok && offlineLease.statusFor(code) !== 'none'
   offlineLeaseLocked.value = locked
   if (locked) {
     offlineLeaseExpiryLabel.value = await offlineLease.expiryLabelFor(code)
     offlineDlState.value = 'locked'  // ModeTray Offline row + ring (amber)
   } else if (offlineDlState.value === 'locked') {
     offlineDlState.value = 'idle'    // re-validated → drop the locked badge
+  }
+  // Self-heal in the BACKGROUND when online: an expired lease on an active user
+  // usually just means the renew hasn't landed yet. Renew + re-read, but NEVER
+  // block boot/playback on it — a weak signal must not hang the app (the renew
+  // itself has a hard timeout and fails open). A successful renew flips the flag.
+  if (locked && navigator.onLine) {
+    void offlineLease.renewLeases().then(async () => {
+      const okAfter = await offlineLease.isCourseLeaseValid(code)
+      const stillLocked = !okAfter && offlineLease.statusFor(code) !== 'none'
+      offlineLeaseLocked.value = stillLocked
+      if (!stillLocked && offlineDlState.value === 'locked') offlineDlState.value = 'idle'
+    }).catch(() => { /* keep the pre-renew decision */ })
   }
   return locked ? false : ok
 }
