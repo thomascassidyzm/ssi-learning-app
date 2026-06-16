@@ -166,13 +166,21 @@ export function useAdminUserDetail(client: SupabaseClient) {
 
       // Recent player_events for this user — used to diagnose taps and
       // listening/commentary lifecycle when a user reports an issue
-      // they can't quite describe. Filter by user_id (auth uid), which
-      // we have from the profile we just loaded.
-      if (profile.value?.user_id) {
+      // they can't quite describe.
+      //
+      // KEY: player_events.user_id holds the learner PK (learners.id), NOT the
+      // auth uid — verified live 2026-06-10, 2000/2000 recent rows match the
+      // learner PK (see CLAUDE.md "the trap that keeps biting"). So filter by
+      // `learnerId` (the PK this composable is called with), never
+      // profile.user_id (which IS the auth uid → matches nothing here).
+      // NB: cross-user reads may still be RLS-blocked client-side; the proper
+      // fix is a SECURITY DEFINER RPC like the platform-analytics path — see
+      // docs/admin-user-stats-rebuild-brief.md.
+      if (learnerId) {
         const { data: eventRows, error: eventError } = await client
           .from('player_events')
           .select('id, occurred_at, course_code, session_id, event_type, payload, device_type')
-          .eq('user_id', profile.value.user_id)
+          .eq('user_id', learnerId)
           .order('occurred_at', { ascending: false })
           .limit(100)
         if (eventError) {
