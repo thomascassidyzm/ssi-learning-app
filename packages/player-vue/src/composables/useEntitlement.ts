@@ -69,8 +69,12 @@ export interface UseEntitlementReturn {
   canAccessSeed: (course: CourseInfo, seedNumber: number) => boolean
   /** Get preview limit for premium courses */
   getPreviewLimit: () => number
-  /** Can the user download for offline use? Premium-only, every course (incl. free). */
+  /** Can the user START an offline download? Open to everyone — the 30-day lease
+   *  governs longevity (renews for payers, a one-off taste otherwise). */
   canDownloadOffline: (course: CourseInfo) => boolean
+  /** Does this user's offline access RENEW (active sub / full or course
+   *  entitlement / admin)? False = a non-payer on the 30-day offline taste. */
+  offlineRenews: (course: CourseInfo) => boolean
 }
 
 // ============================================================================
@@ -217,17 +221,30 @@ export function useEntitlement(): UseEntitlementReturn {
   }
 
   /**
-   * Can the user download for OFFLINE use?
+   * Can the user START an offline download right now?
    *
-   * Offline download is a PREMIUM perk for EVERY course — including free-tier
-   * (endangered) and community courses. So course pricing tier is irrelevant
-   * here (unlike checkCourseAccess, which lets free/community play for nothing):
-   * only the user's PAID/ENTITLED status counts — an active subscription, an
-   * entitlement code granting full access or this course, or an admin/tester
-   * role. Free non-subscribers play online (to Yellow on premium) but never
-   * cache for offline.
+   * MODEL (2026-06-16): offline download is OPEN TO EVERYONE — on every course,
+   * including free/community. We don't sell the content (community is free to
+   * learn forever); we sell the CONVENIENCE of offline. So the door is open and
+   * the 30-day LEASE governs longevity: payers re-validate online and keep it
+   * forever; non-payers get a single 30-day taste, then must subscribe (the lease
+   * lapses → offline locks, bytes preserved). Hence this returns true. The
+   * trial-exhaustion paywall (re-download after the taste lapses) lives at the
+   * download trigger in LearningPlayer, which holds the per-course lease state
+   * this stateless check doesn't.
    */
-  function canDownloadOffline(course: CourseInfo): boolean {
+  function canDownloadOffline(_course: CourseInfo): boolean {
+    return true
+  }
+
+  /**
+   * Does this user's offline access RENEW, rather than being a one-off 30-day
+   * taste? True for an admin/tester/god role, an active paid subscription, or an
+   * entitlement (full access, or this specific course). Drives the trial-vs-
+   * permanent UI and whether a re-download after the taste lapses is free or hits
+   * the paywall. (This is the OLD canDownloadOffline gate, repurposed.)
+   */
+  function offlineRenews(course: CourseInfo): boolean {
     const role = platformRole.value
     if (role === 'ssi_admin' || role === 'god' || role === 'tester') return true
 
@@ -335,6 +352,7 @@ export function useEntitlement(): UseEntitlementReturn {
     canAccessSeed: canAccessSeedCheck,
     getPreviewLimit,
     canDownloadOffline,
+    offlineRenews,
   }
 }
 
