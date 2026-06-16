@@ -69,6 +69,8 @@ export interface UseEntitlementReturn {
   canAccessSeed: (course: CourseInfo, seedNumber: number) => boolean
   /** Get preview limit for premium courses */
   getPreviewLimit: () => number
+  /** Can the user download for offline use? Premium-only, every course (incl. free). */
+  canDownloadOffline: (course: CourseInfo) => boolean
 }
 
 // ============================================================================
@@ -214,6 +216,35 @@ export function useEntitlement(): UseEntitlementReturn {
     return PREMIUM_PREVIEW_MAX_SEED
   }
 
+  /**
+   * Can the user download for OFFLINE use?
+   *
+   * Offline download is a PREMIUM perk for EVERY course — including free-tier
+   * (endangered) and community courses. So course pricing tier is irrelevant
+   * here (unlike checkCourseAccess, which lets free/community play for nothing):
+   * only the user's PAID/ENTITLED status counts — an active subscription, an
+   * entitlement code granting full access or this course, or an admin/tester
+   * role. Free non-subscribers play online (to Yellow on premium) but never
+   * cache for offline.
+   */
+  function canDownloadOffline(course: CourseInfo): boolean {
+    const role = platformRole.value
+    if (role === 'ssi_admin' || role === 'god' || role === 'tester') return true
+
+    const sub = getSubscriptionStatus()
+    if (sub.isActive && sub.tier === 'paid') return true
+
+    const now = new Date()
+    return (userEntitlements.value || []).some((e) => {
+      if (e.expiresAt && new Date(e.expiresAt) <= now) return false
+      if (e.accessType === 'full') return true
+      if (e.accessType === 'courses' && e.grantedCourses && course.course_code) {
+        return e.grantedCourses.includes(course.course_code)
+      }
+      return false
+    })
+  }
+
   // ============================================================================
   // DOWNLOAD ENTITLEMENT (legacy interface - still needed for offline)
   // ============================================================================
@@ -303,6 +334,7 @@ export function useEntitlement(): UseEntitlementReturn {
     checkCourseAccess: checkAccess,
     canAccessSeed: canAccessSeedCheck,
     getPreviewLimit,
+    canDownloadOffline,
   }
 }
 

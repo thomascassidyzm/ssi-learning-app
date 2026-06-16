@@ -9251,6 +9251,12 @@ const offlineCourseBar = computed(() => {
 })
 
 const startOfflineDownload = (): void => {
+  // Premium-only (every course) — backstop in case this is reached directly.
+  if (props.course && !entitlementComposable.canDownloadOffline(props.course)) {
+    showOfflinePicker.value = false
+    showPaywall.value = true
+    return
+  }
   showOfflinePicker.value = false
   offlineActive.value = true
   const frac = offlineSelectedFraction.value
@@ -9400,6 +9406,12 @@ const refreshOfflineSingleEstimate = async (): Promise<void> => {
 // For INF PLAY cachedRounds is already the USE-only revival tail, so that write
 // stays correct. Mirrors downloadForOffline's structure with a different id set.
 const startOfflineDownloadInfPlay = async (): Promise<void> => {
+  // Premium-only (every course) — backstop in case this is reached directly.
+  if (props.course && !entitlementComposable.canDownloadOffline(props.course)) {
+    showOfflinePicker.value = false
+    showPaywall.value = true
+    return
+  }
   showOfflinePicker.value = false
   offlineActive.value = true
   console.log('[LearningPlayer] Offline ON — INF PLAY USE-only (longest 3/LEGO)')
@@ -9493,6 +9505,12 @@ const toggleOffline = () => {
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
     console.log('[LearningPlayer] Offline mode: OFF — stream')
   } else {
+    // Offline download is a PREMIUM perk for EVERY course (incl. free). Gate
+    // before the picker even opens — tapping it is a conversion moment.
+    if (props.course && !entitlementComposable.canDownloadOffline(props.course)) {
+      showPaywall.value = true
+      return
+    }
     // Off → open the depth picker (download starts only when a depth is chosen).
     showOfflinePicker.value = true
     // Refresh the slider basis FIRST (sets avgBytesPerFile), then the single
