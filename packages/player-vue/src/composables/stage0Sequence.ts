@@ -226,17 +226,18 @@ export function tierSequence(
     return seq
   }
 
-  // ── TIER 2: translation (each atom: target + "means <gloss>") ─────────────
+  // ── TIER 2: translation — the atoms (clearly separated), then the WHOLE
+  // translation. NO per-atom "means" gloss: in the tuner only the explainer
+  // tier has connector:true. (Tom: "tier-2 just has translation, no meaning".)
   if (tier.granularity === 'atoms') {
-    atoms.forEach((a, j) => {
-      if (!a.targetClipId) return
-      clip(a.targetClipId, 'target', a.targetSurface)
-      if (a.meansGlossClipId) {
-        gap(g.beforeMeans, 'beforeMeans')
-        clip(a.meansGlossClipId, 'meansGloss', `means ${a.gloss}`)
-      }
-      if (j < atoms.length - 1) gap(g.betweenChunks, 'chunk')
+    withTarget.forEach((a, i) => {
+      clip(a.targetClipId as string, 'target', a.targetSurface)
+      if (i < withTarget.length - 1) gap(g.betweenChunks, 'chunk')
     })
+    if (clips.translationId && seq.length) {
+      gap(g.targetMeaning, 'tm')
+      clip(clips.translationId, 'translation', clips.knownText)
+    }
     trimTrailingGap()
     return seq
   }

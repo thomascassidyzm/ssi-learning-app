@@ -52,11 +52,11 @@ describe('tierSequence — explainer (whole-part-whole)', () => {
 })
 
 describe('tierSequence — translation / pairs / intention', () => {
-  it('translation: each atom target followed by its means-gloss', () => {
+  it('translation: atoms (no means-gloss), then the whole translation', () => {
     const seq = tierSequence(tierByKey('translation'), ATOMS, CLIPS, DEFAULT_STAGE0)
-    expect(roles(seq)).toEqual([
-      'target', 'meansGloss', 'target', 'meansGloss', 'target', 'meansGloss',
-    ])
+    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans'])
+    expect(roles(seq)).toEqual(['target', 'target', 'target', 'translation'])
+    expect(roles(seq)).not.toContain('meansGloss') // means is the explainer's job
   })
 
   it('pairs200: targets fused at fusionPairs gap, then translation', () => {
