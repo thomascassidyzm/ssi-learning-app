@@ -26,6 +26,8 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 ## 🧭 Directions / bets   (the why — changes rarely)
 
+- **📋 THE consolidated build plan** (paywall ✅ shipped-to-dev · schools billing · downloads+handshake · rollout · loose ends) → `docs/methodology/build-plan-2026-06-16.md` — single pickup-point for whats next.
+
 - **The Insight Engine is the spine.** Every new analytics surface is an *instance of the engine* (a registry metric + a library widget + a `discover`/`explain` call), never a one-off page. → `docs/methodology/insight-engine.md`
 - **Measure speaking without ASR.** Behavioural tier now (taps, skips, latency, calibration); prosody/VAD later, adoption-paced. → `docs/methodology/metrics-architecture.md`
 - **One substrate, many lenses: `learner → class → group → school → chain`.** Same metrics rolled up a level. The **class is a first-class learner-equivalent** (gets the learner self-view), read by its teacher and the leaders above. → `docs/methodology/tutor-insights.md`
