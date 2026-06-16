@@ -19,11 +19,13 @@ export const offlineDlDone = ref(0)     // audio files genuinely cached (success
 export const offlineDlTotal = ref(0)
 export const offlineDlFailed = ref(0)   // fetches that failed (e.g. bad network)
 
-// Whether OFFLINE DOWNLOAD is locked behind premium for the current course
-// (set by LearningPlayer from entitlement.canDownloadOffline — offline is a paid
-// perk for every course). Drives the lock badge on the Offline row in ModeTray,
-// reaching the mode button via the same no-prop-drill module-level pattern.
-export const offlineLocked = ref(false)
+// Whether the current course's offline is a FREE 30-day TASTE rather than a
+// renewing entitlement — i.e. the user is a non-payer (set by LearningPlayer from
+// entitlement.offlineRenews). Offline download itself is open to everyone now
+// ("we sell the convenience, not the content"); this just lets the Offline row in
+// ModeTray nudge "Free offline for 30 days". Reaches the mode button via the same
+// no-prop-drill module-level pattern.
+export const offlineTrial = ref(false)
 
 // The ring is shown whenever a download isn't idle (preparing/downloading =
 // in-progress; complete/error = the brief result colour before it resets).

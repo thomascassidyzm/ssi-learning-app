@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-16 (offline downloads now PREMIUM-gated at the trigger + a Spotify-style 30-day re-validation LEASE — see premium_gate + offline_lease sections; config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts)
+# Last Updated: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts)
 # Prev: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
 
 spec audio_caching_architecture:
@@ -263,17 +263,45 @@ spec audio_caching_architecture:
       downloadForOffline: "(roundsAhead) — ensure + collect + fetch missing into IndexedDB"
 
     premium_gate:
-      requirement: "Offline download is a PREMIUM perk for EVERY course (incl. free/community)."
+      requirement: >
+        Offline download is OPEN TO EVERYONE on EVERY course (incl. free/community);
+        non-payers get a free 30-day TASTE, then pay to keep it. We sell the
+        CONVENIENCE of offline, never the content — community courses are free to
+        learn forever (online, and the first 30 days offline).
+      model: >
+        REVERSES the earlier hard-gate (where offline download was premium-only).
+        The 30-day lease now closes the "download once, never return" leak BY
+        EXPIRY instead of by blocking the download — so the door can open and become
+        a taste-then-convert funnel (esp. valuable for the India-first push where
+        data is expensive). Decision 2026-06-16, Tom: "community courses are always
+        and forever free, but you pay for convenience."
       why: >
-        Without it a free user downloads the whole course once and never returns —
-        the leak this gate closes. Online play to Yellow stays free (gateSeed);
-        only the deliberate offline DOWNLOAD is premium.
+        Online play to Yellow stays free (gateSeed). Offline download is free to
+        START for all; the lease governs longevity — payers renew, non-payers get a
+        single 30-day taste. The leak (free offline forever) is plugged by the lease
+        lapsing, not by a download paywall.
       where: >
-        useEntitlement.canDownloadOffline(course) — true for an active subscription,
-        a full/course entitlement code (non-expired), or an admin/tester/god role.
-        Checked at the trigger in LearningPlayer: toggleOffline (before the picker
-        opens), startOfflineDownload, startOfflineDownloadInfPlay. Not entitled →
-        showPaywall (→ useCheckout.startCheckout, the £15 trigger), never the picker.
+        useEntitlement.canDownloadOffline(course) now returns true for everyone (the
+        door). useEntitlement.offlineRenews(course) = the OLD gate (active sub /
+        full|course entitlement / admin-tester-god) — does this user's offline RENEW
+        vs being a 30-day taste; drives the trial UI + the re-download paywall.
+        LearningPlayer.canStartOfflineDownload() is the trigger gate (toggleOffline
+        before the picker, startOfflineDownload, startOfflineDownloadInfPlay): payers
+        always pass; a non-payer passes on first download ('none') or mid-trial
+        ('valid') but is sent to showPaywall once the taste has LAPSED ('expired' /
+        'clock-untrusted') — re-downloading then would silently reset the taste (and
+        re-bill egress), so that is the conversion moment.
+      ui: >
+        ModeTray Offline row: toggle is always live (no premium lock badge — removed);
+        offlineTrial (shared ref, = !offlineRenews) nudges "Free offline for 30 days".
+        Lock overlay copy branches on offlineTrial: payer = "reconnect to unlock";
+        trial = "free offline trial ended — subscribe to keep your downloads".
+      caveat: >
+        The lease is client-side (IndexedDB), so a determined non-payer can reset the
+        taste by clearing storage / re-downloading. Acceptable for v1 (low-value:
+        it's free content's offline convenience). The deferred server-side
+        offline_leases table (see offline_lease.deferred) is the full fix if abuse
+        appears; an egress cap on the free-tier download depth is the other lever.
 
     offline_lease:
       requirement: "Spotify-style 30-day lease — downloads re-validate online or lock."

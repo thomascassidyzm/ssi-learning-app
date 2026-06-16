@@ -7,7 +7,7 @@ import {
   offlineDownloadActive,
   offlineDownloadHeadline,
   offlineDownloadCount,
-  offlineLocked,
+  offlineTrial,
 } from '../composables/useOfflineDownloadStatus'
 
 const props = defineProps({
@@ -215,19 +215,14 @@ const handleOffline = () => {
                 <span class="tray-desc-line">{{ offlineDownloadHeadline }}</span>
                 <span v-if="offlineDownloadCount" class="tray-desc-line tray-desc-count">{{ offlineDownloadCount }}</span>
               </template>
-              <template v-else-if="offlineLocked">Premium — tap to subscribe</template>
+              <template v-else-if="offlineTrial">Free offline for 30 days</template>
               <template v-else>Play from downloaded audio</template>
             </span>
           </div>
-          <!-- Offline download is premium-only: show a lock badge instead of the
-               toggle for free users (tapping still raises the paywall). -->
-          <div v-if="offlineLocked && !offlineDownloadVisible" class="tray-lock" title="Premium feature" aria-label="Premium feature">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <rect x="5" y="11" width="14" height="10" rx="2"/>
-              <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-            </svg>
-          </div>
-          <div v-else class="tray-toggle" :class="{ on: isOfflineMode }">
+          <!-- Offline download is open to everyone (we sell the convenience, not
+               the content). Non-payers get a free 30-day taste; the toggle is
+               always live, the lease handles expiry. -->
+          <div class="tray-toggle" :class="{ on: isOfflineMode }">
             <div class="tray-toggle-knob"></div>
           </div>
         </button>
@@ -515,23 +510,6 @@ const handleOffline = () => {
 
 .tray-toggle.on .tray-toggle-knob {
   transform: translateX(16px);
-}
-
-/* Premium lock badge on the Offline row (offline download is premium-only) */
-.tray-lock {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: rgba(212, 168, 83, 0.16);
-  color: #b07d1a;
-}
-.tray-lock svg {
-  width: 15px;
-  height: 15px;
 }
 
 /* Radio indicator for mutually exclusive modes */

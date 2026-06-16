@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
-import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineLocked, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineTrial, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
   CyclePhase,
   DEFAULT_CONFIG,
@@ -1382,11 +1382,12 @@ watch(liveEntitlements, () => {
   }
 })
 
-// Mirror the offline-download entitlement into shared state so ModeTray can show
-// a premium lock badge on the Offline row (no prop-drill). Re-runs when the
-// subscription / entitlements / course change.
+// Mirror the offline-entitlement shape into shared state so ModeTray can nudge
+// "Free offline for 30 days" on the Offline row for non-payers (no prop-drill).
+// Offline download itself is open to all now; this only flags the TRIAL state.
+// Re-runs when the subscription / entitlements / course change.
 watchEffect(() => {
-  offlineLocked.value = !!props.course && !entitlementComposable.canDownloadOffline(props.course)
+  offlineTrial.value = !!props.course && !entitlementComposable.offlineRenews(props.course)
 })
 
 // ============================================
@@ -8666,6 +8667,30 @@ const grantOfflineLeaseForCurrentCourse = async (): Promise<void> => {
   }
 }
 
+// Gate the START of an offline download. The DOOR is open to everyone — offline
+// is the convenience we sell, on every course incl. free/community (we never
+// charge for the learning itself). Non-payers get ONE free 30-day taste per
+// course via the lease. Once that taste has LAPSED, re-downloading would silently
+// reset it (and re-bill us the egress), so that's the conversion moment: raise the
+// paywall instead. A first-ever download ('none') or an in-window trial ('valid')
+// passes; payers (offlineRenews) always pass.
+const canStartOfflineDownload = async (): Promise<boolean> => {
+  const course = props.course
+  if (!course) return true
+  if (entitlementComposable.offlineRenews(course)) return true // payer → unlimited
+  const code = courseCode.value
+  if (code) {
+    // Refresh the per-course lease status from disk before judging.
+    await offlineLease.isCourseLeaseValid(code).catch(() => { /* fail-open */ })
+    const status = offlineLease.statusFor(code)
+    if (status === 'expired' || status === 'clock-untrusted') {
+      showPaywall.value = true
+      return false
+    }
+  }
+  return true
+}
+
 const offlinePlaybackActive = (): boolean =>
   (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
@@ -9340,11 +9365,10 @@ const offlineCourseBar = computed(() => {
   return { donePct, newPct, finished: false }
 })
 
-const startOfflineDownload = (): void => {
-  // Premium-only (every course) — backstop in case this is reached directly.
-  if (props.course && !entitlementComposable.canDownloadOffline(props.course)) {
+const startOfflineDownload = async (): Promise<void> => {
+  // Open to all; only a LAPSED free trial (non-payer) hits the paywall here.
+  if (!(await canStartOfflineDownload())) {
     showOfflinePicker.value = false
-    showPaywall.value = true
     return
   }
   showOfflinePicker.value = false
@@ -9496,10 +9520,9 @@ const refreshOfflineSingleEstimate = async (): Promise<void> => {
 // For INF PLAY cachedRounds is already the USE-only revival tail, so that write
 // stays correct. Mirrors downloadForOffline's structure with a different id set.
 const startOfflineDownloadInfPlay = async (): Promise<void> => {
-  // Premium-only (every course) — backstop in case this is reached directly.
-  if (props.course && !entitlementComposable.canDownloadOffline(props.course)) {
+  // Open to all; only a LAPSED free trial (non-payer) hits the paywall here.
+  if (!(await canStartOfflineDownload())) {
     showOfflinePicker.value = false
-    showPaywall.value = true
     return
   }
   showOfflinePicker.value = false
@@ -9589,7 +9612,7 @@ watch(showOfflinePicker, (open) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onOfflinePickerKeydown))
 
-const toggleOffline = () => {
+const toggleOffline = async () => {
   if (offlineActive.value) {
     // Already on → turn off: stop serving blobs, revoke, reset.
     offlineActive.value = false
@@ -9598,12 +9621,10 @@ const toggleOffline = () => {
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
     console.log('[LearningPlayer] Offline mode: OFF — stream')
   } else {
-    // Offline download is a PREMIUM perk for EVERY course (incl. free). Gate
-    // before the picker even opens — tapping it is a conversion moment.
-    if (props.course && !entitlementComposable.canDownloadOffline(props.course)) {
-      showPaywall.value = true
-      return
-    }
+    // Offline download is open to everyone (every course incl. free) — we sell
+    // the convenience, not the content. Only a non-payer whose free 30-day taste
+    // has already lapsed is sent to the paywall before the picker opens.
+    if (!(await canStartOfflineDownload())) return
     // Off → open the depth picker (download starts only when a depth is chosen).
     showOfflinePicker.value = true
     // Refresh the slider basis FIRST (sets avgBytesPerFile), then the single
@@ -12238,10 +12259,17 @@ defineExpose({
   <Transition name="fade">
     <div v-if="offlineLeaseLocked && !isOnline" class="paywall-overlay">
       <div class="paywall-card">
-        <h2 class="paywall-title">Offline access paused</h2>
+        <h2 class="paywall-title">{{ offlineTrial ? 'Free offline trial ended' : 'Offline access paused' }}</h2>
         <p class="paywall-subtitle">
-          Your downloads need a quick online check to keep playing.
-          Connect to the internet and they'll unlock straight away — nothing is lost.
+          <template v-if="offlineTrial">
+            Your 30-day free offline trial has ended. Your downloads are still
+            saved — reconnect and subscribe (£15/month) to keep playing them
+            offline. You can always learn online for free.
+          </template>
+          <template v-else>
+            Your downloads need a quick online check to keep playing.
+            Connect to the internet and they'll unlock straight away — nothing is lost.
+          </template>
           <template v-if="offlineLeaseExpiryLabel"><br />Offline access lapsed on {{ offlineLeaseExpiryLabel }}.</template>
         </p>
         <div class="paywall-actions">
