@@ -82,9 +82,11 @@ active_minutes     := (select sum(play_seconds)/60 from learner_speaking_opportu
 active_days        := count(distinct day) from learner_speaking_opportunities ...,
 last_active        := max(occurred_at) ...
 ```
-Restrict EXECUTE to `service_role` and call it from an `/api/admin/...` endpoint with
-`verifyAdmin` (same pattern as `api/entitlement/grant.ts`), OR grant to authenticated
-and gate inside the function on an ssi_admin check. Remember `NOTIFY pgrst, 'reload schema';`.
+**Full copy-paste migration is at the end of this doc** (`## Migration SQL`). It gates
+inside the function on `is_ssi_admin()` (same helper the `player_events` read policy
+uses) so the admin can call it directly via the Supabase client with their own JWT —
+no separate `/api/admin` endpoint needed, though you can still wrap it if you prefer.
+Remember `NOTIFY pgrst, 'reload schema';` (included).
 
 ### 2. Rewire `useAdminUserDetail.ts`
 Replace the `learner_l1_state` / `learner_lego_metrics` read for the general tiles with
@@ -167,3 +169,218 @@ already exists, so building the consumer is justified.
 **Build:** fold into the same per-learner RPC (counts of each event_type × direction
 over a window), and/or a per-seed aggregate RPC for the friction map. Same SECURITY
 DEFINER pattern. Cheap — it's all `group by` over rows we already write.
+
+---
+
+## Migration SQL
+
+Save as e.g. `supabase/migrations/20260616_admin_user_stats_rpcs.sql`, apply, done.
+All three are `SECURITY DEFINER`, `search_path`-pinned, and gated on `is_ssi_admin()`
+(swap to `is_god_user()` if that's the admin tool's gate). Schema facts they rely on:
+`player_events.user_id` = learner PK; `audio_play.payload` carries `seedId`/`legoId`;
+skip events carry `direction` (+ `legoId` on `tap_skip`/`lego_skip`);
+`learner_speaking_opportunities` is keyed by learner PK; `course_enrollments.course_id`
+holds the course-code string.
+
+```sql
+-- ============================================================================
+-- Admin per-user stats + behavioural navigation, all over player_events.
+-- ============================================================================
+
+-- 1) Per-course progress for one learner (the admin Users → cards).
+CREATE OR REPLACE FUNCTION admin_user_course_stats(p_learner_id uuid)
+RETURNS TABLE (
+  course_code               text,
+  seeds_touched             bigint,   -- distinct seedId from audio_play
+  legos_seen                bigint,   -- distinct legoId from audio_play
+  total_plays               bigint,   -- audio_play rows (~3/cycle)
+  cycles                    bigint,   -- speaking_opportunities.opportunities
+  active_minutes            bigint,   -- speaking_opportunities.play_seconds / 60
+  active_days               bigint,   -- distinct days practised
+  highest_completed_lego_id text,     -- ratchet (belt/position)
+  last_active               timestamptz
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $function$
+BEGIN
+  IF NOT is_ssi_admin() THEN
+    RAISE EXCEPTION 'Forbidden: ssi_admin required';
+  END IF;
+
+  RETURN QUERY
+  WITH plays AS (
+    SELECT pe.course_code,
+           COUNT(DISTINCT pe.payload->>'seedId') AS seeds_touched,
+           COUNT(DISTINCT pe.payload->>'legoId') AS legos_seen,
+           COUNT(*)                              AS total_plays,
+           MAX(pe.occurred_at)                   AS last_play
+    FROM player_events pe
+    WHERE pe.user_id = p_learner_id
+      AND pe.event_type = 'audio_play'
+      AND pe.course_code IS NOT NULL
+    GROUP BY pe.course_code
+  ),
+  opps AS (
+    SELECT lso.course_code,
+           SUM(lso.opportunities)  AS cycles,
+           SUM(lso.play_seconds)/60 AS active_minutes,
+           COUNT(DISTINCT lso.day) AS active_days,
+           MAX(lso.day)            AS last_day
+    FROM learner_speaking_opportunities lso
+    WHERE lso.learner_id = p_learner_id
+    GROUP BY lso.course_code
+  ),
+  enr AS (
+    SELECT ce.course_id AS course_code,
+           ce.highest_completed_lego_id,
+           ce.last_practiced_at
+    FROM course_enrollments ce
+    WHERE ce.learner_id = p_learner_id
+  ),
+  keys AS (
+    SELECT course_code FROM plays
+    UNION SELECT course_code FROM opps
+    UNION SELECT course_code FROM enr
+  )
+  SELECT k.course_code,
+         COALESCE(p.seeds_touched, 0),
+         COALESCE(p.legos_seen, 0),
+         COALESCE(p.total_plays, 0),
+         COALESCE(o.cycles, 0),
+         COALESCE(o.active_minutes, 0),
+         COALESCE(o.active_days, 0),
+         e.highest_completed_lego_id,
+         GREATEST(p.last_play, e.last_practiced_at, (o.last_day + 1)::timestamptz)
+  FROM keys k
+  LEFT JOIN plays p ON p.course_code = k.course_code
+  LEFT JOIN opps  o ON o.course_code = k.course_code
+  LEFT JOIN enr   e ON e.course_code = k.course_code
+  ORDER BY GREATEST(
+    COALESCE(p.last_play, 'epoch'::timestamptz),
+    COALESCE(e.last_practiced_at, 'epoch'::timestamptz)
+  ) DESC;
+END;
+$function$;
+
+-- 2) Behavioural navigation profile for one learner (forward/back/replay).
+--    flow_score = forward / (forward + back) in [0,1]; higher = more confident flow.
+CREATE OR REPLACE FUNCTION admin_user_navigation(p_learner_id uuid, p_days int DEFAULT 90)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $function$
+DECLARE
+  v_since timestamptz := now() - (p_days || ' days')::interval;
+  v_fwd bigint; v_back bigint; v_replay bigint;
+  v_turbo bigint; v_pause bigint; v_play bigint;
+  v_skip_events text[] := ARRAY['tap_skip','lego_skip','phase_skip','belt_skip'];
+BEGIN
+  IF NOT is_ssi_admin() THEN
+    RAISE EXCEPTION 'Forbidden: ssi_admin required';
+  END IF;
+
+  SELECT
+    COUNT(*) FILTER (WHERE event_type = ANY(v_skip_events) AND payload->>'direction' = 'forward'),
+    COUNT(*) FILTER (WHERE event_type = ANY(v_skip_events) AND payload->>'direction' = 'back'),
+    COUNT(*) FILTER (WHERE event_type = 'phase_skip'     AND payload->>'direction' = 'replay'),
+    COUNT(*) FILTER (WHERE event_type = 'turbo_toggle'),
+    COUNT(*) FILTER (WHERE event_type = 'tap_pause'),
+    COUNT(*) FILTER (WHERE event_type = 'tap_play')
+  INTO v_fwd, v_back, v_replay, v_turbo, v_pause, v_play
+  FROM player_events
+  WHERE user_id = p_learner_id
+    AND occurred_at >= v_since;
+
+  RETURN jsonb_build_object(
+    'forward', v_fwd, 'back', v_back, 'replay', v_replay,
+    'turbo', v_turbo, 'pause', v_pause, 'play', v_play,
+    'flow_score', CASE WHEN (v_fwd + v_back) > 0
+                       THEN round(v_fwd::numeric / (v_fwd + v_back), 3)
+                       ELSE NULL END
+  );
+END;
+$function$;
+
+-- 3) Per-seed behavioural friction map for a course (all learners).
+--    seed parsed from the skip event's legoId ('S0024L03' -> 'S0024').
+--    Rows without legoId (e.g. some phase_skips) are excluded — safe.
+CREATE OR REPLACE FUNCTION course_navigation_friction(p_course_code text, p_days int DEFAULT 90)
+RETURNS TABLE (
+  seed           text,
+  back           bigint,
+  replay         bigint,
+  forward        bigint,
+  friction_ratio numeric  -- (back + replay) / forward; higher = stickier seed
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $function$
+BEGIN
+  IF NOT is_ssi_admin() THEN
+    RAISE EXCEPTION 'Forbidden: ssi_admin required';
+  END IF;
+
+  RETURN QUERY
+  WITH nav AS (
+    SELECT substring(payload->>'legoId' FROM '^(S[0-9]+)') AS seed,
+           payload->>'direction' AS dir
+    FROM player_events
+    WHERE course_code = p_course_code
+      AND occurred_at >= now() - (p_days || ' days')::interval
+      AND event_type IN ('tap_skip','lego_skip','phase_skip','belt_skip')
+      AND payload->>'legoId' IS NOT NULL
+  )
+  SELECT nav.seed,
+         COUNT(*) FILTER (WHERE dir = 'back')   AS back,
+         COUNT(*) FILTER (WHERE dir = 'replay') AS replay,
+         COUNT(*) FILTER (WHERE dir = 'forward') AS forward,
+         CASE WHEN COUNT(*) FILTER (WHERE dir = 'forward') > 0
+              THEN round(
+                (COUNT(*) FILTER (WHERE dir IN ('back','replay')))::numeric
+                / COUNT(*) FILTER (WHERE dir = 'forward'), 3)
+              ELSE NULL END                     AS friction_ratio
+  FROM nav
+  WHERE nav.seed IS NOT NULL
+  GROUP BY nav.seed
+  ORDER BY (COUNT(*) FILTER (WHERE dir = 'back')
+            + COUNT(*) FILTER (WHERE dir = 'replay')) DESC;
+END;
+$function$;
+
+-- PostgREST: expose the new functions.
+NOTIFY pgrst, 'reload schema';
+```
+
+### Calling from the client (replaces the dead boutique-table reads)
+
+```ts
+// per-user cards — drop the learner_l1_state / learner_lego_metrics reads
+const { data: courseStats } = await client.rpc('admin_user_course_stats', {
+  p_learner_id: learnerId,                 // the learner PK, NOT auth uid
+})
+// behavioural profile
+const { data: nav } = await client.rpc('admin_user_navigation', {
+  p_learner_id: learnerId, p_days: 90,
+})
+// course friction map (new Friction view — reliable, unlike the VAD/spike one)
+const { data: friction } = await client.rpc('course_navigation_friction', {
+  p_course_code: 'spa_for_eng_v2', p_days: 90,
+})
+```
+
+### Verify after applying
+
+```sql
+SELECT * FROM admin_user_course_stats('<LEARNER_PK>');
+SELECT admin_user_navigation('<LEARNER_PK>', 90);
+SELECT * FROM course_navigation_friction('<COURSE_CODE>', 90) LIMIT 20;
+```
+
+If `admin_user_course_stats` returns the right belt/position with non-zero
+seeds/legos/cycles/minutes for the brown-belt user, the rebuild is good — wire the
+view to it and retire the `learner_l1_state` / `learner_lego_metrics` reads (keep the
+latter only for the VAD-fed Mastered tile when that lands).
