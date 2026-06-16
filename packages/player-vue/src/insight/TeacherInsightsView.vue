@@ -33,7 +33,6 @@
 // tokens carry it. blue = primary/selection, green = success/active, gold = warn.
 // ============================================================================
 import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import RateCompare from './components/RateCompare.vue'
 import { isInsightDemo } from './data/demo'
 import {
@@ -47,15 +46,6 @@ import type { RateComparisonData } from './spec'
 import '@/styles/schools-tokens.css'
 
 const demoMode = isInsightDemo()
-
-// The page is deliberately chrome-less (just the widget), so it carries its OWN
-// way back: return to wherever the teacher came from, or the schools home if it
-// was opened cold (e.g. a shared demo link with no in-app history).
-const router = useRouter()
-function goBack() {
-  if (typeof window !== 'undefined' && window.history.length > 1) router.back()
-  else router.push('/schools')
-}
 
 // ── The teacher's OWN classes ───────────────────────────────────────────────
 // A teacher usually teaches more than one class, so they pick among THEIR set —
@@ -170,11 +160,6 @@ const scopeLabel = computed(() =>
 <template>
   <div class="tiv-scroll">
   <div class="tiv schools-surface">
-    <!-- The page is otherwise chrome-less, so it carries its own way back. -->
-    <button type="button" class="tiv-back" @click="goBack">
-      <span aria-hidden="true">←</span> Back
-    </button>
-
     <!-- ── Calm, minimal teacher header (NOT the admin "Insight Engine") ── -->
     <header class="tiv-head">
       <div class="tiv-head-top">
@@ -293,32 +278,6 @@ const scopeLabel = computed(() =>
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--bg-primary, #e8e3dd);
-}
-
-/* Self-contained back affordance (lighter glass pill, matches the chrome). */
-.tiv-back {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  color: rgba(var(--rc-entity-ink), 1);
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(12px) saturate(1.6);
-  -webkit-backdrop-filter: blur(12px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 999px;
-  padding: 7px 14px;
-  cursor: pointer;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
-}
-.tiv-back:hover { border-color: rgba(var(--rc-entity), 0.55); }
-.tiv-back:focus-visible {
-  outline: none;
-  border-color: rgba(var(--rc-entity), 0.7);
-  box-shadow: 0 0 0 3px rgba(var(--rc-entity), 0.18);
 }
 
 .tiv {
@@ -542,8 +501,7 @@ const scopeLabel = computed(() =>
   .tiv-head,
   .tiv-controls,
   .tiv-select,
-  .tiv-segs,
-  .tiv-back {
+  .tiv-segs {
     background: rgba(255, 255, 255, 0.94) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;

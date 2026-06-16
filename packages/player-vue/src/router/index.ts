@@ -35,12 +35,14 @@ const routes: RouteRecordRaw[] = [
     component: PlayerContainer,
     meta: {
       title: 'Learn',
+      hideAppEscape: true, // immersive player — its own flow, no shell escape
     },
   },
   // Schools dashboard routes
   {
     path: '/schools',
     component: SchoolsContainer,
+    meta: { hideAppEscape: true }, // SchoolsContainer carries its own nav
     children: [
       {
         path: 'setup',
@@ -155,6 +157,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/teach',
     component: TeachContainer,
+    meta: { hideAppEscape: true }, // TeachContainer carries its own nav
     children: [
       {
         path: '',
@@ -220,6 +223,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin',
     component: AdminContainer,
+    meta: { hideAppEscape: true }, // AdminContainer carries its own nav
     children: [
       {
         // Default /admin landing — redirect to the Setup page (schools + groups

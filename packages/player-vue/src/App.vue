@@ -1,5 +1,6 @@
 <script setup>
-import { ref, provide, onMounted, defineAsyncComponent, watch } from 'vue'
+import { ref, provide, onMounted, defineAsyncComponent, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
@@ -28,9 +29,18 @@ const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFee
 const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
 import { setSchoolsClient } from './composables/schools/client'
 import { useActAs } from './composables/useActAs'
+import AppEscape from './components/AppEscape.vue'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
+
+// "No dead ends": show the shell-level escape on any route that doesn't carry
+// its own way out. The immersive player and the shelled containers (schools /
+// teach / admin) opt out via meta.hideAppEscape; everything else (bare
+// top-level pages like onboarding, /with/:code, /teacher-insights) gets it.
+// Critical in the installed PWA, which has no browser back button.
+const route = useRoute()
+const showAppEscape = computed(() => !route.matched.some((r) => r.meta?.hideAppEscape))
 
 // RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
 // This helps users stuck in broken states
@@ -581,6 +591,7 @@ onMounted(async () => {
 <template>
   <div class="app-root">
     <router-view />
+    <AppEscape v-if="showAppEscape" />
     <PwaUpdatePrompt />
     <InstallBanner />
     <DemoOverlay />
