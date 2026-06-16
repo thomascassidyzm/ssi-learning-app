@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
 // Offline-download status (shared with the mode-button ring in ModeTray)
-import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineLocked, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
   CyclePhase,
   DEFAULT_CONFIG,
@@ -1379,6 +1379,13 @@ watch(liveEntitlements, () => {
       simplePlayer.resume()
     }
   }
+})
+
+// Mirror the offline-download entitlement into shared state so ModeTray can show
+// a premium lock badge on the Offline row (no prop-drill). Re-runs when the
+// subscription / entitlements / course change.
+watchEffect(() => {
+  offlineLocked.value = !!props.course && !entitlementComposable.canDownloadOffline(props.course)
 })
 
 // ============================================

@@ -16,6 +16,12 @@ export const offlineDlDone = ref(0)     // audio files genuinely cached (success
 export const offlineDlTotal = ref(0)
 export const offlineDlFailed = ref(0)   // fetches that failed (e.g. bad network)
 
+// Whether OFFLINE DOWNLOAD is locked behind premium for the current course
+// (set by LearningPlayer from entitlement.canDownloadOffline — offline is a paid
+// perk for every course). Drives the lock badge on the Offline row in ModeTray,
+// reaching the mode button via the same no-prop-drill module-level pattern.
+export const offlineLocked = ref(false)
+
 // The ring is shown whenever a download isn't idle (preparing/downloading =
 // in-progress; complete/error = the brief result colour before it resets).
 export const offlineDownloadVisible = computed(() => offlineDlState.value !== 'idle')
