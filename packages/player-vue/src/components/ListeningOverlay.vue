@@ -11,6 +11,7 @@ import { ROLE_SPEED } from '../composables/usePodLapScheduler'
 import { usePodStage0 } from '../composables/usePodStage0'
 import { tierSequence, foldEventsToPlays } from '../composables/stage0Sequence'
 import { buildSilentWavDataUri } from '../playback/silentWav'
+import ListeningModeToggle from './ListeningModeToggle.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 
 // ============================================================================
@@ -483,7 +484,16 @@ const openScene = (scene) => {
 
 // Switching listening mode mid-scene changes which clips a play-through
 // needs (translations/explainers) — top the cache up immediately.
-watch(listenMode, () => { if (selectedScene.value) warmScene(selectedScene.value) })
+// Warm the scene's clips when the mode changes — but NEVER on the render path.
+// flush:'post' runs after the DOM updates, and rAF defers the (potentially
+// heavy) warm to the next frame, so the mode highlight paints immediately and
+// the warming happens afterwards. (A 'pre'-flush watcher doing this work was
+// what made the selected pill take seconds to appear / never appear on mobile.)
+watch(listenMode, () => {
+  if (!selectedScene.value) return
+  const scene = selectedScene.value
+  requestAnimationFrame(() => warmScene(scene))
+}, { flush: 'post' })
 
 /** Back from scene-teleprompter to the scene list. */
 const exitScene = () => {
@@ -1778,19 +1788,15 @@ watch(
         aria-hidden="true"
       ></div>
 
-      <!-- Dialogue listening level: how much help, how much pace. These ARE
-           the listening difficulty settings — first-class placement, sharing
-           the band with the two quiet glyphs. -->
-      <div v-if="view === 'pods' && selectedScene" class="mode-selector">
-        <button
-          v-for="m in LISTEN_MODES"
-          :key="m.key"
-          class="mode-btn"
-          :class="{ active: listenMode === m.key }"
-          :title="m.desc"
-          @click="listenMode = m.key"
-        >{{ m.label }}</button>
-      </div>
+      <!-- Dialogue listening level (Immersion / Drill / Progression). Dumb,
+           isolated component — the mode change is a pure state update; warmScene
+           runs deferred (post-flush) so it never blocks the highlight. -->
+      <ListeningModeToggle
+        v-if="view === 'pods' && selectedScene"
+        :modes="LISTEN_MODES"
+        :model-value="listenMode"
+        @update:model-value="listenMode = $event"
+      />
 
       <!-- Gloss eye: show/hide the known-language line under each phrase. -->
       <button
@@ -2063,60 +2069,8 @@ watch(
  * Active = ink pill, matching the view tabs — a belt-colour fill is invisible
  * on white belt. The crisp track + padded inset makes the two states read
  * unmistakably as a toggle. */
-/* Segmented control. THE FIX: its own backdrop-filter — exactly like the
- * sibling .view-tabs (Dialogues/Core/All), which uses the identical active
- * background yet always paints correctly. The overlay root has a backdrop-filter,
- * and on iOS Safari a passive descendant's PAINT-ONLY change (the active button's
- * background) is dropped until a relayout — which is why toggling the gloss eye
- * (a layout change) made the black appear. Giving .mode-selector its OWN
- * backdrop-filter promotes it to its own compositing layer, so its children's
- * background changes repaint on that layer immediately. */
-.mode-selector {
-  display: flex;
-  /* Sit at content width, centred between the loop glyph and the gloss eye —
-   * NOT full-width (it looked absurd stretched edge-to-edge on desktop). Caps
-   * at a sensible pill-group width; still shrinks on narrow screens. */
-  flex: 0 1 auto;
-  max-width: 24rem;
-  margin-inline: auto;
-  min-width: 0;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--border-medium);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.mode-btn {
-  flex: 1;
-  min-width: 5.5rem;             /* a comfortable readable pill, not a stretched bar */
-  padding: 6px 4px;
-  background: transparent;
-  border: 0;
-  border-radius: 999px;
-  /* Inactive reads as tappable, not disabled — secondary ink, not muted. */
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: color 0.15s ease, background-color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.mode-btn:hover:not(.active) {
-  color: var(--text-primary);
-}
-
-/* Active = solid dark fill on the button itself + white text. Explicit ink
- * (not a theme var) so it can never resolve light. */
-.mode-btn.active {
-  background: #2C2622;
-  color: #ffffff;
-  font-weight: 600;
-}
+/* The listening mode segmented control now lives in its own component
+ * (ListeningModeToggle.vue) — see there for its styles. */
 
 .speed-label {
   font-family: 'JetBrains Mono', monospace;
