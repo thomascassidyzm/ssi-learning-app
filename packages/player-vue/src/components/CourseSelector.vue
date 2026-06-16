@@ -17,6 +17,7 @@ import { useI18n, setLocale, getLanguageName, getLanguageEndonym } from '../comp
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useCheckout } from '../composables/useCheckout'
 import { useUserRole } from '../composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { BELTS, getSeedFromLegoId, getBeltIndexForSeed } from '../composables/useBeltProgress'
@@ -124,6 +125,14 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'selectCourse'])
 
+// "Go Premium" CTA — open the single Premium checkout directly (no marketing
+// page). Signed-out users get the auth modal first, then auto-continue to Paddle.
+const { startCheckout } = useCheckout()
+function goPremium() {
+  startCheckout()
+  emit('close')
+}
+
 // State
 const allCourses = ref([])
 // Map<course_code, course_enrollments row> — the actual per-learner
@@ -173,8 +182,9 @@ const getForLabel = (course) => {
   return knownName
 }
 
-// All visible courses — premium courses ARE shown to non-subscribers (locked,
-// click routes to /premium for upgrade) so the catalogue advertises the offer.
+// All visible courses — premium courses ARE shown to non-subscribers
+// (previewable; playing past the free preview raises the in-player paywall) so
+// the catalogue advertises the offer.
 const visibleCourses = computed(() => {
   let courses = allCourses.value
 
@@ -508,7 +518,7 @@ onMounted(() => {
                 <span class="section-header__title">Premium</span>
                 <span class="section-header__sub">£15/mo — unlimited access to all languages</span>
               </div>
-              <button class="section-header__cta" @click="router.push('/premium'); emit('close')">
+              <button class="section-header__cta" @click="goPremium()">
                 Go Premium
               </button>
             </div>

@@ -389,13 +389,6 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  // Premium upgrade landing
-  {
-    path: '/premium',
-    name: 'premium',
-    component: () => import('@/views/PremiumView.vue'),
-    meta: { title: 'SSi Premium' },
-  },
   // Standalone admin read-views
   {
     path: '/admin/classes/:id',

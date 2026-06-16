@@ -10,6 +10,7 @@ import { useUserRole } from '../composables/useUserRole'
 import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useCheckout } from '../composables/useCheckout'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
@@ -315,8 +316,11 @@ async function confirmCancel() {
     cancelError.value = res.error || 'Could not cancel. Please try Payment & invoices instead.'
   }
 }
+const { startCheckout } = useCheckout()
 function goPremium() {
-  router.push('/premium')
+  // Open the single Premium checkout directly (signed-out users get the auth
+  // modal first, then auto-continue into Paddle). No marketing page.
+  startCheckout({ courseCode: props.course?.course_code || null })
 }
 
 // Account management state

@@ -281,8 +281,31 @@ export function useSubscription(): UseSubscriptionReturn {
     subscription.value = cached.subscription
   }
 
+  /**
+   * Poll the subscription API until it reports active (or timeout). Used right
+   * after a Paddle checkout redirect, where the activating webhook may lag the
+   * page load by a few seconds — without this the just-subscribed learner would
+   * briefly re-hit the paywall. Money capture is unchanged; this only re-reads
+   * the already-written subscription state.
+   */
+  async function pollUntilActive(timeoutMs = 30000): Promise<void> {
+    const start = Date.now()
+    while (Date.now() - start < timeoutMs) {
+      await fetchSubscription()
+      if (isSubscribed.value) return
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+  }
+
   async function initialize(): Promise<void> {
-    if (resolveSupabase(supabaseRef)) await fetchSubscription()
+    if (!resolveSupabase(supabaseRef)) return
+    await fetchSubscription()
+    // Just came back from Paddle checkout — keep polling until the activating
+    // webhook lands so the learner doesn't bounce off the paywall mid-redirect.
+    try {
+      const justSubscribed = new URLSearchParams(window.location.search).get('just_subscribed') === '1'
+      if (justSubscribed && !isSubscribed.value) await pollUntilActive()
+    } catch { /* URL parse is best-effort */ }
   }
 
   // ============================================================================

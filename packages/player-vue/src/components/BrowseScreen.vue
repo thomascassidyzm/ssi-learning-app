@@ -239,8 +239,9 @@ const getVariantLabel = (course) => {
   return null
 }
 
-// All courses — premium courses ARE shown to non-subscribers (locked, click
-// routes to /premium for upgrade) so the catalogue advertises the offer.
+// All courses — premium courses ARE shown to non-subscribers (previewable;
+// playing past the free preview raises the in-player paywall) so the
+// catalogue advertises the offer.
 const displayedCourses = computed(() => {
   let courses = allCourses.value
 

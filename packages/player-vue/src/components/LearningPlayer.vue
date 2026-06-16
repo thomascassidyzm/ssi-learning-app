@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
-import { useRouter } from 'vue-router'
 // Offline-download status (shared with the mode-button ring in ModeTray)
 import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
@@ -47,6 +46,7 @@ import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRou
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { useAuthModal } from '../composables/useAuthModal'
+import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
@@ -149,8 +149,6 @@ function hashStringToSeed(str: string): number {
 const INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS = 3
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
-
-const router = useRouter()
 
 interface VoiceSettings {
   voiceId?: string
@@ -1344,6 +1342,32 @@ const scriptBaseOffset = ref(0)  // Base offset for script loading
 // ============================================
 const entitlementComposable = useEntitlement()
 const showPaywall = ref(false)
+
+// The single checkout trigger (Paddle £15/mo Premium). Used by the in-player
+// paywall overlay; the money-capture backend is untouched.
+const { startCheckout, isOpeningCheckout } = useCheckout()
+function handleSubscribe() {
+  startCheckout({ courseCode: courseCode.value || null })
+}
+
+/**
+ * Central access guard — the ONE place every jump / skip / resume site routes a
+ * target seed through before moving the play cursor there. Returns true when the
+ * move is allowed; when blocked (premium non-subscriber past the preview limit),
+ * it pauses playback, raises the paywall, and returns false so the caller bails.
+ *
+ * Reuses canAccessSeed / PREMIUM_PREVIEW_MAX_SEED — the limit is never
+ * reinvented here. Free / community courses and subscribers always pass.
+ */
+function gateSeed(targetSeedNumber: number | null | undefined): boolean {
+  if (!props.course) return true
+  if (typeof targetSeedNumber !== 'number' || !Number.isFinite(targetSeedNumber)) return true
+  if (entitlementComposable.canAccessSeed(props.course, targetSeedNumber)) return true
+  // Blocked — don't move; hold the learner at the wall.
+  try { simplePlayer.pause() } catch { /* engine may not be ready */ }
+  showPaywall.value = true
+  return false
+}
 
 // Watch entitlements — auto-dismiss paywall if user redeems a code or subscribes
 const { entitlements: liveEntitlements } = useSharedUserEntitlements()
@@ -2784,6 +2808,23 @@ watch(() => simplePlayer.phase.value, (phase) => {
 // position only, no practice timestamp (see savePositionToLocalStorage).
 watch(positionInitialized, (init) => {
   if (init && useRoundBasedPlayback.value) {
+    // RESUME GATE: a returning premium non-subscriber whose saved / deep-linked
+    // position resolved PAST the free preview must not resume INTO locked
+    // territory. The resume/init branches above can land the cursor anywhere
+    // (DB cursor, ceiling, INF PLAY); this single post-init check catches them
+    // all — if the landed seed is beyond the preview limit, pull the cursor back
+    // to the start of the course and raise the paywall. (Free/community courses
+    // and subscribers pass; the limit comes from canAccessSeed.)
+    if (props.course) {
+      const landedSeed = getSeedFromLegoId(simplePlayer.currentRound.value?.legoId ?? null)
+      if (landedSeed !== null && !entitlementComposable.canAccessSeed(props.course, landedSeed)) {
+        try {
+          simplePlayer.pause()
+          simplePlayer.jumpToRound(0)
+        } catch { /* engine may not be ready */ }
+        showPaywall.value = true
+      }
+    }
     savePositionToLocalStorage(undefined, false)
     // Capture the live cursor in the DB the instant init completes. For a
     // resuming learner this just re-affirms where they already were; for a
@@ -7113,6 +7154,13 @@ const handleSkip = async () => {
     const landingRoundIndex = atLastCycle
       ? simplePlayer.roundIndex.value + 1
       : simplePlayer.roundIndex.value
+    // Cycle-skip can roll past the last cycle of a round into the NEXT round —
+    // gate that crossing so a premium non-subscriber can't cycle-step past the
+    // free preview (the round-boundary gate only fires on natural advance).
+    if (atLastCycle) {
+      const landingSeed = getSeedFromLegoId(loadedRounds.value[landingRoundIndex]?.legoId ?? null)
+      if (!gateSeed(landingSeed)) return // finally resets isSkipInProgress
+    }
     await prepareAndJump(landingRoundIndex, 'Next cycle…', () => {
       simplePlayer.stepCycle(1)
       deriveBeltFromLandedRound()
@@ -7199,6 +7247,12 @@ const enterInfPlay = async () => {
     courseFinalLegoId: courseFinalLegoRef.value?.legoId ?? '(not yet loaded)',
     isPlaying: simplePlayer.isPlaying.value,
   })
+
+  // INF PLAY is course-end content — far past the free preview. A premium
+  // non-subscriber can never legitimately reach it; gate the course-end seed so
+  // any path into INF PLAY (round-forward at the final LEGO, belt-forward at
+  // course end, the ∞ activator) raises the paywall instead.
+  if (!gateSeed(courseEndSeed)) return
 
   isSkippingBelt.value = true
   try {
@@ -7512,6 +7566,11 @@ const handleRoundForward = async () => {
       return
     }
 
+    // Gate the LEGO-step: if the next round sits past the free preview, raise
+    // the paywall instead of advancing (premium non-subscriber).
+    const targetForwardSeed = getSeedFromLegoId(cachedRounds.value[targetIdx]?.legoId ?? null)
+    if (!gateSeed(targetForwardSeed)) return
+
     await prepareAndJump(targetIdx, 'Next LEGO…', () => {
       // POSITION nav: prefer the LEGO id, fall back to index — same landing.
       const targetLegoId = cachedRounds.value[targetIdx]?.legoId
@@ -7746,6 +7805,11 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   })
   showProgressModal.value = false
   const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
+
+  // Belt-skip / jump-to-belt is the biggest leak: a premium non-subscriber must
+  // not jump past the free preview. Gate the picked belt's first seed before
+  // touching any playback state. (Free/community courses + subscribers pass.)
+  if (!gateSeed(targetSeed)) return
 
   isSkippingBelt.value = true
   try {
@@ -9892,6 +9956,9 @@ onMounted(async () => {
     const seedNumber = (e as CustomEvent).detail?.seedNumber
     if (typeof seedNumber !== 'number' || seedNumber < 1) return
     console.log('[LearningPlayer] Jump to seed requested:', seedNumber)
+    // Deep-link / CourseBrowser jump (incl. ?seed=) — gate before moving so a
+    // premium non-subscriber can't land past the free preview.
+    if (!gateSeed(seedNumber)) return
     try {
       await loadSeedIfNeeded(seedNumber)
       simplePlayer.jumpToSeed(seedNumber)
@@ -12017,12 +12084,16 @@ defineExpose({
   <Transition name="fade">
     <div v-if="showPaywall" class="paywall-overlay">
       <div class="paywall-card">
-        <h2 class="paywall-title">You've completed the free preview!</h2>
+        <h2 class="paywall-title">You've reached the end of the free preview</h2>
         <p class="paywall-subtitle">£15/month — unlimited access to all languages. Cancel anytime.</p>
         <div class="paywall-actions">
-          <button class="paywall-btn paywall-btn-primary" @click="router.push({ name: 'premium', query: { course: courseCode } })">Subscribe — £15/month</button>
+          <button
+            class="paywall-btn paywall-btn-primary"
+            :disabled="isOpeningCheckout"
+            @click="handleSubscribe"
+          >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
           <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
-          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep previewing</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Maybe later</button>
         </div>
       </div>
     </div>
@@ -12902,6 +12973,11 @@ defineExpose({
 
 .paywall-btn-primary:hover {
   filter: brightness(1.1);
+}
+
+.paywall-btn-primary:disabled {
+  opacity: 0.65;
+  cursor: progress;
 }
 
 .paywall-btn-secondary {
