@@ -204,45 +204,37 @@ export function useListeningPods(
       }
 
       /**
-       * Merge consecutive same-speaker sentences into turns. The first
-       * sentence's globalOrder becomes the turn's order. The turn's id is
-       * derived from the first sentence's id + sentence count so it stays
-       * stable on re-render.
+       * The UNIT is the SENTENCE (Tom 2026-06-16): each sentence is its own
+       * turn — its own card and its own treatment cycle. A multi-sentence
+       * speaker turn (the old merged paragraph) was too big a unit; consecutive
+       * same-speaker sentences now render as separate cards, each labelled with
+       * the speaker. (Stages 1+ already played per-sentence; this aligns the
+       * display + advance unit with that.)
        */
-      const mergeTurns = (sentences: PodSentence[]): PodTurn[] => {
-        const sentenceDetail = (s: PodSentence) => ({
-          id: s.id,
-          targetText: s.targetText,
-          knownText: s.knownText,
-          targetAudioId: s.targetAudioId,
-          knownAudioId: s.knownAudioId,
-          explainerAudioId: s.explainerAudioId,
-        })
-        const turns: PodTurn[] = []
-        for (const s of sentences) {
-          const last = turns[turns.length - 1]
-          if (last && speakerKey(last.speaker) === speakerKey(s.speaker)) {
-            last.targetText = `${last.targetText} ${s.targetText}`.trim()
-            last.knownText = `${last.knownText} ${s.knownText}`.trim()
-            if (s.targetAudioId) last.audioIds.push(s.targetAudioId)
-            last.sentences.push(sentenceDetail(s))
-          } else {
-            const key = speakerKey(s.speaker)
-            turns.push({
-              id: `${s.id}-turn`,
-              speaker: s.speaker,
-              speakerName: displayName.get(key) || cleanSpeakerName(s.speaker),
-              colorIndex: colorOf.get(key) ?? 0,
-              targetText: s.targetText,
-              knownText: s.knownText,
-              audioIds: s.targetAudioId ? [s.targetAudioId] : [],
-              sentences: [sentenceDetail(s)],
-              globalOrder: s.globalOrder,
-            })
+      const mergeTurns = (sentences: PodSentence[]): PodTurn[] =>
+        sentences.map((s) => {
+          const key = speakerKey(s.speaker)
+          return {
+            id: `${s.id}-turn`,
+            speaker: s.speaker,
+            speakerName: displayName.get(key) || cleanSpeakerName(s.speaker),
+            colorIndex: colorOf.get(key) ?? 0,
+            targetText: s.targetText,
+            knownText: s.knownText,
+            audioIds: s.targetAudioId ? [s.targetAudioId] : [],
+            sentences: [
+              {
+                id: s.id,
+                targetText: s.targetText,
+                knownText: s.knownText,
+                targetAudioId: s.targetAudioId,
+                knownAudioId: s.knownAudioId,
+                explainerAudioId: s.explainerAudioId,
+              },
+            ],
+            globalOrder: s.globalOrder,
           }
-        }
-        return turns
-      }
+        })
 
       // Build the ordered scene list. Each scene's title comes from the
       // first sentence's speaker tag (often includes a time/place hint
