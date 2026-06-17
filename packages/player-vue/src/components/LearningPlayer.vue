@@ -184,6 +184,15 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  // True when the player runs INSIDE a shell that already provides its own
+  // (light, Mist-theme) top nav — e.g. the teach "Play as class" route inside
+  // TeachContainer. In that case the player's own legacy dark `.class-bar`
+  // ("Back to classes") is a redundant SECOND top bar in the wrong (dark) theme,
+  // so it's hidden and the shell's nav is the single source of navigation.
+  embedded: {
+    type: Boolean,
+    default: false
+  },
   course: {
     type: Object as PropType<PlayerCourse | null>,
     default: null
@@ -12722,8 +12731,11 @@ defineExpose({
       </svg>
     </div>
 
-    <!-- Class Context Bar (when launched from Schools) -->
-    <button v-if="props.classContext" class="class-bar" @click="emit('close')">
+    <!-- Class Context Bar (when launched from Schools as a standalone player).
+         Hidden when embedded in a shell (teach "Play as class"): the shell's
+         own light TopNav already provides navigation, so this legacy dark bar
+         would be a redundant second top bar in the wrong theme. -->
+    <button v-if="props.classContext && !props.embedded" class="class-bar" @click="emit('close')">
       <svg class="class-bar-back" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="15 18 9 12 15 6"/>
       </svg>
@@ -12733,7 +12745,7 @@ defineExpose({
 
     <!-- Header - Logo with belt underneath, centered -->
     <!-- Header - brand row + belt row -->
-    <header class="header" :class="{ 'has-banner': props.classContext }">
+    <header class="header" :class="{ 'has-banner': props.classContext && !props.embedded }">
       <div class="header-stack">
         <!-- Brand -->
         <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="showDevReset" class="env-reset" title="Clear cache + reload the latest build (dev only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
