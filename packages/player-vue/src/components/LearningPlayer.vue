@@ -12748,7 +12748,12 @@ defineExpose({
     <header class="header" :class="{ 'has-banner': props.classContext && !props.embedded }">
       <div class="header-stack">
         <!-- Brand -->
-        <div class="brand"><span class="logo-say">Say</span><span class="logo-something">Something</span><span class="logo-in">in</span><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="showDevReset" class="env-reset" title="Clear cache + reload the latest build (dev only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
+        <!-- The SaySomethingin wordmark is retired here — branding now lives in
+             the nav bar (top-left, centred on mobile) in the teacher/class shell,
+             and the immersive learner player needs no logo. The env-label /
+             dev-reset / PWA-update controls keep their home in .brand; the row
+             only renders when one of them is present. -->
+        <div v-if="envLabel || showDevReset || (pwaUpdateAvailable && pwaUserDismissed)" class="brand"><span v-if="envLabel" class="env-label" :class="`env-label--${envLabel.toLowerCase()}`">{{ envLabel }}</span><button v-if="showDevReset" class="env-reset" title="Clear cache + reload the latest build (dev only)" aria-label="Reset and reload latest build" @click.stop="resetApp">↻</button><button v-if="pwaUpdateAvailable && pwaUserDismissed" class="update-dot" title="Tap to update" aria-label="New version available — tap to update" @click.stop="pwaApplyUpdate?.()"></button></div>
 
         <!-- Belt row: ROUND/LEGO back ‹‹ + central belt-progress pill + ROUND/LEGO forward ››
              Granularity = location. These header chevrons step the
