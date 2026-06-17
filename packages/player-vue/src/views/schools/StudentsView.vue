@@ -115,10 +115,16 @@ const headlineSubtitle = computed(() =>
   `${totalCount.value} students · ${activeThisWeek.value} active this week · ${needsAttention.value} need attention`,
 )
 
-function viewStudent(s: { learner_id: string }) {
-  router.push({ name: 'admin-student-progress', params: { learnerId: s.learner_id } }).catch(() => {
-    // route may not exist for teacher view — silent fallback
-  })
+function viewStudent(s: { learner_id: string; name?: string }) {
+  // Open the teacher Rate-compare insight pre-scoped to THIS learner, IN-SHELL
+  // (the embedded /schools/analytics route — SchoolsTopBar stays around it).
+  // The learner identity rides along as query params so the insight opens in
+  // learner view for this student. (Live per-learner rate data is still the
+  // deferred wiring — the view renders a seeded preview until then.)
+  router.push({
+    name: 'analytics',
+    query: { scope: 'learner', learner: s.learner_id, name: s.name },
+  }).catch(() => {})
 }
 
 function exportCsv() {
