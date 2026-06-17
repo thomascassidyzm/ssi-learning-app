@@ -239,8 +239,9 @@ const getVariantLabel = (course) => {
   return null
 }
 
-// All courses — premium courses ARE shown to non-subscribers (locked, click
-// routes to /premium for upgrade) so the catalogue advertises the offer.
+// All courses — premium courses ARE shown to non-subscribers (previewable;
+// playing past the free preview raises the in-player paywall) so the
+// catalogue advertises the offer.
 const displayedCourses = computed(() => {
   let courses = allCourses.value
 
@@ -251,14 +252,12 @@ const displayedCourses = computed(() => {
   return courses.sort((a, b) => getLanguageName(a.target_lang).localeCompare(getLanguageName(b.target_lang)))
 })
 
-// Premium course without access → upgrade funnel
-const isLocked = (course) => isPremiumCourse(course) && !hasFullAccess(course)
+// Premium course the user hasn't paid for — still fully PLAYABLE through
+// end-of-Yellow (seed 19) as a free preview. Not hard-locked: starts playing
+// like any course; the seed-19 wall in LearningPlayer drives the upsell.
+const isPreviewOnly = (course) => isPremiumCourse(course) && !hasFullAccess(course)
 
 const handleCourseClick = (course) => {
-  if (isLocked(course)) {
-    router.push({ name: 'premium', query: { course: course.course_code } })
-    return
-  }
   emit('select-course', course)
 }
 
@@ -521,7 +520,7 @@ onMounted(() => {
             <template v-if="group.courses.length === 1">
               <button
                 class="course-card"
-                :class="{ active: isActiveCourse(group.courses[0].course_code), locked: isLocked(group.courses[0]) }"
+                :class="{ active: isActiveCourse(group.courses[0].course_code) }"
                 @click="handleCourseClick(group.courses[0])"
               >
                 <div v-if="isActiveCourse(group.courses[0].course_code)" class="course-badge active-badge">
@@ -529,7 +528,7 @@ onMounted(() => {
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                   </svg>
                 </div>
-                <div v-else-if="isLocked(group.courses[0])" class="course-badge premium-badge">Premium</div>
+                <div v-else-if="isPreviewOnly(group.courses[0])" class="course-badge premium-badge">Premium</div>
                 <div v-else-if="group.courses[0].new_app_status === 'beta'" class="course-badge beta-badge">β</div>
 
                 <LanguageFlag :code="group.courses[0].target_lang" :size="18" />
@@ -537,7 +536,7 @@ onMounted(() => {
                 <span class="course-for">for {{ group.forLabel }} speakers</span>
 
                 <span class="course-status">
-                  <template v-if="isLocked(group.courses[0])">Try free →</template>
+                  <template v-if="isPreviewOnly(group.courses[0])">Try free →</template>
                   <template v-else-if="isEnrolled(group.courses[0].course_code)">
                     <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
                     {{ getProgress(group.courses[0].course_code) }}
@@ -568,11 +567,11 @@ onMounted(() => {
                   v-for="course in group.courses"
                   :key="course.course_code"
                   class="variant-card"
-                  :class="{ active: isActiveCourse(course.course_code), locked: isLocked(course) }"
+                  :class="{ active: isActiveCourse(course.course_code) }"
                   @click="handleCourseClick(course)"
                 >
                   <span class="variant-name">{{ getVariantLabel(course) || course.display_name }}</span>
-                  <span v-if="isLocked(course)" class="course-status">Try free →</span>
+                  <span v-if="isPreviewOnly(course)" class="course-status">Try free →</span>
                   <span v-else-if="isEnrolled(course.course_code)" class="course-status"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</span>
                 </button>
               </div>

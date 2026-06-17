@@ -137,11 +137,11 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     expect(listAverages('progressPace')).toContain(avg.average.label)
   })
 
-  it('different averages genuinely differ (peer cohort sits above all-classes avg)', () => {
+  it('different averages genuinely differ (broader cohorts sit above the class avg)', () => {
     const id = listEntities('progressPace', 'class')[3].value
-    const peer = getRateComparison('progressPace', 'class', id, 'peer cohort')
-    const allClasses = getRateComparison('progressPace', 'class', id, 'all-classes avg')
-    expect(peer.average.value).toBeGreaterThan(allClasses.average.value)
+    const classAvg = getRateComparison('progressPace', 'class', id, 'class avg')
+    const allParticipants = getRateComparison('progressPace', 'class', id, 'all course participants')
+    expect(allParticipants.average.value).toBeGreaterThan(classAvg.average.value)
   })
 
   it('listEntityLevels / listAverages mirror the hero-rate definitions', () => {

@@ -10,6 +10,7 @@ import { useUserRole } from '../composables/useUserRole'
 import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useCheckout } from '../composables/useCheckout'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
@@ -315,8 +316,11 @@ async function confirmCancel() {
     cancelError.value = res.error || 'Could not cancel. Please try Payment & invoices instead.'
   }
 }
+const { startCheckout } = useCheckout()
 function goPremium() {
-  router.push('/premium')
+  // Open the single Premium checkout directly (signed-out users get the auth
+  // modal first, then auto-continue into Paddle). No marketing page.
+  startCheckout({ courseCode: props.course?.course_code || null })
 }
 
 // Account management state
@@ -1714,7 +1718,7 @@ const confirmReset = async () => {
           <div v-else class="setting-row clickable" @click="goPremium">
             <div class="setting-info">
               <span class="setting-label">Go Premium</span>
-              <span class="setting-desc">Unlock all courses — free for 7 days</span>
+              <span class="setting-desc">£15/month — unlimited access to all languages</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>

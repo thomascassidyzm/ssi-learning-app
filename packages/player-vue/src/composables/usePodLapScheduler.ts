@@ -30,6 +30,16 @@
 
 import { ref, shallowRef, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import {
+  tierSequence,
+  resolveAtoms,
+  clipsFromRow,
+  foldEventsToPlays,
+  stage0ViewFor,
+  type Stage0Config,
+  type AtomMapEntry,
+} from './stage0Sequence'
+import { splitRowUnits } from './podSentenceSplit'
 
 // ============================================================================
 // Pod stage logic — mirrors what was in generateLearningScript.ts
@@ -173,6 +183,146 @@ export interface PodSentenceRow {
    *  flow tight; the last chunk of an utterance gets the longer
    *  between-phrases pause. */
   glue_to_next: boolean
+  /** Ordered atom breakdown (Stage-0). Null/absent when the sentence wasn't
+   *  decomposed. Drives the prepended Stage-0 ladder; absent → the sentence
+   *  behaves exactly as before (no Stage-0 views). */
+  atom_map?: AtomMapEntry[] | null
+  /** Speaker label (used to compute speaker-aware gaps: a run of same-speaker
+   *  sentences glues tight; a speaker change breathes). Optional — speakerless
+   *  pods fall back to the row's own glue_to_next. */
+  speaker?: string | null
+}
+
+/**
+ * Raw listening_pod_sentences row as fetched — a whole speaker TURN. Flattened
+ * into per-SENTENCE PodSentenceRow units by flattenPodRows when the turn was
+ * silence-split (sentence_audio_ids present).
+ */
+interface RawPodRow {
+  id: string
+  global_order: number
+  speaker: string | null
+  target_text: string
+  known_text: string
+  target_audio_id: string | null
+  known_audio_id: string | null
+  explainer_audio_id: string | null
+  glue_to_next: boolean
+  atom_map?: AtomMapEntry[] | null
+  sentence_audio_ids?: string[] | null
+  sentence_known_audio_ids?: string[] | null
+}
+
+/** Strip everything but letters/numbers/combining-marks for a script-agnostic
+ *  structural comparison (NOT a linguistic judgment — just whitespace/
+ *  punctuation normalisation so pre-decided atom surfaces can be matched to
+ *  pre-decided sentence text). \p{M} (combining marks) MUST be kept — dropping
+ *  it would collapse e.g. Devanagari नमस्ते vs नमस्तें to the same string and
+ *  wrongly accept a misaligned partition. Letters/numbers/marks cover every
+ *  script; only separators + punctuation are stripped. */
+const alnumOnly = (s: string): string => (s || '').toLowerCase().replace(/[^\p{L}\p{N}\p{M}]/gu, '')
+
+/**
+ * Partition a turn's FLAT atom_map across its sentences, so each split sentence
+ * gets only its OWN atoms for Stage-0. The atom_map is ordered and its atom
+ * surfaces tile the turn's target text in order, so we walk the atoms
+ * accumulating their surfaces and close a group when the accumulation exactly
+ * covers the next sentence. Returns one atom group per sentence, or NULL if the
+ * atoms don't cleanly align (then the caller drops Stage-0 for that turn's
+ * splits — never a WRONG ladder). 'note' entries (no spoken surface) ride along
+ * in the current group; only atom/passthrough surfaces are matched.
+ */
+export function partitionAtomMap(
+  atomMap: AtomMapEntry[] | null | undefined,
+  sentenceTexts: string[],
+): AtomMapEntry[][] | null {
+  if (!Array.isArray(atomMap) || atomMap.length === 0) return null
+  if (sentenceTexts.length < 2) return null
+  const targets = sentenceTexts.map(alnumOnly)
+  if (targets.some((t) => !t)) return null
+  const groups: AtomMapEntry[][] = sentenceTexts.map(() => [])
+  let si = 0
+  let acc = ''
+  for (const entry of atomMap) {
+    if (si >= groups.length) return null // more atoms than sentences to hold them
+    groups[si].push(entry)
+    if (entry.kind === 'atom' || entry.kind === 'passthrough') {
+      const surf = alnumOnly(entry.target_surface || '')
+      if (surf) {
+        acc += surf
+        if (acc === targets[si]) { si++; acc = '' }
+        else if (!targets[si].startsWith(acc)) return null // misalignment
+      }
+    }
+  }
+  // Every sentence must be consumed exactly, every group non-empty.
+  if (si !== groups.length || acc !== '') return null
+  if (groups.some((g) => g.length === 0)) return null
+  return groups
+}
+
+/**
+ * Flatten raw turn-rows into per-SENTENCE PodSentenceRows. A row with a
+ * silence-split (sentence_audio_ids ≥ 2) becomes one row per sentence, each
+ * carrying its OWN target/known clip + text + partitioned atom_map; a row
+ * without a split passes through unchanged. glue_to_next is recomputed
+ * speaker-aware: a sentence glues to the next when they share a speaker (a
+ * paragraph runs tight; a speaker change breathes). Split siblings of one turn
+ * always glue; speakerless pods fall back to the row's original glue_to_next.
+ */
+export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
+  type Expanded = PodSentenceRow & { _turnId: string; _origGlue: boolean }
+  const expanded: Expanded[] = []
+  // Sibling detection keys off the SOURCE-ROW index (unique per turn), not
+  // row.id — robust to a missing/duplicate id; sub-sentences of one turn share it.
+  rawRows.forEach((row, rowIdx) => {
+    const turnId = String(rowIdx)
+    const units = splitRowUnits(row)
+    if (units.length === 1) {
+      expanded.push({
+        global_order: row.global_order,
+        target_text: row.target_text,
+        known_text: row.known_text,
+        target_audio_id: row.target_audio_id ?? null,
+        known_audio_id: row.known_audio_id ?? null,
+        explainer_audio_id: row.explainer_audio_id ?? null,
+        glue_to_next: !!row.glue_to_next,
+        atom_map: row.atom_map ?? null,
+        speaker: row.speaker ?? null,
+        _turnId: turnId,
+        _origGlue: !!row.glue_to_next,
+      })
+    } else {
+      const atomGroups = partitionAtomMap(row.atom_map, units.map((u) => u.targetText))
+      units.forEach((u, k) => {
+        expanded.push({
+          global_order: row.global_order + k * 0.001,
+          target_text: u.targetText,
+          known_text: u.knownText,
+          target_audio_id: u.targetAudioId,
+          known_audio_id: u.knownAudioId,
+          // No per-sentence explainer (it was per-turn) — Stage 1's explainer
+          // slot falls back to this sentence's own translation.
+          explainer_audio_id: null,
+          glue_to_next: false, // set in the speaker-aware pass below
+          atom_map: atomGroups ? atomGroups[k] : null,
+          speaker: row.speaker ?? null,
+          _turnId: turnId,
+          _origGlue: !!row.glue_to_next,
+        })
+      })
+    }
+  })
+  for (let k = 0; k < expanded.length; k++) {
+    const cur = expanded[k]
+    const next = expanded[k + 1]
+    if (!next) { cur.glue_to_next = false; continue }
+    if (next._turnId === cur._turnId) { cur.glue_to_next = true; continue } // sibling sentence of one turn
+    const a = (cur.speaker || '').trim().toLowerCase()
+    const b = (next.speaker || '').trim().toLowerCase()
+    cur.glue_to_next = a && b ? a === b : cur._origGlue
+  }
+  return expanded.map(({ _turnId: _t, _origGlue: _g, ...row }) => row)
 }
 
 export interface BookendAudio {
@@ -202,6 +352,12 @@ export interface PodPlay {
    *  the next play, rather than the standard between-phrases gap. False
    *  for plays mid-sentence — those use the within-chunk gap matrix. */
   glueToNextChunk: boolean
+  /** Stage-0 only: explicit gap (ms) to wait AFTER this play, taken from the
+   *  stage0 config rather than the role gap-matrix. When set, the runtime
+   *  player uses it verbatim; when undefined the normal matrix/glue logic
+   *  applies (so a Stage-0 sentence's LAST play still gets the between-phrases
+   *  gap to the next sentence). */
+  gapAfterMs?: number
 }
 
 export interface PodLap {
@@ -235,6 +391,11 @@ export interface UsePodLapSchedulerOptions {
    *  (every round). Stretches every stage proportionally because the
    *  pod-round ratchet only ticks on actual fires. */
   roundInterval?: Ref<number> | number
+  /** Stage-0 ladder config (algorithm_config['stage0']). When provided AND a
+   *  sentence has resolvable atoms, the sentence's first N views (N = number
+   *  of tiers) play the Stage-0 ladder before its existing Stages 1-9. Omit
+   *  (or empty tiers) → no Stage-0; behaviour identical to before. */
+  stage0?: Ref<Stage0Config | null | undefined> | Stage0Config | null
 }
 
 const isGuestLearner = (id: string | null | undefined): boolean => {
@@ -259,6 +420,12 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const introAudio = ref<BookendAudio | null>(null)
   const outroAudio = ref<BookendAudio | null>(null)
 
+  // Stage-0 course-wide lookups (built in init): lego_key → "means <gloss>"
+  // clip, and target_surface → "[atom] <target>" clip. Empty when the course
+  // has no Stage-0 data, which disables the prepend for every sentence.
+  let stage0MeansGloss = new Map<string, string>()
+  let stage0TargetClip = new Map<string, string>()
+
   /** Main-round at which pods START FIRING. NULL → use default 6. */
   const podActivationRound = ref<number>(DEFAULT_POD_ACTIVATION)
   /** Independent ratchet counter. Increments only on completed laps. */
@@ -279,7 +446,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
-          .select('global_order, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next')
+          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true }),
         supabase
@@ -301,7 +468,31 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       if (podsResult.error) throw new Error(`pod sentences: ${podsResult.error.message}`)
       if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
 
-      podSentences.value = (podsResult.data || []) as PodSentenceRow[]
+      // Flatten turn-rows into per-SENTENCE units: a silence-split turn plays
+      // as target→known→target PER SENTENCE (not 3 target sentences then 3
+      // known — too hard to follow, Tom 2026-06-16). Rows without a split pass
+      // through unchanged. Everything downstream (stages, Stage-0, gaps) then
+      // works per-sentence by construction.
+      podSentences.value = flattenPodRows((podsResult.data || []) as RawPodRow[])
+
+      // Stage-0 lookups — only when the ladder is enabled (config present) and
+      // at least one sentence carries an atom_map. Two small course-wide reads.
+      stage0MeansGloss = new Map()
+      stage0TargetClip = new Map()
+      const stage0Enabled = !!unwrap(options.stage0) && podSentences.value.some((s) => Array.isArray(s.atom_map) && s.atom_map.length > 0)
+      if (stage0Enabled) {
+        const [legoRes, atomRes] = await Promise.all([
+          supabase.from('pod_legos').select('lego_key, explainer_audio_id').eq('course_code', courseCode),
+          supabase.from('course_audio').select('id, text').eq('course_code', courseCode).eq('role', 'pod_explainer').like('text', '[atom] %'),
+        ])
+        for (const l of (legoRes.data || []) as Array<{ lego_key: string; explainer_audio_id: string | null }>) {
+          if (l.explainer_audio_id) stage0MeansGloss.set(l.lego_key, l.explainer_audio_id)
+        }
+        for (const a of (atomRes.data || []) as Array<{ id: string; text: string }>) {
+          const surface = a.text.slice('[atom] '.length)
+          if (!stage0TargetClip.has(surface)) stage0TargetClip.set(surface, a.id)
+        }
+      }
 
       const byRole = new Map<string, BookendAudio>()
       for (const row of (bookendsResult.data || []) as Array<{
@@ -411,6 +602,40 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   }
 
   /**
+   * Stage-0: build the PodPlays for ONE tier of one sentence. Resolves the
+   * sentence's atoms, runs the pure sequencer, and folds the inter-clip gaps
+   * into each play's gapAfterMs. The tier's LAST play omits gapAfterMs, so the
+   * normal between-phrases gap carries through to the next sentence.
+   */
+  const buildStage0Plays = (
+    sentence: PodSentenceRow,
+    tierKey: string,
+    sentenceIdx: number,
+    cfg: Stage0Config,
+  ): PodPlay[] => {
+    const tier = cfg.tiers.find((t) => t.key === tierKey)
+    if (!tier) return []
+    const atoms = resolveAtoms(sentence.atom_map, stage0MeansGloss, stage0TargetClip)
+    const events = tierSequence(tier, atoms, clipsFromRow(sentence), cfg)
+    return foldEventsToPlays(events).map((tp): PodPlay => {
+      const meaningRole = tp.role === 'translation' || tp.role === 'meaning' || tp.role === 'meansGloss'
+      return {
+        sentenceIdx,
+        stage: 0,
+        // playRole is cosmetic for Stage-0 (real speed + gap come from the
+        // fields below); kept to a known PodPlayRole so downstream role
+        // switches never hit an unexpected value.
+        playRole: meaningRole ? 'trans' : 'ps',
+        audioId: tp.audioId,
+        text: tp.label,
+        playbackSpeed: tp.speed || 1,
+        glueToNextChunk: false,
+        ...(tp.gapAfterMs != null ? { gapAfterMs: tp.gapAfterMs } : {}),
+      }
+    })
+  }
+
+  /**
    * Compose the lap that should play right now, based on the current ratchet
    * value. Returns null if there's nothing to play (no sentences, or every
    * sentence's audio is missing).
@@ -439,11 +664,32 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       liveDurations ?? (livePlaylist ? undefined : DEFAULT_STAGE_DURATIONS)
     const totalStages = Object.keys(stagePlaylistMap).length
 
+    const s0cfg = unwrap(options.stage0) as Stage0Config | null | undefined
+    const stage0Tiers = s0cfg?.tiers?.length ?? 0
+
     const plays: PodPlay[] = []
     for (let i = 1; i <= activeCount; i++) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
-      const stageInfo = podStageFor(i, podRound, stageDuration, totalStages, stageDurationsMap)
+
+      // ── Stage-0 prepend: a sentence with resolvable atoms spends its first
+      // N views (N = tier count) in the Stage-0 ladder, one tier per view,
+      // before its existing Stages 1-9. Sentences with no atoms are untouched.
+      const sentenceHasStage0 =
+        !!s0cfg &&
+        stage0Tiers > 0 &&
+        resolveAtoms(sentence.atom_map, stage0MeansGloss, stage0TargetClip).some((a) => a.targetClipId)
+      const alive = podRound - i + 1
+      const view = stage0ViewFor(alive, sentenceHasStage0 ? stage0Tiers : 0)
+      if (view.phase === 'stage0') {
+        // s0cfg is guaranteed truthy here (sentenceHasStage0 requires it), but
+        // guard for the type-checker — fall through harmlessly if ever null.
+        if (s0cfg) plays.push(...buildStage0Plays(sentence, s0cfg.tiers[view.tierIndex].key, i, s0cfg))
+        continue
+      }
+
+      // Main stages — entry shifts past the Stage-0 views so view N+1 = Stage 1.
+      const stageInfo = podStageFor(i + view.shift, podRound, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue

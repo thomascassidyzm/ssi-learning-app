@@ -18,6 +18,50 @@ if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable')
 }
 
+/**
+ * Atomically count one use of a code, conditional on it still being
+ * active/unexpired/under its max_uses cap — closing the cross-user
+ * over-redemption race that a read-then-write increment leaves open.
+ * Returns true if a use was claimed, false if the code is exhausted/expired.
+ * Falls back to the legacy read-then-write when the RPC is absent (pre-migration).
+ * Throws on unexpected DB errors (caller surfaces a 500).
+ */
+async function claimCodeUse(
+  supabase: any,
+  table: 'invite_codes' | 'entitlement_codes',
+  rpcName: 'claim_invite_code_use' | 'claim_entitlement_code_use',
+  id: string
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc(rpcName, { p_id: id })
+  if (!error) {
+    // RPC RETURNS the id when claimed, NULL (no row) when not.
+    return data !== null && data !== undefined
+  }
+  const missing =
+    error.code === 'PGRST202' ||
+    error.code === '42883' ||
+    /could not find the function|schema cache/i.test(error.message || '')
+  if (!missing) {
+    throw new Error(`${rpcName} failed: ${error.message}`)
+  }
+  // Pre-migration fallback: legacy conditional read-then-write (race-accepting).
+  const { data: row, error: readErr } = await supabase
+    .from(table)
+    .select('use_count, max_uses, is_active, expires_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (readErr) throw new Error(`${table} re-read failed: ${readErr.message}`)
+  if (!row || !row.is_active) return false
+  if (row.expires_at && new Date(row.expires_at) <= new Date()) return false
+  if (row.max_uses !== null && row.use_count >= row.max_uses) return false
+  const { error: updErr } = await supabase
+    .from(table)
+    .update({ use_count: row.use_count + 1 })
+    .eq('id', id)
+  if (updErr) throw new Error(`${table} increment failed: ${updErr.message}`)
+  return true
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -129,15 +173,14 @@ async function redeemInviteCode(
     }
   }
 
-  // Increment use_count
-  const { error: incrementError } = await supabase
-    .from('invite_codes')
-    .update({ use_count: inviteRow.use_count + 1 })
-    .eq('id', inviteRow.id)
-
-  if (incrementError) {
-    console.error('[CodeRedeem] Failed to increment use_count:', incrementError)
-    res.status(500).json({ error: 'Internal server error' })
+  // Atomically claim a use (conditional on still-active/unexpired/under-cap),
+  // closing the cross-user over-redemption race. Runs after the dedup checks and
+  // before any role records are created. NOTE: claim-first means a downstream 500
+  // burns one use of a *capped* code (rare; invite codes default max_uses=NULL) —
+  // an accepted tradeoff to keep the cap race closed.
+  const claimed = await claimCodeUse(supabase, 'invite_codes', 'claim_invite_code_use', inviteRow.id as string)
+  if (!claimed) {
+    res.status(200).json({ success: false, error: 'Code fully used' })
     return
   }
 
@@ -167,7 +210,8 @@ async function redeemInviteCode(
 
   // Update learner role and invite_code_id
   const learnerUpdate: Record<string, unknown> = { invite_code_id: inviteRow.id }
-  if (codeType === 'ssi_admin') {
+  if (codeType === 'ssi_admin' || codeType === 'god') {
+    // 'god' collapsed into 'ssi_admin' (2026-06-16); legacy god codes grant admin.
     learnerUpdate.platform_role = 'ssi_admin'
   } else if (codeType === 'tester') {
     learnerUpdate.platform_role = 'tester'
@@ -375,15 +419,16 @@ async function redeemEntitlementCode(
     return
   }
 
-  // Increment use_count
-  const { error: incrementError } = await supabase
-    .from('entitlement_codes')
-    .update({ use_count: entitlementRow.use_count + 1 })
-    .eq('id', entitlementRow.id)
-
-  if (incrementError) {
-    console.error('[CodeRedeem] Failed to increment entitlement use_count:', incrementError)
-    // Non-fatal: entitlement was created
+  // Atomically claim a use LAST — after the entitlement insert above — so a failed
+  // insert never burns a use. Non-fatal: the entitlement is already granted, and
+  // the per-user UNIQUE(learner_id, entitlement_code_id) is the same-user backstop.
+  try {
+    const claimed = await claimCodeUse(supabase, 'entitlement_codes', 'claim_entitlement_code_use', entitlementRow.id as string)
+    if (!claimed) {
+      console.warn('[CodeRedeem] entitlement use not claimed (code exhausted/expired after grant):', entitlementRow.id)
+    }
+  } catch (e: any) {
+    console.error('[CodeRedeem] Failed to claim entitlement use (non-fatal, entitlement granted):', e?.message)
   }
 
   // If code grants dashboard access, apply platform_role + dashboard_courses.

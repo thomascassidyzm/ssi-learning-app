@@ -9,7 +9,6 @@ const AdminContainer = () => import('@/containers/AdminContainer.vue')
 const AdminSchoolsContainer = () => import('@/containers/AdminSchoolsContainer.vue')
 const AdminGroupContainer = () => import('@/containers/AdminGroupContainer.vue')
 const MethodologyContainer = () => import('@/containers/MethodologyContainer.vue')
-const ListeningPodPlayer = () => import('@/components/ListeningPodPlayer.vue')
 // Schools views (lazy-loaded)
 const DashboardView = () => import('@/views/schools/DashboardView.vue')
 const TeachersView = () => import('@/views/schools/TeachersView.vue')
@@ -25,6 +24,8 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
 const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
 const WithTeacher = () => import('@/views/teach/WithTeacher.vue')
+// Onboarding — the three signup doors (/schools1, /schools2, /tutors)
+const Onboarding = () => import('@/views/onboarding/Onboarding.vue')
 
 const routes: RouteRecordRaw[] = [
   // Learning player (default)
@@ -34,12 +35,35 @@ const routes: RouteRecordRaw[] = [
     component: PlayerContainer,
     meta: {
       title: 'Learn',
+      hideAppEscape: true, // immersive player — its own flow, no shell escape
     },
   },
   // Schools dashboard routes
   {
     path: '/schools',
     component: SchoolsContainer,
+    meta: { hideAppEscape: true }, // SchoolsContainer carries its own nav
+    // Parent-level guard so a deep-link (e.g. /schools/analytics) still primes
+    // the role cache before the container's gate runs. The platform-subscription
+    // gate itself (lever-3) is enforced in SchoolsContainer, which wraps EVERY
+    // child route — it's async (loads platform_status), and a router guard can't
+    // resolve it synchronously, so the container is the right place. This guard
+    // just makes sure the role cache is restored first (no flash of wrong state).
+    beforeEnter: (_to, _from, next) => {
+      const { canAccessAdmin, hasSchoolRole, restoreFromCache } = useUserRole()
+      restoreFromCache()
+      // ssi_admins have their OWN schools surface (/admin/schools read-views) and
+      // aren't members of any school — so redirect them OUT of the member-facing
+      // /schools tree from ANY entry point (a deep-link to /schools/teachers must
+      // never dump them on the learner "no school access / join code" wall).
+      // When acting-as a persona, hasSchoolRole is the PERSONA's, so they pass
+      // through to the live school experience as intended. (Guard on the PARENT
+      // so it covers every child route, not just the bare dashboard.)
+      if (canAccessAdmin.value && !hasSchoolRole.value) {
+        return next('/admin/schools')
+      }
+      next()
+    },
     children: [
       {
         path: 'setup',
@@ -54,14 +78,6 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'schools-dashboard',
         component: DashboardView,
-        beforeEnter: (_to, _from, next) => {
-          const { canAccessAdmin, hasSchoolRole, restoreFromCache } = useUserRole()
-          restoreFromCache()
-          if (canAccessAdmin.value && !hasSchoolRole.value) {
-            return next('/admin/schools')
-          }
-          next()
-        },
         meta: {
           title: 'Dashboard',
           description: 'Overview of school learning activity',
@@ -154,6 +170,14 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/teach',
     component: TeachContainer,
+    meta: { hideAppEscape: true }, // TeachContainer carries its own nav
+    // See the /schools guard note: primes the role cache; the platform gate
+    // (1mo tutor trial → £15/mo) is enforced async in TeachContainer.
+    beforeEnter: (_to, _from, next) => {
+      const { restoreFromCache } = useUserRole()
+      restoreFromCache()
+      next()
+    },
     children: [
       {
         path: '',
@@ -176,14 +200,30 @@ const routes: RouteRecordRaw[] = [
     component: WithTeacher,
     meta: { title: 'Learning with your teacher' },
   },
-  // Listening Pods
+  // Signup doors — two roles (school / tutor); the offer is per-course (pricing_tier),
+  // not per-door. /schools1 + /schools2 both run the ONE school flow (kept as two
+  // paths so existing landing-page links don't break). Note: bare /schools is the
+  // school DASHBOARD, not a signup door.
   {
-    path: '/pods',
-    name: 'listening-pods',
-    component: ListeningPodPlayer,
-    meta: {
-      title: 'Listening Pods',
-    },
+    path: '/schools1',
+    name: 'onboard-school-1',
+    component: Onboarding,
+    props: { track: 'school' },
+    meta: { title: 'Set up your school' },
+  },
+  {
+    path: '/schools2',
+    name: 'onboard-school-2',
+    component: Onboarding,
+    props: { track: 'school' },
+    meta: { title: 'Set up your school' },
+  },
+  {
+    path: '/tutors',
+    name: 'onboard-tutor',
+    component: Onboarding,
+    props: { track: 'tutor' },
+    meta: { title: 'Start teaching' },
   },
   // Teacher / tutor insights — the calm single-widget Rate-compare view.
   // Top-level + un-gated so it opens in a browser with ?demo WITHOUT a teacher
@@ -197,12 +237,14 @@ const routes: RouteRecordRaw[] = [
     meta: {
       title: 'Your class',
       description: 'Your class vs the average — the Rate-compare widget, teacher-framed',
+      hideAppEscape: true, // carries the full TopNav, so no floating Back needed
     },
   },
   // Admin panel
   {
     path: '/admin',
     component: AdminContainer,
+    meta: { hideAppEscape: true }, // AdminContainer carries its own nav
     children: [
       {
         // Default /admin landing — redirect to the Setup page (schools + groups
@@ -257,6 +299,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Admin Courses', description: 'Course overview with enrollment stats' },
       },
       {
+        path: 'pod-auditioner',
+        name: 'admin-pod-auditioner',
+        component: () => import('@/components/PodStageAuditioner.vue'),
+        meta: { title: 'Pod stage auditioner', description: 'One sentence through all 10 pod stages (Stage-0 tiers + Stages 1-9)' },
+      },
+      {
         path: 'entitlements',
         redirect: '/admin/access',
       },
@@ -288,7 +336,13 @@ const routes: RouteRecordRaw[] = [
         path: 'insights',
         name: 'admin-insights',
         component: () => import('@/insight/InsightsView.vue'),
-        meta: { title: 'Insights', description: 'Insight Engine — Claude-directed analytics boards' },
+        meta: { title: 'Insights', description: 'Insight Engine — what Claude surfaced (discovery feed)' },
+      },
+      {
+        path: 'stats',
+        name: 'admin-stats',
+        component: () => import('@/views/admin/AdminStatsView.vue'),
+        meta: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
       },
     ],
   },
@@ -361,13 +415,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Group Analytics' },
       },
     ],
-  },
-  // Premium upgrade landing
-  {
-    path: '/premium',
-    name: 'premium',
-    component: () => import('@/views/PremiumView.vue'),
-    meta: { title: 'SSi Premium' },
   },
   // Standalone admin read-views
   {

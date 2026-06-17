@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, watchEffect, shallowRef, inject, nextTick, defineAsyncComponent, type PropType, type Ref } from 'vue'
-import { useRouter } from 'vue-router'
 // Offline-download status (shared with the mode-button ring in ModeTray)
-import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
+import { offlineDlState, offlineDlDone, offlineDlTotal, offlineDlFailed, offlineTrial, resetOfflineDownloadStatus } from '../composables/useOfflineDownloadStatus'
 import {
   CyclePhase,
   DEFAULT_CONFIG,
@@ -47,6 +46,7 @@ import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRou
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { computePauseDuration } from '../playback/computePauseDuration'
 import { useAuthModal } from '../composables/useAuthModal'
+import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
@@ -68,6 +68,7 @@ import LanguageFlag from './schools/shared/LanguageFlag.vue'
 const ProgressModal = defineAsyncComponent(() => import('./ProgressModal.vue'))
 import { useContribution } from '../composables/useContribution'
 import { useEntitlement } from '../composables/useEntitlement'
+import { useOfflineLease } from '../composables/useOfflineLease'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { PREMIUM_PREVIEW_MAX_SEED } from '@ssi/core'
 import { useInstantPlayback, type RoundMap } from '../composables/useInstantPlayback'
@@ -149,8 +150,6 @@ function hashStringToSeed(str: string): number {
 const INSTANT_PLAYBACK_NEAR_EDGE_ROUNDS = 3
 
 const emit = defineEmits(['close', 'playStateChanged', 'viewProgress', 'listeningModeChanged', 'pronunciationModeChanged', 'cycle-started'])
-
-const router = useRouter()
 
 interface VoiceSettings {
   voiceId?: string
@@ -339,6 +338,7 @@ const {
   normalConfig,
   listeningConfig,
   podsConfig,
+  stage0Config,
   scriptShapeConfig,
   resumeConfig,
   isLoaded: algorithmConfigLoaded
@@ -1344,6 +1344,32 @@ const scriptBaseOffset = ref(0)  // Base offset for script loading
 const entitlementComposable = useEntitlement()
 const showPaywall = ref(false)
 
+// The single checkout trigger (Paddle £15/mo Premium). Used by the in-player
+// paywall overlay; the money-capture backend is untouched.
+const { startCheckout, isOpeningCheckout } = useCheckout()
+function handleSubscribe() {
+  startCheckout({ courseCode: courseCode.value || null })
+}
+
+/**
+ * Central access guard — the ONE place every jump / skip / resume site routes a
+ * target seed through before moving the play cursor there. Returns true when the
+ * move is allowed; when blocked (premium non-subscriber past the preview limit),
+ * it pauses playback, raises the paywall, and returns false so the caller bails.
+ *
+ * Reuses canAccessSeed / PREMIUM_PREVIEW_MAX_SEED — the limit is never
+ * reinvented here. Free / community courses and subscribers always pass.
+ */
+function gateSeed(targetSeedNumber: number | null | undefined): boolean {
+  if (!props.course) return true
+  if (typeof targetSeedNumber !== 'number' || !Number.isFinite(targetSeedNumber)) return true
+  if (entitlementComposable.canAccessSeed(props.course, targetSeedNumber)) return true
+  // Blocked — don't move; hold the learner at the wall.
+  try { simplePlayer.pause() } catch { /* engine may not be ready */ }
+  showPaywall.value = true
+  return false
+}
+
 // Watch entitlements — auto-dismiss paywall if user redeems a code or subscribes
 const { entitlements: liveEntitlements } = useSharedUserEntitlements()
 watch(liveEntitlements, () => {
@@ -1354,6 +1380,14 @@ watch(liveEntitlements, () => {
       simplePlayer.resume()
     }
   }
+})
+
+// Mirror the offline-entitlement shape into shared state so ModeTray can nudge
+// "Free offline for 30 days" on the Offline row for non-payers (no prop-drill).
+// Offline download itself is open to all now; this only flags the TRIAL state.
+// Re-runs when the subscription / entitlements / course change.
+watchEffect(() => {
+  offlineTrial.value = !!props.course && !entitlementComposable.offlineRenews(props.course)
 })
 
 // ============================================
@@ -2783,6 +2817,23 @@ watch(() => simplePlayer.phase.value, (phase) => {
 // position only, no practice timestamp (see savePositionToLocalStorage).
 watch(positionInitialized, (init) => {
   if (init && useRoundBasedPlayback.value) {
+    // RESUME GATE: a returning premium non-subscriber whose saved / deep-linked
+    // position resolved PAST the free preview must not resume INTO locked
+    // territory. The resume/init branches above can land the cursor anywhere
+    // (DB cursor, ceiling, INF PLAY); this single post-init check catches them
+    // all — if the landed seed is beyond the preview limit, pull the cursor back
+    // to the start of the course and raise the paywall. (Free/community courses
+    // and subscribers pass; the limit comes from canAccessSeed.)
+    if (props.course) {
+      const landedSeed = getSeedFromLegoId(simplePlayer.currentRound.value?.legoId ?? null)
+      if (landedSeed !== null && !entitlementComposable.canAccessSeed(props.course, landedSeed)) {
+        try {
+          simplePlayer.pause()
+          simplePlayer.jumpToRound(0)
+        } catch { /* engine may not be ready */ }
+        showPaywall.value = true
+      }
+    }
     savePositionToLocalStorage(undefined, false)
     // Capture the live cursor in the DB the instant init completes. For a
     // resuming learner this just re-affirms where they already were; for a
@@ -3036,32 +3087,31 @@ const podScheduler = supabase?.value
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
+      // Stage-0 ladder (algorithm_config.stage0) — prepends 5 explainer views
+      // before Stages 1-9 for any sentence with atom data. Live-tunable.
+      stage0: computed(() => stage0Config.value),
     })
   : null
 
 // ============================================
-// LAYER-1 LISTENING SCHEDULER (drained-seed fluency maintenance)
-// Sibling of podScheduler but simpler: no stages, no ratchet. Fires every
-// ~50 main rounds (DEFAULT_LAYER1_CONFIG) once seeds have fully drained from
-// spaced rep; the lap is a pure function of (catalogue, round, learner) so
-// it's resume-safe with no persisted state. See useLayer1Scheduler.ts.
+// LAYER-1 LISTENING SCHEDULER (30-cup fluency maintenance)
+// Sibling of podScheduler but simpler: no stages, no ratchet. Fires EVERY clean
+// non-pod boundary once ≥1 seed/cup is available; pours one cup of a 30-slot
+// wheel of *introduced* seeds. Pure function of (catalogue, round, learner,
+// cluster templates) → resume-safe with no persisted state.
+// See useLayer1Scheduler.ts + docs/methodology/layer1-listening-cups.md.
 // ============================================
-// Dev cheat (?l1test): make Layer-1 listening fire early + often so it can be
-// verified without playing ~100 rounds. Default config (activation@100, every
-// 50 rounds, 90-round graduation offset) is correct for real learners but
-// untestable by hand. ?l1test → first lap at round 2, every 3 rounds, offset 0
-// (every already-debuted seed is immediately eligible, so the bucket is full
-// from the start). Optional ?l1every=N overrides the interval. Mirrors ?fc.
+// Dev cheat (?l1test): shrink the wheel so the cup model's milestones (fill,
+// cluster at 5/cup, re-cluster, freeze) are reachable by hand instead of after
+// hundreds of introduced seeds. Default (30 cups, activate at 30 introduced,
+// cap 20/cup) is right for real learners but untestable manually. ?l1test →
+// a 2-cup wheel, activate at 2 introduced, cap 10/cup — so 1/cup at 2 introduced,
+// first cluster at 10 introduced (5/cup), etc. Mirrors ?fc.
 const l1TestConfig = ((): Partial<Layer1Config> | undefined => {
   try {
     const p = new URLSearchParams(window.location.search)
     if (!p.has('l1test')) return undefined
-    const every = parseInt(p.get('l1every') || '', 10)
-    return {
-      activationRound: 2,
-      interval: Number.isFinite(every) && every > 0 ? every : 3,
-      offset: 0,
-    }
+    return { cups: 2, activationCount: 2, maxSeedsPerCup: 10 }
   } catch { return undefined }
 })()
 
@@ -3507,6 +3557,12 @@ const initializeOfflinePlay = () => {
   const handleOnline = () => {
     isOnline.value = true
     console.log('[LearningPlayer] Network: online')
+    // Back online → renew the lease then clear the lock if we're re-validated.
+    // useOfflineLease also renews on its own 'online' listener; we await it here
+    // so the lock UI for THIS course clears promptly on reconnect.
+    if (offlineLeaseLocked.value) {
+      void offlineLease.renewLeases().then(() => checkOfflineLease()).catch(() => {})
+    }
   }
   const handleOffline = () => {
     isOnline.value = false
@@ -3768,6 +3824,10 @@ const eternalStage = computed(() => {
 })
 const podGapMs = (curr: PodPlay, next: PodPlay | null): number => {
   if (!next) return 0
+  // Stage-0 plays carry their own config-driven gap; honour it verbatim and
+  // bypass the role gap-matrix. (The tier's last play leaves gapAfterMs unset,
+  // so the between-phrases gap to the next sentence still comes from below.)
+  if (curr.gapAfterMs != null) return curr.gapAfterMs
   const gaps = podsConfig.value
   // Same chunk → role transition decides
   if (curr.sentenceIdx === next.sentenceIdx) {
@@ -4036,17 +4096,21 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // Pod cadence uses the INF-PLAY-aware helper (dev): main-loop defers to the
   // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
   const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
-  // Layer-1 fires only on a clean boundary with no pod (pod wins priority).
-  // Listening items must sit between main rounds, so an encouragement adjacent
-  // to an L1 lap is suppressed too — boundaryBetweenSpeakingRounds excludes it.
+  // Layer-1 fires every clean boundary with no pod (pod wins priority).
   const l1FiresThisBoundary = !!l1Scheduler
     && l1Scheduler.isInitialized.value
     && currentMode.value !== 'infplay'
     && !podFiresThisBoundary
     && l1Scheduler.shouldFireLapAt((completedRoundIndex || 0) + 1)
+  // L1 now fires EVERY clean non-pod boundary (30-cup model), so suppressing
+  // encouragements next to it would starve them entirely. The old "don't butt a
+  // clip onto a 10-min listen" reason is gone — an L1 cup is only ~1 min — so an
+  // encouragement MAY co-fire with an L1 lap: commentary plays, THEN the lap (the
+  // commentary block defers its resume to the lap block to avoid a resume()/pause()
+  // race). Pods still pre-empt both. Tom 2026-06-16.
   const boundaryBetweenSpeakingRounds =
     !isListeningRound(completedRound) && !isListeningRound(nextRound)
-    && !podFiresThisBoundary && !l1FiresThisBoundary
+    && !podFiresThisBoundary
 
   // Dev cheat (?fc / ?forceEncouragements): relax the placement rule so an
   // interjection can fire at ANY boundary that isn't a pod lap — otherwise a
@@ -4055,7 +4119,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // boundaries (firing there would overlap/race the lap). Pairs with the
   // service's forceFire (which drops the ~10-min interval).
   const canFireInterjection = forceInterjectionsCheat
-    ? (!podFiresThisBoundary && !l1FiresThisBoundary)
+    ? !podFiresThisBoundary
     : boundaryBetweenSpeakingRounds
 
   // No random encouragements in INF PLAY — the locked model has none, and a
@@ -4084,9 +4148,11 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       metaCommentary.finishCommentaryPlayback()
       if (userStoppedDuringLap.value) {
         userStoppedDuringLap.value = false
-      } else {
+      } else if (!l1FiresThisBoundary) {
         simplePlayer.resume()
       }
+      // else: an L1 lap fires this boundary and owns the resume — deferring
+      // avoids a resume()/pause() race between commentary and the lap.
     }
   }
 
@@ -4117,9 +4183,33 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
     if (podCadenceFiresAtRound(completedRoundIndex)) {
       const lap = podScheduler.nextLap()
       if (lap) {
-        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lap.plays.length} plays)`)
+        // SEGUE LAYER 1 → LAYER 2. On a pod round the cup wheel is also turning,
+        // so instead of two separately-bracketed listening blocks (intro/seeds/
+        // outro, then intro/pod/outro), prepend THIS round's L1 cup seeds onto the
+        // FRONT of the pod lap and play it as ONE lap: single intro bookend → L1
+        // seeds → pod → single outro bookend (Tom 2026-06-16, "just segue them").
+        // The standalone L1 block below is gated on !pod so it won't also fire.
+        // Skipped in INF PLAY (L1 doesn't run there) — pod plays alone, as before.
+        let lapToPlay = lap
+        if (l1Scheduler && l1Scheduler.isInitialized.value && currentMode.value !== 'infplay') {
+          const l1Cup = l1Scheduler.nextLap((completedRoundIndex || 0) + 1)
+          if (l1Cup && l1Cup.plays.length > 0) {
+            const l1AsPodPlays: PodPlay[] = l1Cup.plays.map((p) => ({
+              sentenceIdx: p.seedNumber,
+              stage: 0,
+              playRole: p.playbackSpeed >= 2 ? 'ps2x' : 'ps',
+              audioId: p.audioId,
+              text: p.text,
+              playbackSpeed: p.playbackSpeed,
+              glueToNextChunk: false,
+            }))
+            lapToPlay = { ...lap, plays: [...l1AsPodPlays, ...lap.plays] }
+            console.log(`[LearningPlayer] Seguing L1 cup ${l1Cup.cupIndex} (${l1Cup.bucketSize} seeds) into pod lap ${lap.podRound}`)
+          }
+        }
+        console.log(`[LearningPlayer] Playing pod lap ${lap.podRound} (${lapToPlay.plays.length} plays)`)
         simplePlayer.pause()
-        const completed = await playPodLap(lap, l1FiredThisRound)
+        const completed = await playPodLap(lapToPlay, l1FiredThisRound)
         // Ratchet writes are fire-and-forget — awaiting the Supabase
         // round-trip put a 200-1000ms silence between the lap outro and
         // the next round's intro on mobile networks. The audible audio
@@ -4178,7 +4268,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
           // skipping silently into round N+1. Re-fire uses omitIntro=true
           // so the bookend doesn't double up.
           userStoppedDuringLap.value = false
-          pendingLapResume.value = lap
+          pendingLapResume.value = lapToPlay
         } else {
           simplePlayer.resume()
         }
@@ -4187,13 +4277,14 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   }
 
   // ============================================
-  // LAYER-1 LISTENING (runtime — drained-seed fluency maintenance)
-  // Fires every ~50 main rounds once seeds have fully drained from spaced
-  // rep. Plays the bucket (each drained seed's target sentence) at normal
-  // speed, then the whole list again at 2×. No ratchet: the lap is a pure
-  // function of (catalogue, round, learner), so it's resume-safe with nothing
-  // to persist. l1FiresThisBoundary already gated it on a clean, pod-free
-  // boundary (pod wins priority); a due-but-empty bucket no-ops via nextLap.
+  // LAYER-1 LISTENING (runtime — 30-cup fluency maintenance)
+  // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
+  // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
+  // played per its decay tier (1×2× → 2×2× → 2× floor), target audio only. No
+  // ratchet: the lap is a pure function of (catalogue, round, learner, cluster
+  // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
+  // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
+  // See docs/methodology/layer1-listening-cups.md.
   // ============================================
   if (l1Scheduler && l1FiresThisBoundary && !beltJustEarned.value) {
     const completedMainRound = (completedRoundIndex || 0) + 1
@@ -4207,7 +4298,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
 
     const l1Lap = l1Scheduler.nextLap(completedMainRound)
     if (l1Lap) {
-      console.log(`[LearningPlayer] Playing L1 listening lap @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
+      console.log(`[LearningPlayer] Playing L1 cup ${l1Lap.cupIndex} @ round ${completedMainRound} (${l1Lap.bucketSize} seeds, ${l1Lap.plays.length} plays)`)
       simplePlayer.pause()
 
       // Reuse the proven pod playback path — shape the L1 lap into a PodLap.
@@ -5600,12 +5691,14 @@ class RealAudioController {
       // Set source and play
       this.audio.src = url
       this.audio.load()
-      // load() resets playbackRate to 1.0 — re-apply any pending rate
-      // (set by setPlaybackRate before this play() call). Pod ps2x relies
-      // on this to actually play at 2×.
-      if (this.pendingPlaybackRate && this.pendingPlaybackRate !== 1.0) {
-        this.audio.playbackRate = this.pendingPlaybackRate
-      }
+      // load() is SUPPOSED to reset playbackRate to 1.0, but WebKit/Safari
+      // doesn't reliably do so — a prior 2× segment leaks into the next play.
+      // So ALWAYS force the intended rate, not just when it's ≠ 1.0: otherwise
+      // a 1.0× bookend ("now just listen for a while…") played after a 2× floor
+      // seed inherits the stale 2× on Safari and chipmunks. Pod ps2x relies on
+      // this too. (Tom 2026-06-16 — heard the bookends at 2× on Safari/WebKit;
+      // Chromium resets on load() so the bug was invisible there.)
+      this.audio.playbackRate = this.pendingPlaybackRate || 1.0
 
       const playPromise = this.audio.play()
       if (playPromise) {
@@ -7042,6 +7135,7 @@ const prepareAndJump = async (
 
 const handleSkip = async () => {
   logEvent('tap_skip', {
+    direction: 'forward',
     during: playingPodLapAudio.value ? 'pod_lap'
       : playingCommentaryAudio.value ? 'commentary'
       : isPlayingIntroduction.value ? 'intro'
@@ -7105,6 +7199,13 @@ const handleSkip = async () => {
     const landingRoundIndex = atLastCycle
       ? simplePlayer.roundIndex.value + 1
       : simplePlayer.roundIndex.value
+    // Cycle-skip can roll past the last cycle of a round into the NEXT round —
+    // gate that crossing so a premium non-subscriber can't cycle-step past the
+    // free preview (the round-boundary gate only fires on natural advance).
+    if (atLastCycle) {
+      const landingSeed = getSeedFromLegoId(loadedRounds.value[landingRoundIndex]?.legoId ?? null)
+      if (!gateSeed(landingSeed)) return // finally resets isSkipInProgress
+    }
     await prepareAndJump(landingRoundIndex, 'Next cycle…', () => {
       simplePlayer.stepCycle(1)
       deriveBeltFromLandedRound()
@@ -7130,6 +7231,19 @@ const handleRevisit = async () => {
   if (!useRoundBasedPlayback.value || cachedRounds.value.length === 0) return
 
   console.log('[LearningPlayer] ========== CYCLE REGRESS (‹) REQUESTED ==========')
+
+  // Mirror handleSkip's tap_skip so the back/regress button is captured with the
+  // same shape — forward vs back then reads as a single queryable signal
+  // (skipping forward ≈ confidence; stepping back ≈ revisiting / struggle).
+  logEvent('tap_skip', {
+    direction: 'back',
+    during: 'cycle',
+    roundIndex: simplePlayer.roundIndex.value,
+    roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
+    cycleIndex: simplePlayer.cycleIndex.value,
+    cycleType: simplePlayer.currentCycle.value?.type ?? null,
+    legoId: simplePlayer.currentRound.value?.legoId ?? null,
+  })
 
   haltAllPlayback()
   simplePlayer.stepCycle(-1)
@@ -7191,6 +7305,12 @@ const enterInfPlay = async () => {
     courseFinalLegoId: courseFinalLegoRef.value?.legoId ?? '(not yet loaded)',
     isPlaying: simplePlayer.isPlaying.value,
   })
+
+  // INF PLAY is course-end content — far past the free preview. A premium
+  // non-subscriber can never legitimately reach it; gate the course-end seed so
+  // any path into INF PLAY (round-forward at the final LEGO, belt-forward at
+  // course end, the ∞ activator) raises the paywall instead.
+  if (!gateSeed(courseEndSeed)) return
 
   isSkippingBelt.value = true
   try {
@@ -7504,6 +7624,11 @@ const handleRoundForward = async () => {
       return
     }
 
+    // Gate the LEGO-step: if the next round sits past the free preview, raise
+    // the paywall instead of advancing (premium non-subscriber).
+    const targetForwardSeed = getSeedFromLegoId(cachedRounds.value[targetIdx]?.legoId ?? null)
+    if (!gateSeed(targetForwardSeed)) return
+
     await prepareAndJump(targetIdx, 'Next LEGO…', () => {
       // POSITION nav: prefer the LEGO id, fall back to index — same landing.
       const targetLegoId = cachedRounds.value[targetIdx]?.legoId
@@ -7738,6 +7863,11 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
   })
   showProgressModal.value = false
   const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
+
+  // Belt-skip / jump-to-belt is the biggest leak: a premium non-subscriber must
+  // not jump past the free preview. Gate the picked belt's first seed before
+  // touching any playback state. (Free/community courses + subscribers pass.)
+  if (!gateSeed(targetSeed)) return
 
   isSkippingBelt.value = true
   try {
@@ -8495,7 +8625,104 @@ const offlineActive = ref(false)
 // cached but none played, because offlineActive had reset after a reload, so the
 // player streamed /api/audio and every clip failed offline.) Download gates stay
 // on the explicit toggle — downloading is a deliberate, online action.
-const offlinePlaybackActive = (): boolean => offlineActive.value || !isOnline.value
+// 30-day offline lease (the "Spotify handshake"). The lease is granted at the
+// end of a deliberate download and slid forward by useOfflineLease's renewals.
+// When it expires (offline >30d or sub lapsed past the graceful tail) offline
+// playback LOCKS — the bytes stay, a reconnect re-validates and unlocks.
+const offlineLease = useOfflineLease()
+// Reactive lock flag for THIS course, set by checkOfflineLease() at the offline
+// boot fast-path and whenever we fall into offline playback. Drives the lock UI.
+const offlineLeaseLocked = ref(false)
+const offlineLeaseExpiryLabel = ref<string | null>(null)
+
+// Re-validate the lease for the current course. Returns true if offline play is
+// allowed. Sets the lock flag + expiry label for the UI. The hot playback path
+// reads the cheap `offlineLeaseLocked` flag; this async check refreshes it.
+const checkOfflineLease = async (): Promise<boolean> => {
+  const code = courseCode.value
+  if (!code) return true
+  const ok = await offlineLease.isCourseLeaseValid(code) // local IndexedDB read — cheap, no network
+  // Only LOCK a course that actually carries a lease (was downloaded). A 'none'
+  // status means no deliberate download → nothing to lock (the user streams).
+  const locked = !ok && offlineLease.statusFor(code) !== 'none'
+  offlineLeaseLocked.value = locked
+  if (locked) {
+    offlineLeaseExpiryLabel.value = await offlineLease.expiryLabelFor(code)
+    offlineDlState.value = 'locked'  // ModeTray Offline row + ring (amber)
+  } else if (offlineDlState.value === 'locked') {
+    offlineDlState.value = 'idle'    // re-validated → drop the locked badge
+  }
+  // Self-heal in the BACKGROUND when online: an expired lease on an active user
+  // usually just means the renew hasn't landed yet. Renew + re-read, but NEVER
+  // block boot/playback on it — a weak signal must not hang the app (the renew
+  // itself has a hard timeout and fails open). A successful renew flips the flag.
+  if (locked && navigator.onLine) {
+    void offlineLease.renewLeases().then(async () => {
+      const okAfter = await offlineLease.isCourseLeaseValid(code)
+      const stillLocked = !okAfter && offlineLease.statusFor(code) !== 'none'
+      offlineLeaseLocked.value = stillLocked
+      if (!stillLocked && offlineDlState.value === 'locked') offlineDlState.value = 'idle'
+    }).catch(() => { /* keep the pre-renew decision */ })
+  }
+  return locked ? false : ok
+}
+
+// Soonest entitlement-code expiry that grants offline for THIS course (epoch ms),
+// or null for an open-ended subscription / admin / full grant. The lease clamps
+// to this so it can't outlive a time-boxed code.
+const entitlementExpiryForCurrentCourse = (): number | null => {
+  const code = courseCode.value
+  let soonest: number | null = null
+  for (const e of liveEntitlements.value || []) {
+    const grantsThis =
+      e.accessType === 'full' ||
+      (e.accessType === 'courses' && !!code && (e.grantedCourses || []).includes(code))
+    if (!grantsThis) continue
+    if (!e.expiresAt) return null // an open-ended grant means no clamp
+    const ms = new Date(e.expiresAt).getTime()
+    if (Number.isFinite(ms)) soonest = soonest == null ? ms : Math.min(soonest, ms)
+  }
+  return soonest
+}
+
+const grantOfflineLeaseForCurrentCourse = async (): Promise<void> => {
+  const code = courseCode.value
+  if (!code) return
+  try {
+    await offlineLease.grantLease(code, entitlementExpiryForCurrentCourse())
+    offlineLeaseLocked.value = false
+    offlineLeaseExpiryLabel.value = await offlineLease.expiryLabelFor(code)
+  } catch (e) {
+    console.warn('[Offline] grantLease failed (non-fatal):', e)
+  }
+}
+
+// Gate the START of an offline download. The DOOR is open to everyone — offline
+// is the convenience we sell, on every course incl. free/community (we never
+// charge for the learning itself). Non-payers get ONE free 30-day taste per
+// course via the lease. Once that taste has LAPSED, re-downloading would silently
+// reset it (and re-bill us the egress), so that's the conversion moment: raise the
+// paywall instead. A first-ever download ('none') or an in-window trial ('valid')
+// passes; payers (offlineRenews) always pass.
+const canStartOfflineDownload = async (): Promise<boolean> => {
+  const course = props.course
+  if (!course) return true
+  if (entitlementComposable.offlineRenews(course)) return true // payer → unlimited
+  const code = courseCode.value
+  if (code) {
+    // Refresh the per-course lease status from disk before judging.
+    await offlineLease.isCourseLeaseValid(code).catch(() => { /* fail-open */ })
+    const status = offlineLease.statusFor(code)
+    if (status === 'expired' || status === 'clock-untrusted') {
+      showPaywall.value = true
+      return false
+    }
+  }
+  return true
+}
+
+const offlinePlaybackActive = (): boolean =>
+  (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
 // from useOfflineDownloadStatus and written by downloadForOffline below. The UI
 // for it now lives on the mode button (the ring) + the Offline row in ModeTray,
@@ -8599,10 +8826,10 @@ const collectPodSpanAudioIds = (spanMs: number): string[] => {
 
 // Layer-1 listening audio ids that WILL play within the next `spanMs`. Unlike
 // pods, an L1 lap is a PURE function of (catalogue, round, learner) —
-// nextLap(mainRound) is fully deterministic — so we enumerate every L1 lap due
-// in the round window ahead of the cursor and warm all their audio. Skips rounds
-// where a pod pre-empts L1 (same priority rule the boundary handler enforces:
-// pod > L1). Returns [] when no L1 lap falls in the span (cheap no-op).
+// nextLap(mainRound) is fully deterministic — so we enumerate every L1 cup due
+// in the round window ahead of the cursor and warm all their audio. Includes pod
+// rounds (the cup now segues in front of the pod, so its audio plays there too).
+// Returns [] when no L1 cup falls in the span (cheap no-op).
 const collectLayer1SpanAudioIds = (spanMs: number): string[] => {
   if (!l1Scheduler || !l1Scheduler.isInitialized.value) return []
   const cursor = Math.max(0, currentRoundIndex.value)
@@ -8610,7 +8837,8 @@ const collectLayer1SpanAudioIds = (spanMs: number): string[] => {
   const ids = new Set<string>()
   for (let mr = cursor + 1; mr <= lastRound + 1; mr++) {
     if (!l1Scheduler.shouldFireLapAt(mr)) continue
-    if (podScheduler?.shouldFireLapAt(mr)) continue // pod pre-empts L1 this round
+    // L1 cups now also play on pod rounds — segued in front of the pod under one
+    // set of bookends — so their cup audio needs warming too (no pod-round skip).
     const lap = l1Scheduler.nextLap(mr)
     if (!lap) continue
     if (lap.intro?.id) ids.add(lap.intro.id)
@@ -8929,6 +9157,10 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
     console.warn('[Offline] setCachedScript during download failed (non-fatal):', e)
   }
 
+  // Stamp the 30-day offline lease now the bytes + script are durably cached.
+  // Clamp to an entitlement-code expiry so the lease can't outlive the code.
+  await grantOfflineLeaseForCurrentCourse()
+
   if (offlineDlFailed.value > 0) {
     // Stays on screen (no auto-hide) so the user knows to retry on better signal.
     offlineDlState.value = 'error'
@@ -9164,7 +9396,12 @@ const offlineCourseBar = computed(() => {
   return { donePct, newPct, finished: false }
 })
 
-const startOfflineDownload = (): void => {
+const startOfflineDownload = async (): Promise<void> => {
+  // Open to all; only a LAPSED free trial (non-payer) hits the paywall here.
+  if (!(await canStartOfflineDownload())) {
+    showOfflinePicker.value = false
+    return
+  }
   showOfflinePicker.value = false
   offlineActive.value = true
   const frac = offlineSelectedFraction.value
@@ -9314,6 +9551,11 @@ const refreshOfflineSingleEstimate = async (): Promise<void> => {
 // For INF PLAY cachedRounds is already the USE-only revival tail, so that write
 // stays correct. Mirrors downloadForOffline's structure with a different id set.
 const startOfflineDownloadInfPlay = async (): Promise<void> => {
+  // Open to all; only a LAPSED free trial (non-payer) hits the paywall here.
+  if (!(await canStartOfflineDownload())) {
+    showOfflinePicker.value = false
+    return
+  }
   showOfflinePicker.value = false
   offlineActive.value = true
   console.log('[LearningPlayer] Offline ON — INF PLAY USE-only (longest 3/LEGO)')
@@ -9373,6 +9615,9 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
     console.warn('[Offline] INF PLAY setCachedScript during download failed (non-fatal):', e)
   }
 
+  // Stamp the 30-day offline lease (same as the mid-course download).
+  await grantOfflineLeaseForCurrentCourse()
+
   if (offlineDlFailed.value > 0) {
     offlineDlState.value = 'error'
     console.warn(`[Offline] INF PLAY incomplete: ${offlineDlDone.value}/${offlineDlTotal.value} cached, ${offlineDlFailed.value} failed`)
@@ -9398,7 +9643,7 @@ watch(showOfflinePicker, (open) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onOfflinePickerKeydown))
 
-const toggleOffline = () => {
+const toggleOffline = async () => {
   if (offlineActive.value) {
     // Already on → turn off: stop serving blobs, revoke, reset.
     offlineActive.value = false
@@ -9407,6 +9652,10 @@ const toggleOffline = () => {
     audioCacheSource?.revokeAllBlobUrls()  // drop issued blob URLs so they don't leak
     console.log('[LearningPlayer] Offline mode: OFF — stream')
   } else {
+    // Offline download is open to everyone (every course incl. free) — we sell
+    // the convenience, not the content. Only a non-payer whose free 30-day taste
+    // has already lapsed is sent to the paywall before the picker opens.
+    if (!(await canStartOfflineDownload())) return
     // Off → open the depth picker (download starts only when a depth is chosen).
     showOfflinePicker.value = true
     // Refresh the slider basis FIRST (sets avgBytesPerFile), then the single
@@ -9856,6 +10105,14 @@ onMounted(async () => {
     contribution.fetch(courseCode.value, learnerId).catch(() => {})
   }
 
+  // 30-day offline lease gate. Before any offline-cold-reopen fast-path engages,
+  // re-validate the lease for this course so a lapsed/expired download locks
+  // (bytes preserved) instead of playing. When ONLINE we let useOfflineLease's
+  // boot renew (App.vue) slide the lease forward — so this is mostly meaningful
+  // when offline (the lock decision). Cheap IndexedDB read; awaited so the
+  // fast-path below sees the correct offlineLeaseLocked value.
+  await checkOfflineLease().catch(() => { /* fail-open: never block boot on this */ })
+
   // Load developer settings
   enableQaMode.value = localStorage.getItem('ssi-enable-qa-mode') === 'true'
   showDebugOverlay.value = localStorage.getItem('ssi-show-debug-overlay') === 'true'
@@ -9884,6 +10141,9 @@ onMounted(async () => {
     const seedNumber = (e as CustomEvent).detail?.seedNumber
     if (typeof seedNumber !== 'number' || seedNumber < 1) return
     console.log('[LearningPlayer] Jump to seed requested:', seedNumber)
+    // Deep-link / CourseBrowser jump (incl. ?seed=) — gate before moving so a
+    // premium non-subscriber can't land past the free preview.
+    if (!gateSeed(seedNumber)) return
     try {
       await loadSeedIfNeeded(seedNumber)
       simplePlayer.jumpToSeed(seedNumber)
@@ -12009,12 +12269,45 @@ defineExpose({
   <Transition name="fade">
     <div v-if="showPaywall" class="paywall-overlay">
       <div class="paywall-card">
-        <h2 class="paywall-title">You've completed the free preview!</h2>
-        <p class="paywall-subtitle">SSi Premium unlocks every paid course. Free for 7 days, £15/month from day 8. Cancel anytime.</p>
+        <h2 class="paywall-title">You've reached the end of the free preview</h2>
+        <p class="paywall-subtitle">£15/month — unlimited access to all languages. Cancel anytime.</p>
         <div class="paywall-actions">
-          <button class="paywall-btn paywall-btn-primary" @click="router.push({ name: 'premium', query: { course: courseCode } })">Start 7-day free trial</button>
+          <button
+            class="paywall-btn paywall-btn-primary"
+            :disabled="isOpeningCheckout"
+            @click="handleSubscribe"
+          >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
           <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
-          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Keep previewing</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Maybe later</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- Offline-lease lock overlay. Shown only when the lease has expired AND we
+       can't reach the network to renew (genuinely offline). The bytes are still
+       on disk — one reconnect re-validates and unlocks. Reuses the paywall shell. -->
+  <Transition name="fade">
+    <div v-if="offlineLeaseLocked && !isOnline" class="paywall-overlay">
+      <div class="paywall-card">
+        <h2 class="paywall-title">{{ offlineTrial ? 'Free offline trial ended' : 'Offline access paused' }}</h2>
+        <p class="paywall-subtitle">
+          <template v-if="offlineTrial">
+            Your 30-day free offline trial has ended. Your downloads are still
+            saved — reconnect and subscribe (£15/month) to keep playing them
+            offline. You can always learn online for free.
+          </template>
+          <template v-else>
+            Your downloads need a quick online check to keep playing.
+            Connect to the internet and they'll unlock straight away — nothing is lost.
+          </template>
+          <template v-if="offlineLeaseExpiryLabel"><br />Offline access lapsed on {{ offlineLeaseExpiryLabel }}.</template>
+        </p>
+        <div class="paywall-actions">
+          <button
+            class="paywall-btn paywall-btn-primary"
+            @click="void offlineLease.renewLeases().then(() => checkOfflineLease())"
+          >Try to reconnect</button>
         </div>
       </div>
     </div>
@@ -12894,6 +13187,11 @@ defineExpose({
 
 .paywall-btn-primary:hover {
   filter: brightness(1.1);
+}
+
+.paywall-btn-primary:disabled {
+  opacity: 0.65;
+  cursor: progress;
 }
 
 .paywall-btn-secondary {

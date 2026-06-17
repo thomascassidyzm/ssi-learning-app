@@ -242,11 +242,26 @@ const handleChangeCourse = () => {
   color: var(--text-secondary);
 }
 
+/* Prominent, on-brand "tap to change language" affordance: bigger, SSi-red,
+ * with a soft glow and a gentle downward pulse. No words — the motion + colour
+ * carry the "you can change this" message. */
 .course-chevron {
-  width: 16px;
-  height: 16px;
-  opacity: 0.5;
+  width: 22px;
+  height: 22px;
+  opacity: 1;
   flex-shrink: 0;
+  color: var(--ssi-red, #c23a3a);
+  filter: drop-shadow(0 0 5px rgba(194, 58, 58, 0.45));
+  animation: course-chevron-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes course-chevron-pulse {
+  0%, 100% { transform: translateY(0); opacity: 0.8; }
+  50% { transform: translateY(2px); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .course-chevron { animation: none; }
 }
 
 .course-subtitle {

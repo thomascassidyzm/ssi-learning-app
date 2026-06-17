@@ -140,12 +140,6 @@ onMounted(async () => {
                 size="sm"
                 pill
               >admin</Badge>
-              <Badge
-                v-else-if="user.educational_role === 'god'"
-                variant="ssi-gold"
-                size="sm"
-                pill
-              >god</Badge>
             </td>
             <td class="cell-email">
               <template v-if="user.primary_email">

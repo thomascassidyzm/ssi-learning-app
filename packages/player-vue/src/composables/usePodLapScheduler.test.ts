@@ -289,6 +289,66 @@ describe('usePodLapScheduler — nextLap composition', () => {
   })
 })
 
+describe('usePodLapScheduler — per-sentence split (flattenPodRows integration)', () => {
+  // A whole speaker TURN row that's been silence-split: target_audio_id /
+  // known_audio_id are the WHOLE-turn clips (must never be played once split);
+  // sentence_audio_ids / sentence_known_audio_ids hold the per-sentence clips.
+  const splitTurn = {
+    id: 'c:pod-0:SC01-S001',
+    global_order: 1,
+    speaker: 'Sarah',
+    target_text: 'Buongiorno. Come stai?',
+    known_text: 'Good morning. How are you?',
+    target_audio_id: 'TURN_TGT',
+    known_audio_id: 'TURN_KN',
+    explainer_audio_id: null,
+    glue_to_next: false,
+    atom_map: null,
+    sentence_audio_ids: ['t0', 't1'],
+    sentence_known_audio_ids: ['k0', 'k1'],
+  }
+
+  it('plays the SENTENCE as the unit: target/known interleave PER sentence, never the whole-turn clip', async () => {
+    const state: MockState = {
+      podSentences: [splitTurn],
+      bookends: [bookendIntro, bookendOutro],
+      // podRound = 2 → both split sentences active (activeCount = min(2,2)).
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 1 },
+      enrollmentUpdates: [],
+    }
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    const lap = s.nextLap()
+    expect(lap).not.toBeNull()
+    const ids = lap!.plays.map(p => p.audioId)
+    // The whole-turn clips (3 sentences each) must NEVER play — that was the
+    // "3 target sentences then 3 known sentences" bug (Tom 2026-06-16).
+    expect(ids).not.toContain('TURN_TGT')
+    expect(ids).not.toContain('TURN_KN')
+    // Each sentence plays fully (ps,trans,ps via the explainer→trans fallback)
+    // before the next — target→known→target PER sentence.
+    expect(ids).toEqual(['t0', 'k0', 't0', 't1', 'k1', 't1'])
+    expect(lap!.plays.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps', 'ps', 'trans', 'ps'])
+    // Distinct sentenceIdx → podGapMs treats the two sentences as separate chunks.
+    expect(lap!.plays.map(p => p.sentenceIdx)).toEqual([1, 1, 1, 2, 2, 2])
+  })
+
+  it('a row without a split passes through as one whole-turn unit (back-compat)', async () => {
+    const state: MockState = {
+      podSentences: [{ ...splitTurn, sentence_audio_ids: null, sentence_known_audio_ids: null }],
+      bookends: [bookendIntro, bookendOutro],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+    }
+    const s = usePodLapScheduler({ supabase: makeMockSupabase(state), courseCode: 'c', learnerId: 'u' })
+    await s.initialize()
+    const lap = s.nextLap()
+    // The whole-turn clip plays as a single unit — unchanged behaviour.
+    expect(lap!.plays.map(p => p.audioId)).toEqual(['TURN_TGT', 'TURN_KN', 'TURN_TGT'])
+    expect(lap!.plays.every(p => p.sentenceIdx === 1)).toBe(true)
+  })
+})
+
 describe('usePodLapScheduler — ratchet semantics', () => {
   let state: MockState
   beforeEach(() => {

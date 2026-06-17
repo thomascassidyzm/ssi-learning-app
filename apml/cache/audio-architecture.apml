@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
+# Last Updated: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. PLUS the lease is now STATEFUL: offline_leases table = server authority → revocation kill-switch + trial-used memory; renewal is LAZY + weak-signal-safe (timeout/fail-open, never on first load). See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts, supabase/migrations/20260616_offline_leases.sql)
+# Prev: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
 
 spec audio_caching_architecture:
   version: "3.0.0"
@@ -261,8 +262,89 @@ spec audio_caching_architecture:
       collectRoundsAudioIds: "unique /api/audio ids over N rounds ahead of cursor"
       downloadForOffline: "(roundsAhead) — ensure + collect + fetch missing into IndexedDB"
 
+    premium_gate:
+      requirement: >
+        Offline download is OPEN TO EVERYONE on EVERY course (incl. free/community);
+        non-payers get a free 30-day TASTE, then pay to keep it. We sell the
+        CONVENIENCE of offline, never the content — community courses are free to
+        learn forever (online, and the first 30 days offline).
+      model: >
+        REVERSES the earlier hard-gate (where offline download was premium-only).
+        The 30-day lease now closes the "download once, never return" leak BY
+        EXPIRY instead of by blocking the download — so the door can open and become
+        a taste-then-convert funnel (esp. valuable for the India-first push where
+        data is expensive). Decision 2026-06-16, Tom: "community courses are always
+        and forever free, but you pay for convenience."
+      why: >
+        Online play to Yellow stays free (gateSeed). Offline download is free to
+        START for all; the lease governs longevity — payers renew, non-payers get a
+        single 30-day taste. The leak (free offline forever) is plugged by the lease
+        lapsing, not by a download paywall.
+      where: >
+        useEntitlement.canDownloadOffline(course) now returns true for everyone (the
+        door). useEntitlement.offlineRenews(course) = the OLD gate (active sub /
+        full|course entitlement / admin-tester-god) — does this user's offline RENEW
+        vs being a 30-day taste; drives the trial UI + the re-download paywall.
+        LearningPlayer.canStartOfflineDownload() is the trigger gate (toggleOffline
+        before the picker, startOfflineDownload, startOfflineDownloadInfPlay): payers
+        always pass; a non-payer passes on first download ('none') or mid-trial
+        ('valid') but is sent to showPaywall once the taste has LAPSED ('expired' /
+        'clock-untrusted') — re-downloading then would silently reset the taste (and
+        re-bill egress), so that is the conversion moment.
+      ui: >
+        ModeTray Offline row: toggle is always live (no premium lock badge — removed);
+        offlineTrial (shared ref, = !offlineRenews) nudges "Free offline for 30 days".
+        Lock overlay copy branches on offlineTrial: payer = "reconnect to unlock";
+        trial = "free offline trial ended — subscribe to keep your downloads".
+      caveat: >
+        The lease is client-side (IndexedDB), so a determined non-payer can reset the
+        taste by clearing storage / re-downloading. Acceptable for v1 (low-value:
+        it's free content's offline convenience). The deferred server-side
+        offline_leases table (see offline_lease.deferred) is the full fix if abuse
+        appears; an egress cap on the free-tier download depth is the other lever.
+
+    offline_lease:
+      requirement: "Spotify-style 30-day lease — downloads re-validate online or lock. STATEFUL (v2): the server is the per-course authority."
+      files:
+        - "config/offlineLease.ts — LEASE_DAYS=30, computeExpiry, isLeaseValid, isClockTrustworthy, leaseStatus (+ 'revoked'), leaseShouldRevalidate, RENEW_AHEAD_MS/STALE_AFTER_MS/MIN_RENEW_INTERVAL_MS/VALIDATE_TIMEOUT_MS (pure, unit-tested in offlineLease.test.ts — 20 tests)"
+        - "composables/useOfflineLease.ts — LAZY renew (gated; reconnect/6h-timer/deferred-boot-tick) + lock/unlock; consumes server per-course authority (shared singleton, wired once in App.vue)"
+        - "api/entitlement/offline-lease.ts — STATEFUL server authority over the offline_leases table: POST {courses[]} → per-course {leaseExpiresAt, isTrial, revoked, entitlementExpiresAt}; serverNow is the clock anchor; FALLS BACK to the old stateless shape if the table is absent"
+        - "supabase/migrations/20260616_offline_leases.sql — offline_leases table (learner_id, course_code, expires_at, is_trial, revoked_at, …; unique(learner_id,course_code); RLS own-row select; APPLIED to shared DB)"
+        - "useScriptCache.ts — lease stored on CachedScript.offlineLease (no new store); getOfflineLease/setOfflineLease/getAllOfflineLeases patch it in place"
+      authority: >
+        offline_leases is the server's per-course record. Payer (sub/full|course
+        entitlement/admin) → RENEWS (+30d, is_trial=false). Non-payer → a single
+        non-renewing 30-day TASTE (is_trial=true); the row persists after it lapses
+        so a storage-wipe + re-download is recognised as TRIAL-USED, not a fresh
+        taste. revoked_at set (admin: refund/chargeback) → locked regardless.
+      grant: "downloadForOffline / startOfflineDownloadInfPlay end → grantLease(course, entitlementExpiryClamp) stamps a local optimistic lease THEN forces a background validate (POST) that creates the server row + returns authoritative expiry"
+      renew: >
+        LAZY — NOT on first load. maybeRenew() is gated by leaseShouldRevalidate
+        (only near expiry / >1d stale) + online + a throttle, so a user with runway
+        makes ZERO calls. Each successful validate adopts the server's leaseExpiresAt
+        (or, in stateless fallback, slides serverNow+30d locally). Forced only on a
+        deliberate reconnect / grant / boot self-heal.
+      weak_signal: >
+        The Spotify "half-connected gets bent out of shape" fix: every validate has
+        a hard VALIDATE_TIMEOUT_MS abort and fails OPEN; the boot/self-heal check is
+        NON-BLOCKING (checkOfflineLease reads only local IndexedDB, kicks any renew in
+        the background); the throttle stops online/offline flapping from spamming.
+        Airplane mode never even tries.
+      lock: >
+        isCourseLeaseValid(course) gates offlinePlaybackActive(): expired/revoked/
+        clock-wound-back → false. Bytes are PRESERVED; a successful renew unlocks.
+        Overlay copy branches payer ('reconnect to unlock') vs trial ('subscribe').
+      cardinal_sin_guards:
+        fail_open: "infra/auth/TIMEOUT failure → keep the existing lease, retry later. Never lock a user who can't be checked."
+        graceful_tail: "lapsed sub (not entitled, not revoked) → server doesn't slide; the remaining days run out, no instant cut (§5 default a)."
+        clock_tamper: "a device clock wound back before lastValidatedAt → clock-untrusted → locked (server serverNow is the renew anchor)."
+        dev_demo_bypass: "ssi-demo-tier / dev paid flags → infinite lease, never locks."
+        entitlement_clamp: "lease can't outlive a time-boxed entitlement code (server clamps expires_at = min(now+30d, code expiry))."
+      revocation: "admin SQL: update offline_leases set revoked_at = now() where learner_id = '<uuid>' [and course_code='<code>']; → next validate locks. revoked_at = null restores."
+      v1_caveat: "client lease still lives in IndexedDB, so a wipe BETWEEN downloads can reset locally — but the server row now re-locks it on the next validate (trial-used). Full client-trust removal would need a server-trusted clock on every play, out of scope."
+
     progress:
-      state: "offlineDlState: idle | preparing | downloading | complete | error"
+      state: "offlineDlState: idle | preparing | downloading | complete | error | locked  (locked = lease paused, reconnect to renew)"
       counts: "offlineDlDone / offlineDlTotal / offlineDlFailed (only genuine cache writes tick done)"
       shared_state: >
         useOfflineDownloadStatus.ts — module-level refs (offlineDlState/Done/Total/
@@ -280,9 +362,7 @@ spec audio_caching_architecture:
         "Downloading… N% (x/y)" detail shows on the tray's Offline row (open the tray
         for it) — green while active, red on error.
 
-    deferred:
-      premium_gate: "useEntitlement.canDownload exists but NOT wired to download (no premium users yet)"
-      expiry_30_day: "Spotify-style purge-if-not-online-in-30-days — not built yet"
+    # premium_gate + expiry_30_day: BUILT (see premium_gate + offline_lease sections above).
 
   ## ==========================================================================
   ## GRACEFUL DEGRADATION (INFINITE PLAY)

@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.16 (2026-06-08)
+# Version: 2.1.17 (2026-06-16)
 # Status: Production-ready
 
 ## ============================================================================
@@ -548,6 +548,36 @@ RESUME_BEHAVIOR:
     applied_on: "EVERY resume path — localStorage (resolveResumePosition, via the save's lastUpdated stamp) AND the DB-cursor path (via last_practiced_at). Fires only on a fresh load/reopen; pressing play in a still-live session is a continuation, not a resume."
 
 ## ============================================================================
+## ACCESS GATING / PAYWALL (2026-06-16)
+## ============================================================================
+
+## Premium courses are free through Yellow Belt (PREMIUM_PREVIEW_MAX_SEED, seed
+## 19) for non-subscribers; past that requires a subscription. The in-player
+## paywall overlay (.paywall-overlay) is the SINGLE conversion point — the old
+## /premium marketing page (views/PremiumView.vue + the 'premium' route) was
+## deleted. Free / community courses and subscribers are never gated.
+
+ACCESS_GATING:
+  source_of_truth: "useEntitlement().canAccessSeed(course, seedNumber) — false for a premium non-subscriber when seedNumber > PREMIUM_PREVIEW_MAX_SEED (@ssi/core). The limit is never reinvented in the player."
+
+  central_guard:
+    fn: "gateSeed(targetSeedNumber): boolean (LearningPlayer.vue) — the ONE place every jump/skip site routes a target seed before moving the cursor. Returns true when allowed; when blocked it simplePlayer.pause() + showPaywall=true and returns false so the caller bails. No way for a premium non-subscriber to play a seed > PREMIUM_PREVIEW_MAX_SEED."
+    gated_sites:
+      - "Sequential round advance — pre-existing check in simplePlayer.onRoundCompleted (next round's seed)."
+      - "Cycle-skip rolling into the next round — handleSkip (only the last-cycle → next-round crossing)."
+      - "LEGO step forward — handleRoundForward (next round's seed)."
+      - "Belt-skip / jump-to-belt — handleSkipToBelt (picked belt's first seed); covers header chevrons + belt modal which route through it."
+      - "INF PLAY entry — enterInfPlay (course-end seed); covers round-forward at the final LEGO, belt-forward at course end, and the ∞ activator."
+      - "Deep-link / CourseBrowser jump — ssi-jump-to-seed handler."
+    resume_gate: "On positionInitialized → true, the landed round's seed is re-checked. A returning premium non-subscriber whose saved / deep-linked / INF-PLAY position resolved past the preview is pulled back (jumpToRound(0)) with the paywall raised — never resumes INTO locked content. Catches all resume/init branches at one point."
+
+  paywall_overlay:
+    headline: "\"You've reached the end of the free preview\" + \"£15/month — unlimited access to all languages. Cancel anytime.\""
+    primary: "\"Subscribe — £15/month\" → useCheckout().startCheckout (signed-out users get the auth modal first, then auto-continue into Paddle via completePendingCheckout wired in PlayerContainer.handleAuthSuccess). Opens the existing getPaddle().Checkout.open — money-capture backend untouched."
+    secondary: "\"I have an access code\" (emit viewProgress) and \"Maybe later\" (dismiss + jumpToRound(0) + resume — keeps the learner in preview, never dumps them)."
+    checkout_composable: "composables/useCheckout.ts — lifted out of the deleted PremiumView so the paywall is self-contained. Reused by SettingsScreen 'Go Premium' and CourseSelector 'Go Premium' CTA. Paddle success redirects to /?course=…&just_subscribed=1 (or /?openCourses=1&just_subscribed=1); useSubscription.initialize polls until active on just_subscribed so the learner doesn't bounce off the paywall mid-redirect."
+
+## ============================================================================
 ## COLD START & WELCOME (2026-06-08)
 ## ============================================================================
 
@@ -933,6 +963,6 @@ VERSION_HISTORY:
       - "Mountain silhouette background"
 
 ## ============================================================================
-## GENERATED: 2026-01-18 — Last updated: 2026-06-08
+## GENERATED: 2026-01-18 — Last updated: 2026-06-16
 ## APML v2.1.0
 ## ============================================================================

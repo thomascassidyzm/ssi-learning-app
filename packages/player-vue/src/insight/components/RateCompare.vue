@@ -60,18 +60,6 @@ const deltaLabel = computed(() => {
   return `${sign}${Math.abs(d)}%`
 })
 
-// Comparison-bar geometry: scale both bars against the entity/average max.
-const cmpMax = computed(() =>
-  Math.max(props.data.entity.value, props.data.average.value) || 1,
-)
-function barPct(v: number): number {
-  return Math.max(2, Math.round((v / cmpMax.value) * 100))
-}
-// Where the average marker line sits (as a % of the comparison scale).
-const avgLinePct = computed(() =>
-  Math.min(100, Math.round((props.data.average.value / cmpMax.value) * 100)),
-)
-
 // Percentile chip tone: top third good, mid neutral, bottom third warn.
 const pctTone = computed(() => {
   const p = props.data.percentile
@@ -162,33 +150,21 @@ const cohortTicks = computed<number[]>(() => {
         </div>
       </header>
 
-      <!-- ── Comparison: entity bar vs average marker ── -->
-      <div class="rc-compare">
-        <div class="rc-compare-row">
-          <span class="rc-compare-name">{{ data.entity.label }}</span>
-          <div class="rc-track">
-            <div class="rc-bar entity" :style="{ width: barPct(data.entity.value) + '%' }" />
-            <div class="rc-avg-line" :style="{ left: avgLinePct + '%' }" />
-          </div>
-          <span class="rc-compare-val">{{ fmt(data.entity.value) }}</span>
-        </div>
-        <div class="rc-compare-row">
-          <span class="rc-compare-name muted">{{ data.average.label }}</span>
-          <div class="rc-track">
-            <div class="rc-bar average" :style="{ width: barPct(data.average.value) + '%' }" />
-          </div>
-          <span class="rc-compare-val muted">{{ fmt(data.average.value) }}</span>
-        </div>
-      </div>
-
-      <!-- ── Trend: entity vs average across 8 periods ── -->
+      <!-- ── HERO: the rate over time — entity vs average, rolling weekly ── -->
+      <!-- A rate is a trajectory, so the LINE is the story: where you're heading
+           vs where the cohort is heading. (The two bars that used to sit here
+           just restated the headline numbers above — removed.) -->
       <div class="rc-trend-block">
-        <span class="rc-section-label">Trend · last 8 {{ data.per }}s</span>
+        <div class="rc-trend-head">
+          <span class="rc-section-label">{{ data.metricLabel }} over time</span>
+          <span class="rc-trend-window">Rolling weekly · last 8 weeks</span>
+        </div>
         <RateTrend
           :entity-label="data.entity.label"
           :entity="data.entity.trend"
           :average-label="data.average.label"
           :average="data.average.trend"
+          :y-label="perLabel"
         />
       </div>
 
@@ -390,44 +366,21 @@ const cohortTicks = computed<number[]>(() => {
   color: var(--ink-muted);
 }
 
-/* ── Comparison bars ── */
-.rc-compare { display: flex; flex-direction: column; gap: 10px; }
-.rc-compare-row {
-  display: grid;
-  grid-template-columns: 150px 1fr 56px;
-  align-items: center;
+/* ── Trend (the hero graph) ── */
+.rc-trend-block { display: flex; flex-direction: column; gap: 10px; }
+.rc-trend-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
-.rc-compare-name { font-size: 12.5px; color: var(--ink-primary); }
-.rc-compare-name.muted, .rc-compare-val.muted { color: var(--ink-muted); }
-.rc-compare-val { font-size: 12.5px; text-align: right; color: var(--ink-secondary); }
-.rc-track {
-  position: relative;
-  height: 18px;
-  background: rgba(44, 38, 34, 0.05);
-  border-radius: 5px;
-  overflow: visible;
+.rc-trend-window {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
 }
-.rc-bar { height: 100%; border-radius: 6px; }
-/* entity bar = blue, with a crisp blue edge + soft blue glow (STEP 5) */
-.rc-bar.entity {
-  background: rgba(var(--rc-entity), 0.92);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--rc-entity), 0.55),
-    0 0 12px rgba(var(--rc-glow), 0.28);
-}
-.rc-bar.average { background: rgba(var(--rc-secondary), 0.42); }
-.rc-avg-line {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  background: rgba(var(--rc-secondary), 1);
-  opacity: 0.7;
-}
-
-/* ── Trend ── */
-.rc-trend-block { display: flex; flex-direction: column; gap: 8px; }
 
 /* ── Anonymised distribution centrepiece ── */
 .rc-dist {
@@ -566,7 +519,6 @@ const cohortTicks = computed<number[]>(() => {
 }
 
 @media (max-width: 720px) {
-  .rc-compare-row { grid-template-columns: 100px 1fr 46px; }
   .rc-strip-scale { font-size: 9px; }
 }
 </style>

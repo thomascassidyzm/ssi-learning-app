@@ -1,5 +1,6 @@
 <script setup>
-import { ref, provide, onMounted, defineAsyncComponent, watch } from 'vue'
+import { ref, provide, onMounted, defineAsyncComponent, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
@@ -14,6 +15,7 @@ import { useAccessClaim } from './composables/useAccessClaim'
 import { useAuthModal } from './composables/useAuthModal'
 import { useSharedUserEntitlements } from './composables/useUserEntitlements'
 import { useSharedSubscription } from './composables/useSubscription'
+import { useOfflineLease } from './composables/useOfflineLease'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
@@ -28,9 +30,18 @@ const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFee
 const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
 import { setSchoolsClient } from './composables/schools/client'
 import { useActAs } from './composables/useActAs'
+import AppEscape from './components/AppEscape.vue'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
+
+// "No dead ends": show the shell-level escape on any route that doesn't carry
+// its own way out. The immersive player and the shelled containers (schools /
+// teach / admin) opt out via meta.hideAppEscape; everything else (bare
+// top-level pages like onboarding, /with/:code, /teacher-insights) gets it.
+// Critical in the installed PWA, which has no browser back button.
+const route = useRoute()
+const showAppEscape = computed(() => !route.matched.some((r) => r.meta?.hideAppEscape))
 
 // RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
 // This helps users stuck in broken states
@@ -319,7 +330,10 @@ const canAccessCourse = (course) => {
     entitlements.value,
     platformRole.value
   )
-  return result.canAccess
+  // Premium courses are enterable/defaultable on preview — everyone can PLAY
+  // every course through end-of-Yellow (seed 19). The seed-19 wall still gates
+  // play via canAccessSeed in LearningPlayer; this only opens the door.
+  return result.canAccess || result.canPreview
 }
 
 // Fetch enrolled courses from Supabase
@@ -401,7 +415,13 @@ const fetchEnrolledCourses = async () => {
       // is gated for this user), leave defaultCourse null so no premium
       // course gets auto-loaded; the CourseSelector picker will open.
       if (!defaultCourse) {
-        defaultCourse = data.find(c => canAccessCourse(c)) || null
+        // Prefer Chinese as the first thing a fresh/anon visitor lands on,
+        // falling back to the first accessible course (now incl. previewable
+        // premium courses) if it isn't in the catalogue for this user.
+        const PREFERRED_DEFAULT = 'zho_for_eng'
+        defaultCourse =
+          data.find(c => c.course_code === PREFERRED_DEFAULT && canAccessCourse(c)) ||
+          data.find(c => canAccessCourse(c)) || null
         noPriorCourseSelection.value = true
       }
 
@@ -489,6 +509,15 @@ onMounted(async () => {
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
       await Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+
+      // 30-day offline lease (the "Spotify handshake"). Wire boot/reconnect/timer
+      // renewals AFTER subscription is initialised, so the first renew sees the
+      // freshest entitlement state. Idempotent + best-effort (fail-open offline).
+      try {
+        useOfflineLease().initialize(supabaseClient)
+      } catch (e) {
+        console.warn('[App] Offline-lease init failed (non-fatal):', e)
+      }
 
       // Claim any email-allowlist (pre-granted) free access for a restored /
       // already-signed-in session — onAuthStateChange's SIGNED_IN doesn't fire
@@ -581,6 +610,7 @@ onMounted(async () => {
 <template>
   <div class="app-root">
     <router-view />
+    <AppEscape v-if="showAppEscape" />
     <PwaUpdatePrompt />
     <InstallBanner />
     <DemoOverlay />

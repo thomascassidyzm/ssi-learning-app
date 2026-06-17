@@ -1,35 +1,48 @@
 /**
  * useLayer1Scheduler — runtime scheduler for Layer-1 listening exercises.
  *
- * Sibling to usePodLapScheduler (Layer-2 pods), but deliberately SIMPLER:
- * no stages, no per-seed decay, no persisted ratchet. Layer-1 is fluency
- * maintenance — once a seed has fully dropped out of spaced repetition, it
- * gets replayed (target sentence) at normal speed, then the whole list again
- * at 2× as a "can you still parse it fast?" comprehension pass.
+ * THE 30-CUP MODEL (Tom, 2026-06-16). Full spec + worked trace:
+ *   docs/methodology/layer1-listening-cups.md
  *
- * WHY no ratchet: a Layer-1 lap is a pure function of (course catalogue,
- * main round). The bucket is "the seeds drained by round N"; the cadence is
- * `round % interval`; the retired sampling is SEEDED on (course, learner,
- * round). So the same position always produces the same lap — resume-safe by
- * construction, no DB state to keep in sync. Skipping a lap loses nothing:
- * the drained seeds persist and the next lap (50 rounds on) covers them again.
+ * Layer-1 is fluency maintenance through pure INPUT — replaying seed sentences
+ * you've already been *introduced* to, so the listening channel stays warm on
+ * material you've stopped *producing*. Instead of one big block every 50 rounds,
+ * it's a little dose at the end of EVERY round: a 30-slot "cup" wheel, one cup
+ * poured per round, each ≈ a minute of target audio.
  *
- * Drained / eligible: a seed graduates when its LAST LEGO's catalogue ordinal
- * + `offset` (90) rounds have passed — i.e. every LEGO of the seed has fully
- * dropped out of spaced rep (final fib review at +89, graduation one round
- * later). currentOrdinal ≈ main round (one new LEGO per main round), so at
- * main round R a seed is drained iff seedLastOrdinal <= R - offset.
+ * Sibling to usePodLapScheduler (Layer-2 pods) but deliberately SIMPLER: no
+ * stages, no per-seed decay state, no persisted ratchet. A lap is a PURE function
+ * of (course catalogue, main round, learner, cluster templates) — same position
+ * always produces the same cup, so it's resume-safe by construction with no DB
+ * state to keep in sync.
  *
- * Bucket (caps a session at ~100 seeds ≈ 200 plays ≈ ~10 min):
- *   • drained ≤ cap        → play them all (graduation order).
- *   • drained >  cap       → `activeSize` (80) freshest-drained
- *                            + (cap - activeSize) (20) SEEDED-random from the
- *                            retired rest, so old seeds rotate back through and
- *                            are never fully forgotten.
+ * THE SPINE (see the doc for the full table + invariants):
+ *   • Wheel: 30 cups, one poured per round; cupIndex = (round − activation) mod 30.
+ *   • Fill: nothing until 30 *introduced* seeds; then every +30 introduced adds one
+ *     seed to every cup. seedsPerCup = min(20, floor(introduced / 30)). Caps at
+ *     600 introduced → 20/cup (longer courses maintain only the first 600).
+ *   • Clusters: at every multiple-of-5 seeds/cup the whole cup is re-formed into an
+ *     authored, ordered LINGUISTIC grouping (injected via clusterProvider; a
+ *     deterministic fallback ships until Aran's templates land). Templates: 5/10/15/20.
+ *   • Decay ladder (one ladder; only the entry rung differs):
+ *        1×2× (debut)  →  2×2× (mid)  →  2× (floor)
+ *     A loose seed enters at the top; a freshly-(re)formed cluster enters at the 2nd
+ *     rung (skips the 1×2× debut) — both walk down one rung per batch added.
+ *     INVARIANT: a non-frozen cup has at most ONE debut + ONE mid seed; the rest
+ *     rest at floor. At a bare cluster milestone (no loose yet) the whole cluster
+ *     sits at mid and there is no debut.
+ *   • Target only — NO known-language audio, ever (unlike pods, which carry `trans`).
+ *   • Forever loop: once a course stops introducing seeds (the 600 cap, or its own
+ *     end), there are no more batches to drive the decay, so the arrangement settles
+ *     entirely to the 2× floor and loops there — bare background maintenance.
  *
- * Placement (the every-50-rounds cadence + adjacency) is owned by the caller
- * in LearningPlayer's round-boundary handler, mirroring the pod block — this
- * composable only decides WHETHER a lap is due and WHAT it contains.
+ * The ≈1-minute-per-cup is an APPROXIMATE feel target, not a hard cap — we never
+ * measure audio durations; length falls out of the pattern and self-regulates
+ * because most seeds rest at the cheap floor.
+ *
+ * Placement (fire every round, adjacency, pod-wins-priority) is owned by the
+ * caller in LearningPlayer's round-boundary handler — this composable only decides
+ * WHETHER a lap is due and WHAT cup it contains.
  */
 
 import { ref, shallowRef, type Ref } from 'vue'
@@ -45,32 +58,39 @@ export type Layer1PlayRole = 'ps' | 'ps2x'
 /** Role → playback rate. Single source of truth. */
 export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, ps2x: 2.0 }
 
+/** A seed's listening tier — where it sits on the decay ladder right now. */
+export type Layer1Tier = 'debut' | 'mid' | 'floor'
+
+/** Tier → the speed sequence it plays. All target-audio only. */
+export const L1_TIER_SPEEDS: Record<Layer1Tier, number[]> = {
+  debut: [1.0, 2.0], // 1×2× — register normally, then once fast
+  mid: [2.0, 2.0],   // 2×2× — twice, both fast (cluster-formed / second rung)
+  floor: [2.0],      // 2×   — a single fast touch
+}
+
 export interface Layer1Config {
-  /** Rounds after a seed's last LEGO before it graduates into listening. */
-  offset: number
-  /** Fire a lap every N main rounds from `activationRound` onward. */
-  interval: number
-  /** First main round at which a lap may fire (also needs a non-empty bucket). */
-  activationRound: number
-  /** Hard cap on seeds per session (~100 ≈ 10 min). */
-  bucketCap: number
-  /** Freshest-drained seeds always kept; the rest are "retired" and sampled. */
-  activeSize: number
+  /** Number of cups in the wheel (one poured per round). Batch size == cups. */
+  cups: number
+  /** Introduced-seed count before the first lap fires (also one-seed-per-cup point). */
+  activationCount: number
+  /** Hard cap on seeds per cup (cup-fill stops at `cups × maxSeedsPerCup` introduced). */
+  maxSeedsPerCup: number
+  /** Re-cluster every multiple of this many seeds/cup (templates: 5,10,15,20). */
+  clusterStep: number
 }
 
 export const DEFAULT_LAYER1_CONFIG: Layer1Config = {
-  offset: 90,
-  interval: 50,
-  activationRound: 100,
-  bucketCap: 100,
-  activeSize: 80,
+  cups: 30,
+  activationCount: 30,
+  maxSeedsPerCup: 20, // → caps at 600 introduced seeds
+  clusterStep: 5,
 }
 
 /**
  * Deterministic [0,1) RNG seeded on a string. mulberry32 over a cyrb-style
  * 32-bit string hash. Same string ⇒ same stream, every session/regeneration —
- * this is what keeps the retired-20 sampling resume-safe (matches the seeded
- * INF-PLAY model). Never use unseeded Math.random for placement/selection.
+ * this is what keeps cup assembly resume-safe. Never use unseeded Math.random
+ * for placement/selection.
  */
 export function seededRng(seedStr: string): () => number {
   let h = 2166136261 >>> 0
@@ -88,23 +108,23 @@ export function seededRng(seedStr: string): () => number {
   }
 }
 
-/** Sample `n` items without replacement via a partial Fisher–Yates with an
- *  injectable rng. Returns a copy; never mutates the input. */
-export function sampleSeeded<T>(arr: readonly T[], n: number, rng: () => number): T[] {
-  if (n >= arr.length) return [...arr]
-  if (n <= 0) return []
+/** A copy of `arr` shuffled with an injectable rng (full Fisher–Yates). Never
+ *  mutates the input. Used to scatter each batch's seeds across the 30 cups. */
+export function shuffleSeeded<T>(arr: readonly T[], rng: () => number): T[] {
   const a = [...arr]
-  for (let i = 0; i < n; i++) {
-    const j = i + Math.floor(rng() * (a.length - i))
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
     const tmp = a[i]; a[i] = a[j]; a[j] = tmp
   }
-  return a.slice(0, n)
+  return a
 }
 
 /**
  * Build seedNum → ordinal-of-its-last-LEGO from the course catalogue
  * (course_legos rows ORDERED BY seed_number, lego_index). Last write per seed
- * wins = that seed's highest-index LEGO's absolute course ordinal.
+ * wins = that seed's highest-index LEGO's absolute course ordinal. A seed is
+ * "introduced" once its last LEGO has debuted — i.e. at this ordinal (≈ the
+ * round, one new LEGO per main round).
  */
 export function computeSeedLastOrdinals(
   catalogue: ReadonlyArray<{ seed_number: number; lego_index: number }>,
@@ -119,53 +139,132 @@ export function computeSeedLastOrdinals(
 }
 
 /**
- * Seeds drained by `currentOrdinal`, returned in GRADUATION ORDER (oldest
- * first = ascending last-LEGO ordinal). A seed is drained iff its last LEGO
- * is at least `offset` ordinals behind the current position.
+ * The order seeds are *introduced* in: seed numbers sorted ascending by their
+ * last-LEGO ordinal (ties broken by seed number). introductionOrder[i] is the
+ * (i+1)-th seed to be fully introduced. Skips seeds with ordinal ≤ 0.
  */
-export function drainedSeedsAt(
+export function buildIntroductionOrder(
   seedLastOrdinal: ReadonlyMap<number, number>,
-  currentOrdinal: number,
-  offset: number,
-): number[] {
-  const drained: Array<{ seedNum: number; lastOrd: number }> = []
-  for (const [seedNum, lastOrd] of seedLastOrdinal) {
-    if (lastOrd > 0 && currentOrdinal - lastOrd >= offset) drained.push({ seedNum, lastOrd })
+): { order: number[]; ordinals: number[] } {
+  const rows: Array<{ seed: number; ord: number }> = []
+  for (const [seed, ord] of seedLastOrdinal) {
+    if (ord > 0) rows.push({ seed, ord })
   }
-  drained.sort((a, b) => a.lastOrd - b.lastOrd || a.seedNum - b.seedNum)
-  return drained.map((d) => d.seedNum)
+  rows.sort((a, b) => a.ord - b.ord || a.seed - b.seed)
+  return { order: rows.map((r) => r.seed), ordinals: rows.map((r) => r.ord) }
+}
+
+/** How many seeds are fully introduced by `round` (count of last-ordinals ≤ round). */
+export function introducedCountAt(sortedOrdinals: readonly number[], round: number): number {
+  // sortedOrdinals ascending → linear scan is fine (called O(1)/boundary).
+  let n = 0
+  for (const ord of sortedOrdinals) {
+    if (ord <= round) n++
+    else break
+  }
+  return n
+}
+
+/** seeds/cup at a given introduced count: min(maxSeedsPerCup, floor(count / cups)). */
+export function seedsPerCup(introducedCount: number, cfg: Pick<Layer1Config, 'cups' | 'maxSeedsPerCup'>): number {
+  if (introducedCount < cfg.cups) return 0
+  return Math.min(cfg.maxSeedsPerCup, Math.floor(introducedCount / cfg.cups))
+}
+
+/** Current cluster size = largest multiple of clusterStep ≤ p (0 while p < step). */
+export function clusterSizeFor(p: number, clusterStep: number): number {
+  if (p < clusterStep) return 0
+  return Math.floor(p / clusterStep) * clusterStep
+}
+
+/** The cup poured at `round` (0-based). Caller guarantees round ≥ activationRound. */
+export function cupIndexFor(round: number, activationRound: number, cups: number): number {
+  return (((round - activationRound) % cups) + cups) % cups
 }
 
 /**
- * Compose the session bucket from drained seeds (graduation order, oldest
- * first). ≤ cap → all of them. > cap → keep the `activeSize` freshest, fill
- * the remaining `cap - activeSize` slots with a seeded-random draw from the
- * retired rest. Result stays in graduation order (oldest → freshest) so the
- * normal and 2× passes share one stable order.
+ * Has the course stopped introducing seeds by `round`? True once the introduced
+ * count reaches its final value — min(cap, totalSeeds) — after which no more
+ * batches drive the decay, so the wheel settles to the 2× floor and loops.
  */
-export function composeBucket(
-  drainedOldestFirst: readonly number[],
-  cfg: Pick<Layer1Config, 'bucketCap' | 'activeSize'>,
-  rng: () => number,
-  lastOrdOf?: ReadonlyMap<number, number>,
-): number[] {
-  const n = drainedOldestFirst.length
-  if (n <= cfg.bucketCap) return [...drainedOldestFirst]
-  const active = drainedOldestFirst.slice(n - cfg.activeSize) // freshest tail
-  const retired = drainedOldestFirst.slice(0, n - cfg.activeSize)
-  const pull = Math.max(0, cfg.bucketCap - cfg.activeSize)
-  const sample = sampleSeeded(retired, pull, rng)
-  const bucket = [...sample, ...active]
-  // Stable order for both passes: by graduation order when ordinals known.
-  if (lastOrdOf) bucket.sort((a, b) => (lastOrdOf.get(a) ?? 0) - (lastOrdOf.get(b) ?? 0) || a - b)
-  return bucket
+export function isFrozenAt(
+  sortedOrdinals: readonly number[],
+  round: number,
+  cfg: Pick<Layer1Config, 'cups' | 'maxSeedsPerCup'>,
+): boolean {
+  const finalCount = Math.min(cfg.cups * cfg.maxSeedsPerCup, sortedOrdinals.length)
+  if (finalCount <= 0) return false
+  return introducedCountAt(sortedOrdinals, round) >= finalCount
 }
 
-/** True iff a lap is due at this main round (cadence only — caller adds adjacency). */
-export function shouldFireAtRound(mainRound: number, cfg: Pick<Layer1Config, 'interval' | 'activationRound'>): boolean {
-  if (mainRound < cfg.activationRound) return false
-  const interval = Math.max(1, Math.floor(cfg.interval))
-  return (mainRound - cfg.activationRound) % interval === 0
+/** Deterministic FALLBACK cluster: contiguous block of the introduction order
+ *  (cup c gets introducedOrder[c·C … c·C+C)). Replaced by Aran's authored,
+ *  linguistically-ordered templates via clusterProvider once they land. */
+export function fallbackCluster(
+  size: number,
+  cupIndex: number,
+  introductionOrder: readonly number[],
+): number[] {
+  if (size <= 0) return []
+  const start = cupIndex * size
+  return introductionOrder.slice(start, start + size)
+}
+
+/** Provider hook: ordered seed numbers for one cup of a cluster of `size`. */
+export type Layer1ClusterProvider = (size: number, cupIndex: number) => number[]
+
+/**
+ * Compose one cup's ordered (seed, tier) list — the heart of the model. Pure.
+ *
+ *   p = seedsPerCup; C = cluster size; L = p − C loose seeds.
+ *   • Cluster part (C ≥ clusterStep): clusterProvider(C, cupIndex), in order.
+ *   • Loose part: one seed per batch in (C+1 … p), scattered per cup via
+ *     looseProvider(batch, cupIndex); ordered oldest → newest.
+ *   Tiers (see doc): frozen → all floor; else cluster is `mid` only when L===0
+ *   (a bare milestone) else `floor`, and among the loose the NEWEST is `debut`,
+ *   the second-newest `mid`, the rest `floor`.
+ */
+export function composeCupSeeds(params: {
+  seedsPerCup: number
+  cupIndex: number
+  frozen: boolean
+  cfg: Pick<Layer1Config, 'clusterStep'>
+  clusterProvider: Layer1ClusterProvider
+  /** seed assigned to `cupIndex` from 1-based batch `batch`, or null if none. */
+  looseProvider: (batch: number, cupIndex: number) => number | null
+}): Array<{ seed: number; tier: Layer1Tier }> {
+  const { seedsPerCup: p, cupIndex, frozen, cfg, clusterProvider, looseProvider } = params
+  if (p <= 0) return []
+
+  const C = clusterSizeFor(p, cfg.clusterStep)
+  const L = p - C
+
+  const clusterSeeds = C >= cfg.clusterStep ? clusterProvider(C, cupIndex).slice(0, C) : []
+
+  const looseSeeds: number[] = []
+  for (let batch = C + 1; batch <= p; batch++) {
+    const s = looseProvider(batch, cupIndex)
+    if (s != null) looseSeeds.push(s) // oldest (C+1) → newest (p)
+  }
+
+  const out: Array<{ seed: number; tier: Layer1Tier }> = []
+
+  // Cluster first, in template order.
+  const clusterTier: Layer1Tier = frozen ? 'floor' : L === 0 ? 'mid' : 'floor'
+  for (const seed of clusterSeeds) out.push({ seed, tier: clusterTier })
+
+  // Then the loose tail (oldest → newest). Newest = debut, 2nd-newest = mid.
+  const lastIdx = looseSeeds.length - 1
+  looseSeeds.forEach((seed, i) => {
+    let tier: Layer1Tier = 'floor'
+    if (!frozen) {
+      if (i === lastIdx) tier = 'debut'
+      else if (i === lastIdx - 1) tier = 'mid'
+    }
+    out.push({ seed, tier })
+  })
+
+  return out
 }
 
 // ============================================================================
@@ -190,21 +289,23 @@ export interface L1BookendAudio {
 
 export interface L1Play {
   seedNumber: number
-  /** The seed's target sentence audio — voice 1 or voice 2, picked per play
-   *  by the seeded RNG so laps stay resume-safe (target1 when voice 2 absent). */
+  /** The seed's target sentence audio — voice 1 or voice 2, picked per play by
+   *  the seeded RNG so laps stay resume-safe (target1 when voice 2 absent). */
   audioId: string
   /** Target text (roman variant when present). */
   text: string
-  /** 1.0 for the normal pass, 2.0 for the speed pass. */
+  /** 1.0 (debut's first play) or 2.0 (everything else). */
   playbackSpeed: number
 }
 
 export interface L1Lap {
   mainRound: number
-  /** Number of distinct seeds in the bucket (plays.length === 2 × this, minus any audio-less). */
+  /** 0-based index of the cup poured this round. */
+  cupIndex: number
+  /** Number of distinct seeds in the cup. */
   bucketSize: number
   intro: L1BookendAudio | null
-  /** Normal pass (all seeds @ 1.0×) followed by speed pass (all @ 2.0×). */
+  /** The cup's plays, in cup order (cluster then loose; each seed expanded per tier). */
   plays: L1Play[]
   outro: L1BookendAudio | null
 }
@@ -215,6 +316,9 @@ export interface UseLayer1SchedulerOptions {
   learnerId: Ref<string | null | undefined> | string | null | undefined
   /** Optional config override (e.g. from algorithm_config). Reactive. */
   config?: Ref<Partial<Layer1Config>> | Partial<Layer1Config>
+  /** Optional authored cluster provider (Aran's templates). Falls back to the
+   *  deterministic contiguous grouping when absent or it returns an empty cup. */
+  clusterProvider?: Layer1ClusterProvider
 }
 
 const unwrap = <T,>(v: Ref<T> | T): T =>
@@ -229,10 +333,20 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
   const isLoading = ref(false)
   const seeds = shallowRef<Map<number, L1SeedRow>>(new Map())
   const seedLastOrdinal = shallowRef<Map<number, number>>(new Map())
+  const introductionOrder = shallowRef<number[]>([])
+  const sortedOrdinals = shallowRef<number[]>([])
   const introAudio = ref<L1BookendAudio | null>(null)
   const outroAudio = ref<L1BookendAudio | null>(null)
 
   const cfg = (): Layer1Config => ({ ...DEFAULT_LAYER1_CONFIG, ...(unwrap(options.config) || {}) })
+
+  /** Round at which the first lap may fire = ordinal of the `activationCount`-th
+   *  introduced seed. Infinity when the course has fewer seeds than that. */
+  const activationRound = (): number => {
+    const n = cfg().activationCount
+    const ords = sortedOrdinals.value
+    return ords.length >= n ? ords[n - 1] : Number.POSITIVE_INFINITY
+  }
 
   /** Load seeds + catalogue ordinals + listening bookends. Idempotent. */
   const initialize = async (): Promise<void> => {
@@ -252,7 +366,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
         // .limit(10000) is REQUIRED — Supabase defaults to 1000 rows, which
         // truncates the LEGO catalogue on any course with >1000 LEGOs (~200+
         // seeds), giving later seeds wrong/missing ordinals so they never
-        // drain. Mirrors generateLearningScript.ts's catalogue query.
+        // get introduced. Mirrors generateLearningScript.ts's catalogue query.
         supabase
           .from('course_legos')
           .select('seed_number, lego_index')
@@ -275,9 +389,13 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
       for (const row of (seedsResult.data || []) as L1SeedRow[]) seedMap.set(row.seed_number, row)
       seeds.value = seedMap
 
-      seedLastOrdinal.value = computeSeedLastOrdinals(
+      const lastOrd = computeSeedLastOrdinals(
         (catalogueResult.data || []) as Array<{ seed_number: number; lego_index: number }>,
       )
+      seedLastOrdinal.value = lastOrd
+      const intro = buildIntroductionOrder(lastOrd)
+      introductionOrder.value = intro.order
+      sortedOrdinals.value = intro.ordinals
 
       const byRole = new Map<string, L1BookendAudio>()
       for (const row of (bookendsResult.data || []) as Array<{ role: string; text: string; id: string; duration_ms?: number }>) {
@@ -294,61 +412,96 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     }
   }
 
-  /** Seeds drained by this main round (graduation order, oldest first). */
-  const drainedAt = (mainRound: number): number[] =>
-    drainedSeedsAt(seedLastOrdinal.value, mainRound, cfg().offset)
+  /** Seeds/cup at this main round (0 before activation). */
+  const seedsPerCupAt = (mainRound: number): number =>
+    seedsPerCup(introducedCountAt(sortedOrdinals.value, mainRound), cfg())
 
   /**
-   * Cadence gate. Caller still applies adjacency (clean main round each side,
-   * no pod/encouragement adjacent). Returns false if no seed is drained yet.
+   * Cadence gate: a lap is due EVERY round once ≥1 seed/cup is available. Caller
+   * still applies adjacency (pod wins priority; clean boundary).
    */
   const shouldFireLapAt = (mainRound: number): boolean => {
     if (!isInitialized.value) return false
-    if (!shouldFireAtRound(mainRound, cfg())) return false
-    return drainedAt(mainRound).length > 0
+    return seedsPerCupAt(mainRound) >= 1
+  }
+
+  /** Resolve cluster for a cup: authored provider when it yields a full cup, else
+   *  the deterministic fallback (so the wheel runs before Aran's templates land). */
+  const resolveCluster = (size: number, cupIndex: number): number[] => {
+    if (options.clusterProvider) {
+      const authored = options.clusterProvider(size, cupIndex)
+      if (authored && authored.length >= size) return authored.slice(0, size)
+    }
+    return fallbackCluster(size, cupIndex, introductionOrder.value)
   }
 
   /**
-   * Compose the lap due at `mainRound`: bookend intro → every bucket seed at
-   * 1.0× → the same list at 2.0× → bookend outro. Null when nothing's drained
-   * or no audio is available. Pure function of (catalogue, round, learner).
+   * Compose the lap (cup) due at `mainRound`: bookend intro → the cup's plays
+   * (cluster then loose, each seed expanded per its tier) → bookend outro. Null
+   * when nothing's introduced yet or no audio is available. Pure function of
+   * (catalogue, round, learner, cluster templates).
    */
   const nextLap = (mainRound: number): L1Lap | null => {
-    const drained = drainedAt(mainRound)
-    if (drained.length === 0) return null
+    if (!isInitialized.value) return null
+    const c = cfg()
+    const p = seedsPerCupAt(mainRound)
+    if (p < 1) return null
+
+    const actRound = activationRound()
+    if (!Number.isFinite(actRound) || mainRound < actRound) return null
+    const cupIndex = cupIndexFor(mainRound, actRound, c.cups)
+    const frozen = isFrozenAt(sortedOrdinals.value, mainRound, c)
 
     const courseCode = String(unwrap(options.courseCode) || '')
     const learnerId = String(unwrap(options.learnerId) || 'guest')
-    const rng = seededRng(`${courseCode}:${learnerId}:L1:${mainRound}`)
-    const bucket = composeBucket(drained, cfg(), rng, seedLastOrdinal.value)
 
-    const seedMap = seeds.value
-    const playable = bucket.filter((sNum) => seedMap.get(sNum)?.target1_audio_id)
-    if (playable.length === 0) return null
-
-    // Seeds always play in bucket order (graduation order); only the VOICE is
-    // varied — each play picks voice 1 or 2 via the same seeded RNG, so the lap
-    // is mixed yet identical on every replay/resume. Falls back to voice 1 when
-    // a seed has no voice-2 audio.
-    const plays: L1Play[] = []
-    for (const role of ['ps', 'ps2x'] as const) {
-      const speed = L1_ROLE_SPEED[role]
-      for (const sNum of playable) {
-        const seed = seedMap.get(sNum)!
-        const useVoice2 = !!seed.target2_audio_id && rng() < 0.5
-        plays.push({
-          seedNumber: sNum,
-          audioId: useVoice2 ? seed.target2_audio_id! : seed.target1_audio_id!,
-          text: seed.target_text_roman || seed.target_text,
-          playbackSpeed: speed,
-        })
+    // Loose seeds: scatter each batch's `cups` seeds across the cups by a seeded
+    // shuffle, so the per-cup assignment is arbitrary-but-stable. Memoised per batch.
+    const batchCache = new Map<number, number[]>()
+    const looseProvider = (batch: number, cup: number): number | null => {
+      let scattered = batchCache.get(batch)
+      if (!scattered) {
+        const start = (batch - 1) * c.cups
+        const slice = introductionOrder.value.slice(start, start + c.cups)
+        if (slice.length < c.cups) return null // partial batch never plays
+        scattered = shuffleSeeded(slice, seededRng(`${courseCode}:${learnerId}:L1batch:${batch}`))
+        batchCache.set(batch, scattered)
       }
+      return scattered[cup] ?? null
     }
 
+    const cupSeeds = composeCupSeeds({
+      seedsPerCup: p,
+      cupIndex,
+      frozen,
+      cfg: c,
+      clusterProvider: resolveCluster,
+      looseProvider,
+    })
+
+    // Expand (seed, tier) → plays. Voice 1/2 chosen by a per-round seeded RNG so
+    // the lap is mixed yet identical on replay/resume. Skips seeds without audio.
+    const seedMap = seeds.value
+    const rng = seededRng(`${courseCode}:${learnerId}:L1cup:${mainRound}`)
+    const plays: L1Play[] = []
+    for (const { seed: sNum, tier } of cupSeeds) {
+      const seed = seedMap.get(sNum)
+      if (!seed?.target1_audio_id) continue
+      const useVoice2 = !!seed.target2_audio_id && rng() < 0.5
+      const audioId = useVoice2 ? seed.target2_audio_id! : seed.target1_audio_id!
+      const text = seed.target_text_roman || seed.target_text
+      for (const speed of L1_TIER_SPEEDS[tier]) {
+        plays.push({ seedNumber: sNum, audioId, text, playbackSpeed: speed })
+      }
+    }
+    if (plays.length === 0) return null
+
+    const playableSeeds = new Set(plays.map((pl) => pl.seedNumber)).size
     const hasBookends = !!(introAudio.value && outroAudio.value)
     return {
       mainRound,
-      bucketSize: playable.length,
+      cupIndex,
+      bucketSize: playableSeeds,
       intro: hasBookends ? introAudio.value : null,
       plays,
       outro: hasBookends ? outroAudio.value : null,
@@ -374,10 +527,11 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     isLoading,
     seeds,
     seedLastOrdinal,
+    introductionOrder,
     introAudio,
     outroAudio,
     initialize,
-    drainedAt,
+    seedsPerCupAt,
     shouldFireLapAt,
     nextLap,
     prefetchLap,

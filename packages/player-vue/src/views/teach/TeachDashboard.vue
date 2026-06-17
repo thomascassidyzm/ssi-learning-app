@@ -59,11 +59,18 @@ const errorMessage = ref('')
 // Per-class roster (keyed by class id)
 const rosterByClass = ref<Record<string, RosterStudent[]>>({})
 
-// Earnings (placeholder shape — wired to backend in parallel work)
+// Earnings — hydrated from GET /api/teacher/commissions
 const accruedPence = ref(0)
+const pendingPence = ref(0)
+const lifetimePaidPence = ref(0)
 const payoutRecipient = ref<PayoutRecipient | null>(null)
 const isRequestingPayout = ref(false)
 const payoutError = ref('')
+
+// Wise bank-details (recipient) form
+const showRecipientForm = ref(false)
+const isSavingRecipient = ref(false)
+const recipientForm = ref({ account_holder_name: '', sortCode: '', accountNumber: '' })
 
 const isStartingTrial = ref(false)
 const isOpeningPortal = ref(false)
@@ -106,6 +113,8 @@ const totalStudents = computed(() =>
 const monthlyEarningsEstimate = computed(() => totalStudents.value * COMMISSION_PER_STUDENT)
 
 const accruedPounds = computed(() => (accruedPence.value / 100).toFixed(2))
+const pendingPounds = computed(() => (pendingPence.value / 100).toFixed(2))
+const lifetimePaidPounds = computed(() => (lifetimePaidPence.value / 100).toFixed(2))
 const payoutThresholdPounds = computed(() => (PAYOUT_THRESHOLD_PENCE / 100).toFixed(0))
 const payoutProgress = computed(() =>
   Math.min(100, Math.round((accruedPence.value / PAYOUT_THRESHOLD_PENCE) * 100))
@@ -212,12 +221,31 @@ async function loadPayoutRecipient(token: string): Promise<void> {
     })
     if (res.ok) {
       const data = await res.json()
-      payoutRecipient.value = data
+      // The endpoint returns 200 { recipient_id: null } when no Wise recipient is
+      // set up yet (it only 404s for non-teachers). Treat a null recipient_id as
+      // "no recipient" so the setup form opens and the button label is correct.
+      payoutRecipient.value = data?.recipient_id ? data : null
     } else if (res.status === 404) {
       payoutRecipient.value = null
     }
   } catch {
     // Non-fatal — payout button will fall back to setup flow
+  }
+}
+
+async function loadCommissions(token: string): Promise<void> {
+  try {
+    const res = await fetch('/api/teacher/commissions', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      accruedPence.value = data.accrued_pence ?? 0
+      pendingPence.value = data.pending_pence ?? 0
+      lifetimePaidPence.value = data.lifetime_paid_pence ?? 0
+    }
+  } catch {
+    // Non-fatal — earnings show £0
   }
 }
 
@@ -236,6 +264,7 @@ async function loadAll() {
         loadSubscription(token),
         loadRosters(),
         loadPayoutRecipient(token),
+        loadCommissions(token),
       ])
     }
   } catch (err: any) {
@@ -375,25 +404,58 @@ async function requestPayout() {
     // 1. No Wise recipient yet → call POST /payout-recipient to start setup
     // 2. Recipient exists → payout will be picked up by next cron run; show confirmation
     if (!payoutRecipient.value) {
-      const res = await fetch('/api/teacher/payout-recipient', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        payoutError.value = data.error || 'Failed to start payout setup'
-        return
-      }
-      payoutRecipient.value = data
+      // No Wise recipient yet — open the bank-details form. (The POST needs real
+      // account details; an empty body 400s, so we never auto-POST.)
+      showRecipientForm.value = true
+      return
     }
-    // Once recipient is set up, the payouts cron handles disbursement.
+    // Recipient set up — the monthly payouts cron closes the accrued balance into
+    // a Wise batch and disburses it.
   } catch (err: any) {
     payoutError.value = err?.message || 'Something went wrong'
   } finally {
     isRequestingPayout.value = false
+  }
+}
+
+async function submitRecipient() {
+  if (isSavingRecipient.value) return
+  const name = recipientForm.value.account_holder_name.trim()
+  const sortCode = recipientForm.value.sortCode.replace(/\D/g, '')
+  const accountNumber = recipientForm.value.accountNumber.replace(/\D/g, '')
+  if (!name || sortCode.length !== 6 || accountNumber.length !== 8) {
+    payoutError.value = 'Enter a name, 6-digit sort code and 8-digit account number.'
+    return
+  }
+  isSavingRecipient.value = true
+  payoutError.value = ''
+  try {
+    const token = await getAuthToken()
+    if (!token) return
+    const res = await fetch('/api/teacher/payout-recipient', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        currency: 'GBP',
+        account_holder_name: name,
+        type: 'sort_code',
+        details: { sortCode, accountNumber },
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      payoutError.value = data.error || 'Failed to save payout details'
+      return
+    }
+    payoutRecipient.value = data
+    showRecipientForm.value = false
+  } catch (err: any) {
+    payoutError.value = err?.message || 'Something went wrong'
+  } finally {
+    isSavingRecipient.value = false
   }
 }
 </script>
@@ -465,7 +527,8 @@ async function requestPayout() {
       <div class="section-head">
         <span class="frost-section-title">Teacher plan</span>
         <p v-if="!hasSubscription" class="section-sub">
-          Start your 7-day free trial. Card not charged until day 8. Cancel anytime.
+          You're on your 1 month free trial. Then it's £{{ TEACHER_MONTHLY_PRICE }}/month —
+          your dashboard pauses if the trial lapses. Cancel anytime.
         </p>
         <p v-else class="section-sub">
           £{{ TEACHER_MONTHLY_PRICE }}/month — up to {{ MAX_CLASSES }} classes,
@@ -485,7 +548,7 @@ async function requestPayout() {
           subscription. Every student after that is profit.
         </p>
         <Button variant="primary" :loading="isStartingTrial" @click="startTrial">
-          Start 7-day free trial
+          Subscribe — £{{ TEACHER_MONTHLY_PRICE }}/month
         </Button>
       </div>
 
@@ -673,6 +736,14 @@ async function requestPayout() {
           <span class="earnings-amount frost-mono-nums">£{{ accruedPounds }}</span>
         </div>
         <div class="earnings-block">
+          <span class="earnings-label">Pending payout</span>
+          <span class="earnings-amount frost-mono-nums">£{{ pendingPounds }}</span>
+        </div>
+        <div class="earnings-block">
+          <span class="earnings-label">Lifetime paid</span>
+          <span class="earnings-amount frost-mono-nums">£{{ lifetimePaidPounds }}</span>
+        </div>
+        <div class="earnings-block">
           <span class="earnings-label">Threshold to payout</span>
           <span class="earnings-amount frost-mono-nums">£{{ payoutThresholdPounds }}</span>
         </div>
@@ -697,6 +768,50 @@ async function requestPayout() {
           Reach £{{ payoutThresholdPounds }} accrued to enable payouts.
         </p>
       </div>
+
+      <form v-if="showRecipientForm" class="recipient-form" @submit.prevent="submitRecipient">
+        <p class="section-sub">
+          Enter your UK bank details. Payouts are sent in GBP via Wise.
+        </p>
+        <div class="field">
+          <label for="rcp-name">Account holder name</label>
+          <input
+            id="rcp-name"
+            v-model="recipientForm.account_holder_name"
+            type="text"
+            placeholder="As it appears on your account"
+            required
+          />
+        </div>
+        <div class="inline-fields">
+          <div class="field">
+            <label for="rcp-sort">Sort code</label>
+            <input
+              id="rcp-sort"
+              v-model="recipientForm.sortCode"
+              type="text"
+              inputmode="numeric"
+              placeholder="00-00-00"
+              required
+            />
+          </div>
+          <div class="field">
+            <label for="rcp-acct">Account number</label>
+            <input
+              id="rcp-acct"
+              v-model="recipientForm.accountNumber"
+              type="text"
+              inputmode="numeric"
+              placeholder="12345678"
+              required
+            />
+          </div>
+        </div>
+        <div class="inline-actions">
+          <Button type="button" variant="ghost" @click="showRecipientForm = false">Cancel</Button>
+          <Button type="submit" variant="primary" :loading="isSavingRecipient">Save payout details</Button>
+        </div>
+      </form>
     </FrostCard>
   </div>
 </template>
@@ -1206,6 +1321,15 @@ async function requestPayout() {
   margin: 0;
   color: var(--ink-muted);
   font-size: var(--text-xs);
+}
+
+.recipient-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(44, 38, 34, 0.08);
 }
 
 .error {

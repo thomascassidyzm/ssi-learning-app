@@ -33,19 +33,21 @@ const isActingAs = computed(() => actingAs.value !== null)
 // otherwise the user's own. Drives the /schools route guard and capabilities.
 const effectiveEducationalRole = computed(() => actingAs.value?.role ?? educationalRole.value)
 
-// Role hierarchy: god > ssi_admin > govt_admin > school_admin > teacher > student
-const isGod = computed(() => educationalRole.value === 'god')
-const isSsiAdmin = computed(() => platformRole.value === 'ssi_admin' || isGod.value)
-const isGovtAdmin = computed(() => effectiveEducationalRole.value === 'govt_admin' || isGod.value)
+// Role hierarchy: ssi_admin > govt_admin > school_admin > teacher > student
+// ('god' was collapsed into the ssi_admin platform role — 2026-06-16)
+const isSsiAdmin = computed(() => platformRole.value === 'ssi_admin')
+// Deprecated alias: 'god' is now just ssi_admin. Kept so any stray caller still resolves.
+const isGod = isSsiAdmin
+const isGovtAdmin = computed(() => effectiveEducationalRole.value === 'govt_admin')
 const isSchoolAdmin = computed(() =>
-  ['school_admin', 'govt_admin', 'god'].includes(effectiveEducationalRole.value || '')
+  ['school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
 )
 const isTeacher = computed(() =>
-  ['teacher', 'school_admin', 'govt_admin', 'god'].includes(effectiveEducationalRole.value || '')
+  ['teacher', 'school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
 )
 
 // True for users whose effective role is a school-scoped educational role.
-// Excludes god (god is a superuser — reaches schools via act-as, not directly).
+// Admins reach schools via act-as (effectiveEducationalRole), not direct membership.
 // While acting-as, this is true so the /schools guard renders the live
 // experience instead of bouncing the admin to /admin/schools.
 const hasSchoolRole = computed(() =>
@@ -56,8 +58,12 @@ const isTester = computed(() => platformRole.value === 'tester' || isSsiAdmin.va
 
 // Capabilities
 const canAccessAdmin = computed(() => isSsiAdmin.value)
-const canAccessSchools = computed(() => isTeacher.value)
-const canImpersonate = computed(() => isGod.value)
+// ssi_admins reach the schools area too — they're the platform operator, not a
+// school member, so they must never hit the "no school access / join code" wall
+// (which is for a signed-in learner with no school). Restores the pre-collapse
+// behaviour, where god — now folded into ssi_admin — passed this gate.
+const canAccessSchools = computed(() => isTeacher.value || isSsiAdmin.value)
+const canImpersonate = computed(() => isSsiAdmin.value)
 // Who may step into a persona's shoes (the act-as feature).
 const canActAs = computed(() => isSsiAdmin.value)
 

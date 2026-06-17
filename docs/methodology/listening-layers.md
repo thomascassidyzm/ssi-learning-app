@@ -11,6 +11,11 @@
 > rotation rather than block-based batches; only 1.0× and 2.0× speeds exist.
 > Implementation in `packages/player-vue/src/providers/generateLearningScript.ts`
 > (`DEFAULT_LISTENING_CONFIG` + Phase 6/7) reflects the revised spec.
+>
+> **⚠️ Layer 1 superseded again (2026-06-16).** The Layer-1 sections below
+> (block windowing, drain-based "concluded seeds") are replaced by the
+> **30-cup model** → [`layer1-listening-cups.md`](./layer1-listening-cups.md).
+> Layer 2 (pods) is unaffected.
 
 ---
 

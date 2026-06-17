@@ -28,6 +28,7 @@ const SignInModal = defineAsyncComponent(() => import('@/components/auth/SignInM
 import { useAuthModal } from '@/composables/useAuthModal'
 import { getSharedBeltProgress, getSeedFromLegoId } from '@/composables/useBeltProgress'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { useCheckout } from '@/composables/useCheckout'
 
 // Inject from App
 const supabaseClient = inject('supabase')
@@ -337,6 +338,9 @@ const handleAuthSuccess = async () => {
   await refreshEntitlements().catch(() => {})
   // Re-fetch courses so newly accessible courses appear
   if (fetchEnrolledCourses) await fetchEnrolledCourses().catch(() => {})
+  // If the user started the in-player paywall checkout while signed out, the
+  // sign-in modal interrupted it — continue straight into Paddle now.
+  await useCheckout().completePendingCheckout().catch(() => {})
 }
 
 // Check for class context from Schools

@@ -33,19 +33,9 @@ const tabs: AdminTab[] = [
     match: (p) => p.startsWith('/admin/users'),
   },
   {
-    label: 'Courses',
-    to: '/admin/courses',
-    match: (p) => p === '/admin/courses',
-  },
-  {
-    label: 'Analytics',
-    to: '/admin/analytics',
-    match: (p) => p === '/admin/analytics',
-  },
-  {
-    label: 'Activity',
-    to: '/admin/activity',
-    match: (p) => p === '/admin/activity',
+    label: 'Stats',
+    to: '/admin/stats',
+    match: (p) => p.startsWith('/admin/stats'),
   },
   {
     label: 'Try Links',

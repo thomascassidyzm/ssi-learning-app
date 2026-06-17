@@ -14,8 +14,11 @@ interface NavTab {
 
 const props = withDefaults(defineProps<{
   mode?: 'schools' | 'teach'
+  /** Preview/demo: show the full teacher tab set even without a resolved school role. */
+  forceTabs?: boolean
 }>(), {
   mode: 'schools',
+  forceTabs: false,
 })
 
 const emit = defineEmits<{
@@ -51,6 +54,10 @@ const baseTabs: NavTab[] = [
 const tabs = computed(() => {
   const result: NavTab[] = []
   if (props.mode === 'teach') return result
+  // Preview/demo: show the full teacher tab set (incl. Insights) without a role.
+  if (props.forceTabs) {
+    return [...baseTabs, { name: 'insights', path: '/teacher-insights', label: 'Insights' }]
+  }
   if (isGovtAdmin.value) {
     result.push({ name: 'all-schools', path: '/schools/all', label: 'Schools' })
   }

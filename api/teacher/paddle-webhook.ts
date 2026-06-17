@@ -13,6 +13,13 @@
  *     → upsert subscriptions row, upsert teacher_referrals (class-scoped),
  *       insert user_tags row linking student to class
  *
+ *   subscription.* with customData.kind = 'school_platform'  (lever-3)
+ *     → SET schools.platform_status/expires_at/teacher_seats (=item quantity)
+ *       + provider ids, from the Paddle payload (absolute, idempotent).
+ *
+ *   subscription.* with customData.kind = 'tutor_platform'   (lever-3)
+ *     → SET teachers.platform_status/expires_at from the Paddle payload.
+ *
  *   transaction.paid (any subscription kind)
  *     → if associated subscription is student-via-teacher, accrue teacher
  *       commission (= flat £5 / 500 pence per transaction) to the current
@@ -105,6 +112,27 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+  // Idempotency: record the event id before any side effect. A 23505 means we've
+  // already processed this delivery → ack and skip (prevents double-accrual on
+  // Paddle retries / at-least-once redelivery). Fails OPEN if the ledger table is
+  // absent (pre-migration), preserving today's behaviour.
+  if (event.eventId) {
+    try {
+      const { error: dedupErr } = await supabase
+        .from('processed_webhook_events')
+        .insert({ provider: 'paddle', event_id: event.eventId, event_type: event.eventType })
+      if (dedupErr) {
+        if (dedupErr.code === '23505') {
+          res.status(200).json({ received: true, deduped: true })
+          return
+        }
+        console.warn('[paddle-webhook] Event dedup unavailable (proceeding):', dedupErr.code, dedupErr.message)
+      }
+    } catch (e: any) {
+      console.warn('[paddle-webhook] Event dedup threw (proceeding):', e?.message)
+    }
+  }
+
   try {
     switch (event.eventType) {
       case EventName.SubscriptionCreated:
@@ -134,6 +162,21 @@ export default async function handler(
     res.status(200).json({ received: true })
   } catch (err: any) {
     console.error('[paddle-webhook] Handler error:', err)
+    // A genuine processing failure must NOT leave the dedup row behind, or the
+    // provider's retry would be deduped and the side effect lost forever. Remove
+    // it so the retry reprocesses. (Legitimate no-ops returned 200 above and keep
+    // their row.) Best-effort: a failed cleanup just costs one retry of a 500.
+    if (event.eventId) {
+      try {
+        await supabase
+          .from('processed_webhook_events')
+          .delete()
+          .eq('provider', 'paddle')
+          .eq('event_id', event.eventId)
+      } catch (cleanupErr: any) {
+        console.warn('[paddle-webhook] dedup cleanup failed:', cleanupErr?.message)
+      }
+    }
     res.status(500).json({ error: err?.message || 'Internal error' })
   }
 }
@@ -150,9 +193,116 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
     await handlePremiumSubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
+  } else if (kind === 'school_platform') {
+    await handleSchoolPlatformSubscription(supabase, data, customData)
+  } else if (kind === 'tutor_platform') {
+    await handleTutorPlatformSubscription(supabase, data, customData)
   } else {
     console.log('[paddle-webhook] Skipping subscription event for kind:', kind)
   }
+}
+
+// ============================================
+// PLATFORM SUBSCRIPTION — schools (£15/teacher/mo) + tutors (£15/mo)
+// ============================================
+//
+// Lever-3: the school/tutor pays for the DASHBOARD (not student play). On a
+// paid subscription event we SET the platform columns absolutely from Paddle's
+// own period end (idempotent on retries / out-of-order deliveries) and the
+// teacher_seats from the per-seat price QUANTITY. Money values come from the
+// webhook payload, never the client. The dashboard gate (SchoolsContainer /
+// TeachContainer / api/school/subscription) reads these.
+
+// Paddle subscription status → our platform_status enum (schools/teachers).
+const PLATFORM_STATUS_MAP: Record<string, string> = {
+  active: 'active',
+  trialing: 'active', // a Paddle-managed trial still entitles the dashboard
+  past_due: 'past_due',
+  paused: 'cancelled',
+  canceled: 'cancelled',
+}
+
+async function handleSchoolPlatformSubscription(
+  supabase: any,
+  data: any,
+  customData: Record<string, unknown>
+): Promise<void> {
+  const schoolId = customData.school_id as string | undefined
+  if (!schoolId) {
+    console.error('[paddle-webhook] school_platform subscription missing school_id in customData')
+    return
+  }
+
+  const status = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
+  // ABSOLUTE set from Paddle's billing period (idempotent on retry/out-of-order).
+  const periodEnd: string | null =
+    data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+  // Per-teacher pricing = Paddle quantity on the single per-seat price.
+  const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
+  const seats =
+    firstItem && Number.isFinite(Number(firstItem.quantity)) && Number(firstItem.quantity) > 0
+      ? Number(firstItem.quantity)
+      : 1
+
+  const { error } = await supabase
+    .from('schools')
+    .update({
+      platform_status: status,
+      platform_expires_at: periodEnd,
+      teacher_seats: seats,
+      provider_subscription_id: data.id,
+      provider_customer_id: data.customerId,
+    })
+    .eq('id', schoolId)
+
+  if (error) {
+    console.error('[paddle-webhook] Failed to update school platform subscription:', error)
+    return
+  }
+  console.log(
+    '[paddle-webhook] School platform subscription:',
+    schoolId,
+    'status:',
+    status,
+    'seats:',
+    seats,
+    'period_end:',
+    periodEnd
+  )
+}
+
+async function handleTutorPlatformSubscription(
+  supabase: any,
+  data: any,
+  customData: Record<string, unknown>
+): Promise<void> {
+  const teacherId = customData.teacher_id as string | undefined
+  if (!teacherId) {
+    console.error('[paddle-webhook] tutor_platform subscription missing teacher_id in customData')
+    return
+  }
+
+  const status = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
+  const periodEnd: string | null =
+    data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+
+  const { error } = await supabase
+    .from('teachers')
+    .update({ platform_status: status, platform_expires_at: periodEnd })
+    .eq('id', teacherId)
+
+  if (error) {
+    console.error('[paddle-webhook] Failed to update tutor platform subscription:', error)
+    return
+  }
+  console.log(
+    '[paddle-webhook] Tutor platform subscription:',
+    teacherId,
+    'status:',
+    status,
+    'period_end:',
+    periodEnd
+  )
 }
 
 async function handlePremiumSubscription(
@@ -284,15 +434,28 @@ async function handleStudentSubscription(
 ): Promise<void> {
   const supabaseUserId = customData.supabase_user_id as string | undefined
   const classId = customData.class_id as string | undefined
-  const tierPence = customData.tier_pence as number | undefined
 
-  if (!supabaseUserId || !classId || !tierPence) {
+  if (!supabaseUserId || !classId) {
     console.error(
       '[paddle-webhook] Missing required customData for student_via_teacher:',
       customData
     )
     return
   }
+
+  // Price is decided SERVER-SIDE by the class type, never trusted from the client.
+  // school_id NULL = tutor/ACT class → £10 (1000); set = school class → £5 (500).
+  // Frozen into teacher_referrals.locked_price_pence below; commission gates on it.
+  const { data: priceCls } = await supabase
+    .from('classes')
+    .select('school_id')
+    .eq('id', classId)
+    .maybeSingle()
+  if (!priceCls) {
+    // Money-safe default under uncertainty: unknown class → school tier (no commission).
+    console.error('[paddle-webhook] Class not found deriving price; defaulting to school/no-commission:', classId)
+  }
+  const lockedPricePence = priceCls && priceCls.school_id === null ? 1000 : 500
 
   // Get or create the learner for this Supabase user
   let { data: learner } = await supabase
@@ -356,7 +519,7 @@ async function handleStudentSubscription(
         class_id: classId,
         student_learner_id: learner.id,
         source: 'signup_link',
-        locked_price_pence: tierPence,
+        locked_price_pence: lockedPricePence,
         status: referralStatus,
         subscription_id: subRow.id,
         updated_at: new Date().toISOString(),
@@ -408,58 +571,79 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
   }
 
   // Look up our local subscription
-  const { data: sub } = await supabase
+  const { data: sub, error: subErr } = await supabase
     .from('subscriptions')
     .select('id, learner_id, plan_name')
     .eq('provider_subscription_id', subscriptionId)
     .maybeSingle()
 
+  // Throw on a GENUINE query error (vs a legitimate not-found) so the handler
+  // returns 500, the dedup row is cleared, and Paddle's retry reprocesses —
+  // rather than silently dropping the £5 accrual.
+  if (subErr) throw new Error(`subscription lookup failed: ${subErr.message}`)
   if (!sub) {
     console.log('[paddle-webhook] transaction.paid for unknown subscription:', subscriptionId)
     return
   }
 
   // Look up the teacher_referral (only student-via-teacher subs have referrals)
-  const { data: referral } = await supabase
+  const { data: referral, error: referralErr } = await supabase
     .from('teacher_referrals')
     .select('class_id, locked_price_pence')
     .eq('subscription_id', sub.id)
     .maybeSingle()
 
+  if (referralErr) throw new Error(`referral lookup failed: ${referralErr.message}`)
   if (!referral) {
     // Teacher's own subscription, or unattributed — nothing to accrue
     return
   }
 
+  // Commission gates on the FROZEN price captured at signup (locked_price_pence),
+  // never a live re-read of classes.school_id (which could diverge over the sub's
+  // lifetime). 1000 = tutor/ACT student → accrue £5; 500 = school student → none.
+  if (referral.locked_price_pence !== 1000) {
+    console.log(
+      '[paddle-webhook] Non-tutor referral (locked',
+      referral.locked_price_pence,
+      ') — no commission:',
+      referral.class_id
+    )
+    return
+  }
+
   // Resolve teacher via class.teacher_user_id → learners.user_id → teachers.id
-  const { data: cls } = await supabase
+  const { data: cls, error: clsErr } = await supabase
     .from('classes')
     .select('teacher_user_id')
     .eq('id', referral.class_id)
     .maybeSingle()
 
+  if (clsErr) throw new Error(`class lookup failed: ${clsErr.message}`)
   if (!cls) {
     console.error('[paddle-webhook] Class not found for referral:', referral.class_id)
     return
   }
 
-  const { data: teacherLearner } = await supabase
+  const { data: teacherLearner, error: teacherLearnerErr } = await supabase
     .from('learners')
     .select('id')
     .eq('user_id', cls.teacher_user_id)
     .maybeSingle()
 
+  if (teacherLearnerErr) throw new Error(`teacher learner lookup failed: ${teacherLearnerErr.message}`)
   if (!teacherLearner) {
     console.error('[paddle-webhook] Teacher learner not found:', cls.teacher_user_id)
     return
   }
 
-  const { data: teacher } = await supabase
+  const { data: teacher, error: teacherErr } = await supabase
     .from('teachers')
     .select('id')
     .eq('learner_id', teacherLearner.id)
     .maybeSingle()
 
+  if (teacherErr) throw new Error(`teacher lookup failed: ${teacherErr.message}`)
   if (!teacher) {
     console.error('[paddle-webhook] Teacher row not found for learner:', teacherLearner.id)
     return
@@ -477,39 +661,63 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
   const periodStartIso = periodStart.toISOString().slice(0, 10)
   const periodEndIso = periodEnd.toISOString().slice(0, 10)
 
-  // Upsert (read-then-write — accept rare race for v1; switch to RPC if needed)
-  const { data: existing } = await supabase
-    .from('teacher_commissions')
-    .select('id, accrued_pence')
-    .eq('teacher_id', teacher.id)
-    .eq('period_start', periodStartIso)
-    .maybeSingle()
+  // Atomic accrual via RPC (INSERT … ON CONFLICT (teacher_id, period_start) DO
+  // UPDATE accrued_pence += ). Combined with the event-id dedup above this makes
+  // accrual idempotent + race-free. Falls back to the legacy read-then-write only
+  // when the RPC is missing (pre-migration), so it's safe to deploy before the
+  // migration is applied.
+  const { error: rpcErr } = await supabase.rpc('accrue_teacher_commission', {
+    p_teacher_id: teacher.id,
+    p_period_start: periodStartIso,
+    p_period_end: periodEndIso,
+    p_pence: teacherTakePence,
+  })
 
-  if (existing) {
-    const { error: updErr } = await supabase
-      .from('teacher_commissions')
-      .update({
-        accrued_pence: existing.accrued_pence + teacherTakePence,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', existing.id)
-
-    if (updErr) {
-      console.error('[paddle-webhook] Failed to update teacher_commissions:', updErr)
-      return
+  if (rpcErr) {
+    const missing =
+      rpcErr.code === 'PGRST202' ||
+      rpcErr.code === '42883' ||
+      /could not find the function|schema cache/i.test(rpcErr.message || '')
+    if (!missing) {
+      // Genuine accrual failure: throw so the handler 500s, the dedup row is
+      // cleared, and Paddle retries (rather than silently dropping the accrual).
+      throw new Error(`accrue_teacher_commission RPC failed: ${rpcErr.message}`)
     }
-  } else {
-    const { error: insErr } = await supabase.from('teacher_commissions').insert({
-      teacher_id: teacher.id,
-      period_start: periodStartIso,
-      period_end: periodEndIso,
-      accrued_pence: teacherTakePence,
-      status: 'accruing',
-    })
+    // Pre-migration fallback: the original read-then-write (race-accepting) path.
+    console.warn('[paddle-webhook] accrue RPC missing — falling back to read-then-write')
+    const { data: existing } = await supabase
+      .from('teacher_commissions')
+      .select('id, accrued_pence')
+      .eq('teacher_id', teacher.id)
+      .eq('period_start', periodStartIso)
+      .maybeSingle()
 
-    if (insErr) {
-      console.error('[paddle-webhook] Failed to insert teacher_commissions:', insErr)
-      return
+    if (existing) {
+      const { error: updErr } = await supabase
+        .from('teacher_commissions')
+        .update({
+          accrued_pence: existing.accrued_pence + teacherTakePence,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+
+      if (updErr) {
+        console.error('[paddle-webhook] Failed to update teacher_commissions:', updErr)
+        return
+      }
+    } else {
+      const { error: insErr } = await supabase.from('teacher_commissions').insert({
+        teacher_id: teacher.id,
+        period_start: periodStartIso,
+        period_end: periodEndIso,
+        accrued_pence: teacherTakePence,
+        status: 'accruing',
+      })
+
+      if (insErr) {
+        console.error('[paddle-webhook] Failed to insert teacher_commissions:', insErr)
+        return
+      }
     }
   }
 

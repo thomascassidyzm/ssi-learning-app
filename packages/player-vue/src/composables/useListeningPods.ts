@@ -13,6 +13,7 @@
 
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { splitRowUnits } from './podSentenceSplit'
 
 export interface PodSentence {
   id: string
@@ -56,6 +57,9 @@ export interface PodTurn {
    *  stage-pattern playback modes (target/translation/explainer per
    *  sentence) and the interleaved gloss display. */
   sentences: Array<{
+    /** listening_pod_sentences.id — lets the admin audit walk resolve the
+     *  per-atom Stage-0 clips for this sentence. */
+    id: string
     targetText: string
     knownText: string
     targetAudioId: string | null
@@ -130,27 +134,58 @@ export function useListeningPods(
       const podId = `${course}:pod-0`
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id')
+        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids')
         .eq('pod_id', podId)
         .order('global_order', { ascending: true })
 
       if (fetchErr) throw new Error(`listening_pod_sentences: ${fetchErr.message}`)
       if (myFetch !== activeFetch) return
 
-      // Bucket by scene_number.
+      // Per-sentence DISPLAY text must come from each split clip's OWN stored text
+      // (authoritative + language-agnostic). The Latin boundary regex in
+      // splitRowUnits can't split CJK/Indic/Thai targets (Japanese 。/no-spaces,
+      // Thai no punctuation), so without this every split card would show the whole
+      // turn. Batch-load every split clip's text for this pod (chunked to keep the
+      // PostgREST `in()` URL short).
+      const clipIds = new Set<string>()
+      for (const row of data || []) {
+        for (const id of (row.sentence_audio_ids || [])) if (id) clipIds.add(id)
+        for (const id of (row.sentence_known_audio_ids || [])) if (id) clipIds.add(id)
+      }
+      const textById = new Map<string, string>()
+      const idArr = Array.from(clipIds)
+      for (let i = 0; i < idArr.length; i += 150) {
+        const { data: clips } = await supabase
+          .from('course_audio')
+          .select('id, text')
+          .in('id', idArr.slice(i, i + 150))
+        for (const c of clips || []) if (c.text) textById.set(c.id, c.text)
+      }
+      if (myFetch !== activeFetch) return
+
+      // Bucket by scene_number. A multi-sentence TURN row that's been split
+      // (sentence_audio_ids set, one clip per sentence) becomes one PodSentence
+      // PER SENTENCE — the unit is the sentence (Tom 2026-06-16). Otherwise the
+      // row is one PodSentence as before. The split itself lives in the shared
+      // splitRowUnits helper so the overlay + the main-flow scheduler never drift.
       const buckets = new Map<number, PodSentence[]>()
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
-        list.push({
-          id: row.id,
-          speaker: row.speaker || '',
-          targetText: row.target_text || '',
-          knownText: row.known_text || '',
-          targetAudioId: row.target_audio_id || null,
-          knownAudioId: row.known_audio_id || null,
-          explainerAudioId: row.explainer_audio_id || null,
-          globalOrder: row.global_order,
-        })
+        for (const u of splitRowUnits(row, textById)) {
+          list.push({
+            id: u.isSplit ? `${row.id}:s${u.index}` : row.id,
+            speaker: row.speaker || '',
+            targetText: u.targetText,
+            knownText: u.knownText,
+            targetAudioId: u.targetAudioId,
+            // per-sentence English clip when the known side was split; null (gloss
+            // text still shows, trans slot drops) when it wasn't (count mismatch).
+            knownAudioId: u.knownAudioId,
+            // The Tom-voiced explainer is per-TURN; a split sentence has none.
+            explainerAudioId: u.isSplit ? null : (row.explainer_audio_id || null),
+            globalOrder: row.global_order + u.index * 0.001,
+          })
+        }
         buckets.set(row.scene_number, list)
       }
 
@@ -201,44 +236,37 @@ export function useListeningPods(
       }
 
       /**
-       * Merge consecutive same-speaker sentences into turns. The first
-       * sentence's globalOrder becomes the turn's order. The turn's id is
-       * derived from the first sentence's id + sentence count so it stays
-       * stable on re-render.
+       * The UNIT is the SENTENCE (Tom 2026-06-16): each sentence is its own
+       * turn — its own card and its own treatment cycle. A multi-sentence
+       * speaker turn (the old merged paragraph) was too big a unit; consecutive
+       * same-speaker sentences now render as separate cards, each labelled with
+       * the speaker. (Stages 1+ already played per-sentence; this aligns the
+       * display + advance unit with that.)
        */
-      const mergeTurns = (sentences: PodSentence[]): PodTurn[] => {
-        const sentenceDetail = (s: PodSentence) => ({
-          targetText: s.targetText,
-          knownText: s.knownText,
-          targetAudioId: s.targetAudioId,
-          knownAudioId: s.knownAudioId,
-          explainerAudioId: s.explainerAudioId,
-        })
-        const turns: PodTurn[] = []
-        for (const s of sentences) {
-          const last = turns[turns.length - 1]
-          if (last && speakerKey(last.speaker) === speakerKey(s.speaker)) {
-            last.targetText = `${last.targetText} ${s.targetText}`.trim()
-            last.knownText = `${last.knownText} ${s.knownText}`.trim()
-            if (s.targetAudioId) last.audioIds.push(s.targetAudioId)
-            last.sentences.push(sentenceDetail(s))
-          } else {
-            const key = speakerKey(s.speaker)
-            turns.push({
-              id: `${s.id}-turn`,
-              speaker: s.speaker,
-              speakerName: displayName.get(key) || cleanSpeakerName(s.speaker),
-              colorIndex: colorOf.get(key) ?? 0,
-              targetText: s.targetText,
-              knownText: s.knownText,
-              audioIds: s.targetAudioId ? [s.targetAudioId] : [],
-              sentences: [sentenceDetail(s)],
-              globalOrder: s.globalOrder,
-            })
+      const mergeTurns = (sentences: PodSentence[]): PodTurn[] =>
+        sentences.map((s) => {
+          const key = speakerKey(s.speaker)
+          return {
+            id: `${s.id}-turn`,
+            speaker: s.speaker,
+            speakerName: displayName.get(key) || cleanSpeakerName(s.speaker),
+            colorIndex: colorOf.get(key) ?? 0,
+            targetText: s.targetText,
+            knownText: s.knownText,
+            audioIds: s.targetAudioId ? [s.targetAudioId] : [],
+            sentences: [
+              {
+                id: s.id,
+                targetText: s.targetText,
+                knownText: s.knownText,
+                targetAudioId: s.targetAudioId,
+                knownAudioId: s.knownAudioId,
+                explainerAudioId: s.explainerAudioId,
+              },
+            ],
+            globalOrder: s.globalOrder,
           }
-        }
-        return turns
-      }
+        })
 
       // Build the ordered scene list. Each scene's title comes from the
       // first sentence's speaker tag (often includes a time/place hint

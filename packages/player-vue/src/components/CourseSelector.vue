@@ -17,6 +17,7 @@ import { useI18n, setLocale, getLanguageName, getLanguageEndonym } from '../comp
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useSharedSubscription } from '../composables/useSubscription'
+import { useCheckout } from '../composables/useCheckout'
 import { useUserRole } from '../composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
 import { BELTS, getSeedFromLegoId, getBeltIndexForSeed } from '../composables/useBeltProgress'
@@ -124,6 +125,14 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'selectCourse'])
 
+// "Go Premium" CTA — open the single Premium checkout directly (no marketing
+// page). Signed-out users get the auth modal first, then auto-continue to Paddle.
+const { startCheckout } = useCheckout()
+function goPremium() {
+  startCheckout()
+  emit('close')
+}
+
 // State
 const allCourses = ref([])
 // Map<course_code, course_enrollments row> — the actual per-learner
@@ -173,8 +182,9 @@ const getForLabel = (course) => {
   return knownName
 }
 
-// All visible courses — premium courses ARE shown to non-subscribers (locked,
-// click routes to /premium for upgrade) so the catalogue advertises the offer.
+// All visible courses — premium courses ARE shown to non-subscribers
+// (previewable; playing past the free preview raises the in-player paywall) so
+// the catalogue advertises the offer.
 const visibleCourses = computed(() => {
   let courses = allCourses.value
 
@@ -384,17 +394,17 @@ const fetchCourses = async () => {
   }
 }
 
-// Check if course is locked (premium without access)
-const isLocked = (course) => {
+// Premium course the user hasn't paid for yet — still fully PLAYABLE through
+// end-of-Yellow (seed 19) as a free preview. Not "locked": the row starts the
+// course like any other; the seed-19 wall in LearningPlayer handles the upsell.
+// Kept as a separate predicate so the "Try free →" badge still advertises the
+// preview without making the course un-startable.
+const isPreviewOnly = (course) => {
   return isPremiumCourse(course) && !hasFullAccess(course)
 }
 
 // Handle course selection
 const handleCourseSelect = (course) => {
-  if (isLocked(course)) {
-    router.push({ name: 'premium', query: { course: course.course_code } })
-    return
-  }
   // Haptic feedback
   if (navigator.vibrate) {
     navigator.vibrate(10)
@@ -506,9 +516,9 @@ onMounted(() => {
             <div class="section-header section-header--premium">
               <div class="section-header__text">
                 <span class="section-header__title">Premium</span>
-                <span class="section-header__sub">Free for 7 days, then £15/mo</span>
+                <span class="section-header__sub">£15/mo — unlimited access to all languages</span>
               </div>
-              <button class="section-header__cta" @click="router.push('/premium'); emit('close')">
+              <button class="section-header__cta" @click="goPremium()">
                 Go Premium
               </button>
             </div>
@@ -539,7 +549,7 @@ onMounted(() => {
                         <span class="belt-dot" :style="{ background: getBeltColor(group.courses[0].course_code) }"></span>
                         {{ getProgress(group.courses[0].course_code) }}
                       </template>
-                      <template v-else-if="isLocked(group.courses[0])">
+                      <template v-else-if="isPreviewOnly(group.courses[0])">
                         <span class="try-free">Try free →</span>
                       </template>
                     </span>
@@ -557,7 +567,7 @@ onMounted(() => {
                       <span class="row-name">{{ getVariantLabel(course) || course.display_name }}</span>
                       <span class="row-status">
                         <template v-if="isEnrolled(course.course_code)"><span class="belt-dot" :style="{ background: getBeltColor(course.course_code) }"></span> {{ getProgress(course.course_code) }}</template>
-                        <template v-else-if="isLocked(course)"><span class="try-free">Try free →</span></template>
+                        <template v-else-if="isPreviewOnly(course)"><span class="try-free">Try free →</span></template>
                       </span>
                     </button>
                   </li>

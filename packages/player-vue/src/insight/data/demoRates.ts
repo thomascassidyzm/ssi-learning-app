@@ -73,6 +73,15 @@ export interface HeroRate {
   hasPosition: boolean
 }
 
+// The comparison cohort ESCALATES outward from the most LOCAL group the student
+// belongs to: class → year → school → region → country → global → all course
+// participants. The class average is the default (most relevant), and the teacher
+// can widen the lens. We never hold ages / peer attributes, so there is no "peer
+// cohort" distinct from the school — we can't compute one. Same set every metric.
+export const AVERAGE_ESCALATION = [
+  'class avg', 'year avg', 'school avg', 'region avg', 'country avg', 'global avg', 'all course participants',
+]
+
 // THE 6 HERO RATES. progressPace LEADS — it's the headline rate.
 export const HERO_RATES: HeroRate[] = [
   {
@@ -83,7 +92,7 @@ export const HERO_RATES: HeroRate[] = [
     description:
       'New LEGOs reached per week — the headline rate. Rate of progress matters more than position: a learner three seeds back but climbing fast is healthier than one parked far ahead.',
     entityLevels: ['learner', 'class', 'school', 'course'],
-    averages: ['course avg', 'school avg', 'all-classes avg', 'peer cohort'],
+    averages: AVERAGE_ESCALATION,
     dp: 1,
     range: [1.5, 16],
     hasPosition: true,
@@ -96,7 +105,7 @@ export const HERO_RATES: HeroRate[] = [
     description:
       'Active minutes in the app per day — the dosage rate. Flow rate, not a vanity total: minutes/day is what actually predicts whether progress keeps coming.',
     entityLevels: ['learner', 'class', 'school'],
-    averages: ['course avg', 'school avg', 'all-classes avg', 'peer cohort'],
+    averages: AVERAGE_ESCALATION,
     dp: 1,
     range: [4, 38],
     hasPosition: false,
@@ -109,7 +118,7 @@ export const HERO_RATES: HeroRate[] = [
     description:
       'New LEGOs introduced per active hour — the introduction rate (efficiency of new exposure). High means the session keeps reaching for new material; low means it dwells.',
     entityLevels: ['learner', 'class', 'course'],
-    averages: ['course avg', 'all-classes avg', 'peer cohort'],
+    averages: AVERAGE_ESCALATION,
     dp: 1,
     range: [3, 22],
     hasPosition: true,
@@ -122,7 +131,7 @@ export const HERO_RATES: HeroRate[] = [
     description:
       'Repeats per new item each session — the consolidation rate. Higher means more reinforcement before moving on; very low can mean rushing, very high can mean stalling.',
     entityLevels: ['learner', 'class', 'course'],
-    averages: ['course avg', 'all-classes avg', 'peer cohort'],
+    averages: AVERAGE_ESCALATION,
     dp: 2,
     range: [0.8, 4.2],
     hasPosition: false,
@@ -135,7 +144,7 @@ export const HERO_RATES: HeroRate[] = [
     description:
       'Prompt-response cycles per active minute — the engagement rate. A dense, healthy curve is a learner working through cycles; a thin one is time in the app without the work.',
     entityLevels: ['learner', 'class', 'school'],
-    averages: ['course avg', 'school avg', 'all-classes avg', 'peer cohort'],
+    averages: AVERAGE_ESCALATION,
     dp: 1,
     range: [3.5, 6.2],
     hasPosition: false,
@@ -148,7 +157,7 @@ export const HERO_RATES: HeroRate[] = [
     description:
       'Distinct active days per week — the consistency rate. Spreading the same minutes across more days beats one long binge: consistency is the strongest predictor of staying the course.',
     entityLevels: ['learner', 'class', 'school'],
-    averages: ['course avg', 'school avg', 'all-classes avg', 'peer cohort'],
+    averages: AVERAGE_ESCALATION,
     dp: 1,
     range: [1.5, 6.5],
     hasPosition: true,
@@ -305,14 +314,18 @@ function population(metricId: string, level: EntityLevel): RateEntity[] {
 
 // ── Average cohorts ─────────────────────────────────────────────────────────
 // Each named average is COMPUTED from the (metric, level) population, then
-// nudged by a stable per-average factor so the comparison cohorts genuinely
-// differ ('peer cohort' sits a touch above the raw mean, 'school avg' below,
-// etc). All derived from the same seeded numbers → deterministic.
+// nudged by a stable per-average factor so the escalation cohorts genuinely
+// differ — broader pools drift a touch higher here (a believable "the wider
+// world is a little ahead" demo shape). All derived from the same seeded
+// numbers → deterministic. Class avg = the local baseline (1.0).
 const AVERAGE_FACTORS: Record<string, number> = {
-  'course avg': 1.0,
-  'all-classes avg': 0.94,
-  'school avg': 1.07,
-  'peer cohort': 1.15,
+  'class avg': 1.0,
+  'year avg': 1.04,
+  'school avg': 1.09,
+  'region avg': 1.06,
+  'country avg': 1.12,
+  'global avg': 1.15,
+  'all course participants': 1.18,
 }
 
 function rawMean(pop: RateEntity[]): number {

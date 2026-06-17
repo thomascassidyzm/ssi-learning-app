@@ -34,7 +34,8 @@
 // ============================================================================
 import { ref, computed, watch } from 'vue'
 import RateCompare from './components/RateCompare.vue'
-import { isInsightDemo } from './data/demo'
+import FrostSelect from '@/components/FrostSelect.vue'
+import TopNav from '@/components/schools/shared/TopNav.vue'
 import {
   HERO_RATES,
   getRateComparison,
@@ -44,8 +45,6 @@ import {
 } from './data/demoRates'
 import type { RateComparisonData } from './spec'
 import '@/styles/schools-tokens.css'
-
-const demoMode = isInsightDemo()
 
 // ── The teacher's OWN classes ───────────────────────────────────────────────
 // A teacher usually teaches more than one class, so they pick among THEIR set —
@@ -84,14 +83,21 @@ const entityLevel = computed<EntityLevel>(() => (scope.value === 'class' ? 'clas
 
 // ── Metric + average selection (rate metrics; aggregate cohorts only) ────────
 const metricId = ref<string>('progressPace') // headline rate by default
-const averageId = ref<string>('course avg')
+const averageId = ref<string>('class avg')   // most-local cohort by default
 
 const currentMetric = computed(
   () => HERO_RATES.find((m) => m.id === metricId.value) ?? HERO_RATES[0],
 )
 
-// Averages valid for the chosen metric — every option is an AGGREGATE cohort.
+// Averages valid for the chosen metric — every option is an AGGREGATE cohort,
+// escalating class → year → school → region → country → global → all participants.
 const averageOptions = computed(() => listAverages(metricId.value))
+
+// FrostSelect option lists ({ value, label }). learnerOptions is already in that
+// shape; the others are mapped from their sources.
+const classSelectOptions = computed(() => MY_CLASSES.map((c) => ({ value: c.label, label: c.label })))
+const metricSelectOptions = computed(() => HERO_RATES.map((m) => ({ value: m.id, label: `${m.label} (${m.unit} / ${m.per})` })))
+const averageSelectOptions = computed(() => averageOptions.value.map((a) => ({ value: a, label: a })))
 
 // ── The class entity: the SELECTED one of the teacher's own classes, resolved
 // by NAME so it is the SAME class across every measure (listEntities is
@@ -117,7 +123,7 @@ const entityId = computed<string>(() =>
 // Snap the average into the metric's valid (aggregate) set.
 watch(metricId, () => {
   const avgs = listAverages(metricId.value)
-  if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'course avg'
+  if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'class avg'
 })
 
 // Re-anchor the learner pick to the first learner whenever the metric/scope/
@@ -138,16 +144,18 @@ watch(
   { immediate: true },
 )
 
-// ── The resolved comparison (demo: deterministic; real path: TODO) ──────────
-const comparison = computed<RateComparisonData | null>(() => {
-  if (!demoMode) return null
-  return getRateComparison(
+// ── The resolved comparison ─────────────────────────────────────────────────
+// Seeded synthetic data renders BY DEFAULT — a live preview of what a teacher
+// sees once their class has real telemetry (no ?demo gate). The real teacher
+// data path swaps in here when wired.
+const comparison = computed<RateComparisonData>(() =>
+  getRateComparison(
     metricId.value,
     entityLevel.value,
     entityId.value,
     averageId.value,
-  )
-})
+  ),
+)
 
 // A friendly scope label for the header line.
 const scopeLabel = computed(() =>
@@ -158,6 +166,10 @@ const scopeLabel = computed(() =>
 </script>
 
 <template>
+  <!-- The teacher's dashboard nav is always present (wayfinding + escape). -->
+  <TopNav :force-tabs="true" />
+
+  <div class="tiv-scroll">
   <div class="tiv schools-surface">
     <!-- ── Calm, minimal teacher header (NOT the admin "Insight Engine") ── -->
     <header class="tiv-head">
@@ -176,11 +188,7 @@ const scopeLabel = computed(() =>
       <!-- Your classes — only ever the teacher's OWN set -->
       <label class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Your classes</span>
-        <select v-model="selectedClassLabel" class="tiv-select">
-          <option v-for="c in MY_CLASSES" :key="c.label" :value="c.label">
-            {{ c.label }}
-          </option>
-        </select>
+        <FrostSelect v-model="selectedClassLabel" :options="classSelectOptions" aria-label="Your classes" />
       </label>
 
       <!-- Drill: the class, or a learner within it -->
@@ -205,29 +213,19 @@ const scopeLabel = computed(() =>
       <!-- Learner picker — only when drilled in; learners within THIS class -->
       <label v-if="scope === 'learner'" class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Learner in {{ CLASS_NAME }}</span>
-        <select v-model="learnerEntityId" class="tiv-select">
-          <option v-for="l in learnerOptions" :key="l.value" :value="l.value">
-            {{ l.label }}
-          </option>
-        </select>
+        <FrostSelect v-model="learnerEntityId" :options="learnerOptions" :aria-label="`Learner in ${CLASS_NAME}`" />
       </label>
 
       <!-- Metric -->
       <label class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Measure</span>
-        <select v-model="metricId" class="tiv-select">
-          <option v-for="m in HERO_RATES" :key="m.id" :value="m.id">
-            {{ m.label }} ({{ m.unit }} / {{ m.per }})
-          </option>
-        </select>
+        <FrostSelect v-model="metricId" :options="metricSelectOptions" aria-label="Measure" />
       </label>
 
       <!-- Average (aggregate cohorts only — never another named entity) -->
       <label class="tiv-field">
         <span class="tiv-field-label">Compare to</span>
-        <select v-model="averageId" class="tiv-select">
-          <option v-for="a in averageOptions" :key="a" :value="a">{{ a }}</option>
-        </select>
+        <FrostSelect v-model="averageId" :options="averageSelectOptions" aria-label="Compare to" />
       </label>
     </div>
 
@@ -236,17 +234,9 @@ const scopeLabel = computed(() =>
 
     <!-- ── The one widget — nothing else on this page ── -->
     <div class="tiv-widget-card">
-      <RateCompare v-if="comparison" :data="comparison" />
-
-      <!-- Real-path note (no ?demo): no DB call, point to the preview. -->
-      <div v-else class="tiv-real-note">
-        <p class="tiv-real-lead">This view runs in preview today.</p>
-        <p class="tiv-real-fine">
-          The live teacher data path isn't wired yet. Append <code>?demo</code> to
-          the URL to preview your class vs the average now.
-        </p>
-      </div>
+      <RateCompare :data="comparison" />
     </div>
+  </div>
   </div>
 </template>
 
@@ -265,6 +255,21 @@ const scopeLabel = computed(() =>
  *                    labels stay legible (HIG contrast) while fills/strokes/
  *                    glows keep the lighter --rc-entity. Used only as a colour.
  * ============================================================================ */
+
+/* Full-width scroll container. The app shell pins body { overflow: hidden } so
+ * the player can't scroll-bounce — which means any long content page must own
+ * its OWN scroll. The grey canvas shows at the sides; the .tiv column keeps the
+ * green/blue atmosphere. */
+.tiv-scroll {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--bg-primary, #e8e3dd);
+  /* Clear the fixed TopNav so content starts below it. */
+  padding-top: calc(var(--nav-height, 80px) + env(safe-area-inset-top, 0px));
+}
+
 .tiv {
   --rc-entity:     96, 165, 250;
   --rc-entity-ink: 37, 99, 235;
@@ -279,7 +284,7 @@ const scopeLabel = computed(() =>
   display: flex;
   flex-direction: column;
   gap: 18px;
-  min-height: 100vh;
+  min-height: calc(100dvh - var(--nav-height, 80px));
   position: relative;
   isolation: isolate;
   /* STEP 4 — the soft green/blue colour atmosphere UNDER the content, so the
@@ -453,24 +458,6 @@ const scopeLabel = computed(() =>
   box-shadow:
     0 1px 2px rgba(44, 38, 34, 0.05),
     0 14px 34px rgba(44, 38, 34, 0.08);
-}
-
-/* ── Real-path note ── */
-.tiv-real-note { display: flex; flex-direction: column; gap: 6px; }
-.tiv-real-lead { font-size: 14px; color: var(--ink-secondary); margin: 0; }
-.tiv-real-fine {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.55;
-  color: var(--ink-muted);
-  margin: 0;
-}
-.tiv-real-fine code {
-  font-family: var(--font-mono);
-  background: color-mix(in srgb, var(--ink-primary) 6%, transparent);
-  padding: 1px 5px;
-  border-radius: 5px;
-  color: var(--ink-secondary);
 }
 
 /* ── Responsive ── */

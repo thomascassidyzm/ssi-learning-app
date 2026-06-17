@@ -7,6 +7,7 @@ import {
   offlineDownloadActive,
   offlineDownloadHeadline,
   offlineDownloadCount,
+  offlineTrial,
 } from '../composables/useOfflineDownloadStatus'
 
 const props = defineProps({
@@ -42,6 +43,7 @@ const offlineRingVars = computed(() => {
   let color = '#16a34a'
   if (offlineDlState.value === 'complete') pct = 100
   else if (offlineDlState.value === 'error') { pct = 100; color = '#ef4444' }
+  else if (offlineDlState.value === 'locked') { pct = 100; color = '#f59e0b' }  // amber: lease paused
   else if (offlineDownloadPct.value !== null) pct = offlineDownloadPct.value
   else if (offlineDlState.value === 'preparing') pct = 12   // small green arc + pulse (no total yet)
   return { '--dl-pct': pct, '--dl-color': color }
@@ -213,9 +215,13 @@ const handleOffline = () => {
                 <span class="tray-desc-line">{{ offlineDownloadHeadline }}</span>
                 <span v-if="offlineDownloadCount" class="tray-desc-line tray-desc-count">{{ offlineDownloadCount }}</span>
               </template>
+              <template v-else-if="offlineTrial">Free offline for 30 days</template>
               <template v-else>Play from downloaded audio</template>
             </span>
           </div>
+          <!-- Offline download is open to everyone (we sell the convenience, not
+               the content). Non-payers get a free 30-day taste; the toggle is
+               always live, the lease handles expiry. -->
           <div class="tray-toggle" :class="{ on: isOfflineMode }">
             <div class="tray-toggle-knob"></div>
           </div>
