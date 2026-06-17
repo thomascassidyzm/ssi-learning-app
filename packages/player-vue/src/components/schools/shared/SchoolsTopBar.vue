@@ -14,7 +14,7 @@ const auth = inject<any>('auth', null)
 const tabs = computed<NavTab[]>(() => {
   if (isGovtAdmin.value) {
     return [
-      { label: 'Schools',   to: '/schools/all',       routeName: 'schools' },
+      { label: 'Schools',   to: '/schools/all',       routeName: 'schools-list' },
       { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
     ]
   }
