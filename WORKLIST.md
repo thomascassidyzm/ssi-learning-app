@@ -111,3 +111,8 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - School student MONTHLY £5: `pri_01kv5wrc5cz17pwgeva4zk8s0r`  → VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY
 - School student ANNUAL £50/yr: `pri_01kvaj05x1y16trwvm8pdm2wcb`  → VITE_PADDLE_STUDENT_SCHOOL_PRICE_ANNUAL (NEW var — needs wiring + env)
 - TODO if we want student monthly/annual choice: add a toggle in the student join flow (WithTeacher.vue) + the two new annual vars in paddle.ts, mirroring the Upgrade-page annual toggle.
+
+## 🤔 Teacher "Learn" button — own-account learning, keep the environment (logged 2026-06-17)
+- Today: TopNav "Learn" (teach mode) does router.push('/') → bare learner home, LOSES the teach nav/context.
+- Want: (1) make it OBVIOUS the top-right button is the teacher's OWN account learning (not class learning) — relabel e.g. "Learn something new yourself" / "My learning", distinct affordance/icon; (2) open the player IN the teach environment so the nav stays (desktop).
+- Open question (Tom flagged): MOBILE has no room for a top nav bar over the player. Proposed: desktop = player inside the teach shell (keeps TopNav, like /teach/play); mobile = full-screen player with a clear "← Back to teaching" control (AppEscape-style) instead of the full bar. Needs a route like /teach/learn (PlayerContainer, no class context = teacher's own courses).
