@@ -341,17 +341,25 @@ async function continueIn() {
             </ul>
           </div>
 
-          <!-- Single pre-claimed hero card when the track offers one language -->
-          <div v-if="courses.length === 1" class="ob-field">
+          <!-- Once a language is chosen, collapse the whole picker to the ONE
+               selected language. (Single-language tracks auto-select, so this
+               shows immediately for them too.) -->
+          <div v-if="selectedCourseObj" class="ob-field">
             <FrostCard variant="tile" class="ob-claim is-claimed">
               <span class="ob-claim-eyebrow">You're teaching</span>
-              <span class="ob-claim-endonym">{{ targetLabel(courses[0]) }}</span>
+              <span class="ob-claim-endonym">{{ targetLabel(selectedCourseObj) }}</span>
               <span class="ob-claim-echo">
-                Free for {{ trialDaysFor(courses[0]) }} days
+                Free for {{ selectedTrialDays }} days
               </span>
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12.5l4.2 4.2L19 7" />
               </svg>
+              <button
+                v-if="courses.length > 1"
+                type="button"
+                class="ob-claim-change"
+                @click="selectedCourse = ''"
+              >Change language</button>
             </FrostCard>
           </div>
 
@@ -1065,6 +1073,21 @@ async function continueIn() {
   stroke-linejoin: round;
   box-shadow: 0 2px 8px var(--ob-accent-glow);
 }
+
+.ob-claim-change {
+  margin-top: var(--space-3, 0.75rem);
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ob-accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ob-claim-change:hover { color: var(--ob-accent-2); }
 
 /* Warm word-chip, NOT a 9px mono techy pill */
 .ob-beta {
