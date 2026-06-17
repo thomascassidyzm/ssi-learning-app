@@ -90,7 +90,6 @@ const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
 // Locked pricing constants
 const TEACHER_MONTHLY_PRICE = 15
-const STUDENT_MONTHLY_PRICE = 10
 const COMMISSION_PER_STUDENT = 5
 const MAX_CLASSES = 10
 const MAX_STUDENTS_PER_CLASS = 20
@@ -572,8 +571,9 @@ async function submitRecipient() {
           <span class="price-period">/ month</span>
         </div>
         <p class="sub-blurb">
-          Two paying students at £{{ STUDENT_MONTHLY_PRICE }} cover your
-          subscription. Every student after that is profit.
+          You earn £{{ COMMISSION_PER_STUDENT }} per student — three paying
+          students cover your £{{ TEACHER_MONTHLY_PRICE }} subscription. Every
+          student after that is profit.
         </p>
         <Button variant="primary" :loading="isStartingTrial" @click="startTrial">
           Subscribe — £{{ TEACHER_MONTHLY_PRICE }}/month

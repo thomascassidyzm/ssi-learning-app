@@ -67,9 +67,40 @@ const annualAvailable = computed(() =>
     ? !!paddleConfig.schoolTeacherAnnualPriceId
     : !!paddleConfig.teacherAnnualPriceId,
 )
+// The Paddle price id for the currently-selected lane + period (null if unset).
+const activePriceId = computed<string | undefined>(() => {
+  if (isSchoolLane.value) {
+    return isAnnual.value
+      ? paddleConfig.schoolTeacherAnnualPriceId
+      : paddleConfig.schoolTeacherMonthlyPriceId
+  }
+  return isAnnual.value ? paddleConfig.teacherAnnualPriceId : paddleConfig.teacherMonthlyPriceId
+})
+const activeQuantity = computed(() => (isSchoolLane.value ? seats.value : 1))
+
 function setBilling(b: Billing) {
   if (b === 'annual' && !annualAvailable.value) return
+  if (billing.value === b) return
   billing.value = b
+  // If the inline checkout is already open, swap the price in place rather than
+  // forcing the user to cancel and restart. updateItems keeps the same checkout
+  // session (and its entered details) and just re-prices it.
+  if (checkoutOpen.value) void repriceOpenCheckout()
+}
+
+// Swap the open inline checkout to the now-selected period's price. Prefer
+// Paddle's in-place updateItems; the singleton Paddle instance is the same one
+// the checkout was opened on, so this targets the live session.
+async function repriceOpenCheckout() {
+  const priceId = activePriceId.value
+  if (!priceId) return
+  try {
+    const paddle = await getPaddle()
+    paddle.Checkout.updateItems([{ priceId, quantity: activeQuantity.value }])
+  } catch {
+    // Non-fatal — the displayed total still reflects the new period; the user
+    // can cancel and reopen if Paddle didn't accept the in-place update.
+  }
 }
 
 const schoolId = computed<string | null>(() => currentUser.value?.school_id ?? null)
@@ -235,9 +266,10 @@ onMounted(() => {
           One subscription covers every teacher seat — add or remove seats any time.
         </p>
 
-        <!-- Monthly / annual toggle (hidden once the inline checkout is open;
-             also hidden for the already-subscribed seat-edit path). -->
-        <div v-if="!isSubscribed && !checkoutOpen" class="billing-toggle" role="tablist" aria-label="Billing period">
+        <!-- Monthly / annual toggle. Stays usable WHILE the inline checkout is
+             open (switching re-prices it in place); only hidden for the
+             already-subscribed seat-edit path. -->
+        <div v-if="!isSubscribed" class="billing-toggle" role="tablist" aria-label="Billing period">
           <button
             type="button"
             class="billing-opt"
@@ -285,7 +317,7 @@ onMounted(() => {
         <button
           v-if="isSubscribed"
           type="button"
-          class="btn-play btn-play--block"
+          class="btn-play btn-play--block upgrade-cta"
           :disabled="isUpdatingSeats || seatCount === paidSeats"
           @click="updateSeats"
         >
@@ -295,7 +327,7 @@ onMounted(() => {
         <button
           v-else-if="!checkoutOpen"
           type="button"
-          class="btn-play btn-play--block"
+          class="btn-play btn-play--block upgrade-cta"
           :disabled="!schoolId || isOpeningCheckout"
           @click="subscribeSchool"
         >
@@ -308,10 +340,11 @@ onMounted(() => {
         <h1 class="upgrade-title arsenal">Subscribe</h1>
         <p class="upgrade-lede">
           £{{ PRICE_PER_SEAT_GBP }} / month (or £{{ ANNUAL_PRICE_PER_SEAT_GBP }}/year) for your
-          tutoring dashboard. Your students pay separately — two paying students cover your subscription.
+          tutoring dashboard. Your students pay separately — three paying students cover your subscription.
         </p>
 
-        <div v-if="!checkoutOpen" class="billing-toggle" role="tablist" aria-label="Billing period">
+        <!-- Toggle stays usable while the inline checkout is open (re-prices it). -->
+        <div class="billing-toggle" role="tablist" aria-label="Billing period">
           <button
             type="button"
             class="billing-opt"
@@ -343,7 +376,7 @@ onMounted(() => {
         <button
           v-if="!checkoutOpen"
           type="button"
-          class="btn-play btn-play--block"
+          class="btn-play btn-play--block upgrade-cta"
           :disabled="tutorBusy"
           @click="subscribeTutor"
         >
@@ -450,6 +483,34 @@ onMounted(() => {
 .seat-total { font-size: 1.25rem; font-weight: 700; }
 .seat-per { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary, #64748b); }
 .btn-play--block { width: 100%; }
+
+/* Primary Subscribe CTA — owns its red explicitly so it stays solid SSi red on
+   this standalone route too. The shared `.btn-play` red is scoped to
+   `.schools-surface` (schools-design.css), which UpgradeView is NOT always
+   inside (e.g. /teach/upgrade, or embedded in a trial-expired wall), so the
+   button rendered pale. These rules don't depend on that surface. */
+.upgrade-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0.85rem 1rem;
+  border: none;
+  border-radius: 0.65rem;
+  background: #db1e17; /* SSi brand red (--schools-red) */
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 160ms ease-out;
+}
+.upgrade-cta:hover:not(:disabled) { background: #900600; /* --schools-red-deep */ }
+.upgrade-cta:disabled {
+  background: #d8b4b2; /* muted red — clearly distinct from the live red */
+  color: #fff;
+  opacity: 1;
+  cursor: not-allowed;
+}
 .upgrade-error { color: #dc2626; margin: 0 0 0.75rem; font-size: 0.85rem; }
 .upgrade-note { color: var(--text-secondary, #64748b); margin: 0 0 0.75rem; font-size: 0.85rem; }
 
