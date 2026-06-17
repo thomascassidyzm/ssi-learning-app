@@ -8,6 +8,7 @@ import {
   coursesForTrack,
   isFreeTier,
   targetLangName,
+  targetLabel,
   knownLangName,
   courseLabel,
   type OnboardingTrack,
@@ -38,6 +39,17 @@ const targetLang = ref('eng')
 const courses = computed(() =>
   trackCourses.value.filter((c) => c.target_lang === targetLang.value)
 )
+// A learner-language row reads as the plain known-language name ("English") —
+// UNLESS the chosen target has 2+ course variants for that SAME known_lang (e.g.
+// cym → North/South Welsh, both eng), where two bare "English" rows would be
+// indistinguishable. Then we disambiguate with the target variant: "English —
+// North Welsh". Used by both list renderings + search.
+function rowLabel(c: LiveCourse): string {
+  const name = knownLangName(c.known_lang)
+  const sameKnown = courses.value.filter((x) => x.known_lang === c.known_lang)
+  if (sameKnown.length < 2) return name
+  return `${name} — ${targetLabel(c)}`
+}
 // Search-first only when the list is long; otherwise browse the tiles.
 const langQuery = ref('')
 const showSearch = computed(() => courses.value.length > 8)
@@ -46,6 +58,7 @@ const visibleCourses = computed(() => {
   if (!q) return courses.value // browse by default; search filters
   return courses.value.filter(
     (c) =>
+      rowLabel(c).toLowerCase().includes(q) ||
       knownLangName(c.known_lang).toLowerCase().includes(q) ||
       (c.known_lang || '').toLowerCase().includes(q) ||
       c.course_code.toLowerCase().includes(q)
@@ -458,7 +471,7 @@ async function continueIn() {
                     @change="selectedCourse = c.course_code"
                   />
                   <span class="ob-lang-dot" :data-lang="c.known_lang"></span>
-                  <span class="ob-row-name">{{ knownLangName(c.known_lang) }}</span>
+                  <span class="ob-row-name">{{ rowLabel(c) }}</span>
                   <svg class="ob-row-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
@@ -487,7 +500,7 @@ async function continueIn() {
                     @change="selectedCourse = c.course_code"
                   />
                   <span class="ob-lang-dot" :data-lang="c.known_lang"></span>
-                  <span class="ob-lang-endonym">{{ knownLangName(c.known_lang) }}</span>
+                  <span class="ob-lang-endonym">{{ rowLabel(c) }}</span>
                   <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
