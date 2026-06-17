@@ -140,6 +140,21 @@ function shareUrlFor(cls: TeacherClass): string {
   return `${origin}/with/${cls.student_join_code}`
 }
 
+// Launch the player inside the teach surface so the teach nav stays above it
+// (mirrors the schools ClassDetail "Play as class" → /schools/play). The player
+// reads ssi-active-class + ?class to switch to the class's course.
+function playAsClass(cls: TeacherClass) {
+  localStorage.setItem('ssi-last-course', cls.course_code)
+  localStorage.setItem('ssi-active-class', JSON.stringify({
+    id: cls.id,
+    name: cls.class_name,
+    course_code: cls.course_code,
+    current_seed: cls.current_seed,
+    timestamp: new Date().toISOString(),
+  }))
+  router.push({ path: '/teach/play', query: { class: cls.id } })
+}
+
 function formatLastActive(dateStr: string | null): string {
   if (!dateStr) return 'Never'
   const date = new Date(dateStr)
@@ -672,6 +687,14 @@ async function submitRecipient() {
               of {{ MAX_STUDENTS_PER_CLASS }} students
             </span>
           </div>
+          <Button
+            variant="primary"
+            size="sm"
+            class="class-play-btn"
+            @click="playAsClass(cls)"
+          >
+            ▶ Play as class
+          </Button>
         </header>
 
         <div class="share-row">
@@ -1144,6 +1167,12 @@ async function submitRecipient() {
   align-items: flex-start;
   gap: var(--space-4);
   flex-wrap: wrap;
+}
+
+.class-play-btn {
+  align-self: center;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .class-meta {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
@@ -21,6 +22,10 @@ const { isSsiAdmin, isActingAs, restoreFromCache } = useUserRole()
 restoreFromCache()
 
 const showLogin = computed(() => !isAuthenticated.value && !isAuthLoading.value)
+
+// Play-as-class route renders the player full-width under the teach nav.
+const route = useRoute()
+const isPlayRoute = computed(() => route.name === 'teach-play')
 
 // Platform-subscription gate (tutor = 1 month free, then £15/mo). Read from the
 // server (api/school/subscription) which FAILS OPEN: a pre-migration DB, a
@@ -240,7 +245,7 @@ const handleAuthSuccess = () => closeAuth()
 
     <template v-else-if="showDashboard">
       <TopNav mode="teach" @sign-in="openAuth" @sign-up="openAuth" />
-      <main class="main-content">
+      <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -272,6 +277,12 @@ const handleAuthSuccess = () => closeAuth()
   max-width: var(--container-max);
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Play-as-class: let the player fill the width/height under the nav. */
+.main-content--full {
+  padding: 0;
+  max-width: none;
 }
 
 /* Loading */
