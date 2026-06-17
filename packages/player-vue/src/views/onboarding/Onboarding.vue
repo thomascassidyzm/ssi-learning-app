@@ -57,6 +57,14 @@ watch(targetLang, () => {
   selectedCourse.value = ''
   langQuery.value = ''
 })
+// If a search narrows to exactly ONE language, select it automatically so the
+// user doesn't have to click the lone result. (Multiple results still require an
+// explicit click — typing alone never commits a choice.)
+watch(visibleCourses, (list) => {
+  if (langQuery.value.trim() && list.length === 1 && !selectedCourse.value) {
+    selectedCourse.value = list[0].course_code
+  }
+})
 
 // Custom taught-language dropdown (English pinned first, then A–Z).
 const targetOpen = ref(false)
@@ -91,6 +99,9 @@ const trial = ref<{ course_code: string; expires_at: string; days: number } | nu
 const redirectTo = ref('/')
 const displayName = ref('')
 const institution = ref('')
+// Returning user (already had an account for this track) — skip the
+// finishing-details step and just welcome them back into their dashboard.
+const isReturning = ref(false)
 
 const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
 const canSend = computed(() => emailValid.value && !!selectedCourse.value && !busy.value)
@@ -205,6 +216,7 @@ async function verify() {
     // Show the PLATFORM trial window (the school/tutor's free period: 365 or 30
     // days) on the success screen — that's the one that decides when they pay.
     trial.value = data.platform_trial || data.trial
+    isReturning.value = !!data.existing
     redirectTo.value = data.redirect || '/'
     step.value = 'done'
   } catch (e: any) {
@@ -545,43 +557,56 @@ async function continueIn() {
             </svg>
           </div>
 
-          <h1 class="ob-title ob-title-done">{{ selectedCourseLabel }} is ready</h1>
-          <p class="ob-sub">
-            Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.
-          </p>
+          <!-- Returning user: straight welcome-back, no finishing form. -->
+          <template v-if="isReturning">
+            <h1 class="ob-title ob-title-done">Welcome back</h1>
+            <p class="ob-sub">You're already set up — let's get you back to your dashboard.</p>
+            <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
+            <Button variant="primary" size="lg" block :loading="busy" @click="continueIn">
+              Go to my dashboard
+            </Button>
+          </template>
 
-          <div class="ob-finishing">
-            <p class="ob-finishing-head">A couple of details <span>(optional)</span></p>
+          <!-- New user: confirm + optional details. -->
+          <template v-else>
+            <h1 class="ob-title ob-title-done">{{ selectedCourseLabel }} is ready</h1>
+            <p class="ob-sub">
+              Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.
+            </p>
 
-            <div class="ob-field">
-              <label class="ob-label" for="ob-name">Your name</label>
-              <input
-                id="ob-name"
-                v-model="displayName"
-                type="text"
-                class="ob-input"
-                placeholder="What shall we call you?"
-              />
+            <div class="ob-finishing">
+              <p class="ob-finishing-head">A couple of details <span>(optional)</span></p>
+
+              <div class="ob-field">
+                <label class="ob-label" for="ob-name">Your name</label>
+                <input
+                  id="ob-name"
+                  v-model="displayName"
+                  type="text"
+                  class="ob-input"
+                  placeholder="What shall we call you?"
+                />
+              </div>
+
+              <div v-if="cfg.collectInstitution" class="ob-field">
+                <label class="ob-label" for="ob-inst">School / institution</label>
+                <input
+                  id="ob-inst"
+                  v-model="institution"
+                  type="text"
+                  class="ob-input"
+                  placeholder="e.g. Ysgol Gymraeg…"
+                />
+              </div>
             </div>
 
-            <div v-if="cfg.collectInstitution" class="ob-field">
-              <label class="ob-label" for="ob-inst">School / institution</label>
-              <input
-                id="ob-inst"
-                v-model="institution"
-                type="text"
-                class="ob-input"
-                placeholder="e.g. Ysgol Gymraeg…"
-              />
-            </div>
-          </div>
+            <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
 
-          <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
-
-          <Button variant="primary" size="lg" block :loading="busy" @click="continueIn">
-            Continue
-          </Button>
-          <p class="ob-fine">You can change these anytime in your settings.</p>
+            <Button variant="primary" size="lg" block :loading="busy" @click="continueIn">
+              Continue
+            </Button>
+            <p class="ob-fine">You can change these anytime in your settings.</p>
+          </template>
         </section>
       </Transition>
     </main>
