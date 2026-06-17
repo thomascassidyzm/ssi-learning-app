@@ -1,6 +1,6 @@
 <script setup>
 import { ref, provide, onMounted, computed, inject, watch, defineAsyncComponent } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 // Global backdrop
 import SumiEBackground from '@/components/SumiEBackground.vue'
@@ -39,6 +39,16 @@ const auth = inject('auth')
 const config = inject('config')
 const themeContext = inject('theme', null)
 const router = useRouter()
+const route = useRoute()
+
+// When launched "Play as class" from the tutor (teach) shell, the player runs
+// INSIDE TeachContainer, which keeps its TopNav fixed at the top. The player's
+// root (.learning-player-root) and all its pop-ups are `position: fixed; inset: 0`,
+// so they anchor to the viewport — sliding their top controls UNDER the teach nav.
+// On this route we make .player-container a containing block (via transform) and
+// size it to the area below the nav, so every fixed descendant anchors below the
+// nav instead of the viewport top. Standalone player (route '/') is untouched.
+const isTeachEmbedded = computed(() => route.name === 'teach-play')
 
 // Global auth modal (shared with BottomNav and other components)
 const {
@@ -473,7 +483,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="player-container" :class="{ 'has-nav': !isLearning }" :style="containerBeltVars">
+  <div class="player-container" :class="{ 'has-nav': !isLearning, 'is-teach-embedded': isTeachEmbedded }" :style="containerBeltVars">
     <!-- Cultural journey backdrop (mist theme only, language-specific artwork) -->
     <SumiEBackground v-if="themeContext?.theme?.value === 'mist'" :lang="activeCourse?.target_lang" :belt-name="currentBeltName" :belt-color="currentBeltColor" />
 
@@ -625,6 +635,19 @@ onMounted(() => {
 /* Add bottom padding when nav is visible */
 .player-container.has-nav {
   padding-bottom: var(--nav-height-safe);
+}
+
+/* Embedded in the teach shell ("Play as class"): the TopNav stays fixed at the
+   top. `transform` makes this element the containing block for its `position:
+   fixed` descendants (the player root + every pop-up), so they anchor to this
+   box instead of the viewport. Sized to the area BELOW the nav (the parent
+   .main-content already offsets us down by the nav height), so nothing — modal
+   close buttons, mode-tray controls, the player header — hides under the nav. */
+.player-container.is-teach-embedded {
+  transform: translateZ(0);
+  min-height: 0;
+  height: calc(100vh - var(--nav-height) - env(safe-area-inset-top, 0px));
+  height: calc(100dvh - var(--nav-height) - env(safe-area-inset-top, 0px));
 }
 
 /* Slide up transition for overlays */
