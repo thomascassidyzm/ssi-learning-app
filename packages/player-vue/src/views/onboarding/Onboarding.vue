@@ -9,7 +9,7 @@ import {
   isFreeTier,
   targetLabel,
   knownLangName,
-  defaultKnownLang,
+  courseLabel,
   type OnboardingTrack,
   type LiveCourse,
 } from '@/lib/onboardingTracks'
@@ -25,21 +25,20 @@ type Step = 'choose' | 'otp' | 'done'
 const step = ref<Step>('choose')
 
 const liveCourses = ref<LiveCourse[]>([])
-// The track narrows the TARGET set (heritage vs the rest); the known-language
-// switcher narrows the SOURCE. Default the source from the browser locale so the
-// common case (English-speaking schools) is one clean target list, not a wall of
-// "X for Y speakers" pairs.
+// Pick the TARGET (taught) language FIRST — most schools/tutors teach English,
+// so it's the dropdown, defaulted to English. The list below then shows the
+// KNOWN languages we teach that target FROM (the learners' existing language).
 const trackCourses = computed(() => coursesForTrack(liveCourses.value, props.track))
-const availableKnownLangs = computed(() => {
+const availableTargetLangs = computed(() => {
   const seen = new Set<string>()
-  for (const c of trackCourses.value) if (c.known_lang) seen.add(c.known_lang)
+  for (const c of trackCourses.value) if (c.target_lang) seen.add(c.target_lang)
   return Array.from(seen)
 })
-const knownLang = ref('eng')
+const targetLang = ref('eng')
 const courses = computed(() =>
-  trackCourses.value.filter((c) => c.known_lang === knownLang.value)
+  trackCourses.value.filter((c) => c.target_lang === targetLang.value)
 )
-// Search-first only when the target list is long; otherwise browse the tiles.
+// Search-first only when the list is long; otherwise browse the tiles.
 const langQuery = ref('')
 const showSearch = computed(() => courses.value.length > 8)
 const visibleCourses = computed(() => {
@@ -47,31 +46,41 @@ const visibleCourses = computed(() => {
   if (!q) return courses.value // browse by default; search filters
   return courses.value.filter(
     (c) =>
-      targetLabel(c).toLowerCase().includes(q) ||
-      (c.target_lang || '').toLowerCase().includes(q) ||
+      knownLangName(c.known_lang).toLowerCase().includes(q) ||
+      (c.known_lang || '').toLowerCase().includes(q) ||
       c.course_code.toLowerCase().includes(q)
   )
 })
 const selectedCourse = ref('')
-// Changing the source language invalidates the target choice + any search.
-watch(knownLang, () => {
+// Changing the taught language invalidates the learner-language choice + search.
+watch(targetLang, () => {
   selectedCourse.value = ''
   langQuery.value = ''
 })
 
-// Custom source-language dropdown (English pinned first, then A–Z).
-const knownOpen = ref(false)
-const knownOptions = computed(() =>
-  [...availableKnownLangs.value]
-    .map((code) => ({ code, name: knownLangName(code) }))
+// Custom taught-language dropdown (English pinned first, then A–Z).
+const targetOpen = ref(false)
+function targetName(code: string): string {
+  const c = trackCourses.value.find((x) => x.target_lang === code)
+  return c ? targetLabel(c) : (code || '').toUpperCase()
+}
+const targetOptions = computed(() =>
+  [...availableTargetLangs.value]
+    .map((code) => ({ code, name: targetName(code) }))
     .sort((a, b) => (a.code === 'eng' ? -1 : b.code === 'eng' ? 1 : a.name.localeCompare(b.name)))
 )
-function selectKnown(code: string) {
-  knownLang.value = code
-  knownOpen.value = false
+function selectTarget(code: string) {
+  targetLang.value = code
+  targetOpen.value = false
 }
 const email = ref('')
 const otp = ref('')
+// Keep the code to digits only, max 6 — so pasting "8 3 2 7 2 2", "832722\n", or
+// any stray characters always normalises cleanly into the six boxes.
+watch(otp, (v) => {
+  const clean = (v || '').replace(/\D/g, '').slice(0, 6)
+  if (clean !== v) otp.value = clean
+})
 const busy = ref(false)
 const error = ref('')
 const otpVerified = ref(false)
@@ -87,7 +96,7 @@ const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
 const canSend = computed(() => emailValid.value && !!selectedCourse.value && !busy.value)
 const selectedCourseLabel = computed(() => {
   const c = trackCourses.value.find((x) => x.course_code === selectedCourse.value)
-  return c ? targetLabel(c) : ''
+  return c ? courseLabel(c) : ''
 })
 const trialEndLabel = computed(() =>
   trial.value
@@ -127,11 +136,12 @@ onMounted(async () => {
   } finally {
     coursesLoaded.value = true
   }
-  // Default the source language from the visitor's locale (English-speaking
-  // schools land straight on a clean target list; others can switch).
-  const locale = typeof navigator !== 'undefined' ? navigator.language : 'en'
-  knownLang.value = defaultKnownLang(locale, availableKnownLangs.value)
-  // Preselect when the chosen source offers exactly one target.
+  // Default the taught language to English (most schools/tutors teach English);
+  // fall back to the first available target otherwise.
+  targetLang.value = availableTargetLangs.value.includes('eng')
+    ? 'eng'
+    : (availableTargetLangs.value[0] || 'eng')
+  // Preselect when the chosen target offers exactly one learner-language.
   if (!selectedCourse.value && courses.value.length === 1) {
     selectedCourse.value = courses.value[0].course_code
   }
@@ -301,39 +311,40 @@ async function continueIn() {
           <h1 class="ob-title">Which language will you teach?</h1>
           <p class="ob-sub">{{ cfg.blurb }}</p>
 
-          <!-- Source-language switcher — defaulted from locale; a custom on-brand
-               menu (not the native OS select). Most never touch it. -->
+          <!-- Taught-language switcher — defaulted to English; a custom on-brand
+               menu (not the native OS select). Pick the language you'll teach,
+               then the list shows who you can teach it to. -->
           <div
-            v-if="availableKnownLangs.length > 1"
+            v-if="availableTargetLangs.length > 1"
             class="ob-known-wrap"
-            @keyup.escape="knownOpen = false"
+            @keyup.escape="targetOpen = false"
           >
             <button
               type="button"
               class="ob-known"
-              :aria-expanded="knownOpen"
+              :aria-expanded="targetOpen"
               aria-haspopup="listbox"
-              @click="knownOpen = !knownOpen"
+              @click="targetOpen = !targetOpen"
             >
-              <span class="ob-known-label">Your learners speak</span>
-              <span class="ob-known-value">{{ knownLangName(knownLang) }}</span>
-              <svg class="ob-known-caret" :class="{ open: knownOpen }" viewBox="0 0 20 20" aria-hidden="true">
+              <span class="ob-known-label">You'll teach</span>
+              <span class="ob-known-value">{{ targetName(targetLang) }}</span>
+              <svg class="ob-known-caret" :class="{ open: targetOpen }" viewBox="0 0 20 20" aria-hidden="true">
                 <path d="M5 8l5 5 5-5" />
               </svg>
             </button>
-            <div v-if="knownOpen" class="ob-known-backdrop" @click="knownOpen = false"></div>
-            <ul v-if="knownOpen" class="ob-known-menu" role="listbox">
-              <li v-for="o in knownOptions" :key="o.code">
+            <div v-if="targetOpen" class="ob-known-backdrop" @click="targetOpen = false"></div>
+            <ul v-if="targetOpen" class="ob-known-menu" role="listbox">
+              <li v-for="o in targetOptions" :key="o.code">
                 <button
                   type="button"
                   class="ob-known-opt"
-                  :class="{ 'is-on': o.code === knownLang }"
+                  :class="{ 'is-on': o.code === targetLang }"
                   role="option"
-                  :aria-selected="o.code === knownLang"
-                  @click="selectKnown(o.code)"
+                  :aria-selected="o.code === targetLang"
+                  @click="selectTarget(o.code)"
                 >
                   <span>{{ o.name }}</span>
-                  <svg v-if="o.code === knownLang" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg v-if="o.code === targetLang" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
                 </button>
@@ -347,7 +358,7 @@ async function continueIn() {
           <div v-if="selectedCourseObj" class="ob-field">
             <FrostCard variant="tile" class="ob-claim is-claimed">
               <span class="ob-claim-eyebrow">You're teaching</span>
-              <span class="ob-claim-endonym">{{ targetLabel(selectedCourseObj) }}</span>
+              <span class="ob-claim-endonym">{{ courseLabel(selectedCourseObj) }}</span>
               <span class="ob-claim-echo">
                 Free for {{ selectedTrialDays }} days
               </span>
@@ -364,7 +375,7 @@ async function continueIn() {
           </div>
 
           <fieldset v-else class="ob-field ob-langset">
-            <legend class="ob-label">Choose your language</legend>
+            <legend class="ob-label">Your learners speak</legend>
 
             <!-- LONG list (tutors / non-heritage): browse a compact, scrollable
                  list AND filter with the search box. -->
@@ -391,8 +402,8 @@ async function continueIn() {
                     :checked="selectedCourse === c.course_code"
                     @change="selectedCourse = c.course_code"
                   />
-                  <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
-                  <span class="ob-row-name">{{ targetLabel(c) }}</span>
+                  <span class="ob-lang-dot" :data-lang="c.known_lang"></span>
+                  <span class="ob-row-name">{{ knownLangName(c.known_lang) }}</span>
                   <svg class="ob-row-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
@@ -420,8 +431,8 @@ async function continueIn() {
                     :checked="selectedCourse === c.course_code"
                     @change="selectedCourse = c.course_code"
                   />
-                  <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
-                  <span class="ob-lang-endonym">{{ targetLabel(c) }}</span>
+                  <span class="ob-lang-dot" :data-lang="c.known_lang"></span>
+                  <span class="ob-lang-endonym">{{ knownLangName(c.known_lang) }}</span>
                   <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
@@ -475,13 +486,16 @@ async function continueIn() {
               :class="{ 'is-full': otp.trim().length >= 6 }"
               :style="{ '--ob-filled': otp.trim().length }"
             >
+              <!-- Each digit is rendered IN its own cell (driven by the model),
+                   so alignment can't drift. The input above is transparent and
+                   only captures typing/paste. -->
               <div class="ob-otp-cells" aria-hidden="true">
                 <span
                   v-for="i in 6"
                   :key="i"
                   class="ob-otp-cell"
-                  :class="{ 'is-set': otp.trim().length >= i }"
-                ></span>
+                  :class="{ 'is-set': otp.length >= i }"
+                >{{ otp[i - 1] || '' }}</span>
               </div>
               <input
                 id="ob-otp"
@@ -490,8 +504,8 @@ async function continueIn() {
                 inputmode="numeric"
                 autocomplete="one-time-code"
                 maxlength="6"
-                placeholder="••••••"
                 class="ob-otp-input"
+                aria-label="Confirmation code"
                 aria-describedby="ob-otp-hint"
                 @keyup.enter="verify"
               />
@@ -1306,6 +1320,14 @@ async function continueIn() {
 .ob-otp-cell {
   width: var(--ob-cell);
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.4rem, 6vw, 1.85rem);
+  font-weight: var(--font-semibold, 600);
+  color: var(--text-primary, #2c2622);
   border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-lg, 0.75rem);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.78));
@@ -1320,32 +1342,24 @@ async function continueIn() {
 }
 /* The input is laid out to match the cells exactly: each glyph box is
    one cell wide, separated by the same gap — so digits never drift. */
+/* The input is a TRANSPARENT capture layer over the cells — the visible digits
+   are rendered inside each .ob-otp-cell, so they can never drift out of their
+   box. The input just holds focus + the value (and a faint caret). */
 .ob-otp-input {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  width: calc(var(--ob-cell) * 6 + var(--ob-gap) * 5);
+  width: 100%;
   height: 100%;
   border: none;
   background: transparent;
   outline: none;
-  /* One bound input drawn over six cells: a monospace digit advances by exactly
-     one cell-pitch (cell + gap), and a left pad centres the first digit in cell 1,
-     so every digit lands in its own box. (text-align-last:justify is unreliable on
-     <input> — that's what made the digits bunch into the first cells.) */
   box-sizing: border-box;
-  text-align: left;
-  padding: 0 0 0 calc((var(--ob-cell) - 1ch) / 2);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: transparent;
+  caret-color: transparent;
+  cursor: pointer;
   font-size: clamp(1.4rem, 6vw, 1.85rem);
-  font-weight: var(--font-semibold, 600);
-  letter-spacing: calc(var(--ob-cell) + var(--ob-gap) - 1ch);
-  color: var(--text-primary, #2c2622);
-  caret-color: var(--ob-accent-2);
-}
-.ob-otp-input::placeholder {
-  /* Inherit the input's letter-spacing so the placeholder dots sit one-per-cell. */
-  color: var(--text-muted, #b5aea6);
 }
 .ob-otp-wrap:focus-within .ob-otp-cell:not(.is-set) {
   border-color: var(--ob-accent-2);
