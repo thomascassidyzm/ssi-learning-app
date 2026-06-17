@@ -188,7 +188,7 @@ const closeMobileMenu = () => {
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <polygon points="6 3 20 12 6 21 6 3"/>
         </svg>
-        <span>Learn</span>
+        <span>Learn something new yourself</span>
       </button>
 
       <!-- Auth Buttons (when not signed in) -->
@@ -292,7 +292,7 @@ const closeMobileMenu = () => {
         class="mobile-menu-item mobile-menu-learn"
         @click="closeMobileMenu"
       >
-        Learn
+        Learn something new yourself
       </router-link>
     </div>
   </Transition>
