@@ -3,6 +3,7 @@ import { ref, inject, computed, watch } from 'vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
+import UpgradeView from '@/views/schools/UpgradeView.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { SignInModal } from '@/components/auth'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -230,18 +231,10 @@ const handleAuthSuccess = () => closeAuth()
         <span class="expired-pill">● Trial ended</span>
         <h1 class="expired-headline">Your free month has ended</h1>
         <p class="expired-lede">
-          Your teacher dashboard ran on a one-month free trial. To keep running
-          classes and earning, subscribe for <strong>£15/month</strong>.
+          Subscribe below to keep running classes and earning. Your classes and
+          students are safe — nothing is deleted.
         </p>
-        <a
-          class="expired-cta"
-          href="mailto:hello@saysomethingin.com?subject=Teacher%20subscription"
-        >
-          Subscribe to keep teaching →
-        </a>
-        <p class="expired-note">
-          Your classes and students are safe — nothing is deleted.
-        </p>
+        <UpgradeView />
       </FrostCard>
     </div>
 

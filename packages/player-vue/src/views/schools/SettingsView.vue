@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
-import { useSchoolCheckout } from '@/composables/useSchoolCheckout'
 
 type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
@@ -64,32 +63,16 @@ const dataToggles = ref<{ id: string; title: string; desc: string; value: boolea
 ])
 const isExporting = ref(false)
 
-// Billing state (placeholder — no billing table yet)
-const billingEmail = ref('')
-
-// School platform subscription (lever-3): £15 per TEACHER seat / month. Seats =
-// the Paddle QUANTITY on one per-seat price (not per-tier products).
+// Billing summary only. The actual subscribe / seat-change flow lives on the
+// canonical Upgrade page (/schools/upgrade) — this section just shows the plan
+// line and links there, so checkout logic isn't duplicated across surfaces.
 const PRICE_PER_SEAT_GBP = 15
 const seatCount = ref(1)
-const { isOpeningCheckout, checkoutError, startSchoolCheckout } = useSchoolCheckout()
-const schoolId = computed<string | null>(
-  () => ((activeSchool.value || currentSchool.value) as { id?: string } | null)?.id ?? null,
-)
-const monthlyTotalGbp = computed(() => Math.max(1, seatCount.value) * PRICE_PER_SEAT_GBP)
 
-// Live subscription state, read from the server so the button can't fire an
-// INITIAL checkout on a school that already has a subscription (which Paddle
-// would honour as a SECOND subscription = double-bill). status==='active' ⇒ the
-// stepper edits seats in-place via the PATCH endpoint instead.
+// Live subscription state, read from the server for an accurate plan summary.
 const platformStatus = ref<string | null>(null)
 const paidSeats = ref<number | null>(null)
 const isSubscribed = computed(() => platformStatus.value === 'active')
-const isUpdatingSeats = ref(false)
-const seatsMessage = ref('')
-
-function setSeats(n: number) {
-  seatCount.value = Math.max(1, Math.floor(n) || 1)
-}
 
 async function authHeaders(): Promise<Record<string, string> | null> {
   if (!supabase.value) return null
@@ -117,48 +100,12 @@ async function loadSubscription() {
   }
 }
 
-async function subscribeSchool() {
-  if (!schoolId.value) return
-  await startSchoolCheckout({ schoolId: schoolId.value, seats: seatCount.value })
-}
-
-async function updateSeats() {
-  if (isUpdatingSeats.value) return
-  isUpdatingSeats.value = true
-  seatsMessage.value = ''
-  try {
-    const headers = await authHeaders()
-    if (!headers) {
-      seatsMessage.value = 'Sign in again to change seats'
-      return
-    }
-    const res = await fetch('/api/school/update-seats', {
-      method: 'POST',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seats: seatCount.value }),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      seatsMessage.value = data?.error || 'Could not update seats'
-      return
-    }
-    paidSeats.value = data?.seats ?? seatCount.value
-    seatsMessage.value =
-      data?.unchanged ? 'No change' : `Updated to ${paidSeats.value} seats`
-  } catch {
-    seatsMessage.value = 'Could not update seats'
-  } finally {
-    isUpdatingSeats.value = false
-  }
-}
-
 function syncFromSchoolData() {
   const school = activeSchool.value || currentSchool.value
   schoolNameEdit.value = school?.school_name || currentUser.value?.school_name || ''
   region.value = school?.region_code?.toUpperCase() || currentUser.value?.region_code?.toUpperCase() || ''
   const slug = (school?.school_name || 'school').toLowerCase().replace(/\s+/g, '')
   schoolEmailEdit.value = `contact@${slug}.edu`
-  billingEmail.value = `finance@${slug}.edu`
 }
 
 watch(currentUser, async (u) => {
@@ -395,51 +342,12 @@ function toggleDataItem(id: string) {
             <div class="plan-meta">£{{ PRICE_PER_SEAT_GBP }} per teacher seat / month.</div>
           </div>
 
-          <div class="seat-row">
-            <span class="field-label">Teacher seats</span>
-            <div class="seat-stepper">
-              <button type="button" class="seat-btn" :disabled="seatCount <= 1" @click="setSeats(seatCount - 1)">−</button>
-              <input
-                class="seat-input"
-                type="number"
-                min="1"
-                :value="seatCount"
-                @input="setSeats(Number(($event.target as HTMLInputElement).value))"
-              />
-              <button type="button" class="seat-btn" @click="setSeats(seatCount + 1)">+</button>
-            </div>
-            <span class="seat-total">£{{ monthlyTotalGbp }}<span class="seat-per">/mo</span></span>
-          </div>
-
-          <label class="field">
-            <span class="field-label">Billing email</span>
-            <input v-model="billingEmail" class="field-input" type="email" />
-          </label>
-
-          <p v-if="checkoutError" class="checkout-error">{{ checkoutError }}</p>
-          <p v-if="seatsMessage" class="seat-message">{{ seatsMessage }}</p>
-
+          <!-- Subscription + seats are managed on the canonical Upgrade page so
+               there's a single payment surface (no duplicated checkout logic). -->
           <div class="panel-actions">
-            <!-- Already subscribed → edit seats IN PLACE (PATCH). A fresh checkout
-                 here would create a SECOND Paddle subscription and double-bill. -->
-            <button
-              v-if="isSubscribed"
-              type="button"
-              class="btn-play"
-              :disabled="isUpdatingSeats || seatCount === paidSeats"
-              @click="updateSeats"
-            >
-              {{ isUpdatingSeats ? 'Updating…' : seatCount === paidSeats ? `${seatCount} seats (current)` : `Update to ${seatCount} seats — £${monthlyTotalGbp}/mo` }}
-            </button>
-            <button
-              v-else
-              type="button"
-              class="btn-play"
-              :disabled="!schoolId || isOpeningCheckout"
-              @click="subscribeSchool"
-            >
-              {{ isOpeningCheckout ? 'Opening…' : `Subscribe — £${monthlyTotalGbp}/mo` }}
-            </button>
+            <router-link to="/schools/upgrade" class="btn-play">
+              {{ isSubscribed ? 'Manage subscription & seats →' : 'Subscribe / choose seats →' }}
+            </router-link>
             <button type="button" class="btn-ghost">Download invoices</button>
           </div>
         </section>

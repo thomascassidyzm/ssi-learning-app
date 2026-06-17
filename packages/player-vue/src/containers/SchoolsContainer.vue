@@ -2,6 +2,7 @@
 import { ref, inject, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
+import UpgradeView from '@/views/schools/UpgradeView.vue'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
@@ -399,23 +400,16 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
       </section>
     </div>
 
-    <!-- Platform trial / subscription expired — renew panel -->
+    <!-- Platform trial / subscription expired — pay IN-APP (no dead-end). -->
     <div v-else-if="showExpired" class="schools-expired">
       <div class="expired-card">
         <span class="expired-pill">● Trial ended</span>
         <h1 class="arsenal expired-headline">Your free month has ended</h1>
         <p class="expired-lede">
-          Your school dashboard ran on a free trial. To keep your classes,
-          analytics and student progress, subscribe at
-          <strong>£15 per teacher / month</strong>.
+          Subscribe below to keep your classes, analytics and student progress.
+          Your data is safe — nothing is deleted.
         </p>
-        <a class="btn-play btn-play--block expired-cta" href="mailto:hello@saysomethingin.com?subject=School%20subscription">
-          Subscribe to keep your dashboard →
-        </a>
-        <p class="expired-note">
-          Your data is safe — nothing is deleted. Get in touch and we'll switch
-          you back on straight away.
-        </p>
+        <UpgradeView />
       </div>
     </div>
 
