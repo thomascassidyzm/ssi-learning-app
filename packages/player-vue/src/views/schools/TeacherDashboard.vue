@@ -214,6 +214,23 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
   router.push({ name: 'class-detail', params: { id: cls.id } })
 }
 
+// Per-class share link + one-click copy (mirrors the tutor dashboard so the
+// school lane gets the same "create class → copy link → fill roster" flow).
+const origin = typeof window !== 'undefined' ? window.location.origin : ''
+const copiedClassId = ref<string | null>(null)
+function shareUrlFor(cls: { join_code: string }): string {
+  return `${origin}/with/${cls.join_code}`
+}
+async function copyShareLink(cls: { id: string; join_code: string }) {
+  try {
+    await navigator.clipboard.writeText(shareUrlFor(cls))
+    copiedClassId.value = cls.id
+    setTimeout(() => { if (copiedClassId.value === cls.id) copiedClassId.value = null }, 2000)
+  } catch {
+    /* clipboard blocked — the input is still selectable as a fallback */
+  }
+}
+
 function exportCsv() {
   const header = ['Class', 'Course', 'Students', 'Belt', 'Avg seeds', 'Hours/wk', 'Sessions', 'Health', 'Join code']
   const rows = filtered.value.map(c => [
@@ -332,6 +349,7 @@ function exportCsv() {
             <th>Hours/wk</th>
             <th>Activity</th>
             <th>Health</th>
+            <th>Share</th>
             <th></th>
           </tr>
         </thead>
@@ -357,6 +375,11 @@ function exportCsv() {
                 <HealthDot :health="cls.health" />
                 <span class="health-label">{{ cls.health.replace('-', ' ') }}</span>
               </span>
+            </td>
+            <td class="cell-share">
+              <button type="button" class="share-btn" @click="copyShareLink(cls)" :title="shareUrlFor(cls)">
+                {{ copiedClassId === cls.id ? 'Copied ✓' : 'Copy link' }}
+              </button>
             </td>
             <td class="cell-action">
               <a href="#" class="cell-link" @click.prevent="openClass(cls)">Open &rarr;</a>
@@ -571,6 +594,27 @@ function exportCsv() {
 
 .cell-link:hover {
   color: var(--schools-red-deep);
+}
+
+.cell-share {
+  white-space: nowrap;
+}
+
+.share-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--schools-border, #d8d4cd);
+  background: var(--schools-card, #fff);
+  color: var(--schools-fg, #2a2a2a);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.share-btn:hover {
+  border-color: var(--schools-red);
+  color: var(--schools-red);
 }
 
 .empty-state {

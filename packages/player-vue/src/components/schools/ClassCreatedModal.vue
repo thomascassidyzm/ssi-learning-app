@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { getLanguageName } from '@/composables/useI18n'
+
+const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
 const props = defineProps({
   isOpen: {
@@ -16,6 +18,24 @@ const props = defineProps({
 const emit = defineEmits(['close', 'goToClass'])
 
 const codeCopied = ref(false)
+const linkCopied = ref(false)
+
+// The real, working student join URL (route is /with/:code — NOT the old
+// hardcoded ssi.app/join placeholder).
+const shareUrl = computed(() =>
+  props.classData?.student_join_code ? `${origin}/with/${props.classData.student_join_code}` : '',
+)
+
+async function copyShareLink() {
+  if (!shareUrl.value) return
+  try {
+    await navigator.clipboard.writeText(shareUrl.value)
+    linkCopied.value = true
+    setTimeout(() => { linkCopied.value = false }, 2000)
+  } catch {
+    /* clipboard blocked — the link text is still visible to copy manually */
+  }
+}
 
 function getCourseName(code: string): string {
   // Parse target lang from course_code (e.g. "spa_for_eng" → "spa")
@@ -119,11 +139,13 @@ function handleKeydown(e: KeyboardEvent) {
             </div>
 
             <div class="join-url">
-              <span class="url-label">Share link:</span>
-              <code class="url-code">ssi.app/join/{{ classData.student_join_code }}</code>
+              <code class="url-code">{{ shareUrl }}</code>
+              <button class="btn-copy" :class="{ copied: linkCopied }" @click="copyShareLink">
+                <span>{{ linkCopied ? 'Copied!' : 'Copy link' }}</span>
+              </button>
             </div>
 
-            <p class="share-hint">Share this code with your students so they can join the class.</p>
+            <p class="share-hint">Send students the link (or the code above) and they join the class instantly.</p>
           </div>
 
           <footer class="modal-footer">
