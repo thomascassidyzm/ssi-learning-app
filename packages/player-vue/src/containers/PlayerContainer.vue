@@ -494,6 +494,7 @@ onMounted(() => {
       :key="activeCourse?.course_code"
       ref="learningPlayerRef"
       :classContext="classContext"
+      :embedded="isTeachEmbedded"
       :course="activeCourse"
       :previewLegoIndex="previewLegoIndex"
       :isVisible="currentScreen === 'player'"
