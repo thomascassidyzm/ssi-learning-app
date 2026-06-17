@@ -348,7 +348,6 @@ async function continueIn() {
               <span class="ob-claim-endonym">{{ targetLabel(courses[0]) }}</span>
               <span class="ob-claim-echo">
                 Free for {{ trialDaysFor(courses[0]) }} days
-                <span v-if="courses[0].new_app_status === 'beta'" class="ob-beta">in beta</span>
               </span>
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12.5l4.2 4.2L19 7" />
@@ -386,7 +385,6 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-row-name">{{ targetLabel(c) }}</span>
-                  <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
                   <svg class="ob-row-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
@@ -416,9 +414,6 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-lang-endonym">{{ targetLabel(c) }}</span>
-                  <span v-if="c.new_app_status === 'beta'" class="ob-lang-gloss">
-                    <span class="ob-beta ob-beta-sm">beta</span>
-                  </span>
                   <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
