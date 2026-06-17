@@ -24,7 +24,7 @@ const tabs = computed<NavTab[]>(() => {
       { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
       { label: 'Students',  to: '/schools/students',  routeName: 'students' },
       { label: 'Teachers',  to: '/schools/teachers',  routeName: 'teachers' },
-      { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
+      { label: 'Analytics', to: '/teacher-insights',  routeName: 'teacher-insights' },
       { label: 'Settings',  to: '/schools/settings',  routeName: 'settings' },
       { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
     ]
@@ -33,7 +33,7 @@ const tabs = computed<NavTab[]>(() => {
   return [
     { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
     { label: 'Students',  to: '/schools/students',  routeName: 'students' },
-    { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
+    { label: 'Analytics', to: '/teacher-insights',  routeName: 'teacher-insights' },
   ]
 })
 
@@ -65,6 +65,12 @@ const menuOpen = ref(false)
 function toggleMenu() { menuOpen.value = !menuOpen.value }
 function closeMenu() { menuOpen.value = false }
 
+// Mobile nav (hamburger → drawer). Below the breakpoint the desktop tab bar is
+// hidden; the same tabs live in this collapsible menu instead.
+const mobileNavOpen = ref(false)
+function toggleMobileNav() { mobileNavOpen.value = !mobileNavOpen.value }
+function closeMobileNav() { mobileNavOpen.value = false }
+
 async function signOut() {
   closeMenu()
   try {
@@ -75,19 +81,44 @@ async function signOut() {
   router.push('/schools')
 }
 
-// click-outside
+// click-outside (closes both the user menu and the mobile nav drawer)
 function onDocClick(e: MouseEvent) {
   const root = document.querySelector('.schools-topbar')
-  if (root && !root.contains(e.target as Node)) closeMenu()
+  if (root && !root.contains(e.target as Node)) {
+    closeMenu()
+    closeMobileNav()
+  }
+}
+// Esc closes any open menu/drawer
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    closeMenu()
+    closeMobileNav()
+  }
 }
 if (typeof document !== 'undefined') {
   document.addEventListener('mousedown', onDocClick)
+  document.addEventListener('keydown', onKeydown)
 }
 </script>
 
 <template>
   <header class="schools-topbar">
     <div class="left">
+      <button
+        type="button"
+        class="nav-toggle"
+        aria-label="Menu"
+        aria-haspopup="true"
+        :aria-expanded="mobileNavOpen"
+        @click="toggleMobileNav"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+          <path v-if="!mobileNavOpen" d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          <path v-else d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+      </button>
+
       <router-link to="/schools" class="brand" aria-label="SaySomethingin · Schools">
         <img class="brand-logo" src="/ssi-web-logo.svg" alt="SaySomethingin" />
         <span class="brand-tail">Schools</span>
@@ -99,6 +130,18 @@ if (typeof document !== 'undefined') {
           :key="t.to"
           :to="t.to"
           :class="['tab', { active: isActive(t) }]"
+        >
+          {{ t.label }}
+        </router-link>
+      </nav>
+
+      <nav v-if="mobileNavOpen" class="mobile-nav" aria-label="Schools sections">
+        <router-link
+          v-for="t in tabs"
+          :key="t.to"
+          :to="t.to"
+          :class="['mobile-nav-item', { active: isActive(t) }]"
+          @click="closeMobileNav"
         >
           {{ t.label }}
         </router-link>
@@ -273,9 +316,57 @@ if (typeof document !== 'undefined') {
 }
 .menu-item:hover { background: #fafaf6; }
 
+/* Hamburger toggle — hidden on desktop, shown below the breakpoint. */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  margin-left: -6px;
+  border: 1px solid var(--schools-border);
+  background: #fff;
+  border-radius: 8px;
+  color: var(--schools-fg);
+  cursor: pointer;
+}
+.nav-toggle:hover { border-color: var(--schools-border-strong); background: #f6f5f1; }
+
+/* Mobile drawer — the same tabs, stacked under the bar. */
+.mobile-nav {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 12px;
+  right: 12px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--schools-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.2);
+}
+.mobile-nav-item {
+  padding: 11px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--schools-fg);
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.mobile-nav-item:hover { background: #f6f5f1; }
+.mobile-nav-item.active {
+  color: #fff;
+  background: var(--schools-red);
+}
+
 @media (max-width: 768px) {
   .tabs { display: none; }
+  .nav-toggle { display: inline-flex; }
   .school-label { display: none; }
-  .schools-topbar { padding: 0 16px; }
+  .schools-topbar { padding: 0 16px; position: relative; }
 }
 </style>
