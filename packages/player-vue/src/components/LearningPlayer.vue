@@ -12270,15 +12270,20 @@ defineExpose({
     <div v-if="showPaywall" class="paywall-overlay">
       <div class="paywall-card">
         <h2 class="paywall-title">You've reached the end of the free preview</h2>
-        <p class="paywall-subtitle">£15/month — unlimited access to all languages. Cancel anytime.</p>
+        <p class="paywall-subtitle">Go Premium — £15/month. Cancel anytime.</p>
+        <ul class="paywall-benefits">
+          <li>Every course in 65+ languages, fully unlocked</li>
+          <li>Download courses for offline learning</li>
+          <li>New languages and courses added all the time</li>
+        </ul>
         <div class="paywall-actions">
           <button
             class="paywall-btn paywall-btn-primary"
             :disabled="isOpeningCheckout"
             @click="handleSubscribe"
           >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
-          <button class="paywall-btn paywall-btn-ghost" @click="emit('viewProgress')">I have an access code</button>
-          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.resume()">Maybe later</button>
+          <!-- Access codes are entered in Settings during normal play, not here. -->
+          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.pause()">Maybe later</button>
         </div>
       </div>
     </div>
@@ -13159,8 +13164,40 @@ defineExpose({
   font-family: var(--font-body);
   font-size: 0.875rem;
   color: var(--text-secondary, rgba(255, 255, 255, 0.7));
-  margin: 0 0 1.5rem;
+  margin: 0 0 1rem;
   line-height: 1.5;
+}
+
+.paywall-benefits {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.paywall-benefits li {
+  position: relative;
+  padding-left: 1.6rem;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-primary, #2c2622);
+  line-height: 1.35;
+}
+
+/* Tick marker in the belt/accent colour. */
+.paywall-benefits li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.15em;
+  width: 1rem;
+  height: 1rem;
+  background-color: var(--accent, #c23a3a);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / contain;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") no-repeat center / contain;
 }
 
 .paywall-actions {
