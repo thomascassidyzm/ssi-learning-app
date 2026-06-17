@@ -7,7 +7,7 @@ import {
   TRACKS,
   coursesForTrack,
   isFreeTier,
-  targetLabel,
+  targetLangName,
   knownLangName,
   courseLabel,
   type OnboardingTrack,
@@ -52,31 +52,59 @@ const visibleCourses = computed(() => {
   )
 })
 const selectedCourse = ref('')
-// Changing the taught language invalidates the learner-language choice + search.
+// Changing the taught language invalidates the learner-language choice + search,
+// THEN re-runs the auto-select (a single-learner-language target should collapse
+// straight to its one card even when the user switches target after mount).
 watch(targetLang, () => {
   selectedCourse.value = ''
   langQuery.value = ''
+  maybeAutoSelect()
 })
-// If a search narrows to exactly ONE language, select it automatically so the
-// user doesn't have to click the lone result. (Multiple results still require an
-// explicit click — typing alone never commits a choice.)
-watch(visibleCourses, (list) => {
-  if (langQuery.value.trim() && list.length === 1 && !selectedCourse.value) {
-    selectedCourse.value = list[0].course_code
+// Auto-select the lone learner-language whenever the choice is unambiguous:
+//   (a) the chosen target offers exactly ONE learner-language (courses.length===1)
+//   (b) a search narrows the list to exactly ONE result
+// Either way the user shouldn't have to click the only option. Multiple options
+// still require an explicit click — browsing/typing never commits a wider choice.
+function maybeAutoSelect() {
+  if (selectedCourse.value) return
+  if (courses.value.length === 1) {
+    selectedCourse.value = courses.value[0].course_code
+  } else if (langQuery.value.trim() && visibleCourses.value.length === 1) {
+    selectedCourse.value = visibleCourses.value[0].course_code
   }
-})
+}
+// Watch both lists: courses changes when the target (or catalogue) changes (case
+// a); visibleCourses changes as the user types (case b). { immediate } covers the
+// catalogue arriving after mount.
+watch([courses, visibleCourses], maybeAutoSelect, { immediate: true })
 
-// Custom taught-language dropdown (English pinned first, then A–Z).
+// Custom taught-language dropdown (English pinned first, then A–Z). The dropdown
+// is a LANGUAGE picker, so the label is the language name ("Welsh"), NOT a course
+// display name — otherwise multi-course targets leaked dialect labels (cym →
+// "South Welsh", which hid Welsh from anyone scanning under "W").
 const targetOpen = ref(false)
 function targetName(code: string): string {
-  const c = trackCourses.value.find((x) => x.target_lang === code)
-  return c ? targetLabel(c) : (code || '').toUpperCase()
+  return targetLangName(code)
 }
 const targetOptions = computed(() =>
   [...availableTargetLangs.value]
     .map((code) => ({ code, name: targetName(code) }))
     .sort((a, b) => (a.code === 'eng' ? -1 : b.code === 'eng' ? 1 : a.name.localeCompare(b.name)))
 )
+// There will eventually be hundreds of target languages, so the open menu is
+// filterable by name (mirrors the learner-language search below).
+const targetQuery = ref('')
+const visibleTargetOptions = computed(() => {
+  const q = targetQuery.value.trim().toLowerCase()
+  if (!q) return targetOptions.value
+  return targetOptions.value.filter(
+    (o) => o.name.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
+  )
+})
+function openTarget() {
+  targetOpen.value = !targetOpen.value
+  if (targetOpen.value) targetQuery.value = ''
+}
 function selectTarget(code: string) {
   targetLang.value = code
   targetOpen.value = false
@@ -152,10 +180,10 @@ onMounted(async () => {
   targetLang.value = availableTargetLangs.value.includes('eng')
     ? 'eng'
     : (availableTargetLangs.value[0] || 'eng')
-  // Preselect when the chosen target offers exactly one learner-language.
-  if (!selectedCourse.value && courses.value.length === 1) {
-    selectedCourse.value = courses.value[0].course_code
-  }
+  // Preselect when the chosen target offers exactly one learner-language. The
+  // targetLang watch above re-runs maybeAutoSelect when the value actually
+  // changes; call it directly too in case it stayed 'eng' (no change → no watch).
+  maybeAutoSelect()
 })
 
 async function authToken(): Promise<string | null> {
@@ -336,7 +364,7 @@ async function continueIn() {
               class="ob-known"
               :aria-expanded="targetOpen"
               aria-haspopup="listbox"
-              @click="targetOpen = !targetOpen"
+              @click="openTarget"
             >
               <span class="ob-known-label">You'll teach</span>
               <span class="ob-known-value">{{ targetName(targetLang) }}</span>
@@ -345,23 +373,38 @@ async function continueIn() {
               </svg>
             </button>
             <div v-if="targetOpen" class="ob-known-backdrop" @click="targetOpen = false"></div>
-            <ul v-if="targetOpen" class="ob-known-menu" role="listbox">
-              <li v-for="o in targetOptions" :key="o.code">
-                <button
-                  type="button"
-                  class="ob-known-opt"
-                  :class="{ 'is-on': o.code === targetLang }"
-                  role="option"
-                  :aria-selected="o.code === targetLang"
-                  @click="selectTarget(o.code)"
-                >
-                  <span>{{ o.name }}</span>
-                  <svg v-if="o.code === targetLang" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 12.5l4.2 4.2L19 7" />
-                  </svg>
-                </button>
-              </li>
-            </ul>
+            <div v-if="targetOpen" class="ob-known-menu" role="listbox">
+              <!-- Filterable: hundreds of target languages, so the open menu has
+                   its own search (mirrors the learner-language search). -->
+              <input
+                v-model="targetQuery"
+                type="search"
+                class="ob-input ob-known-search"
+                placeholder="Search languages…"
+                aria-label="Search taught languages"
+                autofocus
+              />
+              <ul class="ob-known-opts">
+                <li v-for="o in visibleTargetOptions" :key="o.code">
+                  <button
+                    type="button"
+                    class="ob-known-opt"
+                    :class="{ 'is-on': o.code === targetLang }"
+                    role="option"
+                    :aria-selected="o.code === targetLang"
+                    @click="selectTarget(o.code)"
+                  >
+                    <span>{{ o.name }}</span>
+                    <svg v-if="o.code === targetLang" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 12.5l4.2 4.2L19 7" />
+                    </svg>
+                  </button>
+                </li>
+                <li v-if="!visibleTargetOptions.length" class="ob-known-empty">
+                  No languages match “{{ targetQuery }}”.
+                </li>
+              </ul>
+            </div>
           </div>
 
           <!-- Once a language is chosen, collapse the whole picker to the ONE
@@ -979,17 +1022,34 @@ async function continueIn() {
   left: 0;
   z-index: 50;
   min-width: 240px;
-  max-height: min(360px, 60vh);
-  overflow-y: auto;
   margin: 0;
   padding: 6px;
-  list-style: none;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 250, 245, 0.96));
   border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-lg, 16px);
   box-shadow: 0 20px 48px rgba(73, 3, 0, 0.18), 0 4px 12px rgba(73, 3, 0, 0.08);
   -webkit-backdrop-filter: blur(14px) saturate(150%);
   backdrop-filter: blur(14px) saturate(150%);
+}
+/* Search box pinned at the top; only the option list scrolls beneath it. */
+.ob-known-search {
+  margin-bottom: 6px;
+  padding: 0.55rem 0.75rem;
+  font-size: var(--text-sm, 0.875rem);
+}
+.ob-known-opts {
+  max-height: min(320px, 52vh);
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ob-known-empty {
+  padding: 9px 12px;
+  font-family: var(--font-body);
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-muted, #8a8078);
 }
 .ob-known-opt {
   display: flex;

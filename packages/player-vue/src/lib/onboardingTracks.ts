@@ -36,6 +36,24 @@ export function knownLangName(code: string): string {
   return KNOWN_LANG_NAMES[code] || (code || '').toUpperCase()
 }
 
+// Human names for the "you'll teach" (target) language dropdown. The dropdown is
+// a LANGUAGE picker, so it must show the language name ("Welsh"), NOT a specific
+// course's display name — for multi-course targets, picking the first course's
+// label leaked dialect/region (cym → "South Welsh", which also hid Welsh from
+// anyone scanning under "W"). Target and known languages share ISO codes, so we
+// extend the known-language names with the extra targets we deploy.
+const TARGET_LANG_NAMES: Record<string, string> = {
+  ...KNOWN_LANG_NAMES,
+  cat: 'Catalan', eus: 'Basque', afr: 'Afrikaans', bul: 'Bulgarian',
+  ces: 'Czech', dan: 'Danish', est: 'Estonian', fas: 'Persian',
+  heb: 'Hebrew', hun: 'Hungarian', hye: 'Armenian', isl: 'Icelandic',
+  lav: 'Latvian', nor: 'Norwegian', srp: 'Serbian', swa: 'Swahili',
+  tha: 'Thai', hrv: 'Croatian',
+}
+export function targetLangName(code: string): string {
+  return TARGET_LANG_NAMES[code] || (code || '').toUpperCase()
+}
+
 // Map a browser locale (e.g. 'en-GB', 'es') to an SSi known_lang code.
 const LOCALE_TO_KNOWN: Record<string, string> = {
   en: 'eng', es: 'spa', fr: 'fra', de: 'deu', it: 'ita', pt: 'por', nl: 'nld',
