@@ -103,6 +103,10 @@ export default async function handler(
     // The OFFER is the course's tier: Free/Community = free (no grant needed — free
     // courses are already accessible to everyone); Premium = a free trial then paid.
     const isFree = course.pricing_tier === 'free' || course.pricing_tier === 'community'
+    // Welsh gets the long (1-year) platform window like free courses, even though
+    // it's a premium-tier course — it's the heritage flagship. Only affects the
+    // PLATFORM trial DURATION, not whether a learner play-trial is granted.
+    const isWelsh = (course.course_code || '').startsWith('cym')
 
     // 1b. Resolve the auth email — the stable identity the platform trial-burn
     //     is keyed on (trial_burns). Lower-cased + trimmed to normalise.
@@ -293,16 +297,15 @@ export default async function handler(
         return
       }
 
-      // PLATFORM TRIAL (school): premium course → 1 month, free course → 1 year
-      // (schools pay for the platform even on free courses). Email-burn first,
-      // then set the trial columns on the schools row. Fails open if the
-      // migration is unapplied.
+      // PLATFORM TRIAL (school): premium → 1 month; free courses AND Welsh →
+      // 1 year (schools pay for the platform even on free courses). Email-burn
+      // first, then set the trial columns. Fails open if migration unapplied.
       const r = await provisionSchoolPlatformTrial(
         supabase,
         authEmail,
         schoolId,
         course_code,
-        isFree,
+        isWelsh || isFree,
       )
       if (r.denied) {
         res.status(409).json({

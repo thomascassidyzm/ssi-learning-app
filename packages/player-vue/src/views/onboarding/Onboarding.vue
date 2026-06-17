@@ -103,12 +103,19 @@ const trialEndLabel = computed(() =>
 const selectedCourseObj = computed(
   () => trackCourses.value.find((x) => x.course_code === selectedCourse.value) || null
 )
-const selectedIsFree = computed(() =>
-  selectedCourseObj.value ? isFreeTier(selectedCourseObj.value) : false
-)
+// Platform-trial length is decided per course, server-side too (provision.ts):
+// Welsh OR any free/community course → 1 year; every other (premium) course →
+// 1 month. We don't surface "free vs premium" upfront — the learner picks a
+// language, then we tell them their trial.
+function trialDaysFor(course: { course_code?: string; pricing_tier?: string } | null): number {
+  if (!course) return 30
+  const isWelsh = (course.course_code || '').startsWith('cym')
+  return isWelsh || isFreeTier(course as any) ? 365 : 30
+}
+const selectedTrialDays = computed(() => trialDaysFor(selectedCourseObj.value))
 const offerLine = computed(() => {
   if (!selectedCourseObj.value) return ''
-  return selectedIsFree.value ? 'Free — no card, ever' : '1 month free trial — no card needed'
+  return `Free for ${selectedTrialDays.value} days — no card needed`
 })
 
 onMounted(async () => {
@@ -185,7 +192,9 @@ async function verify() {
       error.value = data.error || 'We could not finish setting up your account'
       return
     }
-    trial.value = data.trial
+    // Show the PLATFORM trial window (the school/tutor's free period: 365 or 30
+    // days) on the success screen — that's the one that decides when they pay.
+    trial.value = data.platform_trial || data.trial
     redirectTo.value = data.redirect || '/'
     step.value = 'done'
   } catch (e: any) {
@@ -332,18 +341,25 @@ async function continueIn() {
             </ul>
           </div>
 
-          <!-- Single pre-claimed hero card when the track offers one language -->
-          <div v-if="courses.length === 1" class="ob-field">
+          <!-- Once a language is chosen, collapse the whole picker to the ONE
+               selected language. (Single-language tracks auto-select, so this
+               shows immediately for them too.) -->
+          <div v-if="selectedCourseObj" class="ob-field">
             <FrostCard variant="tile" class="ob-claim is-claimed">
               <span class="ob-claim-eyebrow">You're teaching</span>
-              <span class="ob-claim-endonym">{{ targetLabel(courses[0]) }}</span>
+              <span class="ob-claim-endonym">{{ targetLabel(selectedCourseObj) }}</span>
               <span class="ob-claim-echo">
-                {{ isFreeTier(courses[0]) ? 'Free' : '1 month free trial' }}
-                <span v-if="courses[0].new_app_status === 'beta'" class="ob-beta">in beta</span>
+                Free for {{ selectedTrialDays }} days
               </span>
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12.5l4.2 4.2L19 7" />
               </svg>
+              <button
+                v-if="courses.length > 1"
+                type="button"
+                class="ob-claim-change"
+                @click="selectedCourse = ''"
+              >Change language</button>
             </FrostCard>
           </div>
 
@@ -377,8 +393,6 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-row-name">{{ targetLabel(c) }}</span>
-                  <span v-if="isFreeTier(c)" class="ob-tier">Free</span>
-                  <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
                   <svg class="ob-row-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
@@ -408,10 +422,6 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-lang-endonym">{{ targetLabel(c) }}</span>
-                  <span v-if="isFreeTier(c) || c.new_app_status === 'beta'" class="ob-lang-gloss">
-                    <span v-if="isFreeTier(c)" class="ob-tier">Free</span>
-                    <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
-                  </span>
                   <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
                   </svg>
@@ -523,8 +533,7 @@ async function continueIn() {
 
           <h1 class="ob-title ob-title-done">{{ selectedCourseLabel }} is ready</h1>
           <p class="ob-sub">
-            <template v-if="selectedIsFree">It's yours — free, no card ever.</template>
-            <template v-else>Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.</template>
+            Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.
           </p>
 
           <div class="ob-finishing">
@@ -584,8 +593,14 @@ async function continueIn() {
 
 .onboard {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* The app shell pins body { overflow: hidden } (style.css) for the player, so
+     this standalone route must be its OWN scroll container — otherwise the form
+     column (email + "Send my code") below the fold is unreachable on mobile.
+     Same pattern as the teacher-insights .tiv-scroll. */
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: grid;
   grid-template-columns: 44fr 56fr;
   background: var(--bg-primary, #e8e3dd);
@@ -1058,6 +1073,21 @@ async function continueIn() {
   stroke-linejoin: round;
   box-shadow: 0 2px 8px var(--ob-accent-glow);
 }
+
+.ob-claim-change {
+  margin-top: var(--space-3, 0.75rem);
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ob-accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ob-claim-change:hover { color: var(--ob-accent-2); }
 
 /* Warm word-chip, NOT a 9px mono techy pill */
 .ob-beta {
