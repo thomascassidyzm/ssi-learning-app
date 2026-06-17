@@ -26,6 +26,38 @@ const isCreatedModalOpen = ref(false)
 const createClassError = ref<string | null>(null)
 const isCreatingClass = ref(false)
 
+// School platform-trial state — on a free TRIAL a school can only run classes in
+// the ONE language it signed up for (schools.trial_course_code). Subscribing
+// (platform_status === 'active') unlocks the full catalogue. Fails open: if we
+// can't read it, we don't lock anyone out.
+const supabase = inject('supabase', ref(null)) as any
+const schoolPlatformStatus = ref<string | null>(null)
+const schoolTrialCourse = ref<string | null>(null)
+
+async function loadSchoolTrial(): Promise<void> {
+  if (!supabase.value) return
+  try {
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    const res = await fetch('/api/school/subscription', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const data = await res.json()
+    schoolPlatformStatus.value = data?.school?.platform_status ?? null
+    schoolTrialCourse.value = data?.school?.trial_course_code ?? null
+  } catch {
+    /* non-fatal — no lock applied */
+  }
+}
+
+// null = use the modal's default catalogue (subscribed, or unknown). Otherwise
+// the single trial language the school is entitled to.
+const schoolAvailableCourses = computed(() => {
+  if (schoolPlatformStatus.value === 'active') return null
+  if (!schoolTrialCourse.value) return null
+  return [{ code: schoolTrialCourse.value, name: courseShortName(schoolTrialCourse.value), flag: '' }]
+})
+
 const courseFilter = ref<string>('all')
 const sortKey = ref<SortKey>('name')
 const healthFilter = ref<'all' | Health>('all')
@@ -140,6 +172,7 @@ onMounted(async () => {
     await fetchClasses()
     fetchReportsForClasses()
   }
+  if (isSchoolAdmin.value && !isAdminView) loadSchoolTrial()
 })
 
 watch(selectedUser, async (newUser) => {
@@ -424,6 +457,8 @@ function exportCsv() {
     <CreateClassModal
       :isOpen="isCreateModalOpen"
       :submitting="isCreatingClass"
+      :availableCourses="schoolAvailableCourses"
+      lockedNote="Subscribe to teach more languages"
       @close="closeCreateModal"
       @create="handleCreateClass"
     />
