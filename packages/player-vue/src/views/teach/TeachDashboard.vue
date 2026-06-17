@@ -15,6 +15,7 @@ interface Teacher {
   bio: string | null
   referral_active: boolean
   own_subscription_id: string | null
+  teaching_languages: string[] | null
 }
 
 interface TeacherClass {
@@ -99,6 +100,18 @@ const hasSubscription = computed(
   () => !!subscription.value && subscription.value.status !== 'none'
 )
 const subscriptionStatus = computed(() => subscription.value?.status || 'none')
+
+// On the free TRIAL the tutor can only run classes in the ONE language they
+// signed up to teach (teachers.teaching_languages). A paid subscription unlocks
+// the full catalogue. If teaching_languages is somehow empty, don't lock them
+// out — fall back to the full list.
+const availableCourses = computed(() => {
+  if (hasSubscription.value) return TEACHER_COURSES
+  const langs = teacher.value?.teaching_languages || []
+  if (!langs.length) return TEACHER_COURSES
+  return langs.map((code) => ({ code, label: labelForCourse(code) }))
+})
+const courseLocked = computed(() => availableCourses.value.length === 1)
 
 const nextChargeDate = computed(() => {
   if (!subscription.value?.currentPeriodEnd) return ''
@@ -348,7 +361,7 @@ function openAddClass() {
     return
   }
   newClassName.value = ''
-  newClassCourse.value = TEACHER_COURSES[0].code
+  newClassCourse.value = (availableCourses.value[0] || TEACHER_COURSES[0]).code
   createClassError.value = ''
   isAddingClass.value = true
 }
@@ -609,8 +622,13 @@ async function submitRecipient() {
           </div>
           <div class="field">
             <label for="new-class-course">Course</label>
-            <select id="new-class-course" v-model="newClassCourse" required>
-              <option v-for="c in TEACHER_COURSES" :key="c.code" :value="c.code">
+            <!-- On trial: locked to the one signed-up language. Subscribe to unlock all. -->
+            <p v-if="courseLocked" class="locked-course">
+              {{ labelForCourse(newClassCourse) }}
+              <span class="locked-hint">Subscribe to teach more languages</span>
+            </p>
+            <select v-else id="new-class-course" v-model="newClassCourse" required>
+              <option v-for="c in availableCourses" :key="c.code" :value="c.code">
                 {{ c.label }}
               </option>
             </select>
@@ -1087,6 +1105,19 @@ async function submitRecipient() {
   outline: none;
   border-color: var(--ssi-red);
   box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.12);
+}
+
+.locked-course {
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.locked-hint {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--text-muted, #8a8479);
 }
 
 .inline-actions {
