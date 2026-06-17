@@ -78,6 +78,9 @@ const selectedCourse = ref('')
 // THEN re-runs the auto-select (a single-learner-language target should collapse
 // straight to its one card even when the user switches target after mount).
 watch(targetLang, () => {
+  // Heritage door selects courses straight from the dropdown — its targetLang
+  // changes are part of committing a course, so don't clear that selection.
+  if (isHeritageDoor.value) return
   selectedCourse.value = ''
   langQuery.value = ''
   maybeAutoSelect()
@@ -88,6 +91,9 @@ watch(targetLang, () => {
 // Either way the user shouldn't have to click the only option. Multiple options
 // still require an explicit click — browsing/typing never commits a wider choice.
 function maybeAutoSelect() {
+  // The heritage door has no learner-language list to auto-resolve — selection is
+  // explicit via the course-level dropdown, so never auto-commit here.
+  if (isHeritageDoor.value) return
   if (selectedCourse.value) return
   if (courses.value.length === 1) {
     selectedCourse.value = courses.value[0].course_code
@@ -108,17 +114,36 @@ const targetOpen = ref(false)
 function targetName(code: string): string {
   return targetLangName(code)
 }
-// On the heritage door (schools1) Welsh + Irish are pinned first (in HERITAGE_LANGS
-// order); everywhere else English is pinned first. Remaining languages sort A–Z.
+// The taught-language dropdown. Each option has a stable `value` (the key the
+// dropdown selects by), a display `name`, and — on the heritage door only — the
+// `courseCode` it commits directly.
+//
+// HERITAGE DOOR (schools1): the dropdown is COURSE-level, not language-level —
+// Welsh (North), Welsh (South), Irish are offered as three separate entries
+// (Tom's call: a collapsed "Welsh" hides the dialect choice). Picking one commits
+// that course directly. Pinned in HERITAGE_LANGS order, then by label.
+// EVERY OTHER DOOR: language-level as before (English pinned first, then A–Z),
+// with the learner-language list below resolving the specific course.
 const targetOptions = computed(() => {
-  const pinned = isHeritageDoor.value ? HERITAGE_LANGS : ['eng']
-  const rank = (code: string) => {
-    const i = pinned.indexOf(code)
-    return i === -1 ? pinned.length : i
+  if (isHeritageDoor.value) {
+    return trackCourses.value
+      .filter((c) => HERITAGE_LANGS.includes(c.target_lang))
+      .map((c) => ({
+        value: c.course_code,
+        name: targetLabel(c),
+        courseCode: c.course_code,
+        lang: c.target_lang,
+      }))
+      .sort(
+        (a, b) =>
+          HERITAGE_LANGS.indexOf(a.lang) - HERITAGE_LANGS.indexOf(b.lang) ||
+          a.name.localeCompare(b.name)
+      )
   }
+  const rank = (code: string) => (code === 'eng' ? -1 : 1)
   return [...availableTargetLangs.value]
-    .map((code) => ({ code, name: targetName(code) }))
-    .sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name))
+    .map((code) => ({ value: code, name: targetName(code), courseCode: null as string | null, lang: code }))
+    .sort((a, b) => rank(a.value) - rank(b.value) || a.name.localeCompare(b.name))
 })
 // There will eventually be hundreds of target languages, so the open menu is
 // filterable by name (mirrors the learner-language search below).
@@ -127,15 +152,34 @@ const visibleTargetOptions = computed(() => {
   const q = targetQuery.value.trim().toLowerCase()
   if (!q) return targetOptions.value
   return targetOptions.value.filter(
-    (o) => o.name.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
+    (o) => o.name.toLowerCase().includes(q) || o.value.toLowerCase().includes(q)
   )
 })
+// The dropdown button's current-value label. On the heritage door it reflects the
+// chosen course variant (or a prompt before one is picked); elsewhere the language.
+const pickerValueLabel = computed(() => {
+  if (isHeritageDoor.value) {
+    return selectedCourseObj.value ? targetLabel(selectedCourseObj.value) : 'Choose a language'
+  }
+  return targetName(targetLang.value)
+})
+function isOptionActive(o: { value: string; courseCode: string | null }): boolean {
+  return isHeritageDoor.value ? o.courseCode === selectedCourse.value : o.value === targetLang.value
+}
 function openTarget() {
   targetOpen.value = !targetOpen.value
   if (targetOpen.value) targetQuery.value = ''
 }
-function selectTarget(code: string) {
-  targetLang.value = code
+function selectTarget(value: string) {
+  const opt = targetOptions.value.find((o) => o.value === value)
+  if (opt?.courseCode) {
+    // Heritage door: the dropdown commits the course variant directly. Set the
+    // language first (its watch is a no-op on this door), then the course.
+    targetLang.value = opt.lang
+    selectedCourse.value = opt.courseCode
+  } else {
+    targetLang.value = value
+  }
   targetOpen.value = false
 }
 const email = ref('')
@@ -388,7 +432,7 @@ async function continueIn() {
                menu (not the native OS select). Pick the language you'll teach,
                then the list shows who you can teach it to. -->
           <div
-            v-if="availableTargetLangs.length > 1"
+            v-if="targetOptions.length > 1"
             class="ob-known-wrap"
             @keyup.escape="targetOpen = false"
           >
@@ -400,7 +444,7 @@ async function continueIn() {
               @click="openTarget"
             >
               <span class="ob-known-label">You'll teach</span>
-              <span class="ob-known-value">{{ targetName(targetLang) }}</span>
+              <span class="ob-known-value">{{ pickerValueLabel }}</span>
               <svg class="ob-known-caret" :class="{ open: targetOpen }" viewBox="0 0 20 20" aria-hidden="true">
                 <path d="M5 8l5 5 5-5" />
               </svg>
@@ -418,17 +462,17 @@ async function continueIn() {
                 autofocus
               />
               <ul class="ob-known-opts">
-                <li v-for="o in visibleTargetOptions" :key="o.code">
+                <li v-for="o in visibleTargetOptions" :key="o.value">
                   <button
                     type="button"
                     class="ob-known-opt"
-                    :class="{ 'is-on': o.code === targetLang }"
+                    :class="{ 'is-on': isOptionActive(o) }"
                     role="option"
-                    :aria-selected="o.code === targetLang"
-                    @click="selectTarget(o.code)"
+                    :aria-selected="isOptionActive(o)"
+                    @click="selectTarget(o.value)"
                   >
                     <span>{{ o.name }}</span>
-                    <svg v-if="o.code === targetLang" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg v-if="isOptionActive(o)" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12.5l4.2 4.2L19 7" />
                     </svg>
                   </button>
@@ -454,7 +498,7 @@ async function continueIn() {
                 <path d="M5 12.5l4.2 4.2L19 7" />
               </svg>
               <button
-                v-if="courses.length > 1"
+                v-if="isHeritageDoor || courses.length > 1"
                 type="button"
                 class="ob-claim-change"
                 @click="selectedCourse = ''"
@@ -462,7 +506,10 @@ async function continueIn() {
             </FrostCard>
           </div>
 
-          <fieldset v-else class="ob-field ob-langset">
+          <!-- The learner-language list resolves the specific course on every door
+               EXCEPT heritage (schools1), where the course-level dropdown above
+               already commits the variant directly. -->
+          <fieldset v-else-if="!isHeritageDoor" class="ob-field ob-langset">
             <legend class="ob-label">Your learners speak</legend>
 
             <!-- LONG list (tutors / non-heritage): browse a compact, scrollable
