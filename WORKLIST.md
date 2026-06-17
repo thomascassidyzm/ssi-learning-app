@@ -86,3 +86,9 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 ---
 
 *Cross-SSi: this is the learning-app worklist. Popty (`ssi-dashboard-v7-clean`) and other repos get their own `WORKLIST.md` of the same shape. A daily repo-only "groomer" routine can archive `[x]`s, free stale `[~]`s, and surface shipped/dead items as a commit for review — it never silently rewrites live intent.*
+
+## 🔨 Onboarding target-picker fixes (logged 2026-06-17, Tom testing) — agent in flight
+- [ ] **Welsh missing from the "You'll teach" target dropdown** — after the axis flip (target-first), `availableTargetLangs` is built from course `target_lang`; Welsh (cym / cym_s / cym_n) isn't appearing. Investigate /api/courses/available output + the Welsh course target_lang and fix.
+- [ ] **"You'll teach" dropdown needs a SEARCH bar** — we'll have hundreds of target languages; the custom dropdown menu must be filterable (like the learner-language list).
+- [ ] **Auto-select a single language choice still not firing** — must auto-select when (a) a search narrows to exactly one result AND (b) a chosen target has only one learner-language. Make it robust (watch the filtered list, not just on mount).
+- All three live in packages/player-vue/src/views/onboarding/Onboarding.vue.
