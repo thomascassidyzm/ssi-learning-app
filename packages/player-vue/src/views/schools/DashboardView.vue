@@ -341,6 +341,11 @@ function handlePlayClass(cls: ClassInfo) {
         <div class="schools-card">
           <header class="card-header-row">
             <h3 class="arsenal card-header-title">Classes</h3>
+            <router-link
+              v-if="teacherClasses.length"
+              to="/schools/classes?create=1"
+              class="card-header-link"
+            >+ Create class</router-link>
             <router-link to="/schools/classes" class="card-header-link">View all →</router-link>
           </header>
           <table class="ssi-table">
@@ -368,7 +373,12 @@ function handlePlayClass(cls: ClassInfo) {
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
               </tr>
               <tr v-if="!teacherClasses.length">
-                <td colspan="4" class="empty-row">No classes yet.</td>
+                <td colspan="4" class="empty-row">
+                  <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
+                  <router-link to="/schools/classes?create=1" class="btn-play empty-row-cta">
+                    + Create your first class
+                  </router-link>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -718,8 +728,16 @@ function handlePlayClass(cls: ClassInfo) {
 }
 .empty-row {
   text-align: center;
-  padding: 24px;
+  padding: 32px 24px;
   color: var(--schools-fg-2);
+}
+.empty-row-text {
+  margin: 0 0 16px;
+}
+.empty-row-cta {
+  display: inline-block;
+  font-size: 1.05rem;
+  padding: 14px 28px;
 }
 
 .attention-panel {

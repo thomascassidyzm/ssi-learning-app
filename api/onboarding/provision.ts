@@ -196,6 +196,9 @@ export default async function handler(
     // True when the email already burned its one trial for this track (no new
     // trial granted; the dashboard gate will route them to checkout).
     let trialBurned = false
+    // True when this email already had an account for this track — used by the
+    // signup UI to skip the "finishing details" step and say "Welcome back".
+    let existingAccount = false
     if (track === 'tutor') {
       role = 'teacher'
       const { data: existingTeacher } = await supabase
@@ -203,6 +206,7 @@ export default async function handler(
         .select('id, platform_status')
         .eq('learner_id', learner.id)
         .maybeSingle()
+      existingAccount = !!existingTeacher?.id
       let teacherId = existingTeacher?.id
       if (!teacherId) {
         const { data: created, error: tErr } = await supabase
@@ -267,6 +271,7 @@ export default async function handler(
       } else {
         existingSchool = schoolFull
       }
+      existingAccount = !!existingSchool?.id
 
       let schoolId = existingSchool?.id
       if (!schoolId) {
@@ -338,6 +343,9 @@ export default async function handler(
       // burned its trial, or the migration is unapplied).
       platform_trial: platformTrial,
       trial_burned: trialBurned,
+      // Returning user (already had a teacher/school for this track) — the signup
+      // UI skips the finishing-details step and sends them straight in.
+      existing: existingAccount,
       redirect: track === 'tutor' ? '/teach' : '/schools',
     })
   } catch (error: any) {

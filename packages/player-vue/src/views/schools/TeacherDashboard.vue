@@ -173,6 +173,8 @@ onMounted(async () => {
     fetchReportsForClasses()
   }
   if (isSchoolAdmin.value && !isAdminView) loadSchoolTrial()
+  // Deep-linked from the dashboard's "Create class" CTA → open the form straight away.
+  if (!isAdminView && router.currentRoute.value.query.create) openCreateModal()
 })
 
 watch(selectedUser, async (newUser) => {
