@@ -292,7 +292,7 @@ const closeMobileMenu = () => {
         class="mobile-menu-item mobile-menu-learn"
         @click="closeMobileMenu"
       >
-        Learn something new yourself
+        My Learning
       </router-link>
     </div>
   </Transition>
