@@ -33,9 +33,15 @@ export const paddleConfig = {
   teacherAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
   studentMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_MONTHLY as string | undefined),
   studentSchoolMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY as string | undefined),
-  // School platform — £15/teacher/mo, per-seat. The school checkout sends
+  // School platform — £15/teacher/mo, per-seat. There is only ONE £15 Paddle
+  // price underneath: a school is just quantity>1 of the same per-unit price as
+  // the tutor plan (the webhook tells them apart by customData.kind, NOT by
+  // price). So this falls back to the teacher price when its own env var isn't
+  // set — no separate Paddle product/price needed. The school checkout sends
   // quantity = teacher seats; the webhook (kind:'school_platform') reads it back.
-  schoolTeacherMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined),
+  schoolTeacherMonthlyPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined),
   extraClassMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_MONTHLY as string | undefined),
   extraClassAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_ANNUAL as string | undefined),
 } as const
