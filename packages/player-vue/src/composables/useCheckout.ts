@@ -11,6 +11,11 @@
  * this only opens the existing `getPaddle().Checkout.open` overlay. After the
  * Paddle success redirect lands back on `/?course=…` (or `/?openCourses=1`),
  * App boot re-resolves with the now-active subscription and the gate passes.
+ *
+ * NOTE on checkout sizing: this in-player paywall deliberately keeps the Paddle
+ * OVERLAY (it fires mid-session with no sized host element to render into).
+ * INLINE checkout — the larger, non-scrolly variant — lives on UpgradeView,
+ * which has a dedicated container; see `UpgradeView.vue` / `useSchoolCheckout`.
  */
 
 import { ref, inject, type Ref } from 'vue'

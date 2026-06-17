@@ -22,6 +22,10 @@ const activeSection = ref<SectionId>('profile')
 // Profile state
 const schoolNameEdit = ref('')
 const schoolEmailEdit = ref('')
+// The admin's real signup email — the sensible default for the school's contact
+// email (replaces the old invented `contact@<slug>.edu`). Resolved from the
+// authenticated session.
+const adminEmail = ref('')
 const city = ref('')
 const region = ref('')
 const about = ref('')
@@ -104,13 +108,20 @@ function syncFromSchoolData() {
   const school = activeSchool.value || currentSchool.value
   schoolNameEdit.value = school?.school_name || currentUser.value?.school_name || ''
   region.value = school?.region_code?.toUpperCase() || currentUser.value?.region_code?.toUpperCase() || ''
-  const slug = (school?.school_name || 'school').toLowerCase().replace(/\s+/g, '')
-  schoolEmailEdit.value = `contact@${slug}.edu`
+  // Contact email defaults to the school's saved value if present, else the
+  // admin's real signup email — never a fabricated `contact@<slug>.edu`.
+  schoolEmailEdit.value = (school as any)?.contact_email || adminEmail.value || ''
 }
 
 watch(currentUser, async (u) => {
   if (u) {
     await fetchSchools()
+    // Resolve the admin's signup email before seeding the profile fields so the
+    // contact-email default is the real address, not an invented one.
+    try {
+      const { data } = (await supabase.value?.auth.getUser()) ?? { data: null }
+      adminEmail.value = data?.user?.email || ''
+    } catch { /* non-fatal — field just defaults to any saved value or blank */ }
     syncFromSchoolData()
   }
 }, { immediate: true })

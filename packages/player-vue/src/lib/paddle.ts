@@ -5,7 +5,10 @@
  *   VITE_PADDLE_CLIENT_TOKEN          — client-side token from Paddle
  *   VITE_PADDLE_ENV                   — 'sandbox' (default) or 'production'
  *   VITE_PADDLE_TEACHER_PRICE_MONTHLY — pri_… for £15/mo SSi Premium
- *   VITE_PADDLE_TEACHER_PRICE_ANNUAL  — pri_… for £150/yr SSi Premium (unwired)
+ *   VITE_PADDLE_TEACHER_PRICE_ANNUAL  — pri_… for £150/yr SSi Premium (tutor + school annual)
+ *   VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL — pri_… for £150/yr/teacher SCHOOL PLATFORM
+ *                                              (per-seat; quantity = seats). Falls back to
+ *                                              the tutor annual price when unset.
  *   VITE_PADDLE_STUDENT_PRICE_MONTHLY        — pri_… for £10/mo student-via-TUTOR (ACT)
  *   VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY — pri_… for £5/mo student-via-SCHOOL (no commission)
  *   VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY — pri_… for £15/teacher/mo SCHOOL PLATFORM
@@ -42,6 +45,18 @@ export const paddleConfig = {
   schoolTeacherMonthlyPriceId:
     trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY as string | undefined) ||
     trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined),
+  // School ANNUAL platform price — same single-product reasoning as the monthly
+  // fallback above: there is ONE per-seat annual Paddle price (a school is just
+  // quantity>1 of the same per-unit price as the tutor annual plan). Falls back
+  // to the tutor annual price when its own env var isn't set, so no separate
+  // Paddle product is required.
+  // ⚠️ OPERATOR NOTE: for annual checkout to charge correctly the actual annual
+  // Paddle prices + env vars (VITE_PADDLE_TEACHER_PRICE_ANNUAL /
+  // VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL) must be configured. When unset the
+  // UI disables the annual option (graceful) rather than opening a broken checkout.
+  schoolTeacherAnnualPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_SCHOOL_TEACHER_PRICE_ANNUAL as string | undefined) ||
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
   extraClassMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_MONTHLY as string | undefined),
   extraClassAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_EXTRA_CLASS_ANNUAL as string | undefined),
 } as const

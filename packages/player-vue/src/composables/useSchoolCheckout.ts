@@ -29,6 +29,15 @@ export interface StartSchoolCheckoutOptions {
   schoolId: string
   /** Paid teacher seats = Paddle quantity. Clamped to >= 1. */
   seats: number
+  /** Billing period. 'monthly' (default) uses the per-seat monthly price;
+   *  'annual' uses the per-seat annual price (falls back to the tutor annual
+   *  price — see paddleConfig.schoolTeacherAnnualPriceId). */
+  billing?: 'monthly' | 'annual'
+  /** When set, render Paddle's INLINE checkout into this class name (a sized,
+   *  non-scrolly container on UpgradeView) instead of the default overlay. The
+   *  target element must already exist in the DOM. On success Paddle redirects
+   *  the parent window to the successUrl, exactly as the overlay does. */
+  frameTarget?: string
 }
 
 export function useSchoolCheckout() {
@@ -36,9 +45,16 @@ export function useSchoolCheckout() {
 
   async function startSchoolCheckout(opts: StartSchoolCheckoutOptions): Promise<void> {
     if (isOpeningCheckout.value) return
-    const priceId = paddleConfig.schoolTeacherMonthlyPriceId
+    const billing = opts.billing === 'annual' ? 'annual' : 'monthly'
+    const priceId =
+      billing === 'annual'
+        ? paddleConfig.schoolTeacherAnnualPriceId
+        : paddleConfig.schoolTeacherMonthlyPriceId
     if (!priceId) {
-      checkoutError.value = 'School platform price not configured'
+      checkoutError.value =
+        billing === 'annual'
+          ? 'Annual plan not configured — choose monthly'
+          : 'School platform price not configured'
       return
     }
     if (!opts.schoolId) {
@@ -71,8 +87,22 @@ export function useSchoolCheckout() {
           kind: 'school_platform',
           school_id: opts.schoolId,
           supabase_user_id: userId,
+          billing,
         },
         settings: {
+          // INLINE = render into UpgradeView's sized container (no cramped,
+          // scrolly overlay). Falls back to the overlay when no frameTarget is
+          // given. Either way, on success Paddle redirects the parent window to
+          // successUrl, so success handling is identical.
+          ...(opts.frameTarget
+            ? {
+                displayMode: 'inline' as const,
+                frameTarget: opts.frameTarget,
+                frameInitialHeight: 450,
+                frameStyle:
+                  'width:100%; min-width:312px; background-color:transparent; border:none;',
+              }
+            : {}),
           // Drop the admin back on the billing tab; App boot re-reads
           // /api/school/subscription with the now-active platform status.
           successUrl: `${window.location.origin}/schools/settings?just_subscribed=1`,
