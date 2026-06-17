@@ -141,9 +141,7 @@ const closeMobileMenu = () => {
   <nav class="top-nav" :aria-label="props.mode === 'teach' ? 'Teach navigation' : 'Schools navigation'">
     <!-- Logo -->
     <router-link :to="logoHref" class="logo" :aria-label="props.mode === 'teach' ? 'SaySomethingin — Teach' : 'SaySomethingin — Schools'">
-      <span class="logo-text">
-        <span class="say">Say</span><span class="something">Something</span><span class="in">in</span>
-      </span>
+      <img class="logo-img" src="/ssi-web-logo.svg" alt="SaySomethingin" />
       <span class="logo-build mono">{{ buildNumber }}</span>
     </router-link>
 
@@ -342,7 +340,7 @@ const closeMobileMenu = () => {
  * ============================================================ */
 .logo {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   text-decoration: none;
   flex-shrink: 0;
@@ -355,24 +353,10 @@ const closeMobileMenu = () => {
   outline-offset: 2px;
 }
 
-.logo-text {
-  font-family: var(--font-display);
-  font-weight: var(--font-bold);
-  font-size: var(--text-xl);
-  letter-spacing: -0.01em;
-  line-height: 1;
-}
-
-.logo-text .say {
-  color: var(--ssi-red);
-}
-
-.logo-text .something {
-  color: #2C2622;
-}
-
-.logo-text .in {
-  color: var(--ssi-red);
+.logo-img {
+  display: block;
+  height: 30px;
+  width: auto;
 }
 
 .logo-build {

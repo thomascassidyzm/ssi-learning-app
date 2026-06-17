@@ -311,7 +311,7 @@ async function continueIn() {
         <span class="ob-spine" aria-hidden="true"></span>
 
         <header class="ob-brand">
-          <span class="ob-wordmark">SaySomethingin</span>
+          <img class="ob-wordmark" src="/ssi-web-logo.svg" alt="SaySomethingin" />
           <span class="ob-brand-sub">{{ cfg.heading }}</span>
         </header>
 
@@ -798,13 +798,10 @@ async function continueIn() {
   z-index: 1;
 }
 .ob-wordmark {
-  font-family: var(--font-display);
-  font-weight: var(--font-bold, 700);
-  font-size: var(--text-lg, 1.125rem);
-  letter-spacing: -0.01em;
-  color: var(--text-primary, #2c2622);
+  display: block;
+  height: 36px;
+  width: auto;
 }
-.ob-wordmark::first-letter { color: var(--ob-accent-2); }
 .ob-brand-sub {
   font-family: var(--font-body);
   font-size: var(--text-sm, 0.875rem);
