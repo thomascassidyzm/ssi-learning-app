@@ -1,6 +1,31 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 
+// Breadcrumb for the LAST management surface a user was on (`teach` | `schools`).
+// Solo tutors have no `educational_role`, so the role cache can't tell a tutor
+// apart from a plain learner — which is why a tutor who hits /schools used to
+// fall straight onto the member-facing "no school access" wall with no way back.
+// We remember which dashboard they came from so the /schools guard can bounce a
+// non-member back to THEIR surface (a tutor → /teach) instead of the wall.
+const LAST_DASHBOARD_KEY = 'ssi-last-dashboard'
+
+function rememberDashboard(kind: 'teach' | 'schools'): void {
+  try {
+    localStorage.setItem(LAST_DASHBOARD_KEY, kind)
+  } catch {
+    // localStorage unavailable — non-fatal, we just lose the breadcrumb
+  }
+}
+
+function lastDashboard(): 'teach' | 'schools' | null {
+  try {
+    const v = localStorage.getItem(LAST_DASHBOARD_KEY)
+    return v === 'teach' || v === 'schools' ? v : null
+  } catch {
+    return null
+  }
+}
+
 // Lazy-loaded views
 const PlayerContainer = () => import('@/containers/PlayerContainer.vue')
 const SchoolsContainer = () => import('@/containers/SchoolsContainer.vue')
@@ -51,7 +76,7 @@ const routes: RouteRecordRaw[] = [
     // resolve it synchronously, so the container is the right place. This guard
     // just makes sure the role cache is restored first (no flash of wrong state).
     beforeEnter: (_to, _from, next) => {
-      const { canAccessAdmin, hasSchoolRole, restoreFromCache } = useUserRole()
+      const { canAccessAdmin, hasSchoolRole, isInitialized, restoreFromCache } = useUserRole()
       restoreFromCache()
       // ssi_admins have their OWN schools surface (/admin/schools read-views) and
       // aren't members of any school — so redirect them OUT of the member-facing
@@ -63,6 +88,20 @@ const routes: RouteRecordRaw[] = [
       if (canAccessAdmin.value && !hasSchoolRole.value) {
         return next('/admin/schools')
       }
+      // A user with a KNOWN role but NO school role is not a school member.
+      // Solo tutors have no `educational_role`, so they look identical to a
+      // plain learner here — the role cache can't tell them apart. Rather than
+      // let them fall onto the member-facing "no school access" wall (a dead
+      // end — this is exactly what trapped Aran coming from /teach), bounce
+      // them to the surface they belong to: a tutor (last on /teach) back to
+      // /teach, anyone else to the learner home. Only act once the role cache
+      // is initialized, so a first cold load (cache not yet primed) still
+      // reaches the container, which has its own login/loading handling.
+      if (isInitialized.value && !hasSchoolRole.value) {
+        return next(lastDashboard() === 'teach' ? '/teach' : '/')
+      }
+      // Genuine school member — remember it for the symmetric breadcrumb.
+      rememberDashboard('schools')
       next()
     },
     children: [
@@ -186,6 +225,10 @@ const routes: RouteRecordRaw[] = [
     beforeEnter: (_to, _from, next) => {
       const { restoreFromCache } = useUserRole()
       restoreFromCache()
+      // Remember the tutor came from /teach so that if they later land on
+      // /schools (stale link, old bookmark, a confused session) the /schools
+      // guard sends them back HERE rather than dumping them on the member wall.
+      rememberDashboard('teach')
       next()
     },
     children: [
