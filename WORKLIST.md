@@ -104,3 +104,10 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - Student £10/mo (via tutor): `pri_01kqq89qwnsd3qwxvyybsc6ey1`  → VITE_PADDLE_STUDENT_PRICE_MONTHLY
 - Student £5/mo (via school): `pri_01kv5wrc5cz17pwgeva4zk8s0r`  → VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY
 - School platform = same £15/£150 Premium price at quantity>1 (no separate product). Confirm annual price allows qty>1.
+
+## 📌 Paddle STUDENT price IDs (SSi Student product) — added annual 2026-06-17
+- Tutor student MONTHLY £10: `pri_01kqq89qwnsd3qwxvyybsc6ey1`  → VITE_PADDLE_STUDENT_PRICE_MONTHLY
+- Tutor student ANNUAL £100/yr: `pri_01kvaj1ben739erky6zjdjsq22`  → VITE_PADDLE_STUDENT_PRICE_ANNUAL (NEW var — needs wiring + env)
+- School student MONTHLY £5: `pri_01kv5wrc5cz17pwgeva4zk8s0r`  → VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY
+- School student ANNUAL £50/yr: `pri_01kvaj05x1y16trwvm8pdm2wcb`  → VITE_PADDLE_STUDENT_SCHOOL_PRICE_ANNUAL (NEW var — needs wiring + env)
+- TODO if we want student monthly/annual choice: add a toggle in the student join flow (WithTeacher.vue) + the two new annual vars in paddle.ts, mirroring the Upgrade-page annual toggle.
