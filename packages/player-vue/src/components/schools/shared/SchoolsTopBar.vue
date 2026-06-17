@@ -24,7 +24,7 @@ const tabs = computed<NavTab[]>(() => {
       { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
       { label: 'Students',  to: '/schools/students',  routeName: 'students' },
       { label: 'Teachers',  to: '/schools/teachers',  routeName: 'teachers' },
-      { label: 'Analytics', to: '/teacher-insights',  routeName: 'teacher-insights' },
+      { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
       { label: 'Settings',  to: '/schools/settings',  routeName: 'settings' },
       { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
     ]
@@ -33,7 +33,7 @@ const tabs = computed<NavTab[]>(() => {
   return [
     { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
     { label: 'Students',  to: '/schools/students',  routeName: 'students' },
-    { label: 'Analytics', to: '/teacher-insights',  routeName: 'teacher-insights' },
+    { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
   ]
 })
 

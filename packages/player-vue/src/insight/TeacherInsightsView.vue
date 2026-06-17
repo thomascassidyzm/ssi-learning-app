@@ -46,6 +46,11 @@ import {
 import type { RateComparisonData } from './spec'
 import '@/styles/schools-tokens.css'
 
+// When `embedded`, this view renders INSIDE the schools shell (SchoolsContainer
+// provides the SchoolsTopBar + the page scroll), so it must NOT render its own
+// TopNav or impose its own full-viewport scroll. Standalone path is unchanged.
+const props = defineProps<{ embedded?: boolean }>()
+
 // ── The teacher's OWN classes ───────────────────────────────────────────────
 // A teacher usually teaches more than one class, so they pick among THEIR set —
 // never any class outside it. Every label here must exist verbatim in
@@ -166,10 +171,11 @@ const scopeLabel = computed(() =>
 </script>
 
 <template>
-  <!-- The teacher's dashboard nav is always present (wayfinding + escape). -->
-  <TopNav :force-tabs="true" />
+  <!-- The teacher's dashboard nav is present in the standalone page; when
+       embedded the schools shell (SchoolsTopBar) provides it instead. -->
+  <TopNav v-if="!props.embedded" :force-tabs="true" />
 
-  <div class="tiv-scroll">
+  <div :class="['tiv-scroll', { 'tiv-scroll--embedded': props.embedded }]">
   <div class="tiv schools-surface">
     <!-- ── Calm, minimal teacher header (NOT the admin "Insight Engine") ── -->
     <header class="tiv-head">
@@ -268,6 +274,20 @@ const scopeLabel = computed(() =>
   background: var(--bg-primary, #e8e3dd);
   /* Clear the fixed TopNav so content starts below it. */
   padding-top: calc(var(--nav-height, 80px) + env(safe-area-inset-top, 0px));
+}
+
+/* Embedded inside SchoolsContainer: the shell owns the top bar AND the page
+ * scroll, so drop the full-viewport height, the own overflow, and the
+ * nav-clearing padding. The content just flows in the shell's content area. */
+.tiv-scroll--embedded {
+  height: auto;
+  min-height: 0;
+  overflow-y: visible;
+  padding-top: 0;
+  background: transparent;
+}
+.tiv-scroll--embedded .tiv {
+  min-height: 0;
 }
 
 .tiv {
