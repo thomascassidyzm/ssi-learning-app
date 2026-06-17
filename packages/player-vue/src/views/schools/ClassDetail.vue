@@ -230,6 +230,25 @@ async function handleRemoveStudent(student: { user_id: string; name: string }) {
     .is('removed_at', null)
   if (!error) fetchClassDetail(classData.value.id)
 }
+
+// Rename the class. classes now grants authenticated UPDATE (the create-class
+// grant fix), so a direct client update works — mirrors the native-dialog
+// pattern used by handleRemoveStudent above.
+async function renameClass() {
+  const next = (window.prompt('Rename class', classData.value.class_name) || '').trim()
+  if (!next || next === classData.value.class_name) return
+  const supabase = getSchoolsClient()
+  const { error } = await supabase
+    .from('classes')
+    .update({ class_name: next })
+    .eq('id', classData.value.id)
+  if (error) {
+    console.error('[ClassDetail] rename failed:', error)
+    window.alert('Could not rename the class. Please try again.')
+    return
+  }
+  fetchClassDetail(classData.value.id)
+}
 </script>
 
 <template>
@@ -243,7 +262,18 @@ async function handleRemoveStudent(student: { user_id: string; name: string }) {
     <header class="page-head">
       <div class="page-head-text">
         <div class="schools-kicker page-eyebrow">{{ courseLabel }}</div>
-        <h1 class="arsenal page-title">{{ classData.class_name }}</h1>
+        <h1 class="arsenal page-title">
+          {{ classData.class_name }}
+          <button
+            type="button"
+            title="Rename class"
+            aria-label="Rename class"
+            @click="renameClass"
+            style="margin-left:10px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+        </h1>
         <div class="meta-row">
           <span class="meta-belt">
             <BeltDot :belt="classBelt" :size="12" ring />
