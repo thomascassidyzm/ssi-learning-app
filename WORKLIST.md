@@ -97,3 +97,10 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - [ ] **Paddle checkout window too small / scrolls** — make the checkout bigger so it doesn't need to scroll. Investigate Paddle settings (overlay sizing vs inline checkout in a larger container).
 - [ ] **Monthly OR annual pricing choice** — add a monthly/annual toggle on the Upgrade page (tutor + school lanes). Wire the annual Paddle price IDs (VITE_PADDLE_TEACHER_PRICE_ANNUAL exists; school annual needs a var/fallback). NOTE: actual annual prices must be created in Paddle + env vars set (Tom) — build the UI + plumbing with graceful fallback.
 - Touches UpgradeView.vue, useSchoolCheckout.ts, useCheckout.ts, TeachDashboard.vue, lib/paddle.ts (NOT the onboarding picker — safe alongside that agent).
+
+## 📌 Paddle LIVE price IDs (for env-var config — not secret, client-inlined)
+- Premium MONTHLY £15: `pri_01kqq85gvncyasfmfvvpcv1xfg`  → VITE_PADDLE_TEACHER_PRICE_MONTHLY
+- Premium ANNUAL £150/yr: `pri_01kqq86ymc3yhm8be3w7f7kgr1`  → VITE_PADDLE_TEACHER_PRICE_ANNUAL  (set this to enable annual; school annual falls back to it)
+- Student £10/mo (via tutor): `pri_01kqq89qwnsd3qwxvyybsc6ey1`  → VITE_PADDLE_STUDENT_PRICE_MONTHLY
+- Student £5/mo (via school): `pri_01kv5wrc5cz17pwgeva4zk8s0r`  → VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY
+- School platform = same £15/£150 Premium price at quantity>1 (no separate product). Confirm annual price allows qty>1.
