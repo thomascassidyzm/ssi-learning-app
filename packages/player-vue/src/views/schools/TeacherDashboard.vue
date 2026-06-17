@@ -249,6 +249,20 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
   router.push({ name: 'class-detail', params: { id: cls.id } })
 }
 
+// Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
+// DashboardView): launch the player inside the schools shell for this class.
+function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string }) {
+  localStorage.setItem('ssi-last-course', cls.course_code)
+  localStorage.setItem('ssi-active-class', JSON.stringify({
+    id: cls.id,
+    name: cls.class_name,
+    course_code: cls.course_code,
+    current_seed: cls.current_seed,
+    timestamp: new Date().toISOString(),
+  }))
+  router.push({ path: '/schools/play', query: { class: cls.id } })
+}
+
 // Per-class share link + one-click copy (mirrors the tutor dashboard so the
 // school lane gets the same "create class → copy link → fill roster" flow).
 const origin = typeof window !== 'undefined' ? window.location.origin : ''
@@ -389,7 +403,16 @@ function exportCsv() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="cls in filtered" :key="cls.id">
+          <tr
+            v-for="cls in filtered"
+            :key="cls.id"
+            class="row-clickable"
+            tabindex="0"
+            role="button"
+            :aria-label="`Open ${cls.class_name}`"
+            @click="openClass(cls)"
+            @keyup.enter="openClass(cls)"
+          >
             <td>
               <div class="cell-name">{{ cls.class_name }}</div>
               <div class="cell-code">{{ cls.join_code }}</div>
@@ -412,12 +435,12 @@ function exportCsv() {
               </span>
             </td>
             <td class="cell-share">
-              <button type="button" class="share-btn" @click="copyShareLink(cls)" :title="shareUrlFor(cls)">
+              <button type="button" class="share-btn" @click.stop="copyShareLink(cls)" :title="shareUrlFor(cls)">
                 {{ copiedClassId === cls.id ? 'Copied ✓' : 'Copy link' }}
               </button>
             </td>
             <td class="cell-action">
-              <a href="#" class="cell-link" @click.prevent="openClass(cls)">Open &rarr;</a>
+              <button type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
             </td>
           </tr>
         </tbody>
@@ -617,9 +640,28 @@ function exportCsv() {
   color: var(--schools-fg-2);
 }
 
+/* The whole class row opens the class page; the Share/Play buttons stop
+   propagation so they act on their own. */
+.row-clickable { cursor: pointer; }
+.row-clickable:hover { background: #f6f5f1; }
+.row-clickable:focus-visible { outline: 2px solid var(--schools-red); outline-offset: -2px; }
+
 .cell-action {
   text-align: right;
 }
+
+.row-play-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--schools-red);
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.row-play-btn:hover { background: var(--schools-red-deep); }
 
 .cell-link {
   font-size: 12px;
