@@ -123,10 +123,13 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'analytics',
         name: 'analytics',
-        component: AnalyticsView,
+        // The teacher-scoped Rate-compare insight tool, embedded in the schools
+        // shell (its own TopNav + full-viewport scroll suppressed via `embedded`).
+        component: () => import('@/insight/TeacherInsightsView.vue'),
+        props: { embedded: true },
         meta: {
           title: 'Analytics',
-          description: 'Detailed learning analytics and reports',
+          description: 'Your class vs the average — the Rate-compare insight tool',
         },
       },
       {
