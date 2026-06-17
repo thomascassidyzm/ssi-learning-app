@@ -2,8 +2,6 @@
 import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
-import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
-import DensityToggle from './DensityToggle.vue'
 
 type NavTab = { label: string; to: string; routeName?: string }
 
@@ -12,11 +10,6 @@ const router = useRouter()
 const { currentUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
 
 const auth = inject<any>('auth', null)
-
-const { density } = useSchoolsDensity()
-
-// Density toggle only appears on the dashboard surface.
-const showDensity = computed(() => route.name === 'schools-dashboard')
 
 const tabs = computed<NavTab[]>(() => {
   if (isGovtAdmin.value) {
@@ -113,11 +106,6 @@ if (typeof document !== 'undefined') {
     </div>
 
     <div class="right">
-      <template v-if="showDensity">
-        <DensityToggle v-model="density" />
-        <span class="divider" />
-      </template>
-
       <span v-if="schoolLabel" class="school-label">{{ schoolLabel }}</span>
 
       <div class="user-menu">
