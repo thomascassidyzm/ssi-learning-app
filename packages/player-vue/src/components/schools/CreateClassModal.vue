@@ -63,6 +63,17 @@ watch(() => props.isOpen, (newVal) => {
   }
 })
 
+// The locked trial course can resolve AFTER the modal opens (school data loads
+// async), so the isOpen watch above may run while the list is still the default
+// (unlocked) and leave courseCode ''. Re-preselect whenever the list settles to
+// a single locked course — otherwise the Create button stays permanently
+// disabled even though the course is shown as locked.
+watch(courseList, (list) => {
+  if (props.isOpen && courseLocked.value && list.length) {
+    courseCode.value = list[0].code
+  }
+})
+
 const handleClose = () => {
   emit('close')
 }
