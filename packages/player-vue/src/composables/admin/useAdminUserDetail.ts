@@ -427,6 +427,43 @@ export function useAdminUserDetail(client: SupabaseClient) {
     }
   }
 
+  // Admin test helper: skip the target user to end-of-trial (or restore it).
+  // Backdates the platform trial + course play-trial so the gates fire on the
+  // target's next load. `authUserId` is the target's auth uid (profile.user_id).
+  async function setTrial(
+    learnerId: string,
+    authUserId: string,
+    action: 'expire' | 'restore',
+    getAuthToken: () => Promise<string | null>
+  ): Promise<boolean> {
+    const token = await getAuthToken()
+    if (!token) return false
+
+    try {
+      const resp = await fetch('/api/admin/set-trial', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ user_id: authUserId, action }),
+      })
+
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        console.error('[AdminUserDetail] setTrial error:', data.error)
+        return false
+      }
+
+      // Refresh so the entitlement expiries reflect the change.
+      await fetchUserDetail(learnerId)
+      return true
+    } catch (err) {
+      console.error('[AdminUserDetail] setTrial error:', err)
+      return false
+    }
+  }
+
   function getCourseProgress(courseId: string): CourseProgress {
     return courseProgress.value.get(courseId) || {
       course_id: courseId,
@@ -456,6 +493,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
     updateUserRole,
     grantEntitlement,
     revokeEntitlement,
+    setTrial,
     getCourseProgress,
   }
 }
