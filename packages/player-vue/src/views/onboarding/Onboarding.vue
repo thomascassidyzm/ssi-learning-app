@@ -584,8 +584,14 @@ async function continueIn() {
 
 .onboard {
   position: relative;
-  min-height: 100vh;
-  min-height: 100dvh;
+  /* The app shell pins body { overflow: hidden } (style.css) for the player, so
+     this standalone route must be its OWN scroll container — otherwise the form
+     column (email + "Send my code") below the fold is unreachable on mobile.
+     Same pattern as the teacher-insights .tiv-scroll. */
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: grid;
   grid-template-columns: 44fr 56fr;
   background: var(--bg-primary, #e8e3dd);
