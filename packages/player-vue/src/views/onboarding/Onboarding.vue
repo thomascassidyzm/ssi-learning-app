@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, inject, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
@@ -21,6 +22,14 @@ const props = defineProps<{ track: OnboardingTrack }>()
 const supabase = inject('supabase', ref(null)) as any
 
 const cfg = computed(() => TRACKS[props.track])
+
+// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE-languages
+// door: it must surface Welsh + Irish first and must NOT default to English. The
+// other school door (/schools2) and the tutor door keep the English-first default.
+// Keyed off the route NAME because both school doors share track: 'school'.
+const route = useRoute()
+const isHeritageDoor = computed(() => route.name === 'onboard-school-1')
+const HERITAGE_LANGS = ['cym', 'gle'] // Welsh, Irish (Welsh N/S are course variants under 'cym')
 
 type Step = 'choose' | 'otp' | 'done'
 const step = ref<Step>('choose')
@@ -99,11 +108,18 @@ const targetOpen = ref(false)
 function targetName(code: string): string {
   return targetLangName(code)
 }
-const targetOptions = computed(() =>
-  [...availableTargetLangs.value]
+// On the heritage door (schools1) Welsh + Irish are pinned first (in HERITAGE_LANGS
+// order); everywhere else English is pinned first. Remaining languages sort A–Z.
+const targetOptions = computed(() => {
+  const pinned = isHeritageDoor.value ? HERITAGE_LANGS : ['eng']
+  const rank = (code: string) => {
+    const i = pinned.indexOf(code)
+    return i === -1 ? pinned.length : i
+  }
+  return [...availableTargetLangs.value]
     .map((code) => ({ code, name: targetName(code) }))
-    .sort((a, b) => (a.code === 'eng' ? -1 : b.code === 'eng' ? 1 : a.name.localeCompare(b.name)))
-)
+    .sort((a, b) => rank(a.code) - rank(b.code) || a.name.localeCompare(b.name))
+})
 // There will eventually be hundreds of target languages, so the open menu is
 // filterable by name (mirrors the learner-language search below).
 const targetQuery = ref('')
@@ -188,11 +204,15 @@ onMounted(async () => {
   } finally {
     coursesLoaded.value = true
   }
-  // Default the taught language to English (most schools/tutors teach English);
-  // fall back to the first available target otherwise.
-  targetLang.value = availableTargetLangs.value.includes('eng')
-    ? 'eng'
-    : (availableTargetLangs.value[0] || 'eng')
+  // Default the taught language. The heritage door (schools1) defaults to the first
+  // available heritage language (Welsh, then Irish) and NEVER to English; every other
+  // door defaults to English (most schools/tutors teach English). Either way, fall
+  // back to the first available target if the preferred one isn't deployed.
+  const preferred = isHeritageDoor.value ? HERITAGE_LANGS : ['eng']
+  targetLang.value =
+    preferred.find((code) => availableTargetLangs.value.includes(code)) ||
+    availableTargetLangs.value[0] ||
+    'eng'
   // Preselect when the chosen target offers exactly one learner-language. The
   // targetLang watch above re-runs maybeAutoSelect when the value actually
   // changes; call it directly too in case it stayed 'eng' (no change → no watch).
