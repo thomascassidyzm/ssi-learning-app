@@ -35,14 +35,34 @@ interface PublicClass {
 const STANDARD_SSI_PRICE = 15
 const isSchoolClass = computed(() => !!classInfo.value?.school_id)
 const STUDENT_MONTHLY_PRICE = computed(() => (isSchoolClass.value ? 5 : 10))
+// Annual = 10× the monthly figure → exactly 2 months free (12×£5=£60 vs £50;
+// 12×£10=£120 vs £100). Displayed only; the webhook re-derives commission.
+const STUDENT_ANNUAL_PRICE = computed(() => (isSchoolClass.value ? 50 : 100))
+const ANNUAL_MONTHS_FREE = 2
+
+// Billing period (monthly default).
+type Billing = 'monthly' | 'annual'
+const billing = ref<Billing>('monthly')
+const isAnnual = computed(() => billing.value === 'annual')
+function setBilling(b: Billing) {
+  billing.value = b
+}
+
 // Env wins; the hardcoded fallbacks are the live Paddle prices on the SSi Student
 // product (pro_01kqq83bayhsvdtk9cttvar9aw). A school class falls back ONLY to the
-// dedicated £5 price — never to the £10 tutor price — so it can't over-charge.
-const studentPriceId = computed(() =>
-  isSchoolClass.value
+// dedicated school price — never to the tutor price — so it can't over-charge.
+// Annual works on the hardcoded fallback alone (no env var required) so real
+// annual purchases can be tested on prod immediately.
+const studentPriceId = computed(() => {
+  if (isAnnual.value) {
+    return isSchoolClass.value
+      ? (paddleConfig.studentSchoolAnnualPriceId || 'pri_01kvaj05x1y16trwvm8pdm2wcb')
+      : (paddleConfig.studentAnnualPriceId || 'pri_01kvaj1ben739erky6zjdjsq22')
+  }
+  return isSchoolClass.value
     ? (paddleConfig.studentSchoolMonthlyPriceId || 'pri_01kv5wrc5cz17pwgeva4zk8s0r')
     : (paddleConfig.studentMonthlyPriceId || 'pri_01kqq89qwnsd3qwxvyybsc6ey1')
-)
+})
 
 const teacher = ref<PublicTeacher | null>(null)
 const classInfo = ref<PublicClass | null>(null)
@@ -255,14 +275,41 @@ function cancelLogin() {
         <p v-if="teacher.bio" class="bio">{{ teacher.bio }}</p>
 
         <div class="price-block">
-          <div class="price-row">
-            <span class="price-amount frost-mono-nums">£{{ STUDENT_MONTHLY_PRICE }}</span>
-            <span class="price-period">/ month</span>
+          <div class="billing-toggle" role="tablist" aria-label="Billing period">
+            <button
+              type="button"
+              role="tab"
+              class="billing-opt"
+              :class="{ 'is-active': !isAnnual }"
+              :aria-selected="!isAnnual"
+              @click="setBilling('monthly')"
+            >Monthly</button>
+            <button
+              type="button"
+              role="tab"
+              class="billing-opt"
+              :class="{ 'is-active': isAnnual }"
+              :aria-selected="isAnnual"
+              @click="setBilling('annual')"
+            >
+              Annual
+              <span class="billing-badge">{{ ANNUAL_MONTHS_FREE }} months free</span>
+            </button>
           </div>
-          <p class="price-pitch">
+
+          <div class="price-row">
+            <span v-if="!isAnnual" class="price-amount frost-mono-nums">£{{ STUDENT_MONTHLY_PRICE }}</span>
+            <span v-else class="price-amount frost-mono-nums">£{{ STUDENT_ANNUAL_PRICE }}</span>
+            <span class="price-period">{{ isAnnual ? '/ year' : '/ month' }}</span>
+          </div>
+          <p v-if="!isAnnual" class="price-pitch">
             That's <strong>£{{ STANDARD_SSI_PRICE - STUDENT_MONTHLY_PRICE }} off</strong>
             the regular SaySomethingin price (£{{ STANDARD_SSI_PRICE }}/month) —
             unlocked by your teacher's class.
+          </p>
+          <p v-else class="price-pitch">
+            That's <strong>{{ ANNUAL_MONTHS_FREE }} months free</strong> versus paying
+            £{{ STUDENT_MONTHLY_PRICE }}/month — unlocked by your teacher's class.
           </p>
           <p class="price-hint">
             You'll have your own SaySomethingin account to practise between live sessions.
@@ -464,6 +511,52 @@ function cancelLogin() {
   flex-direction: column;
   gap: var(--space-3);
   width: 100%;
+}
+
+/* Monthly / annual toggle — mirrors the UpgradeView segmented control,
+   restyled with this page's Mist tokens. */
+.billing-toggle {
+  display: inline-flex;
+  align-self: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  margin-bottom: var(--space-2);
+  background: rgba(44, 38, 34, 0.05);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  border-radius: var(--radius-lg);
+}
+
+.billing-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+  font-family: var(--font-body);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.billing-opt.is-active {
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.billing-badge {
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
 }
 
 .price-row {
