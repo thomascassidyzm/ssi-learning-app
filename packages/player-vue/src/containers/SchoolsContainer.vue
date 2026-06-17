@@ -146,6 +146,18 @@ const joinCodeError = ref('')
 const joinCodeSuccess = ref('')
 const isJoinCodeLoading = ref(false)
 
+// Escape hatch: anyone who lands on this "no school access" wall by mistake
+// (e.g. a tutor whose session got confused) must always be able to get back to
+// a clean login. Sign out, then reload → the schools sign-in form.
+async function handleSignOut() {
+  try {
+    if (auth?.signOut) await auth.signOut()
+    else await supabase.value?.auth?.signOut()
+  } finally {
+    window.location.href = '/schools'
+  }
+}
+
 async function handleRedeemCode() {
   if (!joinCode.value.trim()) return
   isJoinCodeLoading.value = true
@@ -395,6 +407,15 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
             <router-link to="/schools/setup" class="form-secondary form-secondary--link">
               I'm setting up a new school →
             </router-link>
+            <router-link to="/teach" class="form-secondary form-secondary--link">
+              I'm a tutor — go to my dashboard →
+            </router-link>
+            <a href="/" class="form-secondary form-secondary--link">
+              Just here to learn → go to the app
+            </a>
+            <button type="button" class="form-escape-link" @click="handleSignOut">
+              Not your account? Sign out
+            </button>
           </form>
         </div>
       </section>
@@ -754,6 +775,22 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
 .form-secondary:hover:not(:disabled) { color: var(--schools-fg); }
 .form-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 .form-secondary--link { display: inline-block; }
+
+/* Escape hatch — always a way back to a clean login from this wall. */
+.form-escape-link {
+  display: block;
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--schools-red);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-body);
+  text-align: left;
+}
+.form-escape-link:hover { color: var(--schools-red-deep); text-decoration: underline; }
 
 .form-secondary-row {
   display: flex;
