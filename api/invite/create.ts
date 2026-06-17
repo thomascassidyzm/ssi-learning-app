@@ -9,6 +9,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { generateCode } from '../_utils/codeGen'
+import { boundPrivilegedCodeLimits } from '../_utils/codeGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -166,8 +167,19 @@ export default async function handler(
     if (grants_school_id !== undefined) insertData.grants_school_id = grants_school_id
     if (grants_class_id !== undefined) insertData.grants_class_id = grants_class_id
     if (metadata !== undefined) insertData.metadata = metadata
-    if (expires_at !== undefined) insertData.expires_at = expires_at
-    if (max_uses !== undefined) insertData.max_uses = max_uses
+
+    // Privileged codes (admin / tester) are bearer tokens to elevated access —
+    // force them to be bounded (must expire, must have a use cap). Onboarding
+    // codes (school/teacher/student/govt) keep the caller's values as-is.
+    const isPrivileged = code_type === 'ssi_admin' || code_type === 'god' || code_type === 'tester'
+    if (isPrivileged) {
+      const bounded = boundPrivilegedCodeLimits(expires_at, max_uses)
+      insertData.expires_at = bounded.expires_at
+      insertData.max_uses = bounded.max_uses
+    } else {
+      if (expires_at !== undefined) insertData.expires_at = expires_at
+      if (max_uses !== undefined) insertData.max_uses = max_uses
+    }
 
     const { data: created, error: insertError } = await supabase
       .from('invite_codes')

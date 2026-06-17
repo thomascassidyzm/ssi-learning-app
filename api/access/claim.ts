@@ -156,8 +156,11 @@ export async function applyGrantsForLearner(
       continue
     }
 
-    // Apply optional dashboard role (non-fatal).
-    await applyDashboardRole(supabase, learnerId, grant)
+    // Apply optional dashboard role (non-fatal). Actor is null here — this runs
+    // on the learner's own sign-in (self-apply); target_learner_id records whom.
+    await applyDashboardRole(supabase, learnerId, grant, {
+      source: 'email-allowlist',
+    })
 
     // Mark the grant redeemed (first learner to claim it stamps it). Best-effort
     // — the unique index, not this stamp, is the real idempotency guard.

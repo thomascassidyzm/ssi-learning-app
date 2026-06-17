@@ -25,6 +25,7 @@ const {
   updateUserRole,
   grantEntitlement,
   revokeEntitlement,
+  setTrial,
   getCourseProgress,
 } = useAdminUserDetail(getClient())
 
@@ -225,6 +226,12 @@ const dormantEnrollments = computed<Enrollment[]>(() =>
 
 const showDormant = ref(false)
 
+// Engine telemetry (player events, L1 state, pause mastery, per-day sessions)
+// is debug-only — collapsed by default so the page is identity + permissions
+// + a light activity read, not a wall of zeros. One toggle reveals it when
+// actually diagnosing a reported issue.
+const showDiagnostics = ref(false)
+
 const showGrantForm = ref(false)
 const grantAccessType = ref('full')
 const grantDurationType = ref('lifetime')
@@ -321,6 +328,18 @@ async function handleGrant() {
 async function handleRevoke(entitlementId: string) {
   if (!profile.value || !confirm('Revoke this entitlement?')) return
   await revokeEntitlement(profile.value.id, entitlementId, getAuthToken)
+}
+
+// ─── Trial testing (admin-only) ────────────────────────────────────
+// "Skip to end of trial" backdates this user's platform trial (school +
+// tutor) and course play-trial so the end-of-trial gates fire on their
+// next load. Restore pushes the windows back out. Reversible, DB-only.
+const trialBusy = ref(false)
+async function handleSetTrial(action: 'expire' | 'restore') {
+  if (!profile.value) return
+  trialBusy.value = true
+  await setTrial(profile.value.id, profile.value.user_id, action, getAuthToken)
+  trialBusy.value = false
 }
 </script>
 
@@ -605,6 +624,27 @@ async function handleRevoke(entitlementId: string) {
         </div>
       </section>
 
+      <!-- Trial testing (admin-only) — simulate end-of-trial for QA -->
+      <section class="section">
+        <div class="section-head">
+          <h3 class="section-title frost-display">Trial testing</h3>
+        </div>
+        <div class="schools-card trial-test-panel">
+          <p class="trial-test-hint">
+            Skip this account to the end of its trial (school + tutor platform
+            trial and any course play-trial), or restore the windows. Reversible.
+          </p>
+          <div class="field-actions">
+            <button class="btn-primary" :disabled="trialBusy" @click="handleSetTrial('expire')">
+              {{ trialBusy ? 'Working…' : 'Skip to end of trial' }}
+            </button>
+            <button class="btn-ghost" :disabled="trialBusy" @click="handleSetTrial('restore')">
+              Restore trial (+30 days)
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- Course progress — split into "active" (anything with real
            practice or activity in the last 30 days) and "dormant"
            (opened but never played). Most learners have 30+ dormant
@@ -652,25 +692,6 @@ async function handleRevoke(entitlementId: string) {
                 <span class="schools-subtle">No learning engine fires yet</span>
               </div>
 
-              <div class="course-stats">
-                <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).seeds_introduced }}</span>
-                  <span class="stat-label">Seeds touched</span>
-                </div>
-                <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).legos_seen }}</span>
-                  <span class="stat-label">LEGOs seen</span>
-                </div>
-                <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).legos_mastered }}</span>
-                  <span class="stat-label">Mastered</span>
-                </div>
-                <div class="course-stat">
-                  <span class="stat-value frost-mono-nums">{{ getCourseProgress(enrollment.course_id).total_l1_fires }}</span>
-                  <span class="stat-label">L1 fires</span>
-                </div>
-              </div>
-
               <div class="course-foot">
                 <span>
                   <span class="schools-subtle">Practice ·</span>
@@ -703,6 +724,16 @@ async function handleRevoke(entitlementId: string) {
         </div>
       </section>
 
+      <!-- Diagnostics toggle — everything below is engine telemetry / debug,
+           hidden by default to keep the page about identity + permissions. -->
+      <section class="section">
+        <button class="btn-ghost diag-toggle" @click="showDiagnostics = !showDiagnostics">
+          {{ showDiagnostics ? 'Hide diagnostics' : 'Show diagnostics' }}
+          <span class="diag-hint">activity log · player events · L1 / mastery telemetry</span>
+        </button>
+      </section>
+
+      <template v-if="showDiagnostics">
       <!-- Recent activity (per-day rollup from learner_speaking_opportunities) -->
       <section class="section">
         <h3 class="section-title frost-display">
@@ -927,6 +958,7 @@ async function handleRevoke(entitlementId: string) {
           </span>
         </div>
       </section>
+      </template>
     </template>
   </div>
 </template>
@@ -1273,6 +1305,16 @@ async function handleRevoke(entitlementId: string) {
   color: var(--schools-fg);
 }
 
+.diag-toggle {
+  align-self: flex-start;
+}
+
+.diag-hint {
+  font-weight: var(--font-normal);
+  font-size: var(--text-xs);
+  color: var(--schools-fg-3);
+}
+
 /* ---------- Grant panel ---------- */
 .grant-panel {
   padding: 0;
@@ -1313,6 +1355,18 @@ async function handleRevoke(entitlementId: string) {
 .field-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.trial-test-panel {
+  padding: 1rem 1.25rem;
+}
+
+.trial-test-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #64748b);
+  line-height: 1.4;
 }
 
 .reveal-enter-active,

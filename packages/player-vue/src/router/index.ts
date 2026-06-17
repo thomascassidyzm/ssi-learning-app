@@ -20,6 +20,7 @@ const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const StudentProgressView = () => import('@/views/schools/StudentProgressView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
+const UpgradeView = () => import('@/views/schools/UpgradeView.vue')
 // Teach (private tutor) views
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
 const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
@@ -164,6 +165,12 @@ const routes: RouteRecordRaw[] = [
           description: 'Run a class learning session — schools top bar stays above the player',
         },
       },
+      {
+        path: 'upgrade',
+        name: 'schools-upgrade',
+        component: UpgradeView,
+        meta: { title: 'Upgrade', description: 'Subscribe / manage teacher seats' },
+      },
     ],
   },
   // Teach (private tutor) routes
@@ -190,6 +197,12 @@ const routes: RouteRecordRaw[] = [
         name: 'teach-setup',
         component: TeachSetup,
         meta: { title: 'Set up your teacher profile' },
+      },
+      {
+        path: 'upgrade',
+        name: 'teach-upgrade',
+        component: UpgradeView,
+        meta: { title: 'Upgrade', description: 'Subscribe to your tutoring dashboard' },
       },
     ],
   },

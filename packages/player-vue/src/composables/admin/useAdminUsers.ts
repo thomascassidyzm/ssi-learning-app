@@ -1,17 +1,22 @@
 /**
- * useAdminUsers - Loads ALL users once on mount, filters client-side.
+ * useAdminUsers - Loads ALL users once on mount, filters/sorts client-side.
  *
- * At ~1.3k users this is far snappier than round-tripping to the server
- * on every keystroke; total payload is ~300KB once. Switch back to
- * server-side search once user count crosses ~5k.
+ * The /api/admin/users endpoint now returns each user fully enriched
+ * (emails + access tier + activity rollup) in ONE request, so there is no
+ * second per-learner enrollment round-trip — the list renders as soon as
+ * that single fetch returns. Client-side filter/sort is instant at this
+ * scale; switch to the endpoint's server-side search once users cross ~5k.
  *
- * Pulls users (with emails) from /api/admin/users (service-role on the
- * server, only safe way to read auth.users.email + learner_emails).
- * Enrollments are still queried directly via the user's Supabase client.
+ * This page is for FINDING users fast and CHECKING PERMISSIONS, so the
+ * default surfaces who's actually using the app (most-recently-active) and
+ * exposes tier (premium/free/admin/school) for filtering.
  */
 
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+
+export type Tier = 'admin' | 'school' | 'premium' | 'free'
+export type SortKey = 'active' | 'practice' | 'joined' | 'name'
 
 interface AdminUser {
   id: string
@@ -22,42 +27,60 @@ interface AdminUser {
   created_at: string
   educational_role: string | null
   platform_role: string | null
-}
-
-interface UserEnrollment {
-  learner_id: string
-  course_id: string
-  last_practiced_at: string | null
-  total_practice_minutes: number
+  // Enriched server-side:
+  tier: Tier
+  last_active: string | null
+  practice_minutes: number
+  course_ids: string[]
 }
 
 const PAGE_SIZE = 50
 const FETCH_LIMIT = 10000 // grab everything in one shot
 
-// PostgREST URL length cap is ~16KB. A UUID + comma is ~37 chars, ~39 once
-// URL-encoded, so a single .in() with all 1348 learner IDs blows past it.
-// 200 IDs per chunk ≈ 7.8KB, comfortably under the cap with headroom for
-// the rest of the URL.
-const ENROLLMENT_CHUNK_SIZE = 200
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  if (size <= 0) return [arr]
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) {
-    out.push(arr.slice(i, i + size))
-  }
-  return out
-}
-
 const allUsers = ref<AdminUser[]>([])
-const enrollments = ref<Map<string, UserEnrollment[]>>(new Map())
 
 const currentPage = ref(1)
 const searchQuery = ref('')
 const courseFilter = ref<string | null>(null)
+const tierFilter = ref<Tier | null>(null)
+const sortKey = ref<SortKey>('active')
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+
+// Epoch ms for a timestamp; never-active sorts last.
+function ts(d: string | null): number {
+  return d ? new Date(d).getTime() : -Infinity
+}
+
+// Search relevance: exact (3) > starts-with (2) > contains (1) > no match (-1),
+// matched against display name OR any email.
+function matchScore(u: AdminUser, q: string): number {
+  const name = (u.display_name || '').toLowerCase()
+  const emails = u.emails.map(e => e.toLowerCase())
+  if (name === q || emails.includes(q)) return 3
+  if (name.startsWith(q) || emails.some(e => e.startsWith(q))) return 2
+  if (name.includes(q) || emails.some(e => e.includes(q))) return 1
+  return -1
+}
+
+function compareBy(key: SortKey) {
+  return (a: AdminUser, b: AdminUser): number => {
+    switch (key) {
+      case 'active':
+        return ts(b.last_active) - ts(a.last_active) ||
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      case 'practice':
+        return (b.practice_minutes - a.practice_minutes) ||
+          ts(b.last_active) - ts(a.last_active)
+      case 'joined':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      case 'name':
+        return (a.display_name || '￿').toLowerCase()
+          .localeCompare((b.display_name || '￿').toLowerCase())
+    }
+  }
+}
 
 export function useAdminUsers(client: SupabaseClient) {
 
@@ -76,10 +99,7 @@ export function useAdminUsers(client: SupabaseClient) {
 
     try {
       const token = await getToken()
-      const params = new URLSearchParams({
-        page: '1',
-        limit: String(FETCH_LIMIT),
-      })
+      const params = new URLSearchParams({ page: '1', limit: String(FETCH_LIMIT) })
 
       const res = await fetch(`/api/admin/users?${params.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -89,40 +109,7 @@ export function useAdminUsers(client: SupabaseClient) {
         throw new Error(body.error || `Request failed: ${res.status}`)
       }
       const data = await res.json()
-
       allUsers.value = data.users || []
-
-      if (allUsers.value.length === 0) {
-        enrollments.value = new Map()
-        return
-      }
-
-      // Batch fetch enrollments. We chunk the IN clause so the request URL
-      // stays under PostgREST's ~16KB limit — at ~1.3k learners a single
-      // .in() produces a ~50KB URL and gets rejected with 400 Bad Request.
-      const ids = allUsers.value.map(u => u.id)
-      const idChunks = chunk(ids, ENROLLMENT_CHUNK_SIZE)
-
-      const enrollResults = await Promise.all(
-        idChunks.map(chunkIds =>
-          client
-            .from('course_enrollments')
-            .select('learner_id, course_id, last_practiced_at, total_practice_minutes')
-            .in('learner_id', chunkIds),
-        ),
-      )
-
-      const enrollMap = new Map<string, UserEnrollment[]>()
-      for (const { data: enrollData, error: enrollErr } of enrollResults) {
-        if (enrollErr) throw enrollErr
-        enrollData?.forEach(e => {
-          if (!enrollMap.has(e.learner_id)) {
-            enrollMap.set(e.learner_id, [])
-          }
-          enrollMap.get(e.learner_id)!.push(e)
-        })
-      }
-      enrollments.value = enrollMap
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch users'
       console.error('[AdminUsers] fetch error:', err)
@@ -131,28 +118,31 @@ export function useAdminUsers(client: SupabaseClient) {
     }
   }
 
-  // Apply search + course filter, then return the current page slice.
+  // Apply tier + course filters and search, then order. When searching, results
+  // are relevance-ranked (then by recency); otherwise by the active sort chip.
   const filteredUsers = computed(() => {
     let result = allUsers.value
 
-    const q = searchQuery.value.trim().toLowerCase()
-    if (q) {
-      result = result.filter(u => {
-        if (u.display_name?.toLowerCase().includes(q)) return true
-        if (u.emails.some(e => e.toLowerCase().includes(q))) return true
-        return false
-      })
+    if (tierFilter.value) {
+      const t = tierFilter.value
+      result = result.filter(u => u.tier === t)
     }
 
     if (courseFilter.value) {
       const courseId = courseFilter.value
-      result = result.filter(u => {
-        const userEnrollments = enrollments.value.get(u.id)
-        return userEnrollments?.some(e => e.course_id === courseId)
-      })
+      result = result.filter(u => u.course_ids.includes(courseId))
     }
 
-    return result
+    const q = searchQuery.value.trim().toLowerCase()
+    if (q) {
+      return result
+        .map(u => ({ u, s: matchScore(u, q) }))
+        .filter(x => x.s >= 0)
+        .sort((a, b) => b.s - a.s || compareBy('active')(a.u, b.u))
+        .map(x => x.u)
+    }
+
+    return result.slice().sort(compareBy(sortKey.value))
   })
 
   const totalCount = computed(() => filteredUsers.value.length)
@@ -171,6 +161,14 @@ export function useAdminUsers(client: SupabaseClient) {
     return allUsers.value.filter(u => new Date(u.created_at).getTime() >= weekAgo).length
   })
 
+  // Counts per tier across the FULL set — drives the filter chip badges, so an
+  // admin can see "how many premium" at a glance (checking permissions).
+  const tierCounts = computed<Record<Tier, number>>(() => {
+    const c: Record<Tier, number> = { admin: 0, school: 0, premium: 0, free: 0 }
+    for (const u of allUsers.value) c[u.tier]++
+    return c
+  })
+
   function setPage(page: number) {
     currentPage.value = page
   }
@@ -185,38 +183,23 @@ export function useAdminUsers(client: SupabaseClient) {
     currentPage.value = 1
   }
 
-  // Distinct course IDs across the entire enrollment map. The course filter
-  // dropdown needs every course any user is enrolled in, not just the
-  // courses visible on the current page slice.
+  function setTierFilter(tier: Tier | null) {
+    tierFilter.value = tier
+    currentPage.value = 1
+  }
+
+  function setSort(key: SortKey) {
+    sortKey.value = key
+    currentPage.value = 1
+  }
+
+  // Distinct course IDs across all users — the course filter dropdown needs
+  // every course any user is enrolled in, not just the current page slice.
   const allEnrolledCourseIds = computed(() => {
     const set = new Set<string>()
-    for (const list of enrollments.value.values()) {
-      for (const e of list) set.add(e.course_id)
-    }
+    for (const u of allUsers.value) for (const c of u.course_ids) set.add(c)
     return Array.from(set)
   })
-
-  function getUserEnrollments(learnerId: string): UserEnrollment[] {
-    return enrollments.value.get(learnerId) || []
-  }
-
-  function getLastActive(learnerId: string): string | null {
-    const userEnrollments = enrollments.value.get(learnerId)
-    if (!userEnrollments || userEnrollments.length === 0) return null
-
-    const dates = userEnrollments
-      .map(e => e.last_practiced_at)
-      .filter((d): d is string => d !== null)
-
-    if (dates.length === 0) return null
-    return dates.sort().reverse()[0]
-  }
-
-  function getTotalPracticeMinutes(learnerId: string): number {
-    const userEnrollments = enrollments.value.get(learnerId)
-    if (!userEnrollments) return 0
-    return userEnrollments.reduce((sum, e) => sum + (e.total_practice_minutes || 0), 0)
-  }
 
   return {
     // State
@@ -226,12 +209,15 @@ export function useAdminUsers(client: SupabaseClient) {
     totalPages,
     searchQuery,
     courseFilter,
+    tierFilter,
+    sortKey,
     isLoading,
     error,
 
     // Hero stats
     totalUsers,
     newThisWeek,
+    tierCounts,
 
     // Aggregates across the full dataset (not just the visible page)
     allEnrolledCourseIds,
@@ -241,10 +227,7 @@ export function useAdminUsers(client: SupabaseClient) {
     setPage,
     setSearch,
     setCourseFilter,
-
-    // Helpers
-    getUserEnrollments,
-    getLastActive,
-    getTotalPracticeMinutes,
+    setTierFilter,
+    setSort,
   }
 }

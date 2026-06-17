@@ -33,6 +33,7 @@ const tabs = computed<NavTab[]>(() => {
       { label: 'Teachers',  to: '/schools/teachers',  routeName: 'teachers' },
       { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
       { label: 'Settings',  to: '/schools/settings',  routeName: 'settings' },
+      { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
     ]
   }
   // Teacher (default)

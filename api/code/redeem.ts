@@ -10,6 +10,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
+import { recordRoleChange } from '../_utils/auditRole'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -231,6 +232,19 @@ async function redeemInviteCode(
     return
   }
 
+  // Audit the role grant from this invite code (best-effort). Each code sets
+  // exactly one of platform_role / educational_role; the actor is the redeemer.
+  if (learnerUpdate.platform_role || learnerUpdate.educational_role) {
+    await recordRoleChange(supabase, {
+      actorUserId: userId,
+      targetUserId: userId,
+      field: learnerUpdate.platform_role ? 'platform_role' : 'educational_role',
+      newValue: (learnerUpdate.platform_role || learnerUpdate.educational_role) as string,
+      source: 'invite-code',
+      codeUsed: inviteRow.code,
+    })
+  }
+
   // Create role-specific records
   if (codeType === 'govt_admin') {
     const { error: govtError } = await supabase
@@ -432,7 +446,11 @@ async function redeemEntitlementCode(
   }
 
   // If code grants dashboard access, apply platform_role + dashboard_courses.
-  await applyDashboardRole(supabase, learner.id as string, entitlementRow)
+  await applyDashboardRole(supabase, learner.id as string, entitlementRow, {
+    actorUserId: userId,
+    source: 'entitlement-code',
+    codeUsed: entitlementRow.code as string,
+  })
 
   const redirectTo = entitlementRow.grants_platform_role ? '/' : '/'
 

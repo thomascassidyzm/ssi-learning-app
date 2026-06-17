@@ -53,7 +53,8 @@ const baseTabs: NavTab[] = [
 
 const tabs = computed(() => {
   const result: NavTab[] = []
-  if (props.mode === 'teach') return result
+  // Solo tutors get a single always-visible Upgrade link (the canonical pay page).
+  if (props.mode === 'teach') return [{ name: 'teach-upgrade', path: '/teach/upgrade', label: 'Upgrade' }]
   // Preview/demo: show the full teacher tab set (incl. Insights) without a role.
   if (props.forceTabs) {
     return [...baseTabs, { name: 'insights', path: '/teacher-insights', label: 'Insights' }]
