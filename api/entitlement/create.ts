@@ -8,6 +8,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { generateCode } from '../_utils/codeGen'
+import { boundPrivilegedCodeLimits } from '../_utils/codeGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -125,10 +126,19 @@ export default async function handler(
     }
     if (access_type === 'courses') insertData.granted_courses = granted_courses
     if (duration_type === 'time_limited') insertData.duration_days = duration_days
-    if (max_uses !== undefined && max_uses !== null) insertData.max_uses = max_uses
-    if (expires_at !== undefined) insertData.expires_at = expires_at
-    if (grants_platform_role && ['ssi_admin', 'popty_user'].includes(grants_platform_role)) {
+
+    // A code that grants a platform_role is an admin-granting bearer token —
+    // force the redemption window + use cap to be bounded. Plain content
+    // entitlement codes keep the caller's values.
+    const grantsRole = !!(grants_platform_role && ['ssi_admin', 'popty_user'].includes(grants_platform_role))
+    if (grantsRole) {
       insertData.grants_platform_role = grants_platform_role
+      const bounded = boundPrivilegedCodeLimits(expires_at, max_uses)
+      insertData.expires_at = bounded.expires_at
+      insertData.max_uses = bounded.max_uses
+    } else {
+      if (max_uses !== undefined && max_uses !== null) insertData.max_uses = max_uses
+      if (expires_at !== undefined) insertData.expires_at = expires_at
     }
     if (grants_dashboard_courses && Array.isArray(grants_dashboard_courses) && grants_dashboard_courses.length > 0) {
       insertData.grants_dashboard_courses = grants_dashboard_courses

@@ -11,12 +11,21 @@
  * identical across all three and avoids drift.
  */
 
+import { recordRoleChange } from './auditRole'
+
 // Loosely typed so the same helper accepts the various service-role clients
 // created across the api/ routes without fighting @supabase/supabase-js generics
 // (these routes run transpile-only on Vercel; the project gate is the player-vue
 // typecheck). Matches the untyped-client pattern used throughout api/.
 type ServiceClient = {
   from: (table: string) => any
+}
+
+/** Who/how a dashboard-role grant happened, for the audit log. */
+export interface GrantAuditCtx {
+  actorUserId?: string | null
+  source?: 'entitlement-code' | 'email-allowlist'
+  codeUsed?: string | null
 }
 
 /** Shape of the access being granted — shared by entitlement codes and email grants. */
@@ -53,8 +62,17 @@ export async function applyDashboardRole(
   supabase: ServiceClient,
   learnerId: string,
   spec: GrantSpec,
+  audit?: GrantAuditCtx,
 ): Promise<void> {
   if (!spec.grants_platform_role) return
+
+  // Capture the prior role for the audit (best-effort).
+  let oldRole: string | null = null
+  try {
+    const { data } = await supabase.from('learners').select('platform_role').eq('id', learnerId).single()
+    oldRole = data?.platform_role ?? null
+  } catch { /* best-effort */ }
+
   const learnerUpdate: Record<string, unknown> = {
     platform_role: spec.grants_platform_role,
   }
@@ -67,12 +85,22 @@ export async function applyDashboardRole(
     .eq('id', learnerId)
   if (error) {
     console.error('[entitlementGrant] Failed to update platform_role:', error)
-  } else {
-    console.log(
-      '[entitlementGrant] Granted dashboard access:',
-      spec.grants_platform_role,
-      'courses:',
-      spec.grants_dashboard_courses,
-    )
+    return
   }
+  console.log(
+    '[entitlementGrant] Granted dashboard access:',
+    spec.grants_platform_role,
+    'courses:',
+    spec.grants_dashboard_courses,
+  )
+  await recordRoleChange(supabase, {
+    actorUserId: audit?.actorUserId ?? null,
+    targetLearnerId: learnerId,
+    field: 'platform_role',
+    oldValue: oldRole,
+    newValue: spec.grants_platform_role,
+    source: audit?.source ?? 'entitlement-code',
+    codeUsed: audit?.codeUsed ?? null,
+    detail: spec.grants_dashboard_courses ? { dashboard_courses: spec.grants_dashboard_courses } : null,
+  })
 }

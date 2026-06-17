@@ -12,6 +12,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
+import { recordRoleChange } from '../_utils/auditRole'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -76,6 +77,39 @@ export default async function handler(
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   try {
+    // Read the target first: needed for the old value (audit), the user_id
+    // (self-promotion guard), and a clean 404.
+    const { data: target, error: fetchErr } = await supabase
+      .from('learners')
+      .select('id, user_id, platform_role, educational_role')
+      .eq('id', learner_id)
+      .single()
+
+    if (fetchErr && fetchErr.code !== 'PGRST116') {
+      console.error('[UpdateUserRole] Fetch error:', fetchErr)
+      res.status(500).json({ error: 'Failed to read learner', detail: fetchErr.message })
+      return
+    }
+    if (!target) {
+      res.status(404).json({ error: 'Learner not found' })
+      return
+    }
+
+    // Self-promotion guard: an admin must not change their OWN platform role
+    // (or grant themselves 'god'). Self-demotion/escalation has to go through
+    // another admin — this closes the silent self-escalation path.
+    const isSelf = target.user_id === adminResult.userId
+    if (isSelf && field === 'platform_role') {
+      res.status(403).json({ error: 'You cannot change your own platform role — ask another admin.' })
+      return
+    }
+    if (isSelf && field === 'educational_role' && value === 'god') {
+      res.status(403).json({ error: 'You cannot grant yourself the god role — ask another admin.' })
+      return
+    }
+
+    const oldValue = (target as Record<string, any>)[field] ?? null
+
     const { data, error } = await supabase
       .from('learners')
       .update({ [field]: value })
@@ -93,6 +127,17 @@ export default async function handler(
       res.status(404).json({ error: 'Learner not found' })
       return
     }
+
+    // Append-only audit — who changed whom, from what to what (best-effort).
+    await recordRoleChange(supabase, {
+      actorUserId: adminResult.userId,
+      targetLearnerId: learner_id,
+      targetUserId: target.user_id,
+      field,
+      oldValue,
+      newValue: value ?? null,
+      source: 'update-user-role',
+    })
 
     console.log('[UpdateUserRole]', field, '=', value, 'for learner', learner_id, 'by', adminResult.userId)
     res.status(200).json({ learner: data })
