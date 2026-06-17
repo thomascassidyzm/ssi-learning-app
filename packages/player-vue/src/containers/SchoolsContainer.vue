@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, inject, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import UpgradeView from '@/views/schools/UpgradeView.vue'
 import { SignInModal } from '@/components/auth'
@@ -23,8 +23,9 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isActingAs, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, restoreFromCache } = useUserRole()
 restoreFromCache()
+const router = useRouter()
 
 // Load the school context for the real authenticated user — the schools
 // composables scope their queries off this.
@@ -86,6 +87,29 @@ const showNoAccess = computed(() =>
 
 const showLogin = computed(() =>
   !isAuthenticated.value && !hasSchoolContext.value && !isAuthLoading.value,
+)
+
+// A solo tutor (teacher role, no school membership) who lands here is in the
+// wrong place — the schools "no access / join code" wall is for a learner with
+// no teaching role at all. Send them to their own dashboard at /teach instead.
+//
+// Tutor signal = an educational teacher role (useUserRole.isTeacher reflects
+// educational_role from the role cache, or ctx.isTeacher once the school
+// context row has loaded) with NO school attached (no school_id on the loaded
+// context). Loop-safe: we only ever redirect AWAY from /schools to /teach (a
+// different route that unmounts this container), and only while showNoAccess
+// is genuinely active — so there is no path back into this watcher.
+const isTutorNoSchool = computed(
+  () =>
+    (isTeacher.value || ctx.isTeacher.value) &&
+    !ctx.currentUser.value?.school_id,
+)
+watch(
+  () => showNoAccess.value && isTutorNoSchool.value,
+  (redirect) => {
+    if (redirect) router.replace('/teach')
+  },
+  { immediate: true },
 )
 
 async function handleSendOtp() {
@@ -551,7 +575,7 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
   width: 32px;
   height: 32px;
   border: 3px solid var(--border-subtle, rgba(44, 38, 34, 0.1));
-  border-top-color: var(--ssi-red, #c23a3a);
+  border-top-color: var(--schools-red, #DB1E17);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -572,14 +596,16 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
   padding: 48px 56px;
 }
 
-/* Brand pane */
+/* Brand pane — SSi app red (brand #DB1E17 → deep #900600), not the old maroon */
 .schools-login-pane--brand {
-  background: var(--deepRed, #490300);
+  background:
+    linear-gradient(155deg, var(--schools-red, #DB1E17) 0%, var(--schools-red-deep, #900600) 100%);
   color: #fff;
   justify-content: space-between;
   background-image:
-    radial-gradient(800px 400px at 20% 0%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
-    radial-gradient(600px 400px at 90% 100%, rgba(255, 255, 255, 0.04) 0%, transparent 60%);
+    radial-gradient(800px 400px at 20% 0%, rgba(255, 255, 255, 0.10) 0%, transparent 60%),
+    radial-gradient(600px 400px at 90% 100%, rgba(255, 255, 255, 0.06) 0%, transparent 60%),
+    linear-gradient(155deg, var(--schools-red, #DB1E17) 0%, var(--schools-red-deep, #900600) 100%);
 }
 
 .brand-logo {
@@ -591,13 +617,15 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: var(--schools-red, #DB1E17);
+  /* On the red brand pane the brand-red fill would vanish — use a white glass
+     chip with the brand red as the letter colour instead. */
+  background: rgba(255, 255, 255, 0.92);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
   font-size: 18px;
-  color: #fff;
+  color: var(--schools-red-deep, #900600);
 }
 .logo-text {
   font-family: var(--font-display);
