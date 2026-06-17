@@ -11,6 +11,8 @@
  *                                              the tutor annual price when unset.
  *   VITE_PADDLE_STUDENT_PRICE_MONTHLY        — pri_… for £10/mo student-via-TUTOR (ACT)
  *   VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY — pri_… for £5/mo student-via-SCHOOL (no commission)
+ *   VITE_PADDLE_STUDENT_PRICE_ANNUAL         — pri_… for £100/yr student-via-TUTOR (ACT)
+ *   VITE_PADDLE_STUDENT_SCHOOL_PRICE_ANNUAL  — pri_… for £50/yr student-via-SCHOOL (no commission)
  *   VITE_PADDLE_SCHOOL_TEACHER_PRICE_MONTHLY — pri_… for £15/teacher/mo SCHOOL PLATFORM
  *                                              (per-seat; checkout sends quantity = teacher seats).
  *                                              ⚠️ Tom must create this price in Paddle + set the env.
@@ -36,6 +38,8 @@ export const paddleConfig = {
   teacherAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
   studentMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_MONTHLY as string | undefined),
   studentSchoolMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY as string | undefined),
+  studentAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_ANNUAL as string | undefined),
+  studentSchoolAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_SCHOOL_PRICE_ANNUAL as string | undefined),
   // School platform — £15/teacher/mo, per-seat. There is only ONE £15 Paddle
   // price underneath: a school is just quantity>1 of the same per-unit price as
   // the tutor plan (the webhook tells them apart by customData.kind, NOT by
