@@ -92,3 +92,8 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - [ ] **"You'll teach" dropdown needs a SEARCH bar** — we'll have hundreds of target languages; the custom dropdown menu must be filterable (like the learner-language list).
 - [ ] **Auto-select a single language choice still not firing** — must auto-select when (a) a search narrows to exactly one result AND (b) a chosen target has only one learner-language. Make it robust (watch the filtered list, not just on mount).
 - All three live in packages/player-vue/src/views/onboarding/Onboarding.vue.
+
+## 🔨 Upgrade/checkout improvements (logged 2026-06-17, Tom testing) — agent in flight
+- [ ] **Paddle checkout window too small / scrolls** — make the checkout bigger so it doesn't need to scroll. Investigate Paddle settings (overlay sizing vs inline checkout in a larger container).
+- [ ] **Monthly OR annual pricing choice** — add a monthly/annual toggle on the Upgrade page (tutor + school lanes). Wire the annual Paddle price IDs (VITE_PADDLE_TEACHER_PRICE_ANNUAL exists; school annual needs a var/fallback). NOTE: actual annual prices must be created in Paddle + env vars set (Tom) — build the UI + plumbing with graceful fallback.
+- Touches UpgradeView.vue, useSchoolCheckout.ts, useCheckout.ts, TeachDashboard.vue, lib/paddle.ts (NOT the onboarding picker — safe alongside that agent).
