@@ -103,12 +103,19 @@ const trialEndLabel = computed(() =>
 const selectedCourseObj = computed(
   () => trackCourses.value.find((x) => x.course_code === selectedCourse.value) || null
 )
-const selectedIsFree = computed(() =>
-  selectedCourseObj.value ? isFreeTier(selectedCourseObj.value) : false
-)
+// Platform-trial length is decided per course, server-side too (provision.ts):
+// Welsh OR any free/community course → 1 year; every other (premium) course →
+// 1 month. We don't surface "free vs premium" upfront — the learner picks a
+// language, then we tell them their trial.
+function trialDaysFor(course: { course_code?: string; pricing_tier?: string } | null): number {
+  if (!course) return 30
+  const isWelsh = (course.course_code || '').startsWith('cym')
+  return isWelsh || isFreeTier(course as any) ? 365 : 30
+}
+const selectedTrialDays = computed(() => trialDaysFor(selectedCourseObj.value))
 const offerLine = computed(() => {
   if (!selectedCourseObj.value) return ''
-  return selectedIsFree.value ? 'Free — no card, ever' : '1 month free trial — no card needed'
+  return `Free for ${selectedTrialDays.value} days — no card needed`
 })
 
 onMounted(async () => {
@@ -185,7 +192,9 @@ async function verify() {
       error.value = data.error || 'We could not finish setting up your account'
       return
     }
-    trial.value = data.trial
+    // Show the PLATFORM trial window (the school/tutor's free period: 365 or 30
+    // days) on the success screen — that's the one that decides when they pay.
+    trial.value = data.platform_trial || data.trial
     redirectTo.value = data.redirect || '/'
     step.value = 'done'
   } catch (e: any) {
@@ -338,7 +347,7 @@ async function continueIn() {
               <span class="ob-claim-eyebrow">You're teaching</span>
               <span class="ob-claim-endonym">{{ targetLabel(courses[0]) }}</span>
               <span class="ob-claim-echo">
-                {{ isFreeTier(courses[0]) ? 'Free' : '1 month free trial' }}
+                Free for {{ trialDaysFor(courses[0]) }} days
                 <span v-if="courses[0].new_app_status === 'beta'" class="ob-beta">in beta</span>
               </span>
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
@@ -377,7 +386,6 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-row-name">{{ targetLabel(c) }}</span>
-                  <span v-if="isFreeTier(c)" class="ob-tier">Free</span>
                   <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
                   <svg class="ob-row-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
@@ -408,9 +416,8 @@ async function continueIn() {
                   />
                   <span class="ob-lang-dot" :data-lang="c.target_lang"></span>
                   <span class="ob-lang-endonym">{{ targetLabel(c) }}</span>
-                  <span v-if="isFreeTier(c) || c.new_app_status === 'beta'" class="ob-lang-gloss">
-                    <span v-if="isFreeTier(c)" class="ob-tier">Free</span>
-                    <span v-if="c.new_app_status === 'beta'" class="ob-beta ob-beta-sm">beta</span>
+                  <span v-if="c.new_app_status === 'beta'" class="ob-lang-gloss">
+                    <span class="ob-beta ob-beta-sm">beta</span>
                   </span>
                   <svg class="ob-lang-check" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 12.5l4.2 4.2L19 7" />
@@ -523,8 +530,7 @@ async function continueIn() {
 
           <h1 class="ob-title ob-title-done">{{ selectedCourseLabel }} is ready</h1>
           <p class="ob-sub">
-            <template v-if="selectedIsFree">It's yours — free, no card ever.</template>
-            <template v-else>Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.</template>
+            Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.
           </p>
 
           <div class="ob-finishing">

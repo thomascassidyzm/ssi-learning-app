@@ -64,7 +64,7 @@ export const TRACKS: Record<OnboardingTrack, TrackConfig> = {
     key: 'school',
     audience: 'school',
     heading: 'Set up your school',
-    blurb: 'Bring SSi to every classroom — free languages are free, paid languages start with a free trial.',
+    blurb: 'Bring SSi to every classroom. Choose your language to get started — no card needed.',
     collectInstitution: true,
   },
   tutor: {
