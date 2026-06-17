@@ -31,6 +31,7 @@ const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsB
 import { setSchoolsClient } from './composables/schools/client'
 import { useActAs } from './composables/useActAs'
 import AppEscape from './components/AppEscape.vue'
+import CheckoutOverlay from './components/CheckoutOverlay.vue'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -616,6 +617,7 @@ onMounted(async () => {
     <DemoOverlay />
     <TesterFeedback />
     <ActingAsBanner />
+    <CheckoutOverlay />
   </div>
 </template>
 
