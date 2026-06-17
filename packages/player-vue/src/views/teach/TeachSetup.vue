@@ -305,7 +305,7 @@ const submitButtonLabel = computed(() => {
           {{ submitButtonLabel }}
         </Button>
         <p v-if="!hasActivePremium" class="premium-note">
-          You'll be charged £{{ TEACHER_MONTHLY_PRICE }}/month after a 7-day free trial. This is the same SSi Premium plan that gives access to all paid courses.
+          You'll be charged £{{ TEACHER_MONTHLY_PRICE }}/month after your 1 month free trial. This is the same SSi Premium plan that gives access to all paid courses.
         </p>
       </form>
     </FrostCard>
