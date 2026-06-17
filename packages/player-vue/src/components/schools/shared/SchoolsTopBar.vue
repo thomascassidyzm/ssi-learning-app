@@ -95,11 +95,9 @@ if (typeof document !== 'undefined') {
 <template>
   <header class="schools-topbar">
     <div class="left">
-      <router-link to="/schools" class="brand">
-        <span class="brand-mark">S</span>
-        <span class="brand-text">
-          SaySomethingin <span class="brand-dot">·</span> <span class="brand-tail">Schools</span>
-        </span>
+      <router-link to="/schools" class="brand" aria-label="SaySomethingin · Schools">
+        <img class="brand-logo" src="/ssi-web-logo.svg" alt="SaySomethingin" />
+        <span class="brand-tail">Schools</span>
       </router-link>
 
       <nav class="tabs" aria-label="Schools sections">
@@ -163,28 +161,17 @@ if (typeof document !== 'undefined') {
   color: inherit;
   flex: none;
 }
-.brand-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-  background: var(--schools-red);
-  color: #fff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 15px;
-  line-height: 1;
+.brand-logo {
+  display: block;
+  height: 28px;
+  width: auto;
 }
-.brand-text {
+.brand-tail {
   font-family: var(--font-display);
   font-size: 17px;
   line-height: 1;
-  color: var(--schools-fg);
+  color: var(--schools-red);
 }
-.brand-dot { opacity: 0.5; }
-.brand-tail { color: var(--schools-red); }
 
 .tabs {
   display: flex;
