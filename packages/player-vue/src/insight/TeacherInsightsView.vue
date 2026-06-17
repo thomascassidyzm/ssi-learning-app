@@ -33,6 +33,7 @@
 // tokens carry it. blue = primary/selection, green = success/active, gold = warn.
 // ============================================================================
 import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import RateCompare from './components/RateCompare.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
@@ -84,6 +85,19 @@ const COURSE_LABEL = computed(() => selectedClass.value.course)
 // ── Drill scope: the class itself, or a learner within it ───────────────────
 type Scope = 'class' | 'learner'
 const scope = ref<Scope>('class')
+
+// Deep-link from the schools Students table: a "View →" on a student opens this
+// view pre-scoped to that learner (route query: scope=learner, learner=<id>,
+// name=<display name>). We open in learner view and surface WHICH learner was
+// requested. NOTE: the per-learner RATE data is still the deferred wiring — the
+// widget below renders a seeded preview until the live resolver lands, so we say
+// so plainly rather than implying these are this student's real figures.
+const route = useRoute()
+const requestedLearnerName = computed(() => {
+  const n = route.query.name
+  return (Array.isArray(n) ? n[0] : n) || ''
+})
+if (route.query.scope === 'learner') scope.value = 'learner'
 const entityLevel = computed<EntityLevel>(() => (scope.value === 'class' ? 'class' : 'learner'))
 
 // ── Metric + average selection (rate metrics; aggregate cohorts only) ────────
@@ -186,6 +200,11 @@ const scopeLabel = computed(() =>
       <p class="tiv-sub">
         How you're doing on <strong>{{ COURSE_LABEL }}</strong> — your class compared
         with the average. Rate leads; position is just context.
+      </p>
+      <p v-if="requestedLearnerName" class="tiv-preview-note">
+        Opened in learner view for <strong>{{ requestedLearnerName }}</strong>. The figures
+        below are a seeded preview — live per-learner rates arrive once your school's
+        telemetry is wired.
       </p>
     </header>
 
@@ -377,6 +396,21 @@ const scopeLabel = computed(() =>
   margin: 0;
 }
 .tiv-sub strong { color: var(--ink-primary); }
+
+/* Deep-link preview note — a quiet honest line when arriving from a student's
+ * "View →" before live per-learner data is wired. */
+.tiv-preview-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-secondary);
+  background: rgba(var(--rc-entity), 0.08);
+  border: 1px solid rgba(var(--rc-entity), 0.2);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin: 2px 0 0;
+  max-width: 56ch;
+}
+.tiv-preview-note strong { color: rgba(var(--rc-entity-ink), 1); }
 
 /* ── Controls bar (glass chrome — STEP 2) ── */
 .tiv-controls {
