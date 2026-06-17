@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 
 const props = defineProps({
   isOpen: {
@@ -13,6 +13,18 @@ const props = defineProps({
   submitting: {
     type: Boolean,
     default: false
+  },
+  // Optional override of the selectable courses. On a school's free TRIAL this
+  // is the ONE signed-up language ([{ code, name, flag? }]); a paid school gets
+  // the full list. null/empty = use the default catalogue.
+  availableCourses: {
+    type: Array,
+    default: null
+  },
+  // Shown under a locked (single-course) picker, e.g. "Subscribe to teach more".
+  lockedNote: {
+    type: String,
+    default: ''
   }
 })
 
@@ -33,9 +45,19 @@ const courses = [
   { code: 'glv_for_eng', name: 'Manx', flag: '\uD83C\uDDEE\uD83C\uDDF2' }
 ]
 
-// Reset form when modal closes
+// The selectable list: a parent-supplied override (trial lock) or the default.
+const courseList = computed(() =>
+  (props.availableCourses && props.availableCourses.length) ? props.availableCourses : courses
+)
+const courseLocked = computed(() => courseList.value.length === 1)
+
+// Reset form when modal opens/closes. On open, preselect the only option when
+// the list is locked to a single course (the trial language).
 watch(() => props.isOpen, (newVal) => {
-  if (!newVal) {
+  if (newVal) {
+    className.value = ''
+    courseCode.value = courseLocked.value ? courseList.value[0].code : ''
+  } else {
     className.value = ''
     courseCode.value = ''
   }
@@ -124,7 +146,12 @@ const handleSubmit = () => {
 
             <div class="form-group">
               <label class="form-label" for="courseCode">Course / Language</label>
-              <div class="select-wrapper">
+              <!-- Trial: locked to the one signed-up language. -->
+              <template v-if="courseLocked">
+                <p class="form-locked">{{ courseList[0].flag }} {{ courseList[0].name }}</p>
+                <p v-if="lockedNote" class="form-hint">{{ lockedNote }}</p>
+              </template>
+              <div v-else class="select-wrapper">
                 <select
                   id="courseCode"
                   v-model="courseCode"
@@ -132,7 +159,7 @@ const handleSubmit = () => {
                   required
                 >
                   <option value="" disabled>Select a course...</option>
-                  <option v-for="course in courses" :key="course.code" :value="course.code">
+                  <option v-for="course in courseList" :key="course.code" :value="course.code">
                     {{ course.flag }} {{ course.name }}
                   </option>
                 </select>
@@ -314,6 +341,16 @@ const handleSubmit = () => {
   font-size: 0.75rem;
   color: var(--text-muted, #707070);
   margin-top: 6px;
+}
+
+.form-locked {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  font-weight: 600;
+  color: var(--text-primary, #fff);
 }
 
 .info-box {

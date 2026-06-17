@@ -204,6 +204,14 @@ const routes: RouteRecordRaw[] = [
         component: UpgradeView,
         meta: { title: 'Upgrade', description: 'Subscribe to your tutoring dashboard' },
       },
+      {
+        // Play-as-class for tutors — renders the player INSIDE TeachContainer so
+        // the teach nav stays above it (mirrors /schools/play in SchoolsContainer).
+        path: 'play',
+        name: 'teach-play',
+        component: PlayerContainer,
+        meta: { title: 'Class session', description: 'Run a class learning session — teach nav stays above the player' },
+      },
     ],
   },
   // Student attribution gateway (no auth required)
