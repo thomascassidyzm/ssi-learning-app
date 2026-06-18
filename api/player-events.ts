@@ -38,6 +38,30 @@ function getDeviceType(userAgent: string): 'mobile' | 'tablet' | 'desktop' {
   return 'desktop'
 }
 
+/**
+ * Deployment environment, derived SERVER-SIDE from the request host so it
+ * can't be spoofed by the client and there's one source of truth.
+ *   saysomethingin.app          -> 'production'
+ *   staging.saysomethingin.app  -> 'staging'
+ *   anything else               -> 'dev'  (vercel preview alias, localhost)
+ * Prefer the Host header; fall back to the Origin host.
+ */
+function getEnv(host: string | undefined, origin: string | undefined): 'production' | 'staging' | 'dev' {
+  let h = (host || '').toLowerCase().trim()
+  if (!h && origin) {
+    try {
+      h = new URL(origin).host.toLowerCase()
+    } catch {
+      /* ignore malformed origin */
+    }
+  }
+  // strip any :port
+  h = h.replace(/:\d+$/, '')
+  if (h === 'staging.saysomethingin.app') return 'staging'
+  if (h === 'saysomethingin.app' || h === 'www.saysomethingin.app') return 'production'
+  return 'dev'
+}
+
 const MAX_BATCH = 50
 
 export default async function handler(
@@ -69,6 +93,7 @@ export default async function handler(
   const userId = (req.cookies?.['ssi-user-id'] as string | undefined) || null
   const deviceType = getDeviceType(req.headers['user-agent'] || '')
   const ipCountry = (req.headers['x-vercel-ip-country'] as string) || null
+  const env = getEnv(req.headers['host'] as string | undefined, req.headers['origin'] as string | undefined)
 
   const rows = events
     .filter((e) => e && typeof e.event_type === 'string' && e.event_type.length > 0)
@@ -82,6 +107,7 @@ export default async function handler(
       client_version: e.client_version || null,
       device_type: deviceType,
       ip_country: ipCountry,
+      env,
     }))
 
   if (rows.length === 0) {
