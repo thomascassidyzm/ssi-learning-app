@@ -1700,7 +1700,13 @@ simplePlayer.onRoundCompleted((round) => {
 // payload mirrors AudioFailedEvent so admin diagnostics can group by
 // reason / role / errorCode.
 simplePlayer.onAudioFailed((event) => {
-  logEvent('audio_failed', {
+  // attempt=1 is a TRANSIENT blip that we silently retry (most recover) — logging
+  // it as 'audio_failed' inflated the failure metric with false alarms (this is
+  // what made e.g. Armenian look 27% broken when it was one flaky session). Log
+  // the pre-retry blip as 'audio_retry' (diagnostic) and reserve 'audio_failed'
+  // for the genuine post-retry halt (attempt=2, needs-gesture, or no retry url).
+  const isTransientRetry = event.reason === 'play-error' && event.attempt === 1
+  logEvent(isTransientRetry ? 'audio_retry' : 'audio_failed', {
     reason: event.reason,
     role: event.role,
     cycleType: event.cycleType,
