@@ -33,8 +33,8 @@ It stays a **pure function of (course catalogue, round, learner, cluster templat
 - **30 cups, always.** One cup is poured at the end of each round; over 30
   consecutive rounds the wheel turns once, then loops. (`cupIndex = lapOrdinal mod 30`.)
 - The "≈ 1 minute" per cup is an **approximate feel target, not a hard cap** — we
-  never measure audio durations; the length falls out of the pattern (below) and
-  self-regulates because most seeds rest at the cheap floor.
+  never measure audio durations; the length falls out of the pattern (below) —
+  two passes (1× then 2×) over the cup's seeds.
 
 ### Filling the cups
 - **Unit = an *introduced* seed** (all of its LEGOs have debuted), **not** a
@@ -72,39 +72,29 @@ It stays a **pure function of (course catalogue, round, learner, cluster templat
 - Between milestones, the cluster stays put and loose seeds accrete one per batch
   on top; the next milestone absorbs them into the bigger cluster.
 
-### The universal decay ladder
-One ladder; the only difference is **where a seed steps on**:
+### Speeds: once slow, once fast — no decay (Aran 2026-06-18)
+Every seed in the poured cup plays exactly **twice: once at 1× and once at 2×**.
+The cup is poured as **one whole pass at 1× then one whole pass at 2×** — all the
+cup's seeds slow together, then all of them fast together:
 
 ```
-1×2×  (debut)   →   2×2×   →   2×  (floor)
+cup @ 1× (every seed)   →   cup @ 2× (every seed)
 ```
 
-- **Loose seed** steps on at the **top** (`1×2×`) and walks all the way down, one
-  rung per batch added.
-- **A freshly-(re)formed cluster** steps on at the **second** rung (`2×2×`) — it
-  **skips the `1×2×` debut** — then walks down to floor on the next batch like
-  anything else.
+All **target audio only — no known language, ever**. No per-seed state, no tiers.
 
-Plays per pattern (all **target audio only — no known language, ever**):
-
-| Pattern | Plays | ≈ length |
-|---|---|---|
-| `1×2×` (debut) | one @1.0×, one @2.0× | ~4.5s |
-| `2×2×` | two @2.0× | ~3s |
-| `2×` (floor) | one @2.0× | ~1.5s |
-
-**Consequence:** in a non-frozen cup there is at most **one `1×2×` seed and one
-`2×2×` seed**; everything else rests at floor. At a bare cluster milestone (no
-loose seeds yet) the whole cluster sits at `2×2×` and there is no `1×2×`. So a cup
-is ≈ `4.5 + 1.5·N` seconds in steady state — comfortably ~a minute even at N=20.
+**Why the decay ladder was ditched:** the old model walked each seed
+`1×2× → 2×2× → 2×` down a per-seed "decay" ladder over successive batches. It only
+made sense for a learner starting from scratch; for someone already deep in a
+course every seed is "old", so the weaning never really engaged and it just felt
+like a fast-everything water cannon. The flat once-slow-once-fast pour gives
+steady, comprehensible exposure regardless of where the learner is. A cup is ≈ two
+passes over its `p` seeds — comfortably ~a minute even at `p = 20`.
 
 ### The forever loop
-When a course stops introducing seeds (hits the 600 cap, or its own end), there
-are no more batches to drive the decay — so the final arrangement takes its last
-step and **settles entirely to the `2×` floor**, then loops there forever: a bare,
-fast single pass through the whole maintained set (~30s for 20 seeds), pure
-background maintenance. The `2×2×` is only ever the transient "this just got
-(re)grouped" emphasis on the way down.
+When a course stops introducing seeds (hits the 600 cap, or its own end), cup
+membership stops changing — so each cup just keeps pouring its fixed set (1× pass
+then 2× pass) forever: steady background maintenance.
 
 ---
 
@@ -136,28 +126,21 @@ cluster size; 0 while `p < 5`) and `L = p − C` (loose count, 0…4):
 - **Loose part**: the `L` most-recently-added seeds for this cup (one per batch
   since the last cluster milestone), assigned by a seeded permutation.
 
-Tiering (not frozen):
-
-| Situation | Tiers |
-|---|---|
-| `L = 0` (at a cluster milestone) | the whole cluster @ `2×2×`; no `1×2×` |
-| `L ≥ 1` | cluster (if any) @ floor; among the `L` loose: **newest @ `1×2×`**, **2nd-newest @ `2×2×`**, rest @ floor |
-| pre-cluster (`C = 0`, `p` = 1–4) | newest loose @ `1×2×`, 2nd @ `2×2×`, rest @ floor |
-| **frozen** (introductions exhausted) | **everything @ floor** |
+**Speeds:** no tiering — every seed in the cup plays once at 1× then once at 2×
+(the whole cup at 1×, then the whole cup at 2×), regardless of how new it is or
+whether introductions are frozen. Order within each pass: cluster (template
+order) then loose (oldest → newest).
 
 ### Worked trace — cup #7
 
-| Introduced | Cup #7 holds | Patterns |
+| Introduced | Cup #7 holds | Pour |
 |---|---|---|
-| 30 | {s7} | s7 `1×2×` |
-| 60 | {s7, s43} | s43 `1×2×` · s7 `2×2×` |
-| 90 | +s77 | s77 `1×2×` · s43 `2×2×` · s7 `2×` |
-| 120 | +s102 | s102 `1×2×` · s77 `2×2×` · {s43,s7} `2×` |
-| **150** | authored 5-cluster | all five `2×2×` |
-| 180 | +loose s6′ | s6′ `1×2×` · cluster→ `2×` |
-| 210–270 | +loose each batch | newest `1×2×`, prev `2×2×`, rest+cluster `2×` |
-| **300** | authored 10-cluster | all ten `2×2×`, then `2×` on next batch |
-| … 600 | authored 20-cluster | `2×2×`, then settles to floor and loops |
+| 30 | {s7} | s7 @1×, then s7 @2× |
+| 60 | {s7, s43} | s7, s43 @1×, then s7, s43 @2× |
+| 90 | +s77 | s7, s43, s77 @1×, then the three @2× |
+| **150** | authored 5-cluster | the five @1×, then the five @2× |
+| **300** | authored 10-cluster | the ten @1×, then the ten @2× |
+| … 600 | authored 20-cluster | the twenty @1×, then @2×, looping |
 
 ---
 

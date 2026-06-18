@@ -24,21 +24,19 @@
  *   • Clusters: at every multiple-of-5 seeds/cup the whole cup is re-formed into an
  *     authored, ordered LINGUISTIC grouping (injected via clusterProvider; a
  *     deterministic fallback ships until Aran's templates land). Templates: 5/10/15/20.
- *   • Decay ladder (one ladder; only the entry rung differs):
- *        1×2× (debut)  →  2×2× (mid)  →  2× (floor)
- *     A loose seed enters at the top; a freshly-(re)formed cluster enters at the 2nd
- *     rung (skips the 1×2× debut) — both walk down one rung per batch added.
- *     INVARIANT: a non-frozen cup has at most ONE debut + ONE mid seed; the rest
- *     rest at floor. At a bare cluster milestone (no loose yet) the whole cluster
- *     sits at mid and there is no debut.
+ *   • Speeds — NO decay (Aran 2026-06-18): every seed in the poured cup plays
+ *     once at 1× and once at 2×. The cup is poured as one whole pass at 1× then
+ *     one whole pass at 2× (all the cup's seeds slow together, then fast
+ *     together). No per-seed tier/decay state. (The old debut→mid→floor decay
+ *     ladder was ditched — it only made sense from a cold start, not for a learner
+ *     already deep in a course.)
  *   • Target only — NO known-language audio, ever (unlike pods, which carry `trans`).
  *   • Forever loop: once a course stops introducing seeds (the 600 cap, or its own
- *     end), there are no more batches to drive the decay, so the arrangement settles
- *     entirely to the 2× floor and loops there — bare background maintenance.
+ *     end), cup membership stops changing, so each cup just keeps pouring its fixed
+ *     set (1× pass then 2× pass) — steady background maintenance.
  *
  * The ≈1-minute-per-cup is an APPROXIMATE feel target, not a hard cap — we never
- * measure audio durations; length falls out of the pattern and self-regulates
- * because most seeds rest at the cheap floor.
+ * measure audio durations; length falls out of the pattern (2 plays per seed).
  *
  * Placement (fire every round, adjacency, pod-wins-priority) is owned by the
  * caller in LearningPlayer's round-boundary handler — this composable only decides
@@ -58,15 +56,11 @@ export type Layer1PlayRole = 'ps' | 'ps2x'
 /** Role → playback rate. Single source of truth. */
 export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, ps2x: 2.0 }
 
-/** A seed's listening tier — where it sits on the decay ladder right now. */
-export type Layer1Tier = 'debut' | 'mid' | 'floor'
-
-/** Tier → the speed sequence it plays. All target-audio only. */
-export const L1_TIER_SPEEDS: Record<Layer1Tier, number[]> = {
-  debut: [1.0, 2.0], // 1×2× — register normally, then once fast
-  mid: [2.0, 2.0],   // 2×2× — twice, both fast (cluster-formed / second rung)
-  floor: [2.0],      // 2×   — a single fast touch
-}
+/** Every seed in a poured cup plays once at each of these speeds. The cup is
+ *  poured as one whole pass at 1.0× then one whole pass at 2.0× — no decay
+ *  ladder, no per-seed state (Aran 2026-06-18: ditched the decay; flat
+ *  once-slow-once-fast for every item, slow pass then fast pass). */
+export const L1_CUP_SPEEDS: readonly number[] = [1.0, 2.0]
 
 export interface Layer1Config {
   /** Number of cups in the wheel (one poured per round). Batch size == cups. */
@@ -214,31 +208,28 @@ export function fallbackCluster(
 export type Layer1ClusterProvider = (size: number, cupIndex: number) => number[]
 
 /**
- * Compose one cup's ordered (seed, tier) list — the heart of the model. Pure.
+ * Compose one cup's ordered seed list — the heart of the model. Pure.
  *
- *   p = seedsPerCup; C = cluster size; L = p − C loose seeds.
+ *   p = seedsPerCup; C = cluster size.
  *   • Cluster part (C ≥ clusterStep): clusterProvider(C, cupIndex), in order.
  *   • Loose part: one seed per batch in (C+1 … p), scattered per cup via
  *     looseProvider(batch, cupIndex); ordered oldest → newest.
- *   Tiers (see doc): frozen → all floor; else cluster is `mid` only when L===0
- *   (a bare milestone) else `floor`, and among the loose the NEWEST is `debut`,
- *   the second-newest `mid`, the rest `floor`.
+ *   Returns the seeds in cup order: cluster first (template order), then the
+ *   loose tail (oldest → newest). No tiers/decay — every seed is played the same
+ *   way (once at 1×, once at 2×; see nextLap). Aran 2026-06-18.
  */
 export function composeCupSeeds(params: {
   seedsPerCup: number
   cupIndex: number
-  frozen: boolean
   cfg: Pick<Layer1Config, 'clusterStep'>
   clusterProvider: Layer1ClusterProvider
   /** seed assigned to `cupIndex` from 1-based batch `batch`, or null if none. */
   looseProvider: (batch: number, cupIndex: number) => number | null
-}): Array<{ seed: number; tier: Layer1Tier }> {
-  const { seedsPerCup: p, cupIndex, frozen, cfg, clusterProvider, looseProvider } = params
+}): number[] {
+  const { seedsPerCup: p, cupIndex, cfg, clusterProvider, looseProvider } = params
   if (p <= 0) return []
 
   const C = clusterSizeFor(p, cfg.clusterStep)
-  const L = p - C
-
   const clusterSeeds = C >= cfg.clusterStep ? clusterProvider(C, cupIndex).slice(0, C) : []
 
   const looseSeeds: number[] = []
@@ -247,24 +238,7 @@ export function composeCupSeeds(params: {
     if (s != null) looseSeeds.push(s) // oldest (C+1) → newest (p)
   }
 
-  const out: Array<{ seed: number; tier: Layer1Tier }> = []
-
-  // Cluster first, in template order.
-  const clusterTier: Layer1Tier = frozen ? 'floor' : L === 0 ? 'mid' : 'floor'
-  for (const seed of clusterSeeds) out.push({ seed, tier: clusterTier })
-
-  // Then the loose tail (oldest → newest). Newest = debut, 2nd-newest = mid.
-  const lastIdx = looseSeeds.length - 1
-  looseSeeds.forEach((seed, i) => {
-    let tier: Layer1Tier = 'floor'
-    if (!frozen) {
-      if (i === lastIdx) tier = 'debut'
-      else if (i === lastIdx - 1) tier = 'mid'
-    }
-    out.push({ seed, tier })
-  })
-
-  return out
+  return [...clusterSeeds, ...looseSeeds]
 }
 
 // ============================================================================
@@ -305,7 +279,7 @@ export interface L1Lap {
   /** Number of distinct seeds in the cup. */
   bucketSize: number
   intro: L1BookendAudio | null
-  /** The cup's plays, in cup order (cluster then loose; each seed expanded per tier). */
+  /** The cup's plays: the whole cup at 1× (cluster then loose) then the whole cup at 2×. */
   plays: L1Play[]
   outro: L1BookendAudio | null
 }
@@ -437,7 +411,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
 
   /**
    * Compose the lap (cup) due at `mainRound`: bookend intro → the cup's plays
-   * (cluster then loose, each seed expanded per its tier) → bookend outro. Null
+   * (whole cup at 1×, then whole cup at 2×) → bookend outro. Null
    * when nothing's introduced yet or no audio is available. Pure function of
    * (catalogue, round, learner, cluster templates).
    */
@@ -450,7 +424,6 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const actRound = activationRound()
     if (!Number.isFinite(actRound) || mainRound < actRound) return null
     const cupIndex = cupIndexFor(mainRound, actRound, c.cups)
-    const frozen = isFrozenAt(sortedOrdinals.value, mainRound, c)
 
     const courseCode = String(unwrap(options.courseCode) || '')
     const learnerId = String(unwrap(options.learnerId) || 'guest')
@@ -473,28 +446,30 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     const cupSeeds = composeCupSeeds({
       seedsPerCup: p,
       cupIndex,
-      frozen,
       cfg: c,
       clusterProvider: resolveCluster,
       looseProvider,
     })
 
-    // Expand (seed, tier) → plays. Voice 1/2 chosen by a per-round seeded RNG so
-    // the lap is mixed yet identical on replay/resume. Skips seeds without audio.
+    // Resolve each cup seed once (voice 1/2 by a per-round seeded RNG so the lap
+    // is mixed yet identical on replay/resume; skip seeds without audio), then
+    // pour the WHOLE cup at 1× followed by the WHOLE cup at 2× (Aran 2026-06-18:
+    // no decay — every item once slow then once fast, grouped by speed).
     const seedMap = seeds.value
     const rng = seededRng(`${courseCode}:${learnerId}:L1cup:${mainRound}`)
-    const plays: L1Play[] = []
-    for (const { seed: sNum, tier } of cupSeeds) {
+    const resolved: Array<{ seedNumber: number; audioId: string; text: string }> = []
+    for (const sNum of cupSeeds) {
       const seed = seedMap.get(sNum)
       if (!seed?.target1_audio_id) continue
       const useVoice2 = !!seed.target2_audio_id && rng() < 0.5
       const audioId = useVoice2 ? seed.target2_audio_id! : seed.target1_audio_id!
       const text = seed.target_text_roman || seed.target_text
-      for (const speed of L1_TIER_SPEEDS[tier]) {
-        plays.push({ seedNumber: sNum, audioId, text, playbackSpeed: speed })
-      }
+      resolved.push({ seedNumber: sNum, audioId, text })
     }
-    if (plays.length === 0) return null
+    if (resolved.length === 0) return null
+    const plays: L1Play[] = L1_CUP_SPEEDS.flatMap((speed) =>
+      resolved.map((r) => ({ ...r, playbackSpeed: speed })),
+    )
 
     const playableSeeds = new Set(plays.map((pl) => pl.seedNumber)).size
     const hasBookends = !!(introAudio.value && outroAudio.value)

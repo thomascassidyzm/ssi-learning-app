@@ -11,7 +11,6 @@ import {
   isFrozenAt,
   fallbackCluster,
   composeCupSeeds,
-  type Layer1Tier,
   DEFAULT_LAYER1_CONFIG,
 } from './useLayer1Scheduler'
 
@@ -190,80 +189,43 @@ describe('fallbackCluster', () => {
 })
 
 // ----------------------------------------------------------------------------
-// composeCupSeeds — the heart: cup membership + decay tiers
+// composeCupSeeds — cup membership + order (cluster first, then loose oldest→newest).
+// No tiers/decay (Aran 2026-06-18): every seed plays the same (1× then 2×, in nextLap).
 // ----------------------------------------------------------------------------
 describe('composeCupSeeds', () => {
   const cfg = { clusterStep: 5 }
   // cluster seeds labelled 1000+ so they're distinguishable from loose;
-  // loose seed for a batch == the batch number (so order/tier is legible).
+  // loose seed for a batch == the batch number (so order is legible).
   const clusterProvider = (size: number) => Array.from({ length: size }, (_, i) => 1000 + i)
   const looseProvider = (batch: number) => batch
-  const compose = (p: number, frozen = false) =>
-    composeCupSeeds({ seedsPerCup: p, cupIndex: 0, frozen, cfg, clusterProvider, looseProvider })
-  const tiers = (p: number, frozen = false) => compose(p, frozen).map((x) => x.tier)
-  const seedsOf = (p: number) => compose(p).map((x) => x.seed)
+  const compose = (p: number) =>
+    composeCupSeeds({ seedsPerCup: p, cupIndex: 0, cfg, clusterProvider, looseProvider })
 
-  it('p=1: a single debut', () => {
-    expect(compose(1)).toEqual([{ seed: 1, tier: 'debut' }])
+  it('p=1: a single loose seed', () => {
+    expect(compose(1)).toEqual([1])
   })
 
-  it('reproduces the filling-phase trace tiers (cup #7, 30→120)', () => {
-    expect(compose(2)).toEqual([{ seed: 1, tier: 'mid' }, { seed: 2, tier: 'debut' }])
-    expect(compose(3)).toEqual([
-      { seed: 1, tier: 'floor' }, { seed: 2, tier: 'mid' }, { seed: 3, tier: 'debut' },
-    ])
-    expect(tiers(4)).toEqual(['floor', 'floor', 'mid', 'debut'])
+  it('all-loose below the first cluster step, oldest→newest', () => {
+    expect(compose(2)).toEqual([1, 2])
+    expect(compose(3)).toEqual([1, 2, 3])
+    expect(compose(4)).toEqual([1, 2, 3, 4])
   })
 
-  it('p=5 (bare cluster milestone): the whole cluster at mid, NO debut', () => {
-    const out = compose(5)
-    expect(out).toHaveLength(5)
-    expect(out.every((x) => x.tier === 'mid')).toBe(true)
-    expect(out.map((x) => x.seed)).toEqual([1000, 1001, 1002, 1003, 1004]) // authored cluster
+  it('p=5 (cluster milestone): the whole authored cluster, no loose', () => {
+    expect(compose(5)).toEqual([1000, 1001, 1002, 1003, 1004])
   })
 
-  it('p=6: cluster drops to floor, the lone loose seed debuts', () => {
-    const out = compose(6)
-    expect(out.slice(0, 5).every((x) => x.tier === 'floor')).toBe(true) // the 5-cluster
-    expect(out[5]).toEqual({ seed: 6, tier: 'debut' }) // loose batch-6 seed
+  it('cluster first (template order), then loose tail (oldest→newest)', () => {
+    expect(compose(6)).toEqual([1000, 1001, 1002, 1003, 1004, 6])
+    expect(compose(7)).toEqual([1000, 1001, 1002, 1003, 1004, 6, 7])
   })
 
-  it('p=7: cluster floor; loose newest=debut, 2nd-newest=mid', () => {
-    const out = compose(7)
-    expect(out.slice(0, 5).every((x) => x.tier === 'floor')).toBe(true)
-    expect(out.slice(5)).toEqual([{ seed: 6, tier: 'mid' }, { seed: 7, tier: 'debut' }])
-  })
-
-  it('p=10 (re-cluster milestone): ten cluster seeds all at mid', () => {
-    const out = compose(10)
-    expect(out).toHaveLength(10)
-    expect(out.every((x) => x.tier === 'mid')).toBe(true)
-  })
-
-  it('INVARIANT (non-frozen, non-milestone): exactly one debut + at most one mid', () => {
-    for (let p = 1; p <= 20; p++) {
-      const t = tiers(p)
-      const debut = t.filter((x) => x === 'debut').length
-      const mid = t.filter((x) => x === 'mid').length
-      if (p % 5 === 0) {
-        // bare milestone: whole cluster at mid, no debut
-        expect(debut).toBe(0)
-        expect(t.every((x) => x === 'mid')).toBe(true)
-      } else {
-        expect(debut).toBe(1)
-        expect(mid).toBeLessThanOrEqual(1)
-      }
-    }
-  })
-
-  it('frozen: everything rests at the floor (forever loop)', () => {
-    expect(tiers(5, true).every((x: Layer1Tier) => x === 'floor')).toBe(true)
-    expect(tiers(7, true).every((x: Layer1Tier) => x === 'floor')).toBe(true)
-    expect(tiers(20, true).every((x: Layer1Tier) => x === 'floor')).toBe(true)
+  it('p=10 (re-cluster milestone): ten cluster seeds, no loose', () => {
+    expect(compose(10)).toEqual(Array.from({ length: 10 }, (_, i) => 1000 + i))
   })
 
   it('seed count per cup equals p (cluster + loose, no overlap)', () => {
-    for (const p of [1, 4, 5, 6, 9, 10, 15, 20]) expect(seedsOf(p)).toHaveLength(p)
+    for (const p of [1, 4, 5, 6, 9, 10, 15, 20]) expect(compose(p)).toHaveLength(p)
   })
 })
 
