@@ -34,8 +34,16 @@ function trimEnv(v: string | undefined): string | undefined {
 export const paddleConfig = {
   clientToken: trimEnv(import.meta.env.VITE_PADDLE_CLIENT_TOKEN as string | undefined),
   env: trimEnv(import.meta.env.VITE_PADDLE_ENV as string | undefined) || 'sandbox',
-  teacherMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined),
-  teacherAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined),
+  // Env wins, but fall back to the live SSi Premium price IDs so checkout works
+  // without per-environment config (matches the student-price pattern). Prices
+  // change rarely; regional variation is Paddle country-specific prices ON THE
+  // SAME price ID, so no extra IDs/env vars are needed for regions.
+  teacherMonthlyPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_MONTHLY as string | undefined) ||
+    'pri_01kqq85gvncyasfmfvvpcv1xfg', // £15/mo SSi Premium
+  teacherAnnualPriceId:
+    trimEnv(import.meta.env.VITE_PADDLE_TEACHER_PRICE_ANNUAL as string | undefined) ||
+    'pri_01kqq86ymc3yhm8be3w7f7kgr1', // £150/yr SSi Premium
   studentMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_MONTHLY as string | undefined),
   studentSchoolMonthlyPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_SCHOOL_PRICE_MONTHLY as string | undefined),
   studentAnnualPriceId: trimEnv(import.meta.env.VITE_PADDLE_STUDENT_PRICE_ANNUAL as string | undefined),
