@@ -56,10 +56,11 @@ export type Layer1PlayRole = 'ps' | 'ps2x'
 /** Role → playback rate. Single source of truth. */
 export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, ps2x: 2.0 }
 
-/** Every seed in a poured cup plays once at each of these speeds. The cup is
- *  poured as one whole pass at 1.0× then one whole pass at 2.0× — no decay
- *  ladder, no per-seed state (Aran 2026-06-18: ditched the decay; flat
- *  once-slow-once-fast for every item, slow pass then fast pass). */
+/** Every seed in a poured cup plays TWICE at each of these speeds. The cup is
+ *  poured as one whole pass at 1.0× then one whole pass at 2.0×, each seed
+ *  doubled back-to-back within its pass — no decay ladder, no per-seed state
+ *  (Aran 2026-06-18: ditched the decay; 2026-06-19: doubled up — twice slow
+ *  then twice fast for every item, slow pass then fast pass). */
 export const L1_CUP_SPEEDS: readonly number[] = [1.0, 2.0]
 
 export interface Layer1Config {
@@ -453,8 +454,9 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
 
     // Resolve each cup seed once (voice 1/2 by a per-round seeded RNG so the lap
     // is mixed yet identical on replay/resume; skip seeds without audio), then
-    // pour the WHOLE cup at 1× followed by the WHOLE cup at 2× (Aran 2026-06-18:
-    // no decay — every item once slow then once fast, grouped by speed).
+    // pour the WHOLE cup at 1× followed by the WHOLE cup at 2×, with each seed
+    // played TWICE back-to-back within each speed phase (Aran 2026-06-19: doubled
+    // up — each sentence twice at 1×, then twice at 2×; grouping by speed retained).
     const seedMap = seeds.value
     const rng = seededRng(`${courseCode}:${learnerId}:L1cup:${mainRound}`)
     const resolved: Array<{ seedNumber: number; audioId: string; text: string }> = []
@@ -468,7 +470,10 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
     }
     if (resolved.length === 0) return null
     const plays: L1Play[] = L1_CUP_SPEEDS.flatMap((speed) =>
-      resolved.map((r) => ({ ...r, playbackSpeed: speed })),
+      resolved.flatMap((r) => [
+        { ...r, playbackSpeed: speed },
+        { ...r, playbackSpeed: speed },
+      ]),
     )
 
     const playableSeeds = new Set(plays.map((pl) => pl.seedNumber)).size

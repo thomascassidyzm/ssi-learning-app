@@ -190,7 +190,7 @@ describe('fallbackCluster', () => {
 
 // ----------------------------------------------------------------------------
 // composeCupSeeds — cup membership + order (cluster first, then loose oldest→newest).
-// No tiers/decay (Aran 2026-06-18): every seed plays the same (1× then 2×, in nextLap).
+// No tiers/decay (Aran 2026-06-18): every seed plays the same (2026-06-19: twice at 1× then twice at 2×, in nextLap).
 // ----------------------------------------------------------------------------
 describe('composeCupSeeds', () => {
   const cfg = { clusterStep: 5 }
