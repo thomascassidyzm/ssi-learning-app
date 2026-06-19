@@ -116,8 +116,21 @@ function visibleBullets(note: { id: string; bullets: string[] }): string[] {
 // the one running? Version strings are git SHAs (NOT orderable), so SHA-equality
 // is the "you're current" short-circuit and released_at-vs-buildTime decides the
 // rest. Guarded so dev builds (no buildTime / SHA 'dev') never flag.
+//
+// SHAs must be compared on a normalised prefix, NOT exact string ==: buildNumber
+// is sliced to 7 chars (VERCEL_GIT_COMMIT_SHA.slice(0,7)) but release-note
+// versions are stored at a different length (e.g. 8 chars). Exact == therefore
+// NEVER matched even on the build a note describes, so the "you're current"
+// short-circuit never fired → released_at (always after buildTime, since notes
+// are written post-deploy) produced a PERMANENT false "Update available" that
+// tapping couldn't clear. Compare on the shorter prefix to be length-agnostic.
 const latestNote = computed(() => releaseNotes.value[0] || null)
-const onLatestNoteVersion = computed(() => !!latestNote.value && latestNote.value.version === buildNumber)
+function shaPrefixEq(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  const n = Math.min(a.length, b.length)
+  return n > 0 && a.slice(0, n) === b.slice(0, n)
+}
+const onLatestNoteVersion = computed(() => !!latestNote.value && shaPrefixEq(latestNote.value.version, buildNumber))
 const noteIndicatesNewer = computed(() => {
   const n = latestNote.value
   if (!n || onLatestNoteVersion.value) return false
