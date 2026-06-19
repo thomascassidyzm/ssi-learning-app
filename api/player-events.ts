@@ -99,7 +99,13 @@ export default async function handler(
     .filter((e) => e && typeof e.event_type === 'string' && e.event_type.length > 0)
     .map((e) => ({
       occurred_at: e.occurred_at || new Date().toISOString(),
+      // Identity Phase 1 (expand): dual-write both. user_id is the legacy name
+      // (it holds the learner pk, not the auth uid); learner_id is the canonical
+      // one. Readers migrate to learner_id only after this dual-write reaches
+      // prod; user_id is dropped later (contract). See migration
+      // 20260619_player_events_learner_id_expand.sql.
       user_id: userId,
+      learner_id: userId,
       course_code: e.course_code || null,
       session_id: e.session_id || null,
       event_type: e.event_type.slice(0, 64),
