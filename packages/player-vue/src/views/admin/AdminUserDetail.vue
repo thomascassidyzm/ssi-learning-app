@@ -29,6 +29,58 @@ const {
   getCourseProgress,
 } = useAdminUserDetail(getClient())
 
+// ─── Effective access (resolved truth, mirrors core checkCourseAccess) ──────
+// Precedence: admin/tester role > full entitlement > course entitlements >
+// default (free/community full; premium previews to end of Yellow). Subscription
+// is not loaded on this view, so the default line notes that caveat. The point
+// is to show the resolved truth at a glance and make clear when trial state is
+// irrelevant (a full grant sits above any trial in the precedence).
+const fullEntitlement = computed(() =>
+  userEntitlements.value.find(
+    (e: any) => e.access_type === 'full' && (!e.expires_at || new Date(e.expires_at) > new Date()),
+  ),
+)
+const isRoleUnrestricted = computed(
+  () => profile.value?.platform_role === 'ssi_admin' || profile.value?.platform_role === 'tester',
+)
+const isUnrestricted = computed(() => isRoleUnrestricted.value || !!fullEntitlement.value)
+const effectiveAccess = computed(() => {
+  if (isRoleUnrestricted.value) {
+    return {
+      tone: 'full',
+      label: 'FULL — unrestricted',
+      detail: `${profile.value?.platform_role} role · all courses, never expires. Trial state does not apply.`,
+    }
+  }
+  if (fullEntitlement.value) {
+    const e = fullEntitlement.value
+    const exp = e.expires_at
+      ? `expires ${new Date(e.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      : 'never expires'
+    return {
+      tone: 'full',
+      label: 'FULL — unrestricted',
+      detail: `direct grant · all courses · ${exp}. Trial state does not apply.`,
+    }
+  }
+  const courseGrants = userEntitlements.value.filter(
+    (e: any) => e.access_type === 'courses' && (!e.expires_at || new Date(e.expires_at) > new Date()),
+  )
+  if (courseGrants.length > 0) {
+    return {
+      tone: 'partial',
+      label: 'PARTIAL — granted courses',
+      detail: 'full access to granted courses; other premium courses preview to end of Yellow.',
+    }
+  }
+  return {
+    tone: 'default',
+    label: 'DEFAULT',
+    detail:
+      'free & community courses full; premium courses preview to end of Yellow (seed 19) unless an active subscription applies.',
+  }
+})
+
 // ─── Diagnostic helpers (recent telemetry digest) ──────────────────
 // All derived from the already-loaded playerEvents / l1State / legoMetrics
 // so no extra fetches. Visualisation is intentionally minimal — the
@@ -524,6 +576,13 @@ async function handleSetTrial(action: 'expire' | 'restore') {
           </button>
         </div>
 
+        <!-- Effective access — the resolved truth (role > grant > default) -->
+        <div class="schools-card effective-access" :class="`ea-${effectiveAccess.tone}`">
+          <span class="ea-kicker schools-kicker">Effective access</span>
+          <span class="ea-label">{{ effectiveAccess.label }}</span>
+          <span class="ea-detail">{{ effectiveAccess.detail }}</span>
+        </div>
+
         <!-- Grant form (collapsed by default; toggled via section-head button) -->
         <Transition name="reveal">
           <div v-if="showGrantForm" class="schools-card grant-panel">
@@ -629,7 +688,11 @@ async function handleSetTrial(action: 'expire' | 'restore') {
         <div class="section-head">
           <h3 class="section-title frost-display">Trial testing</h3>
         </div>
-        <div class="schools-card trial-test-panel">
+        <div class="schools-card trial-test-panel" :class="{ 'is-overridden': isUnrestricted }">
+          <p v-if="isUnrestricted" class="trial-test-override">
+            ⚠ This account has unrestricted access ({{ effectiveAccess.label }}) — trial
+            state does not affect what they can play. These controls are for QA only.
+          </p>
           <p class="trial-test-hint">
             Skip this account to the end of its trial (school + tutor platform
             trial and any course play-trial), or restore the windows. Reversible.
@@ -1361,9 +1424,47 @@ async function handleSetTrial(action: 'expire' | 'restore') {
 .trial-test-panel {
   padding: 1rem 1.25rem;
 }
+.trial-test-panel.is-overridden {
+  opacity: 0.6;
+}
 
 .trial-test-hint {
   margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #64748b);
+  line-height: 1.4;
+}
+
+.trial-test-override {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  line-height: 1.4;
+}
+
+/* Effective access banner — resolved truth at a glance. */
+.effective-access {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 0.75rem;
+  border-left: 3px solid var(--text-tertiary, #94a3b8);
+}
+.effective-access.ea-full {
+  border-left-color: #16a34a;
+}
+.effective-access.ea-partial {
+  border-left-color: #2563eb;
+}
+.ea-label {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary, #0f172a);
+}
+.ea-detail {
   font-size: 0.85rem;
   color: var(--text-secondary, #64748b);
   line-height: 1.4;
