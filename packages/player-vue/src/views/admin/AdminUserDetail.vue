@@ -470,7 +470,11 @@ async function handleSetTrial(action: 'expire' | 'restore') {
                 <div class="profile-meta">
                   <span>Joined {{ new Date(profile.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) }}</span>
                   <span class="meta-dot"></span>
-                  <span class="profile-uid frost-mono-nums">{{ profile.user_id }}</span>
+                  <!-- learner.id is the canonical identity everything keys on; auth uid is
+                       just the login token. Label both so neither is mistaken for the other. -->
+                  <span class="profile-uid frost-mono-nums" title="learner.id — the canonical identity for all data">learner {{ profile.id }}</span>
+                  <span class="meta-dot"></span>
+                  <span class="profile-uid frost-mono-nums" title="Supabase auth user id — login token only">auth {{ profile.user_id }}</span>
                 </div>
               </div>
               <div class="profile-badges">

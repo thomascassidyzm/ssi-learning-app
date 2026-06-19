@@ -118,6 +118,15 @@ User-id columns in this DB are mixed-type AND mixed-meaning — there is no sing
 
 After any policy change, end the migration with `NOTIFY pgrst, 'reload schema';`.
 
+### Identity rationalisation (in progress — Phase 0 landed 2026-06-19)
+
+**Rule: `learners.id` is the ONE canonical identity for all domain data. `auth.uid()` is a login token, translated to `learner.id` once at the edge and never used downstream.** The recurring confusion (player_events keyed on learner.id not auth uid; admin header showing the wrong id) comes from this rule not being *enforced* — so we're enforcing it via naming + one bridge.
+
+- **Bridge function `current_learner_id()`** (migration `20260619_current_learner_id_bridge.sql`) = `auth.uid()` → `learners.id`. Use it in new RLS policies and server resolution instead of hand-rolling the join. It's the single translation point.
+- **Naming convention (target):** a column holding the auth uid is named `auth_user_id`; a column holding the learner PK is named `learner_id`. The name must state the identity — type does not (a `uuid` column can hold either; `player_events.user_id` is `uuid` but holds learner.id).
+- **Live inventory (2026-06-19):** `learner_id` (18 tables, all uuid, all learners.id — the clean pattern). Offenders to rename via expand-contract: `player_events.user_id` (uuid, learner.id → `learner_id`); the auth-uid `user_id`/`*_user_id`/`created_by`/`changed_by_uid` columns (learners, govt_admins, user_tags, schools.admin_user_id, classes/class_sessions.teacher_user_id, role_change_audit, content_feedback, conversations, tester_feedback → `auth_user_id`).
+- **Sequencing:** renames are expand-contract (dev/staging/prod share ONE DB, so a bare rename breaks un-deployed code). Auth-uid renames touch ~20 RLS policies → gated to the "tighten RLS before first paying school" window. **Multiple accounts per person are intentional (tester accounts) — do NOT merge learners.**
+
 ---
 
 ## Project Overview
