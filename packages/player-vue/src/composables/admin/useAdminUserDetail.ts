@@ -103,6 +103,11 @@ const profile = ref<UserProfile | null>(null)
 const enrollments = ref<DetailEnrollment[]>([])
 const sessions = ref<DetailSession[]>([])
 const userEntitlements = ref<UserEntitlement[]>([])
+// True when the learner has an active paid subscription (status active +
+// current_period_end in the future or null=lifetime). Same criteria as the
+// admin users list. Needed so the effective-access view treats subscribers as
+// full/unrestricted, not DEFAULT.
+const hasActiveSubscription = ref(false)
 const courseProgress = ref<Map<string, CourseProgress>>(new Map())
 const playerEvents = ref<PlayerEvent[]>([])
 const l1State = ref<L1StateRow[]>([])
@@ -120,7 +125,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
 
     try {
       // Fetch all data in parallel
-      const [profileResult, enrollResult, sessResult, entitlementResult] = await Promise.all([
+      const [profileResult, enrollResult, sessResult, entitlementResult, subscriptionResult] = await Promise.all([
         client
           .from('learners')
           .select('id, user_id, display_name, created_at, educational_role, platform_role')
@@ -140,6 +145,11 @@ export function useAdminUserDetail(client: SupabaseClient) {
           .from('user_entitlements')
           .select('id, access_type, granted_courses, expires_at, redeemed_at, entitlement_code_id')
           .eq('learner_id', learnerId),
+        client
+          .from('subscriptions')
+          .select('status, current_period_end')
+          .eq('learner_id', learnerId)
+          .eq('status', 'active'),
       ])
 
       if (profileResult.error) throw profileResult.error
@@ -148,6 +158,16 @@ export function useAdminUserDetail(client: SupabaseClient) {
       // Entitlement fetch is non-critical
       if (entitlementResult.error) {
         console.warn('[AdminUserDetail] entitlement fetch error:', entitlementResult.error)
+      }
+      // Subscription fetch is non-critical; null current_period_end = lifetime.
+      if (subscriptionResult.error) {
+        console.warn('[AdminUserDetail] subscription fetch error:', subscriptionResult.error)
+        hasActiveSubscription.value = false
+      } else {
+        const now = Date.now()
+        hasActiveSubscription.value = (subscriptionResult.data || []).some(
+          (s: any) => !s.current_period_end || new Date(s.current_period_end).getTime() > now,
+        )
       }
 
       profile.value = { ...profileResult.data, primary_email: null, emails: [] }
@@ -494,6 +514,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
     enrollments,
     sessions,
     userEntitlements,
+    hasActiveSubscription,
     courseProgress,
     playerEvents,
     l1State,

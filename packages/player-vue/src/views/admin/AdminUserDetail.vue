@@ -15,6 +15,7 @@ const {
   enrollments,
   sessions,
   userEntitlements,
+  hasActiveSubscription,
   playerEvents,
   l1State,
   legoMetrics,
@@ -43,13 +44,22 @@ const fullEntitlement = computed(() =>
 const isRoleUnrestricted = computed(
   () => profile.value?.platform_role === 'ssi_admin' || profile.value?.platform_role === 'tester',
 )
-const isUnrestricted = computed(() => isRoleUnrestricted.value || !!fullEntitlement.value)
+const isUnrestricted = computed(
+  () => isRoleUnrestricted.value || hasActiveSubscription.value || !!fullEntitlement.value,
+)
 const effectiveAccess = computed(() => {
   if (isRoleUnrestricted.value) {
     return {
       tone: 'full',
       label: 'FULL — unrestricted',
       detail: `${profile.value?.platform_role} role · all courses, never expires. Trial state does not apply.`,
+    }
+  }
+  if (hasActiveSubscription.value) {
+    return {
+      tone: 'full',
+      label: 'FULL — unrestricted',
+      detail: 'active paid subscription · all courses. Trial state does not apply.',
     }
   }
   if (fullEntitlement.value) {
