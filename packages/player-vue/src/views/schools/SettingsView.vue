@@ -494,69 +494,6 @@ function toggleDataItem(id: string) {
   padding-top: 6px;
 }
 
-.seat-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 4px 0 2px;
-}
-
-.seat-stepper {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--schools-border-strong);
-  border-radius: 8px;
-  overflow: hidden;
-  background: #fff;
-}
-
-.seat-btn {
-  width: 34px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  font-size: 18px;
-  line-height: 1;
-  color: var(--schools-fg);
-  cursor: pointer;
-}
-.seat-btn:hover:not(:disabled) { background: #faf6f5; color: var(--schools-red); }
-.seat-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.seat-input {
-  width: 52px;
-  height: 36px;
-  text-align: center;
-  border: none;
-  border-left: 1px solid var(--schools-border);
-  border-right: 1px solid var(--schools-border);
-  font-size: 14px;
-  font-family: var(--font-body);
-  color: var(--schools-fg);
-  -moz-appearance: textfield;
-}
-.seat-input::-webkit-outer-spin-button,
-.seat-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-
-.seat-total {
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--schools-fg);
-}
-.seat-per { font-weight: 500; font-size: 13px; color: var(--schools-fg-2); }
-
-.checkout-error {
-  color: var(--schools-red);
-  font-size: 12.5px;
-  margin: 2px 0 0;
-}
-
-.seat-message {
-  color: var(--schools-fg-2);
-  font-size: 12.5px;
-  margin: 2px 0 0;
-}
-
 .data-actions {
   padding-top: 8px;
 }
