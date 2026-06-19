@@ -198,6 +198,25 @@ async function loadEnrollmentAgg(
 }
 
 /**
+ * Practice minutes derived from telemetry (player_events) — the single source
+ * of truth for stats. Replaces course_enrollments.total_practice_minutes, a
+ * per-write counter that stopped being maintained ~mid-April 2026 and so
+ * under-reported practice everywhere. Returns null if the RPC errors, so the
+ * caller can fall back to the (stale) counter rather than show 0 for everyone.
+ */
+async function loadDerivedPracticeMinutes(
+  supabase: SupabaseClient,
+  learnerIds: string[],
+): Promise<Map<string, number> | null> {
+  if (learnerIds.length === 0) return new Map()
+  const { data, error } = await supabase.rpc('admin_practice_minutes', { p_learner_ids: learnerIds })
+  if (error) { console.warn('[AdminUsers] practice RPC error, falling back to counter:', error); return null }
+  const out = new Map<string, number>()
+  for (const row of data || []) out.set(row.learner_id, row.practice_minutes || 0)
+  return out
+}
+
+/**
  * Authoritative access tier, mirroring core/src/pricing/access.ts precedence:
  *   ssi_admin/tester role > school role > active subscription > active entitlement > free.
  */
@@ -299,11 +318,12 @@ export default async function handler(
     // indexed on learner_id) so the client renders immediately instead of
     // firing its own per-learner enrollment fetches. Each user comes back
     // self-contained: emails, access tier, and an activity rollup.
-    const [emailMap, activeSubs, activeEnts, enrollAgg] = await Promise.all([
+    const [emailMap, activeSubs, activeEnts, enrollAgg, practiceMap] = await Promise.all([
       loadEmails(supabase, learnerIds),
       loadActiveSubscriptions(supabase, learnerIds),
       loadActiveEntitlements(supabase, learnerIds),
       loadEnrollmentAgg(supabase, learnerIds),
+      loadDerivedPracticeMinutes(supabase, learnerIds),
     ])
 
     const users = (learners || []).map(l => {
@@ -315,7 +335,10 @@ export default async function handler(
         emails: emails?.all || [],
         tier: tierFor(l, activeSubs, activeEnts),
         last_active: agg?.last_active ?? null,
-        practice_minutes: agg?.practice_minutes ?? 0,
+        // Derived from telemetry (SSoT); fall back to the legacy counter only if
+        // the RPC errored (practiceMap === null), never just because a learner
+        // has no telemetry — that legitimately means 0.
+        practice_minutes: practiceMap ? (practiceMap.get(l.id) ?? 0) : (agg?.practice_minutes ?? 0),
         course_ids: agg?.course_ids ?? [],
       }
     })
