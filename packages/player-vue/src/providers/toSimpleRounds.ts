@@ -65,30 +65,22 @@ function seedNumberFromId(seedId: string): number {
 }
 
 /**
- * Belt-based speed: the belt determines the speed.
+ * Belt-based speed: the belt determines the speed. One simple ramp for ALL items
+ * (new and spaced-rep alike), keyed to the canonical belt seed boundaries
+ * (BELT_MAX_SEEDS: white ≤7, yellow ≤19, orange ≤39, green 40+):
  *
- * New items (intro/build): 0.7 → 0.7 → 0.7 → 0.8 (White/Yellow/Orange/Green+)
- * Spaced rep:              0.7 → 0.8 → 0.9 → 1.0 (White/Yellow/Orange/Green+)
+ *   White 0.8 → Yellow 0.9 → Orange 0.95 → Green+ 1.0
  */
-function beltSpeedForNew(seedNumber: number): number {
-  if (seedNumber < 40) return 0.7   // White, Yellow, Orange
-  return 0.8                         // Green+
+function beltSpeed(seedNumber: number): number {
+  if (seedNumber < 8) return 0.8    // White  (seeds 1-7)
+  if (seedNumber < 20) return 0.9   // Yellow (seeds 8-19)
+  if (seedNumber < 40) return 0.95  // Orange (seeds 20-39)
+  return 1.0                        // Green+ (seeds 40+)
 }
-
-function beltSpeedForReview(seedNumber: number): number {
-  if (seedNumber < 8) return 0.7    // White
-  if (seedNumber < 20) return 0.8   // Yellow
-  if (seedNumber < 40) return 0.9   // Orange
-  return 1.0                        // Green+
-}
-
-const isNewItem = (type: string) =>
-  type === 'intro' || type === 'debut' || type === 'component_intro' ||
-  type === 'build' || type === 'component_practice'
 
 /** Compute final playback speed for an item */
 function computePlaybackSpeed(
-  type: string,
+  _type: string,
   seedNumber: number,
   _roundNumber: number,
   _reviewOf: number | undefined,
@@ -99,11 +91,8 @@ function computePlaybackSpeed(
   // Legacy courses (recorded at slower speeds): no belt ramp, play at base speed
   if (!config.nativeSpeed) return base
 
-  // Native speed courses: apply belt-based ramp
-  const beltSpeed = isNewItem(type)
-    ? beltSpeedForNew(seedNumber)
-    : beltSpeedForReview(seedNumber)
-  const speed = Math.round(base * beltSpeed * 100) / 100
+  // Native speed courses: apply the single belt-based ramp (new + review alike)
+  const speed = Math.round(base * beltSpeed(seedNumber) * 100) / 100
   return Math.max(MIN_SPEED, Math.min(speed, base))
 }
 
