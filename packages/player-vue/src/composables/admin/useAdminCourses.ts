@@ -74,12 +74,19 @@ export function useAdminCourses(client: SupabaseClient) {
       if (courseErr) throw courseErr
       courses.value = courseData || []
 
-      // Fetch all enrollments
+      // Fetch all enrollments (for per-course enrolled counts)
       const { data: enrollData, error: enrollErr } = await client
         .from('course_enrollments')
-        .select('learner_id, course_id, total_practice_minutes')
+        .select('learner_id, course_id')
 
       if (enrollErr) throw enrollErr
+
+      // Practice minutes per course, derived from telemetry (player_events) —
+      // the SSoT. course_enrollments.total_practice_minutes is a dead counter
+      // (stopped being written ~mid-April 2026).
+      const { data: practiceData, error: practiceErr } = await client
+        .rpc('admin_practice_minutes_by_course')
+      if (practiceErr) console.warn('[AdminCourses] practice RPC error:', practiceErr)
 
       // Fetch sessions in last 30 days for active learner count
       const thirtyDaysAgo = new Date()
@@ -105,18 +112,15 @@ export function useAdminCourses(client: SupabaseClient) {
 
       // Enrollment counts
       const enrollByCourse = new Map<string, Set<string>>()
-      const practiceByCourse = new Map<string, number>()
       enrollData?.forEach(e => {
-        if (!enrollByCourse.has(e.course_id)) {
-          enrollByCourse.set(e.course_id, new Set())
-          practiceByCourse.set(e.course_id, 0)
-        }
+        if (!enrollByCourse.has(e.course_id)) enrollByCourse.set(e.course_id, new Set())
         enrollByCourse.get(e.course_id)!.add(e.learner_id)
-        practiceByCourse.set(
-          e.course_id,
-          (practiceByCourse.get(e.course_id) || 0) + (e.total_practice_minutes || 0)
-        )
       })
+
+      // Telemetry-derived practice minutes per course (keyed by course_code,
+      // which equals course_enrollments.course_id in this DB).
+      const practiceByCourse = new Map<string, number>()
+      ;(practiceData || []).forEach((r: any) => practiceByCourse.set(r.course_code, r.practice_minutes || 0))
 
       // Active learners (30d)
       const activeByCourse = new Map<string, Set<string>>()

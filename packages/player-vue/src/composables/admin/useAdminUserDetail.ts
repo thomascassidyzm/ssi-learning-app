@@ -151,7 +151,19 @@ export function useAdminUserDetail(client: SupabaseClient) {
       }
 
       profile.value = { ...profileResult.data, primary_email: null, emails: [] }
-      enrollments.value = enrollResult.data || []
+      // Override per-course practice with telemetry-derived minutes (player_events
+      // is the SSoT; course_enrollments.total_practice_minutes is a dead counter).
+      // Fall back to the stored value per course only if the RPC itself errors.
+      const { data: pmRows, error: pmErr } = await client
+        .rpc('admin_practice_minutes_by_course', { p_learner_ids: [learnerId] })
+      if (pmErr) console.warn('[AdminUserDetail] practice RPC error:', pmErr)
+      const pmByCourse = pmErr
+        ? null
+        : new Map<string, number>((pmRows || []).map((r: any) => [r.course_code, r.practice_minutes || 0]))
+      enrollments.value = (enrollResult.data || []).map((e: any) => ({
+        ...e,
+        total_practice_minutes: pmByCourse ? (pmByCourse.get(e.course_id) ?? 0) : e.total_practice_minutes,
+      }))
       // Shape learner_speaking_opportunities rows to the DetailSession contract
       // the view already renders. id is synthesised; started_at is the day
       // boundary; ended_at stays null (per-day rollup, not a closed session).

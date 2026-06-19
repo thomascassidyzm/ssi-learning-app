@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       chunk(learnerIds, CHUNK).map(ids =>
         supabase
           .from('course_enrollments')
-          .select('learner_id, last_practiced_at, total_practice_minutes')
+          .select('learner_id, last_practiced_at')
           .in('learner_id', ids),
       ),
     )
@@ -100,12 +100,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (error) throw error
       for (const e of data || []) {
         const cur = activity.get(e.learner_id) || { lastPracticed: null, minutes: 0 }
-        cur.minutes += e.total_practice_minutes || 0
         if (e.last_practiced_at && (!cur.lastPracticed || e.last_practiced_at > cur.lastPracticed)) {
           cur.lastPracticed = e.last_practiced_at
         }
         activity.set(e.learner_id, cur)
       }
+    }
+
+    // Practice minutes from telemetry (player_events) — the SSoT. The
+    // course_enrollments.total_practice_minutes counter is dead (frozen ~April).
+    const { data: pmRows, error: pmErr } = await supabase.rpc('admin_practice_minutes', { p_learner_ids: learnerIds })
+    if (pmErr) console.warn('[Attention] practice RPC error:', pmErr)
+    for (const row of pmRows || []) {
+      const cur = activity.get(row.learner_id) || { lastPracticed: null, minutes: 0 }
+      cur.minutes = row.practice_minutes || 0
+      activity.set(row.learner_id, cur)
     }
 
     // 3. Names + primary email.
