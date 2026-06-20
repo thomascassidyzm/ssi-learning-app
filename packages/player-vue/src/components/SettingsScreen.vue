@@ -158,6 +158,7 @@ const showPronunciationMode = ref(false)
 // Interface language
 const INTERFACE_LANGUAGES = [
   { code: 'eng', label: 'English' },
+  { code: 'gle', label: 'Gaeilge' },
   { code: 'cym', label: 'Cymraeg' },
   { code: 'spa', label: 'Español' },
   { code: 'fra', label: 'Français' },

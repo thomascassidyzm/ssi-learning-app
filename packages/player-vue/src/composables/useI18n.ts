@@ -24,6 +24,8 @@ const unwrap = (m: any): Record<string, any> => (m && m.default) || m
 const cymLoader: LocaleLoader = () => import('../locales/cym.json').then(unwrap)
 const LOCALE_LOADERS: Record<string, LocaleLoader> = {
   eng: () => Promise.resolve(eng),
+  gle: () => import('../locales/gle.json').then(unwrap),
+  ga: () => import('../locales/gle.json').then(unwrap), // 639-1 alias
   spa: () => import('../locales/spa.json').then(unwrap),
   cym: cymLoader,
   cym_n: cymLoader, // dialect codes share the same locale file
