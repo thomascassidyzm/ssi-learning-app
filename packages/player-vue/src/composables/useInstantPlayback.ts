@@ -368,7 +368,7 @@ export function useInstantPlayback(
       // We still fire a background revalidation to pick up version
       // bumps without blocking the cold path. Fire-and-forget; no
       // await, errors swallowed.
-      void revalidateRoundMap(code, cached.version)
+      void revalidateRoundMap(code, cached)
       return cached
     }
 
@@ -392,16 +392,22 @@ export function useInstantPlayback(
   }
 
   /**
-   * Background revalidation. If the server returns a higher version,
-   * overwrite the cache so the NEXT cold start picks it up.
-   * Never throws — pure best-effort.
+   * Background revalidation. Overwrite the cache when the server map differs
+   * from the cached one — a higher version (normal content bump) OR a changed
+   * round count at the same version (content edited without a clean version
+   * bump, or a map that was cached while the source matview was still partial/
+   * unrefreshed). The latter is what stranded a freshly-built course at "one
+   * seed → INF PLAY". The fix lands on the NEXT cold start. Never throws.
    */
-  async function revalidateRoundMap(code: string, cachedVersion: number): Promise<void> {
+  async function revalidateRoundMap(code: string, cached: RoundMap): Promise<void> {
     try {
       const res = await fetch(`${apiBase}/${encodeURIComponent(code)}/round-map`)
       if (!res.ok) return
       const fresh = (await res.json()) as RoundMap
-      if (fresh.version > cachedVersion) {
+      const changed =
+        fresh.version > cached.version ||
+        (fresh.version === cached.version && fresh.rounds.length !== cached.rounds.length)
+      if (changed) {
         writeCachedRoundMap(code, fresh)
         // Mirror into the live ref so consumers see the new version
         // immediately if they query roundMap.value afterward.
