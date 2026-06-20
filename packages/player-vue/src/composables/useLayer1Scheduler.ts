@@ -56,12 +56,17 @@ export type Layer1PlayRole = 'ps' | 'ps2x'
 /** Role → playback rate. Single source of truth. */
 export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, ps2x: 2.0 }
 
-/** Every seed in a poured cup plays TWICE at each of these speeds. The cup is
- *  poured as one whole pass at 1.0× then one whole pass at 2.0×, each seed
- *  doubled back-to-back within its pass — no decay ladder, no per-seed state
- *  (Aran 2026-06-18: ditched the decay; 2026-06-19: doubled up — twice slow
- *  then twice fast for every item, slow pass then fast pass). */
-export const L1_CUP_SPEEDS: readonly number[] = [1.0, 2.0]
+/** Every seed in a poured cup plays TWICE at each of these speeds (one whole
+ *  pass per speed, each seed doubled back-to-back within its pass). No decay
+ *  ladder, no per-seed state.
+ *  (Aran 2026-06-18: ditched the decay; 06-19: doubled up; 06-20: DROPPED the
+ *   2× pass for seeds. Rationale: 2× only delivers comprehensible input when a
+ *   dialogue's flow scaffolds it (→ that's where 2× belongs, Layer 2 pods).
+ *   Disconnected seeds have no scaffold, so 2× there is just fast noise — a dud.
+ *   Seeds are the COMPREHENSION layer → slow only. Now 1×,1× per seed.
+ *   To re-add a single stretch rep, this would need an asymmetric playlist, not
+ *   just appending 2.0 here — that would give 1×,1×,2×,2×.) */
+export const L1_CUP_SPEEDS: readonly number[] = [1.0]
 
 export interface Layer1Config {
   /** Number of cups in the wheel (one poured per round). Batch size == cups. */
