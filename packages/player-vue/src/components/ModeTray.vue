@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useI18n } from '../composables/useI18n'
 import {
   offlineDlState,
   offlineDownloadPct,
@@ -9,6 +10,8 @@ import {
   offlineDownloadCount,
   offlineTrial,
 } from '../composables/useOfflineDownloadStatus'
+
+const { t } = useI18n()
 
 const props = defineProps({
   isListeningMode: { type: Boolean, default: false },
@@ -120,7 +123,7 @@ const handleOffline = () => {
       :class="{ active: hasActiveMode, open: isOpen }"
       :style="offlineDownloadVisible ? offlineRingVars : undefined"
       @click="toggleTray"
-      title="Modes"
+      :title="t('modes.modes')"
     >
       <span
         v-if="offlineDownloadVisible"
@@ -158,14 +161,14 @@ const handleOffline = () => {
           :class="{ active: !isNativeScript }"
           @click.stop="emit('toggleScript')"
           :aria-pressed="!isNativeScript"
-          aria-label="Pronunciation guide"
+          :aria-label="t('modes.pronunciation')"
         >
           <div class="tray-icon">
             <span class="script-icon">Aa</span>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Pronunciation</span>
-            <span class="tray-desc">{{ !isNativeScript ? 'Guide shown above the script' : 'Native script only' }}</span>
+            <span class="tray-name">{{ t('modes.pronunciation') }}</span>
+            <span class="tray-desc">{{ !isNativeScript ? t('modes.guideShown') : t('modes.nativeOnly') }}</span>
           </div>
           <div class="tray-toggle" :class="{ on: !isNativeScript }">
             <div class="tray-toggle-knob"></div>
@@ -187,8 +190,8 @@ const handleOffline = () => {
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Turbo Boost</span>
-            <span class="tray-desc">Faster pace, less repetition</span>
+            <span class="tray-name">{{ t('modes.turboBoost') }}</span>
+            <span class="tray-desc">{{ t('modes.turboDesc') }}</span>
           </div>
           <div class="tray-toggle" :class="{ on: isTurboMode }">
             <div class="tray-toggle-knob"></div>
@@ -209,14 +212,14 @@ const handleOffline = () => {
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Offline mode</span>
+            <span class="tray-name">{{ t('modes.offline') }}</span>
             <span class="tray-desc" :class="{ 'is-downloading': offlineDownloadActive || offlineDlState === 'complete', 'is-error': offlineDlState === 'error' }">
               <template v-if="offlineDownloadVisible">
                 <span class="tray-desc-line">{{ offlineDownloadHeadline }}</span>
                 <span v-if="offlineDownloadCount" class="tray-desc-line tray-desc-count">{{ offlineDownloadCount }}</span>
               </template>
               <template v-else-if="offlineTrial">Free offline for 30 days</template>
-              <template v-else>Play from downloaded audio</template>
+              <template v-else>{{ t('modes.offlineDesc') }}</template>
             </span>
           </div>
           <!-- Offline download is open to everyone (we sell the convenience, not
@@ -245,7 +248,7 @@ const handleOffline = () => {
           </div>
           <div class="tray-label">
             <span class="tray-name">HISE</span>
-            <span class="tray-desc">High Intensity Speaking Exercises</span>
+            <span class="tray-desc">{{ t('modes.hiseDesc') }}</span>
           </div>
           <div class="radio-indicator" :class="{ on: !hasExperienceMode }"></div>
         </button>
@@ -262,8 +265,8 @@ const handleOffline = () => {
             </svg>
           </div>
           <div class="tray-label">
-            <span class="tray-name">Listening</span>
-            <span class="tray-desc">Audio only, no speaking</span>
+            <span class="tray-name">{{ t('modes.listening') }}</span>
+            <span class="tray-desc">{{ t('modes.listeningDesc') }}</span>
           </div>
           <div class="radio-indicator" :class="{ on: isListeningMode }"></div>
         </button>

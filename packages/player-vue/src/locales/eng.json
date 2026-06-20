@@ -2,6 +2,19 @@
   "app": {
     "name": "SaySomethingin"
   },
+  "modes": {
+    "modes": "Modes",
+    "pronunciation": "Pronunciation",
+    "guideShown": "Guide shown above the script",
+    "nativeOnly": "Native script only",
+    "turboBoost": "Turbo Boost",
+    "turboDesc": "Faster pace, less repetition",
+    "offline": "Offline mode",
+    "offlineDesc": "Play from downloaded audio",
+    "hiseDesc": "High Intensity Speaking Exercises",
+    "listening": "Listening",
+    "listeningDesc": "Audio only, no speaking"
+  },
   "courseSelector": {
     "title": "Choose Your Course",
     "iSpeak": "I speak",
