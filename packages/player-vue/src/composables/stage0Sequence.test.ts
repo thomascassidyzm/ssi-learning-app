@@ -116,7 +116,7 @@ describe('buildLadder', () => {
   it('concatenates all 5 tiers separated by stage gaps', () => {
     const tiersSeen = new Set(ladder.map((e) => e.tier))
     expect(tiersSeen).toEqual(new Set(['explainer', 'translation', 'pairs200', 'pairs0', 'intention']))
-    expect(ladder.filter((e) => e.type === 'gap' && e.kind === 'stage')).toHaveLength(4) // between 5 tiers
+    expect(ladder.filter((e) => e.type === 'gap' && e.kind === 'stage')).toHaveLength(5) // 6 tier-visits (explainer ×2) → 5 stage gaps
   })
 
   it('sequenceDurationMs sums clips (÷speed) + gaps', () => {

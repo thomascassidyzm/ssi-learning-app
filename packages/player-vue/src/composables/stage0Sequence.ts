@@ -65,7 +65,7 @@ export const DEFAULT_STAGE0: Stage0Config = {
     betweenIntentions: 500,
   },
   tiers: [
-    { key: 'explainer', visits: 1, fusionGap: null, granularity: 'atoms', targetRepeats: 0 },
+    { key: 'explainer', visits: 2, fusionGap: null, granularity: 'atoms', targetRepeats: 0 }, // 2 breakdowns (Aran 2026-06-20)
     { key: 'translation', visits: 1, fusionGap: null, granularity: 'atoms', targetRepeats: 0 },
     { key: 'pairs200', visits: 1, fusionGap: null, granularity: 'pairs', targetRepeats: 0 },
     { key: 'pairs0', visits: 1, fusionGap: 0, granularity: 'pairs', targetRepeats: 0 },
