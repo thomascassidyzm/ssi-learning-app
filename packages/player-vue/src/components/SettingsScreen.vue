@@ -169,6 +169,13 @@ const INTERFACE_LANGUAGES = [
   { code: 'kor', label: '한국어' },
   { code: 'zho', label: '中文' },
   { code: 'ara', label: 'العربية' },
+  { code: 'hin', label: 'हिन्दी' },
+  { code: 'ben', label: 'বাংলা' },
+  { code: 'tam', label: 'தமிழ்' },
+  { code: 'urd', label: 'اردو' },
+  { code: 'guj', label: 'ગુજરાતી' },
+  { code: 'pan', label: 'ਪੰਜਾਬੀ' },
+  { code: 'sin', label: 'සිංහල' },
 ]
 
 const currentInterfaceLang = ref(localStorage.getItem('ssi-locale') || 'eng')
