@@ -151,7 +151,7 @@ function playAsClass(cls: TeacherClass) {
     current_seed: cls.current_seed,
     timestamp: new Date().toISOString(),
   }))
-  router.push({ path: '/teach/play', query: { class: cls.id } })
+  router.push({ path: '/tutors/dashboard/play', query: { class: cls.id } })
 }
 
 function formatLastActive(dateStr: string | null): string {
@@ -177,7 +177,7 @@ async function loadTeacher(token: string): Promise<boolean> {
   })
 
   if (res.status === 404) {
-    router.replace('/teach/setup')
+    router.replace('/tutors')
     return false
   }
 

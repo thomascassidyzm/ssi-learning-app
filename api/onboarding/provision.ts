@@ -346,7 +346,7 @@ export default async function handler(
       // Returning user (already had a teacher/school for this track) — the signup
       // UI skips the finishing-details step and sends them straight in.
       existing: existingAccount,
-      redirect: track === 'tutor' ? '/teach' : '/schools',
+      redirect: track === 'tutor' ? '/tutors/dashboard' : '/schools',
     })
   } catch (error: any) {
     console.error('[onboarding/provision] Error:', error)

@@ -48,7 +48,6 @@ const SetupView = () => import('@/views/schools/SetupView.vue')
 const UpgradeView = () => import('@/views/schools/UpgradeView.vue')
 // Teach (private tutor) views
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
-const TeachSetup = () => import('@/views/teach/TeachSetup.vue')
 const WithTeacher = () => import('@/views/teach/WithTeacher.vue')
 // Onboarding — the three signup doors (/schools1, /schools2, /tutors)
 const Onboarding = () => import('@/views/onboarding/Onboarding.vue')
@@ -98,7 +97,7 @@ const routes: RouteRecordRaw[] = [
       // is initialized, so a first cold load (cache not yet primed) still
       // reaches the container, which has its own login/loading handling.
       if (isInitialized.value && !hasSchoolRole.value) {
-        return next(lastDashboard() === 'teach' ? '/teach' : '/')
+        return next(lastDashboard() === 'teach' ? '/tutors/dashboard' : '/')
       }
       // Genuine school member — remember it for the symmetric breadcrumb.
       rememberDashboard('schools')
@@ -215,9 +214,12 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  // Teach (private tutor) routes
+  // Tutor (freelancer) dashboard. ONE tutor namespace: /tutors is the sign-up
+  // page (Onboarding door, defined below); /tutors/dashboard is the freelancer's
+  // shell. Consolidated from the old /teach surface (removed 2026-06-20) — the
+  // /teach name + the buggy /teach/setup signup are gone; signup is /tutors only.
   {
-    path: '/teach',
+    path: '/tutors/dashboard',
     component: TeachContainer,
     meta: { hideAppEscape: true }, // TeachContainer carries its own nav
     // See the /schools guard note: primes the role cache; the platform gate
@@ -225,9 +227,9 @@ const routes: RouteRecordRaw[] = [
     beforeEnter: (_to, _from, next) => {
       const { restoreFromCache } = useUserRole()
       restoreFromCache()
-      // Remember the tutor came from /teach so that if they later land on
-      // /schools (stale link, old bookmark, a confused session) the /schools
-      // guard sends them back HERE rather than dumping them on the member wall.
+      // Remember the tutor's surface so if they later land on /schools (stale
+      // link, confused session) the /schools guard sends them back here rather
+      // than dumping them on the member wall.
       rememberDashboard('teach')
       next()
     },
@@ -239,12 +241,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Teach' },
       },
       {
-        path: 'setup',
-        name: 'teach-setup',
-        component: TeachSetup,
-        meta: { title: 'Set up your teacher profile' },
-      },
-      {
         path: 'upgrade',
         name: 'teach-upgrade',
         component: UpgradeView,
@@ -252,14 +248,20 @@ const routes: RouteRecordRaw[] = [
       },
       {
         // Play-as-class for tutors — renders the player INSIDE TeachContainer so
-        // the teach nav stays above it (mirrors /schools/play in SchoolsContainer).
+        // the tutor nav stays above it (mirrors /schools/play in SchoolsContainer).
         path: 'play',
         name: 'teach-play',
         component: PlayerContainer,
-        meta: { title: 'Class session', description: 'Run a class learning session — teach nav stays above the player' },
+        meta: { title: 'Class session', description: 'Run a class learning session — tutor nav stays above the player' },
       },
     ],
   },
+  // Back-compat: old /teach links / PWA shortcuts → the new /tutors namespace.
+  // /teach/setup is retired — its signup now happens at the /tutors door.
+  { path: '/teach', redirect: '/tutors/dashboard' },
+  { path: '/teach/setup', redirect: '/tutors' },
+  { path: '/teach/upgrade', redirect: '/tutors/dashboard/upgrade' },
+  { path: '/teach/play', redirect: '/tutors/dashboard/play' },
   // Student attribution gateway (no auth required)
   {
     path: '/with/:code',

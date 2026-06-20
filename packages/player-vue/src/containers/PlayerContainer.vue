@@ -389,9 +389,9 @@ const handleGoHome = () => {
     // Return to whichever surface launched the class session — the tutor
     // dashboard (/teach) or the schools classes list — so the teacher keeps
     // their context instead of being dumped into the learner home.
-    const launchedFromTeach = router.currentRoute.value.path.startsWith('/teach')
+    const launchedFromTeach = router.currentRoute.value.path.startsWith('/tutors/dashboard')
     clearClassContext()
-    router.push(launchedFromTeach ? '/teach' : '/schools/classes')
+    router.push(launchedFromTeach ? '/tutors/dashboard' : '/schools/classes')
   } else {
     goHome()
   }

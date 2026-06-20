@@ -107,7 +107,7 @@ const isTutorNoSchool = computed(
 watch(
   () => showNoAccess.value && isTutorNoSchool.value,
   (redirect) => {
-    if (redirect) router.replace('/teach')
+    if (redirect) router.replace('/tutors/dashboard')
   },
   { immediate: true },
 )
@@ -431,7 +431,7 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
             <router-link to="/schools/setup" class="form-secondary form-secondary--link">
               I'm setting up a new school →
             </router-link>
-            <router-link to="/teach" class="form-secondary form-secondary--link">
+            <router-link to="/tutors/dashboard" class="form-secondary form-secondary--link">
               I'm a tutor — go to my dashboard →
             </router-link>
             <a href="/" class="form-secondary form-secondary--link">
