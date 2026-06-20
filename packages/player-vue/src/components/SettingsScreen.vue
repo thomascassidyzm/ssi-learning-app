@@ -1296,7 +1296,7 @@ const confirmReset = async () => {
 
       <!-- What's New — admin-curated release notes (see /admin/release-notes) -->
       <section v-if="releaseNotes.length > 0" class="section whats-new">
-        <h3 class="section-title">What's new</h3>
+        <h3 class="section-title">{{ t('settings.whatsNew') }}</h3>
         <div class="card">
           <div v-for="(note, idx) in visibleNotes" :key="note.id" class="whats-new-entry">
             <div class="whats-new-head">
@@ -1328,13 +1328,13 @@ const confirmReset = async () => {
         </div>
       </section>
       <section v-else-if="notesLoading" class="section whats-new">
-        <h3 class="section-title">What's new</h3>
+        <h3 class="section-title">{{ t('settings.whatsNew') }}</h3>
         <div class="card whats-new-loading">Loading…</div>
       </section>
 
       <!-- Account Section (guest - not signed in) -->
       <section class="section" v-if="!isSignedIn">
-        <h3 class="section-title">Account</h3>
+        <h3 class="section-title">{{ t('settings.account') }}</h3>
         <div class="card">
           <div class="auth-cta-row">
             <p class="auth-cta-text">Sign in to save your progress across devices</p>
@@ -1347,7 +1347,7 @@ const confirmReset = async () => {
 
       <!-- Account Section (signed-in users) -->
       <section class="section" v-if="isSignedIn">
-        <h3 class="section-title">Account</h3>
+        <h3 class="section-title">{{ t('settings.account') }}</h3>
         <div class="card">
           <!-- User Info / Display Name -->
           <div class="setting-row clickable" v-if="userName || userEmail" @click="showDisplayNameForm = !showDisplayNameForm; displayNameInput = userName; displayNameError = ''; displayNameSuccess = false">
@@ -1434,7 +1434,7 @@ const confirmReset = async () => {
           <!-- Linked Emails -->
           <div class="setting-row clickable" @click="showAddEmailForm = !showAddEmailForm; addEmailError = ''; addEmailSuccess = false; addEmailStep = 'email'; addEmailInput = ''; addEmailOtp = ''">
             <div class="setting-info">
-              <span class="setting-label">Linked Emails</span>
+              <span class="setting-label">{{ t('settings.linkedEmails') }}</span>
               <span class="setting-desc">{{ verifiedEmails.length > 1 ? `${verifiedEmails.length} emails linked` : 'Add another email to sign in with' }}</span>
             </div>
             <svg class="chevron" :class="{ rotated: showAddEmailForm }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1517,12 +1517,12 @@ const confirmReset = async () => {
 
       <!-- Dashboards Section (role-gated, prominent placement) -->
       <section class="section" v-if="isSignedIn && (hasSchoolRole || hasAdminRole)">
-        <h3 class="section-title">Dashboards</h3>
+        <h3 class="section-title">{{ t('settings.dashboards') }}</h3>
         <div class="card">
           <!-- Schools Dashboard -->
           <div v-if="hasSchoolRole" class="setting-row clickable" @click="router.push('/schools')">
             <div class="setting-info">
-              <span class="setting-label">Schools Dashboard</span>
+              <span class="setting-label">{{ t('settings.schoolsDashboard') }}</span>
               <span class="setting-desc">Manage your classes and students</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1606,7 +1606,7 @@ const confirmReset = async () => {
           </div>
         </div>
 
-        <h3 class="section-title">Tools</h3>
+        <h3 class="section-title">{{ t('settings.tools') }}</h3>
         <div class="card">
           <template v-if="showViewScript">
             <div class="divider"></div>
@@ -1660,11 +1660,11 @@ const confirmReset = async () => {
       <!-- Offline Section -->
       <!-- Enter Code Section (only for signed-in users) -->
       <section class="section" v-if="isSignedIn">
-        <h3 class="section-title">Codes</h3>
+        <h3 class="section-title">{{ t('settings.codes') }}</h3>
         <div class="card">
           <div class="setting-row" v-if="!showJoinCode">
             <div class="setting-info">
-              <span class="setting-label">Enter a Code</span>
+              <span class="setting-label">{{ t('settings.enterACode') }}</span>
               <span class="setting-desc">Enter an invite or access code</span>
             </div>
             <button class="text-btn" @click="showJoinCode = true">Enter Code</button>
@@ -1709,7 +1709,7 @@ const confirmReset = async () => {
 
       <!-- Subscription Section (only for signed-in users) -->
       <section class="section" v-if="isSignedIn">
-        <h3 class="section-title">Subscription</h3>
+        <h3 class="section-title">{{ t('settings.subscription') }}</h3>
         <div class="card">
           <template v-if="isSubscribed">
             <!-- Status -->
@@ -1728,7 +1728,7 @@ const confirmReset = async () => {
               <div class="divider"></div>
               <div class="setting-row clickable danger" @click="openCancelConfirm">
                 <div class="setting-info">
-                  <span class="setting-label">Cancel subscription</span>
+                  <span class="setting-label">{{ t('settings.cancelSubscription') }}</span>
                   <span class="setting-desc">Stay Premium until {{ subscriptionEndsAt || 'the period ends' }}, then stop</span>
                 </div>
                 <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1751,7 +1751,7 @@ const confirmReset = async () => {
           <!-- Not subscribed -->
           <div v-else class="setting-row clickable" @click="goPremium">
             <div class="setting-info">
-              <span class="setting-label">Go Premium</span>
+              <span class="setting-label">{{ t('settings.goPremium') }}</span>
               <span class="setting-desc">£15/month — unlimited access to all languages</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1763,11 +1763,11 @@ const confirmReset = async () => {
 
       <!-- Data Section -->
       <section class="section">
-        <h3 class="section-title">Data</h3>
+        <h3 class="section-title">{{ t('settings.data') }}</h3>
         <div class="card">
           <div class="setting-row clickable danger" @click="handleResetClick">
             <div class="setting-info">
-              <span class="setting-label">Reset Progress</span>
+              <span class="setting-label">{{ t('settings.resetProgress') }}</span>
               <span class="setting-desc">Start fresh for this course</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1779,7 +1779,7 @@ const confirmReset = async () => {
 
           <div class="setting-row clickable danger" @click="handleDeleteClick" v-if="isSignedIn">
             <div class="setting-info">
-              <span class="setting-label">Delete Account</span>
+              <span class="setting-label">{{ t('settings.deleteAccount') }}</span>
               <span class="setting-desc">Permanently delete your account and all data</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1873,7 +1873,7 @@ const confirmReset = async () => {
            reload". Both preserve Supabase auth so signed-in users stay signed
            in; the heavy one warns about offline downloads + guest progress. -->
       <section class="section">
-        <h3 class="section-title">Troubleshooting</h3>
+        <h3 class="section-title">{{ t('settings.troubleshooting') }}</h3>
         <div class="card">
           <!-- At-rest transparency: what version you're on + what's stored -->
           <div class="troubleshoot-status">
@@ -1883,7 +1883,7 @@ const confirmReset = async () => {
           <!-- Light: get the latest version, keeps audio + progress -->
           <div class="setting-row clickable" @click="handleUpdateToLatest">
             <div class="setting-info">
-              <span class="setting-label">Update to the latest version</span>
+              <span class="setting-label">{{ t('settings.updateLatest') }}</span>
               <span class="setting-desc">Reloads with the newest version. Your downloads and progress are kept.</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1894,7 +1894,7 @@ const confirmReset = async () => {
           <!-- Heavy: full wipe, gated behind a confirm -->
           <div class="setting-row clickable danger" @click="openClearConfirm">
             <div class="setting-info">
-              <span class="setting-label">Clear cache &amp; reload</span>
+              <span class="setting-label">{{ t('settings.clearCacheReload') }}</span>
               <span class="setting-desc">Fixes most audio and loading problems. You stay signed in.</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1909,7 +1909,7 @@ const confirmReset = async () => {
         <div class="card">
           <div class="setting-row clickable" @click="router.push('/install')">
             <div class="setting-info">
-              <span class="setting-label">Install App</span>
+              <span class="setting-label">{{ t('settings.installApp') }}</span>
               <span class="setting-hint">Add to your home screen for faster, offline access</span>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron">
@@ -1925,11 +1925,11 @@ const confirmReset = async () => {
            production marketing site replaces the stage subdomain, swap the
            three URL prefixes. -->
       <section class="section">
-        <h3 class="section-title">Legal</h3>
+        <h3 class="section-title">{{ t('settings.legal') }}</h3>
         <div class="card">
           <a href="/terms" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
-              <span class="setting-label">Terms &amp; Conditions</span>
+              <span class="setting-label">{{ t('settings.terms') }}</span>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
@@ -1939,7 +1939,7 @@ const confirmReset = async () => {
           </a>
           <a href="/privacy" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
-              <span class="setting-label">Privacy Policy</span>
+              <span class="setting-label">{{ t('settings.privacy') }}</span>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
@@ -1949,7 +1949,7 @@ const confirmReset = async () => {
           </a>
           <a href="/refunds" target="_blank" rel="noopener" class="setting-row clickable legal-link">
             <div class="setting-info">
-              <span class="setting-label">Refund Policy</span>
+              <span class="setting-label">{{ t('settings.refund') }}</span>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
