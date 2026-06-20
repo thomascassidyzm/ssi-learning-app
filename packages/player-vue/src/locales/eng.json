@@ -80,6 +80,8 @@
   },
   "settings": {
     "title": "Settings",
+    "languageSection": "Language",
+    "interfaceLanguage": "Interface Language",
     "tools": "Tools",
     "listeningMode": "Listening mode",
     "listeningModeDesc": "Repeat sentences with passive listening",

@@ -80,6 +80,8 @@
   },
   "settings": {
     "title": "Socruithe",
+    "languageSection": "Teanga",
+    "interfaceLanguage": "Teanga na Comhéadain",
     "tools": "Uirlisí",
     "listeningMode": "Mód éisteachta",
     "listeningModeDesc": "Athchleachtadh abairtí le héisteacht éighníomhach",

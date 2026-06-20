@@ -8,7 +8,7 @@ import { useInviteCode, type InviteCodeContext } from '../composables/useInviteC
 import { useAuthModal } from '../composables/useAuthModal'
 import { useUserRole } from '../composables/useUserRole'
 import { useRouter } from 'vue-router'
-import { getLanguageName, getLanguageEndonym, setLocale } from '../composables/useI18n'
+import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useCheckout } from '../composables/useCheckout'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -156,6 +156,8 @@ const showPronunciationMode = ref(false)
 
 // Speed setting
 // Interface language
+const { t } = useI18n()
+
 const INTERFACE_LANGUAGES = [
   { code: 'eng', label: 'English' },
   { code: 'gle', label: 'Gaeilge' },
@@ -1543,13 +1545,24 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Interface Language -->
+      <!-- Interface Language — globe icon is a language-agnostic anchor so the
+           setting stays findable even if the UI is set to an unreadable script. -->
       <section class="section">
-        <h3 class="section-title">Language</h3>
+        <h3 class="section-title">
+          <svg class="section-title-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+          {{ t('settings.languageSection') }}
+        </h3>
         <div class="card">
           <div class="setting-row clickable" @click="showLangPicker = !showLangPicker">
+            <svg class="setting-globe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="Language" role="img">
+              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
             <div class="setting-info">
-              <span class="setting-label">Interface Language</span>
+              <span class="setting-label">{{ t('settings.interfaceLanguage') }}</span>
               <span class="setting-desc">{{ currentLangLabel }}</span>
             </div>
             <svg class="chevron" :class="{ rotated: showLangPicker }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2101,6 +2114,21 @@ const confirmReset = async () => {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin: 0 0 0.75rem 0.25rem;
+}
+
+/* Globe anchor on the Language section — keeps it findable in any script. */
+.section-title-globe {
+  width: 0.95rem;
+  height: 0.95rem;
+  vertical-align: -2px;
+  margin-right: 0.35rem;
+}
+.setting-globe-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 auto;
+  margin-right: 0.85rem;
+  color: var(--accent, var(--text-muted));
 }
 
 /* Card — iOS-style elevated white on warm canvas */
