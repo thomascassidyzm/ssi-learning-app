@@ -52,8 +52,12 @@ describe('tierSequence — explainer (whole-part-whole)', () => {
 })
 
 describe('tierSequence — translation / pairs / intention', () => {
-  it('translation: atoms (no means-gloss), then the whole translation', () => {
-    const seq = tierSequence(tierByKey('translation'), ATOMS, CLIPS, DEFAULT_STAGE0)
+  // The 'translation' tier was removed from the default ladder (Tom 2026-06-20:
+  // never play below an intention outside the breakdown). The granularity:'atoms'
+  // code path is retained + tested via an inline tier in case a course re-adds it.
+  it('atoms granularity: atoms (no means-gloss), then the whole translation', () => {
+    const atomsTier = { key: 'translation', visits: 1, fusionGap: null, granularity: 'atoms' as const, targetRepeats: 0 }
+    const seq = tierSequence(atomsTier, ATOMS, CLIPS, DEFAULT_STAGE0)
     expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans'])
     expect(roles(seq)).toEqual(['target', 'target', 'target', 'translation'])
     expect(roles(seq)).not.toContain('meansGloss') // means is the explainer's job
@@ -113,10 +117,10 @@ describe('robustness', () => {
 describe('buildLadder', () => {
   const ladder = buildLadder(ATOMS, CLIPS, DEFAULT_STAGE0)
 
-  it('concatenates all 5 tiers separated by stage gaps', () => {
+  it('concatenates the ladder tiers separated by stage gaps', () => {
     const tiersSeen = new Set(ladder.map((e) => e.tier))
-    expect(tiersSeen).toEqual(new Set(['explainer', 'translation', 'pairs200', 'pairs0', 'intention']))
-    expect(ladder.filter((e) => e.type === 'gap' && e.kind === 'stage')).toHaveLength(5) // 6 tier-visits (explainer ×2) → 5 stage gaps
+    expect(tiersSeen).toEqual(new Set(['explainer', 'pairs200', 'pairs0', 'intention']))
+    expect(ladder.filter((e) => e.type === 'gap' && e.kind === 'stage')).toHaveLength(4) // explainer×2 + pairs200 + pairs0 + intention = 5 visits → 4 stage gaps
   })
 
   it('sequenceDurationMs sums clips (÷speed) + gaps', () => {

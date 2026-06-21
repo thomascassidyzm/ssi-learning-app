@@ -13,15 +13,20 @@
  * pacing in the pairs/intention tiers (an additive enrichment for later — it would
  * require persisting intention boundaries into atom_map; no re-render needed).
  *
- * The five tiers (keys come straight from algorithm_config['stage0'].tiers):
- *   1. explainer   — whole phrase (chunked atoms) → translation → per-atom
- *                    [target + "means <gloss>"] → whole phrase again. The slow,
- *                    clear first exposure. The smooth natural take never plays
- *                    here; it's the destination (tier 5).
- *   2. translation — each atom: target + "means <gloss>". No bookend, no repeats.
- *   3. pairs200    — all atom targets fused at `gaps.fusionPairs` (≈200ms) → translation.
- *   4. pairs0      — all atom targets fused at 0ms (near-natural) → translation.
- *   5. intention   — the whole natural take → translation. The arrival.
+ * The ladder (keys come straight from algorithm_config['stage0'].tiers):
+ *   • explainer (×2) — whole phrase (chunked atoms) → translation → per-atom
+ *                      [target + "means <gloss>"] → whole phrase again. The slow
+ *                      breakdown — runs TWICE, and is the ONLY place we go below
+ *                      the intention layer. The smooth natural take never plays
+ *                      here; it's the destination.
+ *   • pairs200       — atom targets fused at `gaps.fusionPairs` (≈200ms) →
+ *                      translation. Fuses atoms back UP into the intention.
+ *   • pairs0         — atom targets fused at 0ms (near-natural) → translation.
+ *   • intention      — the whole natural take → translation. The arrival.
+ *
+ * RULE (Tom 2026-06-20): apart from the explainer breakdown, never play anything
+ * smaller than an intention. The old 'translation' tier (bare atoms, separated,
+ * then one lump of whole-translation) broke this rule and was removed.
  */
 
 // ── config shapes (mirror algorithm_config['stage0'] exactly) ───────────────
@@ -65,8 +70,7 @@ export const DEFAULT_STAGE0: Stage0Config = {
     betweenIntentions: 500,
   },
   tiers: [
-    { key: 'explainer', visits: 2, fusionGap: null, granularity: 'atoms', targetRepeats: 0 }, // 2 breakdowns (Aran 2026-06-20)
-    { key: 'translation', visits: 1, fusionGap: null, granularity: 'atoms', targetRepeats: 0 },
+    { key: 'explainer', visits: 2, fusionGap: null, granularity: 'atoms', targetRepeats: 0 }, // 2 identical breakdowns (Aran/Tom 2026-06-20)
     { key: 'pairs200', visits: 1, fusionGap: null, granularity: 'pairs', targetRepeats: 0 },
     { key: 'pairs0', visits: 1, fusionGap: 0, granularity: 'pairs', targetRepeats: 0 },
     { key: 'intention', visits: 1, fusionGap: null, granularity: 'intention', targetRepeats: 0 },
