@@ -161,6 +161,16 @@ const DEFAULT_POD_ACTIVATION = 5
 // 2 / 2 / 3 / 3 / 4 / 4 / 5 / 5 / 5 / 5...) lands separately.
 const POD_ACTIVATION_CAP = 5
 
+/** A play whose role leaves the learner on the TARGET language (any ps* speed),
+ *  vs 'trans'/'explainer' which leave them on the known language / a breakdown. */
+const isTargetRole = (role: PodPlayRole): boolean =>
+  role !== 'trans' && role !== 'explainer'
+
+/** Warn-once-per-stage guard for the trailing-known defensive close, so a
+ *  misconfigured stage logs once instead of every lap. Module scope = shared
+ *  across instances (a session only needs to be told once). */
+const _warnedTrailingKnownStages = new Set<number>()
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -693,6 +703,10 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue
+      // Build this sentence's plays, then enforce the end-on-target invariant
+      // and glue flag AFTER the loop — slots can be dropped (continue) so the
+      // emitted list can differ from the nominal playlist.
+      const sentencePlays: PodPlay[] = []
       for (let j = 0; j < playlist.length; j++) {
         let playRole = playlist[j]
         // Phase-0 fallback (Tom 2026-06-10): a sentence with no explainer
@@ -716,21 +730,57 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
           : isTrans
             ? sentence.known_audio_id!
             : sentence.target_audio_id!
-        // glueToNextChunk is set on the LAST play of a sentence whose
-        // source row has glue_to_next = true. Earlier plays in the
-        // sentence stay false (they use within-chunk gap matrix); only
-        // the final play looks ahead to the next chunk's first play.
-        const isLastPlayInSentence = j === playlist.length - 1
-        plays.push({
+        sentencePlays.push({
           sentenceIdx: i,
           stage: stageInfo.stage,
           playRole,
           audioId,
           text: isTrans ? sentence.known_text : sentence.target_text,
           playbackSpeed: ROLE_SPEED[playRole] ?? 1.0,
-          glueToNextChunk: isLastPlayInSentence && !!sentence.glue_to_next,
+          glueToNextChunk: false, // set on the ACTUAL last play below
         })
       }
+      if (sentencePlays.length === 0) continue
+
+      // INVARIANT — a sentence must never END on the known language. Leaving the
+      // learner on 'trans'/'explainer' with no target rep to close is the
+      // "Croatian → English → no Croatian" hiccup Aran reported (2026-06-21). It
+      // happens when a stage playlist's last EMITTED slot resolves to a known
+      // clip — e.g. an admin/DB-saved stage that ends on 'trans', or a
+      // 'trans'-bearing playlist ending on a dropped 'explainer'. Defensive
+      // close: append one target rep so meaning is always followed by the target
+      // (the canonical "… → known → target" shape). No-op for every in-code
+      // default — they all already end on a target — so well-formed configs are
+      // untouched; this only repairs a misconfigured one. The real fix is the
+      // saved config; this just guarantees the learner is never stranded.
+      const last = sentencePlays[sentencePlays.length - 1]
+      if (!isTargetRole(last.playRole)) {
+        // Mirror the sentence's last TARGET speed if it had one, else a clean 1×.
+        const lastTarget = [...sentencePlays].reverse().find((p) => isTargetRole(p.playRole))
+        const closeRole: PodPlayRole = lastTarget?.playRole ?? 'ps'
+        sentencePlays.push({
+          sentenceIdx: i,
+          stage: stageInfo.stage,
+          playRole: closeRole,
+          audioId: sentence.target_audio_id!,
+          text: sentence.target_text,
+          playbackSpeed: ROLE_SPEED[closeRole] ?? 1.0,
+          glueToNextChunk: false,
+        })
+        if (!_warnedTrailingKnownStages.has(stageInfo.stage)) {
+          _warnedTrailingKnownStages.add(stageInfo.stage)
+          console.warn(
+            `[podScheduler] Stage ${stageInfo.stage} playlist [${playlist.join(', ')}] ends on a ` +
+            `non-target slot — learner would be stranded on the known language. ` +
+            `Appended a target rep as a safety net; fix the saved stagePlaylist so it ends on a ps* slot.`,
+          )
+        }
+      }
+      // Glue attaches to the ACTUAL last play of the sentence (was previously
+      // keyed off the nominal last playlist index, which a 'continue' could drop
+      // — leaving the glued-chunk gap on no play at all).
+      sentencePlays[sentencePlays.length - 1].glueToNextChunk = !!sentence.glue_to_next
+      plays.push(...sentencePlays)
     }
     if (plays.length === 0) return null
 

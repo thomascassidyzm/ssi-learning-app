@@ -264,6 +264,49 @@ describe('usePodLapScheduler — nextLap composition', () => {
     expect(lap!.plays.find(p => p.playRole === 'trans')).toBeUndefined()
   })
 
+  // ── End-on-target invariant (Aran 2026-06-21 hiccup) ──────────────────────
+  it('appends a target close when a stage playlist ends on trans (never strands on the known language)', async () => {
+    // Saved stage ending on 'trans' played Croatian → English → next sentence
+    // with no target to close. The guard appends one target rep.
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+      stagePlaylist: { '1': ['ps', 'trans'] },
+    })
+    await s.initialize()
+    const lap = s.nextLap()
+    const s1 = lap!.plays.filter(p => p.sentenceIdx === 1)
+    expect(s1.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps'])
+  })
+
+  it('mirrors the last target speed for the appended close (…ps2x, trans → + ps2x)', async () => {
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+      stagePlaylist: { '1': ['ps2x', 'trans'] },
+    })
+    await s.initialize()
+    const lap = s.nextLap()
+    const s1 = lap!.plays.filter(p => p.sentenceIdx === 1)
+    expect(s1.map(p => p.playRole)).toEqual(['ps2x', 'trans', 'ps2x'])
+    expect(s1[s1.length - 1].playbackSpeed).toBe(2.0)
+  })
+
+  it('leaves a well-formed playlist (already ends on target) untouched — no extra rep', async () => {
+    const s = usePodLapScheduler({
+      supabase: makeMockSupabase(state),
+      courseCode: 'c',
+      learnerId: 'u',
+      stagePlaylist: { '1': ['ps', 'trans', 'ps2x'] },
+    })
+    await s.initialize()
+    const lap = s.nextLap()
+    const s1 = lap!.plays.filter(p => p.sentenceIdx === 1)
+    expect(s1.map(p => p.playRole)).toEqual(['ps', 'trans', 'ps2x'])
+  })
+
   it('returns null when no pod sentences exist', async () => {
     state.podSentences = []
     const s = usePodLapScheduler({
