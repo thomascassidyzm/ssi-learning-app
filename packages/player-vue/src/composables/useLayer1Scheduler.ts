@@ -24,19 +24,25 @@
  *   • Clusters: at every multiple-of-5 seeds/cup the whole cup is re-formed into an
  *     authored, ordered LINGUISTIC grouping (injected via clusterProvider; a
  *     deterministic fallback ships until Aran's templates land). Templates: 5/10/15/20.
- *   • Speeds — NO decay (Aran 2026-06-18): every seed in the poured cup plays
- *     once at 1× and once at 2×. The cup is poured as one whole pass at 1× then
- *     one whole pass at 2× (all the cup's seeds slow together, then fast
- *     together). No per-seed tier/decay state. (The old debut→mid→floor decay
- *     ladder was ditched — it only made sense from a cold start, not for a learner
- *     already deep in a course.)
- *   • Target only — NO known-language audio, ever (unlike pods, which carry `trans`).
+ *   • Per-seed sandwich — comprehensible input (Tom 2026-06-21): each seed in
+ *     the poured cup plays a fixed four-slot playlist —
+ *       target @1× (voice 1) → known @1× → target @1× (voice 2) → target @2×
+ *     — so the learner hears the sentence, then its MEANING, then the sentence
+ *     again now understood, then a stretch rep at 2×. The cup's seeds play their
+ *     sandwiches in cup order (cluster then loose); no per-seed decay/tier state.
+ *     (History: a per-seed decay ladder (→2026-06-18), then a flat 1×/2× pour,
+ *     then 1×,1× slow-only (06-20). All were TARGET-ONLY and road-tests showed
+ *     they delivered no comprehensible input for disconnected seeds — a seed out
+ *     of dialogue has no flow to infer meaning from. The known clip supplies it.)
+ *   • Carries known-language audio in the `trans` slot — mirrors Layer-2 pods
+ *     (target → known → target → target). A seed with no known audio skips the
+ *     trans slot (target, target, target@2×); the slot is never silenced.
  *   • Forever loop: once a course stops introducing seeds (the 600 cap, or its own
  *     end), cup membership stops changing, so each cup just keeps pouring its fixed
- *     set (1× pass then 2× pass) — steady background maintenance.
+ *     set (each seed's sandwich) — steady background maintenance.
  *
  * The ≈1-minute-per-cup is an APPROXIMATE feel target, not a hard cap — we never
- * measure audio durations; length falls out of the pattern (2 plays per seed).
+ * measure audio durations; length falls out of the pattern (≈4 plays per seed).
  *
  * Placement (fire every round, adjacency, pod-wins-priority) is owned by the
  * caller in LearningPlayer's round-boundary handler — this composable only decides
@@ -50,23 +56,52 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // Pure logic (exported for unit testing — no Vue/Supabase here)
 // ============================================================================
 
-/** Audio role for one Layer-1 play slot. ps = target @ 1.0×, ps2x = @ 2.0×. */
-export type Layer1PlayRole = 'ps' | 'ps2x'
+/** Audio role for one Layer-1 play slot.
+ *  ps = target @ 1.0×, ps2x = target @ 2.0×, trans = known-language @ 1.0×. */
+export type Layer1PlayRole = 'ps' | 'ps2x' | 'trans'
 
-/** Role → playback rate. Single source of truth. */
-export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, ps2x: 2.0 }
+/** Role → playback rate. Single source of truth. trans (the known clip) is
+ *  reference material → always 1.0×, like in the pods. */
+export const L1_ROLE_SPEED: Record<Layer1PlayRole, number> = { ps: 1.0, ps2x: 2.0, trans: 1.0 }
 
-/** Every seed in a poured cup plays TWICE at each of these speeds (one whole
- *  pass per speed, each seed doubled back-to-back within its pass). No decay
- *  ladder, no per-seed state.
- *  (Aran 2026-06-18: ditched the decay; 06-19: doubled up; 06-20: DROPPED the
- *   2× pass for seeds. Rationale: 2× only delivers comprehensible input when a
- *   dialogue's flow scaffolds it (→ that's where 2× belongs, Layer 2 pods).
- *   Disconnected seeds have no scaffold, so 2× there is just fast noise — a dud.
- *   Seeds are the COMPREHENSION layer → slow only. Now 1×,1× per seed.
- *   To re-add a single stretch rep, this would need an asymmetric playlist, not
- *   just appending 2.0 here — that would give 1×,1×,2×,2×.) */
-export const L1_CUP_SPEEDS: readonly number[] = [1.0]
+/** The audio a single seed exposes for its Layer-1 sandwich. */
+export interface L1SeedAudio {
+  seedNumber: number
+  target1Id: string
+  target2Id: string | null
+  knownId: string | null
+  targetText: string
+  knownText: string
+}
+
+/**
+ * The fixed per-seed Layer-1 listening sandwich (Tom 2026-06-21) — restores
+ * comprehensible input. Each introduced seed in the poured cup plays:
+ *
+ *   1. target @ 1×  (voice 1)
+ *   2. known  @ 1×   ← the MEANING — the comprehensible-input anchor
+ *   3. target @ 1×  (voice 2 when present, else voice 1)
+ *   4. target @ 2×  (voice 1) — a stretch rep now the meaning has landed
+ *
+ * Mirrors what Layer-2 pods already do (target → known → target → target); the
+ * runtime gap matrix in LearningPlayer is already built for these role
+ * transitions. A seed with no known audio skips slot 2 (target, target,
+ * target@2×) — the trans slot is never silenced, just omitted. Pure + exported
+ * so the sequence is unit-tested directly (this file's *.test.ts discipline).
+ */
+export function buildSeedPlays(seed: L1SeedAudio): L1Play[] {
+  const { seedNumber, target1Id, target2Id, knownId, targetText, knownText } = seed
+  const voice2 = target2Id || target1Id
+  const plays: L1Play[] = [
+    { seedNumber, audioId: target1Id, text: targetText, role: 'ps', playbackSpeed: L1_ROLE_SPEED.ps },
+  ]
+  if (knownId) {
+    plays.push({ seedNumber, audioId: knownId, text: knownText, role: 'trans', playbackSpeed: L1_ROLE_SPEED.trans })
+  }
+  plays.push({ seedNumber, audioId: voice2, text: targetText, role: 'ps', playbackSpeed: L1_ROLE_SPEED.ps })
+  plays.push({ seedNumber, audioId: target1Id, text: targetText, role: 'ps2x', playbackSpeed: L1_ROLE_SPEED.ps2x })
+  return plays
+}
 
 export interface Layer1Config {
   /** Number of cups in the wheel (one poured per round). Batch size == cups. */
@@ -222,7 +257,7 @@ export type Layer1ClusterProvider = (size: number, cupIndex: number) => number[]
  *     looseProvider(batch, cupIndex); ordered oldest → newest.
  *   Returns the seeds in cup order: cluster first (template order), then the
  *   loose tail (oldest → newest). No tiers/decay — every seed is played the same
- *   way (once at 1×, once at 2×; see nextLap). Aran 2026-06-18.
+ *   way (its four-slot sandwich; see buildSeedPlays / nextLap).
  */
 export function composeCupSeeds(params: {
   seedsPerCup: number
@@ -269,12 +304,15 @@ export interface L1BookendAudio {
 
 export interface L1Play {
   seedNumber: number
-  /** The seed's target sentence audio — voice 1 or voice 2, picked per play by
-   *  the seeded RNG so laps stay resume-safe (target1 when voice 2 absent). */
+  /** Audio to play: target sentence for ps/ps2x, known-language clip for trans. */
   audioId: string
-  /** Target text (roman variant when present). */
+  /** Display text — target sentence (roman when present) for ps/ps2x; known
+   *  sentence for trans. */
   text: string
-  /** 1.0 (debut's first play) or 2.0 (everything else). */
+  /** What plays in this slot: 'ps' = target @1×, 'ps2x' = target @2×,
+   *  'trans' = known-language clip @1×. Drives the runtime gap matrix. */
+  role: Layer1PlayRole
+  /** Playback rate (mirror of L1_ROLE_SPEED[role]): 1.0 for ps/trans, 2.0 for ps2x. */
   playbackSpeed: number
 }
 
@@ -285,7 +323,8 @@ export interface L1Lap {
   /** Number of distinct seeds in the cup. */
   bucketSize: number
   intro: L1BookendAudio | null
-  /** The cup's plays: the whole cup at 1× (cluster then loose) then the whole cup at 2×. */
+  /** The cup's plays: each seed's sandwich (target → known → target → target@2×)
+   *  in cup order (cluster then loose). */
   plays: L1Play[]
   outro: L1BookendAudio | null
 }
@@ -457,29 +496,26 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
       looseProvider,
     })
 
-    // Resolve each cup seed once (voice 1/2 by a per-round seeded RNG so the lap
-    // is mixed yet identical on replay/resume; skip seeds without audio), then
-    // pour the WHOLE cup at 1× followed by the WHOLE cup at 2×, with each seed
-    // played TWICE back-to-back within each speed phase (Aran 2026-06-19: doubled
-    // up — each sentence twice at 1×, then twice at 2×; grouping by speed retained).
+    // Each cup seed plays its fixed comprehensible-input sandwich in cup order
+    // (target → known → target(voice 2) → target@2×; see buildSeedPlays). Seeds
+    // without target audio are skipped entirely; a seed without known audio just
+    // drops the trans slot. Deterministic by construction (fixed voice order) →
+    // resume-safe, no RNG needed here.
     const seedMap = seeds.value
-    const rng = seededRng(`${courseCode}:${learnerId}:L1cup:${mainRound}`)
-    const resolved: Array<{ seedNumber: number; audioId: string; text: string }> = []
+    const plays: L1Play[] = []
     for (const sNum of cupSeeds) {
       const seed = seedMap.get(sNum)
       if (!seed?.target1_audio_id) continue
-      const useVoice2 = !!seed.target2_audio_id && rng() < 0.5
-      const audioId = useVoice2 ? seed.target2_audio_id! : seed.target1_audio_id!
-      const text = seed.target_text_roman || seed.target_text
-      resolved.push({ seedNumber: sNum, audioId, text })
+      plays.push(...buildSeedPlays({
+        seedNumber: sNum,
+        target1Id: seed.target1_audio_id,
+        target2Id: seed.target2_audio_id,
+        knownId: seed.known_audio_id,
+        targetText: seed.target_text_roman || seed.target_text,
+        knownText: seed.known_text,
+      }))
     }
-    if (resolved.length === 0) return null
-    const plays: L1Play[] = L1_CUP_SPEEDS.flatMap((speed) =>
-      resolved.flatMap((r) => [
-        { ...r, playbackSpeed: speed },
-        { ...r, playbackSpeed: speed },
-      ]),
-    )
+    if (plays.length === 0) return null
 
     const playableSeeds = new Set(plays.map((pl) => pl.seedNumber)).size
     const hasBookends = !!(introAudio.value && outroAudio.value)

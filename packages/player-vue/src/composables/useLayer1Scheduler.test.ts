@@ -11,6 +11,7 @@ import {
   isFrozenAt,
   fallbackCluster,
   composeCupSeeds,
+  buildSeedPlays,
   DEFAULT_LAYER1_CONFIG,
 } from './useLayer1Scheduler'
 
@@ -190,7 +191,7 @@ describe('fallbackCluster', () => {
 
 // ----------------------------------------------------------------------------
 // composeCupSeeds — cup membership + order (cluster first, then loose oldest→newest).
-// No tiers/decay (Aran 2026-06-18): every seed plays the same (2026-06-19: twice at 1× then twice at 2×, in nextLap).
+// No tiers/decay: every seed plays the same four-slot sandwich (see buildSeedPlays / nextLap).
 // ----------------------------------------------------------------------------
 describe('composeCupSeeds', () => {
   const cfg = { clusterStep: 5 }
@@ -226,6 +227,51 @@ describe('composeCupSeeds', () => {
 
   it('seed count per cup equals p (cluster + loose, no overlap)', () => {
     for (const p of [1, 4, 5, 6, 9, 10, 15, 20]) expect(compose(p)).toHaveLength(p)
+  })
+})
+
+// ----------------------------------------------------------------------------
+// buildSeedPlays — the per-seed comprehensible-input sandwich (Tom 2026-06-21)
+//   target @1× (v1) → known @1× → target @1× (v2) → target @2×
+// ----------------------------------------------------------------------------
+describe('buildSeedPlays', () => {
+  const full = {
+    seedNumber: 7,
+    target1Id: 't1',
+    target2Id: 't2',
+    knownId: 'k',
+    targetText: 'voglio imparare',
+    knownText: 'I want to learn',
+  }
+
+  it('emits the 4-slot sandwich: target1×, known1×, target1×(v2), target2×', () => {
+    const plays = buildSeedPlays(full)
+    expect(plays.map((p) => p.role)).toEqual(['ps', 'trans', 'ps', 'ps2x'])
+    expect(plays.map((p) => p.playbackSpeed)).toEqual([1.0, 1.0, 1.0, 2.0])
+    expect(plays.map((p) => p.audioId)).toEqual(['t1', 'k', 't2', 't1'])
+    expect(plays.every((p) => p.seedNumber === 7)).toBe(true)
+  })
+
+  it('shows known text only on the trans slot; target text on the rest', () => {
+    const plays = buildSeedPlays(full)
+    expect(plays.map((p) => p.text)).toEqual([
+      'voglio imparare', 'I want to learn', 'voglio imparare', 'voglio imparare',
+    ])
+  })
+
+  it('falls back to voice 1 for the second target when no voice 2', () => {
+    const plays = buildSeedPlays({ ...full, target2Id: null })
+    expect(plays.map((p) => p.audioId)).toEqual(['t1', 'k', 't1', 't1'])
+  })
+
+  it('drops (never silences) the trans slot when the seed has no known audio', () => {
+    const plays = buildSeedPlays({ ...full, knownId: null })
+    expect(plays.map((p) => p.role)).toEqual(['ps', 'ps', 'ps2x'])
+    expect(plays.some((p) => p.role === 'trans')).toBe(false)
+  })
+
+  it('is pure/deterministic — same input, identical plays', () => {
+    expect(buildSeedPlays(full)).toEqual(buildSeedPlays(full))
   })
 })
 

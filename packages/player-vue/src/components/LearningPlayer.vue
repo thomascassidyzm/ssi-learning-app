@@ -4212,7 +4212,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
             const l1AsPodPlays: PodPlay[] = l1Cup.plays.map((p) => ({
               sentenceIdx: p.seedNumber,
               stage: 0,
-              playRole: p.playbackSpeed >= 2 ? 'ps2x' : 'ps',
+              playRole: p.role, // 'ps' | 'ps2x' | 'trans' — drives the gap matrix + known/target text
               audioId: p.audioId,
               text: p.text,
               playbackSpeed: p.playbackSpeed,
@@ -4295,8 +4295,9 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // LAYER-1 LISTENING (runtime — 30-cup fluency maintenance)
   // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
   // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
-  // played per its decay tier (1×2× → 2×2× → 2× floor), target audio only. No
-  // ratchet: the lap is a pure function of (catalogue, round, learner, cluster
+  // played as its comprehensible-input sandwich (target → known → target →
+  // target@2×; see buildSeedPlays). No ratchet: the lap is a pure function of
+  // (catalogue, round, learner, cluster
   // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
   // See docs/methodology/layer1-listening-cups.md.
@@ -4327,7 +4328,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         plays: l1Lap.plays.map((p): PodPlay => ({
           sentenceIdx: p.seedNumber,
           stage: 0,
-          playRole: p.playbackSpeed >= 2 ? 'ps2x' : 'ps',
+          playRole: p.role, // 'ps' | 'ps2x' | 'trans' — drives the gap matrix + known/target text
           audioId: p.audioId,
           text: p.text,
           playbackSpeed: p.playbackSpeed,

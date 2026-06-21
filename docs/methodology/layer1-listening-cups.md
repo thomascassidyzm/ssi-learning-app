@@ -72,24 +72,33 @@ It stays a **pure function of (course catalogue, round, learner, cluster templat
 - Between milestones, the cluster stays put and loose seeds accrete one per batch
   on top; the next milestone absorbs them into the bigger cluster.
 
-### Speeds: once slow, once fast — no decay (Aran 2026-06-18)
-Every seed in the poured cup plays exactly **twice: once at 1× and once at 2×**.
-The cup is poured as **one whole pass at 1× then one whole pass at 2×** — all the
-cup's seeds slow together, then all of them fast together:
+### Playback: the per-seed comprehensible-input sandwich (Tom 2026-06-21)
+Every seed in the poured cup plays a fixed **four-slot sandwich**, in cup order
+(cluster then loose):
 
 ```
-cup @ 1× (every seed)   →   cup @ 2× (every seed)
+target @1× (voice 1)  →  known @1×  →  target @1× (voice 2)  →  target @2×
 ```
 
-All **target audio only — no known language, ever**. No per-seed state, no tiers.
+Hear the sentence → hear its **meaning** → hear the sentence again, now
+understood → a stretch rep at 2×. The known clip is what makes the input
+*comprehensible*. A seed with no known audio drops slot 2 (target, target,
+target@2×) — the known slot is omitted, never silenced. No per-seed state, no
+tiers; a cup is ≈ four plays over its `p` seeds — still comfortably ~a minute at
+`p = 20`.
 
-**Why the decay ladder was ditched:** the old model walked each seed
-`1×2× → 2×2× → 2×` down a per-seed "decay" ladder over successive batches. It only
-made sense for a learner starting from scratch; for someone already deep in a
-course every seed is "old", so the weaning never really engaged and it just felt
-like a fast-everything water cannon. The flat once-slow-once-fast pour gives
-steady, comprehensible exposure regardless of where the learner is. A cup is ≈ two
-passes over its `p` seeds — comfortably ~a minute even at `p = 20`.
+This mirrors what **Layer-2 pods** already do (`target → known → target →
+target`); the runtime gap matrix in `LearningPlayer` is already built for these
+role transitions (`ps`/`ps2x` = target, `trans` = known).
+
+**Why known audio came back.** The cup went through several target-only shapes —
+a per-seed decay ladder (`1×2× → 2×2× → 2×`, 2026-06-18), a flat once-slow-once-fast
+pour, then 1×,1× slow-only (06-20) on the theory that 2× without dialogue scaffold
+is just fast noise. Road-tests then showed the deeper problem was **no
+comprehensible input at all**: a seed pulled out of its dialogue has no flow to
+infer meaning from, so pure target replays — at any speed — teach nothing. The
+fix isn't a speed; it's restoring the meaning, via the known clip, exactly as the
+pods do.
 
 ### The forever loop
 When a course stops introducing seeds (hits the 600 cap, or its own end), cup
@@ -126,21 +135,23 @@ cluster size; 0 while `p < 5`) and `L = p − C` (loose count, 0…4):
 - **Loose part**: the `L` most-recently-added seeds for this cup (one per batch
   since the last cluster milestone), assigned by a seeded permutation.
 
-**Speeds:** no tiering — every seed in the cup plays once at 1× then once at 2×
-(the whole cup at 1×, then the whole cup at 2×), regardless of how new it is or
-whether introductions are frozen. Order within each pass: cluster (template
+**Playback:** no tiering — every seed plays the same four-slot sandwich
+(`target1× → known1× → target1×(v2) → target2×`), regardless of how new it is or
+whether introductions are frozen. Seeds run in cup order: cluster (template
 order) then loose (oldest → newest).
 
 ### Worked trace — cup #7
 
-| Introduced | Cup #7 holds | Pour |
+Each seed below expands to its sandwich (`t@1× · k@1× · t@1× · t@2×`):
+
+| Introduced | Cup #7 holds | Pour (per seed in order) |
 |---|---|---|
-| 30 | {s7} | s7 @1×, then s7 @2× |
-| 60 | {s7, s43} | s7, s43 @1×, then s7, s43 @2× |
-| 90 | +s77 | s7, s43, s77 @1×, then the three @2× |
-| **150** | authored 5-cluster | the five @1×, then the five @2× |
-| **300** | authored 10-cluster | the ten @1×, then the ten @2× |
-| … 600 | authored 20-cluster | the twenty @1×, then @2×, looping |
+| 30 | {s7} | s7 sandwich |
+| 60 | {s7, s43} | s7 sandwich, then s43 sandwich |
+| 90 | +s77 | s7, s43, s77 — each its sandwich |
+| **150** | authored 5-cluster | the five, each its sandwich |
+| **300** | authored 10-cluster | the ten, each its sandwich |
+| … 600 | authored 20-cluster | the twenty, each its sandwich, looping |
 
 ---
 
@@ -214,10 +225,11 @@ data is one small per-course cluster table.
   (`apml/learning/listening-layers.apml`).
 
 ### Testing focus
-Determinism (same round → same cup), the milestone transitions, the decay tiers
-(esp. the "exactly one debut + one mid" invariant and the bare-milestone all-`2×2×`
-case), freeze-to-floor at the cap/end, and the cup-#7 trace as a fixture.
+Determinism (same round → same cup), the milestone transitions, the per-seed
+sandwich (`buildSeedPlays`: 4 slots, known-text only on the trans slot, trans
+dropped when no known audio), freeze-to-floor at the cap/end, and the cup-#7
+trace as a fixture.
 
 ---
 
-*Last updated: 2026-06-16 · Status: design agreed, build not started, clusters pending Aran*
+*Last updated: 2026-06-21 · Status: built + live on dev; per-seed comprehensible-input sandwich (target → known → target → target@2×); cluster templates still pending Aran*
