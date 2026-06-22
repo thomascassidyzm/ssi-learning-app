@@ -63,24 +63,26 @@ describe('tierSequence — translation / pairs / intention', () => {
     expect(roles(seq)).not.toContain('meansGloss') // means is the explainer's job
   })
 
-  it('pairs200: targets fused at fusionPairs gap, then translation', () => {
+  it('pairs200: fused targets → translation → the SAME fused targets again (symmetric, ends on target)', () => {
     const seq = tierSequence(tierByKey('pairs200'), ATOMS, CLIPS, DEFAULT_STAGE0)
-    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans'])
+    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans', 't1', 't2', 't3'])
+    expect(roles(seq).slice(-1)[0]).toBe('target') // never ends on the known language
     const fusionGaps = seq.filter((e) => e.type === 'gap' && e.kind === 'fusion')
-    expect(fusionGaps).toHaveLength(2)
+    expect(fusionGaps).toHaveLength(4) // 2 opener + 2 closer
     expect((fusionGaps[0] as any).ms).toBe(DEFAULT_STAGE0.gaps.fusionPairs) // 200
   })
 
-  it('pairs0: targets fused at 0ms (no fusion gaps emitted), then translation', () => {
+  it('pairs0: fused targets at 0ms → translation → fused targets again (no fusion gaps emitted)', () => {
     const seq = tierSequence(tierByKey('pairs0'), ATOMS, CLIPS, DEFAULT_STAGE0)
-    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans'])
+    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans', 't1', 't2', 't3'])
+    expect(roles(seq).slice(-1)[0]).toBe('target')
     expect(seq.filter((e) => e.type === 'gap' && e.kind === 'fusion')).toHaveLength(0)
   })
 
-  it('intention: the smooth whole take then the translation', () => {
+  it('intention: whole take → translation → whole take again (ends on target)', () => {
     const seq = tierSequence(tierByKey('intention'), ATOMS, CLIPS, DEFAULT_STAGE0)
-    expect(clipIds(seq)).toEqual(['whole', 'trans'])
-    expect(roles(seq)).toEqual(['wholeTake', 'translation'])
+    expect(clipIds(seq)).toEqual(['whole', 'trans', 'whole'])
+    expect(roles(seq)).toEqual(['wholeTake', 'translation', 'wholeTake'])
   })
 })
 
@@ -92,7 +94,7 @@ describe('robustness', () => {
       ATOMS[2],
     ]
     const seq = tierSequence(tierByKey('pairs200'), partial, CLIPS, DEFAULT_STAGE0)
-    expect(clipIds(seq)).toEqual(['t1', 't3', 'trans']) // the null-clip atom is skipped
+    expect(clipIds(seq)).toEqual(['t1', 't3', 'trans', 't1', 't3']) // null-clip atom skipped; symmetric target close
     // no two gaps in a row
     for (let i = 1; i < seq.length; i++) {
       expect(seq[i].type === 'gap' && seq[i - 1].type === 'gap').toBe(false)
@@ -126,8 +128,8 @@ describe('buildLadder', () => {
   it('sequenceDurationMs sums clips (÷speed) + gaps', () => {
     const dur = (id: string) => (id === 'trans' || id === 'whole' ? 1000 : 500)
     const ms = sequenceDurationMs(tierSequence(tierByKey('intention'), ATOMS, CLIPS, DEFAULT_STAGE0), dur)
-    // whole(1000) + tm gap(500) + trans(1000) = 2500
-    expect(ms).toBe(2500)
+    // whole(1000) + tm(500) + trans(1000) + tm(500) + whole(1000) = 4000 (symmetric close)
+    expect(ms).toBe(4000)
   })
 })
 
@@ -135,11 +137,13 @@ describe('foldEventsToPlays', () => {
   it('folds gaps onto the preceding clip; last clip omits gapAfterMs', () => {
     const events = tierSequence(tierByKey('pairs200'), ATOMS, CLIPS, DEFAULT_STAGE0)
     const plays = foldEventsToPlays(events)
-    expect(plays.map((p) => p.audioId)).toEqual(['t1', 't2', 't3', 'trans'])
+    expect(plays.map((p) => p.audioId)).toEqual(['t1', 't2', 't3', 'trans', 't1', 't2', 't3'])
     expect(plays[0].gapAfterMs).toBe(DEFAULT_STAGE0.gaps.fusionPairs) // 200 after t1
     expect(plays[1].gapAfterMs).toBe(DEFAULT_STAGE0.gaps.fusionPairs) // 200 after t2
     expect(plays[2].gapAfterMs).toBe(DEFAULT_STAGE0.gaps.targetMeaning) // 500 t3→trans
-    expect(plays[3].gapAfterMs).toBeUndefined() // last clip → caller supplies the inter-sentence gap
+    expect(plays[3].gapAfterMs).toBe(DEFAULT_STAGE0.gaps.targetMeaning) // 500 trans→closing target
+    expect(plays.slice(-1)[0].audioId).toBe('t3') // ends on target, never the known clip
+    expect(plays.slice(-1)[0].gapAfterMs).toBeUndefined() // last clip → caller supplies the inter-sentence gap
   })
 
   it('sums consecutive gaps onto one clip', () => {

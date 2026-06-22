@@ -20,9 +20,13 @@
  *                      the intention layer. The smooth natural take never plays
  *                      here; it's the destination.
  *   • pairs200       — atom targets fused at `gaps.fusionPairs` (≈200ms) →
- *                      translation. Fuses atoms back UP into the intention.
- *   • pairs0         — atom targets fused at 0ms (near-natural) → translation.
- *   • intention      — the whole natural take → translation. The arrival.
+ *                      translation → the same fused targets AGAIN. Fuses atoms
+ *                      back UP into the intention; closes on target so it never
+ *                      ends on the known language (Tom 2026-06-22).
+ *   • pairs0         — atom targets fused at 0ms (near-natural) → translation →
+ *                      the same fused targets again.
+ *   • intention      — whole natural take → translation → whole take again. The
+ *                      arrival, bookended so the known never has the last word.
  *
  * RULE (Tom 2026-06-20): apart from the explainer breakdown, never play anything
  * smaller than an intention. The old 'translation' tier (bare atoms, separated,
@@ -246,27 +250,41 @@ export function tierSequence(
     return seq
   }
 
-  // ── TIERS 3 & 4: pairs (atoms fused, then translation) ────────────────────
+  // ── TIERS 3 & 4: pairs (atoms fused → translation → atoms fused AGAIN) ─────
+  // Tom 2026-06-22: close on the SAME fused target that opened the tier, so the
+  // breakdown is symmetric (identical target before AND after the known) and
+  // never leaves the learner on the known language — comprehensible input.
   if (tier.granularity === 'pairs') {
     const fuse = tier.fusionGap ?? g.fusionPairs
-    withTarget.forEach((a, i) => {
-      clip(a.targetClipId as string, 'target', a.targetSurface)
-      if (i < withTarget.length - 1) gap(fuse, 'fusion')
-    })
+    const pushFusedTarget = () => {
+      withTarget.forEach((a, i) => {
+        clip(a.targetClipId as string, 'target', a.targetSurface)
+        if (i < withTarget.length - 1) gap(fuse, 'fusion')
+      })
+    }
+    pushFusedTarget()
     if (clips.translationId && seq.length) {
       gap(g.targetMeaning, 'tm')
       clip(clips.translationId, 'translation', clips.knownText)
+      gap(g.targetMeaning, 'tm')
+      pushFusedTarget() // identical target close, AFTER the known
     }
     trimTrailingGap()
     return seq
   }
 
-  // ── TIER 5: intention (whole natural take → translation) ──────────────────
+  // ── TIER 5: intention (whole take → translation → whole take AGAIN) ────────
+  // Tom 2026-06-22: bookend the known with the same whole take, so the arrival
+  // ends on target, never on the known language.
   if (tier.granularity === 'intention') {
     if (clips.wholeTakeId) clip(clips.wholeTakeId, 'wholeTake', clips.targetText)
     if (clips.translationId) {
       if (seq.length) gap(g.targetMeaning, 'tm')
       clip(clips.translationId, 'translation', clips.knownText)
+      if (clips.wholeTakeId) {
+        gap(g.targetMeaning, 'tm')
+        clip(clips.wholeTakeId, 'wholeTake', clips.targetText) // identical target close
+      }
     }
     trimTrailingGap()
     return seq
