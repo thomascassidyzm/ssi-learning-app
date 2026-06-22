@@ -20,13 +20,17 @@
  *                      the intention layer. The smooth natural take never plays
  *                      here; it's the destination.
  *   • pairs200       — atom targets fused at `gaps.fusionPairs` (≈200ms) →
- *                      translation → the same fused targets AGAIN. Fuses atoms
- *                      back UP into the intention; closes on target so it never
- *                      ends on the known language (Tom 2026-06-22).
+ *                      translation → the same fused targets ×`targetRepeats`.
+ *                      Fuses atoms back UP into the intention.
  *   • pairs0         — atom targets fused at 0ms (near-natural) → translation →
- *                      the same fused targets again.
- *   • intention      — whole natural take → translation → whole take again. The
- *                      arrival, bookended so the known never has the last word.
+ *                      the same fused targets ×`targetRepeats`.
+ *   • intention      — whole natural take → translation → whole take ×`targetRepeats`.
+ *
+ * `targetRepeats` (per tier) = how many target reps play AFTER the known, so a
+ * tier never has to end on the known language. Parametrised, not hardcoded (Tom
+ * 2026-06-22: "parametrise everything"): DEFAULT_STAGE0 ships 1 (symmetric —
+ * identical target before and after); the stage0 tuner / DB config overwrites it
+ * exactly like the pod-stage params. 0 reproduces the old ends-on-known shape.
  *
  * RULE (Tom 2026-06-20): apart from the explainer breakdown, never play anything
  * smaller than an intention. The old 'translation' tier (bare atoms, separated,
@@ -74,10 +78,12 @@ export const DEFAULT_STAGE0: Stage0Config = {
     betweenIntentions: 500,
   },
   tiers: [
-    { key: 'explainer', visits: 2, fusionGap: null, granularity: 'atoms', targetRepeats: 0 }, // 2 identical breakdowns (Aran/Tom 2026-06-20)
-    { key: 'pairs200', visits: 1, fusionGap: null, granularity: 'pairs', targetRepeats: 0 },
-    { key: 'pairs0', visits: 1, fusionGap: 0, granularity: 'pairs', targetRepeats: 0 },
-    { key: 'intention', visits: 1, fusionGap: null, granularity: 'intention', targetRepeats: 0 },
+    { key: 'explainer', visits: 2, fusionGap: null, granularity: 'atoms', targetRepeats: 0 }, // 2 identical breakdowns (Aran/Tom 2026-06-20); explainer has its own whole-part-whole closer
+    // targetRepeats = target reps AFTER the known (default 1 → symmetric, never
+    // ends on the known; stage0 tuner / DB overwrites). Tom 2026-06-22.
+    { key: 'pairs200', visits: 1, fusionGap: null, granularity: 'pairs', targetRepeats: 1 },
+    { key: 'pairs0', visits: 1, fusionGap: 0, granularity: 'pairs', targetRepeats: 1 },
+    { key: 'intention', visits: 1, fusionGap: null, granularity: 'intention', targetRepeats: 1 },
   ],
   playbackSpeed: 1,
 }
@@ -250,10 +256,13 @@ export function tierSequence(
     return seq
   }
 
-  // ── TIERS 3 & 4: pairs (atoms fused → translation → atoms fused AGAIN) ─────
-  // Tom 2026-06-22: close on the SAME fused target that opened the tier, so the
-  // breakdown is symmetric (identical target before AND after the known) and
-  // never leaves the learner on the known language — comprehensible input.
+  // ── TIERS 3 & 4: pairs (fused targets → translation → fused targets ×N) ────
+  // The closing target(s) AFTER the known are PARAMETRISED by tier.targetRepeats
+  // (Tom 2026-06-22). DEFAULT_STAGE0 ships 1; the stage0 tuner / DB config
+  // overwrites it like every other pod-stage param. 0 = ends on the known
+  // (legacy); 1 = symmetric (identical target before AND after the known); 2+ =
+  // extra reps. Each rep is the SAME fused target that opened the tier —
+  // comprehensible input, never leaving the learner on the known language.
   if (tier.granularity === 'pairs') {
     const fuse = tier.fusionGap ?? g.fusionPairs
     const pushFusedTarget = () => {
@@ -266,24 +275,28 @@ export function tierSequence(
     if (clips.translationId && seq.length) {
       gap(g.targetMeaning, 'tm')
       clip(clips.translationId, 'translation', clips.knownText)
-      gap(g.targetMeaning, 'tm')
-      pushFusedTarget() // identical target close, AFTER the known
+      for (let r = 0; r < (tier.targetRepeats || 0); r++) {
+        gap(g.targetMeaning, 'tm')
+        pushFusedTarget() // identical target close(s), AFTER the known
+      }
     }
     trimTrailingGap()
     return seq
   }
 
-  // ── TIER 5: intention (whole take → translation → whole take AGAIN) ────────
-  // Tom 2026-06-22: bookend the known with the same whole take, so the arrival
-  // ends on target, never on the known language.
+  // ── TIER 5: intention (whole take → translation → whole take ×N) ───────────
+  // Closing target(s) parametrised by tier.targetRepeats (default 1, overwritten
+  // by the stage0 tuner / DB). Each rep is the same whole take that opened it.
   if (tier.granularity === 'intention') {
     if (clips.wholeTakeId) clip(clips.wholeTakeId, 'wholeTake', clips.targetText)
     if (clips.translationId) {
       if (seq.length) gap(g.targetMeaning, 'tm')
       clip(clips.translationId, 'translation', clips.knownText)
       if (clips.wholeTakeId) {
-        gap(g.targetMeaning, 'tm')
-        clip(clips.wholeTakeId, 'wholeTake', clips.targetText) // identical target close
+        for (let r = 0; r < (tier.targetRepeats || 0); r++) {
+          gap(g.targetMeaning, 'tm')
+          clip(clips.wholeTakeId, 'wholeTake', clips.targetText)
+        }
       }
     }
     trimTrailingGap()

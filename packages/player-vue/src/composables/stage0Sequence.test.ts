@@ -86,6 +86,36 @@ describe('tierSequence — translation / pairs / intention', () => {
   })
 })
 
+describe('targetRepeats — parametrised closing target after the known (tiers 3-5)', () => {
+  const pairsTier = (n: number) =>
+    ({ key: 'pairs200', visits: 1, fusionGap: null, granularity: 'pairs' as const, targetRepeats: n })
+  const intentionTier = (n: number) =>
+    ({ key: 'intention', visits: 1, fusionGap: null, granularity: 'intention' as const, targetRepeats: n })
+
+  it('0 → ends on the known (legacy ends-on-translation shape)', () => {
+    const seq = tierSequence(pairsTier(0), ATOMS, CLIPS, DEFAULT_STAGE0)
+    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans'])
+    expect(roles(seq).slice(-1)[0]).toBe('translation')
+  })
+
+  it('1 (default) → one symmetric closing target', () => {
+    const seq = tierSequence(pairsTier(1), ATOMS, CLIPS, DEFAULT_STAGE0)
+    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans', 't1', 't2', 't3'])
+    expect(roles(seq).slice(-1)[0]).toBe('target')
+  })
+
+  it('2 → known then the fused target twice', () => {
+    const seq = tierSequence(pairsTier(2), ATOMS, CLIPS, DEFAULT_STAGE0)
+    expect(clipIds(seq)).toEqual(['t1', 't2', 't3', 'trans', 't1', 't2', 't3', 't1', 't2', 't3'])
+    expect(roles(seq).slice(-1)[0]).toBe('target')
+  })
+
+  it('intention honours targetRepeats too (0 ends on known, 2 repeats the whole take)', () => {
+    expect(clipIds(tierSequence(intentionTier(0), ATOMS, CLIPS, DEFAULT_STAGE0))).toEqual(['whole', 'trans'])
+    expect(clipIds(tierSequence(intentionTier(2), ATOMS, CLIPS, DEFAULT_STAGE0))).toEqual(['whole', 'trans', 'whole', 'whole'])
+  })
+})
+
 describe('robustness', () => {
   it('skips atoms with no target clip without dangling gaps', () => {
     const partial: ResolvedAtom[] = [
