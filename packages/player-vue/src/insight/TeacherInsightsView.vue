@@ -65,9 +65,9 @@ interface TeacherClass {
   course: string
 }
 const MY_CLASSES: TeacherClass[] = [
-  { label: 'Ysgol Bryn · Year 7 Spanish', school: 'Ysgol Bryn', className: 'Year 7 Spanish', course: 'Spanish for English speakers' },
-  { label: 'Ysgol Bryn · Year 8 Spanish', school: 'Ysgol Bryn', className: 'Year 8 Spanish', course: 'Spanish for English speakers' },
-  { label: 'Coleg Tâf · French AS',       school: 'Coleg Tâf',  className: 'French AS',       course: 'French for English speakers' },
+  { label: 'Gaelscoil Cholmcille · Rang a 5 — Sínis', school: 'Gaelscoil Cholmcille', className: 'Rang a 5 — Sínis', course: 'Chinese for Irish speakers' },
+  { label: 'Gaelscoil Cholmcille · Rang a 6 — Sínis', school: 'Gaelscoil Cholmcille', className: 'Rang a 6 — Sínis', course: 'Chinese for Irish speakers' },
+  { label: 'Coláiste Éinde · 1st Year Gaeilge',       school: 'Coláiste Éinde',       className: '1st Year Gaeilge', course: 'Irish for English speakers' },
 ]
 
 // The selected class — defaults to the teacher's first class.

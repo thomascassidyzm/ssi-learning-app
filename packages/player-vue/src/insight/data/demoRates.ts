@@ -168,34 +168,36 @@ const HERO_BY_ID = new Map(HERO_RATES.map((m) => [m.id, m]))
 
 // ── Synthetic entity names per level (schools-flavoured; reuse demo.ts idioms) ─
 const LEARNER_NAMES = [
-  'Amara Okafor', 'Bjørn Halvorsen', 'Carmen Ruiz', 'Dafydd Pugh',
-  'Elif Demir', 'Federico Bruno', 'Gráinne Walsh', 'Hana Kobayashi',
-  'Idris Mbeki', 'Júlia Costa', 'Kasia Nowak', 'Liam Devlin',
-  'Mei Lin', 'Noor Haddad',
+  'Saoirse Ní Bhraonáin', 'Cian Ó Dónaill', 'Aoife Nic Gabhann', 'Oisín Ó Briain',
+  'Niamh Ní Cheallaigh', 'Fionn Mac Cárthaigh', 'Caoimhe Ní Mhurchú', 'Tadhg Ó Sé',
+  'Méabh Ní Laoire', 'Daithí Ó Conghaile', 'Róisín Ní Dhomhnaill', 'Eoin Mac Aodha',
+  'Sadhbh Ní Riain', 'Conor Ó Flaithearta',
 ]
 
+// Two demo directions for the Irish-government showcase:
+//   · "— Sínis"   classes  = Chinese for Irish speakers (Gaelscoileanna, MFL
+//                            taught through Irish)
+//   · "Gaeilge"   classes  = Irish for English speakers (English-medium schools)
+// MY_CLASSES (TeacherInsightsView.vue) must be a VERBATIM subset of this list so
+// the teacher's picker resolves each class to a real synthetic population.
 const CLASS_NAMES = [
-  'Ysgol Bryn · Year 7 Spanish', 'Ysgol Bryn · Year 8 Spanish',
-  'Coleg Tâf · French AS', 'Coleg Tâf · French A2',
-  'Llanfair High · German GCSE', 'Llanfair High · Italian Club',
-  'Penbryn Academy · Welsh (S)', 'Penbryn Academy · Spanish Yr9',
-  'Aberglas High · French Yr10', 'Aberglas High · Spanish Yr8',
-  'Coleg Tâf · German A2', 'Penbryn Academy · Italian Yr9',
+  'Gaelscoil Cholmcille · Rang a 5 — Sínis', 'Gaelscoil Cholmcille · Rang a 6 — Sínis',
+  'Gaelscoil na Fuinseoige · Rang a 5 — Sínis', 'Gaelcholáiste Luimnigh · Rang a 1 — Sínis',
+  'Coláiste Éinde · 1st Year Gaeilge', 'Coláiste Éinde · 2nd Year Gaeilge',
+  'Scoil Bhríde · 5th Class Gaeilge', 'Coláiste Mhuire · 1st Year Gaeilge',
+  'St Kieran’s College · 2nd Year Gaeilge', 'Scoil Mhuire gan Smál · 6th Class Gaeilge',
 ]
 
 const SCHOOL_NAMES = [
-  'Ysgol Bryn', 'Coleg Tâf', 'Llanfair High', 'Penbryn Academy',
-  'Aberglas High', 'Glanmor Comprehensive', 'St. Eira’s College',
-  'Cwmtawe Academy', 'Maesteg High', 'Treforys Sixth Form',
+  'Gaelscoil Cholmcille', 'Coláiste Éinde', 'Scoil Bhríde', 'Gaelscoil na Fuinseoige',
+  'Coláiste Mhuire', 'Gaelcholáiste Luimnigh', 'St Kieran’s College',
+  'Scoil Mhuire gan Smál', 'Coláiste Iognáid', 'Gaelscoil Riada',
 ]
 
 const COURSE_NAMES = [
-  'Spanish for English speakers', 'French for English speakers',
-  'German for English speakers', 'Italian for English speakers',
-  'Welsh (South) for English speakers', 'Dutch for English speakers',
-  'Portuguese for English speakers', 'Chinese for English speakers',
-  'Japanese for English speakers', 'Korean for English speakers',
-  'Irish for English speakers', 'Basque for English speakers',
+  'Chinese for Irish speakers', 'Irish for English speakers',
+  'French for Irish speakers', 'Spanish for Irish speakers',
+  'German for Irish speakers', 'Polish for Irish speakers',
 ]
 
 function namesForLevel(level: EntityLevel): string[] {
