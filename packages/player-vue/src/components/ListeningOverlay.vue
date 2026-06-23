@@ -7,9 +7,8 @@ import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
 import { useUserRole } from '../composables/useUserRole'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
-import { ROLE_SPEED } from '../composables/usePodLapScheduler'
-import { usePodStage0 } from '../composables/usePodStage0'
-import { tierSequence, foldEventsToPlays } from '../composables/stage0Sequence'
+import { composeSentenceArc, loadStage0ClipMaps } from '../composables/podStageComposition'
+import { resolveAtoms } from '../composables/stage0Sequence'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -301,11 +300,17 @@ const showSpeedRow = computed(
 // selected scene (null = scene list visible, set = teleprompter mode).
 const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
-// Stage-0 atom resolution for the admin Progression walk — lets buildAuditQueue
-// prepend the 5-tier breakdown before Stages 1-N. Loaded lazily when audit is on.
-const podStage0 = usePodStage0(courseCodeRef)
+// Stage-0 clip maps for the admin Progression walk — the SAME course-wide
+// lookups (lego_key→gloss clip, surface→[atom] clip) the main-flow scheduler
+// loads, so composeSentenceArc resolves atoms identically. Loaded lazily when
+// audit is available.
+let auditClipMaps = { glossMap: new Map(), targetClipMap: new Map() }
+const loadAuditClipMaps = async () => {
+  if (!supabase?.value || !courseCodeRef.value) return
+  auditClipMaps = await loadStage0ClipMaps(supabase.value, courseCodeRef.value)
+}
 watch([() => isSsiAdmin.value, courseCodeRef], ([admin, code]) => {
-  if (admin && code) podStage0.load()
+  if (admin && code) loadAuditClipMaps()
 }, { immediate: true })
 const selectedScene = ref(null)
 
@@ -1007,41 +1012,43 @@ const buildPlayQueue = (phrase) => {
  * for the on-screen badge.
  */
 const buildAuditQueue = (sentences) => {
-  const playlist = algoConfig.podsConfig.value?.stagePlaylist || {}
-  const stages = Object.keys(playlist)
-    .map(Number)
-    .filter((n) => !Number.isNaN(n))
-    .sort((a, b) => a - b)
-  const podsTotal = stages.length
+  const stagePlaylist = algoConfig.podsConfig.value?.stagePlaylist || {}
+  const podsTotal = Object.keys(stagePlaylist).map(Number).filter((n) => !Number.isNaN(n)).length
   const s0cfg = algoConfig.stage0Config.value
-  const s0tiers = s0cfg?.tiers || []
+  const chunks = sentences.length
   const queue = []
   for (let ci = 0; ci < sentences.length; ci++) {
     const s = sentences[ci]
-    const chunk = ci + 1
-    const chunks = sentences.length
-    // STAGE 0 FIRST — the 5-tier per-atom breakdown (live from algorithm_config
-    // .stage0), resolved to its [atom] / means-gloss / take / translation clips.
-    // (Was missing: the Progression walk used to start at Stage 1.)
-    const resolved = s.id ? podStage0.resolveSentence(s.id) : null
-    if (resolved && s0tiers.length) {
-      for (const tier of s0tiers) {
-        for (const p of foldEventsToPlays(tierSequence(tier, resolved.atoms, resolved.clips, s0cfg))) {
-          queue.push({ id: p.audioId, rate: p.speed || 1, stage: `0 · ${tier.key}`, total: podsTotal, role: p.role, chunk, chunks })
-        }
-      }
+    // Build a PodSentenceRow from this display chunk (its OWN partitioned atoms
+    // arrived via useListeningPods), then run the SHARED composer — the exact
+    // per-stage builders the main-flow scheduler uses. Stage-0 ladder + Stages
+    // 1-N for this one line, in order. Cannot drift from real delivery.
+    const row = {
+      global_order: 0,
+      target_text: s.targetText,
+      known_text: s.knownText,
+      target_audio_id: s.targetAudioId,
+      known_audio_id: s.knownAudioId,
+      explainer_audio_id: s.explainerAudioId,
+      glue_to_next: false,
+      atom_map: s.atomMap ?? null,
     }
-    // THEN Stages 1-N — the whole-sentence behaviours from algorithm_config.pods.
-    for (const stage of stages) {
-      for (const role of playlist[stage] || []) {
-        const id = role === 'trans'
-          ? s.knownAudioId
-          : role === 'explainer'
-            ? (s.explainerAudioId || s.knownAudioId) // explainer → translation fallback
-            : s.targetAudioId // ps / ps08x / ps15x / ps2x
-        if (!id) continue
-        queue.push({ id, rate: ROLE_SPEED[role] ?? 1, stage: String(stage), total: podsTotal, role, chunk, chunks })
-      }
+    const arc = composeSentenceArc(row, ci + 1, {
+      stage0: s0cfg,
+      glossMap: auditClipMaps.glossMap,
+      targetClipMap: auditClipMaps.targetClipMap,
+      stagePlaylist,
+    })
+    for (const p of arc) {
+      queue.push({
+        id: p.audioId,
+        rate: p.playbackSpeed || 1,
+        stage: p.stage === 0 ? `0 · ${p.tier ?? 'breakdown'}` : String(p.stage),
+        total: podsTotal,
+        role: p.playRole,
+        chunk: ci + 1,
+        chunks,
+      })
     }
   }
   return queue
@@ -1061,9 +1068,9 @@ const audioIdsForWarm = (phrase) => {
         if (s.knownAudioId) ids.push(s.knownAudioId)
         if (s.explainerAudioId) ids.push(s.explainerAudioId)
         // Stage-0 walk also plays each atom's [atom] target + means-gloss clip —
-        // warm those too or the breakdown stutters fetching mid-list.
-        const resolved = s.id ? podStage0.resolveSentence(s.id) : null
-        for (const a of resolved?.atoms || []) {
+        // warm those too or the breakdown stutters fetching mid-list. Resolve
+        // from this chunk's OWN partitioned atoms via the shared clip maps.
+        for (const a of resolveAtoms(s.atomMap, auditClipMaps.glossMap, auditClipMaps.targetClipMap)) {
           if (a.targetClipId) ids.push(a.targetClipId)
           if (a.meansGlossClipId) ids.push(a.meansGlossClipId)
         }

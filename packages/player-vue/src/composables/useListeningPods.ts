@@ -14,6 +14,8 @@
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
+import { partitionAtomMap } from './usePodLapScheduler'
+import type { AtomMapEntry } from './stage0Sequence'
 
 export interface PodSentence {
   id: string
@@ -26,6 +28,10 @@ export interface PodSentence {
    *  first-encounter material (upstream discipline). Null = play the
    *  translation instead in any explainer slot. */
   explainerAudioId: string | null
+  /** Ordered atom breakdown for THIS sentence (Stage-0). For a split unit it's
+   *  the partitioned slice (null when atoms don't cleanly align); for an unsplit
+   *  row it's the whole row's atom_map. Drives the admin Progression walk. */
+  atomMap: AtomMapEntry[] | null
   globalOrder: number
 }
 
@@ -65,6 +71,8 @@ export interface PodTurn {
     targetAudioId: string | null
     knownAudioId: string | null
     explainerAudioId: string | null
+    /** Partitioned Stage-0 atoms for this sentence (admin Progression walk). */
+    atomMap: AtomMapEntry[] | null
   }>
   /** First sentence's global_order — used for ordering. */
   globalOrder: number
@@ -134,7 +142,7 @@ export function useListeningPods(
       const podId = `${course}:pod-0`
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids')
+        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, atom_map, sentence_audio_ids, sentence_known_audio_ids')
         .eq('pod_id', podId)
         .order('global_order', { ascending: true })
 
@@ -171,7 +179,15 @@ export function useListeningPods(
       const buckets = new Map<number, PodSentence[]>()
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
-        for (const u of splitRowUnits(row, textById)) {
+        const units = splitRowUnits(row, textById)
+        // Partition the turn's flat atom_map across its split sentences — the SAME
+        // helper + alignment rule the main-flow scheduler's flattenPodRows uses, so
+        // the Progression walk resolves each split unit's OWN atoms (null when they
+        // don't cleanly align → Stage-0 drops for that unit, never a wrong ladder).
+        const atomGroups = units.length > 1
+          ? partitionAtomMap(row.atom_map, units.map((u) => u.targetText))
+          : null
+        for (const u of units) {
           list.push({
             id: u.isSplit ? `${row.id}:s${u.index}` : row.id,
             speaker: row.speaker || '',
@@ -183,6 +199,7 @@ export function useListeningPods(
             knownAudioId: u.knownAudioId,
             // The Tom-voiced explainer is per-TURN; a split sentence has none.
             explainerAudioId: u.isSplit ? null : (row.explainer_audio_id || null),
+            atomMap: u.isSplit ? (atomGroups ? atomGroups[u.index] : null) : (row.atom_map ?? null),
             globalOrder: row.global_order + u.index * 0.001,
           })
         }
@@ -262,6 +279,7 @@ export function useListeningPods(
                 targetAudioId: s.targetAudioId,
                 knownAudioId: s.knownAudioId,
                 explainerAudioId: s.explainerAudioId,
+                atomMap: s.atomMap,
               },
             ],
             globalOrder: s.globalOrder,
