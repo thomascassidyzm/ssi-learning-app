@@ -3130,12 +3130,27 @@ const l1TestConfig = ((): Partial<Layer1Config> | undefined => {
   } catch { return undefined }
 })()
 
+// Layer-1 config is now admin-tunable via algorithm_config['listening'] (the
+// Listening Config page). Pull only the four Layer1Config knobs from that row
+// (the legacy fields on it are ignored); useLayer1Scheduler merges these over
+// DEFAULT_LAYER1_CONFIG, so any absent knob falls back. ?l1test still wins.
+const l1ConfigFromDb = computed<Partial<Layer1Config>>(() => {
+  const c = listeningConfig.value as any
+  if (!c) return {}
+  const out: Partial<Layer1Config> = {}
+  for (const k of ['cups', 'activationCount', 'maxSeedsPerCup', 'clusterStep'] as const) {
+    if (typeof c[k] === 'number') out[k] = c[k]
+  }
+  return out
+})
+const l1Config = computed<Partial<Layer1Config>>(() => ({ ...l1ConfigFromDb.value, ...(l1TestConfig || {}) }))
+
 const l1Scheduler = supabase?.value
   ? useLayer1Scheduler({
       supabase: supabase as any,
       courseCode: courseCode,
       learnerId: learnerId,
-      config: l1TestConfig,
+      config: l1Config,
     })
   : null
 

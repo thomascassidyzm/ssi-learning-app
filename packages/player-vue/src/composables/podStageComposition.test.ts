@@ -3,6 +3,7 @@ import {
   buildMainStage,
   composeSentenceArc,
   type PodSentenceRow,
+  type PodPlayRole,
 } from './podStageComposition'
 import { DEFAULT_STAGE0 } from './stage0Sequence'
 
@@ -44,7 +45,7 @@ describe('buildMainStage — whole-sentence stage composition', () => {
 })
 
 describe('composeSentenceArc — the Progression walk = main-flow by construction', () => {
-  const stagePlaylist = { 1: ['ps', 'explainer', 'ps'], 2: ['ps', 'trans', 'ps'] } as const
+  const stagePlaylist: Record<number, PodPlayRole[]> = { 1: ['ps', 'explainer', 'ps'], 2: ['ps', 'trans', 'ps'] }
   const glossMap = new Map([['L1', 'gloss1']])
   const targetClipMap = new Map([['Nǐ hǎo', 'atom1']])
 
