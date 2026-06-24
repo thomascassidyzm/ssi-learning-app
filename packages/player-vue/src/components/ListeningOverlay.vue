@@ -5,10 +5,6 @@ import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepaliv
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
-import { useUserRole } from '../composables/useUserRole'
-import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
-import { composeSentenceArc, loadStage0ClipMaps } from '../composables/podStageComposition'
-import { resolveAtoms } from '../composables/stage0Sequence'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -240,41 +236,19 @@ const loopScene = ref(false)
 //               (the speed row). Continuous, natural conversation.
 //   drill     — each line three times: 1× · 2× · 2×, target only. Tight
 //               repetition to lock a line in.
-// An admin-only 'audit' mode (the real 9-stage progression, read live from
-// algorithm_config.pods) is appended for content tuning — gated by both the
-// ssi_admin role AND the Settings → Developer "Listening Progression Audit"
-// toggle. Keys are stable (localStorage + code); labels are free to evolve.
+// Two target-only practice modes (admin Progression preview retired 2026-06-24
+// — it now lives in the dashboard Listening Config tool's full-arc preview).
 const BASE_LISTEN_MODES = [
   { key: 'immersion', label: 'Immersion', desc: 'The whole scene in the target language, at your pace' },
   { key: 'drill',     label: 'Drill',     desc: 'Each line three times — once normal, then twice fast' },
 ]
-const AUDIT_LISTEN_MODE = {
-  key: 'audit',
-  label: 'Progression',
-  desc: 'Admin: walk each line through every acquisition stage, live from the listening config',
-}
-// Admin audit availability: just the ssi_admin role. (Previously also required a
-// Settings → Developer toggle, which only buried the pill — admins want it as a
-// plain third pill alongside Immersion/Drill. Tom 2026-06-15.)
-const { isSsiAdmin } = useUserRole()
-const auditAvailable = computed(() => isSsiAdmin.value)
-const LISTEN_MODES = computed(() =>
-  auditAvailable.value ? [...BASE_LISTEN_MODES, AUDIT_LISTEN_MODE] : BASE_LISTEN_MODES,
-)
+const LISTEN_MODES = computed(() => BASE_LISTEN_MODES)
 const validModeKeys = computed(() => new Set(LISTEN_MODES.value.map((m) => m.key)))
 const listenMode = ref(localStorage.getItem('ssi-listening-mode') || 'immersion')
 watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) } catch {} })
-// Keep the selection valid: a retired key (Flow/Guided/Practice/Turbo) — or
-// 'audit' when it's no longer available — falls back to the default.
+// Keep the selection valid: a retired key (Flow/Guided/Practice/Turbo/audit)
+// falls back to the default.
 watch(validModeKeys, (keys) => { if (!keys.has(listenMode.value)) listenMode.value = 'immersion' }, { immediate: true })
-
-// Live pod stage config — the SAME source the main-flow scheduler reads, so
-// the audit walk matches main-flow delivery (and Popty tweaks) by construction.
-const algoConfig = useAlgorithmConfig(supabase)
-// Stage badge for the audit walk — { stage, total, role } | null.
-const auditStatus = ref(null)
-// Warm the config if audit is enabled after the overlay is already open.
-watch(auditAvailable, (v) => { if (v) algoConfig.loadConfigs() })
 
 // Known-language glosses can be hidden entirely (long canon-v2 turns make
 // the gloss block heavy when you don't need it).
@@ -289,7 +263,7 @@ watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 
 const isDialogueScene = computed(() => view.value === 'pods' && selectedScene.value !== null)
 
 // Interactive speed buttons: always in Core/All; in Dialogues only Immersion
-// exposes them. In Drill/audit the speed slot stays present but shows a quiet,
+// exposes them. In Drill the speed slot stays present but shows a quiet,
 // non-interactive fixed-pace indicator instead (so the toolbar height never
 // changes when you switch modes — see the dialogue layout note in CSS).
 const showSpeedRow = computed(
@@ -300,18 +274,6 @@ const showSpeedRow = computed(
 // selected scene (null = scene list visible, set = teleprompter mode).
 const courseCodeRef = computed(() => props.courseCode)
 const pods = useListeningPods(courseCodeRef)
-// Stage-0 clip maps for the admin Progression walk — the SAME course-wide
-// lookups (lego_key→gloss clip, surface→[atom] clip) the main-flow scheduler
-// loads, so composeSentenceArc resolves atoms identically. Loaded lazily when
-// audit is available.
-let auditClipMaps = { glossMap: new Map(), targetClipMap: new Map() }
-const loadAuditClipMaps = async () => {
-  if (!supabase?.value || !courseCodeRef.value) return
-  auditClipMaps = await loadStage0ClipMaps(supabase.value, courseCodeRef.value)
-}
-watch([() => isSsiAdmin.value, courseCodeRef], ([admin, code]) => {
-  if (admin && code) loadAuditClipMaps()
-}, { immediate: true })
 const selectedScene = ref(null)
 
 // Pagination
@@ -975,9 +937,6 @@ const buildPlayQueue = (phrase) => {
     const sentences = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
       ? phrase.sentences
       : [{ targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null }]
-    if (listenMode.value === 'audit') {
-      return buildAuditQueue(sentences)
-    }
     const queue = []
     if (listenMode.value === 'drill') {
       for (const s of sentences) {
@@ -1002,79 +961,14 @@ const buildPlayQueue = (phrase) => {
   return audioId ? [{ id: audioId, rate: null }] : []
 }
 
-/**
- * Admin "Progression" audit walk — for each chunk, play EVERY stage of the
- * LIVE pod config (algorithm_config.pods) in order, so the content team hears
- * a line's whole 1→9 acquisition arc in one pass. Role → audio resolution
- * mirrors usePodLapScheduler exactly (explainer falls back to translation),
- * and role → rate reuses the scheduler's ROLE_SPEED — so this matches the
- * real main-flow delivery by construction. Queue items carry stage metadata
- * for the on-screen badge.
- */
-const buildAuditQueue = (sentences) => {
-  const stagePlaylist = algoConfig.podsConfig.value?.stagePlaylist || {}
-  const podsTotal = Object.keys(stagePlaylist).map(Number).filter((n) => !Number.isNaN(n)).length
-  const s0cfg = algoConfig.stage0Config.value
-  const chunks = sentences.length
-  const queue = []
-  for (let ci = 0; ci < sentences.length; ci++) {
-    const s = sentences[ci]
-    // Build a PodSentenceRow from this display chunk (its OWN partitioned atoms
-    // arrived via useListeningPods), then run the SHARED composer — the exact
-    // per-stage builders the main-flow scheduler uses. Stage-0 ladder + Stages
-    // 1-N for this one line, in order. Cannot drift from real delivery.
-    const row = {
-      global_order: 0,
-      target_text: s.targetText,
-      known_text: s.knownText,
-      target_audio_id: s.targetAudioId,
-      known_audio_id: s.knownAudioId,
-      explainer_audio_id: s.explainerAudioId,
-      glue_to_next: false,
-      atom_map: s.atomMap ?? null,
-    }
-    const arc = composeSentenceArc(row, ci + 1, {
-      stage0: s0cfg,
-      glossMap: auditClipMaps.glossMap,
-      targetClipMap: auditClipMaps.targetClipMap,
-      stagePlaylist,
-    })
-    for (const p of arc) {
-      queue.push({
-        id: p.audioId,
-        rate: p.playbackSpeed || 1,
-        stage: p.stage === 0 ? `0 · ${p.tier ?? 'breakdown'}` : String(p.stage),
-        total: podsTotal,
-        role: p.playRole,
-        chunk: ci + 1,
-        chunks,
-      })
-    }
-  }
-  return queue
-}
-
-/** Every audio id a row can need under the CURRENT mode — the warm-ahead
- *  must cover explainer/translation clips too (audit walk only), or a
- *  staged play hits the network mid-list (fatal under a locked screen).
- *  Immersion / Drill are target-only, so only targets are warmed. */
+/** Every audio id a row can need under the CURRENT mode — Immersion / Drill
+ *  are target-only, so only targets are warmed. */
 const audioIdsForWarm = (phrase) => {
   if (!phrase) return []
   const ids = []
   if (Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
     for (const s of phrase.sentences) {
       if (s.targetAudioId) ids.push(s.targetAudioId)
-      if (listenMode.value === 'audit') {
-        if (s.knownAudioId) ids.push(s.knownAudioId)
-        if (s.explainerAudioId) ids.push(s.explainerAudioId)
-        // Stage-0 walk also plays each atom's [atom] target + means-gloss clip —
-        // warm those too or the breakdown stutters fetching mid-list. Resolve
-        // from this chunk's OWN partitioned atoms via the shared clip maps.
-        for (const a of resolveAtoms(s.atomMap, auditClipMaps.glossMap, auditClipMaps.targetClipMap)) {
-          if (a.targetClipId) ids.push(a.targetClipId)
-          if (a.meansGlossClipId) ids.push(a.meansGlossClipId)
-        }
-      }
     }
     return ids
   }
@@ -1132,13 +1026,11 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // Drill's repeats breathe a little (300ms) so the 1×/2×/2× reps read as
   // deliberate practice; Immersion keeps the tight 50ms that joins a
   // speaker's consecutive chunks into natural continuous speech.
-  const interClipGap = (view.value === 'pods' && selectedScene.value && (listenMode.value === 'drill' || listenMode.value === 'audit')) ? 300 : 50
+  const interClipGap = (view.value === 'pods' && selectedScene.value && listenMode.value === 'drill') ? 300 : 50
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
     const item = playQueue[i]
     const { id, rate } = item
-    // Audit walk: surface which stage/role is sounding right now.
-    auditStatus.value = item.stage ? { stage: item.stage, total: item.total, role: item.role, chunk: item.chunk, chunks: item.chunks } : null
     const proxyUrl = getAudioUrl(id)
     if (!proxyUrl) continue
     // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
@@ -1167,16 +1059,6 @@ const playCurrentPhrase = async (myPlaybackId) => {
   }
 
   if (myPlaybackId !== playbackId) return
-
-  // Progression (audit) plays ONE line's whole acquisition arc — Stage-0's 5
-  // distinct tiers, then each Stage 1-N once — then STOPS. It's a tool to HEAR
-  // the progression, not drill it; auto-walking every line would replay Stages
-  // 1-N once per line (the "play each Stage 5×" Tom flagged 2026-06-16). Tap
-  // any line to hear its progression.
-  if (view.value === 'pods' && selectedScene.value && listenMode.value === 'audit') {
-    isPlaying.value = false
-    return
-  }
 
   // Inter-row gap. In a dialogue scene the rows are CHUNKS: keep a speaker's
   // consecutive chunks close (natural continuous speech) and breathe only on
@@ -1286,7 +1168,6 @@ const togglePlayback = () => {
 const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
-  auditStatus.value = null
   audioController.value?.stop()
 }
 
@@ -1580,9 +1461,6 @@ onMounted(async () => {
   else isLoading.value = false
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  // Warm the live pod stage config for the admin audit walk (cached singleton —
-  // a fast no-op if the main flow already loaded it this session).
-  if (auditAvailable.value) algoConfig.loadConfigs()
   checkPackComplete()
 })
 
@@ -1795,10 +1673,9 @@ watch(
       <!-- Speed slot — Core/All always shows the interactive selector. In
            Dialogues the slot is ALWAYS present (its own row under the band)
            so the toolbar height never changes between modes: Immersion gets
-           the interactive selector; Drill/audit get a quiet, non-interactive
-           fixed-pace caption (Drill's pace is fixed at 1×/2×/2×, the audit
-           walk follows the live stage config) — which also explains WHY there
-           is no speed choice in those modes. -->
+           the interactive selector; Drill gets a quiet, non-interactive
+           fixed-pace caption (Drill's pace is fixed at 1×/2×/2×) — which also
+           explains WHY there is no speed choice in that mode. -->
       <div v-if="showSpeedRow" class="speed-controls">
         <span class="speed-label">Speed</span>
         <div class="speed-selector">
@@ -1813,7 +1690,7 @@ watch(
           </button>
         </div>
       </div>
-      <!-- Drill/audit: no speed choice and nothing to show, but we keep an empty
+      <!-- Drill: no speed choice and nothing to show, but we keep an empty
            slot of the same height so switching modes never shifts the layout. -->
       <div
         v-else-if="isDialogueScene"
@@ -1821,8 +1698,8 @@ watch(
         aria-hidden="true"
       ></div>
 
-      <!-- Dialogue listening level (Immersion / Drill / Progression). Dumb,
-           isolated component — the mode change is a pure state update; warmScene
+      <!-- Dialogue listening level (Immersion / Drill). Dumb, isolated
+           component — the mode change is a pure state update; warmScene
            runs deferred (post-flush) so it never blocks the highlight. -->
       <ListeningModeToggle
         v-if="view === 'pods' && selectedScene"
@@ -1852,18 +1729,6 @@ watch(
          where you are without the chrome asserting itself. -->
     <div v-if="view === 'pods' && selectedScene && !isLoading" class="scene-strip" @click.stop>
       {{ selectedScene.title }}
-    </div>
-
-    <!-- Audit walk: live stage/role badge so the content team can see which
-         of the 9 acquisition stages is sounding as a line walks its arc. -->
-    <div
-      v-if="listenMode === 'audit' && auditStatus"
-      class="audit-badge"
-      @click.stop
-    >
-      <span class="audit-stage">Stage {{ auditStatus.stage }}</span>
-      <span class="audit-role">{{ auditStatus.role }}</span>
-      <span v-if="auditStatus.chunks > 1" class="audit-chunk">line {{ auditStatus.chunk }}/{{ auditStatus.chunks }}</span>
     </div>
 
     <!-- Loading State (All / Core only — Dialogues has its own loading) -->
@@ -2117,7 +1982,7 @@ watch(
 /* Dialogue toolbar: a STABLE two-row band. Row 1 = loop · mode-selector · eye
  * (forced by reserving a full-width row 2 for the speed/pace slot). The speed
  * slot is always present in a scene — interactive in Immersion, a quiet
- * fixed-pace caption in Drill/audit — so switching modes never reflows the
+ * fixed-pace caption in Drill — so switching modes never reflows the
  * band: the Immersion/Drill toggle stays put and the toolbar height is
  * constant (no jump, no play-button overlap). Core/All is untouched. */
 .controls-bar.dialogue .speed-controls {
@@ -2127,7 +1992,7 @@ watch(
   min-height: 30px;
 }
 
-/* Drill/audit: an empty slot that only reserves the row's height, so switching
+/* Drill: an empty slot that only reserves the row's height, so switching
  * modes never shifts the layout (nothing is shown under Drill). */
 
 .speed-selector {
@@ -2774,27 +2639,6 @@ watch(
   padding: 0.15rem 1rem 0.3rem;
   cursor: default;
 }
-
-/* Audit walk badge — admin-only. Mono caps, sits under the scene strip and
- * tracks the live stage/role as a line walks its 1→9 arc. Deliberately plain
- * (a dev/QA readout, not learner chrome). */
-.audit-badge {
-  display: flex;
-  justify-content: center;
-  align-items: baseline;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.625rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  padding: 0.1rem 1rem 0.35rem;
-  cursor: default;
-}
-.audit-badge .audit-stage { color: var(--belt-accent, var(--text-primary)); }
-.audit-badge .audit-role { color: var(--text-muted); }
-.audit-badge .audit-chunk { color: var(--text-muted); opacity: 0.8; }
 
 /* Paused glyph — the surface IS the transport. Soft elevated disc, ink
  * triangle, floats over the teleprompter only while paused; playing shows
