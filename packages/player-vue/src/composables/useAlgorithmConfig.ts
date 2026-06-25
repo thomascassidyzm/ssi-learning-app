@@ -20,6 +20,13 @@ export interface ModeConfig {
   pause_multiplier: number    // Multiplied by target audio duration
   min_pause_ms: number        // Floor for pause duration
   max_pause_ms: number        // Ceiling for pause duration
+  /** Reference duration the pause scales with (default 'sum' = legacy t1+t2).
+   *  See computePauseDuration.ts. */
+  pause_reference?: 'avg' | 'target1' | 'sum'
+  /** Reference-duration (ms) past which the gentler tail multiplier kicks in. */
+  pause_knee_ms?: number
+  /** Slope beyond the knee (default = pause_multiplier ⇒ a straight line). */
+  pause_tail_multiplier?: number
   spaced_rep_fraction: number // 1.0 = full, 0.33 = skip 2/3
   debut_phrases_fraction: number // 1.0 = all, 0.5 = half
   skip_voice2: boolean        // Skip second target voice?
