@@ -4655,11 +4655,15 @@ watch(pendingPhase, (phase) => {
   if (phase === 'pause') {
     const cycle = simplePlayer.currentCycle.value
     const cfg = turboActive.value ? turboConfig.value : normalConfig.value
+    // Effective speed matches getPauseDuration: belt ramp in Normal, Turbo's
+    // own full speed in Turbo (no belt ramp). Keeps the ring and the real gap
+    // in lockstep.
+    const spd = turboActive.value ? turboConfig.value.playback_speed : (cycle?.playbackSpeed ?? 1)
     const duration = computePauseDuration(
       cycle?.target1DurationMs ?? 0,
       cycle?.target2DurationMs ?? 0,
       cfg,
-      cycle?.playbackSpeed ?? 1,
+      spd,
     )
     startRingAnimation(duration)
   }
@@ -8001,11 +8005,15 @@ simplePlayer.setRuntimeOverrides({
     // Recompute pause from raw target durations using the active mode's config.
     // Single source of truth — same helper drives the visible countdown.
     const cfg = turboActive.value ? turboConfig.value : normalConfig.value
+    // Effective speed = what the voice ACTUALLY plays at. Normal: the baked
+    // belt ramp. Turbo: its own full speed, ignoring the belt ramp (Turbo
+    // doesn't slow down for beginners). Pause is sized off actual = raw/speed.
+    const spd = turboActive.value ? turboConfig.value.playback_speed : (cycle.playbackSpeed ?? 1)
     const base = computePauseDuration(
       cycle.target1DurationMs ?? 0,
       cycle.target2DurationMs ?? 0,
       cfg,
-      cycle.playbackSpeed ?? 1,
+      spd,
     )
     // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
     // Applied last so mode floors/ceilings are still respected before
@@ -8020,7 +8028,11 @@ simplePlayer.setRuntimeOverrides({
     // Don't double up on listening/pod cycles that already have a
     // purposeful 2.0× speed — turbo on top would give 2.5×.
     if (cycle.type && TURBO_BYPASS_TYPES.has(cycle.type)) return 1.0
-    return turboConfig.value.playback_speed
+    // Turbo plays at its OWN full speed regardless of belt — it does not ramp
+    // up from the beginner belt speed. The multiplier is relative to the baked
+    // belt-ramp speed, so cancel it out: baked × (turbo / baked) = turbo.
+    const baked = cycle.playbackSpeed ?? 1.0
+    return turboConfig.value.playback_speed / baked
   },
   shouldSkipCycle: (cycle) => {
     // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
