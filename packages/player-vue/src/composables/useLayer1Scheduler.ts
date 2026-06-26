@@ -75,31 +75,41 @@ export interface L1SeedAudio {
 }
 
 /**
- * The fixed per-seed Layer-1 listening sandwich (Tom 2026-06-21) — restores
- * comprehensible input. Each introduced seed in the poured cup plays:
- *
- *   1. target @ 1×  (voice 1)
- *   2. known  @ 1×   ← the MEANING — the comprehensible-input anchor
- *   3. target @ 1×  (voice 2 when present, else voice 1)
- *   4. target @ 2×  (voice 1) — a stretch rep now the meaning has landed
- *
- * Mirrors what Layer-2 pods already do (target → known → target → target); the
- * runtime gap matrix in LearningPlayer is already built for these role
- * transitions. A seed with no known audio skips slot 2 (target, target,
- * target@2×) — the trans slot is never silenced, just omitted. Pure + exported
- * so the sequence is unit-tested directly (this file's *.test.ts discipline).
+ * One slot of the per-seed Layer-1 sandwich (admin-tunable playlist).
+ *   t1   = target voice 1 @1×   t2   = target voice 2 @1× (falls back to v1)
+ *   t1x2 = target voice 1 @2×   t2x2 = target voice 2 @2×
+ *   known = known-language clip @1× (the meaning anchor; skipped if no audio)
  */
-export function buildSeedPlays(seed: L1SeedAudio): L1Play[] {
+export type Layer1SlotRole = 't1' | 't2' | 'known' | 't1x2' | 't2x2'
+
+/** The default per-seed sandwich (Tom 2026-06-21) — comprehensible input:
+ *   target v1 @1× → known @1× → target v2 @1× → target v1 @2×
+ * Used when no seedPlaylist is configured. */
+export const DEFAULT_SEED_PLAYLIST: Layer1SlotRole[] = ['t1', 'known', 't2', 't1x2']
+
+/**
+ * Build a seed's Layer-1 plays from a slot playlist. Order/contents are
+ * admin-tunable via algorithm_config['listening'].seedPlaylist (Listening
+ * config page); absent/empty → DEFAULT_SEED_PLAYLIST (the original sandwich,
+ * which mirrors the Layer-2 pods: target → known → target → target@2×, so the
+ * runtime gap matrix already handles these transitions). A seed with no known
+ * audio drops `known` slots; t2 falls back to voice 1 when there's no second
+ * voice. Pure + exported so it's unit-tested directly.
+ */
+export function buildSeedPlays(seed: L1SeedAudio, playlist: Layer1SlotRole[] = DEFAULT_SEED_PLAYLIST): L1Play[] {
   const { seedNumber, target1Id, target2Id, knownId, targetText, knownText } = seed
   const voice2 = target2Id || target1Id
-  const plays: L1Play[] = [
-    { seedNumber, audioId: target1Id, text: targetText, role: 'ps', playbackSpeed: L1_ROLE_SPEED.ps },
-  ]
-  if (knownId) {
-    plays.push({ seedNumber, audioId: knownId, text: knownText, role: 'trans', playbackSpeed: L1_ROLE_SPEED.trans })
+  const list = playlist && playlist.length ? playlist : DEFAULT_SEED_PLAYLIST
+  const plays: L1Play[] = []
+  for (const slot of list) {
+    switch (slot) {
+      case 't1':   plays.push({ seedNumber, audioId: target1Id, text: targetText, role: 'ps',   playbackSpeed: L1_ROLE_SPEED.ps }); break
+      case 't2':   plays.push({ seedNumber, audioId: voice2,    text: targetText, role: 'ps',   playbackSpeed: L1_ROLE_SPEED.ps }); break
+      case 't1x2': plays.push({ seedNumber, audioId: target1Id, text: targetText, role: 'ps2x', playbackSpeed: L1_ROLE_SPEED.ps2x }); break
+      case 't2x2': plays.push({ seedNumber, audioId: voice2,    text: targetText, role: 'ps2x', playbackSpeed: L1_ROLE_SPEED.ps2x }); break
+      case 'known': if (knownId) plays.push({ seedNumber, audioId: knownId, text: knownText, role: 'trans', playbackSpeed: L1_ROLE_SPEED.trans }); break
+    }
   }
-  plays.push({ seedNumber, audioId: voice2, text: targetText, role: 'ps', playbackSpeed: L1_ROLE_SPEED.ps })
-  plays.push({ seedNumber, audioId: target1Id, text: targetText, role: 'ps2x', playbackSpeed: L1_ROLE_SPEED.ps2x })
   return plays
 }
 
@@ -112,6 +122,9 @@ export interface Layer1Config {
   maxSeedsPerCup: number
   /** Re-cluster every multiple of this many seeds/cup (templates: 5,10,15,20). */
   clusterStep: number
+  /** Per-seed sandwich playlist (admin-tunable). Empty/absent → the default
+   *  sandwich. See buildSeedPlays / Layer1SlotRole. */
+  seedPlaylist: Layer1SlotRole[]
 }
 
 export const DEFAULT_LAYER1_CONFIG: Layer1Config = {
@@ -119,6 +132,7 @@ export const DEFAULT_LAYER1_CONFIG: Layer1Config = {
   activationCount: 30,
   maxSeedsPerCup: 20, // → caps at 600 introduced seeds
   clusterStep: 5,
+  seedPlaylist: DEFAULT_SEED_PLAYLIST,
 }
 
 /**
@@ -496,11 +510,11 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
       looseProvider,
     })
 
-    // Each cup seed plays its fixed comprehensible-input sandwich in cup order
-    // (target → known → target(voice 2) → target@2×; see buildSeedPlays). Seeds
-    // without target audio are skipped entirely; a seed without known audio just
-    // drops the trans slot. Deterministic by construction (fixed voice order) →
-    // resume-safe, no RNG needed here.
+    // Each cup seed plays its comprehensible-input sandwich in cup order — the
+    // admin-tunable c.seedPlaylist (default: target → known → target(voice 2) →
+    // target@2×; see buildSeedPlays). Seeds without target audio are skipped
+    // entirely; a seed without known audio just drops the known slot.
+    // Deterministic by construction (fixed playlist) → resume-safe, no RNG here.
     const seedMap = seeds.value
     const plays: L1Play[] = []
     for (const sNum of cupSeeds) {
@@ -513,7 +527,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
         knownId: seed.known_audio_id,
         targetText: seed.target_text_roman || seed.target_text,
         knownText: seed.known_text,
-      }))
+      }, c.seedPlaylist))
     }
     if (plays.length === 0) return null
 

@@ -3141,6 +3141,8 @@ const l1ConfigFromDb = computed<Partial<Layer1Config>>(() => {
   for (const k of ['cups', 'activationCount', 'maxSeedsPerCup', 'clusterStep'] as const) {
     if (typeof c[k] === 'number') out[k] = c[k]
   }
+  // Per-seed sandwich playlist (admin-tunable). Absent → scheduler default.
+  if (Array.isArray(c.seedPlaylist) && c.seedPlaylist.length) out.seedPlaylist = c.seedPlaylist
   return out
 })
 const l1Config = computed<Partial<Layer1Config>>(() => ({ ...l1ConfigFromDb.value, ...(l1TestConfig || {}) }))
