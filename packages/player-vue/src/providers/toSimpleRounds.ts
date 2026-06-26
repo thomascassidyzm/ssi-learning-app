@@ -193,7 +193,7 @@ export function toSimpleRounds(
         // Other cycles: dynamic pause based on target audio lengths.
         pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)
           ? 0
-          : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_NORMAL),
+          : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_NORMAL, speed),
         // Intro/component_intro: linger after voice2 so learner can read
         ...(i.type === 'intro' ? { lingerMs: 2000 } : {}),
         ...(i.type === 'component_intro' ? { lingerMs: 1500 } : {}),

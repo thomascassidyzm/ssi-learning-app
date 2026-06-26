@@ -62,8 +62,14 @@ export function computePauseDuration(
   target1Ms: number,
   target2Ms: number,
   cfg: PauseModeConfig,
+  /** Target-voice playback speed (belt ramp). Early belts play the voice
+   *  slower, so the SAME clip takes longer to hear — actual = raw / speed. The
+   *  pause scales with that actual play time, so it's longer for beginners.
+   *  Default 1 = no adjustment (Green+ / legacy callers). */
+  playbackSpeed = 1,
 ): number {
-  const ref = Math.max(0, referenceMs(target1Ms, target2Ms, cfg))
+  const spd = playbackSpeed || 1
+  const ref = Math.max(0, referenceMs(target1Ms / spd, target2Ms / spd, cfg))
   const mult = cfg.pause_multiplier ?? 0
   const knee = cfg.pause_knee_ms == null ? Infinity : cfg.pause_knee_ms
   const tail = cfg.pause_tail_multiplier == null ? mult : cfg.pause_tail_multiplier

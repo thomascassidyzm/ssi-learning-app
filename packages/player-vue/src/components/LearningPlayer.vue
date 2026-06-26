@@ -4659,6 +4659,7 @@ watch(pendingPhase, (phase) => {
       cycle?.target1DurationMs ?? 0,
       cycle?.target2DurationMs ?? 0,
       cfg,
+      cycle?.playbackSpeed ?? 1,
     )
     startRingAnimation(duration)
   }
@@ -8004,6 +8005,7 @@ simplePlayer.setRuntimeOverrides({
       cycle.target1DurationMs ?? 0,
       cycle.target2DurationMs ?? 0,
       cfg,
+      cycle.playbackSpeed ?? 1,
     )
     // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
     // Applied last so mode floors/ceilings are still respected before
