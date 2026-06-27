@@ -78,12 +78,10 @@ export const DEFAULT_STAGE0: Stage0Config = {
     betweenIntentions: 500,
   },
   tiers: [
-    { key: 'explainer', visits: 2, fusionGap: null, granularity: 'atoms', targetRepeats: 0 }, // 2 identical breakdowns (Aran/Tom 2026-06-20); explainer has its own whole-part-whole closer
-    // targetRepeats = target reps AFTER the known (default 1 → symmetric, never
-    // ends on the known; stage0 tuner / DB overwrites). Tom 2026-06-22.
-    { key: 'pairs200', visits: 1, fusionGap: null, granularity: 'pairs', targetRepeats: 1 },
-    { key: 'pairs0', visits: 1, fusionGap: 0, granularity: 'pairs', targetRepeats: 1 },
-    { key: 'intention', visits: 1, fusionGap: null, granularity: 'intention', targetRepeats: 1 },
+    // 4-movement breakdown (Tom 2026-06-27): the explainer tier now does
+    // whole→known→per-chunk→whole on its own, ONCE. The old pairs/intention
+    // tiers + visits:2 drilled every chunk ~7x (and names absurdly) — removed.
+    { key: 'explainer', visits: 1, fusionGap: null, granularity: 'atoms', targetRepeats: 0 },
   ],
   playbackSpeed: 1,
 }
@@ -207,35 +205,36 @@ export function tierSequence(
 
   const withTarget = atoms.filter((a) => a.targetClipId)
 
-  // ── TIER 1: explainer (chunked whole-part-whole bookend) ──────────────────
+  // ── TIER 1: explainer — the 4-MOVEMENT breakdown (Tom 2026-06-27) ─────────
+  // whole target → whole known → per-MEANINGFUL-chunk (target → "means X") →
+  // whole target. Each chunk heard ONCE. A chunk with no gloss (a name) is
+  // NEVER drilled on its own — it's heard only inside the whole takes, in
+  // context. (Replaces the old chunked whole-part-whole ×2 + pairs/intention,
+  // which drilled names absurdly.)
   if (tier.key === 'explainer') {
-    const chunkGap = tier.fusionGap ?? g.fusionPairs
-    const pushChunkedWhole = () => {
-      withTarget.forEach((a, i) => {
-        clip(a.targetClipId as string, 'target', a.targetSurface)
-        if (i < withTarget.length - 1) gap(chunkGap, 'fusion')
-      })
-    }
-    // OPENER: whole phrase (chunked) → translation (meaning) BEFORE the breakdown
-    pushChunkedWhole()
+    const meaningful = atoms.filter((a) => a.targetClipId && a.meansGlossClipId)
+    // 1 · whole target
+    if (clips.wholeTakeId) clip(clips.wholeTakeId, 'wholeTake', clips.targetText)
+    // 2 · whole known (the meaning)
     if (clips.translationId) {
-      gap(g.targetMeaning, 'tm')
+      if (seq.length) gap(g.targetMeaning, 'tm')
       clip(clips.translationId, 'translation', clips.knownText)
     }
-    gap(g.betweenChunks, 'chunk')
-    // BREAKDOWNS: per atom — target + merged "means <gloss>"
-    atoms.forEach((a, j) => {
-      if (!a.targetClipId) return
-      clip(a.targetClipId, 'target', a.targetSurface)
-      if (a.meansGlossClipId) {
+    // 3 · per meaningful chunk: target → "means X"
+    if (meaningful.length) {
+      gap(g.betweenChunks, 'chunk')
+      meaningful.forEach((a, j) => {
+        clip(a.targetClipId as string, 'target', a.targetSurface)
         gap(g.beforeMeans, 'beforeMeans')
-        clip(a.meansGlossClipId, 'meansGloss', `means ${a.gloss}`)
-      }
-      if (j < atoms.length - 1) gap(g.betweenChunks, 'chunk')
-    })
-    // CLOSER: the whole phrase again (chunked) — solidify
-    gap(g.betweenChunks, 'chunk')
-    pushChunkedWhole()
+        clip(a.meansGlossClipId as string, 'meansGloss', `means ${a.gloss}`)
+        if (j < meaningful.length - 1) gap(g.betweenChunks, 'chunk')
+      })
+    }
+    // 4 · whole target (wrap, now understood)
+    if (clips.wholeTakeId) {
+      gap(g.betweenChunks, 'chunk')
+      clip(clips.wholeTakeId, 'wholeTake', clips.targetText)
+    }
     trimTrailingGap()
     return seq
   }
