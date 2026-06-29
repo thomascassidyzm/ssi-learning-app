@@ -185,6 +185,12 @@ const props = defineProps({
 const SPEED_OPTIONS = [1, 1.2, 1.5, 2]
 const playbackSpeed = ref(1)
 
+// Inter-clip / inter-row gaps (Aran 2026-06-29: tighten everything to ≤0.1s).
+// The chosen speed in Drill is the "normal" rate — fast reps are 2× of it.
+const GAP_DEFAULT_MS = 90        // Core/All between phrases + dialogue speaker-change (was 800)
+const GAP_DRILL_MS = 90          // between Drill reps + Drill within-turn (was 300 / 350)
+const GAP_IMMERSION_JOIN_MS = 50 // same-speaker sentence join in Immersion (deliberately tightest)
+
 // Inject providers
 const supabase = inject('supabase', null)
 
@@ -262,13 +268,15 @@ watch(showGloss, (v) => { try { localStorage.setItem('ssi-listening-gloss', v ? 
 // the Immersion/Drill mode-selector and its fixed-pace slot live.
 const isDialogueScene = computed(() => view.value === 'pods' && selectedScene.value !== null)
 
-// Interactive speed buttons: always in Core/All; in Dialogues only Immersion
-// exposes them. In Drill the speed slot stays present but shows a quiet,
-// non-interactive fixed-pace indicator instead (so the toolbar height never
-// changes when you switch modes — see the dialogue layout note in CSS).
-const showSpeedRow = computed(
-  () => !isDialogueScene.value || listenMode.value === 'immersion'
-)
+// Surfaces that carry the Immersion/Drill mode selector + per-line known audio:
+// dialogue scenes AND Core (seeds) (Aran 2026-06-29 — Core gets Immersion/Drill
+// too). "All" (phrases) stays the legacy random-voice list.
+const modeSurface = computed(() => isDialogueScene.value || view.value === 'seeds')
+
+// Speed selector is now shown in EVERY playback surface, including Drill — the
+// chosen speed is the "normal" rate and Drill's fast reps are 2× of it (Aran
+// 2026-06-29). The old fixed-pace caption / spacer is retired.
+const showSpeedRow = computed(() => true)
 
 // Pods state: list of scenes from useListeningPods, plus the currently
 // selected scene (null = scene list visible, set = teleprompter mode).
@@ -706,7 +714,7 @@ const loadSeeds = async () => {
 
     const { data, error: fetchError } = await supabase.value
       .from('course_seeds')
-      .select('seed_number, known_text, target_text, target1_audio_id, target2_audio_id')
+      .select('seed_number, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id')
       .eq('course_code', props.courseCode)
       .order('seed_number', { ascending: true })
 
@@ -726,6 +734,7 @@ const loadSeeds = async () => {
         knownText: s.known_text,
         targetText: s.target_text,
         position: s.seed_number,
+        knownAudioId: s.known_audio_id || null,
         target1AudioId: s.target1_audio_id,
         target2AudioId: s.target2_audio_id || s.target1_audio_id,
       }
@@ -923,35 +932,51 @@ const playFromIndex = async (index) => {
 }
 
 /**
- * Build the play queue for one phrase row as [{ id, rate|null }].
- * - Dialogue scenes (Immersion / Drill): TARGET ONLY, mapped from the turn's
- *   per-chunk sentence detail.
- *     immersion — each chunk once at the learner's chosen speed.
- *     drill     — each chunk three times: 1× · 2× · 2×.
- * - Core / All rows keep the original random-voice behaviour.
+ * Build a mode queue from a list of { targetAudioId, knownAudioId } units.
+ * The chosen speed is the "normal" rate (base); Drill's fast reps are 2× base.
+ *   immersion — each unit's TARGET once at base speed.
+ *   drill     — per unit: KNOWN once (hear the meaning), then TARGET ×3 at
+ *               base · 2×base · 2×base (drill the target). Known is skipped
+ *               when the unit has no known clip (the target reps still play).
  */
-const buildPlayQueue = (phrase) => {
-  if (view.value === 'pods' && selectedScene.value) {
-    // Per-chunk detail drives both modes; fall back to the turn's first
-    // audio id if a row somehow lacks sentence detail.
-    const sentences = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
-      ? phrase.sentences
-      : [{ targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null }]
-    const queue = []
-    if (listenMode.value === 'drill') {
-      for (const s of sentences) {
-        if (!s.targetAudioId) continue
-        queue.push({ id: s.targetAudioId, rate: 1 })
-        queue.push({ id: s.targetAudioId, rate: 2 })
-        queue.push({ id: s.targetAudioId, rate: 2 })
-      }
-      return queue
-    }
-    // immersion (default): the whole scene, target only, at the chosen speed.
-    for (const s of sentences) {
-      if (s.targetAudioId) queue.push({ id: s.targetAudioId, rate: playbackSpeed.value })
+const buildModalQueue = (units) => {
+  const base = playbackSpeed.value || 1
+  const queue = []
+  if (listenMode.value === 'drill') {
+    for (const u of units) {
+      if (u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base })
+      if (!u.targetAudioId) continue
+      queue.push({ id: u.targetAudioId, rate: base })
+      queue.push({ id: u.targetAudioId, rate: 2 * base })
+      queue.push({ id: u.targetAudioId, rate: 2 * base })
     }
     return queue
+  }
+  // immersion (default): target only, at the chosen speed.
+  for (const u of units) {
+    if (u.targetAudioId) queue.push({ id: u.targetAudioId, rate: base })
+  }
+  return queue
+}
+
+/**
+ * Build the play queue for one phrase row as [{ id, rate|null }].
+ * - Dialogue scenes (Immersion / Drill): per-chunk sentence detail → modal queue.
+ * - Core / seeds (Immersion / Drill): the seed's own target + known → modal queue.
+ * - All / phrases rows keep the original random-voice behaviour.
+ */
+const buildPlayQueue = (phrase) => {
+  if (isDialogueScene.value) {
+    // Per-chunk detail drives both modes; fall back to the turn's first
+    // audio id if a row somehow lacks sentence detail.
+    const units = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
+      ? phrase.sentences
+      : [{ targetAudioId: phrase.audioIds?.[0] || phrase.target1AudioId || null, knownAudioId: phrase.knownAudioId || null }]
+    return buildModalQueue(units)
+  }
+  if (view.value === 'seeds') {
+    // Core: the seed sentence is the unit — drill it against its English clip.
+    return buildModalQueue([{ targetAudioId: phrase.target1AudioId || null, knownAudioId: phrase.knownAudioId || null }])
   }
   if (Array.isArray(phrase.audioIds) && phrase.audioIds.length > 0) {
     return phrase.audioIds.filter(Boolean).map((id) => ({ id, rate: null }))
@@ -961,15 +986,23 @@ const buildPlayQueue = (phrase) => {
   return audioId ? [{ id: audioId, rate: null }] : []
 }
 
-/** Every audio id a row can need under the CURRENT mode — Immersion / Drill
- *  are target-only, so only targets are warmed. */
+/** Every audio id a row can need under the CURRENT mode. Immersion warms
+ *  targets only; Drill also warms the per-line known (English) clip, since it
+ *  now leads each line. */
 const audioIdsForWarm = (phrase) => {
   if (!phrase) return []
   const ids = []
+  const wantKnown = modeSurface.value && listenMode.value === 'drill'
   if (Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
     for (const s of phrase.sentences) {
       if (s.targetAudioId) ids.push(s.targetAudioId)
+      if (wantKnown && s.knownAudioId) ids.push(s.knownAudioId)
     }
+    return ids
+  }
+  if (view.value === 'seeds') {
+    if (phrase.target1AudioId) ids.push(phrase.target1AudioId)
+    if (wantKnown && phrase.knownAudioId) ids.push(phrase.knownAudioId)
     return ids
   }
   if (Array.isArray(phrase.audioIds)) return phrase.audioIds.filter(Boolean)
@@ -1026,7 +1059,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // Drill's repeats breathe a little (300ms) so the 1×/2×/2× reps read as
   // deliberate practice; Immersion keeps the tight 50ms that joins a
   // speaker's consecutive chunks into natural continuous speech.
-  const interClipGap = (view.value === 'pods' && selectedScene.value && listenMode.value === 'drill') ? 300 : 50
+  const interClipGap = (modeSurface.value && listenMode.value === 'drill') ? GAP_DRILL_MS : GAP_IMMERSION_JOIN_MS
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
     const item = playQueue[i]
@@ -1044,7 +1077,7 @@ const playCurrentPhrase = async (myPlaybackId) => {
       // Dialogue queues always carry an explicit per-clip rate (Immersion =
       // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
       // Core/All pass rate=null and lean on the controller's rate watch.
-      const effectiveRate = (view.value === 'pods' && selectedScene.value) ? (rate ?? 1) : rate
+      const effectiveRate = modeSurface.value ? (rate ?? 1) : rate
       await audioController.value.play(audioUrl, effectiveRate)
     } catch (err) {
       console.error('[ListeningOverlay] Audio play failed:', err)
@@ -1066,9 +1099,9 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // between-phrases pause. Immersion runs the tightest within-turn gap; Drill
   // gives each phrase a touch more room.
   const nextPhrase = availablePhrases.value[currentIndex.value + 1]
-  let trailingGap = 800
-  if (view.value === 'pods' && selectedScene.value && nextPhrase && !nextPhrase.isTurnStart) {
-    trailingGap = listenMode.value === 'immersion' ? 50 : 350
+  let trailingGap = GAP_DEFAULT_MS
+  if (isDialogueScene.value && nextPhrase && !nextPhrase.isTurnStart) {
+    trailingGap = listenMode.value === 'immersion' ? GAP_IMMERSION_JOIN_MS : GAP_DRILL_MS
   }
   await audioController.value.playSilence(trailingGap)
 
@@ -1163,6 +1196,18 @@ const togglePlayback = () => {
       playFromIndex(currentIndex.value)
     }
   }
+}
+
+/** Dialogues scene-list "Play all": open the first scene and play straight
+ *  through — handleEndOfList already segues scene→scene (loop off), so the
+ *  whole pod plays end-to-end as one continuous session. */
+const playAllScenes = async () => {
+  const sceneList = pods.scenes.value
+  if (!sceneList || sceneList.length === 0) return
+  loopScene.value = false
+  openScene(sceneList[0])
+  await nextTick()
+  playFromIndex(0)
 }
 
 const stopPlayback = () => {
@@ -1572,6 +1617,14 @@ watch(
         <p>No pods for this course yet.</p>
       </div>
       <div v-else class="scene-list">
+        <!-- Play all scenes end-to-end (Aran 2026-06-29) — opens scene 1 and
+             segues through every scene as one continuous session. -->
+        <button class="scene-play-all" type="button" @click="playAllScenes">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+            <polygon points="7 3 20 12 7 21 7 3"/>
+          </svg>
+          Play all scenes
+        </button>
         <button
           v-for="scene in pods.scenes.value"
           :key="scene.sceneNumber"
@@ -1653,9 +1706,10 @@ watch(
         </svg>
       </button>
 
-      <!-- Transport — Core/All only; Dialogue scenes play through the surface
-           (tap anywhere) with the hairline carrying progress. -->
-      <div v-if="!(view === 'pods' && selectedScene)" class="transport-bar">
+      <!-- Transport — persistent top-left play/stop in EVERY view, including a
+           dialogue scene (Aran 2026-06-29: identical behaviour everywhere; the
+           old tap-anywhere-to-play / click-outside-to-stop was undiscoverable). -->
+      <div class="transport-bar">
         <button class="transport-btn" @click="togglePlayback">
           <svg v-if="isPlaying" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="6" width="12" height="12" rx="2"/>
@@ -1690,19 +1744,13 @@ watch(
           </button>
         </div>
       </div>
-      <!-- Drill: no speed choice and nothing to show, but we keep an empty
-           slot of the same height so switching modes never shifts the layout. -->
-      <div
-        v-else-if="isDialogueScene"
-        class="speed-controls pace-spacer"
-        aria-hidden="true"
-      ></div>
 
-      <!-- Dialogue listening level (Immersion / Drill). Dumb, isolated
-           component — the mode change is a pure state update; warmScene
-           runs deferred (post-flush) so it never blocks the highlight. -->
+      <!-- Listening level (Immersion / Drill) — in dialogue scenes AND Core
+           (seeds). Dumb, isolated component — the mode change is a pure state
+           update; warmScene runs deferred (post-flush) so it never blocks the
+           highlight. -->
       <ListeningModeToggle
-        v-if="view === 'pods' && selectedScene"
+        v-if="modeSurface"
         :modes="LISTEN_MODES"
         :model-value="listenMode"
         @update:model-value="listenMode = $event"
@@ -2395,6 +2443,23 @@ watch(
   padding: 3rem 1rem;
   color: var(--text-muted);
 }
+
+.scene-play-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--belt-color, #c23a3a);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scene-play-all:hover { filter: brightness(1.05); }
 
 .scene-card {
   display: flex;

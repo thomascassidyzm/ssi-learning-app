@@ -1,7 +1,7 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
-# Version: 1.0.0
-# Last updated: 2026-06-15
+# Version: 1.1.0
+# Last updated: 2026-06-29
 # Source: packages/player-vue/src/components/ListeningOverlay.vue
 #         packages/player-vue/src/composables/useListeningPods.ts
 
@@ -52,9 +52,12 @@ TABS:
 
 DIALOGUE_MODES:
   description: |
-    Selector shown only in Dialogues with a scene open. Keys are stable
-    (localStorage 'ssi-listening-mode' + code); labels may evolve. A retired
-    or unknown stored key migrates to the default (immersion).
+    Immersion/Drill selector shown on every PLAYBACK surface: Dialogues with a
+    scene open AND Core (seeds) (Aran 2026-06-29 — Core gets the modes too; the
+    gating computed is `modeSurface = isDialogueScene || view==='seeds'`). "All"
+    (phrases) stays the legacy random-voice list. Keys are stable (localStorage
+    'ssi-listening-mode' + code); a retired/unknown stored key migrates to the
+    default (immersion).
 
     Rows are ONE PER CHUNK (per-phrase granularity) — openScene flattens the
     scene's turns into a row per listening_pod_sentences chunk. The turn
@@ -70,23 +73,25 @@ DIALOGUE_MODES:
     default: true
     desc: "The whole scene in the target language, at your pace."
     audio: |
-      Each chunk played once at the learner's chosen speed (the speed row is
-      shown for this mode). Within a speaker's turn chunks run tight (50ms) for
-      natural continuous speech; a speaker change gets the full 800ms breath.
-    speed_row: true   # interactive 1×/1.2×/1.5×/2× selector on row 2 of the band
+      Each unit's TARGET played once at the learner's chosen speed. Within a
+      speaker's turn chunks run tight (50ms) for natural continuous speech; a
+      speaker change / between-row gap is ~90ms (Aran 2026-06-29: all gaps ≤0.1s).
+    speed_row: true   # interactive 1×/1.2×/1.5×/2× selector
 
   drill:
     key: "drill"
     label: "Drill"
-    desc: "Each line three times — once normal, then twice fast."
+    desc: "Hear the meaning, then drill the line — normal, then twice fast."
     audio: |
-      Each chunk played three times: 1× · 2× · 2× (300ms breath between reps).
-      Row-by-row, so the learner stays on one phrase at a time.
-    speed_row: false   # the interactive selector is hidden, BUT the row-2 slot
-                       # stays present as a non-interactive fixed-pace caption
-                       # ("Pace · 1× · 2× · 2×") so the toolbar height is
-                       # constant — the Immersion/Drill toggle never jumps when
-                       # switching modes. Audit shows "Pace · Live config".
+      Per unit: the KNOWN (English) clip ONCE (hear the meaning), then the
+      TARGET ×3 at base · 2×base · 2×base, where base = the chosen speed (Aran
+      2026-06-29). So speed 1× → 1/2/2; speed 1.2× → 1.2/2.4/2.4. The English
+      clip is `knownAudioId` (per-sentence when the turn was split, else the
+      turn-level clip; Core uses the seed's own known_audio_id); it is skipped
+      when a unit has no known clip (the target reps still play). ~90ms gaps.
+    speed_row: true   # the speed selector is now EXPOSED in Drill (the chosen
+                      # speed is the "normal" rate; the fixed-pace caption/spacer
+                      # is retired).
 
   audit:
     key: "audit"
@@ -122,19 +127,39 @@ PLAYBACK:
     those turns into one row per chunk, tagging each row with speakerName (on
     the turn's first chunk only) and isTurnStart. Each row carries single-chunk
     `sentences` detail (targetAudioId / knownAudioId / explainerAudioId).
-  immersion: "row = one chunk: { target, rate = chosen speed }"
-  drill:     "row = one chunk: { target, 1× } · { target, 2× } · { target, 2× }"
+  unified_queue: |
+    buildModalQueue(units) is shared by dialogue (units = a row's per-chunk
+    sentences) and Core (units = the seed's own { targetAudioId, knownAudioId }).
+    base = chosen speed. immersion → target once @base. drill → known once @base,
+    then target @base · 2×base · 2×base. "All" (phrases) keeps the legacy
+    random-voice queue (rate=null).
   inter_row_gap: |
-    Turn-aware: when the next row continues the same turn (not isTurnStart),
-    50ms in Immersion / 350ms in Drill; on a speaker change (or any non-
-    dialogue list), the steady 800ms between-phrases pause.
+    Tightened to ≤0.1s everywhere (Aran 2026-06-29). Constants:
+    GAP_DEFAULT_MS=90 (Core/All between phrases + dialogue speaker-change, was
+    800), GAP_DRILL_MS=90 (between Drill reps + Drill within-turn, was 300/350),
+    GAP_IMMERSION_JOIN_MS=50 (same-speaker sentence join in Immersion, the only
+    deliberately-tighter gap).
   rate_handling: |
-    Dialogue queues always carry an explicit per-clip rate, so a speed picked
-    in Core/All never leaks into a dialogue. Core/All pass rate=null and rely
-    on the audio controller's playback-rate watch.
+    Modal queues (dialogue + Core) always carry an explicit per-clip rate, so a
+    speed picked elsewhere never leaks. "All" passes rate=null and relies on the
+    audio controller's playback-rate watch.
   warm_ahead: |
-    Immersion / Drill warm only TARGET clips ahead (lock-screen-safe). Aux
-    clips (known / explainer) are warmed only in the audit walk.
+    Immersion warms TARGET clips ahead (lock-screen-safe); Drill ALSO warms the
+    per-line KNOWN clip, since it now leads each line.
+
+## ============================================================================
+## TRANSPORT (Aran 2026-06-29)
+## ============================================================================
+
+TRANSPORT:
+  persistent_play_stop: |
+    A top-left play/stop transport-btn is now shown in EVERY view, including a
+    dialogue scene (the old tap-anywhere-to-play / click-outside-to-stop was
+    undiscoverable). Same togglePlayback behaviour everywhere.
+  play_all_scenes: |
+    The Dialogues scene-list has a "Play all scenes" button (playAllScenes):
+    opens scene 1 and plays straight through — handleEndOfList already segues
+    scene→scene (loop off), so the whole pod plays end-to-end as one session.
 
 ## ============================================================================
 ## RELATED
