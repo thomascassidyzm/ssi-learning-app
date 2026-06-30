@@ -331,8 +331,30 @@ const totalSeeds = computed(() => {
   return bp?.courseSeedCount?.value ?? bp?.TOTAL_SEEDS ?? 668
 })
 
-// Usage stats from session history
-const totalLearningMinutes = computed(() => beltProgress.value?.totalLearningMinutes.value ?? 0)
+// Usage stats. The headline "Total Time" is the learner's COMMITMENT metric, so
+// it must be true time-in-app (session spans, all courses, incl. listening) — not
+// the local per-course estimate, and never the old audio-playback-seconds number.
+// For a signed-in learner we read the server value (same definition as admin);
+// guests / offline fall back to the local session-history estimate.
+const serverEngagedMinutes = ref(null)
+async function loadEngagedMinutes() {
+  const sb = supabaseClient
+  if (!sb?.value) return
+  try {
+    const { data: { session } } = await sb.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return // guest — keep the local estimate
+    const res = await fetch('/api/me/engaged-time', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const data = await res.json()
+    if (typeof data?.engagedMinutes === 'number') serverEngagedMinutes.value = data.engagedMinutes
+  } catch {
+    /* non-fatal — fall back to the local estimate */
+  }
+}
+const totalLearningMinutes = computed(() =>
+  serverEngagedMinutes.value ?? beltProgress.value?.totalLearningMinutes.value ?? 0
+)
 const totalPhrasesSpoken = computed(() => beltProgress.value?.totalPhrasesSpoken.value ?? 0)
 
 // Admin detection (mirrors SettingsScreen logic)
@@ -427,6 +449,7 @@ const loadModeVisibility = () => {
 
 onMounted(() => {
   loadModeVisibility()
+  void loadEngagedMinutes()
 
   // Pre-warm async modal chunks. Fired on idle so the player's first
   // paint isn't competing for bandwidth, but kicks in well before a
