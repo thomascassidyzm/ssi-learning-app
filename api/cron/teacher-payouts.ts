@@ -81,6 +81,14 @@ export default async function handler(
   // Cron auth — Vercel sends Authorization: Bearer <CRON_SECRET>
   const authHeader = (req.headers.authorization || '').trim()
   const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production'
+  // Fail CLOSED in production: this job moves real money via Wise, so it must
+  // NEVER run unauthenticated. Previously an unset CRON_SECRET skipped the check
+  // entirely (the `cronSecret && …` guard below), leaving the endpoint open.
+  if (isProd && !cronSecret) {
+    console.error('[cron/teacher-payouts] CRON_SECRET not configured in production — refusing to run')
+    res.status(500).json({ error: 'CRON_SECRET not configured' })
+    return
+  }
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     if (isProd) {
       res.status(401).json({ error: 'Unauthorized' })

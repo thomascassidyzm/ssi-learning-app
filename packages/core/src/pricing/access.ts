@@ -172,6 +172,13 @@ export function inferPricingTier(
     return 'premium';
   }
 
+  // Welsh is premium for now — the 17-year flagship. (Slated to join the free
+  // tier eventually; until then it's free to end of Yellow, paywalled Orange+,
+  // matching its 'premium' pricing_tier in the courses table.)
+  if (targetLang === 'cym') {
+    return 'premium';
+  }
+
   // Everything else is free (endangered languages)
   return 'free';
 }
