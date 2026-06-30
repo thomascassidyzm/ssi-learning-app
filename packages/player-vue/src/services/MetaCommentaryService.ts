@@ -30,7 +30,10 @@
  */
 
 import type { AudioRef } from '@ssi/core'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { CourseDataProvider } from '../providers/CourseDataProvider'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface MetaCommentaryAudio extends AudioRef {
   text: string
@@ -70,6 +73,9 @@ export class MetaCommentaryService {
   private encouragements: Array<AudioRef & { text: string }> = []
   private welcomeAudio: AudioRef | null = null
   private initialized = false
+  /** Supabase client for cross-device persistence of instruction progress.
+   *  Null for guests / when not provided ⇒ localStorage-only (per-device). */
+  private supabase: SupabaseClient | null
 
   // Variable-interval reward state (session-scoped — a fresh session starts
   // the clock over, which is fine: encouragements aren't progress).
@@ -97,11 +103,18 @@ export class MetaCommentaryService {
   // instruction first.
   forceEncouragementsOnly = false
 
-  constructor(provider: CourseDataProvider, learnerId: string) {
+  constructor(provider: CourseDataProvider, learnerId: string, supabase: SupabaseClient | null = null) {
     this.provider = provider
     this.courseId = provider.getCourseId()
     this.learnerId = learnerId
+    this.supabase = supabase
     this.globalState = this.getDefaultGlobalState()
+  }
+
+  /** Cross-device sync is possible only for a signed-in learner (a real
+   *  learners.id UUID) with a client — guests stay on localStorage. */
+  private get canSync(): boolean {
+    return !!this.supabase && UUID_RE.test(this.learnerId)
   }
 
   private getDefaultGlobalState(): GlobalCommentaryState {
@@ -117,8 +130,10 @@ export class MetaCommentaryService {
   async initialize(): Promise<void> {
     if (this.initialized) return
 
-    // Load saved state (per-user, persists across courses).
+    // Load saved state (per-user, persists across courses). localStorage is the
+    // fast/offline cache; the server is the source of truth across devices.
     this.loadGlobalState()
+    await this.syncFromServer()
 
     // Prefetch all meta-commentary audio
     const [instructions, encouragements, welcome] = await Promise.all([
@@ -325,6 +340,62 @@ export class MetaCommentaryService {
     } catch (err) {
       console.warn('[MetaCommentaryService] Failed to save global state:', err)
     }
+    // Mirror to the server (fire-and-forget; localStorage already holds it).
+    if (this.canSync) void this.saveToServer()
+  }
+
+  /**
+   * Read the learner's instruction progress from the server and merge it with
+   * the local cache by FURTHEST progress (the index is monotonic — you only
+   * advance). So a fresh device adopts the server's progress, while progress
+   * made offline (local ahead) is pushed up. Best-effort: any failure leaves
+   * the localStorage value in place.
+   */
+  private async syncFromServer(): Promise<void> {
+    if (!this.canSync || !this.supabase) return
+    try {
+      const { data, error } = await this.supabase
+        .from('learner_meta_commentary_state')
+        .select('instruction_index, instructions_complete')
+        .eq('learner_id', this.learnerId)
+        .maybeSingle()
+      if (error) {
+        console.warn('[MetaCommentaryService] server load failed:', error.message)
+        return
+      }
+      const local = this.globalState
+      const serverIndex = data?.instruction_index ?? 0
+      const serverComplete = !!data?.instructions_complete
+      const merged: GlobalCommentaryState = {
+        instructionIndex: Math.max(local.instructionIndex, serverIndex),
+        instructionsComplete: local.instructionsComplete || serverComplete,
+      }
+      this.globalState = merged
+      // Cache the merge locally.
+      try { localStorage.setItem(this.getGlobalStorageKey(), JSON.stringify(merged)) } catch { /* ignore */ }
+      // Push the merge up if the server row is missing or behind.
+      const serverBehind = !data || serverIndex !== merged.instructionIndex || serverComplete !== merged.instructionsComplete
+      if (serverBehind) await this.saveToServer()
+    } catch (err) {
+      console.warn('[MetaCommentaryService] syncFromServer error:', err)
+    }
+  }
+
+  private async saveToServer(): Promise<void> {
+    if (!this.canSync || !this.supabase) return
+    try {
+      const { error } = await this.supabase
+        .from('learner_meta_commentary_state')
+        .upsert({
+          learner_id: this.learnerId,
+          instructions_complete: this.globalState.instructionsComplete,
+          instruction_index: this.globalState.instructionIndex,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'learner_id' })
+      if (error) console.warn('[MetaCommentaryService] server save failed:', error.message)
+    } catch (err) {
+      console.warn('[MetaCommentaryService] saveToServer error:', err)
+    }
   }
 }
 
@@ -333,7 +404,8 @@ export class MetaCommentaryService {
  */
 export function createMetaCommentaryService(
   provider: CourseDataProvider,
-  learnerId: string
+  learnerId: string,
+  supabase: SupabaseClient | null = null,
 ): MetaCommentaryService {
-  return new MetaCommentaryService(provider, learnerId)
+  return new MetaCommentaryService(provider, learnerId, supabase)
 }
