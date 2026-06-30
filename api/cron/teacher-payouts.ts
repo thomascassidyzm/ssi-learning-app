@@ -5,14 +5,22 @@
  * each month. Processes commission rows for the just-finished month using
  * Wise's batch-group flow.
  *
- * Eligibility:
- *   teacher_commissions.status = 'accruing'
- *   AND period_end < today                — period closed
- *   AND accrued_pence >= 10000            — £100 threshold
+ * Eligibility (HELD-commission model):
+ *   teacher_commissions.status IN ('held','accruing')   — webhook accrues 'held'; legacy rows 'accruing'
+ *   AND hold_until IS NOT NULL AND hold_until <= today   — refund window elapsed (RELEASED)
  *   AND teachers.payout_recipient_id IS NOT NULL
+ *   AND the teacher's TOTAL released balance (summed across ALL closed,
+ *       past-refund-window rows) >= 10000  — £100 threshold
  *
- * Rows below threshold stay `accruing` and roll forward to next period
- * (no action needed — they continue accumulating until they cross £100).
+ * The threshold is evaluated on the teacher's aggregate released balance, not a
+ * single month's row. This fixes the stranded-balance bug where a teacher with
+ * several sub-£100 months would never get paid even though the rolling total
+ * crossed £100. Each released row is still transferred individually (the
+ * wise_transfer_id unique constraint is one-per-row), but a teacher only enters
+ * the run once their summed released balance clears the threshold.
+ *
+ * A row with NULL hold_until (or, pre-migration, no hold_until column at all) is
+ * treated as NOT yet released and is never paid early — fail safe.
  *
  * Flow per Wise docs:
  *   1. POST /v3/profiles/:id/batch-groups          → create empty batch
@@ -50,6 +58,7 @@ interface EligibleCommission {
   period_start: string
   period_end: string
   accrued_pence: number
+  hold_until: string | null
 }
 
 interface TeacherPayout extends EligibleCommission {
@@ -100,24 +109,51 @@ export default async function handler(
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const todayIso = new Date().toISOString().slice(0, 10)
 
-  // 1. Pull eligible commission rows
+  // 1. Pull RELEASED commission rows: still accruing (not yet paid/failed) AND
+  //    past the refund-window hold. We gate on hold_until, not period_end.
   const { data: rows, error: queryErr } = await supabase
     .from('teacher_commissions')
-    .select('id, teacher_id, period_start, period_end, accrued_pence')
-    .eq('status', 'accruing')
-    .lt('period_end', todayIso)
-    .gte('accrued_pence', PAYOUT_THRESHOLD_PENCE)
+    .select('id, teacher_id, period_start, period_end, accrued_pence, hold_until')
+    // The webhook accrues new tutor-student commission as status 'held' (canonical
+    // contract); legacy/backfilled rows from the old monthly model are 'accruing'.
+    // Both are releasable once past their refund-window hold_until.
+    .in('status', ['held', 'accruing'])
+    .not('hold_until', 'is', null)
+    .lte('hold_until', todayIso)
 
   if (queryErr) {
+    // Fail SAFE: if hold_until isn't present yet (pre-migration, code 42703), do
+    // NOT fall back to paying on the old period_end rule — that would release
+    // commission before its refund window. Skip this run instead.
+    if (queryErr.code === '42703') {
+      console.warn('[cron/teacher-payouts] hold_until column absent — skipping run (fail safe, no early payout)')
+      res.status(200).json({
+        message: 'hold_until not present yet; skipping payout run (fail safe).',
+        processed: 0,
+        skipped_no_recipient: 0,
+      })
+      return
+    }
     console.error('[cron/teacher-payouts] Query failed:', queryErr)
     res.status(500).json({ error: queryErr.message })
     return
   }
 
-  const eligible = (rows || []) as EligibleCommission[]
+  const released = (rows || []) as EligibleCommission[]
+
+  // Aggregate released balance per teacher; only teachers whose ROLLING total
+  // clears the £100 threshold are eligible (fixes the stranded-balance bug).
+  const releasedByTeacher = new Map<string, number>()
+  for (const r of released) {
+    releasedByTeacher.set(r.teacher_id, (releasedByTeacher.get(r.teacher_id) || 0) + (r.accrued_pence || 0))
+  }
+  const eligible = released.filter(
+    (r) => (releasedByTeacher.get(r.teacher_id) || 0) >= PAYOUT_THRESHOLD_PENCE
+  )
+
   if (eligible.length === 0) {
     res.status(200).json({
-      message: 'No commissions met the £100 threshold this period.',
+      message: 'No teacher has a released balance meeting the £100 threshold.',
       processed: 0,
       skipped_no_recipient: 0,
     })

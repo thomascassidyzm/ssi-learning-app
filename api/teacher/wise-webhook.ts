@@ -5,9 +5,11 @@
  * events and reconciles teacher_commissions.
  *
  *   outgoing_payment_sent  → status='paid', paid_at = now
- *   funds_refunded         → status='failed', failure_reason='funds_refunded'
- *   bounced_back           → status='failed', failure_reason='bounced_back'
- *   charged_back           → status='failed', failure_reason='charged_back'
+ *   charged_back           → status='failed' (TERMINAL — source payment reversed;
+ *                            do NOT re-queue; can demote pending_payout OR paid)
+ *   bounced_back / cancelled / funds_refunded → TRANSIENT delivery failure: reset
+ *                            the row to 'accruing' and clear wise_transfer_id /
+ *                            wise_batch_group_id so the next cron run re-queues it.
  *
  * Lookup: Wise's `data.resource.id` is the transfer ID; we match on
  * teacher_commissions.wise_transfer_id (set by the monthly cron when the
@@ -56,13 +58,16 @@ interface WiseTransferStateChangeEvent {
   }
 }
 
-// Wise transfer states that map to our terminal statuses
+// Wise transfer states that map to our statuses.
 const PAID_STATES = new Set(['outgoing_payment_sent'])
-const FAILED_STATES = new Set([
-  'funds_refunded',
+// TERMINAL failure: the source payment itself was reversed. Never re-queue.
+const CHARGEBACK_STATES = new Set(['charged_back'])
+// TRANSIENT delivery failure: the money never reached the recipient (bounced,
+// cancelled, or refunded back to us). Reset the row so the next cron re-queues it.
+const TRANSIENT_FAILURE_STATES = new Set([
   'bounced_back',
-  'charged_back',
   'cancelled',
+  'funds_refunded',
 ])
 
 export default async function handler(
@@ -167,12 +172,10 @@ export default async function handler(
       }
 
       console.log('[wise-webhook] Marked paid:', updated?.length ?? 0, 'row(s), transfer', transferIdStr)
-    } else if (FAILED_STATES.has(currentState)) {
-      // A genuine chargeback can arrive AFTER a transfer was marked paid, so it may
-      // demote pending_payout OR paid → failed. Other failures act only on a row
-      // still awaiting payout. Idempotent: re-delivery of an already-failed row no-ops.
-      const promotable =
-        currentState === 'charged_back' ? ['pending_payout', 'paid'] : ['pending_payout']
+    } else if (CHARGEBACK_STATES.has(currentState)) {
+      // TERMINAL. A genuine chargeback can arrive AFTER a transfer was marked paid,
+      // so it may demote pending_payout OR paid → failed. Idempotent: re-delivery
+      // of an already-failed row no-ops.
       const { data: updated, error } = await supabase
         .from('teacher_commissions')
         .update({
@@ -181,7 +184,7 @@ export default async function handler(
           updated_at: new Date().toISOString(),
         })
         .eq('wise_transfer_id', transferIdStr)
-        .in('status', promotable)
+        .in('status', ['pending_payout', 'paid'])
         .select('id')
 
       if (error) {
@@ -189,7 +192,39 @@ export default async function handler(
       }
 
       console.log(
-        '[wise-webhook] Marked failed:',
+        '[wise-webhook] Marked failed (chargeback):',
+        updated?.length ?? 0,
+        'row(s), transfer',
+        transferIdStr,
+        'state:',
+        currentState
+      )
+    } else if (TRANSIENT_FAILURE_STATES.has(currentState)) {
+      // TRANSIENT: the money bounced/cancelled/was refunded back to us — the
+      // commission is still genuinely owed. Reset the row to 'accruing' and clear
+      // the Wise transfer linkage so the next cron run re-quotes and re-sends it.
+      // Only act on a row still awaiting payout — never resurrect a 'paid' row
+      // (a true reversal of a paid transfer would arrive as charged_back), and the
+      // unique wise_transfer_id index tolerates the NULL we set here.
+      const { data: updated, error } = await supabase
+        .from('teacher_commissions')
+        .update({
+          status: 'accruing',
+          wise_transfer_id: null,
+          wise_batch_group_id: null,
+          failure_reason: `Re-queued after Wise: ${currentState}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('wise_transfer_id', transferIdStr)
+        .in('status', ['pending_payout'])
+        .select('id')
+
+      if (error) {
+        throw new Error(`re-queue failed: ${error.message}`)
+      }
+
+      console.log(
+        '[wise-webhook] Re-queued (transient failure):',
         updated?.length ?? 0,
         'row(s), transfer',
         transferIdStr,
