@@ -2,6 +2,20 @@
 # SSI Learning App v1.0.0
 # Version: 1.0.0 (2025-12-03)
 # Status: Designed
+#
+# ⚠️ 2026-06-30 — PARTIALLY SUPERSEDED. The live runtime is the OFFSET-BASED
+# scheduler in packages/player-vue/src/providers/generateLearningScript.ts (not
+# the position-advancement / retire-at-8 model described below). Two changes
+# landed that this body does NOT yet reflect — treat the code as source of truth:
+#   1. The Fibonacci offset series now SPANS A FULL COURSE:
+#      [1,2,3,5,8,13,21,34,55,89,144,233,377,610,987,1597,2584]
+#      (was …,55,89). Mirrors the dashboard generator. Burden per round stays
+#      flat (one item per offset); intervals grow — nothing fully "retires".
+#   2. SEED-PHASE reviews: at offset ≥ SEED_PHASE_START_OFFSET (144) a review
+#      switches from a use-phrase (LEGO-level) to the FULL PARENT SEED SENTENCE
+#      (active production). Distinct from L1 listening (30-cup model = passive
+#      INPUT); the two are complementary channels. A graduated seed stays
+#      eligible for seed-phase production review.
 
 ## ============================================================================
 ## OVERVIEW
