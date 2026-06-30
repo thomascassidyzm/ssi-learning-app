@@ -30,6 +30,7 @@
  */
 
 import { ref, computed } from 'vue'
+import { hasTryEntitlement } from './useEntitlement'
 import { resolveSupabase } from './schools/client'
 import {
   getAllOfflineLeases,
@@ -87,16 +88,11 @@ let onlineHandler: (() => void) | null = null
 let supabaseRef: { value: any } | null = null
 let initialized = false
 
-// ── Dev / demo bypass ───────────────────────────────────────────────────────
+// ── Dev / demo / try-link bypass ────────────────────────────────────────────
+// PROD honours only a server-minted try-link token; DEV keeps the raw flags.
+// (Shared with useEntitlement so the rule lives in one place.)
 function isDevOrDemoBypass(): boolean {
-  try {
-    if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
-    if (import.meta.env.PROD) return false
-    if (localStorage.getItem('ssi-dev-tier') === 'paid') return true
-    return localStorage.getItem('ssi-dev-paid-user') === 'true'
-  } catch {
-    return false
-  }
+  return hasTryEntitlement()
 }
 
 function isOnline(): boolean {

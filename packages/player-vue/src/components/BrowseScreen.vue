@@ -10,6 +10,7 @@ import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useUserRole } from '@/composables/useUserRole'
 import { checkCourseAccess, inferPricingTier } from '@ssi/core'
+import { hasTryEntitlement } from '@/composables/useEntitlement'
 
 const router = useRouter()
 
@@ -21,15 +22,7 @@ const { platformRole, hasSchoolRole, educationalRole } = useUserRole()
 const hasFullAccess = (course) => {
   const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
   const isCommunity = course.is_community ?? course.course_code?.startsWith('community_')
-  const devPaid = (() => {
-    try {
-      if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
-      if (import.meta.env.PROD) return false
-      const tier = localStorage.getItem('ssi-dev-tier')
-      if (tier === 'paid') return true
-      return localStorage.getItem('ssi-dev-paid-user') === 'true'
-    } catch { return false }
-  })()
+  const devPaid = hasTryEntitlement()
   const subscription = {
     isActive: hasActiveSubscription.value || devPaid,
     tier: (hasActiveSubscription.value || devPaid) ? 'paid' : 'free',

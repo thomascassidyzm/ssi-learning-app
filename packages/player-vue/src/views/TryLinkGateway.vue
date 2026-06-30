@@ -35,9 +35,18 @@ onMounted(async () => {
     label.value = data.label || ''
     status.value = 'valid'
 
-    // Grant full course access for this browser session
-    sessionStorage.setItem('ssi-demo-tier', 'paid')
+    // Store the REAL, server-minted, time-boxed entitlement token. This is what
+    // the audio proxy re-verifies server-side — not a raw client flag. The
+    // opaque token + its expiry hint drive both UI gating and (once the audio
+    // URL builder attaches it) the actual content gate.
+    if (data.entitlementToken) {
+      sessionStorage.setItem('ssi-try-token', data.entitlementToken)
+      sessionStorage.setItem('ssi-try-exp', String(data.entitlementExpiresAt || 0))
+    }
     sessionStorage.setItem('ssi-try-link', code)
+    // DEV convenience only: the raw flag still unlocks the dev build. In PROD the
+    // signed token above is the sole grant (the raw flag is no longer honoured).
+    if (import.meta.env.DEV) sessionStorage.setItem('ssi-demo-tier', 'paid')
 
     // Brief pause so the user sees the welcome, then redirect
     setTimeout(() => {

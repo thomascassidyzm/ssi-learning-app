@@ -26,6 +26,45 @@ import {
 } from '@ssi/core'
 
 // ============================================================================
+// CLIENT-SIDE ENTITLEMENT FLAG (UI gating only — server is the authority)
+// ============================================================================
+
+/**
+ * Does this browser hold a grant that should unlock premium UI?
+ *
+ * PROD: the preferred grant is a server-minted, time-boxed try-link token
+ * (`ssi-try-token`, stored by TryLinkGateway). This drives UI only; the audio
+ * proxy re-verifies the token server-side before serving premium-past-preview
+ * content, so the raw flag below can never actually unlock premium AUDIO once
+ * `ENTITLEMENT_ENFORCE=strict` is armed — it only affects UI affordances.
+ *
+ * TRANSITION ALLOWANCE: we still honour the legacy raw `ssi-demo-tier=paid`
+ * flag in prod. The live `/demo` sales flow (DemoLauncher, out of this lane)
+ * and any in-flight try-link sessions that validated before this deploy set
+ * only that flag; dropping it would strand the demo's premium UI unlock and
+ * any visitor mid-session. This is safe because the SERVER (audio proxy) is the
+ * real paywall — a raw flag yields no premium audio under strict mode. Remove
+ * this allowance once DemoLauncher mints a real `ssi-try-token`.
+ *
+ * DEV: keep the additional convenience flags so local testing is frictionless.
+ */
+export function hasTryEntitlement(): boolean {
+  try {
+    const token = sessionStorage.getItem('ssi-try-token')
+    const exp = Number(sessionStorage.getItem('ssi-try-exp') || '0')
+    if (token && exp > Date.now()) return true
+    // Honoured in prod AND dev (transition: /demo + in-flight try-link sessions).
+    if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
+    if (import.meta.env.PROD) return false
+    // DEV-only conveniences below.
+    if (localStorage.getItem('ssi-dev-tier') === 'paid') return true
+    return localStorage.getItem('ssi-dev-paid-user') === 'true'
+  } catch {
+    return false
+  }
+}
+
+// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -147,20 +186,7 @@ export function useEntitlement(): UseEntitlementReturn {
    * Checks both legacy ssi-dev-paid-user and new ssi-dev-tier.
    */
   function checkDevPaidStatus(): boolean {
-    try {
-      // Demo flow (TryLinkGateway / DemoLauncher) sets ssi-demo-tier in
-      // sessionStorage — honoured everywhere, dev and prod.
-      if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
-      // The localStorage flags below are dev convenience only; in a prod
-      // build they'd be a client-side paywall bypass (anyone could set
-      // them from devtools), so we hard-deny.
-      if (import.meta.env.PROD) return false
-      const tier = localStorage.getItem('ssi-dev-tier')
-      if (tier === 'paid') return true
-      return localStorage.getItem('ssi-dev-paid-user') === 'true'
-    } catch {
-      return false
-    }
+    return hasTryEntitlement()
   }
 
   // ============================================================================

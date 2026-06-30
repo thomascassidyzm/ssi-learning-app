@@ -16,6 +16,7 @@ import { useRouter } from 'vue-router'
 import { useI18n, setLocale, getLanguageName, getLanguageEndonym } from '../composables/useI18n'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
+import { hasTryEntitlement } from '../composables/useEntitlement'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useCheckout } from '../composables/useCheckout'
 import { useUserRole } from '../composables/useUserRole'
@@ -48,16 +49,8 @@ const { platformRole } = useUserRole()
 const hasFullAccess = (course) => {
   const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
   const isCommunity = course.is_community ?? course.course_code?.startsWith('community_')
-  // Dev flag override
-  const devPaid = (() => {
-    try {
-      if (sessionStorage.getItem('ssi-demo-tier') === 'paid') return true
-      if (import.meta.env.PROD) return false
-      const tier = localStorage.getItem('ssi-dev-tier')
-      if (tier === 'paid') return true
-      return localStorage.getItem('ssi-dev-paid-user') === 'true'
-    } catch { return false }
-  })()
+  // PROD honours only a server-minted try-link token; DEV keeps the raw flags.
+  const devPaid = hasTryEntitlement()
   const subscription = {
     isActive: hasActiveSubscription.value || devPaid,
     tier: (hasActiveSubscription.value || devPaid) ? 'paid' : 'free',

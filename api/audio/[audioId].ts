@@ -19,6 +19,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 // Initialize Supabase client
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -72,6 +73,94 @@ function validateAudioRecord(row: unknown): { ok: true; value: AudioRecord } | {
   return { ok: true, value: { id: r.id, s3_key: r.s3_key, duration_ms: r.duration_ms } }
 }
 
+// ── Server-side entitlement enforcement for PREMIUM content ─────────────────
+//
+// CANONICAL pricing model: a course is PREMIUM when its target language is in
+// the Big-10 OR Welsh (cym); premium content is free to the end of Yellow
+// (seed 19) and paywalled from Orange (seed 20) onward. Everything else is free
+// on all belts. A paid account (learner / tutor-student / school-student) or a
+// valid time-boxed try-link unlocks all premium content past Yellow.
+//
+// We CLASSIFY for free (no DB round-trip): course_code → target lang → tier, and
+// lego_id (`S0001L01`) → seed number. The fast path (free course, preview seed,
+// or shared/meta audio) does ZERO extra work, preserving the <2s first play.
+// Only premium-past-preview consults the caller's entitlement, and that is a
+// stateless HMAC token check (no DB hit) — see ENTITLEMENT note below.
+
+const PREMIUM_PREVIEW_MAX_SEED = 19 // Yellow belt — keep in sync with @ssi/core PREMIUM_PREVIEW_MAX_SEED
+const BIG_10 = ['eng', 'spa', 'fra', 'deu', 'ita', 'por', 'zho', 'jpn', 'ara', 'kor']
+
+// Strict mode (opt-in via env) FAILS CLOSED on premium-past-preview when no
+// valid entitlement is presented. DEFAULT is fail-OPEN so deploying this code
+// can NOT lock out a single live payer before the client begins attaching
+// entitlement tokens to audio URLs (that plumbing lives in another lane).
+const ENTITLEMENT_STRICT = (process.env.ENTITLEMENT_ENFORCE || '').trim().toLowerCase() === 'strict'
+const entitlementSecret = (
+  process.env.ENTITLEMENT_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+).trim()
+
+/** Is this course premium (Big-10 target or Welsh)? Community/other → free. */
+function isPremiumCourse(courseCode: string): boolean {
+  if (!courseCode || courseCode.startsWith('community_')) return false
+  const target = courseCode.split('_for_')[0]?.toLowerCase() ?? ''
+  return BIG_10.includes(target) || target === 'cym'
+}
+
+/**
+ * Seed number from a lego_id like `S0001L01` → 1, or null if not parseable.
+ *
+ * CONTRACT (must hold before arming ENTITLEMENT_ENFORCE=strict): the `S####`
+ * prefix of lego_id is the SEED ordinal on the SAME scale as
+ * PREMIUM_PREVIEW_MAX_SEED / @ssi/core's BELT_MAX_SEEDS (Yellow = 19), NOT a
+ * lesson/lego index. If that assumption is ever wrong, strict mode would wall
+ * off the wrong content — so DO NOT flip strict on without confirming this
+ * mapping against live course content + a test. Until then the gate is
+ * fail-OPEN and inert, so a mismatch here cannot lock out a live learner.
+ */
+function seedFromLegoId(legoId: string | null | undefined): number | null {
+  if (!legoId) return null
+  const m = /^S(\d+)/i.exec(legoId)
+  if (!m) return null
+  const n = parseInt(m[1], 10)
+  return Number.isFinite(n) ? n : null
+}
+
+function b64urlDecode(s: string): Buffer {
+  return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64')
+}
+
+/**
+ * Verify a server-minted entitlement token (HMAC-SHA256, stateless — no DB).
+ * Format: `${b64url(payloadJson)}.${b64url(sig)}`. Returns the payload if the
+ * signature is valid AND it hasn't expired, else null. Used to honour try-links
+ * (server-minted, time-boxed) and any future signed paid-session token without a
+ * per-request database read.
+ */
+function verifyEntitlementToken(token: string): { exp?: number; scope?: string; courses?: string[] } | null {
+  if (!token || !entitlementSecret) return null
+  const dot = token.indexOf('.')
+  if (dot < 0) return null
+  const payloadPart = token.slice(0, dot)
+  const sigPart = token.slice(dot + 1)
+  try {
+    const expected = createHmac('sha256', entitlementSecret).update(payloadPart).digest()
+    const got = b64urlDecode(sigPart)
+    if (expected.length !== got.length || !timingSafeEqual(expected, got)) return null
+    const payload = JSON.parse(b64urlDecode(payloadPart).toString('utf8'))
+    if (typeof payload.exp === 'number' && payload.exp < Date.now()) return null
+    return payload
+  } catch {
+    return null
+  }
+}
+
+/** Does a verified token grant access to this course code? */
+function tokenGrantsCourse(payload: { scope?: string; courses?: string[] }, courseCode: string): boolean {
+  if (payload.scope === 'all') return true
+  if (Array.isArray(payload.courses)) return payload.courses.includes(courseCode)
+  return false
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -107,24 +196,31 @@ export default async function handler(
     // audio). Fall back to shared_audio (meta-cognitive instructions +
     // encouragements that live in the cross-course template table, no
     // longer duplicated per course as of 2026-05-20).
-    let audioRecord: { id: string; s3_key: string; duration_ms: number } | null = null
+    type AudioRow = { id: string; s3_key: string; duration_ms: number; course_code?: string | null; lego_id?: string | null }
+    let audioRecord: AudioRow | null = null
     let queryError: { message?: string } | null = null
+    let fromCourseAudio = false
     {
+      // Select course_code + lego_id too so we can classify entitlement for free
+      // (no second query). Both already exist on course_audio.
       const r = await supabase
         .from('course_audio')
-        .select('id, s3_key, duration_ms')
+        .select('id, s3_key, duration_ms, course_code, lego_id')
         .eq('id', audioId)
         .maybeSingle()
-      audioRecord = r.data as typeof audioRecord
+      audioRecord = r.data as AudioRow | null
       queryError = r.error
+      if (audioRecord) fromCourseAudio = true
     }
     if (!audioRecord) {
+      // shared_audio = cross-course meta content (instructions / encouragements);
+      // never premium → stays open.
       const r = await supabase
         .from('shared_audio')
         .select('id, s3_key, duration_ms')
         .eq('id', audioId)
         .maybeSingle()
-      audioRecord = r.data as typeof audioRecord
+      audioRecord = r.data as AudioRow | null
       if (!audioRecord) queryError = r.error || queryError
     }
 
@@ -153,6 +249,43 @@ export default async function handler(
       return
     }
     const sample: AudioRecord = validation.value
+
+    // ── Entitlement gate (premium-past-preview only) ───────────────────────
+    // Fast path: shared/meta audio, free courses, and preview seeds (≤ Yellow)
+    // are always open and reach here with zero extra work. Only premium content
+    // past Yellow consults the caller's entitlement token (stateless HMAC).
+    if (fromCourseAudio) {
+      const courseCode = (audioRecord?.course_code || '').trim()
+      const seed = seedFromLegoId(audioRecord?.lego_id)
+      const premium = isPremiumCourse(courseCode)
+      // We can only gate when we positively know it's premium AND know the seed
+      // is past preview. If we can't classify (no course_code / unparseable
+      // lego_id), we FAIL OPEN — never lock out on ambiguity.
+      const pastPreview = premium && seed != null && seed > PREMIUM_PREVIEW_MAX_SEED
+      if (pastPreview) {
+        // Token may arrive as ?et= (the only channel an <audio> element can use)
+        // or an Authorization bearer for fetch-based callers.
+        const etParam = typeof req.query.et === 'string' ? req.query.et : ''
+        const authHeader = typeof req.headers.authorization === 'string' ? req.headers.authorization : ''
+        const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+        const rawToken = etParam || bearer
+        const payload = rawToken ? verifyEntitlementToken(rawToken) : null
+        const granted = !!payload && tokenGrantsCourse(payload, courseCode)
+
+        if (!granted) {
+          if (ENTITLEMENT_STRICT) {
+            // Strict: a clearly-premium, past-preview clip with no valid
+            // entitlement is denied.
+            res.setHeader('Cache-Control', 'no-store')
+            res.status(403).json({ error: 'Premium content requires an active subscription' })
+            return
+          }
+          // DEFAULT (fail-open): do not regress live playback before the client
+          // attaches tokens. Tag the response so we can observe coverage.
+          res.setHeader('X-SSi-Entitlement', rawToken ? 'token-invalid-open' : 'no-token-open')
+        }
+      }
+    }
 
     // Forward the client's Range header to S3. iOS Safari ALWAYS requests
     // <audio> via Range (starts with `bytes=0-1` to probe, then real
