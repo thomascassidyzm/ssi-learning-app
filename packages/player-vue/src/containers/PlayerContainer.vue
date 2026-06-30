@@ -48,7 +48,15 @@ const route = useRoute()
 // On this route we make .player-container a containing block (via transform) and
 // size it to the area below the nav, so every fixed descendant anchors below the
 // nav instead of the viewport top. Standalone player (route '/') is untouched.
-const isTeachEmbedded = computed(() => route.name === 'teach-play')
+// True when the player runs inside a shell that already provides its own white
+// (Mist) top nav: the tutor "Play as class" (teach-play) AND the schools
+// "Play as class" (schools-play). In both cases the player's own legacy dark
+// `.class-bar` ("Back to classes") is a redundant second top bar in the wrong
+// theme — pass embedded so it's hidden and the shell's white nav is the single
+// source of navigation.
+const isTeachEmbedded = computed(
+  () => route.name === 'teach-play' || route.name === 'schools-play',
+)
 
 // Global auth modal (shared with BottomNav and other components)
 const {
