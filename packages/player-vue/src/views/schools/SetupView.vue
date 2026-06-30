@@ -9,9 +9,10 @@
  *
  * Persistence wiring:
  *   1. School         — UPDATE schools.school_name / region_code (live)
- *   2. Invite staff   — client-side only; bulk-invite endpoint TBD (TODO)
- *   3. Grant courses  — read-only selection over existing entitlement grants
- *                       (TODO: grant-write goes through admin tooling)
+ *   2. Add staff      — share the teacher/admin join code (live codes); bulk
+ *                       email-invite endpoint TBD (not wired)
+ *   3. Choose courses — local selection that filters Step 4's course list;
+ *                       does NOT grant access (grants are managed elsewhere)
  *   4. Create classes — useClassesData.createClass (live)
  */
 import { ref, computed, onMounted, watch } from 'vue'
@@ -38,9 +39,9 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { n: 1, title: 'Your school', desc: 'Name, region, contact email.' },
-  { n: 2, title: 'Invite staff', desc: 'Add teachers and admins.' },
-  { n: 3, title: 'Grant courses', desc: 'Pick which languages students can learn.' },
+  { n: 1, title: 'Your school', desc: 'Name and region.' },
+  { n: 2, title: 'Add staff', desc: 'Share your teacher join code.' },
+  { n: 3, title: 'Choose courses', desc: 'Pick which languages to use for classes.' },
   { n: 4, title: 'Create classes', desc: 'Group students, generate join codes.' },
 ]
 
@@ -53,16 +54,13 @@ const successMessage = ref<string | null>(null)
 // Step 1 — School profile
 // ---------------------------------------------------------------
 const schoolName = ref('')
-const schoolCity = ref('')
 const schoolRegion = ref('')
-const adminEmail = ref('')
 const isSavingSchool = ref(false)
 
 function hydrateSchoolForm() {
   const school = activeSchool.value || currentSchool.value
   schoolName.value = school?.school_name || currentUser.value?.school_name || ''
   schoolRegion.value = school?.region_code || currentUser.value?.region_code || ''
-  adminEmail.value = adminEmail.value || ''
 }
 
 const isStep1Valid = computed(() => schoolName.value.trim().length > 0)
@@ -103,31 +101,8 @@ async function saveSchool(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------
-// Step 2 — Invite staff (client-side state until bulk-invite ships)
+// Step 2 — Add staff (share the join code; bulk email-invite TBD)
 // ---------------------------------------------------------------
-interface PendingInvite {
-  email: string
-  role: 'teacher' | 'admin'
-}
-
-const invites = ref<PendingInvite[]>([
-  { email: '', role: 'teacher' },
-  { email: '', role: 'teacher' },
-  { email: '', role: 'teacher' },
-])
-
-function addInviteRow() {
-  invites.value.push({ email: '', role: 'teacher' })
-}
-
-function removeInviteRow(index: number) {
-  invites.value.splice(index, 1)
-}
-
-const validInvites = computed(() =>
-  invites.value.filter(i => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(i.email.trim())),
-)
-
 const teacherJoinCode = computed(() => {
   const school = activeSchool.value || currentSchool.value
   return school?.teacher_join_code || ''
@@ -141,7 +116,8 @@ const adminJoinCode = computed(() => {
 // Step 2 is always "valid" — staff invites are optional.
 
 // ---------------------------------------------------------------
-// Step 3 — Course selection (read-only over existing grants)
+// Step 3 — Choose which available courses to use for classes
+//          (a filter for Step 4 — does NOT grant access)
 // ---------------------------------------------------------------
 const selectedCourses = ref<Set<string>>(new Set())
 
@@ -362,51 +338,30 @@ onMounted(() => {
                 autocomplete="organization"
               />
             </label>
-            <div class="field-row">
-              <label class="field">
-                <span class="field-label">City</span>
-                <input
-                  v-model="schoolCity"
-                  type="text"
-                  class="field-input"
-                  placeholder="City"
-                  autocomplete="address-level2"
-                />
-              </label>
-              <label class="field">
-                <span class="field-label">Region</span>
-                <input
-                  v-model="schoolRegion"
-                  type="text"
-                  class="field-input"
-                  placeholder="Region"
-                  autocomplete="address-level1"
-                />
-              </label>
-            </div>
             <label class="field">
-              <span class="field-label">Admin email</span>
+              <span class="field-label">Region</span>
               <input
-                v-model="adminEmail"
-                type="email"
+                v-model="schoolRegion"
+                type="text"
                 class="field-input"
-                placeholder="admin@yourschool.org"
-                autocomplete="email"
+                placeholder="Region"
+                autocomplete="address-level1"
               />
             </label>
           </div>
         </section>
 
-        <!-- Step 2: Invite staff -->
+        <!-- Step 2: Add staff -->
         <section v-else-if="step === 2" class="step-section">
-          <h2 class="arsenal step-title">Invite teachers</h2>
+          <h2 class="arsenal step-title">Add your teachers</h2>
           <p class="step-lede">
-            Add staff by email — we'll send them a join link.
-            You can do this now or skip and add them later.
+            Share your join code with your teachers — they enter it at
+            <strong>/schools</strong> to join. Anyone can teach: the app does the
+            teaching, so a teacher doesn't need to speak the language.
           </p>
 
           <div v-if="teacherJoinCode" class="join-code-callout">
-            <div class="schools-kicker">Or share your school's teacher join code</div>
+            <div class="schools-kicker">Teacher join code</div>
             <div class="join-code-row">
               <code class="join-code">{{ teacherJoinCode }}</code>
               <span v-if="adminJoinCode" class="join-code-admin">
@@ -414,45 +369,9 @@ onMounted(() => {
               </span>
             </div>
           </div>
-
-          <div class="invite-list">
-            <div
-              v-for="(invite, i) in invites"
-              :key="i"
-              class="invite-row"
-            >
-              <input
-                v-model="invite.email"
-                type="email"
-                class="field-input field-input-flex"
-                :placeholder="i === 0 ? 'teacher@yourschool.org' : 'colleague@yourschool.org'"
-                autocomplete="off"
-              />
-              <select v-model="invite.role" class="field-input field-select">
-                <option value="teacher">Teacher</option>
-                <option value="admin">Admin</option>
-              </select>
-              <button
-                type="button"
-                class="icon-btn"
-                aria-label="Remove invite"
-                @click="removeInviteRow(i)"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                  <line x1="6" y1="18" x2="18" y2="6" />
-                </svg>
-              </button>
-            </div>
-            <button type="button" class="btn-ghost btn-add" @click="addInviteRow">
-              + Add another
-            </button>
+          <div v-else class="empty-state">
+            Your join codes will appear here once your school is saved.
           </div>
-
-          <p v-if="validInvites.length > 0" class="step-hint">
-            {{ validInvites.length }} email{{ validInvites.length === 1 ? '' : 's' }} ready —
-            invitations will go out when bulk-invite is wired up.
-          </p>
 
           <div v-if="teachers.length > 0" class="existing-staff">
             <div class="schools-kicker">Already on the team</div>
@@ -465,16 +384,18 @@ onMounted(() => {
           </div>
         </section>
 
-        <!-- Step 3: Grant courses -->
+        <!-- Step 3: Choose courses -->
         <section v-else-if="step === 3" class="step-section">
-          <h2 class="arsenal step-title">Grant courses</h2>
+          <h2 class="arsenal step-title">Choose courses</h2>
           <p class="step-lede">
-            Which languages should be available to students at this school?
+            Pick which of your school's available courses you'll use for classes.
+            This just narrows the list you choose from in the next step — it doesn't
+            change who has access.
           </p>
 
           <div v-if="courseGrants.length === 0" class="empty-state">
-            Your school doesn't have any course entitlements yet — get in touch with us
-            and we'll grant access. You can continue and add classes once courses are available.
+            Your school doesn't have any courses available yet — get in touch with us
+            and we'll sort it out. You can continue and add classes once courses are available.
           </div>
 
           <div v-else class="course-grid">
