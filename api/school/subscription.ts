@@ -30,6 +30,15 @@ import { verifyAuthToken } from '../_utils/auth'
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
+// The plan_name the tutor_platform webhook stamps on the subscriptions row it
+// creates for a freelance tutor (see api/teacher/paddle-webhook.ts → the
+// grantLearnerPremium('SSi Premium (tutor bundle)') call in the tutor_platform
+// branch). It is unique to the tutor platform purchase: learner_premium writes
+// 'SSi Premium' and student_via_teacher writes 'SSi Student Access', so matching
+// on this string scopes the platform backstop to genuine tutor-platform payers
+// and avoids over-granting the paid dashboard to learner-premium-only teachers.
+const TUTOR_PLATFORM_PLAN_NAME = 'SSi Premium (tutor bundle)'
+
 function isMissingPlatformSchema(err: { code?: string; message?: string } | null): boolean {
   if (!err) return false
   if (['PGRST204', 'PGRST205', '42703', '42P01'].includes(err.code || '')) return true
@@ -170,9 +179,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const schoolActive = schoolOut
       ? isPlatformActive(schoolOut.platform_status as string | null, schoolOut.platform_expires_at as string | null)
       : false
-    const teacherActive = teacherOut
+    let teacherActive = teacherOut
       ? isPlatformActive(teacherOut.platform_status as string | null, teacherOut.platform_expires_at as string | null)
       : false
+
+    // Defensive backstop: a paying tutor must never be locked out of the
+    // dashboard. The tutor_platform checkout sets teachers.platform_status, but
+    // in case that write hasn't landed (webhook lag / a pre-platform-column
+    // payer) ALSO treat a teacher with a linked active TUTOR-PLATFORM
+    // subscription as active.
+    //
+    // SCOPED to the tutor platform plan, NOT any active subscription: the
+    // subscriptions table also holds learner_premium and student_via_teacher
+    // rows, so an unscoped check would hand the paid tutor dashboard to a
+    // teacher who merely bought £15 learner-premium (an entitlement leak in a
+    // live-payments app). The tutor_platform webhook stamps a unique plan_name
+    // ('SSi Premium (tutor bundle)') that learner_premium ('SSi Premium') and
+    // student ('SSi Student Access') purchases never use, so we match on it.
+    // Status is restricted to the values the subscriptions_status_check CHECK
+    // actually permits (active | past_due — 'none'/'cancelled' are inactive).
+    // Fails open on any read error — never lock on this lookup.
+    if (teacherOut && !teacherActive && learner?.id) {
+      try {
+        const { data: sub } = await supabase
+          .from('subscriptions')
+          .select('status, plan_name')
+          .eq('learner_id', learner.id)
+          .maybeSingle()
+        const s = sub?.status
+        const isTutorPlatformPlan = sub?.plan_name === TUTOR_PLATFORM_PLAN_NAME
+        if (isTutorPlatformPlan && (s === 'active' || s === 'past_due')) {
+          teacherActive = true
+        }
+      } catch {
+        /* non-fatal — fall back to the platform_status gate above */
+      }
+    }
 
     // Active if EITHER the school or the tutor record is active. (A school admin
     // is gated by their school; a tutor by their teacher row.)

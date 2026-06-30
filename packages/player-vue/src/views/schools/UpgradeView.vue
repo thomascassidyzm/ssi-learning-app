@@ -194,8 +194,84 @@ async function updateSeats() {
 const tutorBusy = ref(false)
 const tutorError = ref('')
 const tutorTotalGbp = computed(() => (isAnnual.value ? ANNUAL_PRICE_PER_SEAT_GBP : PRICE_PER_SEAT_GBP))
+
+// Resolved tutor teachers-row id (the webhook keys the platform subscription on
+// it). Resolved up-front so the Subscribe button can be blocked until it's known
+// rather than firing a checkout with a null teacher_id.
+const tutorTeacherId = ref<string | null>(null)
+// Whether this tutor is already platform-active — drives the double-subscribe
+// guard (route to portal instead of opening a SECOND checkout = double-bill).
+const tutorPlatformActive = ref(false)
+// True once loadTutorSubscription() has resolved. The CTA stays in a Loading
+// state until then so a fast click can't open a SECOND checkout before we know
+// the tutor is already active (the guard reads tutorPlatformActive, which is
+// false during the async load).
+const tutorSubLoaded = ref(false)
+
+async function resolveTutorTeacherId(): Promise<string | null> {
+  if (tutorTeacherId.value) return tutorTeacherId.value
+  const headers = await authHeaders()
+  if (headers) {
+    // Prefer the canonical resolver the rest of the tutor surface uses.
+    try {
+      const res = await fetch('/api/teacher/me', { headers })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.teacher?.id) {
+          tutorTeacherId.value = data.teacher.id
+          return tutorTeacherId.value
+        }
+      }
+    } catch { /* fall through to the direct lookup */ }
+  }
+  // Fallback: direct teachers lookup by learner_id.
+  if (supabase.value && currentUser.value?.learner_id) {
+    try {
+      const { data } = await supabase.value
+        .from('teachers')
+        .select('id')
+        .eq('learner_id', currentUser.value.learner_id)
+        .maybeSingle()
+      tutorTeacherId.value = data?.id ?? null
+    } catch { /* leave null — button stays blocked */ }
+  }
+  return tutorTeacherId.value
+}
+
+async function loadTutorSubscription(): Promise<void> {
+  const headers = await authHeaders()
+  if (!headers) return
+  try {
+    const res = await fetch('/api/school/subscription', { headers })
+    if (res.ok) {
+      const data = await res.json()
+      tutorPlatformActive.value = data?.teacher?.platform_status === 'active'
+    }
+  } catch { /* non-fatal — default Subscribe state */ }
+  finally { tutorSubLoaded.value = true }
+}
+
+async function openTutorPortal(): Promise<void> {
+  const headers = await authHeaders()
+  if (!headers) { tutorError.value = 'Sign in again to manage your subscription'; return }
+  try {
+    const res = await fetch('/api/teacher/portal', { headers })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.portalUrl) { window.location.href = data.portalUrl; return }
+    }
+  } catch { /* fall through to error */ }
+  tutorError.value = 'Could not open the billing portal — try again'
+}
+
 async function subscribeTutor() {
   if (tutorBusy.value) return
+  // Double-subscribe guard: an already-active tutor goes to the portal, never a
+  // second checkout. Re-fetch status first if the initial load hasn't resolved
+  // yet (a fast click before loadTutorSubscription returns would otherwise see a
+  // stale tutorPlatformActive=false and open a SECOND checkout = double-bill).
+  if (!tutorSubLoaded.value) await loadTutorSubscription()
+  if (tutorPlatformActive.value) { void openTutorPortal(); return }
   const priceId = isAnnual.value
     ? paddleConfig.teacherAnnualPriceId
     : paddleConfig.teacherMonthlyPriceId
@@ -211,23 +287,28 @@ async function subscribeTutor() {
   try {
     const { data: { session } } = await supabase.value.auth.getSession()
     const email = session?.user?.email
+    const userId = session?.user?.id
     if (!email) { tutorError.value = 'Sign in again to start checkout'; return }
     // Resolve the tutor's teachers-row id (webhook keys the subscription on it).
-    let teacherId: string | null = null
-    if (currentUser.value?.learner_id) {
-      const { data } = await supabase.value
-        .from('teachers')
-        .select('id')
-        .eq('learner_id', currentUser.value.learner_id)
-        .maybeSingle()
-      teacherId = data?.id ?? null
+    const teacherId = await resolveTutorTeacherId()
+    if (!teacherId) {
+      tutorError.value = 'Still loading your tutor account — try again in a moment'
+      return
     }
     checkoutOpen.value = true
     const paddle = await getPaddle()
     paddle.Checkout.open({
       items: [{ priceId, quantity: 1 }],
       customer: { email },
-      customData: { teacher_id: teacherId, kind: 'premium', billing: billing.value },
+      // Freelance tutor platform subscription (£15 bundles dashboard + learner
+      // premium). The webhook re-derives price/tier from `kind`; supabase_user_id
+      // is a resolution fallback if teacher_id ever fails to map.
+      customData: {
+        kind: 'tutor_platform',
+        teacher_id: teacherId,
+        supabase_user_id: userId,
+        billing: billing.value,
+      },
       settings: {
         // INLINE checkout into the sized container (no cramped overlay). On
         // success Paddle redirects the parent window to successUrl.
@@ -247,7 +328,14 @@ async function subscribeTutor() {
 }
 
 onMounted(() => {
-  if (isSchoolLane.value) loadSubscription()
+  if (isSchoolLane.value) {
+    loadSubscription()
+  } else {
+    // Tutor lane: resolve the teacher id up-front (so the button can unblock)
+    // and read platform status (so we can route an active tutor to the portal).
+    void resolveTutorTeacherId()
+    void loadTutorSubscription()
+  }
 })
 </script>
 
@@ -373,14 +461,23 @@ onMounted(() => {
           <span class="seat-total">£{{ tutorTotalGbp }}<span class="seat-per">{{ periodSuffix }}</span></span>
         </div>
         <p v-if="tutorError" class="upgrade-error">{{ tutorError }}</p>
+        <!-- Already active → manage (portal), never a second checkout. -->
         <button
-          v-if="!checkoutOpen"
+          v-if="tutorPlatformActive"
           type="button"
           class="btn-play btn-play--block upgrade-cta"
-          :disabled="tutorBusy"
+          @click="openTutorPortal"
+        >
+          Manage subscription
+        </button>
+        <button
+          v-else-if="!checkoutOpen"
+          type="button"
+          class="btn-play btn-play--block upgrade-cta"
+          :disabled="tutorBusy || !tutorTeacherId || !tutorSubLoaded"
           @click="subscribeTutor"
         >
-          {{ tutorBusy ? 'Opening…' : `Subscribe — £${tutorTotalGbp}${periodSuffix}` }}
+          {{ tutorBusy ? 'Opening…' : (!tutorTeacherId || !tutorSubLoaded) ? 'Loading…' : `Subscribe — £${tutorTotalGbp}${periodSuffix}` }}
         </button>
       </template>
 

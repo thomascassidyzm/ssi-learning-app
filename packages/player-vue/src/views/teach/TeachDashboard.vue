@@ -338,7 +338,23 @@ async function loadAll() {
 onMounted(loadAll)
 
 async function startTrial() {
-  if (!teacher.value || isStartingTrial.value) return
+  if (isStartingTrial.value) return
+  // Double-subscribe guard: an already-active tutor must never open a SECOND
+  // checkout (that creates a second Paddle subscription = double-bill). Route
+  // them to the billing portal to manage the existing one instead.
+  if (subscriptionStatus.value === 'active' || subscriptionStatus.value === 'past_due') {
+    void openPortal()
+    return
+  }
+  // The webhook (kind:'tutor_platform') keys the platform subscription on the
+  // teachers-row id, so it MUST be resolved (non-null) before we open checkout.
+  // teacher.value is hydrated from GET /api/teacher/me in loadTeacher(); if it's
+  // not present yet, block rather than send a null teacher_id.
+  const teacherId = teacher.value?.id ?? null
+  if (!teacherId) {
+    checkoutError.value = 'Still loading your tutor account — try again in a moment'
+    return
+  }
   const priceId = paddleConfig.teacherMonthlyPriceId
   if (!priceId) {
     checkoutError.value = 'Teacher plan price not configured'
@@ -350,6 +366,7 @@ async function startTrial() {
   try {
     const { data: { session } } = await supabase.value.auth.getSession()
     const email = session?.user?.email
+    const userId = session?.user?.id
     if (!email) {
       checkoutError.value = 'Sign in again to start checkout'
       return
@@ -359,8 +376,13 @@ async function startTrial() {
       items: [{ priceId, quantity: 1 }],
       customer: { email },
       customData: {
-        teacher_id: teacher.value.id,
-        kind: 'premium',
+        // Freelance tutor platform subscription. The webhook re-derives price +
+        // tier server-side from this kind; the £15 bundles the dashboard AND
+        // learner-side premium. supabase_user_id is a resolution fallback so the
+        // webhook can find the tutor even if teacher_id ever fails to map.
+        kind: 'tutor_platform',
+        teacher_id: teacherId,
+        supabase_user_id: userId,
       },
       settings: {
         successUrl: window.location.href,
@@ -610,7 +632,7 @@ async function submitRecipient() {
           students cover your £{{ TEACHER_MONTHLY_PRICE }} subscription. Every
           student after that is profit.
         </p>
-        <Button variant="primary" :loading="isStartingTrial" @click="startTrial">
+        <Button variant="primary" :loading="isStartingTrial" :disabled="!teacher?.id" @click="startTrial">
           Subscribe — £{{ TEACHER_MONTHLY_PRICE }}/month
         </Button>
       </div>
