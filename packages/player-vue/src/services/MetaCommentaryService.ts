@@ -76,6 +76,14 @@ export class MetaCommentaryService {
   private cyclesSinceLastFire = 0
   private nextFireAtCycles = 0 // 0 → rolled lazily on first round
 
+  // Encouragement rotation (session-scoped): a shuffled cursor through the
+  // pool so each is heard once per lap before any repeat, and the cursor
+  // advances on every pick — so a selected-then-skipped encouragement moves on
+  // instead of being re-drawn at the next boundary (the old pure-random pick
+  // had no progress, so the same few kept coming back).
+  private encouragementOrder: number[] = []
+  private encouragementCursor = 0
+
   // Dev cheat (?forceEncouragements=1): fire on EVERY eligible (speaking)
   // boundary, bypassing the ~10-min interval, so the interjection display can
   // be tested without a long wait. Instructions still come first (in order),
@@ -198,9 +206,9 @@ export class MetaCommentaryService {
    * Pick the next commentary to play.
    *  - Instructions phase (per-learner global): next item in the fixed
    *    sequence. Always advances on play; skipping doesn't re-queue.
-   *  - Encouragements phase: random pick with replacement. The pool is
-   *    small enough that repetition feels fine and the URN bookkeeping
-   *    the previous design used was pure ceremony.
+   *  - Encouragements phase: a shuffled cursor walks the whole pool before any
+   *    repeat (reshuffled each lap), and advances on every pick — so skipping
+   *    one moves on rather than re-drawing the same few.
    */
   private getNextCommentary(): MetaCommentaryAudio | null {
     // ?fc=enc cheat: skip the instruction list entirely (session-only, no
@@ -212,9 +220,36 @@ export class MetaCommentaryService {
     }
 
     if (this.encouragements.length === 0) return null
-    const idx = Math.floor(Math.random() * this.encouragements.length)
-    const encouragement = this.encouragements[idx]
+    const encouragement = this.encouragements[this.nextEncouragementIndex()]
     return { ...encouragement, type: 'encouragement' }
+  }
+
+  /** Next encouragement index via a shuffled cursor — walk the whole pool
+   *  before repeating, reshuffling each lap. Advances every call so a skipped
+   *  encouragement isn't re-drawn at the next boundary. */
+  private nextEncouragementIndex(): number {
+    if (this.encouragementOrder.length !== this.encouragements.length ||
+        this.encouragementCursor >= this.encouragementOrder.length) {
+      this.encouragementOrder = this.shuffledIndices(this.encouragements.length)
+      this.encouragementCursor = 0
+    }
+    return this.encouragementOrder[this.encouragementCursor++]
+  }
+
+  /** Fisher–Yates shuffle of [0..n). Avoids butting the previous lap's last
+   *  index against the new lap's first, so two laps never repeat the same
+   *  encouragement back-to-back. */
+  private shuffledIndices(n: number): number[] {
+    const a = Array.from({ length: n }, (_, i) => i)
+    for (let i = n - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    const prevLast = this.encouragementOrder.length
+      ? this.encouragementOrder[this.encouragementOrder.length - 1]
+      : -1
+    if (n > 1 && a[0] === prevLast) { [a[0], a[1]] = [a[1], a[0]] }
+    return a
   }
 
   /** Caller compatibility — invoked by the player after playback finishes. */
