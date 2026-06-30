@@ -16,7 +16,7 @@ const router = useRouter()
 // Entitlement + subscription (same check as CourseSelector)
 const { entitlements: userEntitlements } = useSharedUserEntitlements()
 const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
-const { platformRole, hasSchoolRole } = useUserRole()
+const { platformRole, hasSchoolRole, educationalRole } = useUserRole()
 
 const hasFullAccess = (course) => {
   const pricingTier = course.pricing_tier ?? inferPricingTier(course.target_lang ?? '', course.course_code)
@@ -52,8 +52,25 @@ const { open: openAuth } = useAuthModal()
 // Show schools link for users with a school-scoped educational role.
 const hasSchoolsAccess = computed(() => hasSchoolRole.value)
 
+// Solo tutors get their OWN dashboard link (/tutors/dashboard), kept separate
+// from the school dashboard so a tutor is never sent to the member-facing
+// /schools wall. 'tutor' is intentionally not part of hasSchoolRole.
+const isTutor = computed(() => educationalRole.value === 'tutor')
+
+// 'Anyone Can Teach': offer a card-free path into tutoring to plain learners
+// (anyone who isn't already a tutor or a school member).
+const canBecomeTeacher = computed(() => !isTutor.value && !hasSchoolRole.value)
+
 const goToSchools = () => {
   router.push('/schools')
+}
+
+const goToTutorDashboard = () => {
+  router.push('/tutors/dashboard')
+}
+
+const goToBecomeTeacher = () => {
+  router.push('/tutors')
 }
 
 const props = defineProps({
@@ -393,6 +410,23 @@ onMounted(() => {
         </svg>
       </button>
 
+      <!-- ── Tutor Dashboard Link (solo tutors) ── -->
+      <button v-if="isTutor" class="schools-link" @click="goToTutorDashboard">
+        <div class="schools-link-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          </svg>
+        </div>
+        <div class="schools-link-text">
+          <span class="schools-link-title">Tutor Dashboard</span>
+          <span class="schools-link-subtitle">Your classes & learners</span>
+        </div>
+        <svg class="schools-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
+
       <!-- ── Section 1: Progress Strip ── -->
       <section class="section">
         <h3 class="section-label">Your Progress</h3>
@@ -579,6 +613,17 @@ onMounted(() => {
           </template>
         </div>
       </section>
+
+      <!-- ── 'Anyone Can Teach' — card-free path into tutoring ── -->
+      <button v-if="canBecomeTeacher" class="become-teacher" @click="goToBecomeTeacher">
+        <span class="become-teacher-text">
+          <span class="become-teacher-title">Teach with SaySomethingin</span>
+          <span class="become-teacher-subtitle">Anyone can teach — share the language you're learning</span>
+        </span>
+        <svg class="become-teacher-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Bottom safe area -->
@@ -1185,6 +1230,54 @@ onMounted(() => {
 }
 
 .schools-link-arrow {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted, rgba(255,255,255,0.5));
+}
+
+/* 'Anyone Can Teach' CTA — unobtrusive, sits at the foot of the library */
+.become-teacher {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4, 1rem);
+  width: 100%;
+  padding: var(--space-4, 1rem) var(--space-5, 1.25rem);
+  margin-top: var(--space-2, 0.5rem);
+  background: transparent;
+  border: 1px dashed var(--border-subtle, rgba(255,255,255,0.15));
+  border-radius: var(--radius-lg, 12px);
+  color: var(--text-secondary, rgba(255,255,255,0.6));
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  text-align: left;
+  font-family: inherit;
+}
+
+.become-teacher:hover {
+  background: var(--bg-card, rgba(255,255,255,0.04));
+  border-color: var(--ssi-gold, #d4a843);
+  color: var(--text-primary, #fff);
+}
+
+.become-teacher-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.become-teacher-title {
+  font-size: var(--text-base, 1rem);
+  font-weight: var(--font-semibold, 600);
+}
+
+.become-teacher-subtitle {
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--text-muted, rgba(255,255,255,0.5));
+}
+
+.become-teacher-arrow {
   flex-shrink: 0;
   width: 20px;
   height: 20px;

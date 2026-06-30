@@ -201,6 +201,19 @@ export default async function handler(
     let existingAccount = false
     if (track === 'tutor') {
       role = 'teacher'
+      // Tag the learner as a solo tutor so the learner shell can find them again.
+      // 'tutor' is deliberately DISTINCT from the school 'teacher'/'school_admin'
+      // roles: it stays OUT of hasSchoolRole (so the /schools member guard keeps
+      // bouncing a tutor back to /tutors/dashboard instead of the "no school"
+      // wall), while still giving BrowseScreen a durable signal to surface the
+      // tutor's own dashboard link. Idempotent — only write when it differs.
+      if (learner.educational_role !== 'tutor') {
+        const { error: roleErr } = await supabase
+          .from('learners')
+          .update({ educational_role: 'tutor' })
+          .eq('id', learner.id)
+        if (roleErr) throw new Error(`tutor role assignment failed: ${roleErr.message}`)
+      }
       const { data: existingTeacher } = await supabase
         .from('teachers')
         .select('id, platform_status')
