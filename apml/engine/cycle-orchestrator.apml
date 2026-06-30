@@ -2,7 +2,7 @@
 # SSI Learning App
 # Version: 2.0.0 (2026-06-08)
 # Status: Production-ready — reconciled to live implementation
-# Last updated: 2026-06-08
+# Last updated: 2026-06-30
 
 ## ============================================================================
 ## OVERVIEW
@@ -110,7 +110,7 @@ CYCLE_PHASES:
 
     timing:
       source_of_truth: "packages/player-vue/src/playback/computePauseDuration.ts"
-      formula: "clamp(min_pause_ms, max_pause_ms, pause_base_ms + (t1 + t2) * pause_multiplier)"
+      formula: "boot + assembly model — clamp(min_pause_ms, max_pause_ms, boot·beltBoot(p) + assembly·beltAssembly(p)) where assembly = assembly_lin·max(0, ref−assembly_threshold) + assembly_quad·(over/1000)², ref = native reference (avg/target1/sum), p = belt progress 0(White)→1(Green). Legacy knee/two-rate curve still honoured when assembly knobs absent."
       config_table: "algorithm_config (normal_mode + turbo_boost rows) — admin-tunable without redeploy"
       bake_fallback: "DEFAULT_NORMAL from useAlgorithmConfig at cycle-bake time (toSimpleRounds / scriptItemToCycle); the live runtime override recomputes with live config so admin changes win"
       simpleplayer_default: "DEFAULT_PAUSE_DURATION = 6500 ms (bootUpTime 2000 + 0.75 × estimatedTarget 6000) when no baked/override value"
