@@ -1358,6 +1358,21 @@ const audioCache = getAudioCache()
 // so a user's actions across the player + overlay land on one timeline.
 const { event: logEvent } = usePlayerLog({ courseCode: computed(() => props.courseCode) })
 
+// Engaged-time heartbeat. Listening-mode PLAYBACK emits no per-clip events, so
+// without this the session span (the source of the learner's "time engaged"
+// metric) goes dark during listening — under-counting real commitment. Emit a
+// lightweight tick every 30s while actually playing AND foregrounded; it shares
+// LearningPlayer's session_id, so the existing session-span calc picks it up for
+// free. Foreground/playback-gated so a paused or backgrounded overlay never
+// inflates the number; batched like every other event.
+const LISTENING_TICK_MS = 30000
+let listeningTickTimer = null
+function emitListeningTick() {
+  if (!isPlaying.value) return
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+  logEvent('listening_tick', { view: view.value })
+}
+
 const packState = ref('idle') // 'idle' | 'downloading' | 'complete' | 'error'
 const packTotal = ref(0)
 const packDone = ref(0)
@@ -1506,6 +1521,7 @@ onMounted(async () => {
   else isLoading.value = false
   setupMediaSession()
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  listeningTickTimer = setInterval(emitListeningTick, LISTENING_TICK_MS)
   checkPackComplete()
 })
 
@@ -1513,6 +1529,7 @@ onUnmounted(() => {
   stopPlayback()
   releaseWakeLock()
   clearMediaSession()
+  if (listeningTickTimer) { clearInterval(listeningTickTimer); listeningTickTimer = null }
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   // Cancel any in-flight pack download
   if (packState.value === 'downloading') {
