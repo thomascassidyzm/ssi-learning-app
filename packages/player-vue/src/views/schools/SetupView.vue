@@ -15,7 +15,7 @@
  *                       does NOT grant access (grants are managed elsewhere)
  *   4. Create classes — useClassesData.createClass (live)
  */
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
@@ -26,11 +26,47 @@ import { getSchoolsClient } from '@/composables/schools/client'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
+const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 const { classes, fetchClasses, createClass } = useClassesData()
 const { courseGrants, fetchCourseAccess } = useCourseAccess()
 const { teachers, fetchTeachers } = useTeachersData()
+
+// Self-service schools sign up on a free TRIAL with a single language
+// (schools.trial_course_code) and deliberately get NO entitlement_grant
+// (provision.ts) — so courseGrants is empty for them. Fold the trial language
+// into the selectable list (same source as TeacherDashboard's create-class
+// modal: /api/school/subscription) so the wizard can actually create a class.
+// Fails open: if we can't read it, we just fall back to courseGrants.
+const schoolTrialCourse = ref<string | null>(null)
+
+async function loadSchoolTrial(): Promise<void> {
+  if (!supabase.value) return
+  try {
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    const res = await fetch('/api/school/subscription', { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) return
+    const data = await res.json()
+    schoolTrialCourse.value = data?.school?.trial_course_code ?? null
+  } catch {
+    /* non-fatal — fall back to entitlement grants */
+  }
+}
+
+// The courses a school can actually use in the wizard: any real entitlement
+// grants PLUS the trial language (added only if not already granted). This is
+// the list Steps 3 and 4 read from.
+const effectiveCourseGrants = computed<CourseGrant[]>(() => {
+  const grants = [...courseGrants.value]
+  const trial = schoolTrialCourse.value
+  if (trial && !grants.some(g => g.course_code === trial)) {
+    grants.push({ course_code: trial, display_name: '', source: 'school' })
+  }
+  return grants
+})
 
 interface Step {
   n: 1 | 2 | 3 | 4
@@ -140,7 +176,7 @@ function courseDisplayName(grant: CourseGrant): string {
   return grant.course_code
 }
 
-const isStep3Valid = computed(() => selectedCourses.value.size > 0 || courseGrants.value.length === 0)
+const isStep3Valid = computed(() => selectedCourses.value.size > 0 || effectiveCourseGrants.value.length === 0)
 
 // ---------------------------------------------------------------
 // Step 4 — Create classes
@@ -171,8 +207,8 @@ const isStep4Valid = computed(() =>
 )
 
 const availableCoursesForClass = computed<CourseGrant[]>(() => {
-  if (selectedCourses.value.size === 0) return courseGrants.value
-  return courseGrants.value.filter(g => selectedCourses.value.has(g.course_code))
+  if (selectedCourses.value.size === 0) return effectiveCourseGrants.value
+  return effectiveCourseGrants.value.filter(g => selectedCourses.value.has(g.course_code))
 })
 
 async function persistClasses(): Promise<boolean> {
@@ -263,6 +299,7 @@ watch(currentUser, async (user) => {
   if (!user) return
   await fetchSchools()
   hydrateSchoolForm()
+  await loadSchoolTrial()
   if (user.school_id) {
     await Promise.all([
       fetchCourseAccess(user.school_id),
@@ -393,14 +430,14 @@ onMounted(() => {
             change who has access.
           </p>
 
-          <div v-if="courseGrants.length === 0" class="empty-state">
+          <div v-if="effectiveCourseGrants.length === 0" class="empty-state">
             Your school doesn't have any courses available yet — get in touch with us
             and we'll sort it out. You can continue and add classes once courses are available.
           </div>
 
           <div v-else class="course-grid">
             <label
-              v-for="grant in courseGrants"
+              v-for="grant in effectiveCourseGrants"
               :key="grant.course_code"
               class="course-tile"
               :class="{ 'is-selected': selectedCourses.has(grant.course_code) }"
