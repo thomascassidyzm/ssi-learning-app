@@ -5,6 +5,7 @@ import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
+import { courseLabel, type LiveCourse } from '@/lib/onboardingTracks'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
@@ -53,6 +54,10 @@ interface PayoutRecipient {
 
 const teacher = ref<Teacher | null>(null)
 const classes = ref<TeacherClass[]>([])
+// The LIVE full catalogue (same source the onboarding door uses). This is what
+// drives the create-class course list + human labels, so any deployed (live or
+// beta) course is teachable — not just the ~21 in the static TEACHER_COURSES.
+const liveCourses = ref<LiveCourse[]>([])
 const subscription = ref<Subscription | null>(null)
 const isLoading = ref(true)
 const errorMessage = ref('')
@@ -67,6 +72,7 @@ const lifetimePaidPence = ref(0)
 const payoutRecipient = ref<PayoutRecipient | null>(null)
 const isRequestingPayout = ref(false)
 const payoutError = ref('')
+const payoutQueued = ref(false)
 
 // Wise bank-details (recipient) form
 const showRecipientForm = ref(false)
@@ -100,15 +106,31 @@ const hasSubscription = computed(
 )
 const subscriptionStatus = computed(() => subscription.value?.status || 'none')
 
+// Human label for a course code: prefer the LIVE catalogue (covers every
+// deployed course), fall back to the static map while the API loads.
+function courseLabelFor(code: string): string {
+  const live = liveCourses.value.find((c) => c.course_code === code)
+  return live ? courseLabel(live) : labelForCourse(code)
+}
+
+// The full SUBSCRIBED catalogue: every deployed (live/beta) course, from the
+// live API. Falls back to the static list until the catalogue loads.
+const fullCatalogue = computed(() => {
+  if (liveCourses.value.length) {
+    return liveCourses.value.map((c) => ({ code: c.course_code, label: courseLabel(c) }))
+  }
+  return TEACHER_COURSES.map((c) => ({ code: c.code, label: c.label }))
+})
+
 // On the free TRIAL the tutor can only run classes in the ONE language they
 // signed up to teach (teachers.teaching_languages). A paid subscription unlocks
 // the full catalogue. If teaching_languages is somehow empty, don't lock them
 // out — fall back to the full list.
 const availableCourses = computed(() => {
-  if (hasSubscription.value) return TEACHER_COURSES
+  if (hasSubscription.value) return fullCatalogue.value
   const langs = teacher.value?.teaching_languages || []
-  if (!langs.length) return TEACHER_COURSES
-  return langs.map((code) => ({ code, label: labelForCourse(code) }))
+  if (!langs.length) return fullCatalogue.value
+  return langs.map((code) => ({ code, label: courseLabelFor(code) }))
 })
 const courseLocked = computed(() => availableCourses.value.length === 1)
 
@@ -276,7 +298,19 @@ async function loadCommissions(token: string): Promise<void> {
   }
 }
 
+async function loadLiveCourses(): Promise<void> {
+  try {
+    const res = await fetch('/api/courses/available')
+    if (res.ok) liveCourses.value = await res.json()
+  } catch {
+    // Non-fatal — labels/catalogue fall back to the static TEACHER_COURSES list.
+  }
+}
+
 async function loadAll() {
+  // Catalogue is public and unauthenticated — load it regardless of sign-in.
+  loadLiveCourses()
+
   const token = await getAuthToken()
   if (!token) {
     errorMessage.value = 'Not signed in'
@@ -428,16 +462,17 @@ async function requestPayout() {
     if (!token) return
 
     // Two paths:
-    // 1. No Wise recipient yet → call POST /payout-recipient to start setup
-    // 2. Recipient exists → payout will be picked up by next cron run; show confirmation
+    // 1. No Wise recipient yet → open the bank-details form to start setup.
+    // 2. Recipient exists → the monthly payouts cron closes the accrued balance
+    //    into a Wise batch and disburses it; confirm it's queued (no separate
+    //    "request" endpoint exists, so don't pretend to call one).
     if (!payoutRecipient.value) {
       // No Wise recipient yet — open the bank-details form. (The POST needs real
       // account details; an empty body 400s, so we never auto-POST.)
       showRecipientForm.value = true
       return
     }
-    // Recipient set up — the monthly payouts cron closes the accrued balance into
-    // a Wise batch and disburses it.
+    payoutQueued.value = true
   } catch (err: any) {
     payoutError.value = err?.message || 'Something went wrong'
   } finally {
@@ -639,7 +674,7 @@ async function submitRecipient() {
             <label for="new-class-course">Course</label>
             <!-- On trial: locked to the one signed-up language. Subscribe to unlock all. -->
             <p v-if="courseLocked" class="locked-course">
-              {{ labelForCourse(newClassCourse) }}
+              {{ courseLabelFor(newClassCourse) }}
               <span class="locked-hint">Subscribe to teach more languages</span>
             </p>
             <select v-else id="new-class-course" v-model="newClassCourse" required>
@@ -677,7 +712,7 @@ async function submitRecipient() {
         <header class="class-head">
           <div class="class-meta">
             <h3 class="class-name frost-display">{{ cls.class_name }}</h3>
-            <p class="class-course">{{ labelForCourse(cls.course_code) }}</p>
+            <p class="class-course">{{ courseLabelFor(cls.course_code) }}</p>
           </div>
           <div class="class-stats">
             <span class="class-stat">
@@ -795,6 +830,10 @@ async function submitRecipient() {
       </div>
 
       <div v-if="payoutError" class="error">{{ payoutError }}</div>
+      <div v-if="payoutQueued" class="payout-queued">
+        Payout queued for the next run. We'll send your accrued balance to your
+        Wise account at the next monthly payout.
+      </div>
 
       <div class="payout-actions">
         <Button
@@ -1381,6 +1420,15 @@ async function submitRecipient() {
   margin: 0;
   color: var(--ink-muted);
   font-size: var(--text-xs);
+}
+
+.payout-queued {
+  padding: var(--space-3) var(--space-4);
+  background: rgba(var(--tone-green), 0.08);
+  border: 1px solid rgba(var(--tone-green), 0.22);
+  border-radius: var(--radius-lg);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
 }
 
 .recipient-form {
