@@ -693,8 +693,11 @@ async function continueIn() {
           <!-- New user: confirm + optional details. -->
           <template v-else>
             <h1 class="ob-title ob-title-done">{{ selectedCourseLabel }} is ready</h1>
-            <p class="ob-sub">
+            <p v-if="trialEndLabel" class="ob-sub">
               Free until <strong class="ob-date">{{ trialEndLabel }}</strong>. No card needed to start.
+            </p>
+            <p v-else class="ob-sub">
+              Your account is ready — no card needed to start.
             </p>
 
             <div class="ob-finishing">
