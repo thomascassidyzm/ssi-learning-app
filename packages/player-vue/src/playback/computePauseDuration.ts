@@ -2,22 +2,40 @@
  * computePauseDuration — single source of truth for the pause length between
  * voice2 of one cycle and the learner-speak window of the next.
  *
- * Formula (enriched 2026-06-25):
- *   ref    = pause_reference==='avg'     ? (t1+t2)/2
- *          : pause_reference==='target1' ?  t1
- *          :                                t1 + t2          (legacy 'sum' default)
- *   shaped = min(ref, knee)·pause_multiplier
- *          + max(0, ref−knee)·pause_tail_multiplier
- *   pause  = clamp(min_pause_ms, max_pause_ms, pause_base_ms + shaped)
+ * MODEL (boot + assembly, 2026-06-30) — replaces the older boot/knee/two-rate
+ * curve. The gap is two physically distinct things that behave differently:
  *
- * The knee lets long sentences stop scaling at the full multiplier (a fixed
- * multiplier on long phrases feels unnatural — the gentler tail multiplier
- * applies beyond the knee). `pause_reference` lets the gap track the single
- * phrase the learner says (target1) or the average of both answer voices,
- * rather than both summed. The three new fields are OPTIONAL — absent ⇒
- * knee Infinity, tail = multiplier, reference 'sum' ⇒ identical to the old
- * linear clamp, so existing algorithm_config rows are unaffected until an
- * admin tunes them in the dashboard's Pause Lab.
+ *   • BOOT     — the fixed reaction / spin-up before you can produce anything.
+ *                Length-independent. Short phrases are almost ALL boot. Shrinks
+ *                a LOT as the learner advances (a green belt boots faster).
+ *   • ASSEMBLY — piecing the parts together, glancing at the screen, holding it
+ *                in working memory. Grows FASTER than linearly with phrase
+ *                length (a long phrase isn't 2× a short one — you juggle more
+ *                pieces). Shrinks only a LITTLE with belt — a genuinely long
+ *                phrase needs assembly time no matter how good you are.
+ *
+ *   ref      = reference==='avg'     ? (t1+t2)/2
+ *            : reference==='target1' ?  t1
+ *            :                          t1 + t2          ('sum')
+ *              — the NATIVE clip duration(s); the belt effect is explicit below,
+ *                NOT baked into the reference via playback speed.
+ *   over     = max(0, ref − assembly_threshold_ms)
+ *   assembly = assembly_lin·over + assembly_quad·(over/1000)²
+ *   p        = belt progress 0(White)→1(Green), from the target playback speed
+ *   pause    = clamp(min, max,
+ *                    boot·lerp(1, belt_boot, p) + assembly·lerp(1, belt_assembly, p))
+ *
+ * The two belt knobs split the belt taper: `pause_belt_boot` shrinks the boot
+ * (short phrases) hard, `pause_belt_assembly` shrinks assembly (long phrases)
+ * gently — so the gap shortens MORE for short phrases than long ones as the
+ * learner climbs, which the old single-speed-ramp model could not express.
+ * White anchors at 1.0 (no taper); Green is the configured endpoint; Yellow /
+ * Orange interpolate by the belt's speed position.
+ *
+ * BACKWARD COMPAT: when the new assembly knobs are absent the helper falls back
+ * to the legacy boot/knee/two-rate curve (knee absent ⇒ Infinity, tail ⇒
+ * multiplier, reference ⇒ 'sum'), so any config row predating the new model is
+ * unaffected until it carries the new fields.
  *
  * MUST stay in lockstep with the dashboard mirror
  *   ssi-dashboard-v7-clean/src/views/admin/pauseModel.js
@@ -28,12 +46,6 @@
  * without a redeploy. Both the SimplePlayer's `setTimeout` and the on-screen
  * countdown ring call into this helper, so admin tweaks affect the visible
  * countdown AND the actual gap in lockstep.
- *
- * At cycle bake time (toSimpleRounds / scriptItemToCycle) we don't have live
- * algorithm_config in scope, so we use DEFAULT_NORMAL from useAlgorithmConfig
- * as the fallback — same shape, same defaults the DB row would have if it
- * were freshly seeded. The runtime override in LearningPlayer.vue recomputes
- * with the live config, so any admin change wins.
  */
 export interface PauseModeConfig {
   pause_base_ms: number
@@ -42,10 +54,25 @@ export interface PauseModeConfig {
   max_pause_ms: number
   /** Reference duration the pause scales with (default 'sum' = legacy t1+t2). */
   pause_reference?: 'avg' | 'target1' | 'sum'
-  /** Reference-duration (ms) past which the gentler tail multiplier applies. */
+  /** LEGACY knee model — reference (ms) past which the gentler tail applies. */
   pause_knee_ms?: number
-  /** Slope beyond the knee (default = pause_multiplier ⇒ a straight line). */
+  /** LEGACY knee model — slope beyond the knee (default = pause_multiplier). */
   pause_tail_multiplier?: number
+  /** Boot / reaction floor (ms) — length-independent spin-up. */
+  pause_boot_ms?: number
+  /** Reference (ms) below which there is no assembly cost (short = pure boot). */
+  pause_assembly_threshold_ms?: number
+  /** Linear assembly per ms of reference past the threshold. */
+  pause_assembly_lin?: number
+  /** Quadratic assembly (ms per second² past the threshold) — the super-linear
+   *  long-phrase cost. 0 ⇒ a straight assembly ramp. */
+  pause_assembly_quad?: number
+  /** Boot multiplier at Green belt (White=1.0; interpolated between). <1 shrinks
+   *  short-phrase gaps as the learner advances. */
+  pause_belt_boot?: number
+  /** Assembly multiplier at Green belt (White=1.0). Keep nearer 1.0 than
+   *  belt_boot so long phrases shorten less than short ones across belts. */
+  pause_belt_assembly?: number
 }
 
 function referenceMs(t1: number, t2: number, cfg: PauseModeConfig): number {
@@ -58,17 +85,43 @@ function referenceMs(t1: number, t2: number, cfg: PauseModeConfig): number {
   }
 }
 
+/** Belt progress 0(White)→1(Green) from the target playback speed ramp
+ *  (White 0.8× … Green 1.0×). Clamped, so non-ramp callers (speed 1) read as
+ *  Green and out-of-range speeds saturate. */
+function beltProgress(speed: number): number {
+  const p = (speed - 0.8) / (1.0 - 0.8)
+  return p < 0 ? 0 : p > 1 ? 1 : p
+}
+
 export function computePauseDuration(
   target1Ms: number,
   target2Ms: number,
   cfg: PauseModeConfig,
-  /** Target-voice playback speed (belt ramp). Early belts play the voice
-   *  slower, so the SAME clip takes longer to hear — actual = raw / speed. The
-   *  pause scales with that actual play time, so it's longer for beginners.
-   *  Default 1 = no adjustment (Green+ / legacy callers). */
+  /** Target-voice playback speed (belt ramp). Drives the belt taper: early
+   *  belts (slower speed) get the full boot/assembly, Green gets the configured
+   *  endpoint multipliers. Default 1 = Green (no caller-side ramp). */
   playbackSpeed = 1,
 ): number {
   const spd = playbackSpeed || 1
+
+  // New boot + assembly model (present ⇒ use it).
+  if (cfg.pause_assembly_lin != null || cfg.pause_boot_ms != null) {
+    const ref = Math.max(0, referenceMs(target1Ms, target2Ms, cfg))
+    const boot = cfg.pause_boot_ms ?? 0
+    const thr = cfg.pause_assembly_threshold_ms ?? 0
+    const lin = cfg.pause_assembly_lin ?? 0
+    const quad = cfg.pause_assembly_quad ?? 0
+    const over = Math.max(0, ref - thr)
+    const overSec = over / 1000
+    const assembly = lin * over + quad * overSec * overSec
+    const p = beltProgress(spd)
+    const bBoot = 1 + p * ((cfg.pause_belt_boot ?? 1) - 1)
+    const bAsm = 1 + p * ((cfg.pause_belt_assembly ?? 1) - 1)
+    const calc = boot * bBoot + assembly * bAsm
+    return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, Math.round(calc)))
+  }
+
+  // Legacy knee / two-rate model — belt rides the reference (clip / speed).
   const ref = Math.max(0, referenceMs(target1Ms / spd, target2Ms / spd, cfg))
   const mult = cfg.pause_multiplier ?? 0
   const knee = cfg.pause_knee_ms == null ? Infinity : cfg.pause_knee_ms

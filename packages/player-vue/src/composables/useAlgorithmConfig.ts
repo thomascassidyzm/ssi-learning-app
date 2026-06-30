@@ -23,10 +23,26 @@ export interface ModeConfig {
   /** Reference duration the pause scales with (default 'sum' = legacy t1+t2).
    *  See computePauseDuration.ts. */
   pause_reference?: 'avg' | 'target1' | 'sum'
-  /** Reference-duration (ms) past which the gentler tail multiplier kicks in. */
+  /** LEGACY knee model — reference (ms) past which the gentler tail kicks in. */
   pause_knee_ms?: number
-  /** Slope beyond the knee (default = pause_multiplier ⇒ a straight line). */
+  /** LEGACY knee model — slope beyond the knee (default = pause_multiplier). */
   pause_tail_multiplier?: number
+  /** Boot / reaction floor (ms) — length-independent spin-up. See
+   *  computePauseDuration.ts (boot + assembly model). */
+  pause_boot_ms?: number
+  /** Reference (ms) below which there is no assembly cost (short = pure boot). */
+  pause_assembly_threshold_ms?: number
+  /** Linear assembly per ms of reference past the threshold. */
+  pause_assembly_lin?: number
+  /** Quadratic assembly (ms per second² past the threshold) — super-linear
+   *  long-phrase cost. 0 ⇒ a straight assembly ramp. */
+  pause_assembly_quad?: number
+  /** Boot multiplier at Green belt (White=1.0; interpolated). <1 shrinks
+   *  short-phrase gaps as the learner advances. */
+  pause_belt_boot?: number
+  /** Assembly multiplier at Green belt (White=1.0). Keep nearer 1.0 than
+   *  belt_boot so long phrases shorten less than short ones across belts. */
+  pause_belt_assembly?: number
   spaced_rep_fraction: number // 1.0 = full, 0.33 = skip 2/3
   debut_phrases_fraction: number // 1.0 = all, 0.5 = half
   skip_voice2: boolean        // Skip second target voice?
@@ -147,10 +163,23 @@ export interface AlgorithmConfigs {
 // the DB algorithm_config row is missing the fallback gives the same answer.
 export const DEFAULT_NORMAL: ModeConfig = {
   playback_speed: 1.0,
-  pause_base_ms: 2000,
-  pause_multiplier: 1.5,
-  min_pause_ms: 3000,
-  max_pause_ms: 22000,
+  // Boot + assembly model (see computePauseDuration.ts). These defaults
+  // reproduce the previous White-belt curve for medium/long phrases exactly
+  // (boot 1000 + 2.5×ref-past-1000ms ≡ the old floor-1000 / knee-1600 / tail-2.0
+  // curve at White), while the boot/knee makes the shortest phrases a touch
+  // shorter. Belt taper: short phrases (boot) belt-independent by default,
+  // long phrases (assembly) shrink ~20% by Green — matching the old speed ramp.
+  pause_reference: 'avg',
+  pause_boot_ms: 1000,
+  pause_assembly_threshold_ms: 1000,
+  pause_assembly_lin: 2.5,
+  pause_assembly_quad: 0,
+  pause_belt_boot: 1.0,
+  pause_belt_assembly: 0.8,
+  pause_base_ms: 0,
+  pause_multiplier: 1.05,
+  min_pause_ms: 700,
+  max_pause_ms: 15000,
   spaced_rep_fraction: 1.0,
   debut_phrases_fraction: 1.0,
   skip_voice2: false
@@ -165,6 +194,16 @@ export const DEFAULT_TURBO: ModeConfig = {
   // land Turbo at roughly 60% of Normal-mode pause across the curve, keeping it
   // a real time-saver while still letting the learner physically produce the
   // target from the L1 prompt. Tunable per-course via DB config.
+  // Boot + assembly model: boot 2000 + 0.9×ref-past-1111ms reproduces the old
+  // linear Turbo curve (base 1000, mult 0.9, floor 2000). No belt taper in Turbo
+  // (it plays at native 1.0× regardless of belt), so the belt knobs are 1.0.
+  pause_reference: 'avg',
+  pause_boot_ms: 2000,
+  pause_assembly_threshold_ms: 1111,
+  pause_assembly_lin: 0.9,
+  pause_assembly_quad: 0,
+  pause_belt_boot: 1.0,
+  pause_belt_assembly: 1.0,
   pause_base_ms: 1000,
   pause_multiplier: 0.9,
   min_pause_ms: 2000,
