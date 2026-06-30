@@ -12,7 +12,7 @@
  * - Use playCommentary() to play the audio with your audio system
  */
 
-import { ref, shallowRef, computed } from 'vue'
+import { ref, shallowRef, computed, inject } from 'vue'
 import type { CourseDataProvider } from '../providers/CourseDataProvider'
 import {
   MetaCommentaryService,
@@ -27,6 +27,11 @@ export interface UseMetaCommentaryOptions {
 
 export function useMetaCommentary(options: UseMetaCommentaryOptions) {
   const { courseDataProvider, learnerId } = options
+
+  // Supabase client for cross-device persistence of instruction progress.
+  // Captured at setup (inject must run here, not inside async initialize);
+  // App.vue provides either the raw client or a ref — resolve .value lazily.
+  const injectedSupabase = inject<any>('supabase', null)
 
   // Service instance (lazy initialized)
   const service = shallowRef<MetaCommentaryService | null>(null)
@@ -50,7 +55,10 @@ export function useMetaCommentary(options: UseMetaCommentaryOptions) {
     if (isInitialized.value) return
 
     try {
-      const svc = createMetaCommentaryService(courseDataProvider, learnerId)
+      const supabaseClient = injectedSupabase && typeof injectedSupabase === 'object' && 'value' in injectedSupabase
+        ? injectedSupabase.value
+        : injectedSupabase
+      const svc = createMetaCommentaryService(courseDataProvider, learnerId, supabaseClient)
       await svc.initialize()
       // Dev cheat: ?forceEncouragements=1 (or ?fc=1) fires an interjection on
       // every eligible boundary, bypassing the ~10-min interval — so the
