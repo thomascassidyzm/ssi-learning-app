@@ -134,6 +134,15 @@ export interface PodSentenceLike {
  * Includes atom + passthrough entries in order (passthrough usually has no
  * target clip and is skipped cleanly by the sequencer).
  */
+/**
+ * Normalise an atom surface for "[atom] <surface>" clip lookup. Case-insensitive
+ * (a sentence-initial "Come" must resolve the same slice as a mid-sentence
+ * "come" — single-word TTS sounds identical) but ACCENT-preserving (so "È"=is
+ * stays distinct from "e"=and). MUST be applied identically where the map is
+ * built (loadStage0ClipMaps) and here, or ~10% of atoms silently drop.
+ */
+export const normSurface = (s: string): string => (s || '').toLowerCase().replace(/\s+/g, ' ').trim()
+
 export function resolveAtoms(
   atomMap: AtomMapEntry[] | null | undefined,
   meansGlossByLego: Map<string, string>,
@@ -144,7 +153,7 @@ export function resolveAtoms(
     .map((e) => ({
       targetSurface: e.target_surface,
       gloss: e.gloss,
-      targetClipId: targetClipBySurface.get(e.target_surface) ?? null,
+      targetClipId: targetClipBySurface.get(normSurface(e.target_surface)) ?? null,
       meansGlossClipId: meansGlossByLego.get(e.lego_key) ?? null,
     }))
 }
