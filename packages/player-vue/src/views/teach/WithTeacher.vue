@@ -27,6 +27,9 @@ interface PublicClass {
   student_join_code: string
   // null = tutor/ACT class (£10); set = school class (£5). Drives price + commission.
   school_id: string | null
+  // true = free-tier course (non-Big-10 target AND not Welsh) → student joins
+  // FREE, no Paddle checkout. Defaults false (money-safe) if the API omits it.
+  course_is_free?: boolean
 }
 
 // Price by class type. The webhook re-derives the SAME fact from class.school_id
@@ -34,6 +37,8 @@ interface PublicClass {
 // client price is display + checkout only — it never decides commission.
 const STANDARD_SSI_PRICE = 15
 const isSchoolClass = computed(() => !!classInfo.value?.school_id)
+// Free-tier course → the student joins without paying (no Paddle checkout).
+const isFreeCourse = computed(() => classInfo.value?.course_is_free === true)
 const STUDENT_MONTHLY_PRICE = computed(() => (isSchoolClass.value ? 5 : 10))
 // Annual = 10× the monthly figure → exactly 2 months free (12×£5=£60 vs £50;
 // 12×£10=£120 vs £100). Displayed only; the webhook re-derives commission.
@@ -85,6 +90,9 @@ const loginError = ref('')
 // Checkout state
 const isOpeningCheckout = ref(false)
 const checkoutError = ref('')
+// Set when the learner already has an active subscription — we route them to the
+// player instead of opening a second (double-charging) checkout.
+const alreadySubscribed = ref(false)
 
 const code = computed(() => {
   const raw = route.params.code
@@ -151,7 +159,128 @@ async function handleStartLearning() {
     return
   }
 
+  await proceedAfterAuth()
+}
+
+// Common post-auth path: free courses join without paying; premium courses go to
+// checkout, but only after a double-charge guard.
+async function proceedAfterAuth() {
+  if (!classInfo.value) return
+  if (isFreeCourse.value) {
+    await joinFree()
+    return
+  }
   await openCheckout()
+}
+
+/** Send the freshly-joined / already-subscribed learner into the player on this
+ *  class's course. App.vue reads `ssi-last-course` on load to pick the course. */
+function goToPlayer() {
+  try {
+    if (classInfo.value?.course_code) {
+      localStorage.setItem('ssi-last-course', classInfo.value.course_code)
+    }
+  } catch { /* storage best-effort */ }
+  window.location.href = '/'
+}
+
+/** Resolve (or create) the learners.id for the signed-in auth user. */
+async function resolveLearnerId(): Promise<string | null> {
+  if (!supabase.value || !userId.value) return null
+  const { data: existing } = await supabase.value
+    .from('learners')
+    .select('id')
+    .eq('user_id', userId.value)
+    .maybeSingle()
+  if (existing?.id) return existing.id
+  // The auth trigger normally creates this row; create it best-effort if absent.
+  const { data: created } = await supabase.value
+    .from('learners')
+    .insert({ user_id: userId.value, display_name: '' })
+    .select('id')
+    .maybeSingle()
+  return created?.id ?? null
+}
+
+/** Idempotently link the signed-in learner to this class: enrol them in the
+ *  class's course and tag them into the class roster. Mirrors the webhook's own
+ *  course_enrollments + CLASS:{id} user_tag writes so a client-side join (free
+ *  course, or an already-subscribed learner whose checkout never fires) still
+ *  shows up on the teacher's roster. Returns false if it could not complete.
+ *  NOTE: the teacher_referrals/commission row genuinely cannot be created here
+ *  (it requires the Paddle subscription) — only the webhook writes it. */
+async function linkLearnerToClass(): Promise<boolean> {
+  if (!classInfo.value || !userId.value || !supabase.value) return false
+  const learnerId = await resolveLearnerId()
+  if (!learnerId) {
+    checkoutError.value = 'Could not set up your account. Please try again.'
+    return false
+  }
+
+  // Enrol in the class's course (idempotent — skip if already enrolled).
+  const { data: existingEnrol } = await supabase.value
+    .from('course_enrollments')
+    .select('id')
+    .eq('learner_id', learnerId)
+    .eq('course_id', classInfo.value.course_code)
+    .maybeSingle()
+  if (!existingEnrol) {
+    await supabase.value.from('course_enrollments').insert({
+      learner_id: learnerId,
+      course_id: classInfo.value.course_code,
+    })
+  }
+
+  // Tag the learner into the class so the teacher sees them on the roster.
+  // Mirrors the webhook's CLASS:{id} tag (idempotent on the unique constraint).
+  await supabase.value.from('user_tags').upsert(
+    {
+      user_id: userId.value,
+      tag_type: 'class',
+      tag_value: `CLASS:${classInfo.value.id}`,
+      role_in_context: 'student',
+      added_by: userId.value,
+    },
+    { onConflict: 'user_id,tag_type,tag_value' }
+  )
+
+  return true
+}
+
+/** Free-tier course: no Paddle checkout. Enrol the learner + tag them into the
+ *  class, then drop them into the player. */
+async function joinFree() {
+  if (!classInfo.value || !userId.value || !supabase.value) return
+  if (isOpeningCheckout.value) return
+  isOpeningCheckout.value = true
+  checkoutError.value = ''
+  try {
+    if (await linkLearnerToClass()) {
+      goToPlayer()
+    }
+  } catch (err: any) {
+    checkoutError.value = err?.message || 'Could not join the class'
+  } finally {
+    isOpeningCheckout.value = false
+  }
+}
+
+/** True if the signed-in learner already has an active subscription. */
+async function hasActiveSubscription(): Promise<boolean> {
+  if (!supabase.value) return false
+  try {
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return false
+    const res = await fetch('/api/subscription', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return false
+    const data = await res.json().catch(() => null)
+    return data?.isSubscribed === true
+  } catch {
+    return false
+  }
 }
 
 async function openCheckout() {
@@ -166,11 +295,29 @@ async function openCheckout() {
   isOpeningCheckout.value = true
   checkoutError.value = ''
   try {
+    // Double-charge guard: if the learner already pays, never open a second
+    // checkout. The webhook (which writes the class linkage) never fires in this
+    // case, so do the idempotent enroll + roster-tag client-side here — otherwise
+    // an existing subscriber joining a paid class would never appear on the
+    // teacher's roster. (The teacher_referrals/commission row still can't be
+    // created client-side; for tutor classes that attribution is surfaced below.)
+    if (await hasActiveSubscription()) {
+      try {
+        await linkLearnerToClass()
+      } catch (err: any) {
+        checkoutError.value = err?.message || 'Could not join the class'
+      }
+      alreadySubscribed.value = true
+      isOpeningCheckout.value = false
+      return
+    }
+
     const paddle = await getPaddle()
     paddle.Checkout.open({
       items: [{ priceId: studentPriceId.value, quantity: 1 }],
       customer: { email: userEmail.value },
       customData: {
+        // Contract: webhook re-derives price/tier/commission from class.school_id.
         kind: 'student_via_teacher',
         teacher_id: teacher.value.id,
         class_id: classInfo.value.id,
@@ -225,7 +372,7 @@ async function handleVerifyOtp() {
     }
     await refreshSession()
     showLogin.value = false
-    await openCheckout()
+    await proceedAfterAuth()
   } catch (err: any) {
     loginError.value = err.message || 'Verification failed'
   } finally {
@@ -294,7 +441,21 @@ function cancelLogin() {
 
         <p v-if="teacher.bio" class="bio">{{ teacher.bio }}</p>
 
-        <div class="price-block">
+        <div v-if="isFreeCourse" class="price-block free-block">
+          <div class="price-row">
+            <span class="price-amount frost-mono-nums">Free</span>
+          </div>
+          <p class="price-pitch">
+            This course is <strong>free</strong> — no card needed. Join the class
+            and start learning straight away.
+          </p>
+          <p class="price-hint">
+            You'll have your own SaySomethingin account to practise between live
+            sessions with <strong>{{ teacher.display_name }}</strong>.
+          </p>
+        </div>
+
+        <div v-else class="price-block">
           <div class="billing-toggle" role="tablist" aria-label="Billing period">
             <button
               type="button"
@@ -343,15 +504,26 @@ function cancelLogin() {
 
         <div v-else-if="checkoutError" class="error">{{ checkoutError }}</div>
 
+        <!-- Already-subscribed: never open a second checkout, send to the player. -->
+        <template v-if="alreadySubscribed">
+          <p class="price-hint">
+            You already have an active SaySomethingin subscription — no need to pay
+            again. You're all set to start this class.
+          </p>
+          <Button variant="primary" size="lg" @click="goToPlayer">
+            Continue to SaySomethingin
+          </Button>
+        </template>
+
         <Button
-          v-if="!showLogin"
+          v-else-if="!showLogin"
           variant="primary"
           size="lg"
           :disabled="isOpeningCheckout || isFull"
           :loading="isOpeningCheckout"
           @click="handleStartLearning"
         >
-          Start learning
+          {{ isFreeCourse ? 'Join free' : 'Start learning' }}
         </Button>
 
         <!-- Inline OTP login -->
