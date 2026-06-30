@@ -26,6 +26,7 @@ import {
   resolveAtoms,
   clipsFromRow,
   foldEventsToPlays,
+  normSurface,
   type Stage0Config,
   type AtomMapEntry,
 } from './stage0Sequence'
@@ -295,7 +296,9 @@ export async function loadStage0ClipMaps(
     if (l.explainer_audio_id) glossMap.set(l.lego_key, l.explainer_audio_id)
   }
   for (const a of (atomRes.data || []) as Array<{ id: string; text: string }>) {
-    const surface = a.text.slice('[atom] '.length)
+    // Key by NORMALISED surface (case-insensitive, accent-preserving) so a
+    // capitalised atom resolves a lowercase-rendered slice and vice-versa.
+    const surface = normSurface(a.text.slice('[atom] '.length))
     if (!targetClipMap.has(surface)) targetClipMap.set(surface, a.id)
   }
   return { glossMap, targetClipMap }

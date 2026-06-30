@@ -5,7 +5,7 @@ import {
   type PodSentenceRow,
   type PodPlayRole,
 } from './podStageComposition'
-import { DEFAULT_STAGE0 } from './stage0Sequence'
+import { DEFAULT_STAGE0, normSurface } from './stage0Sequence'
 
 const baseSentence = (over: Partial<PodSentenceRow> = {}): PodSentenceRow => ({
   global_order: 1,
@@ -47,7 +47,9 @@ describe('buildMainStage — whole-sentence stage composition', () => {
 describe('composeSentenceArc — the Progression walk = main-flow by construction', () => {
   const stagePlaylist: Record<number, PodPlayRole[]> = { 1: ['ps', 'explainer', 'ps'], 2: ['ps', 'trans', 'ps'] }
   const glossMap = new Map([['L1', 'gloss1']])
-  const targetClipMap = new Map([['Nǐ hǎo', 'atom1']])
+  // targetClipMap is keyed by NORMALISED surface (as loadStage0ClipMaps builds it
+  // — case-insensitive so a capitalised atom resolves a lowercase-rendered slice).
+  const targetClipMap = new Map([[normSurface('Nǐ hǎo'), 'atom1']])
 
   it('prepends the Stage-0 ladder when the sentence resolves to atoms with a clip', () => {
     const sentence = baseSentence({
