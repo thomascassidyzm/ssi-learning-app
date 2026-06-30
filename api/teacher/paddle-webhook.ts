@@ -3,7 +3,7 @@
  *
  * Public (no auth — verified by signature). Handles:
  *
- *   subscription.* with customData.kind in {'premium', 'teacher_plan'}
+ *   subscription.* with customData.kind in {'learner_premium', 'premium', 'teacher_plan'}
  *     → upsert subscriptions row. If customData.teacher_id is present,
  *       also link teachers.own_subscription_id. ('teacher_plan' is the
  *       legacy kind for subs created before the premium/teach split;
@@ -68,6 +68,105 @@ const REFERRAL_STATUS_MAP: Record<string, string> = {
   past_due: 'active', // still attributed during dunning
   paused: 'cancelled',
   canceled: 'cancelled',
+}
+
+// ── SERVER-SIDE PRICE SOURCE OF TRUTH ────────────────────────────────────────
+// priceId → (kind it belongs to, server tier, expected per-period pence). The
+// webhook NEVER trusts client customData for money: this map lets us (a) sanity
+// check that the price the customer was actually billed on belongs to the tier
+// we derived server-side, and (b) recognise legit prices. The pri_ values are the
+// LIVE Paddle prices already shipped in player-vue (lib/paddle.ts + WithTeacher.vue);
+// do NOT change them here. Amounts are GBP reference pence — Paddle country pricing
+// can legitimately bill a different amount/currency on the SAME price id, so amount
+// is validated leniently (we trust the price id's TIER, not the raw pence).
+type PriceTier = 'premium' | 'student_tutor' | 'student_school'
+interface PriceMeta {
+  tier: PriceTier
+  gbpPence: number
+  period: 'monthly' | 'annual'
+}
+const PRICE_CATALOG: Record<string, PriceMeta> = {
+  // £15/mo + £150/yr SSi Premium — used for learner_premium, tutor_platform AND
+  // the per-seat school_platform price (a school is quantity>1 of the same unit).
+  pri_01kqq85gvncyasfmfvvpcv1xfg: { tier: 'premium', gbpPence: 1500, period: 'monthly' },
+  pri_01kqq86ymc3yhm8be3w7f7kgr1: { tier: 'premium', gbpPence: 15000, period: 'annual' },
+  // Student-via-TUTOR (ACT) — £10/mo, £100/yr. Commission-bearing.
+  pri_01kqq89qwnsd3qwxvyybsc6ey1: { tier: 'student_tutor', gbpPence: 1000, period: 'monthly' },
+  pri_01kvaj1ben739erky6zjdjsq22: { tier: 'student_tutor', gbpPence: 10000, period: 'annual' },
+  // Student-via-SCHOOL — £5/mo, £50/yr. No commission.
+  pri_01kv5wrc5cz17pwgeva4zk8s0r: { tier: 'student_school', gbpPence: 500, period: 'monthly' },
+  pri_01kvaj05x1y16trwvm8pdm2wcb: { tier: 'student_school', gbpPence: 5000, period: 'annual' },
+}
+
+function planIdOf(data: any): string | null {
+  const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
+  return firstItem?.price?.id || null
+}
+
+// Real collected amount (minor units / pence) from a transaction payload. Paddle
+// puts the charged total on details.totals.grandTotal (string). Returns null when
+// it can't be read so callers can decide a safe default.
+function collectedPenceOf(txn: any): number | null {
+  const raw = txn?.details?.totals?.grandTotal ?? txn?.details?.totals?.total
+  if (raw == null) return null
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+// Refunded amount (minor units / pence) on an adjustment payload.
+function adjustmentPenceOf(adj: any): number | null {
+  const raw = adj?.totals?.total ?? adj?.payoutTotals?.total
+  if (raw == null) return null
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+// True only when a refund covers the FULL original transaction total. Fails SAFE for
+// the payer: if the amount can't be determined it returns false (treated as partial →
+// access left intact) so a goodwill/partial refund never cuts off a live payer.
+async function isFullRefund(adj: any): Promise<boolean> {
+  try {
+    const refunded = adjustmentPenceOf(adj)
+    const txnId = adj?.transactionId
+    if (refunded == null || !txnId) return false
+    const txn = await paddle.transactions.get(txnId)
+    const collected = collectedPenceOf(txn)
+    if (collected == null || collected <= 0) return false
+    return refunded >= collected
+  } catch (e: any) {
+    console.warn('[paddle-webhook] refund-amount check failed, treating as partial:', e?.message)
+    return false
+  }
+}
+
+// Best-effort: confirm the Paddle customer's email matches an email we hold for
+// the resolved learner. NEVER throws and NEVER blocks (a parent/guardian may
+// legitimately pay for a learner) — it only logs mismatches for audit so fraud /
+// mis-wired customData surfaces in the logs. Fails open on any error.
+async function logEmailMismatch(
+  supabase: any,
+  customerId: string | undefined,
+  learnerId: string | null,
+  context: string
+): Promise<void> {
+  if (!customerId || !learnerId) return
+  try {
+    const customer = await paddle.customers.get(customerId)
+    const payerEmail = (customer?.email || '').trim().toLowerCase()
+    if (!payerEmail) return
+    const { data: emails } = await supabase
+      .from('learner_emails')
+      .select('email')
+      .eq('learner_id', learnerId)
+    const known = (emails || []).map((e: any) => (e.email || '').trim().toLowerCase())
+    if (known.length > 0 && !known.includes(payerEmail)) {
+      console.warn(
+        `[paddle-webhook] EMAIL MISMATCH (${context}): payer ${payerEmail} not among learner ${learnerId} emails [${known.join(', ')}] — proceeding (third-party payment allowed), flagged for audit`
+      )
+    }
+  } catch (e: any) {
+    console.warn('[paddle-webhook] email validation skipped:', e?.message)
+  }
 }
 
 export default async function handler(
@@ -155,6 +254,13 @@ export default async function handler(
         console.log('[paddle-webhook] transaction.completed (no-op):', (event.data as any).id)
         break
 
+      case EventName.AdjustmentCreated:
+        // Refund / chargeback — reverse a still-held commission accrual and the
+        // student's entitlement. (Paddle surfaces refunds + chargebacks as
+        // adjustments; transaction.refunded is not a distinct event in this SDK.)
+        await handleAdjustmentEvent(supabase, event.data as any)
+        break
+
       default:
         console.log('[paddle-webhook] Unhandled event:', event.eventType)
     }
@@ -189,7 +295,7 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
   const customData = (data.customData || {}) as Record<string, unknown>
   const kind = customData.kind as string | undefined
 
-  if (kind === 'premium' || kind === 'teacher_plan') {
+  if (kind === 'premium' || kind === 'teacher_plan' || kind === 'learner_premium') {
     await handlePremiumSubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
@@ -276,9 +382,42 @@ async function handleTutorPlatformSubscription(
   data: any,
   customData: Record<string, unknown>
 ): Promise<void> {
-  const teacherId = customData.teacher_id as string | undefined
+  // Resolve teacher: prefer customData.teacher_id, else fall back to the learner
+  // behind supabase_user_id (fixes the "teacher_id:null recorded nowhere" bug —
+  // no paying tutor should be locked out for a missing client field).
+  let teacherId = customData.teacher_id as string | undefined
+  const supabaseUserId = customData.supabase_user_id as string | undefined
+  let learnerId: string | null = null
+
+  if (teacherId) {
+    const { data: teacher } = await supabase
+      .from('teachers')
+      .select('learner_id')
+      .eq('id', teacherId)
+      .maybeSingle()
+    learnerId = teacher?.learner_id || null
+  } else if (supabaseUserId) {
+    const { data: learner } = await supabase
+      .from('learners')
+      .select('id')
+      .eq('user_id', supabaseUserId)
+      .maybeSingle()
+    learnerId = learner?.id || null
+    if (learnerId) {
+      const { data: teacher } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('learner_id', learnerId)
+        .maybeSingle()
+      teacherId = teacher?.id || undefined
+    }
+  }
+
   if (!teacherId) {
-    console.error('[paddle-webhook] tutor_platform subscription missing teacher_id in customData')
+    console.error(
+      '[paddle-webhook] tutor_platform subscription could not resolve a teacher (teacher_id + supabase_user_id both unusable):',
+      customData
+    )
     return
   }
 
@@ -295,14 +434,71 @@ async function handleTutorPlatformSubscription(
     console.error('[paddle-webhook] Failed to update tutor platform subscription:', error)
     return
   }
+
+  // Best-effort audit (never blocks): the £15 is paid by this tutor.
+  await logEmailMismatch(supabase, data.customerId, learnerId, 'tutor_platform')
+
+  // D2 BUNDLE (Tom's decision): the tutor's £15 dashboard subscription ALSO grants
+  // them learner-side premium. Grant it by upserting the same premium subscription
+  // row a learner_premium checkout would create. Kept best-effort + separate from
+  // the platform update so a learner-resolution miss can't undo the dashboard grant.
+  if (learnerId) {
+    await grantLearnerPremium(supabase, data, learnerId, 'SSi Premium (tutor bundle)')
+  } else {
+    console.warn('[paddle-webhook] tutor_platform: no learner resolved — platform set, learner premium NOT granted:', teacherId)
+  }
+
   console.log(
     '[paddle-webhook] Tutor platform subscription:',
     teacherId,
     'status:',
     status,
     'period_end:',
-    periodEnd
+    periodEnd,
+    'learner_premium:',
+    !!learnerId
   )
+}
+
+// Upsert the premium subscription entitlement for a learner (the SAME entitlement
+// path as a learner_premium checkout: unlocks all premium courses past Yellow).
+// Idempotent on learner_id. Returns the subscription row id (or null on failure).
+async function grantLearnerPremium(
+  supabase: any,
+  data: any,
+  learnerId: string,
+  planName: string
+): Promise<string | null> {
+  const status = SUB_STATUS_MAP[data.status] || 'none'
+  const periodEnd: string | null =
+    data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+  const planId = planIdOf(data)
+
+  const { data: subRow, error } = await supabase
+    .from('subscriptions')
+    .upsert(
+      {
+        learner_id: learnerId,
+        status,
+        plan_id: planId,
+        plan_name: planName,
+        current_period_end: periodEnd,
+        cancel_at_period_end: !!data.scheduledChange,
+        provider: 'paddle',
+        provider_subscription_id: data.id,
+        provider_customer_id: data.customerId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'learner_id' }
+    )
+    .select('id')
+    .single()
+
+  if (error || !subRow) {
+    console.error('[paddle-webhook] Failed to grant learner premium:', error)
+    return null
+  }
+  return subRow.id
 }
 
 async function handlePremiumSubscription(
@@ -402,11 +598,21 @@ async function handlePremiumSubscription(
   // until their own cycle ends. Re-enabled on resume.
   const referralActive = status !== 'cancelled'
 
+  // Legacy 'premium'/'teacher_plan' checkouts (and any tutor checkout that lands
+  // here instead of kind:'tutor_platform') ALSO stamp the dashboard platform
+  // status when a teacher resolves — so no paying tutor is locked out of the
+  // dashboard just because the client sent the older kind. The £15 bundles both.
+  const platformStatus = PLATFORM_STATUS_MAP[data.status] || 'cancelled'
+  const platformPeriodEnd: string | null =
+    data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+
   const { error: linkErr } = await supabase
     .from('teachers')
     .update({
       own_subscription_id: subRow.id,
       referral_active: referralActive,
+      platform_status: platformStatus,
+      platform_expires_at: platformPeriodEnd,
     })
     .eq('id', teacherId)
 
@@ -448,14 +654,31 @@ async function handleStudentSubscription(
   // Frozen into teacher_referrals.locked_price_pence below; commission gates on it.
   const { data: priceCls } = await supabase
     .from('classes')
-    .select('school_id')
+    .select('school_id, course_code')
     .eq('id', classId)
     .maybeSingle()
   if (!priceCls) {
     // Money-safe default under uncertainty: unknown class → school tier (no commission).
     console.error('[paddle-webhook] Class not found deriving price; defaulting to school/no-commission:', classId)
   }
-  const lockedPricePence = priceCls && priceCls.school_id === null ? 1000 : 500
+  const isTutorClass = !!priceCls && priceCls.school_id === null
+  const lockedPricePence = isTutorClass ? 1000 : 500
+
+  // PRICE-TIER GUARD: confirm the price the customer was actually billed on belongs
+  // to the tier we derived from the class. A tutor class billed on a known school
+  // price (or vice versa) means the client sent the wrong price → log loudly. We do
+  // NOT block entitlement (the student paid something), but commission gates on the
+  // SERVER-derived locked_price_pence below, so a spoofed price can't earn £5.
+  const billedPlanId = planIdOf(data)
+  const priceMeta = billedPlanId ? PRICE_CATALOG[billedPlanId] : undefined
+  const derivedTier: PriceTier = isTutorClass ? 'student_tutor' : 'student_school'
+  if (priceMeta && priceMeta.tier !== derivedTier) {
+    console.warn(
+      `[paddle-webhook] PRICE TIER MISMATCH (student_via_teacher): billed price ${billedPlanId} is '${priceMeta.tier}' but class ${classId} derives '${derivedTier}' — honouring server tier (locked ${lockedPricePence}p), flagged for audit`
+    )
+  } else if (billedPlanId && !priceMeta) {
+    console.warn('[paddle-webhook] student_via_teacher billed on unrecognised price id:', billedPlanId)
+  }
 
   // Get or create the learner for this Supabase user
   let { data: learner } = await supabase
@@ -548,6 +771,27 @@ async function handleStudentSubscription(
     console.error('[paddle-webhook] Failed to upsert user_tags:', tagErr)
   }
 
+  // Enrol the student in the class's course so the paid entitlement lands them on
+  // the right course. Idempotent on (learner_id, course_id); best-effort so a
+  // missing course_code can never undo the subscription/referral writes above.
+  const courseCode = (priceCls?.course_code as string | undefined)?.trim() || null
+  if (courseCode) {
+    const { error: enrollErr } = await supabase
+      .from('course_enrollments')
+      .upsert(
+        { learner_id: learner.id, course_id: courseCode },
+        { onConflict: 'learner_id,course_id', ignoreDuplicates: true }
+      )
+    if (enrollErr) {
+      console.error('[paddle-webhook] Failed to upsert course_enrollments:', enrollErr)
+    }
+  } else {
+    console.warn('[paddle-webhook] student_via_teacher: no course_code on class, enrolment skipped:', classId)
+  }
+
+  // Best-effort payer-email audit (never blocks).
+  await logEmailMismatch(supabase, data.customerId, learner.id, 'student_via_teacher')
+
   console.log(
     '[paddle-webhook] Student subscription processed:',
     'learner:',
@@ -612,6 +856,16 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
     return
   }
 
+  // AMOUNT RECONCILIATION: read what Paddle actually COLLECTED. A £0 transaction
+  // (100% discount / credit / trial conversion that took no money) must NOT accrue
+  // a £5 commission. null = couldn't read the figure → proceed (a transaction.paid
+  // implies money moved); 0 = explicitly nothing collected → skip.
+  const collected = collectedPenceOf(data)
+  if (collected === 0) {
+    console.log('[paddle-webhook] transaction.paid collected £0 — no commission accrued:', data.id)
+    return
+  }
+
   // Resolve teacher via class.teacher_user_id → learners.user_id → teachers.id
   const { data: cls, error: clsErr } = await supabase
     .from('classes')
@@ -661,16 +915,23 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
   const periodStartIso = periodStart.toISOString().slice(0, 10)
   const periodEndIso = periodEnd.toISOString().slice(0, 10)
 
-  // Atomic accrual via RPC (INSERT … ON CONFLICT (teacher_id, period_start) DO
-  // UPDATE accrued_pence += ). Combined with the event-id dedup above this makes
-  // accrual idempotent + race-free. Falls back to the legacy read-then-write only
-  // when the RPC is missing (pre-migration), so it's safe to deploy before the
-  // migration is applied.
-  const { error: rpcErr } = await supabase.rpc('accrue_teacher_commission', {
+  // HELD until the 30-day refund window closes (Tom's decision: never pay out
+  // immediately). hold_until = this transaction's paid_at + 30 days. The payout
+  // cron must only release accruals whose hold_until has passed.
+  const paidAt = data.billedAt ? new Date(data.billedAt) : now
+  const holdUntil = new Date(paidAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // Atomic HELD accrual via RPC (INSERT … ON CONFLICT (teacher_id, period_start) DO
+  // UPDATE accrued_pence += , status→held, hold_until advanced). Combined with the
+  // event-id dedup above this makes accrual idempotent + race-free. Falls back to a
+  // read-then-write when the 5-arg RPC is missing (pre-migration), so it's safe to
+  // deploy before the migration is applied.
+  const { error: rpcErr } = await supabase.rpc('accrue_teacher_commission_held', {
     p_teacher_id: teacher.id,
     p_period_start: periodStartIso,
     p_period_end: periodEndIso,
     p_pence: teacherTakePence,
+    p_hold_until: holdUntil,
   })
 
   if (rpcErr) {
@@ -681,10 +942,11 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
     if (!missing) {
       // Genuine accrual failure: throw so the handler 500s, the dedup row is
       // cleared, and Paddle retries (rather than silently dropping the accrual).
-      throw new Error(`accrue_teacher_commission RPC failed: ${rpcErr.message}`)
+      throw new Error(`accrue_teacher_commission_held RPC failed: ${rpcErr.message}`)
     }
-    // Pre-migration fallback: the original read-then-write (race-accepting) path.
-    console.warn('[paddle-webhook] accrue RPC missing — falling back to read-then-write')
+    // Pre-migration fallback: read-then-write (race-accepting). Tolerates the
+    // hold_until / 'held' status columns being absent too — retries without them.
+    console.warn('[paddle-webhook] held-accrue RPC missing — falling back to read-then-write')
     const { data: existing } = await supabase
       .from('teacher_commissions')
       .select('id, accrued_pence')
@@ -693,27 +955,46 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
       .maybeSingle()
 
     if (existing) {
-      const { error: updErr } = await supabase
+      let { error: updErr } = await supabase
         .from('teacher_commissions')
         .update({
           accrued_pence: existing.accrued_pence + teacherTakePence,
+          status: 'held',
+          hold_until: holdUntil,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
-
+      if (updErr && isUnknownColumn(updErr)) {
+        ;({ error: updErr } = await supabase
+          .from('teacher_commissions')
+          .update({
+            accrued_pence: existing.accrued_pence + teacherTakePence,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id))
+      }
       if (updErr) {
         console.error('[paddle-webhook] Failed to update teacher_commissions:', updErr)
         return
       }
     } else {
-      const { error: insErr } = await supabase.from('teacher_commissions').insert({
+      let { error: insErr } = await supabase.from('teacher_commissions').insert({
         teacher_id: teacher.id,
         period_start: periodStartIso,
         period_end: periodEndIso,
         accrued_pence: teacherTakePence,
-        status: 'accruing',
+        status: 'held',
+        hold_until: holdUntil,
       })
-
+      if (insErr && isUnknownColumn(insErr)) {
+        ;({ error: insErr } = await supabase.from('teacher_commissions').insert({
+          teacher_id: teacher.id,
+          period_start: periodStartIso,
+          period_end: periodEndIso,
+          accrued_pence: teacherTakePence,
+          status: 'accruing',
+        }))
+      }
       if (insErr) {
         console.error('[paddle-webhook] Failed to insert teacher_commissions:', insErr)
         return
@@ -722,13 +1003,225 @@ async function handleTransactionPaidEvent(supabase: any, data: any): Promise<voi
   }
 
   console.log(
-    '[paddle-webhook] Accrued flat commission:',
+    '[paddle-webhook] Accrued HELD commission:',
     'teacher:',
     teacher.id,
     'period:',
     periodStartIso,
     '+',
     teacherTakePence,
-    'pence (£5 per attributed student)'
+    'pence (£5/attributed student); hold_until:',
+    holdUntil
+  )
+}
+
+// True when a Supabase/Postgres error indicates a column the migration adds is not
+// yet present (so the caller can retry without it — fail safe pre-migration).
+function isUnknownColumn(err: any): boolean {
+  return (
+    err?.code === '42703' ||
+    err?.code === 'PGRST204' ||
+    /column .* does not exist|could not find the .* column|schema cache/i.test(err?.message || '')
+  )
+}
+
+// ============================================
+// ADJUSTMENT EVENTS — refund / chargeback reversal
+// ============================================
+
+async function handleAdjustmentEvent(supabase: any, data: any): Promise<void> {
+  const action = (data.action || '').toLowerCase()
+
+  // chargeback_warning is ONLY an early alert that a chargeback MAY occur (and can
+  // itself be undone via chargeback_warning_reverse) — it takes no money. Cutting a
+  // still-paying student off on a warning is wrong, so we log it and do nothing.
+  if (action === 'chargeback_warning') {
+    console.log('[paddle-webhook] chargeback_warning (alert only, no revocation):', data.id)
+    return
+  }
+
+  // *_reverse actions UNDO a prior dispute → re-grant the entitlement (+ re-accrue).
+  const isReverse = action === 'chargeback_reverse' || action === 'chargeback_warning_reverse'
+  if (action !== 'refund' && action !== 'chargeback' && !isReverse) {
+    console.log('[paddle-webhook] adjustment (no reversal needed):', data.id, 'action:', action)
+    return
+  }
+
+  const subscriptionId = data.subscriptionId
+  if (!subscriptionId) {
+    console.log('[paddle-webhook] adjustment without subscription — skip:', data.id)
+    return
+  }
+
+  // Resolve our subscription → referral → teacher (same chain as accrual).
+  const { data: sub, error: subErr } = await supabase
+    .from('subscriptions')
+    .select('id, learner_id')
+    .eq('provider_subscription_id', subscriptionId)
+    .maybeSingle()
+  if (subErr) throw new Error(`adjustment subscription lookup failed: ${subErr.message}`)
+  if (!sub) {
+    console.log('[paddle-webhook] adjustment for unknown subscription:', subscriptionId)
+    return
+  }
+
+  const { data: referral, error: refErr } = await supabase
+    .from('teacher_referrals')
+    .select('class_id, locked_price_pence')
+    .eq('subscription_id', sub.id)
+    .maybeSingle()
+  if (refErr) throw new Error(`adjustment referral lookup failed: ${refErr.message}`)
+
+  // Decide what happens to the paid entitlement:
+  //  - reverse action → re-grant (a prior dispute was undone)
+  //  - chargeback     → revoke (the whole charge is disputed)
+  //  - refund         → revoke ONLY if it's a FULL refund. A partial/goodwill refund
+  //    leaves the Paddle subscription active, so over-revoking would cut off a live
+  //    payer until the next subscription.updated self-heals. Leave access intact.
+  let entitlementChange: 'revoke' | 'regrant' | 'none' = 'none'
+  if (isReverse) {
+    entitlementChange = 'regrant'
+  } else if (action === 'chargeback') {
+    entitlementChange = 'revoke'
+  } else {
+    entitlementChange = (await isFullRefund(data)) ? 'revoke' : 'none'
+  }
+
+  if (entitlementChange === 'none') {
+    console.log('[paddle-webhook] adjustment: partial refund, entitlement left intact:', data.id)
+    return
+  }
+
+  if (entitlementChange === 'revoke') {
+    const { error: subUpdErr } = await supabase
+      .from('subscriptions')
+      .update({ status: 'cancelled', cancel_at_period_end: true, updated_at: new Date().toISOString() })
+      .eq('id', sub.id)
+    if (subUpdErr) console.error('[paddle-webhook] adjustment: failed to revoke entitlement:', subUpdErr)
+    if (referral) {
+      await supabase
+        .from('teacher_referrals')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('subscription_id', sub.id)
+    }
+  } else {
+    // regrant: re-activate; a following subscription.updated will reconcile exact dates.
+    const { error: subUpdErr } = await supabase
+      .from('subscriptions')
+      .update({ status: 'active', cancel_at_period_end: false, updated_at: new Date().toISOString() })
+      .eq('id', sub.id)
+    if (subUpdErr) console.error('[paddle-webhook] adjustment: failed to re-grant entitlement:', subUpdErr)
+    if (referral) {
+      await supabase
+        .from('teacher_referrals')
+        .update({ status: 'active', updated_at: new Date().toISOString() })
+        .eq('subscription_id', sub.id)
+    }
+  }
+
+  // COMMISSION: only tutor referrals ever accrued (locked 1000).
+  if (!referral || referral.locked_price_pence !== 1000) {
+    console.log('[paddle-webhook] adjustment: entitlement', entitlementChange + 'ed,', 'no commission to adjust:', data.id)
+    return
+  }
+
+  // Resolve teacher via class.teacher_user_id → learners.user_id → teachers.id.
+  const { data: cls } = await supabase
+    .from('classes')
+    .select('teacher_user_id')
+    .eq('id', referral.class_id)
+    .maybeSingle()
+  if (!cls) {
+    console.error('[paddle-webhook] adjustment: class not found:', referral.class_id)
+    return
+  }
+  const { data: teacherLearner } = await supabase
+    .from('learners')
+    .select('id')
+    .eq('user_id', cls.teacher_user_id)
+    .maybeSingle()
+  if (!teacherLearner) return
+  const { data: teacher } = await supabase
+    .from('teachers')
+    .select('id')
+    .eq('learner_id', teacherLearner.id)
+    .maybeSingle()
+  if (!teacher) return
+
+  const reversePence = 500
+
+  // Reverse against the month the ORIGINAL payment landed in, derived from the
+  // adjustment's createdAt (best available signal). If the row is still held we
+  // subtract; if already paid out the RPC records a clawback (carry a negative).
+  const when = data.createdAt ? new Date(data.createdAt) : new Date()
+  const periodStart = new Date(Date.UTC(when.getUTCFullYear(), when.getUTCMonth(), 1))
+  const periodStartIso = periodStart.toISOString().slice(0, 10)
+
+  // A reverse action re-accrues the £5 (held again); a refund/chargeback claws it back.
+  if (entitlementChange === 'regrant') {
+    const periodEndIso = new Date(Date.UTC(when.getUTCFullYear(), when.getUTCMonth() + 1, 0))
+      .toISOString()
+      .slice(0, 10)
+    const holdUntil = new Date(when.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    const { error: reAccErr } = await supabase.rpc('accrue_teacher_commission_held', {
+      p_teacher_id: teacher.id,
+      p_period_start: periodStartIso,
+      p_period_end: periodEndIso,
+      p_pence: reversePence,
+      p_hold_until: holdUntil,
+    })
+    if (reAccErr) {
+      const missing =
+        reAccErr.code === 'PGRST202' ||
+        reAccErr.code === '42883' ||
+        /could not find the function|schema cache/i.test(reAccErr.message || '')
+      if (!missing) throw new Error(`re-accrue (reverse) RPC failed: ${reAccErr.message}`)
+      console.warn('[paddle-webhook] re-accrue RPC missing — commission not restored (pre-migration):', teacher.id, periodStartIso)
+    }
+    console.log('[paddle-webhook] Re-accrued commission for reversed dispute:', 'teacher:', teacher.id, 'period:', periodStartIso, '+', reversePence, 'pence; action:', action)
+    return
+  }
+
+  const { error: rpcErr } = await supabase.rpc('reverse_teacher_commission', {
+    p_teacher_id: teacher.id,
+    p_period_start: periodStartIso,
+    p_pence: reversePence,
+  })
+
+  if (rpcErr) {
+    const missing =
+      rpcErr.code === 'PGRST202' ||
+      rpcErr.code === '42883' ||
+      /could not find the function|schema cache/i.test(rpcErr.message || '')
+    if (!missing) throw new Error(`reverse_teacher_commission RPC failed: ${rpcErr.message}`)
+    // Pre-migration fallback: subtract from a still-recoverable row (floored at 0).
+    console.warn('[paddle-webhook] reverse RPC missing — falling back to read-then-write')
+    const { data: existing } = await supabase
+      .from('teacher_commissions')
+      .select('id, accrued_pence, status')
+      .eq('teacher_id', teacher.id)
+      .eq('period_start', periodStartIso)
+      .maybeSingle()
+    if (existing && (existing.status === 'held' || existing.status === 'accruing')) {
+      const next = Math.max(existing.accrued_pence - reversePence, 0)
+      await supabase
+        .from('teacher_commissions')
+        .update({ accrued_pence: next, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+    } else {
+      console.warn('[paddle-webhook] adjustment: commission already paid/absent, clawback not recorded (pre-migration):', teacher.id, periodStartIso)
+    }
+  }
+
+  console.log(
+    '[paddle-webhook] Reversed commission for refund/chargeback:',
+    'teacher:',
+    teacher.id,
+    'period:',
+    periodStartIso,
+    '-',
+    reversePence,
+    'pence; action:',
+    action
   )
 }
