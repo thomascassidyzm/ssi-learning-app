@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
+import { useUserRole } from '@/composables/useUserRole'
 import {
   TRACKS,
   coursesForTrack,
@@ -345,9 +346,16 @@ async function continueIn() {
         body: JSON.stringify({ display_name: dn || undefined, institution: inst || undefined }),
       })
     }
-    // Full navigation (not SPA) so the app re-initialises and reads the just-written
-    // role + entitlement fresh — avoids the role-cache singleton lagging behind the
-    // freshly-created school_admin and bouncing them to a "no access" screen.
+    // Drop the stale role cache from BEFORE this signup. The /schools (and
+    // /tutors/dashboard) router guard reads the role SYNCHRONOUSLY from the
+    // localStorage cache (restoreFromCache) and bounces a user with no school
+    // role to the player — and right after signup that cache still says
+    // "plain learner" (it predates the school_admin/teacher we just created),
+    // so the guard would race ahead of the fresh DB fetch and bounce them.
+    // Clearing it makes the guard fall through to the container, which then
+    // loads the just-written role authoritatively (same path as a normal reload
+    // for an existing admin). Then full navigation re-initialises the app.
+    useUserRole().clear()
     window.location.href = redirectTo.value
   } catch (e: any) {
     error.value = e?.message || 'Something went wrong'
