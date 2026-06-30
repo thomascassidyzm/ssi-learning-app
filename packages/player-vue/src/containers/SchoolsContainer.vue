@@ -428,9 +428,9 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
             </button>
 
             <div class="form-divider" />
-            <router-link to="/schools/setup" class="form-secondary form-secondary--link">
+            <a href="/schools1" class="form-secondary form-secondary--link">
               I'm setting up a new school →
-            </router-link>
+            </a>
             <router-link to="/tutors/dashboard" class="form-secondary form-secondary--link">
               I'm a tutor — go to my dashboard →
             </router-link>

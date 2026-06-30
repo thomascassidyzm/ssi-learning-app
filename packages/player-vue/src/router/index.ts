@@ -43,7 +43,6 @@ const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
 const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
-const StudentProgressView = () => import('@/views/schools/StudentProgressView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
 const UpgradeView = () => import('@/views/schools/UpgradeView.vue')
 // Teach (private tutor) views
@@ -186,15 +185,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
           title: 'Schools',
           description: 'All schools in group (govt admin)',
-        },
-      },
-      {
-        path: 'student-progress',
-        name: 'student-progress',
-        component: StudentProgressView,
-        meta: {
-          title: 'Student Progress',
-          description: 'Individual student progress view',
         },
       },
       {
