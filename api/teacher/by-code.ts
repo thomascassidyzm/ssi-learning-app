@@ -6,8 +6,13 @@
  *
  * Code is a `classes.student_join_code` (auto-generated ABC-123 format).
  *
- * Returns 404 if the code is unknown, the class is inactive, or the teacher's
- * referral link is inactive.
+ * Returns 404 in two distinguishable cases (both keep status 404 so existing
+ * consumers are unaffected, but carry a `reason` + friendly `message` a client
+ * can surface):
+ *   - reason 'not_found'   — the code matches no class (the link is wrong)
+ *   - reason 'unavailable' — the code matches a real class/teacher, but the
+ *                            class is inactive or the teacher has paused their
+ *                            referral link (the link is right, just not open)
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -49,8 +54,18 @@ export default async function handler(
       return
     }
 
-    if (!classRow || !classRow.is_active) {
-      res.status(404).json({ error: 'Class not found' })
+    if (!classRow) {
+      res.status(404).json({ error: 'Class not found', reason: 'not_found' })
+      return
+    }
+
+    if (!classRow.is_active) {
+      // The link is valid, but this class is no longer accepting students.
+      res.status(404).json({
+        error: 'Class unavailable',
+        reason: 'unavailable',
+        message: 'This teacher link is temporarily unavailable.',
+      })
       return
     }
 
@@ -62,7 +77,13 @@ export default async function handler(
       .maybeSingle()
 
     if (!learner) {
-      res.status(404).json({ error: 'Teacher not found' })
+      // The class exists, so the link itself is valid — the teacher account
+      // backing it just isn't resolvable right now.
+      res.status(404).json({
+        error: 'Class unavailable',
+        reason: 'unavailable',
+        message: 'This teacher link is temporarily unavailable.',
+      })
       return
     }
 
@@ -75,7 +96,13 @@ export default async function handler(
       .maybeSingle()
 
     if (!teacher || !teacher.referral_active) {
-      res.status(404).json({ error: 'Teacher not found' })
+      // The class/teacher are real; the teacher has paused or deactivated their
+      // referral link. Don't tell the learner their link is wrong.
+      res.status(404).json({
+        error: 'Class unavailable',
+        reason: 'unavailable',
+        message: 'This teacher link is temporarily unavailable.',
+      })
       return
     }
 

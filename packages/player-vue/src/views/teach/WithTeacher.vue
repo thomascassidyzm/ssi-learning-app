@@ -70,6 +70,7 @@ const seatsRemaining = ref<number | null>(null)
 const isFull = ref(false)
 const isLoading = ref(true)
 const notFound = ref(false)
+const unavailableMessage = ref<string | null>(null)
 
 // Auth state
 const userEmail = ref<string | null>(null)
@@ -115,7 +116,15 @@ async function loadClass() {
   try {
     const res = await fetch(`/api/teacher/by-code?code=${encodeURIComponent(code.value)}`)
     if (res.status === 404 || !res.ok) {
-      notFound.value = true
+      // Distinguish a genuinely wrong code ('not_found') from a valid link whose
+      // class/teacher referral is paused ('unavailable') — don't tell a learner
+      // their link is wrong when it isn't.
+      const body = await res.json().catch(() => null)
+      if (body?.reason === 'unavailable') {
+        unavailableMessage.value = body.message || 'This teacher link is temporarily unavailable.'
+      } else {
+        notFound.value = true
+      }
       return
     }
     const data = await res.json()
@@ -248,6 +257,17 @@ function cancelLogin() {
         <div class="loading-spinner"></div>
       </div>
 
+      <FrostCard v-else-if="unavailableMessage" variant="panel" class="join-card not-found">
+        <h1 class="frost-display">This link is temporarily unavailable.</h1>
+        <p class="not-found-copy">
+          {{ unavailableMessage }} Your teacher may have paused new sign-ups —
+          check back later, or ask them to re-open the class.
+        </p>
+        <router-link to="/" class="home-link">
+          <Button variant="primary">Go to SaySomethingin</Button>
+        </router-link>
+      </FrostCard>
+
       <FrostCard v-else-if="notFound" variant="panel" class="join-card not-found">
         <h1 class="frost-display">We couldn't find that class.</h1>
         <p class="not-found-copy">
@@ -318,8 +338,7 @@ function cancelLogin() {
         </div>
 
         <div v-if="isFull" class="error">
-          This class is full ({{ seatsRemaining }} seats remaining). Ask your teacher
-          to open another class.
+          This class is full. Ask your teacher to open another class.
         </div>
 
         <div v-else-if="checkoutError" class="error">{{ checkoutError }}</div>
