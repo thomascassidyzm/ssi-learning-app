@@ -933,22 +933,25 @@ const playFromIndex = async (index) => {
 
 /**
  * Build a mode queue from a list of { targetAudioId, knownAudioId } units.
- * The chosen speed is the "normal" rate (base); Drill's fast reps are 2× base.
  *   immersion — each unit's TARGET once at base speed.
- *   drill     — per unit: KNOWN once (hear the meaning), then TARGET ×3 at
- *               base · 2×base · 2×base (drill the target). Known is skipped
- *               when the unit has no known clip (the target reps still play).
+ *   drill     — per unit: TARGET first (the first hit is ALWAYS the target —
+ *               the learner meets the target before the meaning), then KNOWN
+ *               (hear the meaning), then TARGET twice more. All at base
+ *               (normal) speed. A unit with no target plays its known alone.
  */
 const buildModalQueue = (units) => {
   const base = playbackSpeed.value || 1
   const queue = []
   if (listenMode.value === 'drill') {
     for (const u of units) {
-      if (u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base })
-      if (!u.targetAudioId) continue
-      queue.push({ id: u.targetAudioId, rate: base })
-      queue.push({ id: u.targetAudioId, rate: 2 * base })
-      queue.push({ id: u.targetAudioId, rate: 2 * base })
+      if (u.targetAudioId) {
+        queue.push({ id: u.targetAudioId, rate: base })   // target first
+        if (u.knownAudioId) queue.push({ id: u.knownAudioId, rate: base }) // then meaning
+        queue.push({ id: u.targetAudioId, rate: base })   // target
+        queue.push({ id: u.targetAudioId, rate: base })   // target (twice after meaning)
+      } else if (u.knownAudioId) {
+        queue.push({ id: u.knownAudioId, rate: base })
+      }
     }
     return queue
   }
