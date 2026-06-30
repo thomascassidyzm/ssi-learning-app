@@ -78,7 +78,7 @@ const STEPS: Step[] = [
   { n: 1, title: 'Your school', desc: 'Name and region.' },
   { n: 2, title: 'Add staff', desc: 'Share your teacher join code.' },
   { n: 3, title: 'Choose courses', desc: 'Pick which languages to use for classes.' },
-  { n: 4, title: 'Create classes', desc: 'Group students, generate join codes.' },
+  { n: 4, title: 'Create classes', desc: 'Set up your first classes.' },
 ]
 
 const step = ref<1 | 2 | 3 | 4>(1)
@@ -465,8 +465,8 @@ onMounted(() => {
         <section v-else-if="step === 4" class="step-section">
           <h2 class="arsenal step-title">Create classes</h2>
           <p class="step-lede">
-            Each class gets a unique join code students enter to be added.
-            You can create more later from the dashboard.
+            Name your first classes and pick a course for each. You can add
+            students from each class page whenever you're ready.
           </p>
 
           <div v-if="classes.length > 0" class="existing-classes">
@@ -477,7 +477,6 @@ onMounted(() => {
                   <th>Name</th>
                   <th>Course</th>
                   <th>Students</th>
-                  <th>Join code</th>
                 </tr>
               </thead>
               <tbody>
@@ -485,7 +484,6 @@ onMounted(() => {
                   <td class="ssi-table-strong">{{ cls.class_name }}</td>
                   <td>{{ cls.course_code }}</td>
                   <td>{{ cls.student_count }}</td>
-                  <td class="ssi-table-code">{{ cls.student_join_code }}</td>
                 </tr>
               </tbody>
             </table>
@@ -519,7 +517,7 @@ onMounted(() => {
                   {{ courseDisplayName(g) }}
                 </option>
               </select>
-              <code v-if="draft.joinCode" class="class-draft-code">{{ draft.joinCode }}</code>
+              <span v-if="draft.saved" class="class-draft-saved">Added&nbsp;✓</span>
               <button
                 v-else
                 type="button"
@@ -1024,11 +1022,9 @@ onMounted(() => {
   border-color: rgba(31, 138, 91, 0.3);
 }
 
-.class-draft-code {
-  font-family: var(--font-mono, ui-monospace, monospace);
+.class-draft-saved {
   font-size: 12.5px;
   font-weight: 600;
-  letter-spacing: 0.05em;
   color: var(--schools-success);
   background: rgba(31, 138, 91, 0.1);
   padding: 6px 10px;

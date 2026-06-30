@@ -1,10 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { getLanguageName } from '@/composables/useI18n'
 
-const origin = typeof window !== 'undefined' ? window.location.origin : ''
-
-const props = defineProps({
+defineProps({
   isOpen: {
     type: Boolean,
     default: false
@@ -17,54 +14,11 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'goToClass'])
 
-const codeCopied = ref(false)
-const linkCopied = ref(false)
-
-// The real, working student join URL (route is /with/:code — NOT the old
-// hardcoded ssi.app/join placeholder).
-const shareUrl = computed(() =>
-  props.classData?.student_join_code ? `${origin}/with/${props.classData.student_join_code}` : '',
-)
-
-async function copyShareLink() {
-  if (!shareUrl.value) return
-  try {
-    await navigator.clipboard.writeText(shareUrl.value)
-    linkCopied.value = true
-    setTimeout(() => { linkCopied.value = false }, 2000)
-  } catch {
-    /* clipboard blocked — the link text is still visible to copy manually */
-  }
-}
-
 function getCourseName(code: string): string {
   // Parse target lang from course_code (e.g. "spa_for_eng" → "spa")
   const match = code.match(/^([a-z_]+?)_for_/)
   if (match) return getLanguageName(match[1])
   return code
-}
-
-async function copyJoinCode() {
-  if (!props.classData?.student_join_code) return
-  try {
-    await navigator.clipboard.writeText(props.classData.student_join_code)
-    codeCopied.value = true
-    setTimeout(() => { codeCopied.value = false }, 2000)
-  } catch {
-    // Fallback for older browsers
-    const el = document.createElement('textarea')
-    el.value = props.classData.student_join_code
-    document.body.appendChild(el)
-    el.select()
-    const ok = document.execCommand('copy')
-    document.body.removeChild(el)
-    // Only flash "Copied!" if the fallback actually copied — otherwise we'd
-    // tell the teacher the join code is on their clipboard when it isn't.
-    if (ok) {
-      codeCopied.value = true
-      setTimeout(() => { codeCopied.value = false }, 2000)
-    }
-  }
 }
 
 function handleOverlayClick(e: MouseEvent) {
@@ -119,33 +73,9 @@ function handleKeydown(e: KeyboardEvent) {
               {{ classData.class_name }} &middot; {{ getCourseName(classData.course_code) }}
             </p>
 
-            <!-- Join code display -->
-            <div class="join-code-display">
-              <span class="join-code">{{ classData.student_join_code }}</span>
-              <button
-                class="btn-copy"
-                :class="{ copied: codeCopied }"
-                @click="copyJoinCode"
-              >
-                <svg v-if="!codeCopied" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                </svg>
-                <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                <span>{{ codeCopied ? 'Copied!' : 'Copy' }}</span>
-              </button>
-            </div>
-
-            <div class="join-url">
-              <code class="url-code">{{ shareUrl }}</code>
-              <button class="btn-copy" :class="{ copied: linkCopied }" @click="copyShareLink">
-                <span>{{ linkCopied ? 'Copied!' : 'Copy link' }}</span>
-              </button>
-            </div>
-
-            <p class="share-hint">Send students the link (or the code above) and they join the class instantly.</p>
+            <p class="share-hint">
+              You can add students from the class page whenever you're ready.
+            </p>
           </div>
 
           <footer class="modal-footer">
