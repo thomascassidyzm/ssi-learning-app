@@ -139,6 +139,34 @@ const timeToNext = computed(() => {
   return `~${hours} hr`
 })
 
+// ── Position track (the "where you are in the Spotify track" read) ──
+// Gamification-done-right: show how FAR you've come (position), not how far's
+// left ("not there yet"). Pure position — completed seeds over the course total.
+const coursePercent = computed(() => {
+  if (!props.totalSeeds) return 0
+  return Math.round(Math.min(100, (props.completedSeeds / props.totalSeeds) * 100))
+})
+const positionPct = computed(() => {
+  if (!props.totalSeeds) return 0
+  return Math.min(100, (props.completedSeeds / props.totalSeeds) * 100)
+})
+// Belt zones laid along the course as faint colour bands — the "chapters" of
+// the track. A belt's share of the journey is proportional to its seed range.
+const beltSegments = computed(() => {
+  const total = props.totalSeeds || 668
+  const belts = BELTS.filter(b => b.seedsRequired < total)
+  return belts.map((b, i) => {
+    const start = b.seedsRequired
+    const end = i + 1 < belts.length ? belts[i + 1].seedsRequired : total
+    return {
+      name: b.name,
+      color: b.color,
+      leftPct: (start / total) * 100,
+      widthPct: ((end - start) / total) * 100,
+    }
+  })
+})
+
 // Format time
 const formattedTime = computed(() => {
   const mins = props.totalLearningMinutes
@@ -444,16 +472,26 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Belt label + progress -->
+          <!-- Position track — where you are in the journey (belt zones + playhead),
+               not a countdown. "Look how far you've come." -->
+          <div class="belt-track" role="img" :aria-label="`${coursePercent}% of the way through the course`">
+            <div
+              v-for="seg in beltSegments"
+              :key="seg.name"
+              class="belt-track-seg"
+              :style="{ left: seg.leftPct + '%', width: seg.widthPct + '%', '--seg': seg.color }"
+            ></div>
+            <div class="belt-track-fill" :style="{ width: positionPct + '%', background: currentBelt.color }"></div>
+            <div class="belt-track-head" :style="{ left: positionPct + '%', background: currentBelt.color }"></div>
+          </div>
+
+          <!-- Belt label + position (how far you've come, not how far's left) -->
           <div class="progress-meta">
             <span class="progress-belt-name" :style="{ color: currentBelt.color }">
               {{ currentBelt.name }} Belt
             </span>
-            <span v-if="nextBelt" class="progress-to-next">
-              {{ timeToNext }} to {{ nextBelt.name }}
-            </span>
-            <span v-else class="progress-to-next">
-              {{ completedSeeds }} / {{ totalSeeds }} seeds
+            <span class="progress-to-next">
+              {{ coursePercent }}% of the way
             </span>
           </div>
 
@@ -759,6 +797,44 @@ onMounted(() => {
 }
 
 /* Progress meta */
+/* Position track — a Spotify-scrubber read of where you are in the journey:
+   faint belt-coloured zones (the chapters), a solid fill to your position, and
+   a playhead. Position, not a "X to go" countdown. */
+.belt-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(15, 18, 18, 0.06);
+  overflow: hidden;
+  margin: 0.75rem 0 0.6rem;
+}
+.belt-track-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--seg);
+  opacity: 0.16; /* faint chapter tint across the whole journey */
+}
+.belt-track-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 999px;
+  opacity: 0.6; /* solid-ish fill up to where you are */
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.belt-track-head {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px var(--bg-card, #fff), 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: left 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .progress-meta {
   display: flex;
   align-items: baseline;
