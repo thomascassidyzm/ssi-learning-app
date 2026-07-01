@@ -16,7 +16,7 @@
  */
 import { inject, ref, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ResolvedAtom, SentenceClips } from './stage0Sequence'
+import type { ResolvedAtom, SentenceClips } from '@ssi/core/pods'
 
 interface AtomMapEntry {
   lego_key: string

@@ -35,9 +35,6 @@ import {
   stage0ViewFor,
   type Stage0Config,
   type AtomMapEntry,
-} from './stage0Sequence'
-import { splitRowUnits } from './podSentenceSplit'
-import {
   ROLE_SPEED,
   isTargetRole,
   buildStage0Tier,
@@ -46,7 +43,8 @@ import {
   type PodPlayRole,
   type PodPlay,
   type PodSentenceRow,
-} from './podStageComposition'
+} from '@ssi/core/pods'
+import { splitRowUnits } from './podSentenceSplit'
 
 // Re-export the moved symbols so existing importers (LearningPlayer,
 // ListeningOverlay, PodStageAuditioner, tests) keep their import paths.
@@ -56,7 +54,7 @@ export {
   type PodPlayRole,
   type PodPlay,
   type PodSentenceRow,
-} from './podStageComposition'
+} from '@ssi/core/pods'
 
 // ============================================================================
 // Pod stage logic — mirrors what was in generateLearningScript.ts
