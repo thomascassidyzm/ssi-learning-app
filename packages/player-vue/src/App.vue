@@ -208,8 +208,32 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
   }
 }
 
-// Eager script preload - fires as soon as course is known
+// Eager script preload - the FULL course-wide walk (generateLearningScript).
+// It is NOT on the critical path to first play: the instant-playback bootstrap
+// (round-map + first-round cycles) is what makes the player interactive, and it
+// runs independently. Firing the full walk's six course-wide queries at course
+// open used to STARVE that bootstrap — first play slid to 4-5s and the player's
+// buttons stayed dead until the walk finished. So we schedule the walk on idle,
+// after the bootstrap has claimed the network. It still lands well before the
+// learner reaches INF-PLAY / Listening (its only real consumers).
 const eagerScript = useEagerScriptPreload()
+
+// requestIdleCallback with a setTimeout fallback (Safari lacked rIC until 16.4).
+// Used to push the deferred full-course walk off the cold-start critical path.
+const scheduleIdle = (fn, timeout = 2000) => {
+  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(fn, { timeout })
+  } else {
+    setTimeout(fn, 0)
+  }
+}
+const deferEagerPreload = (client, code) => {
+  scheduleIdle(() => {
+    if (eagerScript.courseCode.value !== code || !eagerScript.scriptResult.value) {
+      eagerScript.preload(client, code)
+    }
+  })
+}
 
 // Invite code composable (singleton)
 const inviteCode = useInviteCode()
@@ -275,9 +299,10 @@ const handleCourseSelect = async (course) => {
     })
   }
 
-  // Fire eager script preload for new course (skip if already cached)
+  // Defer the full-course walk to idle so it doesn't contend with the instant
+  // bootstrap warmed just below (the actual first-play path).
   if (supabaseClient.value && eagerScript.courseCode.value !== courseCode) {
-    eagerScript.preload(supabaseClient.value, courseCode)
+    deferEagerPreload(supabaseClient.value, courseCode)
   }
 
   // Warm the instant-playback caches (round-map + first-round cycles) BEFORE the
@@ -440,8 +465,9 @@ const fetchEnrolledCourses = async () => {
         }
         console.log('[App] Course:', defaultCourse.course_code)
 
-        // Fire eager script preload immediately (fire-and-forget)
-        eagerScript.preload(supabaseClient.value, defaultCourse.course_code)
+        // Defer the full-course walk to idle (see deferEagerPreload) so it
+        // never starves the instant bootstrap on cold start.
+        deferEagerPreload(supabaseClient.value, defaultCourse.course_code)
       }
     }
   } catch (err) {

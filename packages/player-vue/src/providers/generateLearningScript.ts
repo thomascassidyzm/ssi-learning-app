@@ -255,8 +255,18 @@ function sampleWithoutReplacement<T>(arr: T[], n: number, rng: () => number = Ma
   return a.slice(0, n)
 }
 
+// Deliberately EXCLUDES the two heavy JSON columns `decomposition` and
+// `display_tiling`. Across a big course's 15-17k phrase rows those two
+// dominate the payload, yet the full-course walk only needs them for the
+// handful of rounds actually RENDERED — and rendering is served per-round by
+// the instant-playback /cycles path (useInstantPlayback → backendCyclesToRounds),
+// which fetches both columns for exactly the rounds on screen. Pulling them
+// across the whole course here was pure up-front tax. Script items generated
+// from this fetch simply omit decomposition/displayTiling (nativeFields guards
+// on presence); any round that reaches the screen gets its authored tiling from
+// /cycles. See the course-load-window fix.
 const PRACTICE_PHRASE_COLUMNS =
-  'seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce, decomposition, display_tiling'
+  'seed_number, lego_index, known_text, target_text, target_text_roman, phrase_role, target_syllable_count, position, known_audio_id, target1_audio_id, target2_audio_id, presentation_audio_id, target1_duration_ms, target2_duration_ms, introduce'
 
 /**
  * Fetch ALL course_practice_phrases for a course, paginated.
