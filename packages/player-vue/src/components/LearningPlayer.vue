@@ -140,6 +140,19 @@ function hashStringToSeed(str: string): number {
   return h >>> 0
 }
 
+// requestIdleCallback with a setTimeout fallback (Safari < 16.4). Used to push
+// the deferred full-course walk (generateScript handoff) off the cold-start
+// critical path so it can't starve the instant bootstrap. The timeout ceiling
+// guarantees the walk still runs even on a busy main thread — it lands long
+// before the learner reaches the INF-PLAY boundary that consumes its output.
+function scheduleIdleTask(fn: () => void, timeout = 2000): void {
+  if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
+    ;(window as any).requestIdleCallback(fn, { timeout })
+  } else {
+    setTimeout(fn, 0)
+  }
+}
+
 /**
  * Near-edge top-up threshold for the instant-playback path: when the
  * learner's current round is within this many rounds of the loaded
@@ -10756,69 +10769,70 @@ onMounted(async () => {
 
           // Main-loop handoff path below.
           //
-          // The bootstrap above gave us ~5 minutes of audio to play
-          // with, which is plenty for the generator to walk the whole
-          // course. When it lands we replace SimplePlayer's queue
-          // past the currently-playing round with the full local
-          // script — every subsequent round is locally constructed,
-          // so no per-round network calls, graceful degradation into
-          // infplay when audio's missing, offline-mode-capable as the
-          // audio cache fills in.
-          void generateScript()
+          // DEFERRED + NON-CLOBBERING (course-load-window fix). The full
+          // course-wide walk (generateScript) is NOT on the critical path to
+          // first play — the bootstrap above already gave us audio, and the
+          // near-edge tier-3 watcher keeps serving subsequent main-loop rounds
+          // per-round via /cycles (WITH their authored decomposition/display_tiling,
+          // which the walk deliberately no longer fetches). So:
+          //   1. We schedule the walk on IDLE, after the first cycle is playing,
+          //      so its six course-wide queries never starve the bootstrap. The
+          //      buttons go live the instant the bootstrap finishes (dataReady is
+          //      set below, NOT gated on this walk).
+          //   2. The walk's output is used for the audio-aware boundary
+          //      (liveMainLoopRoundCount — INF-PLAY entry needs it), for the
+          //      warm-start cache, and for the stale-matview resume repair. It
+          //      does NOT blanket-replace the live queue: replaceQueueFromCurrent
+          //      pre-empts tier-3 (appendRounds dedupes by roundNumber), which
+          //      would permanently strip the authored tiling tier-3 supplies. We
+          //      only swap the queue in when the resume repair actually needs
+          //      fullRounds as its jump target (the fra/spa stale-matview case —
+          //      Latin-script courses where runtime decomposition is fine).
+          const runFullScriptHandoff = () => generateScript()
             .then(async (result) => {
               const fullRounds = toSimpleRoundsWithComponents(result.items) as any[]
               if (fullRounds.length === 0) {
-                console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on API path')
+                console.warn('[InstantPlayback] Full-script gen returned 0 rounds — staying on /cycles path')
                 return
               }
               // SINGLE-SOURCE THE BOUNDARY on the live, audio-aware extent the
-              // generator just computed. MUST run BEFORE the ∞-entry early-return
-              // below: a mid-walk INF-PLAY tap drops the rest of this handoff, but
-              // the live count is still the truth for that session and every
-              // downstream boundary read (advanceInfPlayRound, tail wrap, pod
-              // cadence) needs it set. Setting it here lets fra/spa — whose
-              // matview is frozen short of the real audio'd end — actually reach
-              // the true tail and enter INF PLAY.
+              // generator just computed. MUST run BEFORE the ∞-entry guard below:
+              // a mid-walk INF-PLAY tap drops the queue swap, but the live count
+              // is still the truth for that session and every downstream boundary
+              // read (advanceInfPlayRound, tail wrap, pod cadence) needs it set.
+              // This lets fra/spa — whose matview is frozen short of the real
+              // audio'd end — actually reach the true tail and enter INF PLAY.
               if (result.mainLoopRoundCount > 0) {
                 liveMainLoopRoundCount.value = result.mainLoopRoundCount
               }
-              // Guard: this main-loop handoff was kicked off while the learner
-              // was in MAIN. If they tapped ∞ during the multi-second walk,
-              // the live queue is now the deterministic INF-PLAY revival set
-              // and a replaceQueueFromCurrent here would swap a live INF-PLAY
-              // phrase for a main-loop LEGO-intro mid-stream (the "mid-stream
-              // LEGO-intro on first entry" bug). enterInfPlay has already
-              // built the revival rounds it needs, so just drop this stale
-              // handoff. Tom 2026-05-29.
-              if (currentMode.value === 'infplay') {
-                console.log('[InstantPlayback] Full-script handoff arrived after ∞ entry — dropping stale main-loop swap')
-                return
-              }
-              simplePlayer.replaceQueueFromCurrent(fullRounds)
-              // Mirror into the legacy ref so saveRoundProgress's
-              // cachedRounds walk (and any other consumer reading the
-              // alias) has the full course in scope, not just the
-              // bootstrap window.
+              // Mirror the full course into the legacy ref so saveRoundProgress's
+              // cachedRounds walk (text/progress only) has the whole course in
+              // scope, not just the loaded window. This is text metadata — it does
+              // not touch the live playback queue or its authored tiling.
               cachedRounds.value = fullRounds
-              console.log(`[InstantPlayback] Full-script handoff: ${fullRounds.length} rounds local, no further per-round network needed`)
 
-              // STALE-MATVIEW RESUME REPAIR. resolveStartLegoId resolved the
-              // bootstrap landing against the course_round_index matview. For a
-              // learner whose saved cursor sits PAST a stale matview MAX (fra/spa:
-              // matview frozen short of the audio'd end), the cursor wasn't in the
-              // matview → the resolver fell to the ceiling (also past the matview →
-              // also unresolvable) → R1. The learner was stranded at the start of
-              // the course. Now that the full audio-aware script has landed,
-              // re-resolve their DB cursor (then ceiling) against fullRounds and
-              // jump there if the bootstrap landed somewhere else. Main-loop only;
-              // guarded so a learner who navigated during the multi-second walk
-              // isn't yanked, and a correct bootstrap landing is a no-op.
-              try {
-                if (inferEnrollmentMode === 'main') {
+              // Guard: if the learner tapped ∞ during the walk, the live queue is
+              // the deterministic INF-PLAY revival set — never repair/swap it (the
+              // "mid-stream LEGO-intro on first entry" bug). The boundary + cache
+              // below still apply. Tom 2026-05-29.
+              if (currentMode.value === 'infplay') {
+                console.log('[InstantPlayback] Full-script handoff arrived after ∞ entry — skipping main-loop repair')
+              } else if (inferEnrollmentMode === 'main') {
+                // STALE-MATVIEW RESUME REPAIR. resolveStartLegoId resolved the
+                // bootstrap landing against the course_round_index matview. For a
+                // learner whose saved cursor sits PAST a stale matview MAX (fra/spa:
+                // matview frozen short of the audio'd end), the cursor wasn't in the
+                // matview → the resolver fell to the ceiling (also unresolvable) →
+                // R1, stranding them at the course start. Now that the full
+                // audio-aware script has landed, re-resolve their DB cursor (then
+                // ceiling) against fullRounds and jump there. This is the ONLY case
+                // that needs fullRounds to become the live queue, so the queue swap
+                // lives inside this branch — a correct bootstrap landing (the common
+                // case, and every CJK course, whose matview is not stale) leaves the
+                // tier-3 /cycles queue and its authored tiling untouched.
+                try {
                   const findInFull = (lego: string | null) =>
                     lego ? fullRounds.findIndex((r: any) => r?.legoId === lego) : -1
-                  // Where the player currently sits after the queue replace
-                  // (replaceQueueFromCurrent preserves the current round).
                   const landedLegoId = simplePlayer.currentRound?.value?.legoId ?? startedAtLegoId
                   const landedIdx = findInFull(landedLegoId)
                   // The learner's TRUE position: cursor first, then ceiling.
@@ -10828,25 +10842,25 @@ onMounted(async () => {
                     trueIdx = findInFull(inferCeilingLegoId)
                     trueCycle = 0
                   }
-                  // Only repair when the true position resolves in the full
-                  // script AND it's strictly AHEAD of where the bootstrap landed
-                  // (the stale-matview fallback always lands EARLIER — R1/ceiling
-                  // — never past the real cursor). Equal/behind = leave alone, so
-                  // a correct landing or a learner who stepped forward is never
-                  // disturbed.
+                  // Only repair when the true position resolves in the full script
+                  // AND is strictly AHEAD of where the bootstrap landed (the stale-
+                  // matview fallback always lands EARLIER — R1/ceiling — never past
+                  // the real cursor). Equal/behind = leave alone, so a correct
+                  // landing or a learner who stepped forward is never disturbed.
                   if (trueIdx >= 0 && (landedIdx < 0 || trueIdx > landedIdx)) {
-                    // Same gap rule as the other cursor-resume paths: a real
-                    // break restarts the round rather than the exact cycle.
-                    // FAIL CLOSED: no trustworthy timestamp → restart the round.
+                    // Repair required → make fullRounds the engine queue, then jump.
+                    simplePlayer.replaceQueueFromCurrent(fullRounds)
+                    // Same gap rule as the other cursor-resume paths: a real break
+                    // restarts the round rather than the exact cycle. FAIL CLOSED:
+                    // no trustworthy timestamp → restart the round.
                     if (trueCycle > 0) {
                       const ts = savedLastPracticedAt.value
                       if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) trueCycle = 0
                     }
                     const trueLegoId = fullRounds[trueIdx]?.legoId
-                    console.log(`[InstantPlayback] Stale-matview resume repair: bootstrap landed at ${landedLegoId} (idx ${landedIdx}); true position ${trueLegoId} (idx ${trueIdx} cycle ${trueCycle}) — jumping`)
-                    // fullRounds is now the engine's queue (post replaceQueueFromCurrent),
-                    // so trueIdx is a valid engine index — single jump, preserving the
-                    // resume cycle (jumpToLegoId can't carry a cycle).
+                    console.log(`[InstantPlayback] Stale-matview resume repair: bootstrap landed at ${landedLegoId} (idx ${landedIdx}); true position ${trueLegoId} (idx ${trueIdx} cycle ${trueCycle}) — swapping queue + jumping`)
+                    // fullRounds is now the engine's queue, so trueIdx is a valid
+                    // engine index — single jump, preserving the resume cycle.
                     simplePlayer.jumpToRound(trueIdx, trueCycle)
                     instantPlayback.setCurrentLegoId(trueLegoId ?? landedLegoId)
                     if (trueLegoId && beltProgress.value?.setLastLegoId) beltProgress.value.setLastLegoId(trueLegoId)
@@ -10855,20 +10869,17 @@ onMounted(async () => {
                       if (seed !== null) beltProgress.value.setPlayingPosition(seed)
                     }
                   }
+                } catch (repairErr) {
+                  console.warn('[InstantPlayback] Stale-matview resume repair failed (non-fatal):', repairErr)
                 }
-              } catch (repairErr) {
-                console.warn('[InstantPlayback] Stale-matview resume repair failed (non-fatal):', repairErr)
               }
 
-              // Cache for warm-start. Until this commit the script cache
-              // was never written — setCachedScript was imported but
-              // never called (lost in ff6a4756's deprecation cleanup,
-              // Feb 2026). With this restored, the next cold start hits
-              // localStorage and skips the 3-8s generateScript walk,
-              // and welcome metadata + course shape are available
-              // instantly offline. The audio map is stripped on write
-              // (audioRefs live on the items already), so cache stays
-              // under the 5MB localStorage budget. Tom 2026-05-25.
+              // Cache for warm-start — always, independent of whether the queue
+              // was swapped. The next cold start hits localStorage and skips the
+              // generateScript walk; welcome metadata + course shape + the audio-
+              // aware boundary are available instantly offline. The audio map is
+              // stripped on write (audioRefs live on the items already), so the
+              // cache stays under the 5MB localStorage budget.
               try {
                 await setCachedScript(courseCode.value, {
                   rounds: fullRounds,
@@ -10887,8 +10898,14 @@ onMounted(async () => {
               }
             })
             .catch((err) => {
-              console.warn('[InstantPlayback] Full-script background gen failed, API path remains the fallback:', err)
+              console.warn('[InstantPlayback] Full-script background gen failed, /cycles path remains the fallback:', err)
             })
+
+          // Fire the walk on idle so it can't contend with the bootstrap. The
+          // player is already interactive (dataReady set below) — the walk lands
+          // in the background well before the learner nears the INF-PLAY boundary
+          // that consumes its output.
+          scheduleIdleTask(() => { void runFullScriptHandoff() })
 
           // Mark position + data ready and skip the legacy load
           // entirely. The flag-on branch is now the only source of
