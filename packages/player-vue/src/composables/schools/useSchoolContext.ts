@@ -23,7 +23,10 @@ import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSchoolsClient } from './client'
 
-export type EducationalRole = 'student' | 'teacher' | 'school_admin' | 'govt_admin'
+// 'tutor' = the freelance (no-school) teacher role provision.ts writes —
+// deliberately distinct from the school 'teacher' so /schools guards can
+// bounce tutors to their own dashboard instead of the member wall.
+export type EducationalRole = 'student' | 'teacher' | 'tutor' | 'school_admin' | 'govt_admin'
 
 export interface SchoolUser {
   user_id: string
@@ -149,12 +152,16 @@ export function useSchoolContext() {
         }
       }
     } else if (['school_admin', 'teacher'].includes(learner.educational_role || '')) {
+      // Deterministic when a user belongs to 2+ schools: without an ORDER BY
+      // the picked school could flip between sessions (limit(1) on an
+      // unordered read). First-joined wins, stably.
       const { data: tag } = await c
         .from('user_tags')
         .select('tag_value')
         .eq('user_id', userId)
         .eq('tag_type', 'school')
         .is('removed_at', null)
+        .order('added_at', { ascending: true })
         .limit(1)
         .single()
 

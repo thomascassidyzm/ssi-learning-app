@@ -32,8 +32,13 @@ export default async function handler(
     return
   }
 
-  const displayName = typeof req.body?.display_name === 'string' ? req.body.display_name.trim() : ''
-  const institution = typeof req.body?.institution === 'string' ? req.body.institution.trim() : ''
+  // Length caps: these land verbatim in dashboard headers and roster labels —
+  // an unbounded string is a UI-breakage vector, not a security one (writes
+  // are already scoped to the caller's own rows).
+  const displayName =
+    typeof req.body?.display_name === 'string' ? req.body.display_name.trim().slice(0, 120) : ''
+  const institution =
+    typeof req.body?.institution === 'string' ? req.body.institution.trim().slice(0, 200) : ''
 
   if (!displayName && !institution) {
     res.status(200).json({ ok: true, updated: false })

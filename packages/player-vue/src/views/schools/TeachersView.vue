@@ -230,7 +230,7 @@ watch(selectedUser, (newUser) => {
       <div class="schools-card schools-card-pad tip-card">
         <div class="schools-kicker">Tip &mdash; invite codes</div>
         <p class="tip-body">
-          Teachers join via a one-time code from your school. The link in the invite expires after 14 days; resending refreshes it.
+          Anyone with your school's join code appears here as a teacher once they sign in — so share it only with your staff. You can remove a teacher from their row at any time.
         </p>
       </div>
       <div class="schools-card schools-card-pad tip-card">

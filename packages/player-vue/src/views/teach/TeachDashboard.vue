@@ -5,7 +5,7 @@ import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
-import { courseLabel, type LiveCourse } from '@/lib/onboardingTracks'
+import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
@@ -17,6 +17,8 @@ interface Teacher {
   referral_active: boolean
   own_subscription_id: string | null
   teaching_languages: string[] | null
+  platform_status: string | null
+  platform_expires_at: string | null
 }
 
 interface TeacherClass {
@@ -101,8 +103,14 @@ const MAX_CLASSES = 10
 const MAX_STUDENTS_PER_CLASS = 20
 const PAYOUT_THRESHOLD_PENCE = 10000 // £100
 
-const hasSubscription = computed(
-  () => !!subscription.value && subscription.value.status !== 'none'
+// Paid TUTOR-PLATFORM subscription — read from the teacher row's platform
+// columns, NOT the generic /api/subscription row: that single-row-per-learner
+// record is also written by £15 learner-premium and £10/£5 student purchases,
+// so an unscoped check unlocked the full teaching catalogue for a trial tutor
+// who merely paid as a STUDENT in someone else's class. past_due counts as
+// subscribed (a live Paddle sub mid-dunning — manage it, don't re-buy it).
+const hasSubscription = computed(() =>
+  ['active', 'past_due'].includes(teacher.value?.platform_status || '')
 )
 const subscriptionStatus = computed(() => subscription.value?.status || 'none')
 
@@ -144,7 +152,23 @@ const totalStudents = computed(() =>
   classes.value.reduce((sum, c) => sum + (rosterByClass.value[c.id]?.length || 0), 0)
 )
 
-const monthlyEarningsEstimate = computed(() => totalStudents.value * COMMISSION_PER_STUDENT)
+// Commission only accrues on PAID student subscriptions — students in
+// free/community-course classes never generate one, so counting the whole
+// roster promised an earning rate that would never pay out. Until the live
+// catalogue loads we can't tell tiers apart; fall back to the naive count.
+const monthlyEarningsEstimate = computed(() => {
+  if (!liveCourses.value.length) return totalStudents.value * COMMISSION_PER_STUDENT
+  const paidCourses = new Set(
+    liveCourses.value.filter((c) => !isFreeTier(c)).map((c) => c.course_code)
+  )
+  return classes.value.reduce(
+    (sum, c) =>
+      paidCourses.has(c.course_code)
+        ? sum + (rosterByClass.value[c.id]?.length || 0) * COMMISSION_PER_STUDENT
+        : sum,
+    0
+  )
+})
 
 const accruedPounds = computed(() => (accruedPence.value / 100).toFixed(2))
 const pendingPounds = computed(() => (pendingPence.value / 100).toFixed(2))
@@ -339,10 +363,12 @@ onMounted(loadAll)
 
 async function startTrial() {
   if (isStartingTrial.value) return
-  // Double-subscribe guard: an already-active tutor must never open a SECOND
+  // Double-subscribe guard: an already-paid tutor must never open a SECOND
   // checkout (that creates a second Paddle subscription = double-bill). Route
-  // them to the billing portal to manage the existing one instead.
-  if (subscriptionStatus.value === 'active' || subscriptionStatus.value === 'past_due') {
+  // them to the billing portal to manage the existing one instead. Keyed on
+  // the PLATFORM columns (hasSubscription), not the generic subscription row —
+  // a learner-premium-only tutor must still be able to buy the platform.
+  if (hasSubscription.value) {
     void openPortal()
     return
   }
@@ -398,16 +424,26 @@ async function startTrial() {
 async function openPortal() {
   if (isOpeningPortal.value) return
   isOpeningPortal.value = true
+  checkoutError.value = ''
   try {
     const token = await getAuthToken()
-    if (!token) return
+    if (!token) {
+      checkoutError.value = 'Sign in again to manage your subscription'
+      return
+    }
     const res = await fetch('/api/teacher/portal', {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (res.ok) {
       const data = await res.json()
-      if (data.portalUrl) window.location.href = data.portalUrl
+      if (data.portalUrl) {
+        window.location.href = data.portalUrl
+        return
+      }
     }
+    // Surface the failure — a silent no-op here left declined-card tutors
+    // clicking "Update payment method" into the void.
+    checkoutError.value = 'Could not open the billing portal — try again or contact us'
   } finally {
     isOpeningPortal.value = false
   }
@@ -637,19 +673,13 @@ async function submitRecipient() {
         </Button>
       </div>
 
-      <div v-else-if="subscriptionStatus === 'active'" class="sub-status-row">
-        <div>
-          <p class="sub-status-label">Active</p>
-          <p v-if="nextChargeDate" class="sub-status-sub">
-            Next charge: <strong>{{ nextChargeDate }}</strong>
-          </p>
-        </div>
-        <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
-          Manage subscription
-        </Button>
-      </div>
-
-      <div v-else-if="subscriptionStatus === 'past_due'" class="sub-status-row past-due">
+      <!-- Payment trouble first (platform column is authoritative; the generic
+           row is a fallback), then cancelled, then a catch-all Active/manage
+           row — a paying tutor must ALWAYS have a manage control here. -->
+      <div
+        v-else-if="teacher?.platform_status === 'past_due' || subscriptionStatus === 'past_due'"
+        class="sub-status-row past-due"
+      >
         <div>
           <p class="sub-status-label">Payment failed</p>
           <p class="sub-status-sub">Your card was declined. Please update your payment method.</p>
@@ -664,6 +694,18 @@ async function submitRecipient() {
           <p class="sub-status-label">Cancelled</p>
           <p v-if="nextChargeDate" class="sub-status-sub">
             Access continues until <strong>{{ nextChargeDate }}</strong>.
+          </p>
+        </div>
+        <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
+          Manage subscription
+        </Button>
+      </div>
+
+      <div v-else class="sub-status-row">
+        <div>
+          <p class="sub-status-label">Active</p>
+          <p v-if="nextChargeDate" class="sub-status-sub">
+            Next charge: <strong>{{ nextChargeDate }}</strong>
           </p>
         </div>
         <Button variant="ghost" :loading="isOpeningPortal" @click="openPortal">
