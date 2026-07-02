@@ -410,7 +410,12 @@ const generateScript = (
   if (!supabase?.value) {
     return Promise.reject(new Error('No supabase client'))
   }
-  const dedupeKey = `${courseCode.value}|${Math.max(infPlayLookahead.value, infPlayLookaheadFloor())}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
+  // Key on the RAW lookahead counter, not the config-derived floor: at mount
+  // the floor can change mid-race (algorithm config landing between the
+  // expansion watcher's call and the handoff's) which would split the key and
+  // defeat the dedupe — while the counter only moves when INF-PLAY expansion
+  // deliberately bumps it, which is exactly when a fresh walk IS wanted.
+  const dedupeKey = `${courseCode.value}|${infPlayLookahead.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
   if (inFlightScript && inFlightScript.key === dedupeKey) {
     return inFlightScript.promise
   }
