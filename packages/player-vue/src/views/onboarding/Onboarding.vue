@@ -195,6 +195,10 @@ const busy = ref(false)
 const error = ref('')
 const otpVerified = ref(false)
 const coursesLoaded = ref(false)
+// Provision 409s ("trial already used — subscribe") must not dead-end on the
+// OTP step: the user is already OTP-verified, so offer a real way through —
+// straight into their dashboard, where the platform gate routes to checkout.
+const requiresCheckout = ref(false)
 
 // done-step state
 const trial = ref<{ course_code: string; expires_at: string; days: number } | null>(null)
@@ -226,11 +230,14 @@ const selectedCourseObj = computed(
   () => trackCourses.value.find((x) => x.course_code === selectedCourse.value) || null
 )
 // Platform-trial length is decided per course, server-side too (provision.ts):
-// Welsh OR any free/community course → 1 year; every other (premium) course →
-// 1 month. We don't surface "free vs premium" upfront — the learner picks a
-// language, then we tell them their trial.
+// SCHOOL track: Welsh OR any free/community course → 1 year; every other
+// (premium) course → 1 month. TUTOR track: 1 month ALWAYS, regardless of course
+// (provisionTutorPlatformTrial) — promising 365 here and delivering 30 on the
+// done screen would break trust at the door. We don't surface "free vs premium"
+// upfront — the learner picks a language, then we tell them their trial.
 function trialDaysFor(course: { course_code?: string; pricing_tier?: string } | null): number {
   if (!course) return 30
+  if (props.track === 'tutor') return 30
   const isWelsh = (course.course_code || '').startsWith('cym')
   return isWelsh || isFreeTier(course as any) ? 365 : 30
 }
@@ -274,6 +281,7 @@ async function sendCode() {
   if (!canSend.value || !supabase.value) return
   busy.value = true
   error.value = ''
+  requiresCheckout.value = false
   try {
     const { error: e } = await supabase.value.auth.signInWithOtp({ email: email.value.trim() })
     if (e) {
@@ -317,6 +325,7 @@ async function verify() {
     const data = await res.json()
     if (!res.ok) {
       error.value = data.error || 'We could not finish setting up your account'
+      requiresCheckout.value = !!data.requires_checkout
       return
     }
     // Show the PLATFORM trial window (the school/tutor's free period: 365 or 30
@@ -330,6 +339,14 @@ async function verify() {
   } finally {
     busy.value = false
   }
+}
+
+// The 409 escape: already-verified user whose trial is burned/used goes to
+// their dashboard. Same stale-role-cache clear as continueIn (the guard would
+// otherwise bounce on the pre-signup "plain learner" cache).
+function goToDashboard() {
+  useUserRole().clear()
+  window.location.href = props.track === 'tutor' ? '/tutors/dashboard' : '/schools'
 }
 
 async function continueIn() {
@@ -660,7 +677,21 @@ async function continueIn() {
 
           <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
 
+          <!-- "Trial already used" 409: the account is verified, so the way
+               forward is their dashboard (its gate routes to checkout) — not
+               retrying the code. -->
           <Button
+            v-if="requiresCheckout"
+            variant="primary"
+            size="lg"
+            block
+            :loading="busy"
+            @click="goToDashboard"
+          >
+            Go to your school dashboard
+          </Button>
+          <Button
+            v-else
             variant="primary"
             size="lg"
             block

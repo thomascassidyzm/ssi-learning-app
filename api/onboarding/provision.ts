@@ -297,6 +297,13 @@ export default async function handler(
         schoolId = school.id
       }
 
+      // Register the trigger-generated join codes in invite_codes — redemption
+      // (/api/code/validate) reads invite_codes, NOT schools.teacher_join_code,
+      // so an unregistered code is shown to the admin but can never be redeemed
+      // (the silent-failure class api/admin/create-school.ts fixed for the admin
+      // path). Runs on every provision (not just create) so pre-fix schools heal.
+      await ensureJoinCodesRegistered(supabase, schoolId, auth.userId)
+
       // ONE trialled language per school. A second DIFFERENT course on a school
       // that already trialled (and isn't paying) must go through checkout, not a
       // fresh free trial. Same course = idempotent re-call → fine.
@@ -413,6 +420,45 @@ async function burnTrial(
   // Any other DB error: fail open (don't block onboarding on the burn ledger).
   console.warn('[onboarding/provision] trial-burn insert failed (fail-open):', error.code, error.message)
   return { burned: false, schemaUnavailable: true }
+}
+
+/**
+ * Ensure the school's join codes exist in invite_codes so they can actually be
+ * redeemed. Idempotent (ON CONFLICT code DO NOTHING) — safe on re-provision.
+ * Non-fatal: signup must not die on the invite ledger, but failures are logged
+ * loudly because a missing row means "Invalid code" for every invited teacher.
+ */
+async function ensureJoinCodesRegistered(
+  supabase: any,
+  schoolId: string,
+  createdBy: string,
+): Promise<void> {
+  const { data: school, error: readErr } = await supabase
+    .from('schools')
+    .select('teacher_join_code, admin_join_code')
+    .eq('id', schoolId)
+    .maybeSingle()
+  if (readErr || !school) {
+    console.error('[onboarding/provision] join-code read failed:', readErr?.message)
+    return
+  }
+  const rows = [
+    { code: school.teacher_join_code, code_type: 'teacher' },
+    { code: school.admin_join_code, code_type: 'school_admin_join' },
+  ]
+    .filter((r) => !!r.code)
+    .map((r) => ({ ...r, created_by: createdBy, grants_school_id: schoolId, is_active: true }))
+  if (!rows.length) return
+  const { error } = await supabase
+    .from('invite_codes')
+    .upsert(rows, { onConflict: 'code', ignoreDuplicates: true })
+  if (error) {
+    console.error(
+      '[onboarding/provision] join-code registration failed (invites will not redeem):',
+      error.code,
+      error.message,
+    )
+  }
 }
 
 async function provisionSchoolPlatformTrial(

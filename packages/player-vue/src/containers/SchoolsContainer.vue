@@ -449,7 +449,8 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
     <div v-else-if="showExpired" class="schools-expired">
       <div class="expired-card">
         <span class="expired-pill">● Trial ended</span>
-        <h1 class="arsenal expired-headline">Your free month has ended</h1>
+        <!-- "trial", not "month": free/Welsh-track schools get a full year. -->
+        <h1 class="arsenal expired-headline">Your free trial has ended</h1>
         <p class="expired-lede">
           Subscribe below to keep your classes, analytics and student progress.
           Your data is safe — nothing is deleted.
