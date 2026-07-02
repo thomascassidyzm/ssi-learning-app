@@ -62,6 +62,13 @@ export function useEagerScriptPreload(): EagerScriptPreload {
   const courseCode = ref('')
 
   const preload = (supabase: SupabaseClient, code: string) => {
+    // Single-flight per course: a walk for this course is already running or
+    // resolved — every caller shares it via scriptPromise/scriptResult. Without
+    // this, multiple triggers on one cold start each ran the WHOLE course-wide
+    // walk concurrently, multiplying the phrase-table fetches right when the
+    // instant bootstrap needs the network.
+    if (code === courseCode.value && scriptPromise.value) return
+
     // Reset if switching courses
     if (code !== courseCode.value) {
       scriptResult.value = null

@@ -10,6 +10,7 @@ import { prewarmInstantCaches } from './composables/useInstantPlayback'
 import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
+import { checkContentVersion } from './composables/useScriptCache'
 import { useInviteCode } from './composables/useInviteCode'
 import { useAccessClaim } from './composables/useAccessClaim'
 import { useAuthModal } from './composables/useAuthModal'
@@ -208,31 +209,23 @@ if (config.features.useDatabase && isSupabaseConfigured(config)) {
   }
 }
 
-// Eager script preload - the FULL course-wide walk (generateLearningScript).
-// It is NOT on the critical path to first play: the instant-playback bootstrap
-// (round-map + first-round cycles) is what makes the player interactive, and it
-// runs independently. Firing the full walk's six course-wide queries at course
-// open used to STARVE that bootstrap — first play slid to 4-5s and the player's
-// buttons stayed dead until the walk finished. So we schedule the walk on idle,
-// after the bootstrap has claimed the network. It still lands well before the
-// learner reaches INF-PLAY / Listening (its only real consumers).
+// Eager script preload — provided for consumers that trigger their own walk
+// (DemoLauncher) and for LearningPlayer's fallback paths. App.vue itself no
+// longer fires it: on the instant-playback path the ONE full course-wide walk
+// is LearningPlayer's deferred handoff (which threads the live algorithm
+// config — pod pin, L1 fire counts, script shape — that this preload's
+// default-config walk never had). Firing it here too just ran the same
+// six course-wide queries again, starving the bootstrap that actually
+// gets audio playing.
 const eagerScript = useEagerScriptPreload()
 
-// requestIdleCallback with a setTimeout fallback (Safari lacked rIC until 16.4).
-// Used to push the deferred full-course walk off the cold-start critical path.
-const scheduleIdle = (fn, timeout = 2000) => {
-  if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-    window.requestIdleCallback(fn, { timeout })
-  } else {
-    setTimeout(fn, 0)
-  }
-}
-const deferEagerPreload = (client, code) => {
-  scheduleIdle(() => {
-    if (eagerScript.courseCode.value !== code || !eagerScript.scriptResult.value) {
-      eagerScript.preload(client, code)
-    }
-  })
+// The one piece of the old preload that WAS load-bearing at course open:
+// checkContentVersion clears the warm-start script cache when the course's
+// content_version bumps, and LearningPlayer's cache fast-path assumes that
+// check has run BEFORE it mounts (a cache hit means current content). It's a
+// single tiny query — run it immediately, not on idle, so the ordering holds.
+const checkCourseContentVersion = (client, code) => {
+  void checkContentVersion(client, code).catch(() => {}) // offline is fine
 }
 
 // Invite code composable (singleton)
@@ -299,10 +292,11 @@ const handleCourseSelect = async (course) => {
     })
   }
 
-  // Defer the full-course walk to idle so it doesn't contend with the instant
-  // bootstrap warmed just below (the actual first-play path).
-  if (supabaseClient.value && eagerScript.courseCode.value !== courseCode) {
-    deferEagerPreload(supabaseClient.value, courseCode)
+  // Keep the warm-start cache honest for the new course (clears it on a
+  // content_version bump). The full walk itself is LearningPlayer's deferred
+  // handoff — not fired from here.
+  if (supabaseClient.value) {
+    checkCourseContentVersion(supabaseClient.value, courseCode)
   }
 
   // Warm the instant-playback caches (round-map + first-round cycles) BEFORE the
@@ -465,9 +459,9 @@ const fetchEnrolledCourses = async () => {
         }
         console.log('[App] Course:', defaultCourse.course_code)
 
-        // Defer the full-course walk to idle (see deferEagerPreload) so it
-        // never starves the instant bootstrap on cold start.
-        deferEagerPreload(supabaseClient.value, defaultCourse.course_code)
+        // Keep the warm-start cache honest before the player mounts. The full
+        // walk itself is LearningPlayer's deferred handoff — not fired here.
+        checkCourseContentVersion(supabaseClient.value, defaultCourse.course_code)
       }
     }
   } catch (err) {
@@ -524,34 +518,49 @@ onMounted(async () => {
         await auth.initialize(supabaseClient.value)
       }
 
-      // Initialize entitlements + subscription (now that supabase + auth are ready)
-      // Await so course access checks have data before fetchEnrolledCourses picks a default
+      // Initialize entitlements + subscription (now that supabase + auth are
+      // ready) WITHOUT blocking boot on their round-trips (1-2s each on a cold
+      // deployment). Nothing at boot needs the fresh values: default-course
+      // picking is identical either way — canAccessCourse returns
+      // canAccess||canPreview and EVERY live/beta course is at least
+      // previewable, so entitlements can't change the pick — and the seed-19
+      // wall (canAccessSeed) first fires well into play, long after these
+      // land. Both composables also hydrate from their localStorage cache at
+      // setup for instant reads.
       const { initialize: initEntitlements } = useSharedUserEntitlements()
       const { initialize: initSubscription } = useSharedSubscription()
-      await Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
+      const entitlementsReady = Promise.all([initEntitlements(), initSubscription()]).catch(() => {})
 
       // 30-day offline lease (the "Spotify handshake"). Wire boot/reconnect/timer
-      // renewals AFTER subscription is initialised, so the first renew sees the
-      // freshest entitlement state. Idempotent + best-effort (fail-open offline).
-      try {
-        useOfflineLease().initialize(supabaseClient)
-      } catch (e) {
-        console.warn('[App] Offline-lease init failed (non-fatal):', e)
-      }
+      // renewals AFTER subscription resolves, so the first renew sees the
+      // freshest entitlement state — chained off the promise rather than
+      // blocking boot. Idempotent + best-effort (fail-open offline).
+      void entitlementsReady.then(() => {
+        try {
+          useOfflineLease().initialize(supabaseClient)
+        } catch (e) {
+          console.warn('[App] Offline-lease init failed (non-fatal):', e)
+        }
+      })
 
       // Claim any email-allowlist (pre-granted) free access for a restored /
       // already-signed-in session — onAuthStateChange's SIGNED_IN doesn't fire
       // for a session restored on load, so this covers returning users.
-      // Idempotent; refreshes entitlements itself if anything was granted.
+      // Fire-and-forget: it's a no-op for everyone without a pending grant,
+      // and when a grant DOES land it refreshes entitlements itself, so the
+      // UI unlocks reactively. Awaiting it put a full /api/access/claim
+      // round-trip (1s+ on a cold deployment) on every boot's critical path.
       if (auth.learner.value) {
-        try {
-          const { data: { session } } = await supabaseClient.value.auth.getSession()
-          if (session?.access_token) {
-            await useAccessClaim().claimAccess(session.access_token)
+        void (async () => {
+          try {
+            const { data: { session } } = await supabaseClient.value.auth.getSession()
+            if (session?.access_token) {
+              await useAccessClaim().claimAccess(session.access_token)
+            }
+          } catch (e) {
+            console.warn('[App] Access claim failed (non-fatal):', e)
           }
-        } catch (e) {
-          console.warn('[App] Access claim failed (non-fatal):', e)
-        }
+        })()
       }
 
       // Handle ?code= URL parameter for invite codes

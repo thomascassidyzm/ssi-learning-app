@@ -40,6 +40,11 @@
       "types": "./dist/audio/index.d.ts",
       "import": "./dist/audio/index.mjs",
       "require": "./dist/audio/index.js"
+    },
+    "./pods": {
+      "types": "./dist/pods/index.d.ts",
+      "import": "./dist/pods/index.mjs",
+      "require": "./dist/pods/index.js"
     }
   },
   "scripts": {

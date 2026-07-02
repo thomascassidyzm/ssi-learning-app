@@ -86,7 +86,7 @@ import type { Ref } from 'vue'
 import { usePodStage0 } from '../composables/usePodStage0'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { ROLE_SPEED } from '../composables/usePodLapScheduler'
-import { tierSequence, foldEventsToPlays } from '../composables/stage0Sequence'
+import { tierSequence, foldEventsToPlays } from '@ssi/core/pods'
 
 const COURSES = [
   { code: 'spa_for_eng', label: 'Spanish' }, { code: 'fra_for_eng', label: 'French' },

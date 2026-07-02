@@ -393,12 +393,43 @@ const infPlayLookaheadFloor = (): number => {
  * call. Pass `listeningOverride` only when you need the per-learner pod
  * activation pin merged on top.
  */
+// In-flight walk dedupe. Concurrent callers whose inputs produce the same
+// script share ONE walk — on every cold mount the expansion watcher (fires
+// immediately: only ~3 bootstrap rounds loaded, under EXPANSION_THRESHOLD)
+// and the deferred full-script handoff both walked the whole course in
+// parallel, doubling the six course-wide queries at exactly the moment the
+// first audio is loading. Keyed on the inputs that change the output; the
+// entry clears on settle, so this only merges genuinely CONCURRENT
+// duplicates and never serves a stale result (INF-PLAY expansion bumps the
+// lookahead → different key → fresh walk, as before).
+let inFlightScript: { key: string; promise: Promise<any> } | null = null
+
 const generateScript = (
   listeningOverride?: ListeningConfigType,
 ) => {
   if (!supabase?.value) {
     return Promise.reject(new Error('No supabase client'))
   }
+  // Key on the RAW lookahead counter, not the config-derived floor: at mount
+  // the floor can change mid-race (algorithm config landing between the
+  // expansion watcher's call and the handoff's) which would split the key and
+  // defeat the dedupe — while the counter only moves when INF-PLAY expansion
+  // deliberately bumps it, which is exactly when a fresh walk IS wanted.
+  const dedupeKey = `${courseCode.value}|${infPlayLookahead.value}|${listeningOverride ? JSON.stringify(listeningOverride) : 'base'}`
+  if (inFlightScript && inFlightScript.key === dedupeKey) {
+    return inFlightScript.promise
+  }
+  const promise = runGenerateScript(listeningOverride)
+  inFlightScript = { key: dedupeKey, promise }
+  promise.finally(() => {
+    if (inFlightScript?.promise === promise) inFlightScript = null
+  }).catch(() => { /* observers handle their own errors */ })
+  return promise
+}
+
+const runGenerateScript = (
+  listeningOverride?: ListeningConfigType,
+) => {
   const tc = turboConfig.value
   // Pod activation default lives on PodsConfig (admin UI is in L2 section).
   // Merge it into the listening shape the generator consumes. Precedence:

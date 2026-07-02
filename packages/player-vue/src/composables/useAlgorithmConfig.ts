@@ -11,7 +11,7 @@
  */
 
 import { ref, computed, type Ref } from 'vue'
-import { type Stage0Config, DEFAULT_STAGE0 } from './stage0Sequence'
+import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
 
 // Type definitions for algorithm configs
 export interface ModeConfig {

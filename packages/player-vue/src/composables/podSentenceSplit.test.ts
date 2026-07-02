@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { splitRowUnits } from './podSentenceSplit'
 import { partitionAtomMap, flattenPodRows } from './usePodLapScheduler'
-import type { AtomMapEntry } from './stage0Sequence'
+import type { AtomMapEntry } from '@ssi/core/pods'
 
 const atom = (target_surface: string, gloss = ''): AtomMapEntry => ({
   lego_key: target_surface.toLowerCase(),
