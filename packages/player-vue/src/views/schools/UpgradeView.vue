@@ -124,6 +124,11 @@ const paidSeats = ref<number | null>(null)
 const isSubscribed = computed(() => platformStatus.value === 'active')
 const isUpdatingSeats = ref(false)
 const seatsMessage = ref('')
+// True once loadSubscription() has resolved — mirrors tutorSubLoaded below.
+// Until then the Subscribe CTA stays blocked: an already-subscribed admin
+// clicking during the load window (isSubscribed still false) would open a
+// SECOND initial checkout = a second Paddle subscription = double billing.
+const schoolSubLoaded = ref(false)
 
 // True once an inline checkout has been mounted into the container, so the
 // template can show the sized frame (and hide the now-redundant CTA).
@@ -153,11 +158,18 @@ async function loadSubscription() {
     }
   } catch {
     // Non-fatal — page just stays in its default (Subscribe) state.
+  } finally {
+    schoolSubLoaded.value = true
   }
 }
 
 async function subscribeSchool() {
   if (!schoolId.value) return
+  // Double-subscribe guard (mirrors subscribeTutor): never open an INITIAL
+  // checkout until the server has confirmed the school isn't already
+  // subscribed — a second checkout is a second subscription, double-billed.
+  if (!schoolSubLoaded.value) await loadSubscription()
+  if (isSubscribed.value) return // template now shows the seat-edit CTA
   checkoutOpen.value = true
   await startSchoolCheckout({
     schoolId: schoolId.value,
@@ -245,7 +257,12 @@ async function loadTutorSubscription(): Promise<void> {
     const res = await fetch('/api/school/subscription', { headers })
     if (res.ok) {
       const data = await res.json()
-      tutorPlatformActive.value = data?.teacher?.platform_status === 'active'
+      // teacher_paid = a LIVE Paddle subscription (active OR past_due while
+      // Paddle retries the card, incl. the webhook-lag backstop) — exactly the
+      // "route to portal, never a second checkout" condition. A raw
+      // status==='active' check missed past_due: a declined-card tutor saw
+      // "Subscribe" and could open a second concurrent subscription.
+      tutorPlatformActive.value = data?.teacher_paid === true
     }
   } catch { /* non-fatal — default Subscribe state */ }
   finally { tutorSubLoaded.value = true }
@@ -416,10 +433,10 @@ onMounted(() => {
           v-else-if="!checkoutOpen"
           type="button"
           class="btn-play btn-play--block upgrade-cta"
-          :disabled="!schoolId || isOpeningCheckout"
+          :disabled="!schoolId || isOpeningCheckout || !schoolSubLoaded"
           @click="subscribeSchool"
         >
-          {{ isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
+          {{ !schoolSubLoaded ? 'Loading…' : isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
         </button>
       </template>
 

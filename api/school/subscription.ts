@@ -179,15 +179,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const schoolActive = schoolOut
       ? isPlatformActive(schoolOut.platform_status as string | null, schoolOut.platform_expires_at as string | null)
       : false
-    let teacherActive = teacherOut
-      ? isPlatformActive(teacherOut.platform_status as string | null, teacherOut.platform_expires_at as string | null)
+
+    // PAID = a live Paddle platform subscription exists on the teacher row —
+    // 'active', or 'past_due' while Paddle's dunning retries run (still billed,
+    // still a live subscription; opening a SECOND checkout would double-bill).
+    // Distinct from an open TRIAL, which is active-but-not-paid: the upgrade
+    // page needs the difference (paid → "Manage subscription" via the portal;
+    // trial → "Subscribe" checkout), so it's returned as `teacher_paid` below.
+    let teacherPaid = teacherOut
+      ? ['active', 'past_due'].includes((teacherOut.platform_status as string) || '')
       : false
 
     // Defensive backstop: a paying tutor must never be locked out of the
     // dashboard. The tutor_platform checkout sets teachers.platform_status, but
     // in case that write hasn't landed (webhook lag / a pre-platform-column
     // payer) ALSO treat a teacher with a linked active TUTOR-PLATFORM
-    // subscription as active.
+    // subscription as paid.
     //
     // SCOPED to the tutor platform plan, NOT any active subscription: the
     // subscriptions table also holds learner_premium and student_via_teacher
@@ -199,7 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // Status is restricted to the values the subscriptions_status_check CHECK
     // actually permits (active | past_due — 'none'/'cancelled' are inactive).
     // Fails open on any read error — never lock on this lookup.
-    if (teacherOut && !teacherActive && learner?.id) {
+    if (teacherOut && !teacherPaid && learner?.id) {
       try {
         const { data: sub } = await supabase
           .from('subscriptions')
@@ -209,12 +216,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         const s = sub?.status
         const isTutorPlatformPlan = sub?.plan_name === TUTOR_PLATFORM_PLAN_NAME
         if (isTutorPlatformPlan && (s === 'active' || s === 'past_due')) {
-          teacherActive = true
+          teacherPaid = true
         }
       } catch {
         /* non-fatal — fall back to the platform_status gate above */
       }
     }
+
+    // Tutor gate: paid (incl. mid-dunning past_due — Paddle is still billing
+    // and retrying; instant lockout would strand a customer who just needs to
+    // update a card) OR an open trial.
+    const teacherActive =
+      teacherPaid ||
+      (teacherOut
+        ? isPlatformActive(teacherOut.platform_status as string | null, teacherOut.platform_expires_at as string | null)
+        : false)
 
     // Active if EITHER the school or the tutor record is active. (A school admin
     // is gated by their school; a tutor by their teacher row.)
@@ -223,6 +239,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(200).json({
       school: schoolOut,
       teacher: teacherOut,
+      teacher_paid: teacherPaid,
       active,
       reason: active ? 'active' : 'expired',
     })

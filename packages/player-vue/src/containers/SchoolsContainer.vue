@@ -23,7 +23,7 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
 
@@ -99,9 +99,16 @@ const showLogin = computed(() =>
 // context). Loop-safe: we only ever redirect AWAY from /schools to /teach (a
 // different route that unmounts this container), and only while showNoAccess
 // is genuinely active — so there is no path back into this watcher.
+// NB: a real freelance tutor's educational_role is literally 'tutor'
+// (provision.ts keeps it deliberately distinct from the school 'teacher'
+// role) — so the 'teacher'-shaped checks alone MISS them on a cold load,
+// stranding the exact user this redirect exists for.
 const isTutorNoSchool = computed(
   () =>
-    (isTeacher.value || ctx.isTeacher.value) &&
+    (isTeacher.value ||
+      ctx.isTeacher.value ||
+      educationalRole.value === 'tutor' ||
+      ctx.currentUser.value?.educational_role === 'tutor') &&
     !ctx.currentUser.value?.school_id,
 )
 watch(

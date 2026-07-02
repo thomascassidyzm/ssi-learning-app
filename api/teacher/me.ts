@@ -65,11 +65,14 @@ export default async function handler(
     }
 
     if (req.method === 'GET') {
+      // school_id IS NULL: personal tutor surface only — school-assigned
+      // classes belong to the /schools dashboard, not the freelance one.
       const { data: classes } = await supabase
         .from('classes')
         .select('id, class_name, course_code, student_join_code, current_seed, is_active, created_at')
         .eq('teacher_user_id', authResult.userId)
         .eq('is_active', true)
+        .is('school_id', null)
         .order('created_at', { ascending: true })
 
       res.status(200).json({ teacher, classes: classes || [] })

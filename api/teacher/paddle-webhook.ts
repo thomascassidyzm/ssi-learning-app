@@ -299,10 +299,27 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
     await handlePremiumSubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
-  } else if (kind === 'school_platform') {
-    await handleSchoolPlatformSubscription(supabase, data, customData)
-  } else if (kind === 'tutor_platform') {
-    await handleTutorPlatformSubscription(supabase, data, customData)
+  } else if (kind === 'school_platform' || kind === 'tutor_platform') {
+    // customData.kind comes from CLIENT JS, but the entitlement it claims
+    // (the paid dashboard) must be backed by the PLATFORM price actually
+    // billed. Without this check, a tampered checkout on the cheapest live
+    // price (£5 student) + kind:'school_platform' would set
+    // platform_status='active' for a fraction of £15/seat. The billed price
+    // id can't be faked — it's read from Paddle's own payload.
+    const billedPriceId = planIdOf(data)
+    const meta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
+    if (meta?.tier !== 'premium') {
+      console.error(
+        '[paddle-webhook] REJECTED platform subscription: billed price does not match the platform tier:',
+        { kind, billedPriceId, tier: meta?.tier ?? 'unknown', customData }
+      )
+      return
+    }
+    if (kind === 'school_platform') {
+      await handleSchoolPlatformSubscription(supabase, data, customData)
+    } else {
+      await handleTutorPlatformSubscription(supabase, data, customData)
+    }
   } else {
     console.log('[paddle-webhook] Skipping subscription event for kind:', kind)
   }
@@ -443,7 +460,20 @@ async function handleTutorPlatformSubscription(
   // row a learner_premium checkout would create. Kept best-effort + separate from
   // the platform update so a learner-resolution miss can't undo the dashboard grant.
   if (learnerId) {
-    await grantLearnerPremium(supabase, data, learnerId, 'SSi Premium (tutor bundle)')
+    const subId = await grantLearnerPremium(supabase, data, learnerId, 'SSi Premium (tutor bundle)')
+    // Link the subscription row back to the teacher — api/teacher/portal
+    // resolves the Paddle customer via teachers.own_subscription_id, so
+    // without this write "Manage subscription" 404s for every tutor who
+    // paid through the canonical tutor_platform checkout.
+    if (subId) {
+      const { error: linkErr } = await supabase
+        .from('teachers')
+        .update({ own_subscription_id: subId })
+        .eq('id', teacherId)
+      if (linkErr) {
+        console.error('[paddle-webhook] tutor_platform: own_subscription_id link failed:', linkErr.message)
+      }
+    }
   } else {
     console.warn('[paddle-webhook] tutor_platform: no learner resolved — platform set, learner premium NOT granted:', teacherId)
   }

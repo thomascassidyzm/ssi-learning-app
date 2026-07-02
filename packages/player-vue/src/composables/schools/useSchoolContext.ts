@@ -23,7 +23,10 @@ import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSchoolsClient } from './client'
 
-export type EducationalRole = 'student' | 'teacher' | 'school_admin' | 'govt_admin'
+// 'tutor' = the freelance (no-school) teacher role provision.ts writes —
+// deliberately distinct from the school 'teacher' so /schools guards can
+// bounce tutors to their own dashboard instead of the member wall.
+export type EducationalRole = 'student' | 'teacher' | 'tutor' | 'school_admin' | 'govt_admin'
 
 export interface SchoolUser {
   user_id: string
