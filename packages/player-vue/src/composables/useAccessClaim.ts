@@ -12,6 +12,14 @@
 
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 
+// Single-flight per session token. Both the onAuthStateChange SIGNED_IN
+// listener and App.vue's restored-session boot path claim for the same
+// session, so without this every boot POSTed /api/access/claim twice.
+// One claim per token is enough — the endpoint is idempotent, and a genuinely
+// new sign-in arrives with a new token.
+let claimedToken: string | null = null
+let claimInFlight: Promise<number> | null = null
+
 export function useAccessClaim() {
   /**
    * Claim allowlist grants for the current session.
@@ -20,6 +28,13 @@ export function useAccessClaim() {
    */
   async function claimAccess(accessToken: string): Promise<number> {
     if (!accessToken) return 0
+    if (accessToken === claimedToken) return claimInFlight ?? 0
+    claimedToken = accessToken
+    claimInFlight = doClaim(accessToken)
+    return claimInFlight
+  }
+
+  async function doClaim(accessToken: string): Promise<number> {
     try {
       const res = await fetch('/api/access/claim', {
         method: 'POST',
