@@ -149,12 +149,16 @@ export function useSchoolContext() {
         }
       }
     } else if (['school_admin', 'teacher'].includes(learner.educational_role || '')) {
+      // Deterministic when a user belongs to 2+ schools: without an ORDER BY
+      // the picked school could flip between sessions (limit(1) on an
+      // unordered read). First-joined wins, stably.
       const { data: tag } = await c
         .from('user_tags')
         .select('tag_value')
         .eq('user_id', userId)
         .eq('tag_type', 'school')
         .is('removed_at', null)
+        .order('added_at', { ascending: true })
         .limit(1)
         .single()
 
