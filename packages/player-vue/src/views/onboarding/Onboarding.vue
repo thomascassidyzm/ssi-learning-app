@@ -92,20 +92,27 @@ watch(targetLang, () => {
 // Either way the user shouldn't have to click the only option. Multiple options
 // still require an explicit click — browsing/typing never commits a wider choice.
 function maybeAutoSelect() {
-  // The heritage door has no learner-language list to auto-resolve — selection is
-  // explicit via the course-level dropdown, so never auto-commit here.
-  if (isHeritageDoor.value) return
   if (selectedCourse.value) return
+  if (isHeritageDoor.value) {
+    // Heritage door: selection is explicit via the course-level dropdown —
+    // EXCEPT when exactly ONE heritage course is deployed. The dropdown only
+    // renders with 2+ options and this door never falls back to the generic
+    // learner-language list, so without this commit the lone course would be
+    // unpickable and the door dead-ends (Send stays disabled, silently).
+    const only = targetOptions.value.length === 1 ? targetOptions.value[0] : null
+    if (only?.courseCode) {
+      targetLang.value = only.lang
+      selectedCourse.value = only.courseCode
+    }
+    return
+  }
   if (courses.value.length === 1) {
     selectedCourse.value = courses.value[0].course_code
   } else if (langQuery.value.trim() && visibleCourses.value.length === 1) {
     selectedCourse.value = visibleCourses.value[0].course_code
   }
 }
-// Watch both lists: courses changes when the target (or catalogue) changes (case
-// a); visibleCourses changes as the user types (case b). { immediate } covers the
-// catalogue arriving after mount.
-watch([courses, visibleCourses], maybeAutoSelect, { immediate: true })
+// (The auto-select watcher is registered below targetOptions — it watches it.)
 
 // Custom taught-language dropdown (English pinned first, then A–Z). The dropdown
 // is a LANGUAGE picker, so the label is the language name ("Welsh"), NOT a course
@@ -146,6 +153,12 @@ const targetOptions = computed(() => {
     .map((code) => ({ value: code, name: targetName(code), courseCode: null as string | null, lang: code }))
     .sort((a, b) => rank(a.value) - rank(b.value) || a.name.localeCompare(b.name))
 })
+// Watch all three: courses changes when the target (or catalogue) changes;
+// visibleCourses changes as the user types; targetOptions covers the heritage
+// door's single-course commit. { immediate } covers the catalogue arriving
+// after mount.
+watch([courses, visibleCourses, targetOptions], maybeAutoSelect, { immediate: true })
+
 // There will eventually be hundreds of target languages, so the open menu is
 // filterable by name (mirrors the learner-language search below).
 const targetQuery = ref('')
@@ -167,9 +180,16 @@ const pickerValueLabel = computed(() => {
 function isOptionActive(o: { value: string; courseCode: string | null }): boolean {
   return isHeritageDoor.value ? o.courseCode === selectedCourse.value : o.value === targetLang.value
 }
+// The trigger button — focus returns here when the menu closes, otherwise the
+// v-if unmount drops keyboard/screen-reader focus to <body>.
+const targetTriggerEl = ref<HTMLButtonElement | null>(null)
 function openTarget() {
   targetOpen.value = !targetOpen.value
   if (targetOpen.value) targetQuery.value = ''
+}
+function closeTarget() {
+  targetOpen.value = false
+  targetTriggerEl.value?.focus()
 }
 function selectTarget(value: string) {
   const opt = targetOptions.value.find((o) => o.value === value)
@@ -181,7 +201,7 @@ function selectTarget(value: string) {
   } else {
     targetLang.value = value
   }
-  targetOpen.value = false
+  closeTarget()
 }
 const email = ref('')
 const otp = ref('')
@@ -194,6 +214,11 @@ watch(otp, (v) => {
 const busy = ref(false)
 const error = ref('')
 const otpVerified = ref(false)
+// The exact address whose OTP verified. otpVerified alone is not enough: after
+// a verify-then-provision-failure the user can click "Change email" and type a
+// DIFFERENT address — skipping verifyOtp then would silently provision under
+// the OLD email's session while the UI implies the new one succeeded.
+const verifiedEmail = ref('')
 const coursesLoaded = ref(false)
 // Provision 409s ("trial already used — subscribe") must not dead-end on the
 // OTP step: the user is already OTP-verified, so offer a real way through —
@@ -247,34 +272,64 @@ const offerLine = computed(() => {
   return `Free for ${selectedTrialDays.value} days — no card needed`
 })
 
-onMounted(async () => {
+// A failed catalogue fetch must read as an OUTAGE with a retry, not as "no
+// languages exist for this signup" — the latter copy sends a real school away.
+const catalogueError = ref(false)
+
+async function loadCatalogue(): Promise<void> {
+  coursesLoaded.value = false
+  catalogueError.value = false
   try {
     const res = await fetch('/api/courses/available')
     if (res.ok) liveCourses.value = await res.json()
+    else catalogueError.value = true
   } catch {
-    // Non-fatal — the picker just shows nothing until the catalogue loads.
+    catalogueError.value = true
   } finally {
     coursesLoaded.value = true
   }
-  // Default the taught language. The heritage door (schools1) defaults to the first
-  // available heritage language (Welsh, then Irish) and NEVER to English; every other
-  // door defaults to English (most schools/tutors teach English). Either way, fall
-  // back to the first available target if the preferred one isn't deployed.
+}
+
+// Default the taught language. The heritage door (schools1) defaults to the first
+// available heritage language (Welsh, then Irish) and NEVER to English — with no
+// heritage course deployed it keeps its current value and the empty state shows;
+// every other door defaults to English (most schools/tutors teach English), then
+// falls back to the first available target.
+function applyDefaultTarget(): void {
   const preferred = isHeritageDoor.value ? HERITAGE_LANGS : ['eng']
   targetLang.value =
     preferred.find((code) => availableTargetLangs.value.includes(code)) ||
-    availableTargetLangs.value[0] ||
-    'eng'
-  // Preselect when the chosen target offers exactly one learner-language. The
-  // targetLang watch above re-runs maybeAutoSelect when the value actually
-  // changes; call it directly too in case it stayed 'eng' (no change → no watch).
+    (isHeritageDoor.value ? targetLang.value : availableTargetLangs.value[0] || 'eng')
+  // Preselect when the choice is unambiguous. The targetLang watch re-runs
+  // maybeAutoSelect when the value actually changes; call it directly too in
+  // case it stayed put (no change → no watch).
   maybeAutoSelect()
+}
+
+async function retryCatalogue(): Promise<void> {
+  await loadCatalogue()
+  applyDefaultTarget()
+}
+
+onMounted(async () => {
+  await loadCatalogue()
+  applyDefaultTarget()
 })
 
 async function authToken(): Promise<string | null> {
   if (!supabase.value) return null
   const { data } = await supabase.value.auth.getSession()
   return data?.session?.access_token ?? null
+}
+
+// Back to the email step. Clear the typed code so six stale digits don't sit
+// pre-filled against a possibly different address (verify() re-checks the
+// address against verifiedEmail either way).
+function changeEmail() {
+  step.value = 'choose'
+  otp.value = ''
+  error.value = ''
+  requiresCheckout.value = false
 }
 
 async function sendCode() {
@@ -301,11 +356,14 @@ async function verify() {
   busy.value = true
   error.value = ''
   try {
-    // Verify the OTP once. If it succeeds but provisioning then fails, a retry must
-    // NOT re-run verifyOtp (the token is already consumed) — it re-runs provision only.
-    if (!otpVerified.value) {
+    // Verify the OTP once PER ADDRESS. If it succeeds but provisioning then
+    // fails, a same-email retry must NOT re-run verifyOtp (the token is already
+    // consumed) — it re-runs provision only. But an email CHANGE after a
+    // successful verify must verify the new address for real.
+    const addr = email.value.trim()
+    if (!otpVerified.value || verifiedEmail.value !== addr) {
       const { error: e } = await supabase.value.auth.verifyOtp({
-        email: email.value.trim(),
+        email: addr,
         token: otp.value.trim(),
         type: 'email',
       })
@@ -314,6 +372,7 @@ async function verify() {
         return
       }
       otpVerified.value = true
+      verifiedEmail.value = addr
     }
     // Account is verified — confirm the account + activate the free trial.
     const token = await authToken()
@@ -459,9 +518,10 @@ async function continueIn() {
           <div
             v-if="targetOptions.length > 1"
             class="ob-known-wrap"
-            @keyup.escape="targetOpen = false"
+            @keyup.escape="closeTarget"
           >
             <button
+              ref="targetTriggerEl"
               type="button"
               class="ob-known"
               :aria-expanded="targetOpen"
@@ -474,7 +534,7 @@ async function continueIn() {
                 <path d="M5 8l5 5 5-5" />
               </svg>
             </button>
-            <div v-if="targetOpen" class="ob-known-backdrop" @click="targetOpen = false"></div>
+            <div v-if="targetOpen" class="ob-known-backdrop" @click="closeTarget"></div>
             <div v-if="targetOpen" class="ob-known-menu" role="listbox">
               <!-- Filterable: hundreds of target languages, so the open menu has
                    its own search (mirrors the learner-language search). -->
@@ -522,13 +582,25 @@ async function continueIn() {
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12.5l4.2 4.2L19 7" />
               </svg>
+              <!-- Only offer "Change" when there is genuinely another option —
+                   with a single heritage course the auto-select would just
+                   recommit it, making the button a no-op. -->
               <button
-                v-if="isHeritageDoor || courses.length > 1"
+                v-if="isHeritageDoor ? targetOptions.length > 1 : courses.length > 1"
                 type="button"
                 class="ob-claim-change"
                 @click="selectedCourse = ''"
               >Change language</button>
             </FrostCard>
+          </div>
+
+          <!-- Catalogue outage: say so and offer a retry — "no languages
+               available" copy for a transient 500 sends a real school away. -->
+          <div v-else-if="catalogueError" class="ob-field">
+            <p class="ob-muted">
+              We couldn't load the language list.
+              <button type="button" class="ob-link" @click="retryCatalogue">Try again</button>
+            </p>
           </div>
 
           <!-- The learner-language list resolves the specific course on every door
@@ -602,6 +674,14 @@ async function continueIn() {
               <p v-else class="ob-muted">No languages available for this signup yet.</p>
             </template>
           </fieldset>
+
+          <!-- Heritage door with nothing selected: with 0 deployed heritage
+               courses there is no picker at all, so say so instead of leaving
+               a silent blank form with Send permanently disabled. -->
+          <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
+          <p v-else-if="!targetOptions.length" class="ob-muted">
+            No languages available for this signup yet.
+          </p>
 
           <div class="ob-field">
             <label class="ob-label" for="ob-email">Your email</label>
@@ -703,7 +783,7 @@ async function continueIn() {
           </Button>
 
           <div class="ob-links">
-            <button type="button" class="ob-link" @click="step = 'choose'">Change email</button>
+            <button type="button" class="ob-link" @click="changeEmail">Change email</button>
             <span class="ob-link-sep" aria-hidden="true">·</span>
             <button type="button" class="ob-link" :disabled="busy" @click="sendCode">Resend code</button>
           </div>

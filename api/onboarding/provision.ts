@@ -207,7 +207,15 @@ export default async function handler(
       // bouncing a tutor back to /tutors/dashboard instead of the "no school"
       // wall), while still giving BrowseScreen a durable signal to surface the
       // tutor's own dashboard link. Idempotent — only write when it differs.
-      if (learner.educational_role !== 'tutor') {
+      //
+      // NEVER DOWNGRADE a school role to 'tutor': hasSchoolRole is derived from
+      // educational_role ALONE, so clobbering 'school_admin' here would bounce
+      // the admin off their own school dashboard forever (the schools row stays
+      // intact but the /schools guard no longer lets them near it). A school
+      // person can still hold a tutor account — the tutor surface resolves via
+      // the teachers row, not this role.
+      const KEEP_ROLES = ['school_admin', 'govt_admin', 'teacher']
+      if (learner.educational_role !== 'tutor' && !KEEP_ROLES.includes(learner.educational_role || '')) {
         const { error: roleErr } = await supabase
           .from('learners')
           .update({ educational_role: 'tutor' })
@@ -256,7 +264,9 @@ export default async function handler(
       trialBurned = r.burned
     } else {
       role = 'school_admin'
-      if (learner.educational_role !== 'school_admin') {
+      // Upgrading 'tutor'→'school_admin' is safe (the tutor surface reads the
+      // teachers row, not this role) — but never downgrade a govt_admin.
+      if (learner.educational_role !== 'school_admin' && learner.educational_role !== 'govt_admin') {
         const { error: roleErr } = await supabase
           .from('learners')
           .update({ educational_role: 'school_admin' })

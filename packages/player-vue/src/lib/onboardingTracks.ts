@@ -54,21 +54,6 @@ export function targetLangName(code: string): string {
   return TARGET_LANG_NAMES[code] || (code || '').toUpperCase()
 }
 
-// Map a browser locale (e.g. 'en-GB', 'es') to an SSi known_lang code.
-const LOCALE_TO_KNOWN: Record<string, string> = {
-  en: 'eng', es: 'spa', fr: 'fra', de: 'deu', it: 'ita', pt: 'por', nl: 'nld',
-  zh: 'zho', ja: 'jpn', ko: 'kor', ar: 'ara', hi: 'hin', ro: 'ron', lt: 'lit',
-  ru: 'rus', uk: 'ukr', pl: 'pol', tr: 'tur', el: 'ell', sv: 'swe',
-}
-/** Pick the known language to default to: locale match if available, else English, else first. */
-export function defaultKnownLang(locale: string, available: string[]): string {
-  const two = (locale || 'en').slice(0, 2).toLowerCase()
-  const mapped = LOCALE_TO_KNOWN[two]
-  if (mapped && available.includes(mapped)) return mapped
-  if (available.includes('eng')) return 'eng'
-  return available[0] || 'eng'
-}
-
 export interface TrackConfig {
   key: OnboardingTrack
   audience: 'school' | 'tutor'
