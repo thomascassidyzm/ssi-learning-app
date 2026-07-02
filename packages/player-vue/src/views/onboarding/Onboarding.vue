@@ -8,7 +8,7 @@ import { useUserRole } from '@/composables/useUserRole'
 import {
   TRACKS,
   coursesForTrack,
-  isFreeTier,
+  isYearTrialCourse,
   targetLangName,
   targetLabel,
   knownLangName,
@@ -24,13 +24,18 @@ const supabase = inject('supabase', ref(null)) as any
 
 const cfg = computed(() => TRACKS[props.track])
 
-// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE-languages
-// door: it must surface Welsh + Irish first and must NOT default to English. The
-// other school door (/schools2) and the tutor door keep the English-first default.
-// Keyed off the route NAME because both school doors share track: 'school'.
+// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door: its
+// list is the whole 365-day-school-trial set (every free/community course +
+// Welsh — the same rule provision.ts prices the trial by, via
+// isYearTrialCourse), with Welsh + Irish pinned first, and it must NOT default
+// to English. The other school door (/schools2) and the tutor door keep the
+// English-first default. Keyed off the route NAME because both school doors
+// share track: 'school'.
 const route = useRoute()
 const isHeritageDoor = computed(() => route.name === 'onboard-school-1')
-const HERITAGE_LANGS = ['cym', 'gle'] // Welsh, Irish (Welsh N/S are course variants under 'cym')
+// The PIN order for the heritage dropdown — NOT the door's course list (that's
+// derived from the offer). Welsh N/S are course variants under 'cym'.
+const HERITAGE_LANGS = ['cym', 'gle'] // Welsh, Irish
 
 type Step = 'choose' | 'otp' | 'done'
 const step = ref<Step>('choose')
@@ -126,32 +131,60 @@ function targetName(code: string): string {
 // dropdown selects by), a display `name`, and — on the heritage door only — the
 // `courseCode` it commits directly.
 //
-// HERITAGE DOOR (schools1): the dropdown is COURSE-level, not language-level —
-// Welsh (North), Welsh (South), Irish are offered as three separate entries
-// (Tom's call: a collapsed "Welsh" hides the dialect choice). Picking one commits
-// that course directly. Pinned in HERITAGE_LANGS order, then by label.
+// HERITAGE DOOR (schools1): the dropdown is COURSE-level, not language-level,
+// and lists the ENTIRE year-free offer (isYearTrialCourse), not a hand-kept
+// pair — a new community course joins the door with zero code changes. Welsh
+// (North), Welsh (South), Irish stay pinned first (the door's identity; Tom's
+// call: a collapsed "Welsh" hides the dialect choice), the rest run A–Z.
+// Picking an entry commits that course directly. A target taught FROM more
+// than one learner language carries a speaker suffix to tell its variants
+// apart ("Catalan — for English speakers" / "Catalán — for Spanish speakers");
+// single-known targets (incl. the Welsh N/S pair) keep their bare label.
 // EVERY OTHER DOOR: language-level as before (English pinned first, then A–Z),
 // with the learner-language list below resolving the specific course.
 const targetOptions = computed(() => {
   if (isHeritageDoor.value) {
-    return trackCourses.value
-      .filter((c) => HERITAGE_LANGS.includes(c.target_lang))
+    const pool = trackCourses.value.filter(isYearTrialCourse)
+    const knownsByTarget = new Map<string, Set<string>>()
+    for (const c of pool) {
+      const s = knownsByTarget.get(c.target_lang) || new Set<string>()
+      s.add(c.known_lang)
+      knownsByTarget.set(c.target_lang, s)
+    }
+    const pinRank = (lang: string) => {
+      const i = HERITAGE_LANGS.indexOf(lang)
+      return i === -1 ? HERITAGE_LANGS.length : i
+    }
+    return pool
       .map((c) => ({
         value: c.course_code,
-        name: targetLabel(c),
+        name:
+          (knownsByTarget.get(c.target_lang)?.size || 1) > 1
+            ? `${targetLabel(c)} — for ${knownLangName(c.known_lang)} speakers`
+            : targetLabel(c),
         courseCode: c.course_code,
         lang: c.target_lang,
       }))
-      .sort(
-        (a, b) =>
-          HERITAGE_LANGS.indexOf(a.lang) - HERITAGE_LANGS.indexOf(b.lang) ||
-          a.name.localeCompare(b.name)
-      )
+      .sort((a, b) => pinRank(a.lang) - pinRank(b.lang) || a.name.localeCompare(b.name))
   }
   const rank = (code: string) => (code === 'eng' ? -1 : 1)
   return [...availableTargetLangs.value]
     .map((code) => ({ value: code, name: targetName(code), courseCode: null as string | null, lang: code }))
     .sort((a, b) => rank(a.value) - rank(b.value) || a.name.localeCompare(b.name))
+})
+
+// Targets whose EVERY deployed course is on the year-free school offer — the
+// "Free for a year" badge in the /schools2 dropdown. Badge only what's
+// unambiguously true, and never on the tutor door (tutor trial = 30 days
+// always) or the heritage door (there the offer IS the door's premise).
+const yearTrialTargets = computed(() => {
+  const set = new Set<string>()
+  if (props.track !== 'school' || isHeritageDoor.value) return set
+  for (const code of availableTargetLangs.value) {
+    const cs = trackCourses.value.filter((c) => c.target_lang === code)
+    if (cs.length && cs.every(isYearTrialCourse)) set.add(code)
+  }
+  return set
 })
 // Watch all three: courses changes when the target (or catalogue) changes;
 // visibleCourses changes as the user types; targetOptions covers the heritage
@@ -260,11 +293,10 @@ const selectedCourseObj = computed(
 // (provisionTutorPlatformTrial) — promising 365 here and delivering 30 on the
 // done screen would break trust at the door. We don't surface "free vs premium"
 // upfront — the learner picks a language, then we tell them their trial.
-function trialDaysFor(course: { course_code?: string; pricing_tier?: string } | null): number {
+function trialDaysFor(course: LiveCourse | null): number {
   if (!course) return 30
   if (props.track === 'tutor') return 30
-  const isWelsh = (course.course_code || '').startsWith('cym')
-  return isWelsh || isFreeTier(course as any) ? 365 : 30
+  return isYearTrialCourse(course) ? 365 : 30
 }
 const selectedTrialDays = computed(() => trialDaysFor(selectedCourseObj.value))
 const offerLine = computed(() => {
@@ -556,7 +588,12 @@ async function continueIn() {
                     :aria-selected="isOptionActive(o)"
                     @click="selectTarget(o.value)"
                   >
-                    <span>{{ o.name }}</span>
+                    <span class="ob-known-opt-name">
+                      {{ o.name }}
+                      <!-- The attractive signal: languages on the year-long
+                           school offer, visible at the choice point. -->
+                      <span v-if="yearTrialTargets.has(o.value)" class="ob-tier">Free for a year</span>
+                    </span>
                     <svg v-if="isOptionActive(o)" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12.5l4.2 4.2L19 7" />
                     </svg>
@@ -1274,6 +1311,12 @@ async function continueIn() {
   box-shadow: inset 0 0 0 2px var(--ob-accent-2);
 }
 .ob-known-opt.is-on { color: var(--ob-accent-ink); font-weight: var(--font-semibold, 600); }
+.ob-known-opt-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .ob-known-tick {
   width: 18px; height: 18px; flex: none;
   fill: none; stroke: var(--ob-accent-ink);

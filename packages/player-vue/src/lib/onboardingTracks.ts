@@ -90,6 +90,16 @@ export function isFreeTier(c: LiveCourse): boolean {
   return c.pricing_tier === 'free' || c.pricing_tier === 'community'
 }
 
+/**
+ * Courses on the year-long SCHOOL platform trial: every free/community course,
+ * plus Welsh — the premium anomaly (heritage flagship). Mirrors the server rule
+ * in api/onboarding/provision.ts (`isWelsh || isFree` → 365 days). NOT for the
+ * tutor track — tutor trials are 30 days regardless of course.
+ */
+export function isYearTrialCourse(c: LiveCourse): boolean {
+  return isFreeTier(c) || (c.course_code || '').startsWith('cym')
+}
+
 export function courseLabel(c: LiveCourse): string {
   return c.learner_display_name || c.display_name || c.course_code
 }
