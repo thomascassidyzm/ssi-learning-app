@@ -10542,14 +10542,51 @@ onMounted(async () => {
             // The boundary (mainLoopBoundary) must be resolved before we index
             // into the built script — await the canonical map here.
             await ensureMainLoopMap()
-            const infResult = await generateScript()
-            const fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
+
+            // WARM PATH (INF PLAY). The deterministic build is a frozen,
+            // seeded stream — identical on every regen for a given
+            // learner+course — so a cached copy IS the fresh build. The old
+            // "INF PLAY is excluded from the script cache" rule predates
+            // this determinism: it guarded the per-session-random
+            // /infplay-cycles sampling, which survives only as the fallback
+            // below. Hydrate when the saved revival cursor still lands
+            // inside the cached tail; otherwise fall through to a fresh
+            // build (which re-caches). Without this, every open of a
+            // COMPLETED course paid the whole-course walk on switch —
+            // exactly the courses a heavy learner flips between.
+            let fullRounds: any[] | null = null
+            let builtMainLoopCount = 0
+            let builtCycleCount = 0
+            let wasFreshBuild = false
+            try {
+              const cachedInf = await getCachedScript(courseCode.value)
+              if (
+                cachedInf && cachedInf.rounds.length > 0 &&
+                typeof cachedInf.mainLoopRoundCount === 'number' && cachedInf.mainLoopRoundCount > 0 &&
+                cachedInf.rounds.length > cachedInf.mainLoopRoundCount + Math.max(0, inferInfPlayRoundIndex - 1)
+              ) {
+                fullRounds = cachedInf.rounds as any[]
+                builtMainLoopCount = cachedInf.mainLoopRoundCount
+                if (cachedInf.courseWelcome) cachedCourseWelcome.value = cachedInf.courseWelcome
+                console.log(`[InstantPlayback] INF-PLAY cache fast-path: hydrating ${fullRounds.length} rounds`)
+              }
+            } catch (_cacheErr) {
+              /* cache is best-effort — fresh build below */
+            }
+
+            if (!fullRounds) {
+              const infResult = await generateScript()
+              fullRounds = toSimpleRoundsWithComponents(infResult.items) as any[]
+              builtMainLoopCount = infResult.mainLoopRoundCount
+              builtCycleCount = infResult.cycleCount
+              wasFreshBuild = true
+            }
             // Single-source the boundary on the audio-aware count from the build
-            // we just ran — set BEFORE the mainLoopBoundary() read below so the
-            // first-revival-round index is computed off the live extent, not the
-            // (possibly stale, non-audio-filtered) matview.
-            if (infResult.mainLoopRoundCount > 0) {
-              liveMainLoopRoundCount.value = infResult.mainLoopRoundCount
+            // (or its cached equivalent) — set BEFORE the mainLoopBoundary()
+            // read below so the first-revival-round index is computed off the
+            // live extent, not the (possibly stale, non-audio-filtered) matview.
+            if (builtMainLoopCount > 0) {
+              liveMainLoopRoundCount.value = builtMainLoopCount
             }
             // Where the revival tail begins = the live main-loop boundary
             // (the single source of truth, the SAME value the forward/back nav
@@ -10597,7 +10634,27 @@ onMounted(async () => {
                 if (finalSeed !== null) beltProgress.value.setPlayingPosition(finalSeed)
               }
             }
-            console.log(`[InstantPlayback] INF-PLAY resume: deterministic build, ${fullRounds.length} rounds, landed at revival idx ${targetInfIdx} (infRound=${inferInfPlayRoundIndex})`)
+            console.log(`[InstantPlayback] INF-PLAY resume: ${wasFreshBuild ? 'deterministic build' : 'cache hydration'}, ${fullRounds.length} rounds, landed at revival idx ${targetInfIdx} (infRound=${inferInfPlayRoundIndex})`)
+
+            // Persist the frozen build so the next resume of this course is a
+            // zero-walk cache hydration (mirrors the main-loop handoff's
+            // warm-start write; audio map stripped, audioRefs live on the
+            // items). Fire-and-forget — never delays ready-to-play.
+            if (wasFreshBuild) {
+              const roundsToCache = fullRounds
+              void setCachedScript(courseCode.value, {
+                rounds: roundsToCache,
+                totalSeeds: roundsToCache.length,
+                totalLegos: roundsToCache.length,
+                totalCycles: builtCycleCount,
+                estimatedMinutes: Math.round(builtCycleCount * 0.2),
+                audioMapObj: {},
+                courseWelcome: cachedCourseWelcome.value || undefined,
+                mainLoopRoundCount: builtMainLoopCount,
+              }).catch((cacheErr) => {
+                console.warn('[InstantPlayback] INF-PLAY setCachedScript failed (non-fatal):', cacheErr)
+              })
+            }
             positionInitialized.value = true
             dataReady = true
             return
