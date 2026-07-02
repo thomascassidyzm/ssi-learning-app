@@ -5,7 +5,7 @@ import FrostCard from '@/components/schools/shared/FrostCard.vue'
 import Button from '@/components/schools/shared/Button.vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
-import { courseLabel, type LiveCourse } from '@/lib/onboardingTracks'
+import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
@@ -152,7 +152,23 @@ const totalStudents = computed(() =>
   classes.value.reduce((sum, c) => sum + (rosterByClass.value[c.id]?.length || 0), 0)
 )
 
-const monthlyEarningsEstimate = computed(() => totalStudents.value * COMMISSION_PER_STUDENT)
+// Commission only accrues on PAID student subscriptions — students in
+// free/community-course classes never generate one, so counting the whole
+// roster promised an earning rate that would never pay out. Until the live
+// catalogue loads we can't tell tiers apart; fall back to the naive count.
+const monthlyEarningsEstimate = computed(() => {
+  if (!liveCourses.value.length) return totalStudents.value * COMMISSION_PER_STUDENT
+  const paidCourses = new Set(
+    liveCourses.value.filter((c) => !isFreeTier(c)).map((c) => c.course_code)
+  )
+  return classes.value.reduce(
+    (sum, c) =>
+      paidCourses.has(c.course_code)
+        ? sum + (rosterByClass.value[c.id]?.length || 0) * COMMISSION_PER_STUDENT
+        : sum,
+    0
+  )
+})
 
 const accruedPounds = computed(() => (accruedPence.value / 100).toFixed(2))
 const pendingPounds = computed(() => (pendingPence.value / 100).toFixed(2))

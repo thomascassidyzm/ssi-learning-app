@@ -47,6 +47,12 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - [ ] **Atom-fusion upstream (Popty):** persist the 3 files + atom map and forced-align the clause once; the compute core already landed on dev. → `docs/atom-fusion-introduction.md`
 - [ ] **Forced-alignment path** (remove the Azure-timings dependency; covers Welsh-human + xAI-no-timings). Re-validation in progress.
 - [ ] **Schools loose ends:** bulk-invite-staff endpoint (`SetupView.vue` TODO); wire school/global benchmarks (`AnalyticsView.vue:290` shows class-avg only); verify `contentFriction` RPC migration `20260602` is applied.
+- [ ] **Schools-offering audit follow-ups (logged 07-02, from the 4-agent review; the criticals/highs are FIXED on dev — see `4a904dca`…`4ead670c`):**
+  - Webhook ordering-safety: platform handlers absolute-SET from whatever event arrives; a delayed stale event can overwrite newer state until the next event heals it. Fix = compare `occurredAt` against a stored `platform_updated_at` (needs a column → migration).
+  - `teacher_seats` is display-only: nothing gates a new teacher joining past the paid seat count, nothing decrements on remove — drift = under-billing. Needs a policy call (hard cap vs nudge) before code.
+  - SCHOOL `past_due` = instant dashboard lockout (tutor lane now has dunning grace via `teacher_paid`; schools still lock the moment Paddle marks past_due). Policy call: grace window while retries run?
+  - `subscriptions` is one-row-per-learner (`UNIQUE learner_id`) and all three purchase kinds upsert it, overwriting `plan_name` — a tutor who also buys a student sub clobbers their tutor-bundle row. Design constraint to revisit before tutors commonly hold two subscriptions.
+  - Onboarding cold-load flash hypothesis (unverified): `showNoAccess` may flash before the async role fetch resolves on first-ever load.
 - [x] @web 06-13 **Curvature engine (metrics B1)** — level/velocity/acceleration via trailing local quadratic fit + own-noise alarm; pure `@ssi/core` `learning/curvature.ts` (17 tests, APML spec). The start-now compute primitive; consumers B4/C2/D3 gated on it. → `docs/methodology/metrics-implementation-plan.md` §1 B1
 - [x] @web 06-13 **Competence band (metrics G1)** — flat hours-on-task estimate (30h/100h anchors) in pure `@ssi/core` `learning/competenceBand.ts` (10 tests, APML). Reads `total_practice_minutes` (exists today). Compute only; admin/tutor surface + legal framing copy left for Tom/Aran. → `metrics-implementation-plan.md` §1 G1 / `metrics-architecture.md` §12 H2
 - [x] @web 06-13 **Local difficulty sensing (metrics B4)** — curvature per (learner, unit) in pure `@ssi/core` `learning/localDifficulty.ts` (9 tests, APML). Sensing only (struggling/easing/steady); the bridge from B1 to the M2 controller. Live wiring needs persisted Layer-1 (A3 migration). → `metrics-implementation-plan.md` §1 B4
@@ -88,16 +94,14 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 *Cross-SSi: this is the learning-app worklist. Popty (`ssi-dashboard-v7-clean`) and other repos get their own `WORKLIST.md` of the same shape. A daily repo-only "groomer" routine can archive `[x]`s, free stale `[~]`s, and surface shipped/dead items as a commit for review — it never silently rewrites live intent.*
 
-## 🔨 Onboarding target-picker fixes (logged 2026-06-17, Tom testing) — agent in flight
-- [ ] **Welsh missing from the "You'll teach" target dropdown** — after the axis flip (target-first), `availableTargetLangs` is built from course `target_lang`; Welsh (cym / cym_s / cym_n) isn't appearing. Investigate /api/courses/available output + the Welsh course target_lang and fix.
-- [ ] **"You'll teach" dropdown needs a SEARCH bar** — we'll have hundreds of target languages; the custom dropdown menu must be filterable (like the learner-language list).
-- [ ] **Auto-select a single language choice still not firing** — must auto-select when (a) a search narrows to exactly one result AND (b) a chosen target has only one learner-language. Make it robust (watch the filtered list, not just on mount).
-- All three live in packages/player-vue/src/views/onboarding/Onboarding.vue.
+## 🔨 Onboarding target-picker fixes (logged 2026-06-17) — ALL VERIFIED SHIPPED 07-02
+- [x] **Welsh in the "You'll teach" target dropdown** — verified live: /api/courses/available returns cym_n/cym_s with target_lang 'cym' + gle; the heritage door (schools1) pins them first.
+- [x] **"You'll teach" dropdown search bar** — shipped (`targetQuery`/`visibleTargetOptions` in Onboarding.vue).
+- [x] **Auto-select single language choice** — shipped (`maybeAutoSelect` watches both `courses` and `visibleCourses`).
 
-## 🔨 Upgrade/checkout improvements (logged 2026-06-17, Tom testing) — agent in flight
-- [ ] **Paddle checkout window too small / scrolls** — make the checkout bigger so it doesn't need to scroll. Investigate Paddle settings (overlay sizing vs inline checkout in a larger container).
-- [ ] **Monthly OR annual pricing choice** — add a monthly/annual toggle on the Upgrade page (tutor + school lanes). Wire the annual Paddle price IDs (VITE_PADDLE_TEACHER_PRICE_ANNUAL exists; school annual needs a var/fallback). NOTE: actual annual prices must be created in Paddle + env vars set (Tom) — build the UI + plumbing with graceful fallback.
-- Touches UpgradeView.vue, useSchoolCheckout.ts, useCheckout.ts, TeachDashboard.vue, lib/paddle.ts (NOT the onboarding picker — safe alongside that agent).
+## 🔨 Upgrade/checkout improvements (logged 2026-06-17) — VERIFIED SHIPPED 07-02
+- [x] **Paddle checkout window** — inline checkout into a sized container shipped (useSchoolCheckout `frameTarget` + UpgradeView).
+- [x] **Monthly OR annual toggle** — shipped on both lanes (UpgradeView `billing-toggle`, annual price ids with graceful fallback).
 
 ## 📌 Paddle LIVE price IDs (for env-var config — not secret, client-inlined)
 - Premium MONTHLY £15: `pri_01kqq85gvncyasfmfvvpcv1xfg`  → VITE_PADDLE_TEACHER_PRICE_MONTHLY
