@@ -73,6 +73,8 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - [ ] **CEFR-via-calibration (M4–M5)** — the research roadmap; pilot-coupled timeframe.
 - [ ] **Daily agent routines** — which sensible analyses are worth a ProMax routine. Repo-only ones (e.g. a WORKLIST groomer) work in cloud today; Supabase ones need the service key in the routine env (no Supabase MCP yet).
 
+- [ ] **First-boot experience (PARKED think-piece, 07-02):** staged loading narrative + instant first sound + generic welcome clip + deferred tips surface → `docs/first-boot-experience.md`. Key facts already true: default course IS zho_for_eng; a 2800ms first-timer cinematic already exists to hang messages on; first-cycle audio prewarm exists (check it covers first boot). The 6s case = once-per-device INF-PLAY build on a new browser.
+
 ## 🚧 In flight / don't collide
 
 - teacher↔class M2M stream — **merged to dev; migration APPLIED 06-13** (edge endpoints + `20260613` live). Branch `feat/class-teachers-edge` cleaned up — don't go looking for it on the remote. Coordinate via dev before touching the class/teacher data model.
