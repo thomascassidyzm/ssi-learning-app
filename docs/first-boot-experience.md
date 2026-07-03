@@ -63,3 +63,25 @@ A brand-new user on a decent connection is ALREADY fast. Don't redesign for the 
 
 Cheapest-first: (2a) wire prewarm into first boot → (1) staged messages → (3) generic
 welcome clip (needs recording) → (5) infplay bootstrap-first → (4) tips surface.
+
+## Welcome audio — direction settled (Tom + data, 2026-07-03)
+
+DB fact: 95 `course_audio role='welcome'` clips, only **8 distinct scripts** — and they
+track the KNOWN language (47 courses share the English-known welcome; 15 jpn-known;
+14 zho-known...). The welcome is already a general welcome in substance.
+
+Decision direction: **promote the welcome to an app-level asset keyed by KNOWN language**
+(~8 masters), and play it as the loading mask on the learner's first-ever play gesture —
+streamed instantly (precache the known-language clip with the shell once UI language is
+known), skip option kept, instant-play bootstrap + first LEGO loading behind it. The tap
+that chooses the course is the autoplay gesture. `welcome_played_at` once-per-learner
+semantics unchanged.
+
+- This is NOT the rejected cross-course lesson-audio dedup (that rule stands — lesson
+  audio is per-course-owned). The welcome is per-LEARNER (plays once ever), so course
+  ownership buys nothing and costs 95 copies of 8 scripts; method updates = re-record 8.
+- Keep `course_audio role='welcome'` as an OPTIONAL per-course override (e.g. Welsh
+  north/south note); known-language clip is the fallback. Zero-migration day one; stop
+  rendering per-course welcomes for new builds.
+- This merges items (1) and (3) above: Aran IS the loading screen — staged text messages
+  only need to cover the pre-gesture window and the skip path.
