@@ -629,7 +629,16 @@ onMounted(async () => {
     const detail = e.detail
     if (detail?.course_code) {
       console.log('[App] Demo course switch:', detail.course_code)
-      handleCourseSelect(detail)
+      // Callers (dev tools / test scripts) may pass a bare { course_code }
+      // stub. Derive target_lang/known_lang from the 'X_for_Y' convention
+      // when missing so PlayerRestingState's useI18n lookups don't throw
+      // on an undefined langCode.
+      const [derivedTarget, derivedKnown] = detail.course_code.split('_for_')
+      handleCourseSelect({
+        target_lang: derivedTarget,
+        known_lang: derivedKnown,
+        ...detail,
+      })
     }
   })
 
