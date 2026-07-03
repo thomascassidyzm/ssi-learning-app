@@ -54,16 +54,16 @@ const targetLang = ref('eng')
 const courses = computed(() =>
   trackCourses.value.filter((c) => c.target_lang === targetLang.value)
 )
-// A learner-language row reads as the plain known-language name ("English") —
-// UNLESS the chosen target has 2+ course variants for that SAME known_lang (e.g.
-// cym → North/South Welsh, both eng), where two bare "English" rows would be
-// indistinguishable. Then we disambiguate with the target variant: "English —
-// North Welsh". Used by both list renderings + search.
+// A course card follows the canonical naming paradigm: "X for Y speakers",
+// written IN Y — the language the learners already speak. The catalogue's
+// display names are authored exactly that way ("French for English Speakers",
+// "フランス語 — 日本語話者向け"), so the card both names the course and
+// self-identifies the learner language by content AND script. This replaced
+// the old synthetic "English — North Welsh" labels, which read as if the
+// learners spoke a language called "English–North Welsh" (Tom, 07-03).
+// Used by both list renderings + search.
 function rowLabel(c: LiveCourse): string {
-  const name = knownLangName(c.known_lang)
-  const sameKnown = courses.value.filter((x) => x.known_lang === c.known_lang)
-  if (sameKnown.length < 2) return name
-  return `${name} — ${targetLabel(c)}`
+  return courseLabel(c)
 }
 // Search-first only when the list is long; otherwise browse the tiles.
 const langQuery = ref('')
@@ -137,11 +137,13 @@ function targetName(code: string): string {
 // (North), Welsh (South), Irish stay pinned first (the door's identity; Tom's
 // call: a collapsed "Welsh" hides the dialect choice), the rest run A–Z.
 // Picking an entry commits that course directly. A target taught FROM more
-// than one learner language carries a speaker suffix to tell its variants
-// apart ("Catalan — for English speakers" / "Catalán — for Spanish speakers");
-// single-known targets (incl. the Welsh N/S pair) keep their bare label.
+// than one learner language shows the FULL course name in the learners' own
+// language — the canonical "X for Y speakers, in Y" paradigm ("Catalan for
+// English Speakers" / "Catalán para hispanohablantes"), so each variant
+// self-identifies by content and script. Single-known targets (incl. the
+// Welsh N/S pair) keep their bare language label for scannability.
 // EVERY OTHER DOOR: language-level as before (English pinned first, then A–Z),
-// with the learner-language list below resolving the specific course.
+// with the learner-language course list below resolving the specific course.
 const targetOptions = computed(() => {
   if (isHeritageDoor.value) {
     const pool = trackCourses.value.filter(isYearTrialCourse)
@@ -160,7 +162,7 @@ const targetOptions = computed(() => {
         value: c.course_code,
         name:
           (knownsByTarget.get(c.target_lang)?.size || 1) > 1
-            ? `${targetLabel(c)} — for ${knownLangName(c.known_lang)} speakers`
+            ? courseLabel(c)
             : targetLabel(c),
         courseCode: c.course_code,
         lang: c.target_lang,
@@ -644,7 +646,9 @@ async function continueIn() {
                EXCEPT heritage (schools1), where the course-level dropdown above
                already commits the variant directly. -->
           <fieldset v-else-if="!isHeritageDoor" class="ob-field ob-langset">
-            <legend class="ob-label">Your learners speak</legend>
+            <!-- Cards carry the full course name in the LEARNERS' language,
+                 so the ask is "pick the course", not "name their language". -->
+            <legend class="ob-label">Choose the course for your learners</legend>
 
             <!-- LONG list (tutors / non-heritage): browse a compact, scrollable
                  list AND filter with the search box. -->
