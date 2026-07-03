@@ -32,10 +32,18 @@
 import { ref, computed, inject, onMounted, type Ref } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolCheckout } from '@/composables/useSchoolCheckout'
+import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 
 const supabase = inject<Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin } = useSchoolContext()
+
+// DECISION A (worklist 07-02): no seat-cap gating of any kind — instead make
+// the display honest so admins self-correct. `teachers.value.length` is the
+// ACTUAL joined-teacher count, shown alongside `paidSeats` (the billed count)
+// so a school that's outgrown its paid seats sees it plainly.
+const { teachers: joinedTeachers, fetchTeachers } = useTeachersData()
+const joinedTeacherCount = computed(() => joinedTeachers.value.length)
 
 const PRICE_PER_SEAT_GBP = 15
 // Per-seat annual price. There is ONE annual Paddle price underneath (a school
@@ -347,6 +355,7 @@ async function subscribeTutor() {
 onMounted(() => {
   if (isSchoolLane.value) {
     loadSubscription()
+    void fetchTeachers()
   } else {
     // Tutor lane: resolve the teacher id up-front (so the button can unblock)
     // and read platform status (so we can route an active tutor to the portal).
@@ -414,6 +423,15 @@ onMounted(() => {
           </div>
           <span class="seat-total">£{{ schoolTotalGbp }}<span class="seat-per">{{ periodSuffix }}</span></span>
         </div>
+
+        <!-- Honest seats-vs-actual display (no gating — just self-correction). -->
+        <p v-if="isSubscribed" class="upgrade-note seats-actual-note">
+          {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
+          {{ paidSeats ?? seatCount }} seat{{ (paidSeats ?? seatCount) === 1 ? '' : 's' }} paid
+          <span v-if="paidSeats !== null && joinedTeacherCount > paidSeats" class="seats-over-note">
+            — {{ joinedTeacherCount - paidSeats }} more teacher{{ joinedTeacherCount - paidSeats === 1 ? '' : 's' }} joined than paid seats
+          </span>
+        </p>
 
         <p v-if="checkoutError" class="upgrade-error">{{ checkoutError }}</p>
         <p v-if="seatsMessage" class="upgrade-note">{{ seatsMessage }}</p>
@@ -627,6 +645,7 @@ onMounted(() => {
 }
 .upgrade-error { color: #dc2626; margin: 0 0 0.75rem; font-size: 0.85rem; }
 .upgrade-note { color: var(--text-secondary, #64748b); margin: 0 0 0.75rem; font-size: 0.85rem; }
+.seats-over-note { color: #b8860b; font-weight: 600; }
 
 /* Inline Paddle checkout container — sized so the checkout is comfortable and
    doesn't scroll on desktop; full width keeps it responsive on mobile. */
