@@ -64,24 +64,31 @@ A brand-new user on a decent connection is ALREADY fast. Don't redesign for the 
 Cheapest-first: (2a) wire prewarm into first boot → (1) staged messages → (3) generic
 welcome clip (needs recording) → (5) infplay bootstrap-first → (4) tips surface.
 
-## Welcome audio — direction settled (Tom + data, 2026-07-03)
+## Welcome audio — RETHOUGHT to a global intro (Tom, 2026-07-03)
 
-DB fact: 95 `course_audio role='welcome'` clips, only **8 distinct scripts** — and they
-track the KNOWN language (47 courses share the English-known welcome; 15 jpn-known;
-14 zho-known...). The welcome is already a general welcome in substance.
+(Supersedes an earlier per-known-language-masters idea from the same day — that just
+relocated the production problem: someone still records/renders a welcome per known
+language forever. Also: the "8 distinct scripts" datapoint was wrong — the text column
+holds placeholders ("welcome" x80); real scripts are per-course and localized.)
 
-Decision direction: **promote the welcome to an app-level asset keyed by KNOWN language**
-(~8 masters), and play it as the loading mask on the learner's first-ever play gesture —
-streamed instantly (precache the known-language clip with the shell once UI language is
-known), skip option kept, instant-play bootstrap + first LEGO loading behind it. The tap
-that chooses the course is the autoplay gesture. `welcome_played_at` once-per-learner
-semantics unchanged.
+Direction: **the welcome-as-60s-lecture should not exist.** Its job is already owned by
+Aran's coaching story (meta-commentary "instructions") — localized per known language,
+once-per-learner, cross-device-synced since 2026-07-02, and delivered in situ through the
+first rounds. The first-boot intro becomes:
 
-- This is NOT the rejected cross-course lesson-audio dedup (that rule stands — lesson
-  audio is per-course-owned). The welcome is per-LEARNER (plays once ever), so course
-  ownership buys nothing and costs 95 copies of 8 scripts; method updates = re-record 8.
-- Keep `course_audio role='welcome'` as an OPTIONAL per-course override (e.g. Welsh
-  north/south note); known-language clip is the fallback. Zero-migration day one; stop
-  rendering per-course welcomes for new builds.
-- This merges items (1) and (3) above: Aran IS the loading screen — staged text messages
-  only need to cover the pre-gesture window and the skip path.
+1. A few seconds of GLOBAL brand moment — sound + visual identity, no language.
+2. ONE localized on-screen text line (existing i18n layer): "You'll hear a phrase you
+   know — say it out loud in <target> before the speakers do."
+3. Straight into round 1. The method demonstrates itself; the story coaches from inside.
+
+Wins: nothing to record per lang-pair ever; new course builds drop the welcome render;
+method edits happen once (the story), not across 95 clips; time-to-first-speak improves
+(no lecture wall). The loading-mask need shrinks to the brand moment + staged text.
+
+Pre-delete checks (pickup gate):
+- Story coverage: do the coaching story's early beats say everything the welcome said?
+  If not, add a beat to the STORY (existing system), don't resurrect the welcome.
+- Story localization: confirm instruction clips exist for every known language in the
+  catalogue (they must for eng_for_X to function — verify actual coverage).
+- `welcome_played_at` / 'ssi-welcome-heard' plumbing retires with the lecture; keep the
+  brand-moment-seen flag local-only (it is not progress).
