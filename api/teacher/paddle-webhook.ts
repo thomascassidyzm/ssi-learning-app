@@ -103,6 +103,47 @@ function planIdOf(data: any): string | null {
   return firstItem?.price?.id || null
 }
 
+// ── PLAN PRECEDENCE GUARD (worklist 07-02 decision C) ───────────────────────
+// `subscriptions` is UNIQUE(learner_id) and all three purchase kinds upsert it,
+// so a tutor who also buys a student sub would otherwise clobber their
+// tutor-bundle row with a lower-value plan_name. Rank reflects what each plan
+// GRANTS: the tutor bundle already includes learner premium (D2 bundle, see
+// handleTutorPlatformSubscription), which in turn unlocks more than a
+// class-scoped student subscription. An upsert may only raise or hold the
+// rank, never lower it — a downgrade is skipped (logged), same-or-higher
+// proceeds normally (renewals, upgrades, status changes on the SAME plan).
+export const PLAN_PRECEDENCE: Record<string, number> = {
+  'SSi Premium (tutor bundle)': 3,
+  'SSi Premium': 2,
+  'SSi Student Access': 1,
+}
+
+// Returns true if writing `incomingPlanName` for `learnerId` would DOWNGRADE
+// an existing higher-ranked plan — in which case the caller must skip the
+// upsert (leaving the higher-ranked row untouched) rather than clobber it.
+export async function wouldDowngradePlan(
+  supabase: any,
+  learnerId: string,
+  incomingPlanName: string
+): Promise<boolean> {
+  const { data: existing, error } = await supabase
+    .from('subscriptions')
+    .select('plan_name')
+    .eq('learner_id', learnerId)
+    .maybeSingle()
+  if (error || !existing?.plan_name) return false // no existing row → nothing to downgrade
+
+  const incomingRank = PLAN_PRECEDENCE[incomingPlanName] ?? 0
+  const existingRank = PLAN_PRECEDENCE[existing.plan_name] ?? 0
+  if (existingRank > incomingRank) {
+    console.warn(
+      `[paddle-webhook] plan precedence guard: skipping upsert for learner ${learnerId} — existing '${existing.plan_name}' (rank ${existingRank}) outranks incoming '${incomingPlanName}' (rank ${incomingRank})`
+    )
+    return true
+  }
+  return false
+}
+
 // Real collected amount (minor units / pence) from a transaction payload. Paddle
 // puts the charged total on details.totals.grandTotal (string). Returns null when
 // it can't be read so callers can decide a safe default.
@@ -504,6 +545,8 @@ async function grantLearnerPremium(
     data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
   const planId = planIdOf(data)
 
+  if (await wouldDowngradePlan(supabase, learnerId, planName)) return null
+
   const { data: subRow, error } = await supabase
     .from('subscriptions')
     .upsert(
@@ -575,6 +618,8 @@ async function handlePremiumSubscription(
   const planId: string | null = firstItem?.price?.id || null
 
   const signupCourse = (customData.course as string | undefined)?.trim() || null
+
+  if (await wouldDowngradePlan(supabase, learnerId, 'SSi Premium')) return
 
   const { data: subRow, error: upsertErr } = await supabase
     .from('subscriptions')
@@ -736,6 +781,8 @@ async function handleStudentSubscription(
     data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
   const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
   const planId: string | null = firstItem?.price?.id || null
+
+  if (await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access')) return
 
   // Upsert subscription row
   const { data: subRow, error: subErr } = await supabase
