@@ -224,7 +224,7 @@ export interface IProgressStore {
 
   // LEGO progress
   getLegoProgress(learnerId: string, courseId: string): Promise<LegoProgressRecord[]>;
-  getLegoProgressById(learnerId: string, legoId: string): Promise<LegoProgressRecord | null>;
+  getLegoProgressById(learnerId: string, legoId: string, courseId: string): Promise<LegoProgressRecord | null>;
   saveLegoProgress(progress: Omit<LegoProgressRecord, 'id' | 'created_at' | 'updated_at'>): Promise<LegoProgressRecord>;
   updateLegoProgress(id: string, updates: Partial<LegoProgress>): Promise<void>;
   bulkUpdateLegoProgress(updates: Array<{ id: string; updates: Partial<LegoProgress> }>): Promise<void>;

@@ -495,7 +495,8 @@ export function useLearningSession(options: UseLearningSessionOptions = {}) {
       // Check if we already have progress for this LEGO
       const existingProgress = await progressStore.getLegoProgressById(
         learnerId,
-        item.lego.id
+        item.lego.id,
+        courseId
       )
 
       if (existingProgress) {
