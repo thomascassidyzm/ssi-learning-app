@@ -120,6 +120,32 @@ $$;
 
 
 --
+-- Name: accrue_teacher_commission_held(uuid, date, date, integer, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+  INSERT INTO teacher_commissions (teacher_id, period_start, period_end, accrued_pence, status, hold_until)
+  VALUES (p_teacher_id, p_period_start, p_period_end, GREATEST(p_pence, 0), 'held', p_hold_until)
+  ON CONFLICT (teacher_id, period_start) DO UPDATE
+    SET accrued_pence = teacher_commissions.accrued_pence + EXCLUDED.accrued_pence,
+        -- keep the row 'held' only while it is still accruing/held; never
+        -- resurrect a paid/pending/failed row's status.
+        status = CASE
+                   WHEN teacher_commissions.status IN ('accruing', 'held') THEN 'held'
+                   ELSE teacher_commissions.status
+                 END,
+        hold_until = GREATEST(
+          COALESCE(teacher_commissions.hold_until, EXCLUDED.hold_until),
+          EXCLUDED.hold_until
+        ),
+        updated_at = NOW();
+$$;
+
+
+--
 -- Name: activate_brief_version(text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -192,6 +218,42 @@ BEGIN
     v_previous_version AS previous_active_version,
     v_new_id AS new_active_id;
 END;
+$$;
+
+
+--
+-- Name: admin_practice_minutes(uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABLE(learner_id uuid, practice_minutes integer)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with sess as (
+    select user_id, session_id, extract(epoch from (max(occurred_at) - min(occurred_at))) as secs
+    from player_events where user_id = any(p_learner_ids) group by user_id, session_id
+  )
+  select user_id as learner_id,
+         coalesce(round(sum(least(greatest(secs,0),7200)) filter (where secs>=30)/60.0),0)::int
+  from sess group by user_id;
+$$;
+
+
+--
+-- Name: admin_practice_minutes_by_course(uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(course_code text, practice_minutes integer)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with sess as (
+    select user_id, course_code, session_id, extract(epoch from (max(occurred_at) - min(occurred_at))) as secs
+    from player_events where (p_learner_ids is null or user_id = any(p_learner_ids)) and course_code is not null
+    group by user_id, course_code, session_id
+  )
+  select course_code, coalesce(round(sum(least(greatest(secs,0),7200)) filter (where secs>=30)/60.0),0)::int
+  from sess group by course_code;
 $$;
 
 
@@ -414,7 +476,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   RETURN QUERY
   WITH enrollment_stats AS (
@@ -468,7 +530,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   RETURN QUERY
   WITH
@@ -622,7 +684,7 @@ BEGIN
   FROM public.learner_lego_metrics m
   JOIN public.learners l ON l.id = m.learner_id
   WHERE m.last_seen_at >= now() - make_interval(days => p_days)
-    AND COALESCE(l.is_demo, false) = false          -- exclude synthetic demo learners
+    AND COALESCE(l.is_demo, false) = false AND COALESCE(l.is_internal, false) = false          -- exclude synthetic demo learners
     AND jsonb_array_length(COALESCE(m.recent_latency_samples, '[]'::jsonb)) >= p_min_samples
   ORDER BY m.last_seen_at DESC;
 END;
@@ -651,7 +713,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   -- DAU
   SELECT COUNT(DISTINCT learner_id) INTO v_dau
@@ -768,7 +830,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   RETURN QUERY
   SELECT
@@ -811,7 +873,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   RETURN QUERY
   WITH raw AS (
@@ -915,7 +977,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   -- Find the highest seed anyone has reached in this course
   SELECT COALESCE(MAX(highest_completed_seed), 0)
@@ -982,7 +1044,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   RETURN QUERY
   WITH periods AS (
@@ -1008,7 +1070,7 @@ BEGIN
       ) AS p_start,
       COUNT(*)::INT AS cnt
     FROM learners l
-    WHERE COALESCE(l.is_demo, false) = false                        -- demo: direct
+    WHERE COALESCE(l.is_demo, false) = false AND COALESCE(l.is_internal, false) = false                        -- demo: direct
     GROUP BY 1
   ),
   enrollment_counts AS (
@@ -1067,7 +1129,7 @@ BEGIN
   END IF;
 
   -- demo-learner ids (player_events.user_id holds the learners PK). NULL when none.
-  SELECT array_agg(id) INTO v_demo_ids FROM learners WHERE is_demo = true;
+  SELECT array_agg(id) INTO v_demo_ids FROM learners WHERE is_demo = true OR is_internal = true;
 
   -- ── totals ──────────────────────────────────────────────────────────────
   SELECT
@@ -1257,7 +1319,7 @@ DECLARE
   v_demo_ids   uuid[];                                       -- demo: id set
   v_course     text;
 BEGIN
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   -- ── resolve the course: explicit, else the learner's most-progressed one ──
   -- (the per-learner pace CTE is defined once below as `lpr` and reused; here we
@@ -1362,7 +1424,7 @@ $$;
 -- Name: FUNCTION analytics_learner_progress_rate(p_learner_id uuid, p_course_id text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_course_id text) IS 'Learner-scoped Rate-compare: one learner''s LEGOs/week (lifetime pace) vs the course-cohort average and the all-learners average, EXCLUDING is_demo learners. Source: course_enrollments.highest_completed_lego_id ordinal / weeks active. SECURITY DEFINER, authenticated. Returns anonymised cohort values; no other learner identity leaks. Never throws.';
+COMMENT ON FUNCTION public.analytics_learner_progress_rate(p_learner_id uuid, p_course_id text) IS 'Learner-scoped Rate-compare: one learner''s LEGOs/week (lifetime pace) vs the course-cohort average and the all-learners average, EXCLUDING is_demo AND is_internal learners. Source: course_enrollments.highest_completed_lego_id ordinal / weeks active. SECURITY DEFINER, authenticated. Returns anonymised cohort values; no other learner identity leaks. Never throws.';
 
 
 --
@@ -1384,10 +1446,10 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   SELECT COUNT(*) INTO v_total_learners FROM learners
-  WHERE COALESCE(is_demo, false) = false;                            -- demo: direct
+  WHERE COALESCE(is_demo, false) = false AND COALESCE(is_internal, false) = false;                            -- demo: direct
 
   -- MAU: distinct learners with a session in last 30 days
   SELECT COUNT(DISTINCT learner_id) INTO v_mau
@@ -1411,7 +1473,7 @@ BEGIN
   SELECT COUNT(*) INTO v_learners_30d_ago
   FROM learners
   WHERE created_at <= NOW() - INTERVAL '30 days'
-    AND COALESCE(is_demo, false) = false;                           -- demo: direct
+    AND COALESCE(is_demo, false) = false AND COALESCE(is_internal, false) = false;                           -- demo: direct
 
   RETURN jsonb_build_object(
     'total_learners',    v_total_learners,
@@ -1446,7 +1508,7 @@ BEGIN
       l.created_at
     FROM learners l
     WHERE l.created_at <= NOW() - INTERVAL '56 days'  -- at least 8 weeks old
-      AND COALESCE(l.is_demo, false) = false          -- demo: direct (sessions inherit via cohort join)
+      AND COALESCE(l.is_demo, false) = false AND COALESCE(l.is_internal, false) = false          -- demo: direct (sessions inherit via cohort join)
   ),
   cohort_sizes AS (
     SELECT signup_week, COUNT(*)::INT AS sz
@@ -1513,7 +1575,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   RETURN QUERY
   WITH week_series AS (
@@ -1603,7 +1665,7 @@ BEGIN
     RAISE EXCEPTION 'Forbidden: admin required';
   END IF;
 
-  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true; -- demo: resolve
+  SELECT array_agg(id) INTO v_demo_ids FROM public.learners WHERE is_demo = true OR is_internal = true; -- demo: resolve
 
   -- Build the funnel from player_events + subscriptions.
   -- The JOIN hazard: player_events.user_id is UUID; learners.user_id is TEXT.
@@ -1664,7 +1726,7 @@ BEGIN
     JOIN   learners        l   ON l.id = sub.learner_id
     JOIN   player_events   pe  ON pe.user_id = l.user_id::uuid
     WHERE  sub.status IN ('active', 'past_due', 'paused')
-      AND  COALESCE(l.is_demo, false) = false                       -- demo: direct
+      AND  COALESCE(l.is_demo, false) = false AND COALESCE(l.is_internal, false) = false                       -- demo: direct
   )
 
   -- Return the five rows in funnel order
@@ -1714,24 +1776,44 @@ CREATE FUNCTION public.audit_content_change() RETURNS trigger
 DECLARE
   pk_val TEXT;
   old_json JSONB;
+  new_json JSONB;
+  k TEXT;
+  has_overwrite BOOLEAN := false;
+  -- auto-maintained bookkeeping columns bump on every UPDATE; they are not
+  -- editorial content, so changes to them alone must not trigger an audit.
+  ignore_cols TEXT[] := ARRAY['version','updated_at','created_at'];
 BEGIN
   old_json := to_jsonb(OLD);
+
+  -- Only audit a change that OVERWRITES pre-existing (non-null) editorial data,
+  -- or a DELETE. A pure first-fill (changed columns went from NULL/absent to a
+  -- value, as in automated course builds writing content for the first time)
+  -- carries no rollback value and is skipped.
+  IF TG_OP = 'UPDATE' THEN
+    new_json := to_jsonb(NEW);
+    FOR k IN SELECT jsonb_object_keys(new_json) LOOP
+      IF NOT (k = ANY(ignore_cols))
+         AND (old_json->k) IS DISTINCT FROM (new_json->k)
+         AND (old_json->k) IS NOT NULL
+         AND jsonb_typeof(old_json->k) <> 'null' THEN
+        has_overwrite := true;
+        EXIT;
+      END IF;
+    END LOOP;
+    IF NOT has_overwrite THEN
+      RETURN NULL;
+    END IF;
+  END IF;
+
   pk_val := COALESCE(
-    old_json->>'id',
-    old_json->>'course_code',
-    old_json->>'lego_id',
-    old_json->>'seed_id',
-    old_json->>'voice_id'
+    old_json->>'id', old_json->>'course_code', old_json->>'lego_id',
+    old_json->>'seed_id', old_json->>'voice_id'
   );
 
   INSERT INTO content_audit_log (
     table_name, change_type, primary_key, old_row, changed_by_uid
   ) VALUES (
-    TG_TABLE_NAME,
-    TG_OP,
-    pk_val,
-    old_json,
-    auth.uid()
+    TG_TABLE_NAME, TG_OP, pk_val, old_json, auth.uid()
   );
 
   RETURN NULL;
@@ -2157,7 +2239,9 @@ $$;
 CREATE FUNCTION public.current_learner_id() RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$ SELECT id FROM public.learners WHERE user_id = (auth.uid())::text $$;
+    AS $$
+  select id from public.learners where user_id = auth.uid()::text limit 1
+$$;
 
 
 --
@@ -3729,6 +3813,45 @@ $$;
 
 
 --
+-- Name: reverse_teacher_commission(uuid, date, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+DECLARE
+  v_row teacher_commissions%ROWTYPE;
+BEGIN
+  SELECT * INTO v_row FROM teacher_commissions
+   WHERE teacher_id = p_teacher_id AND period_start = p_period_start
+   FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN; -- nothing accrued for this period; nothing to reverse
+  END IF;
+
+  IF v_row.status IN ('accruing', 'held') THEN
+    UPDATE teacher_commissions
+       SET accrued_pence = GREATEST(accrued_pence - GREATEST(p_pence, 0), 0),
+           status = CASE
+                      WHEN GREATEST(accrued_pence - GREATEST(p_pence, 0), 0) = 0 THEN 'reversed'
+                      ELSE status
+                    END,
+           updated_at = NOW()
+     WHERE id = v_row.id;
+  ELSE
+    -- already paid out / pending payout: carry as a clawback against future net.
+    UPDATE teacher_commissions
+       SET clawback_pence = clawback_pence + GREATEST(p_pence, 0),
+           updated_at = NOW()
+     WHERE id = v_row.id;
+  END IF;
+END;
+$$;
+
+
+--
 -- Name: rls_status(text[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4535,6 +4658,7 @@ CREATE TABLE public.learners (
     dashboard_courses text[],
     welcome_played_at timestamp with time zone,
     is_demo boolean DEFAULT false NOT NULL,
+    is_internal boolean DEFAULT false NOT NULL,
     CONSTRAINT learners_educational_role_check CHECK ((educational_role = ANY (ARRAY['student'::text, 'teacher'::text, 'school_admin'::text, 'govt_admin'::text]))),
     CONSTRAINT learners_platform_role_check CHECK (((platform_role IS NULL) OR (platform_role = ANY (ARRAY['ssi_admin'::text, 'popty_user'::text, 'tester'::text]))))
 );
@@ -4559,6 +4683,13 @@ COMMENT ON COLUMN public.learners.educational_role IS 'Role in school context: s
 --
 
 COMMENT ON COLUMN public.learners.platform_role IS 'Platform-level role. Only ssi_admin for Tom/Aran.';
+
+
+--
+-- Name: COLUMN learners.is_internal; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learners.is_internal IS 'Real human internal/QA/team account (not synthetic — see is_demo). Excluded from analytics aggregates so adoption metrics reflect external users only.';
 
 
 --
@@ -4992,7 +5123,7 @@ CREATE TABLE public.course_audio (
     word_boundaries jsonb,
     sequence integer,
     CONSTRAINT course_audio_origin_check CHECK ((origin = ANY (ARRAY['tts'::text, 'human'::text]))),
-    CONSTRAINT course_audio_role_check CHECK ((role = ANY (ARRAY['known'::text, 'target1'::text, 'target2'::text, 'presentation'::text, 'welcome'::text, 'encouragement'::text, 'instruction'::text, 'bookend_listen_intro'::text, 'bookend_listen_outro'::text, 'pod_explainer'::text])))
+    CONSTRAINT course_audio_role_check CHECK ((role = ANY (ARRAY['known'::text, 'target1'::text, 'target2'::text, 'presentation'::text, 'welcome'::text, 'encouragement'::text, 'instruction'::text, 'bookend_listen_intro'::text, 'bookend_listen_outro'::text, 'pod_explainer'::text, 'pod_fine_known'::text, 'pod_take_g'::text])))
 )
 WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02');
 
@@ -6793,6 +6924,18 @@ COMMENT ON COLUMN public.learner_lego_pairings.fire_count IS 'Total cycles in wh
 
 
 --
+-- Name: learner_meta_commentary_state; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.learner_meta_commentary_state (
+    learner_id uuid NOT NULL,
+    instructions_complete boolean DEFAULT false NOT NULL,
+    instruction_index integer DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: learner_milestones; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7022,7 +7165,10 @@ CREATE TABLE public.listening_pod_sentences (
     atom_map jsonb,
     note_audio_id uuid,
     sentence_audio_ids uuid[],
-    sentence_known_audio_ids uuid[]
+    sentence_known_audio_ids uuid[],
+    atom_map_fine jsonb,
+    window_known_map jsonb,
+    takeg_audio_ids uuid[]
 );
 
 
@@ -7080,6 +7226,27 @@ COMMENT ON COLUMN public.listening_pod_sentences.explainer_audio_id IS 'UUID of 
 --
 
 COMMENT ON COLUMN public.listening_pod_sentences.atom_map IS 'Atom-Fusion position layer: ordered atom/passthrough/note entries citing pod_legos by lego_key, with this clause''s target offsets. See docs/architecture/atom-fusion-introduction.md.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.atom_map_fine; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.atom_map_fine IS 'DRAFT Aran-granularity unit map (prosodic breath-groups) — Pod Lab preview only; atom_map stays live until the fusion-ladder model ships. Seams here define future Take G gap points.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.window_known_map; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.window_known_map IS 'DRAFT authored known-language translations for fusion windows (contiguous fine-unit spans), sibling of atom_map_fine: [{g,start,end,known}] flat unit indices; regenerated when seams change.';
+
+
+--
+-- Name: COLUMN listening_pod_sentences.takeg_audio_ids; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.listening_pod_sentences.takeg_audio_ids IS 'Take G gapped per-sentence renders, aligned to the ladder''s GLUED sentence groups (leading interjections glued forward); null element = single-unit group (its unit is the real sentence take). Unit ms spans in atom_map_fine index into these clips.';
 
 
 --
@@ -7247,7 +7414,9 @@ CREATE TABLE public.player_events (
     payload jsonb,
     client_version text,
     device_type text,
-    ip_country text
+    ip_country text,
+    env text,
+    learner_id uuid
 );
 
 
@@ -7256,6 +7425,13 @@ CREATE TABLE public.player_events (
 --
 
 COMMENT ON TABLE public.player_events IS 'Diagnostic event log for the learning player. Written via /api/player-events.';
+
+
+--
+-- Name: COLUMN player_events.env; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.player_events.env IS 'Deployment environment the event came from, derived server-side from the request host: production | staging | dev. NULL = unknown (rows predating this column).';
 
 
 --
@@ -7762,8 +7938,10 @@ CREATE TABLE public.teacher_commissions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     wise_batch_group_id text,
+    hold_until timestamp with time zone,
+    clawback_pence integer DEFAULT 0 NOT NULL,
     CONSTRAINT teacher_commissions_accrued_pence_check CHECK ((accrued_pence >= 0)),
-    CONSTRAINT teacher_commissions_status_check CHECK ((status = ANY (ARRAY['accruing'::text, 'pending_payout'::text, 'paid'::text, 'failed'::text])))
+    CONSTRAINT teacher_commissions_status_check CHECK ((status = ANY (ARRAY['accruing'::text, 'held'::text, 'pending_payout'::text, 'paid'::text, 'failed'::text, 'reversed'::text])))
 );
 
 
@@ -7793,6 +7971,20 @@ COMMENT ON COLUMN public.teacher_commissions.status IS 'accruing = period still 
 --
 
 COMMENT ON COLUMN public.teacher_commissions.wise_batch_group_id IS 'Wise batch group ID for the monthly payout run that included this commission.';
+
+
+--
+-- Name: COLUMN teacher_commissions.hold_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teacher_commissions.hold_until IS 'Refund-window release date for this commission (paid_at + 30 days at accrual time). A row is only RELEASED — eligible for a Wise payout — once hold_until <= current_date. NULL = not yet released (fail-safe: never paid early).';
+
+
+--
+-- Name: COLUMN teacher_commissions.clawback_pence; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.teacher_commissions.clawback_pence IS 'Pence to subtract at payout time for reversals (refund/chargeback) that arrived AFTER the commission was already paid out. Net payable = accrued_pence - clawback_pence.';
 
 
 --
@@ -8718,6 +8910,14 @@ ALTER TABLE ONLY public.learner_lego_metrics
 
 ALTER TABLE ONLY public.learner_lego_pairings
     ADD CONSTRAINT learner_lego_pairings_pkey PRIMARY KEY (learner_id, course_code, lego_a, lego_b);
+
+
+--
+-- Name: learner_meta_commentary_state learner_meta_commentary_state_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.learner_meta_commentary_state
+    ADD CONSTRAINT learner_meta_commentary_state_pkey PRIMARY KEY (learner_id);
 
 
 --
@@ -10298,6 +10498,13 @@ CREATE INDEX idx_phase_prompts_phase_code ON public.phase_prompts USING btree (p
 
 
 --
+-- Name: idx_player_events_learner_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_player_events_learner_time ON public.player_events USING btree (learner_id, occurred_at DESC);
+
+
+--
 -- Name: idx_player_events_session; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10606,6 +10813,13 @@ CREATE INDEX idx_target_phrases_lego ON public.target_phrases USING btree (targe
 
 
 --
+-- Name: idx_teacher_commissions_hold_until; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_teacher_commissions_hold_until ON public.teacher_commissions USING btree (status, hold_until) WHERE (status = ANY (ARRAY['held'::text, 'accruing'::text]));
+
+
+--
 -- Name: idx_teacher_commissions_status_period; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10732,6 +10946,13 @@ CREATE INDEX learners_is_demo_true_idx ON public.learners USING btree (id) WHERE
 
 
 --
+-- Name: learners_is_internal_true_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX learners_is_internal_true_idx ON public.learners USING btree (id) WHERE is_internal;
+
+
+--
 -- Name: offline_leases_learner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10757,6 +10978,13 @@ CREATE UNIQUE INDEX one_active_per_pair ON public.language_briefs USING btree (k
 --
 
 CREATE UNIQUE INDEX one_active_per_phase ON public.phase_prompts USING btree (phase_code) WHERE (is_active = true);
+
+
+--
+-- Name: player_events_env_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX player_events_env_idx ON public.player_events USING btree (env);
 
 
 --
@@ -11503,6 +11731,14 @@ ALTER TABLE ONLY public.learner_lego_pairings
 
 
 --
+-- Name: learner_meta_commentary_state learner_meta_commentary_state_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.learner_meta_commentary_state
+    ADD CONSTRAINT learner_meta_commentary_state_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
+
+
+--
 -- Name: learner_milestones learner_milestones_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11814,6 +12050,13 @@ CREATE POLICY "Admins can read all learners" ON public.learners FOR SELECT TO au
 --
 
 CREATE POLICY "Admins can read all lego_progress" ON public.lego_progress FOR SELECT TO authenticated USING (public.is_ssi_admin());
+
+
+--
+-- Name: learner_meta_commentary_state Admins can read all meta commentary state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can read all meta commentary state" ON public.learner_meta_commentary_state FOR SELECT TO authenticated USING (public.is_ssi_admin());
 
 
 --
@@ -12187,6 +12430,15 @@ CREATE POLICY "Users can insert own lego pairings" ON public.learner_lego_pairin
 
 
 --
+-- Name: learner_meta_commentary_state Users can insert own meta commentary state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can insert own meta commentary state" ON public.learner_meta_commentary_state FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
 -- Name: learner_speaking_opportunities Users can insert own speaking opportunities; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12218,6 +12470,15 @@ CREATE POLICY "Users can update own lego metrics" ON public.learner_lego_metrics
 --
 
 CREATE POLICY "Users can update own lego pairings" ON public.learner_lego_pairings FOR UPDATE USING ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
+-- Name: learner_meta_commentary_state Users can update own meta commentary state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update own meta commentary state" ON public.learner_meta_commentary_state FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
@@ -12261,6 +12522,15 @@ CREATE POLICY "Users can view own lego metrics" ON public.learner_lego_metrics F
 --
 
 CREATE POLICY "Users can view own lego pairings" ON public.learner_lego_pairings FOR SELECT USING ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
+-- Name: learner_meta_commentary_state Users can view own meta commentary state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view own meta commentary state" ON public.learner_meta_commentary_state FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
@@ -12761,6 +13031,12 @@ ALTER TABLE public.learner_lego_metrics ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.learner_lego_pairings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: learner_meta_commentary_state; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.learner_meta_commentary_state ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: learner_milestones; Type: ROW SECURITY; Schema: public; Owner: -
@@ -13574,6 +13850,16 @@ GRANT ALL ON FUNCTION public.accrue_teacher_commission(p_teacher_id uuid, p_peri
 
 
 --
+-- Name: FUNCTION accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) TO anon;
+GRANT ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.accrue_teacher_commission_held(p_teacher_id uuid, p_period_start date, p_period_end date, p_pence integer, p_hold_until timestamp with time zone) TO service_role;
+
+
+--
 -- Name: FUNCTION activate_brief_version(p_known_code text, p_target_code text, p_version text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -13589,6 +13875,24 @@ GRANT ALL ON FUNCTION public.activate_brief_version(p_known_code text, p_target_
 GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO anon;
 GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO authenticated;
 GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO service_role;
+
+
+--
+-- Name: FUNCTION admin_practice_minutes(p_learner_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO anon;
+GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION admin_practice_minutes_by_course(p_learner_ids uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO anon;
+GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO authenticated;
+GRANT ALL ON FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[]) TO service_role;
 
 
 --
@@ -14306,6 +14610,16 @@ REVOKE ALL ON FUNCTION public.relink_user_tags(old_user_id text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.relink_user_tags(old_user_id text) TO anon;
 GRANT ALL ON FUNCTION public.relink_user_tags(old_user_id text) TO authenticated;
 GRANT ALL ON FUNCTION public.relink_user_tags(old_user_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) TO anon;
+GRANT ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) TO authenticated;
+GRANT ALL ON FUNCTION public.reverse_teacher_commission(p_teacher_id uuid, p_period_start date, p_pence integer) TO service_role;
 
 
 --
@@ -15109,6 +15423,15 @@ GRANT ALL ON TABLE public.learner_lego_metrics TO service_role;
 GRANT ALL ON TABLE public.learner_lego_pairings TO anon;
 GRANT ALL ON TABLE public.learner_lego_pairings TO authenticated;
 GRANT ALL ON TABLE public.learner_lego_pairings TO service_role;
+
+
+--
+-- Name: TABLE learner_meta_commentary_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.learner_meta_commentary_state TO anon;
+GRANT ALL ON TABLE public.learner_meta_commentary_state TO authenticated;
+GRANT ALL ON TABLE public.learner_meta_commentary_state TO service_role;
 
 
 --
