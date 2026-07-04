@@ -179,7 +179,7 @@ const formattedTime = computed(() => {
 const allCourses = ref([])
 // Map<course_code, course_enrollments row> — the actual per-learner
 // progress. props.enrolledCourses is the catalogue (misnamed), so it
-// doesn't carry highest_completed_lego_id. Provided by App.vue.
+// doesn't carry last_completed_lego_id. Provided by App.vue.
 const learnerEnrollments = inject('learnerEnrollments', ref(new Map()))
 // Map<`${course_code}|${lego_id}`, round_index> — exact LEGO ordinal
 // for the learner's current position in each enrolled course.
@@ -187,12 +187,12 @@ const roundIndexes = ref(new Map())
 const isLoadingCourses = ref(true)
 
 // Look up the exact LEGO ordinal (round_index) for each enrolled course's
-// highest_completed_lego_id. One batched Supabase query.
+// last_completed_lego_id (the cursor). One batched Supabase query.
 const fetchRoundIndexes = async () => {
   const client = supabaseRef.value
   if (!client) return
   const pairs = [...learnerEnrollments.value.values()]
-    .map(e => ({ course_code: e.course_id, lego_id: e.highest_completed_lego_id }))
+    .map(e => ({ course_code: e.course_id, lego_id: e.last_completed_lego_id }))
     .filter(p => p.course_code && p.lego_id)
   if (pairs.length === 0) {
     roundIndexes.value = new Map()
@@ -351,22 +351,22 @@ const getFullDisplayName = (course) => {
 
 // Brain-view tile per enrolled course. Renders only for enrolled courses
 // (i.e. things the learner has actually started) — the catalogue cards
-// Get enrollment progress. Canonical position is highest_completed_lego_id
-// (e.g. "S0001L04"); parse the SNNNN prefix as the learner's current seed.
-// Tile status: belt-coloured dot + position label "N / total". Total comes
-// from courses.seed_count so the denominator matches the actual course
-// length, not a hardcoded 668. When per-course total LEGO counts get
+// Get enrollment progress. Canonical position is last_completed_lego_id
+// (the cursor, e.g. "S0001L04"); parse the SNNNN prefix as the learner's
+// current seed. Tile status: belt-coloured dot + position label "N / total".
+// Total comes from courses.seed_count so the denominator matches the actual
+// course length, not a hardcoded 668. When per-course total LEGO counts get
 // published, swap the denominator to LEGOs.
 const getBeltColor = (courseCode) => {
   const enrollment = learnerEnrollments.value.get(courseCode)
-  const seed = getSeedFromLegoId(enrollment?.highest_completed_lego_id ?? null)
+  const seed = getSeedFromLegoId(enrollment?.last_completed_lego_id ?? null)
   if (seed === null) return null
   return BELTS[getBeltIndexForSeed(seed)].color
 }
 
 const getProgress = (courseCode) => {
   const enrollment = learnerEnrollments.value.get(courseCode)
-  const legoId = enrollment?.highest_completed_lego_id ?? null
+  const legoId = enrollment?.last_completed_lego_id ?? null
   const seed = getSeedFromLegoId(legoId)
   if (seed === null) return null
   const course = allCourses.value.find(c => c.course_code === courseCode)
