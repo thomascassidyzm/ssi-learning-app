@@ -266,7 +266,9 @@ const activeEnrollments = computed<Enrollment[]>(() => {
   return enrollments.value
     .filter((e: any) => {
       // Canonical signal: has the learner ever completed a LEGO here?
-      if (e.highest_completed_lego_id) return true
+      // (cursor-only model, 2026-07-04 — last_completed_lego_id is the
+      // canonical position; highest_completed_lego_id is legacy)
+      if (e.last_completed_lego_id) return true
       // Telemetry fallback for courses without enrollment ratchet writes yet.
       const prog = getCourseProgress(e.course_id)
       if (prog.legos_seen > 0 || prog.total_l1_fires > 0) return true
