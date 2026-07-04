@@ -33,4 +33,21 @@ describe('canAccessSeed — the shared gate behind both the stepper and the belt
     expect(access.canPreview).toBe(true);
     expect(access.previewMaxSeed).toBe(PREMIUM_PREVIEW_MAX_SEED);
   });
+
+  it('optimistically allows a jump past the preview wall while subscription status is still hydrating (morgan1009 bug, 2026-07-04)', () => {
+    // Authenticated learner whose real subscription hasn't been fetched yet
+    // (fresh load, or right after ?reset=1 wiped the local cache) must NOT be
+    // treated as unsubscribed — that false negative is what booted an active
+    // Paddle subscriber back to the free preview / infinite play.
+    const pending = { isActive: false, tier: 'free' as const, isPending: true };
+    expect(canAccessSeed(PREMIUM_COURSE, pending, BELT_MAX_SEEDS.black)).toBe(true);
+    const access = checkCourseAccess(PREMIUM_COURSE, pending);
+    expect(access.canAccess).toBe(true);
+    expect(access.upgradeRequired).toBe(false);
+  });
+
+  it('still gates a resolved non-subscriber (isPending false) past the preview wall', () => {
+    const resolved = { isActive: false, tier: 'free' as const, isPending: false };
+    expect(canAccessSeed(PREMIUM_COURSE, resolved, BELT_MAX_SEEDS.black)).toBe(false);
+  });
 });

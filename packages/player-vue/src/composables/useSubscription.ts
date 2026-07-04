@@ -45,6 +45,10 @@ export interface UseSubscriptionReturn {
   isSubscribed: ComputedRef<boolean>
   /** Whether we're loading subscription data */
   isLoading: Ref<boolean>
+  /** True once the first fetch attempt (or a no-auth short-circuit) has
+   *  completed — before this, `isSubscribed` is not yet a trustworthy
+   *  "not subscribed" signal. */
+  hasHydrated: Ref<boolean>
   /** Error message if any */
   error: Ref<string | null>
   /** Subscription status for display */
@@ -72,6 +76,7 @@ export function useSubscription(): UseSubscriptionReturn {
   // Subscription state
   const subscription = ref<Subscription | null>(null)
   const isLoading = ref(false)
+  const hasHydrated = ref(false)
   const error = ref<string | null>(null)
 
   // Computed
@@ -157,14 +162,16 @@ export function useSubscription(): UseSubscriptionReturn {
   }
 
   async function fetchSubscription(): Promise<void> {
-    const token = await getAuthToken()
-    if (!token) {
-      // Not authenticated - clear subscription
-      subscription.value = null
-      return
-    }
-
     try {
+      const token = await getAuthToken()
+      if (!token) {
+        // Not authenticated - clear subscription. This IS a resolved state
+        // (guest), so hydration is complete.
+        subscription.value = null
+        hasHydrated.value = true
+        return
+      }
+
       const response = await fetch('/api/subscription', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -176,6 +183,7 @@ export function useSubscription(): UseSubscriptionReturn {
           // Auth issue - clear cache and state
           clearCache()
           subscription.value = null
+          hasHydrated.value = true
           return
         }
         throw new Error(`API error: ${response.status}`)
@@ -185,9 +193,14 @@ export function useSubscription(): UseSubscriptionReturn {
 
       subscription.value = data.subscription
       saveToCache(data.subscription, data.isSubscribed)
+      hasHydrated.value = true
     } catch (err) {
       console.error('[useSubscription] Fetch error:', err)
       error.value = err instanceof Error ? err.message : 'Failed to fetch subscription'
+      // A network/API failure leaves hydration incomplete on purpose — we
+      // don't know the real status, so don't downgrade a possibly-active
+      // subscriber to "unsubscribed" (isPending stays true; the gate keeps
+      // optimistically allowing access until a real answer arrives).
     }
   }
 
@@ -321,6 +334,7 @@ export function useSubscription(): UseSubscriptionReturn {
     subscription,
     isSubscribed,
     isLoading,
+    hasHydrated,
     error,
     status,
     initialize,

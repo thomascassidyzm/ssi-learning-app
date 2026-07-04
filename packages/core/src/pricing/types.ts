@@ -107,6 +107,15 @@ export interface UserSubscriptionStatus {
   /** Subscription tier */
   tier: 'free' | 'paid';
 
+  /**
+   * True while the real subscription status hasn't been fetched yet (e.g.
+   * fresh page load, or right after `?reset=1` wiped the local cache). An
+   * authenticated learner mid-hydration must not be treated as unsubscribed —
+   * that false negative is what boots a paying subscriber back to the free
+   * preview / infinite play. Optimistically grants access until resolved.
+   */
+  isPending?: boolean;
+
   /** When subscription expires (if any) */
   expiresAt?: string | null;
 

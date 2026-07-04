@@ -84,6 +84,19 @@ export function checkCourseAccess(
     };
   }
 
+  // Subscription status hasn't hydrated yet — optimistically allow rather
+  // than gate a possible subscriber. A false positive here self-corrects the
+  // instant the real status lands; a false negative boots a payer to the
+  // preview wall / infinite play (the morgan1009 bug, 2026-07-04).
+  if (subscription?.isPending) {
+    return {
+      canAccess: true,
+      canPreview: true,
+      reason: 'subscribed',
+      upgradeRequired: false,
+    };
+  }
+
   // Check entitlements from entitlement codes
   if (entitlements && entitlements.length > 0) {
     const now = new Date();

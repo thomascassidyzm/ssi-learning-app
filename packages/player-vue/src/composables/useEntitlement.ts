@@ -138,7 +138,7 @@ export function useEntitlement(): UseEntitlementReturn {
   const auth = inject<{ isAuthenticated: Ref<boolean>; learnerId: Ref<string | null> } | null>('auth', null)
 
   // Get subscription status
-  const { isSubscribed: hasActiveSubscription } = useSharedSubscription()
+  const { isSubscribed: hasActiveSubscription, hasHydrated: subscriptionHydrated } = useSharedSubscription()
 
   // Get user entitlements from entitlement codes
   const { entitlements: userEntitlements } = useSharedUserEntitlements()
@@ -178,6 +178,10 @@ export function useEntitlement(): UseEntitlementReturn {
     return {
       isActive: isPaid,
       tier: isPaid ? 'paid' as const : 'free' as const,
+      // Authenticated but subscription status not yet fetched (fresh load,
+      // or right after ?reset=1 wiped the cache) — see checkCourseAccess,
+      // this is treated as optimistic access rather than "unsubscribed".
+      isPending: !isPaid && !!auth?.isAuthenticated.value && !subscriptionHydrated.value,
     }
   }
 
