@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useAuth } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useActAs } from '@/composables/useActAs'
@@ -71,7 +70,6 @@ type Row =
   | { kind: 'invite'; row: InviteCode; createdAt: string }
   | { kind: 'direct'; row: EntitlementCode; createdAt: string }
 
-const { user, learner } = useAuth()
 const { isSsiAdmin, isGovtAdmin, canActAs } = useUserRole()
 const { getClient, getAuthToken } = useAdminClient()
 const { actAs } = useActAs()
@@ -233,15 +231,8 @@ const activeCount = computed(() =>
 )
 
 // ─── Fetch ─────────────────────────────────────────────────────────────────
-function getCurrentUserId(): string | null {
-  if (user.value) return user.value.id
-  if (learner.value) return learner.value.user_id
-  return null
-}
-
 async function fetchAll(): Promise<void> {
   const client = getClient()
-  const userId = getCurrentUserId()
 
   isLoading.value = true
   error.value = null
@@ -258,8 +249,9 @@ async function fetchAll(): Promise<void> {
     // Groups: server-side endpoint (uses service role, bypasses RLS)
     const groupsP = fetch('/api/groups', { headers: authHeader })
 
-    let invitesQ = client.from('invite_codes').select('*').order('created_at', { ascending: false })
-    if (!isSsiAdmin.value && userId) invitesQ = invitesQ.eq('created_by', userId)
+    // Invite codes: server-side endpoint (scopes non-ssi-admins to own-created;
+    // lets authenticated SELECT on the base table be revoked — codes are bearer creds)
+    const invitesP = fetch('/api/admin/codes', { headers: authHeader })
 
     const coursesP = client
       .from('courses')
@@ -269,7 +261,7 @@ async function fetchAll(): Promise<void> {
     const entitlementsP = fetch('/api/entitlement/list', { headers: authHeader })
 
     const [groupsR, invitesR, coursesR, entitlementsR] = await Promise.all([
-      groupsP, invitesQ, coursesP, entitlementsP,
+      groupsP, invitesP, coursesP, entitlementsP,
     ])
 
     if (!groupsR.ok) {
@@ -281,8 +273,12 @@ async function fetchAll(): Promise<void> {
       groups.value = gJson.groups || []
     }
 
-    if (invitesR.error) throw invitesR.error
-    inviteCodes.value = invitesR.data || []
+    if (!invitesR.ok) {
+      const body = await invitesR.json().catch(() => ({}))
+      throw new Error(body.error || `Invite code list failed: ${invitesR.status}`)
+    }
+    const invJson = await invitesR.json()
+    inviteCodes.value = invJson.codes || []
 
     if (coursesR.error) {
       console.warn('[AdminAccess] courses load failed:', coursesR.error)
@@ -431,16 +427,19 @@ async function createDirectCode(): Promise<void> {
 
 // ─── Toggle / copy ─────────────────────────────────────────────────────────
 async function toggleActive(row: Row): Promise<void> {
-  const client = getClient()
-  const table = row.kind === 'invite' ? 'invite_codes' : 'entitlement_codes'
   error.value = null
   try {
     const next = !row.row.is_active
-    const { error: updateError } = await client
-      .from(table)
-      .update({ is_active: next })
-      .eq('id', row.row.id)
-    if (updateError) throw updateError
+    const token = await getAuthToken()
+    const resp = await fetch('/api/admin/codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ kind: row.kind, id: row.row.id, is_active: next }),
+    })
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}))
+      throw new Error(body.error || `Toggle failed: ${resp.status}`)
+    }
     row.row.is_active = next
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to update code'
