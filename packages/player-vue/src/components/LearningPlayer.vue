@@ -8230,7 +8230,20 @@ simplePlayer.setRuntimeOverrides({
   // element reads from anymore.
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
+const listeningOverlayRef = ref<{ stepSentence: (delta: number) => void } | null>(null) // Overlay instance — bottom-nav ‹ › step through it
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
+
+/**
+ * Bottom-nav ‹ › while the listening overlay is open: step the overlay's
+ * active sentence instead of the main session's LEGO axis. Returns true
+ * when handled so the caller can fall through to handleRoundBack/Forward
+ * otherwise.
+ */
+const listeningStep = (delta: number): boolean => {
+  if (!showListeningOverlay.value || !listeningOverlayRef.value) return false
+  listeningOverlayRef.value.stepSentence(delta)
+  return true
+}
 
 /**
  * Ceiling used by the Listening / Pronunciation overlay's "All" tab.
@@ -12278,6 +12291,7 @@ defineExpose({
   handleSkip,
   handleRoundForward,
   handleRoundBack,
+  listeningStep,
   isInListeningCycle,
   exitListeningMode,
   exitAllModes,
@@ -13051,6 +13065,7 @@ defineExpose({
     <Transition name="listening-overlay">
       <ListeningOverlay
         v-if="showListeningOverlay"
+        ref="listeningOverlayRef"
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
         :up-to-seed="listeningCeilingSeed"
