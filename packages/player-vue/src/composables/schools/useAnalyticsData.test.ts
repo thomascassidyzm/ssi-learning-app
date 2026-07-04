@@ -26,7 +26,10 @@ function createMockClient(responses: Record<string, any>) {
     from: vi.fn((table: string) => {
       currentTable = table
       return new Proxy({}, handler)
-    })
+    }),
+    auth: {
+      getSession: vi.fn(async () => ({ data: { session: { access_token: 'test-token' } } })),
+    },
   } as any
 }
 
@@ -64,39 +67,37 @@ describe('useAnalyticsData', () => {
 
   // --- fetchDailyActivity ---
 
-  it('fills 30-day gap with zeros', async () => {
-    const ad = await setup({
-      classes: { data: [{ id: 'c1' }], error: null },
-      user_tags: { data: [{ user_id: 'su1' }], error: null },
-      learners: { data: [{ id: 'l1' }], error: null },
-      sessions: { data: [], error: null },
-    })
+  // fetchDailyActivity now calls the server-mediated /api/school/daily-activity
+  // endpoint (scope + aggregation server-side); these mock the auth session +
+  // fetch and assert the client-side 30-day fill + response mapping.
+
+  it('fills 30-day gap with zeros when the endpoint returns no activity', async () => {
+    global.fetch = vi.fn(async () => ({ ok: true, json: async () => ({ activity: [], days: 30 }) })) as any
+    const ad = await setup()
     await ad.fetchDailyActivity()
     expect(ad.dailyActivity.value).toHaveLength(30)
     expect(ad.dailyActivity.value.every(d => d.sessions === 0)).toBe(true)
   })
 
-  it('aggregates sessions by day and deduplicates students', async () => {
-    const ad = await setup({
-      classes: { data: [{ id: 'c1' }], error: null },
-      user_tags: { data: [{ user_id: 'su1' }], error: null },
-      learners: { data: [{ id: 'learner-1' }], error: null },
-      sessions: { data: [
-        { learner_id: 'learner-1', started_at: '2025-06-15T08:00:00Z', duration_seconds: 1800 },
-        { learner_id: 'learner-1', started_at: '2025-06-15T14:00:00Z', duration_seconds: 900 },
-      ], error: null },
-    })
+  it('maps the daily-activity response per day (cycles → sessions)', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        activity: [{ day: '2025-06-15', practice_minutes: 45, active_students: 1, cycles: 2 }],
+        days: 30,
+      }),
+    })) as any
+    const ad = await setup()
     await ad.fetchDailyActivity()
     const today = ad.dailyActivity.value.find(d => d.date === '2025-06-15')
-    expect(today?.sessions).toBe(2)
-    expect(today?.practice_minutes).toBe(45) // (1800+900)/60
-    expect(today?.active_students).toBe(1) // same learner counted once
+    expect(today?.sessions).toBe(2) // cycles surfaced as the sessions/volume metric
+    expect(today?.practice_minutes).toBe(45)
+    expect(today?.active_students).toBe(1)
   })
 
-  it('returns empty when no classes found', async () => {
-    const ad = await setup({
-      classes: { data: [], error: null },
-    })
+  it('returns empty when the daily-activity endpoint fails', async () => {
+    global.fetch = vi.fn(async () => ({ ok: false, status: 500 })) as any
+    const ad = await setup()
     await ad.fetchDailyActivity()
     expect(ad.dailyActivity.value).toEqual([])
   })
