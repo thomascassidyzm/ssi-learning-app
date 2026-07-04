@@ -52,7 +52,7 @@ export function useLearnerJourney(client: SupabaseClient) {
     }
   }
 
-  async function fetchContribution(courseId: string) {
+  async function fetchContribution(courseId: string, learnerId?: string | null) {
     const targetLang = courseId.split('_for_')[0]
     const today = new Date().toISOString().split('T')[0]
 
@@ -64,14 +64,25 @@ export function useLearnerJourney(client: SupabaseClient) {
         .eq('contribution_date', today)
         .single()
 
-      const { data: sessions } = await client
-        .from('sessions')
-        .select('duration_seconds, items_practiced')
-        .eq('course_id', courseId)
-        .gte('started_at', today)
+      // Personal today-totals MUST be scoped to THIS learner. Without the
+      // learner_id filter this summed EVERY learner's sessions for the course
+      // and showed the whole community's minutes as the user's own. Guests have
+      // no sessions rows (and a guest id would 400 a uuid column), so skip the
+      // query and report zero rather than a misattributed community total.
+      const isGuest = !learnerId || learnerId.startsWith('guest-') || learnerId === 'demo-learner'
+      let userMinutes = 0
+      let userPhrases = 0
+      if (!isGuest) {
+        const { data: sessions } = await client
+          .from('sessions')
+          .select('duration_seconds, items_practiced')
+          .eq('course_id', courseId)
+          .eq('learner_id', learnerId)
+          .gte('started_at', today)
 
-      const userMinutes = sessions?.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) / 60 || 0
-      const userPhrases = sessions?.reduce((sum, s) => sum + (s.items_practiced || 0), 0) || 0
+        userMinutes = (sessions?.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) || 0) / 60
+        userPhrases = sessions?.reduce((sum, s) => sum + (s.items_practiced || 0), 0) || 0
+      }
 
       contribution.value = {
         phrases_count: contrib?.phrases_count || 0,
