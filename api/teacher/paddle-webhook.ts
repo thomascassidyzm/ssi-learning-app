@@ -337,6 +337,26 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
   const kind = customData.kind as string | undefined
 
   if (kind === 'premium' || kind === 'teacher_plan' || kind === 'learner_premium') {
+    // 'learner_premium' is the CURRENT consumer premium flow. customData.kind is
+    // CLIENT-supplied, so the entitlement it claims must be backed by a
+    // premium-tier price ACTUALLY billed (the same protection the platform
+    // branch below applies). Without this, a tampered checkout on the cheapest
+    // live price (£5 student) + kind:'learner_premium' would upsert full
+    // 'SSi Premium'. The billed price id is read from Paddle's payload and
+    // can't be faked. Legacy 'premium'/'teacher_plan' predate PRICE_CATALOG and
+    // may renew on an un-catalogued price, so they are left untouched here to
+    // avoid breaking their renewals.
+    if (kind === 'learner_premium') {
+      const billedPriceId = planIdOf(data)
+      const meta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
+      if (meta?.tier !== 'premium') {
+        console.error(
+          '[paddle-webhook] REJECTED learner_premium subscription: billed price is not the premium tier:',
+          { kind, billedPriceId, tier: meta?.tier ?? 'unknown', customData }
+        )
+        return
+      }
+    }
     await handlePremiumSubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
