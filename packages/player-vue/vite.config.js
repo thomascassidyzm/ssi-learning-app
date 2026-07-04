@@ -38,11 +38,26 @@ export default defineConfig(({ mode }) => ({
       registerType: 'prompt',
 
       workbox: {
-        // Precache app shell
+        // Precache the app SHELL only. globPatterns catches all built assets;
+        // globIgnores then removes weight no learner needs on the critical path:
+        //   - the eruda debug console (~500KB, only ever loaded via ?debug)
+        //   - the entire /admin surface chunks (admins are never offline)
+        //   - static marketing/design mockups copied from public/
+        // These still load from the network on demand if ever reached; keeping
+        // them out of the precache shrinks the install every learner pays for.
+        // DEFERRED to a staging-validated follow-up (they touch offline-teacher
+        // use and the delicate stale-bundle path): trimming the schools-view +
+        // echarts chunks, and the shadowed NetworkFirst navigation route.
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
 
-        // DON'T cache audio via workbox precache - runtime caching handles it
-        globIgnores: ['**/*.{mp3,wav,ogg,m4a}'],
+        globIgnores: [
+          '**/*.{mp3,wav,ogg,m4a}', // audio → runtime caching / IndexedDB, never precache
+          '**/eruda-*.js',          // debug console, ?debug-only
+          '**/Admin*.js',           // /admin surface chunks — never needed offline by learners
+          '**/_schools-mockups/**', // static HTML mockups
+          '**/paddle-review/**',    // Paddle verification artifact
+          '**/design/**',           // design-doc mockups
+        ],
 
         // Workbox' default navigation handler returns the cached index.html
         // for *every* document navigation, which intercepts requests like
