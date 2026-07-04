@@ -190,6 +190,53 @@ function normaliseRole(raw: string | null | undefined): PhraseRole | null {
   return null
 }
 
+const BUNDLE_PHRASE_ROLES = ['build', 'use', 'practice', 'eternal_eligible']
+const BUNDLE_PHRASE_COLUMNS =
+  'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
+  'known_audio_id, target1_audio_id, target2_audio_id, ' +
+  'target1_duration_ms, target2_duration_ms, decomposition, display_tiling'
+
+// course_practice_phrases carries 15-17k rows on big courses. A single
+// unpaginated read is silently capped at PostgREST's default page (~1000),
+// which dropped the back ~90% of the course from the OFFLINE bundle. Count
+// first, then fetch every 1000-row page in parallel (PAGE well under the
+// server max-rows so each slice is complete). Mirrors fetchAllPracticePhrases
+// in providers/generateLearningScript.ts.
+async function fetchAllBundlePhrases(
+  supabase: any,
+  code: string,
+): Promise<{ data: any[] | null; error: any }> {
+  const PAGE = 1000
+  const { count, error: countErr } = await supabase
+    .from('course_practice_phrases')
+    .select('*', { count: 'exact', head: true })
+    .eq('course_code', code)
+    .in('phrase_role', BUNDLE_PHRASE_ROLES)
+  if (countErr) return { data: null, error: countErr }
+  const total = count ?? 0
+  if (total === 0) return { data: [], error: null }
+  const pageCount = Math.ceil(total / PAGE)
+  const pages = await Promise.all(
+    Array.from({ length: pageCount }, (_, i) =>
+      supabase
+        .from('course_practice_phrases')
+        .select(BUNDLE_PHRASE_COLUMNS)
+        .eq('course_code', code)
+        .in('phrase_role', BUNDLE_PHRASE_ROLES)
+        .order('seed_number', { ascending: true })
+        .order('lego_index', { ascending: true })
+        .order('position', { ascending: true })
+        .range(i * PAGE, i * PAGE + PAGE - 1),
+    ),
+  )
+  const all: any[] = []
+  for (const p of pages) {
+    if (p.error) return { data: null, error: p.error }
+    if (p.data) all.push(...p.data)
+  }
+  return { data: all, error: null }
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
@@ -232,18 +279,9 @@ export default async function handler(
         .eq('is_new', true)
         .order('seed_number', { ascending: true })
         .order('lego_index', { ascending: true }),
-      supabase
-        .from('course_practice_phrases')
-        .select(
-          'seed_number, lego_index, position, phrase_role, known_text, target_text, target_text_roman, ' +
-            'known_audio_id, target1_audio_id, target2_audio_id, ' +
-            'target1_duration_ms, target2_duration_ms, decomposition, display_tiling',
-        )
-        .eq('course_code', code)
-        .in('phrase_role', ['build', 'use', 'practice', 'eternal_eligible'])
-        .order('seed_number', { ascending: true })
-        .order('lego_index', { ascending: true })
-        .order('position', { ascending: true }),
+      // Paginated: course_practice_phrases can exceed the server page cap on
+      // big courses, so a single read silently truncated the offline bundle.
+      fetchAllBundlePhrases(supabase, code),
       supabase
         .from('course_round_index')
         .select('round_index, seed_number, lego_id')
