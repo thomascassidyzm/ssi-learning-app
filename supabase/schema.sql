@@ -3714,28 +3714,39 @@ CREATE FUNCTION public.ratchet_highest_completed_round() RETURNS trigger
 DECLARE
   prev_high_round INTEGER;
   prev_high_lego TEXT;
+  explicit_round_reset BOOLEAN;
+  explicit_lego_reset BOOLEAN;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     prev_high_round := NULL;
     prev_high_lego := NULL;
+    explicit_round_reset := FALSE;
+    explicit_lego_reset := FALSE;
   ELSE
     prev_high_round := OLD.highest_completed_round_index;
     prev_high_lego  := OLD.highest_completed_lego_id;
+    -- Captured before any assignment below touches NEW.highest_*.
+    explicit_round_reset := (NEW.highest_completed_round_index IS NULL);
+    explicit_lego_reset  := (NEW.highest_completed_lego_id IS NULL);
   END IF;
 
-  -- round_index: lift if the cursor moved forward.
-  IF NEW.last_completed_round_index IS NOT NULL AND
+  -- round_index: lift if the cursor moved forward, or honor an explicit reset.
+  IF explicit_round_reset THEN
+    NEW.highest_completed_round_index := NULL;
+  ELSIF NEW.last_completed_round_index IS NOT NULL AND
      (prev_high_round IS NULL OR NEW.last_completed_round_index > prev_high_round) THEN
     NEW.highest_completed_round_index := NEW.last_completed_round_index;
   ELSE
     NEW.highest_completed_round_index := prev_high_round;
   END IF;
 
-  -- lego_id: lift INDEPENDENTLY of round_index. Lexicographic on the
-  -- zero-padded SNNNNLNN format. A "backwards" lego_id cursor write
-  -- (e.g. an infinite-play round whose primaryLegoKey is an earlier
-  -- LEGO) no longer drags the ceiling down with it.
-  IF NEW.last_completed_lego_id IS NOT NULL AND
+  -- lego_id: lift INDEPENDENTLY of round_index, or honor an explicit reset.
+  -- Lexicographic on the zero-padded SNNNNLNN format. A "backwards"
+  -- lego_id cursor write (e.g. an infinite-play round whose primaryLegoKey
+  -- is an earlier LEGO) no longer drags the ceiling down with it.
+  IF explicit_lego_reset THEN
+    NEW.highest_completed_lego_id := NULL;
+  ELSIF NEW.last_completed_lego_id IS NOT NULL AND
      (prev_high_lego IS NULL OR NEW.last_completed_lego_id > prev_high_lego) THEN
     NEW.highest_completed_lego_id := NEW.last_completed_lego_id;
   ELSE
@@ -14859,7 +14870,7 @@ GRANT ALL ON TABLE public.checkpoint_approvals TO service_role;
 -- Name: TABLE classes; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,INSERT,REFERENCES,DELETE,TRIGGER,MAINTAIN,UPDATE ON TABLE public.classes TO authenticated;
+GRANT SELECT,INSERT,REFERENCES,TRIGGER,MAINTAIN,UPDATE ON TABLE public.classes TO authenticated;
 GRANT ALL ON TABLE public.classes TO service_role;
 
 
@@ -15288,7 +15299,7 @@ GRANT ALL ON TABLE public.entitlement_code_validation TO service_role;
 -- Name: TABLE entitlement_grants; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.entitlement_grants TO anon;
+GRANT REFERENCES,TRIGGER,MAINTAIN ON TABLE public.entitlement_grants TO anon;
 GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.entitlement_grants TO authenticated;
 GRANT ALL ON TABLE public.entitlement_grants TO service_role;
 
@@ -15313,7 +15324,7 @@ GRANT ALL ON TABLE public.feedback_aggregated TO service_role;
 -- Name: TABLE govt_admins; Type: ACL; Schema: public; Owner: -
 --
 
-GRANT SELECT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN ON TABLE public.govt_admins TO authenticated;
+GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.govt_admins TO authenticated;
 GRANT ALL ON TABLE public.govt_admins TO service_role;
 
 
