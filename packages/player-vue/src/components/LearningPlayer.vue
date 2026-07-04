@@ -11808,6 +11808,7 @@ onMounted(async () => {
     warmAudioMs,                                        // time awaited on warmFirstKnownAudio (cold-audio cost; ~0 once prewarm-precached)
     returnUser: isReturnUser,
     guest: isGuestLearner.value,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null,
   })
 
   // Prewarm the now-lazy overlay/modal chunks on idle — AFTER ready, off the
