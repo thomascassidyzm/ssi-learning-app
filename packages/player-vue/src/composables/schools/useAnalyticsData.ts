@@ -244,7 +244,7 @@ export function useAnalyticsData() {
       // Get course enrollments
       const { data: enrollmentsData, error: enrollError } = await client
         .from('course_enrollments')
-        .select('course_id, total_practice_minutes, learner_id')
+        .select('course_id, learner_id')
         .in('learner_id', learnerIds)
 
       if (enrollError) throw enrollError
@@ -260,13 +260,23 @@ export function useAnalyticsData() {
 
       if (seedsError) throw seedsError
 
+      // Practice minutes per course from the player_events rollup RPC — the
+      // course_enrollments.total_practice_minutes counter is no longer
+      // maintained. Returns per-course TOTALS across the scoped learners; we
+      // divide by enrolled_count below for the average.
+      const { data: minutesRows } = await client
+        .rpc('admin_practice_minutes_by_course', { p_learner_ids: learnerIds })
+      const minutesByCourse = new Map<string, number>()
+      ;(minutesRows as Array<{ course_code: string; practice_minutes: number }> | null)?.forEach(r => {
+        if (r.course_code) minutesByCourse.set(r.course_code, r.practice_minutes || 0)
+      })
+
       // Aggregate by course
-      const courseMap = new Map<string, { count: number; totalMinutes: number; totalSeeds: number }>()
+      const courseMap = new Map<string, { count: number }>()
 
       enrollmentsData?.forEach(e => {
-        const existing = courseMap.get(e.course_id) || { count: 0, totalMinutes: 0, totalSeeds: 0 }
+        const existing = courseMap.get(e.course_id) || { count: 0 }
         existing.count++
-        existing.totalMinutes += e.total_practice_minutes || 0
         courseMap.set(e.course_id, existing)
       })
 
@@ -282,11 +292,12 @@ export function useAnalyticsData() {
       courseStats.value = Array.from(courseMap.entries()).map(([course_code, stats]) => {
         const seedCounts = seedCountMap.get(course_code)
         const totalSeeds = seedCounts ? Array.from(seedCounts.values()).reduce((a, b) => a + b, 0) : 0
+        const totalMinutes = minutesByCourse.get(course_code) || 0
 
         return {
           course_code,
           enrolled_count: stats.count,
-          avg_practice_minutes: stats.count > 0 ? Math.round(stats.totalMinutes / stats.count) : 0,
+          avg_practice_minutes: stats.count > 0 ? Math.round(totalMinutes / stats.count) : 0,
           avg_seeds_completed: stats.count > 0 ? Math.round(totalSeeds / stats.count) : 0,
         }
       }).sort((a, b) => b.enrolled_count - a.enrolled_count)

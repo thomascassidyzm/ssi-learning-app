@@ -65,6 +65,15 @@ async function fetchProgress() {
 
     if (legoError) throw legoError
 
+    // Practice minutes per course from the player_events rollup RPC —
+    // course_enrollments.total_practice_minutes is no longer maintained.
+    const { data: minutesRows } = await client
+      .rpc('admin_practice_minutes_by_course', { p_learner_ids: [currentUser.value.learner_id] })
+    const minutesByCourse = new Map<string, number>()
+    ;(minutesRows as Array<{ course_code: string; practice_minutes: number }> | null)?.forEach(r => {
+      if (r.course_code) minutesByCourse.set(r.course_code, r.practice_minutes || 0)
+    })
+
     const seedCountMap = new Map<string, number>()
     seedCounts?.forEach(s => {
       seedCountMap.set(s.course_id, (seedCountMap.get(s.course_id) || 0) + 1)
@@ -82,23 +91,33 @@ async function fetchProgress() {
       course_id: e.course_id,
       enrolled_at: e.enrolled_at,
       last_practiced_at: e.last_practiced_at,
-      total_practice_minutes: e.total_practice_minutes || 0,
+      total_practice_minutes: minutesByCourse.get(e.course_id) ?? 0,
       seeds_completed: seedCountMap.get(e.course_id) || 0,
       legos_mastered: legoCountMap.get(e.course_id)?.total || 0,
       legos_retired: legoCountMap.get(e.course_id)?.retired || 0,
     }))
 
-    // Last 14 days of sessions for the streak + sparkline
+    // Last 14 days of daily activity for the streak + sparkline, from the
+    // player_events-derived rollup (learner_speaking_opportunities). The legacy
+    // `sessions` table is no longer the source of truth. LSO is per-(course,day),
+    // so sum play_seconds across courses into one entry per day and reuse the
+    // day-keyed computeds below. Own-row RLS permits this read.
     const fourteenDaysAgo = new Date()
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
-    const { data: sessions } = await client
-      .from('sessions')
-      .select('started_at, duration_seconds')
+    const sinceDay = fourteenDaysAgo.toISOString().split('T')[0]
+    const { data: activity } = await client
+      .from('learner_speaking_opportunities')
+      .select('day, play_seconds')
       .eq('learner_id', currentUser.value.learner_id)
-      .gte('started_at', fourteenDaysAgo.toISOString())
-      .order('started_at', { ascending: false })
+      .gte('day', sinceDay)
 
-    recentSessions.value = sessions || []
+    const secondsByDay = new Map<string, number>()
+    ;(activity as Array<{ day: string; play_seconds: number }> | null)?.forEach(r => {
+      secondsByDay.set(r.day, (secondsByDay.get(r.day) || 0) + (r.play_seconds || 0))
+    })
+    recentSessions.value = Array.from(secondsByDay.entries())
+      .map(([day, seconds]) => ({ started_at: day, duration_seconds: seconds }))
+      .sort((a, b) => (a.started_at < b.started_at ? 1 : -1))
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to fetch progress'
     console.error('[StudentProgress] fetch error:', err)
@@ -322,7 +341,7 @@ const journeyTotal = computed(() => {
               </div>
               <div class="stat">
                 <div class="arsenal stat-val">{{ avgSessionMins }}m</div>
-                <div class="schools-subtle stat-label">Avg session</div>
+                <div class="schools-subtle stat-label">Avg / day</div>
               </div>
             </div>
           </div>
