@@ -176,9 +176,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    const schoolActive = schoolOut
-      ? isPlatformActive(schoolOut.platform_status as string | null, schoolOut.platform_expires_at as string | null)
-      : false
+    // Schools get the same dunning grace as tutors (mirrors teacherPaid below):
+    // 'past_due' RETAINS dashboard access while Paddle's dunning retries run —
+    // only a terminal 'expired'/'cancelled' locks. Surfaced as `school_past_due`
+    // so the client can show a payment-problem banner instead of a silent grace.
+    const schoolPastDue = schoolOut ? schoolOut.platform_status === 'past_due' : false
+
+    const schoolActive =
+      schoolPastDue ||
+      (schoolOut
+        ? isPlatformActive(schoolOut.platform_status as string | null, schoolOut.platform_expires_at as string | null)
+        : false)
 
     // PAID = a live Paddle platform subscription exists on the teacher row —
     // 'active', or 'past_due' while Paddle's dunning retries run (still billed,
@@ -240,6 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       school: schoolOut,
       teacher: teacherOut,
       teacher_paid: teacherPaid,
+      school_past_due: schoolPastDue,
       active,
       reason: active ? 'active' : 'expired',
     })

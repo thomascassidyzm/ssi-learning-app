@@ -169,10 +169,13 @@ async function saveSchoolProfile() {
   try {
     const { getSchoolsClient } = await import('@/composables/schools/client')
     const client = getSchoolsClient()
-    await client
+    // Supabase .update() returns { error } rather than throwing, so an ignored
+    // error (e.g. an RLS denial) previously still showed "Saved". Surface it.
+    const { error: updateError } = await client
       .from('schools')
       .update({ school_name: schoolNameEdit.value })
       .eq('id', school.id)
+    if (updateError) throw updateError
     profileSaveStatus.value = 'saved'
     setTimeout(() => { profileSaveStatus.value = 'idle' }, 2000)
     await fetchSchools()

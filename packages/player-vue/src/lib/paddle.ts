@@ -94,5 +94,13 @@ export async function getPaddle(): Promise<Paddle> {
     return instance
   })()
 
-  return loadingPromise
+  try {
+    return await loadingPromise
+  } catch (err) {
+    // Don't cache a rejected promise: a transient init failure would otherwise
+    // be handed to every future getPaddle() caller, permanently breaking
+    // checkout for the whole session. Reset so the next call can retry.
+    loadingPromise = null
+    throw err
+  }
 }

@@ -63,3 +63,32 @@ A brand-new user on a decent connection is ALREADY fast. Don't redesign for the 
 
 Cheapest-first: (2a) wire prewarm into first boot → (1) staged messages → (3) generic
 welcome clip (needs recording) → (5) infplay bootstrap-first → (4) tips surface.
+
+## Welcome audio — RETHOUGHT to a global intro (Tom, 2026-07-03)
+
+(Supersedes an earlier per-known-language-masters idea from the same day — that just
+relocated the production problem: someone still records/renders a welcome per known
+language forever. Also: the "8 distinct scripts" datapoint was wrong — the text column
+holds placeholders ("welcome" x80); real scripts are per-course and localized.)
+
+Direction: **the welcome-as-60s-lecture should not exist.** Its job is already owned by
+Aran's coaching story (meta-commentary "instructions") — localized per known language,
+once-per-learner, cross-device-synced since 2026-07-02, and delivered in situ through the
+first rounds. The first-boot intro becomes:
+
+1. A few seconds of GLOBAL brand moment — sound + visual identity, no language.
+2. ONE localized on-screen text line (existing i18n layer): "You'll hear a phrase you
+   know — say it out loud in <target> before the speakers do."
+3. Straight into round 1. The method demonstrates itself; the story coaches from inside.
+
+Wins: nothing to record per lang-pair ever; new course builds drop the welcome render;
+method edits happen once (the story), not across 95 clips; time-to-first-speak improves
+(no lecture wall). The loading-mask need shrinks to the brand moment + staged text.
+
+Pre-delete checks (pickup gate):
+- Story coverage: do the coaching story's early beats say everything the welcome said?
+  If not, add a beat to the STORY (existing system), don't resurrect the welcome.
+- Story localization: confirm instruction clips exist for every known language in the
+  catalogue (they must for eng_for_X to function — verify actual coverage).
+- `welcome_played_at` / 'ssi-welcome-heard' plumbing retires with the lecture; keep the
+  brand-moment-seen flag local-only (it is not progress).

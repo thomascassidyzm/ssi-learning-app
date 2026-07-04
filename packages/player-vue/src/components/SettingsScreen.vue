@@ -1075,7 +1075,15 @@ const confirmReset = async () => {
         }
       }
 
-      // Reset enrollment stats for this course only
+      // Reset enrollment stats for this course only. Must also clear the
+      // ratcheted "furthest reached" fields (highest_completed_lego_id,
+      // highest_completed_round_index, completed_pod_rounds,
+      // infplay_round_index) alongside the resume cursor — these only ever
+      // move forward (DB ratchet trigger / pod scheduler), so leaving them
+      // set after a deliberate restart is what made a cleared/reset device
+      // still show belts as complete: useBeltProgress.mergeProgress() reads
+      // highest_completed_lego_id and takes max(local, remote), pulling the
+      // stale high-water mark right back in on the next load.
       await supabase.value
         .from('course_enrollments')
         .update({
@@ -1083,6 +1091,13 @@ const confirmReset = async () => {
           last_practiced_at: null,
           highest_completed_seed: 0,
           last_completed_lego_id: null,
+          highest_completed_lego_id: null,
+          last_completed_round_index: null,
+          highest_completed_round_index: null,
+          completed_pod_rounds: 0,
+          pod_activation_round: null,
+          infplay_round_index: 0,
+          current_mode: 'main',
         })
         .eq('learner_id', learnerId)
         .eq('course_id', course)

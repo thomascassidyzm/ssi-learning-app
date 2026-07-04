@@ -64,6 +64,29 @@ const healthFilter = ref<'all' | Health>('all')
 
 const classReports = reactive(new Map<string, ClassReport>())
 
+// Real 7-day practice seconds per class, from /api/school/class-practice-7d
+// (player_events rollup, scoped server-side). Empty until loaded → hoursWk = 0.
+const practice7dSeconds = ref<Record<string, number>>({})
+
+async function loadPractice7d() {
+  if (!supabase.value) return
+  const classIds = classesData.value.map(c => c.id)
+  if (classIds.length === 0) { practice7dSeconds.value = {}; return }
+  try {
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    const res = await fetch(`/api/school/class-practice-7d?class_ids=${classIds.join(',')}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return
+    const data = await res.json()
+    practice7dSeconds.value = (data?.practiceByClass as Record<string, number>) || {}
+  } catch {
+    /* non-fatal — hoursWk falls back to 0 */
+  }
+}
+
 async function fetchReportsForClasses() {
   for (const cls of classesData.value) {
     try {
@@ -93,9 +116,10 @@ function courseShortName(code: string): string {
 const enrichedClasses = computed(() => {
   return classesData.value.map(c => {
     const report = classReports.get(c.id)
-    const hoursWk = report
-      ? Math.round((report.class.total_practice_seconds / 3600) * 10) / 10
-      : 0
+    // Real 7-day practice hours for the class, from /api/school/class-practice-7d
+    // (player_events / learner_speaking_opportunities rollup, scoped server-side).
+    // Falls back to 0 until the async load resolves.
+    const hoursWk = Math.round(((practice7dSeconds.value[c.id] ?? 0) / 3600) * 10) / 10
     return {
       id: c.id,
       class_name: c.class_name,
@@ -171,6 +195,7 @@ onMounted(async () => {
   if (selectedUser.value) {
     await fetchClasses()
     fetchReportsForClasses()
+    loadPractice7d()
   }
   if (isSchoolAdmin.value && !isAdminView) loadSchoolTrial()
   // Deep-linked from the dashboard's "Create class" CTA → open the form straight away.
@@ -180,13 +205,16 @@ onMounted(async () => {
 watch(selectedUser, async (newUser) => {
   if (newUser) {
     classReports.clear()
+    practice7dSeconds.value = {}
     await fetchClasses()
     fetchReportsForClasses()
+    loadPractice7d()
   }
 })
 
 watch(classesData, () => {
   fetchReportsForClasses()
+  loadPractice7d()
 })
 
 function openCreateModal() {

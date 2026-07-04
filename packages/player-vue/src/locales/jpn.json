@@ -210,6 +210,9 @@
     "confusing": "分かりにくい",
     "other": "その他"
   },
+  "firstBoot": {
+    "speakBeforeThem": "知っているフレーズが聞こえてきます。話者より先に{lang}で声に出して言ってみましょう。"
+  },
   "languages": {
     "eng": "英語",
     "spa": "スペイン語",

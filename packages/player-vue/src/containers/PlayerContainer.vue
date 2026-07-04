@@ -167,13 +167,18 @@ const handleTogglePlayback = () => {
 
 // Bottom-nav transport now steps the LEGO axis (was CYCLE — cycle moved to the
 // phase pill, belt moved to the header). Tom 2026-06-01.
+// In listening mode the same buttons step the overlay's active sentence
+// back/forward instead (Tom 2026-07-04) — listeningStep returns true when
+// the overlay handled it.
 const handleRevisit = () => {
+  if (learningPlayerRef.value?.listeningStep?.(-1)) return
   if (learningPlayerRef.value?.handleRoundBack) {
     learningPlayerRef.value.handleRoundBack()
   }
 }
 
 const handleSkip = () => {
+  if (learningPlayerRef.value?.listeningStep?.(1)) return
   if (learningPlayerRef.value?.handleRoundForward) {
     learningPlayerRef.value.handleRoundForward()
   }

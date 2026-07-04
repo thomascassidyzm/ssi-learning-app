@@ -95,9 +95,13 @@ export function useSimplePlayer(): UseSimplePlayerReturn {
 
   // Initialize with rounds - creates new player instance
   function initialize(rounds: Round[]): void {
-    // Clean up existing player
+    // Fully dispose the existing player, not just stop() it. stop() leaves the
+    // old player's audio-element AND document `visibilitychange` listeners
+    // attached, so `document` retains the old SimplePlayer (and its whole rounds
+    // array) forever — a leak on every cache/offline re-init. dispose() removes
+    // all of them; the new player created below re-adds its own.
     if (player) {
-      player.stop()
+      player.dispose()
     }
 
     // Debug: log what we're initializing with

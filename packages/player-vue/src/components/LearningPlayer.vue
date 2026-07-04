@@ -60,6 +60,7 @@ const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.v
 const PronunciationOverlay = defineAsyncComponent(() => import('./PronunciationOverlay.vue'))
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
+import { hasSeenBrandWelcome, markBrandWelcomeSeen, playBrandWelcome } from '../composables/useBrandWelcome'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 // Lazy: progress/contribution/belt modal. Its v-if (contribution.data.value) may
@@ -5021,6 +5022,13 @@ const isAwakening = computed(() => loadingStage.value !== 'ready')
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
+// First-ever-boot brand moment (docs/first-boot-experience.md, 2026-07-03 rethink):
+// a global, language-independent welcome sound + one localized text line, shown
+// as the FIRST awakening message instead of a random one. Set once in onMounted
+// for a genuine first-ever visitor; consumed (and cleared) the first time the
+// 'awakening' stage types a message.
+const brandMomentPending = ref(false)
+
 // Generic awakening messages (i18n) — fallback when we don't yet know the
 // course's target language.
 const AWAKENING_MESSAGES = computed(() => [
@@ -5076,7 +5084,16 @@ const setLoadingStage = (stage) => {
 
   // Start typing on first stage only
   if (stage === 'awakening') {
-    typeLoadingMessage(getRandomAwakeningMessage())
+    if (brandMomentPending.value) {
+      brandMomentPending.value = false
+      const langName = getLanguageName(courseTargetLang.value)
+      const brandLine = langName && langName !== courseTargetLang.value
+        ? t('firstBoot.speakBeforeThem').replace('{lang}', langName)
+        : null
+      typeLoadingMessage(brandLine || getRandomAwakeningMessage())
+    } else {
+      typeLoadingMessage(getRandomAwakeningMessage())
+    }
   }
 }
 
@@ -6800,12 +6817,22 @@ let introAudioElement = null // Store reference for intro skip functionality
 let introAbortController = null // AbortController for cancelling pending intro audio
 let introEventCleanups = [] // Array of cleanup functions for intro audio event listeners
 
+// Legacy per-course welcome retired for eng-known courses (owner decision
+// 2026-07-04): the new global brand-welcome moment (useBrandWelcome.ts) fully
+// covers this content for eng-known learners, so playing both back-to-back is
+// redundant. Other known languages (spa/jpn/zho/ara) keep the legacy welcome
+// until their firstBoot line gets native sign-off. Retire fully (delete this
+// gate + the plumbing it guards) when all known languages verified, see owner
+// decision 2026-07-04.
+const legacyWelcomeRetiredForKnownLang = computed(() => props.course?.known_lang === 'eng')
+
 // First-welcome gate — true only for the very first course a learner ever
 // opens, when the course has welcome audio and it hasn't been heard. Now
 // gates the AUTO-played welcome on first Play (handleResume), not a banner —
 // the opt-in CTA was removed 2026-06-02. All conditions reactive so it flips
 // off the instant any heard-signal sets. Tom 2026-05-25 / 2026-06-02.
 const welcomeBannerVisible = computed(() => {
+  if (legacyWelcomeRetiredForKnownLang.value) return false
   if (welcomeChecked.value) return false
   if (localStorage.getItem('ssi-welcome-heard') === 'true') return false
   if (currentRoundIndex.value > 0) return false
@@ -6822,6 +6849,7 @@ const welcomeBannerVisible = computed(() => {
 // only runs for true first-time-ever learners on their first course.
 // Tom 2026-05-25.
 watchEffect(async () => {
+  if (legacyWelcomeRetiredForKnownLang.value) return
   if (cachedCourseWelcome.value) return
   if (!courseDataProvider.value) return
   if (welcomeChecked.value) return
@@ -6846,6 +6874,7 @@ const markWelcomeHeard = async () => {
 }
 
 const playCourseWelcome = async () => {
+  if (legacyWelcomeRetiredForKnownLang.value) return false
   if (welcomeChecked.value) return false
   // Once ever, PER LEARNER (DB-tracked) — survives PWA reinstall / new device /
   // a different course. localStorage 'ssi-welcome-heard' (checked in the loader
@@ -8201,7 +8230,20 @@ simplePlayer.setRuntimeOverrides({
   // element reads from anymore.
 })
 const showListeningOverlay = ref(false) // Show listening mode overlay
+const listeningOverlayRef = ref<{ stepSentence: (delta: number) => void } | null>(null) // Overlay instance — bottom-nav ‹ › step through it
 const showPronunciationOverlay = ref(false) // Show pronunciation mode overlay
+
+/**
+ * Bottom-nav ‹ › while the listening overlay is open: step the overlay's
+ * active sentence instead of the main session's LEGO axis. Returns true
+ * when handled so the caller can fall through to handleRoundBack/Forward
+ * otherwise.
+ */
+const listeningStep = (delta: number): boolean => {
+  if (!showListeningOverlay.value || !listeningOverlayRef.value) return false
+  listeningOverlayRef.value.stepSentence(delta)
+  return true
+}
 
 /**
  * Ceiling used by the Listening / Pronunciation overlay's "All" tab.
@@ -10186,6 +10228,14 @@ onMounted(async () => {
   const isReturnUser = localStorage.getItem('ssi-has-played') === 'true'
   const MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800
 
+  // Global brand welcome moment — once per device, first-ever visit only.
+  // See docs/first-boot-experience.md and useBrandWelcome.ts (asset swap point).
+  if (!isReturnUser && !hasSeenBrandWelcome()) {
+    brandMomentPending.value = true
+    playBrandWelcome()
+    markBrandWelcomeSeen()
+  }
+
   // Stage 1: Awakening (immediate)
   setLoadingStage('awakening')
 
@@ -11758,6 +11808,7 @@ onMounted(async () => {
     warmAudioMs,                                        // time awaited on warmFirstKnownAudio (cold-audio cost; ~0 once prewarm-precached)
     returnUser: isReturnUser,
     guest: isGuestLearner.value,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null,
   })
 
   // Prewarm the now-lazy overlay/modal chunks on idle — AFTER ready, off the
@@ -12241,6 +12292,7 @@ defineExpose({
   handleSkip,
   handleRoundForward,
   handleRoundBack,
+  listeningStep,
   isInListeningCycle,
   exitListeningMode,
   exitAllModes,
@@ -13014,6 +13066,7 @@ defineExpose({
     <Transition name="listening-overlay">
       <ListeningOverlay
         v-if="showListeningOverlay"
+        ref="listeningOverlayRef"
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
         :up-to-seed="listeningCeilingSeed"

@@ -210,6 +210,9 @@
     "confusing": "令人困惑",
     "other": "其他"
   },
+  "firstBoot": {
+    "speakBeforeThem": "你会听到一句你已经知道的话——趁说话人开口之前，先用{lang}大声说出来。"
+  },
   "languages": {
     "eng": "英语",
     "spa": "西班牙语",

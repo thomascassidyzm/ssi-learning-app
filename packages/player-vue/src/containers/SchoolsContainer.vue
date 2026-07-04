@@ -470,6 +470,15 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
     <template v-else-if="showDashboard">
       <SchoolsTopBar />
 
+      <!-- Dunning grace: Paddle marked past_due but retries are still running.
+           Access is retained (see ctx.platformActive); this banner is the only
+           visible sign something needs attention, so admins fix the card before
+           the terminal lockout. -->
+      <div v-if="ctx.platformPastDue.value" class="schools-past-due-banner">
+        ⚠️ There's a problem with your school's payment. Please update your card to avoid losing access.
+        <router-link to="/schools/upgrade">Manage billing</router-link>
+      </div>
+
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -520,6 +529,25 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
   height: 100vh;
   gap: 16px;
   color: var(--text-muted, #8A8078);
+}
+
+/* Dunning grace banner (past_due — access retained, card needs fixing) */
+.schools-past-due-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #fdf1d6;
+  border-bottom: 1px solid rgba(184, 134, 11, 0.3);
+  color: #7a5a00;
+  font-size: 14px;
+  text-align: center;
+}
+.schools-past-due-banner a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 /* Expired / renew panel */

@@ -499,14 +499,22 @@ export class ProgressStore implements IProgressStore {
 
   async getLegoProgressById(
     learnerId: string,
-    legoId: string
+    legoId: string,
+    courseId: string
   ): Promise<LegoProgressRecord | null> {
+    // course_id is REQUIRED in the filter: lego ids (S0001L01…) repeat across
+    // every course, so a multi-course learner holds one row per course for the
+    // same lego. Without this filter .single() returned the WRONG course's row
+    // (contaminating progress), and once the course-scoped unique key lands it
+    // would match >1 row and error. Belt/position is unaffected (that rides
+    // course_enrollments.last_completed_lego_id, already per-course).
     const { data, error } = await this.client
       .schema(this.schema)
       .from('lego_progress')
       .select('*')
       .eq('learner_id', learnerId)
       .eq('lego_id', legoId)
+      .eq('course_id', courseId)
       .single();
 
     if (error) {

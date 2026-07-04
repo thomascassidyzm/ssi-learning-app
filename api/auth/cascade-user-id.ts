@@ -18,11 +18,13 @@
  * Risk model: an attacker who knows another user's previous user_id
  * could in theory call this and steal their govt_admin association.
  * Mitigation: legitimate use only fires after Supabase OTP email
- * verification matched a learner record (the email is the gate).
- * That gate is upstream of this endpoint — we trust the JWT to
- * mean the caller has email-verified ownership. If/when we
- * introduce a "previous_user_id" history column we can tighten
- * further. For now: log every call for audit, no further check.
+ * verification matched a learner record (the email is the gate),
+ * AND this endpoint refuses unless old_user_id is ORPHANED (no
+ * learners row still holds it) — mirroring the relink_user_tags
+ * SECURITY DEFINER guard (secfix_15). So a caller can only move an
+ * association whose learner has already been re-pointed away, never
+ * a LIVE admin's. A future "previous_user_id" history column would
+ * let us prove the caller once owned old_user_id and tighten more.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -84,6 +86,25 @@ export default async function handler(
 
     if (!callerLearner) {
       res.status(404).json({ error: 'No learner record for caller' })
+      return
+    }
+
+    // SECURITY: refuse unless old_user_id is ORPHANED — the same guard the
+    // sibling relink_user_tags (secfix_15) applies to user_tags. In the
+    // legitimate flow claim_learner has already re-pointed the learner off
+    // old_user_id, so no learners row holds it. If one still does, old_user_id
+    // is an ACTIVE identity (potentially someone else's) and this is not a
+    // legitimate cascade — refuse, so a caller can't steal a live govt_admin
+    // association by supplying a known or guessed auth user id.
+    const { data: activeOwners } = await supabase
+      .from('learners')
+      .select('id')
+      .eq('user_id', oldUserId)
+      .limit(1)
+
+    if (activeOwners && activeOwners.length > 0) {
+      console.warn('[CascadeUserId] REFUSED: old_user_id still owned by an active learner', oldUserId)
+      res.status(409).json({ error: 'old_user_id is not orphaned' })
       return
     }
 

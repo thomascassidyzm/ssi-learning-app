@@ -101,6 +101,10 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
           .select('day, opportunities, play_seconds')
           .eq('learner_id', learnerId)
           .eq('course_code', courseId)
+          // One row per day; without an explicit limit this defaults to ~1000
+          // rows, so a very long-running learner's all-time total would silently
+          // undercount. 10000 days is ~27 years — safely above any real learner.
+          .limit(10000)
 
         if (oppsRows) {
           for (const r of oppsRows) {
