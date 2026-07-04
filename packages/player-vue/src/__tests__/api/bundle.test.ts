@@ -32,15 +32,25 @@ let lastFromCalls: string[] = []
 
 function makeBuilder(table: string): unknown {
   const response = tableResponses[table] ?? { data: null, error: null }
+  // bundle.ts paginates course_practice_phrases via a { count:'exact', head:true }
+  // count query followed by .range() pages. Surface a count derived from the
+  // mocked array length and support .range() so the full mocked set comes back.
+  const withCount = {
+    ...response,
+    count: Array.isArray((response as QueryResult<unknown[]>).data)
+      ? (response as QueryResult<unknown[]>).data!.length
+      : null,
+  }
   const builder: any = {
     select: () => builder,
     eq: () => builder,
     in: () => builder,
     order: () => builder,
     limit: () => builder,
+    range: () => builder,
     maybeSingle: () => Promise.resolve(response),
     single: () => Promise.resolve(response),
-    then: (onFulfilled: any) => Promise.resolve(response).then(onFulfilled),
+    then: (onFulfilled: any) => Promise.resolve(withCount).then(onFulfilled),
   }
   return builder
 }
@@ -333,7 +343,9 @@ describe('GET /api/courses/:code/bundle', () => {
 
     // Querying hit the right tables. listening_pod_sentences is fetched
     // sequentially (depends on which pod ids exist) — included here too.
-    expect(lastFromCalls.sort()).toEqual(
+    // Assert the unique SET (course_practice_phrases is queried twice now:
+    // once for the count, once for the paginated range).
+    expect([...new Set(lastFromCalls)].sort()).toEqual(
       [
         'courses',
         'course_legos',
