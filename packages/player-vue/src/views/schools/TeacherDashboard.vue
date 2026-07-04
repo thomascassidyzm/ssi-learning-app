@@ -93,6 +93,12 @@ function courseShortName(code: string): string {
 const enrichedClasses = computed(() => {
   return classesData.value.map(c => {
     const report = classReports.get(c.id)
+    // ALL-TIME total practice hours for the class (class_activity_stats, still
+    // legacy-sessions-sourced), NOT a 7-day figure despite the historic name.
+    // Labelled "Total hrs" below. A true weekly window needs a player_events
+    // (learner_speaking_opportunities) rollup aggregated across the class's
+    // students — that hits LSO's RLS wall, so it needs a server-mediated
+    // endpoint (pending an authz-pattern decision).
     const hoursWk = report
       ? Math.round((report.class.total_practice_seconds / 3600) * 10) / 10
       : 0
@@ -164,7 +170,7 @@ const headlineSubtitle = computed(() => {
   const schoolBit = selectedUser.value?.school_name
     ? ` across ${selectedUser.value.school_name}`
     : ''
-  return `${enrichedClasses.value.length} ${enrichedClasses.value.length === 1 ? 'class' : 'classes'}${schoolBit} · ${totalStudents.value} students · ${totalHours.value}h this week`
+  return `${enrichedClasses.value.length} ${enrichedClasses.value.length === 1 ? 'class' : 'classes'}${schoolBit} · ${totalStudents.value} students · ${totalHours.value}h total`
 })
 
 onMounted(async () => {
@@ -281,7 +287,7 @@ async function copyShareLink(cls: { id: string; join_code: string }) {
 }
 
 function exportCsv() {
-  const header = ['Class', 'Course', 'Students', 'Belt', 'Avg seeds', 'Hours/wk', 'Sessions', 'Health', 'Join code']
+  const header = ['Class', 'Course', 'Students', 'Belt', 'Avg seeds', 'Total hrs', 'Sessions', 'Health', 'Join code']
   const rows = filtered.value.map(c => [
     c.class_name,
     c.course_label,
@@ -379,7 +385,7 @@ function exportCsv() {
         <select v-model="sortKey" class="filter-select">
           <option value="name">Name</option>
           <option value="students">Students</option>
-          <option value="hours">Hours/wk</option>
+          <option value="hours">Total hrs</option>
           <option value="journey">Avg seeds</option>
         </select>
       </div>
@@ -395,7 +401,7 @@ function exportCsv() {
             <th>Students</th>
             <th>Belt</th>
             <th>Avg seeds</th>
-            <th>Hours/wk</th>
+            <th>Total hrs</th>
             <th>Activity</th>
             <th>Health</th>
             <th>Share</th>
