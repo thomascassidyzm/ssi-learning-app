@@ -462,6 +462,13 @@ const fetchEnrolledCourses = async () => {
         // Keep the warm-start cache honest before the player mounts. The full
         // walk itself is LearningPlayer's deferred handoff — not fired here.
         checkCourseContentVersion(supabaseClient.value, defaultCourse.course_code)
+
+        // Warm the instant-playback caches for the auto-selected default course
+        // too — previously only handleCourseSelect (an explicit switch) did this,
+        // so a fresh visitor's very first boot always paid the cold round-map +
+        // first-cycles round-trips instead of hitting the prewarmed cache.
+        // Fire-and-forget; mirrors the handleCourseSelect wiring above.
+        void prewarmInstantCaches(defaultCourse.course_code)
       }
     }
   } catch (err) {

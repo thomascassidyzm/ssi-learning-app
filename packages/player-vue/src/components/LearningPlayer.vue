@@ -60,6 +60,7 @@ const ListeningOverlay = defineAsyncComponent(() => import('./ListeningOverlay.v
 const PronunciationOverlay = defineAsyncComponent(() => import('./PronunciationOverlay.vue'))
 import { useScriptMode } from '../composables/useScriptMode'
 import { getLanguageName, t } from '../composables/useI18n'
+import { hasSeenBrandWelcome, markBrandWelcomeSeen, playBrandWelcome } from '../composables/useBrandWelcome'
 import { updateAvailable as pwaUpdateAvailable, userDismissed as pwaUserDismissed, applyUpdate as pwaApplyUpdate } from '../composables/usePwaUpdate'
 import LanguageFlag from './schools/shared/LanguageFlag.vue'
 // Lazy: progress/contribution/belt modal. Its v-if (contribution.data.value) may
@@ -5021,6 +5022,13 @@ const isAwakening = computed(() => loadingStage.value !== 'ready')
 const loadingMessages = ref([]) // Messages that have finished typing
 const currentLoadingMessage = ref('') // Message currently being typed
 
+// First-ever-boot brand moment (docs/first-boot-experience.md, 2026-07-03 rethink):
+// a global, language-independent welcome sound + one localized text line, shown
+// as the FIRST awakening message instead of a random one. Set once in onMounted
+// for a genuine first-ever visitor; consumed (and cleared) the first time the
+// 'awakening' stage types a message.
+const brandMomentPending = ref(false)
+
 // Generic awakening messages (i18n) — fallback when we don't yet know the
 // course's target language.
 const AWAKENING_MESSAGES = computed(() => [
@@ -5076,7 +5084,16 @@ const setLoadingStage = (stage) => {
 
   // Start typing on first stage only
   if (stage === 'awakening') {
-    typeLoadingMessage(getRandomAwakeningMessage())
+    if (brandMomentPending.value) {
+      brandMomentPending.value = false
+      const langName = getLanguageName(courseTargetLang.value)
+      const brandLine = langName && langName !== courseTargetLang.value
+        ? t('firstBoot.speakBeforeThem').replace('{lang}', langName)
+        : null
+      typeLoadingMessage(brandLine || getRandomAwakeningMessage())
+    } else {
+      typeLoadingMessage(getRandomAwakeningMessage())
+    }
   }
 }
 
@@ -10185,6 +10202,14 @@ onMounted(async () => {
   const startTime = Date.now()
   const isReturnUser = localStorage.getItem('ssi-has-played') === 'true'
   const MINIMUM_ANIMATION_MS = isReturnUser ? 300 : 2800
+
+  // Global brand welcome moment — once per device, first-ever visit only.
+  // See docs/first-boot-experience.md and useBrandWelcome.ts (asset swap point).
+  if (!isReturnUser && !hasSeenBrandWelcome()) {
+    brandMomentPending.value = true
+    playBrandWelcome()
+    markBrandWelcomeSeen()
+  }
 
   // Stage 1: Awakening (immediate)
   setLoadingStage('awakening')
