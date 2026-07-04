@@ -35,7 +35,7 @@ export interface CallerScope {
 const EMPTY: CallerScope = { learnerId: null, role: null, classIds: [], learnerIds: [], studentsByClass: {} }
 
 /** Chunk an array so a PostgREST .in() filter never blows the URL length cap. */
-function chunk<T>(arr: T[], size = 150): T[][] {
+export function chunk<T>(arr: T[], size = 150): T[][] {
   const out: T[][] = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
   return out
