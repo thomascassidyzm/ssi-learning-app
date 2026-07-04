@@ -54,6 +54,8 @@ export default defineConfig(({ mode }) => ({
           '**/*.{mp3,wav,ogg,m4a}', // audio → runtime caching / IndexedDB, never precache
           '**/eruda-*.js',          // debug console, ?debug-only
           '**/Admin*.js',           // /admin surface chunks — never needed offline by learners
+          '**/echarts-*.js',        // ~1MB charting lib, lazy-loaded only inside insight/admin boards
+          '**/schools-*.js',        // /schools surface, loaded on demand (never an offline learner path)
           '**/_schools-mockups/**', // static HTML mockups
           '**/paddle-review/**',    // Paddle verification artifact
           '**/design/**',           // design-doc mockups
@@ -199,6 +201,27 @@ export default defineConfig(({ mode }) => ({
           // @ssi/core resolves via the pnpm workspace symlink to packages/core/dist
           if (n.includes('/packages/core/dist') || n.includes('/@ssi/core/')) {
             return 'core'
+          }
+          // echarts (+ its zrender dep) is only ever reached via `import('echarts')`
+          // inside insight/admin widgets. Force it into its own named chunk so it
+          // stays out of the entry graph AND can be excluded from the SW precache
+          // below — otherwise it's a ~1MB download every learner pays for on
+          // install despite never opening a board. Still lazy: loads on demand
+          // when a board first mounts, then lives in the HTTP cache.
+          if (n.includes('/node_modules/echarts/') || n.includes('/node_modules/zrender/')) {
+            return 'echarts'
+          }
+          // The whole /schools surface is route-lazy and never imported by the
+          // learner player (verified: nothing outside src/*/schools/ imports it).
+          // Group it into one named chunk so it, too, stays out of the precache —
+          // teachers/admins load it on demand online; it's never an offline
+          // learner path.
+          if (
+            n.includes('/src/views/schools/') ||
+            n.includes('/src/composables/schools/') ||
+            n.includes('/src/components/schools/')
+          ) {
+            return 'schools'
           }
         },
       },
