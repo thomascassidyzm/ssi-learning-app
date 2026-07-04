@@ -6817,12 +6817,22 @@ let introAudioElement = null // Store reference for intro skip functionality
 let introAbortController = null // AbortController for cancelling pending intro audio
 let introEventCleanups = [] // Array of cleanup functions for intro audio event listeners
 
+// Legacy per-course welcome retired for eng-known courses (owner decision
+// 2026-07-04): the new global brand-welcome moment (useBrandWelcome.ts) fully
+// covers this content for eng-known learners, so playing both back-to-back is
+// redundant. Other known languages (spa/jpn/zho/ara) keep the legacy welcome
+// until their firstBoot line gets native sign-off. Retire fully (delete this
+// gate + the plumbing it guards) when all known languages verified, see owner
+// decision 2026-07-04.
+const legacyWelcomeRetiredForKnownLang = computed(() => props.course?.known_lang === 'eng')
+
 // First-welcome gate — true only for the very first course a learner ever
 // opens, when the course has welcome audio and it hasn't been heard. Now
 // gates the AUTO-played welcome on first Play (handleResume), not a banner —
 // the opt-in CTA was removed 2026-06-02. All conditions reactive so it flips
 // off the instant any heard-signal sets. Tom 2026-05-25 / 2026-06-02.
 const welcomeBannerVisible = computed(() => {
+  if (legacyWelcomeRetiredForKnownLang.value) return false
   if (welcomeChecked.value) return false
   if (localStorage.getItem('ssi-welcome-heard') === 'true') return false
   if (currentRoundIndex.value > 0) return false
@@ -6839,6 +6849,7 @@ const welcomeBannerVisible = computed(() => {
 // only runs for true first-time-ever learners on their first course.
 // Tom 2026-05-25.
 watchEffect(async () => {
+  if (legacyWelcomeRetiredForKnownLang.value) return
   if (cachedCourseWelcome.value) return
   if (!courseDataProvider.value) return
   if (welcomeChecked.value) return
@@ -6863,6 +6874,7 @@ const markWelcomeHeard = async () => {
 }
 
 const playCourseWelcome = async () => {
+  if (legacyWelcomeRetiredForKnownLang.value) return false
   if (welcomeChecked.value) return false
   // Once ever, PER LEARNER (DB-tracked) — survives PWA reinstall / new device /
   // a different course. localStorage 'ssi-welcome-heard' (checked in the loader
