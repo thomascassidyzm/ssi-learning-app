@@ -531,7 +531,9 @@ const loadLegoOrdinals = async () => {
       .eq('course_code', props.courseCode)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
-      .limit(2000)
+      // Full courses can top 2000 LEGOs; 10000 sits under the server max-rows
+      // and comfortably above any real course, so the ordinal map stays whole.
+      .limit(10000)
     if (props.upToSeed) q = q.lt('seed_number', props.upToSeed)
     const { data, error: ordErr } = await q
     if (ordErr) {
@@ -1405,6 +1407,11 @@ const fetchAllAudioIds = async () => {
     .select('target1_audio_id, target2_audio_id')
     .eq('course_code', props.courseCode)
     .in('phrase_role', ['use', 'eternal_eligible'])
+    // Without an explicit limit this defaults to ~1000 rows; the USE +
+    // eternal_eligible pool runs to ~5000 on big courses, so the listening
+    // download pack was missing most of its audio ids. 10000 sits under the
+    // server max-rows and above the real pool.
+    .limit(10000)
 
   if (props.upToSeed) {
     query = query.lt('seed_number', props.upToSeed)
