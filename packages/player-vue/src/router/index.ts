@@ -568,8 +568,28 @@ router.onError((err, to) => {
     msg.includes('error loading dynamically imported module') ||
     msg.includes('Importing a module script failed')
   ) {
+    // Guard against a reload loop: if the fresh index.html STILL can't load the
+    // chunk (CDN not yet propagated, or a genuine error), reloading to the same
+    // path would loop forever. Only auto-reload once per target per session;
+    // a successful navigation clears the guard (afterEach below), so a later
+    // deploy in the same session can recover again.
+    const guardKey = 'ssi-chunk-reload:' + to.fullPath
+    let alreadyTried = false
+    try { alreadyTried = sessionStorage.getItem(guardKey) === '1' } catch { /* storage blocked */ }
+    if (alreadyTried) {
+      console.error('[Router] stale-chunk reload already attempted for', to.fullPath, '— not looping')
+      return
+    }
+    try { sessionStorage.setItem(guardKey, '1') } catch { /* storage blocked */ }
     window.location.assign(to.fullPath)
   }
+})
+
+// A successful navigation means the (possibly freshly-reloaded) chunks loaded,
+// so clear any stale-chunk reload guard for that path — a later deploy in the
+// same session can then trigger recovery again.
+router.afterEach((to) => {
+  try { sessionStorage.removeItem('ssi-chunk-reload:' + to.fullPath) } catch { /* storage blocked */ }
 })
 
 // Guard admin + methodology routes — useUserRole is the single authority.
