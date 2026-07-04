@@ -80,18 +80,27 @@ export class SpikeDetector {
 
     // Determine spike using configured detection method
     if (this.config.spike.use_stddev_detection && rollingStdDev > 0) {
-      // NEW: Standard deviation-based discontinuity detection
+      // Standard deviation-based discontinuity detection.
+      // DIRECTIONAL: only a response SLOWER than the rolling average (positive
+      // differential) is a struggle spike. A response much FASTER than average
+      // means the learner is improving — treating it as a discontinuity used to
+      // trip recordDiscontinuity in the adaptation engine and REGRESS mastery /
+      // lengthen pauses for exactly the learners who are speeding up. The only
+      // response to a spike is remedial (repeat/breakdown), so a fast reading
+      // must never register as one. (magnitude keeps abs() — it's just a size.)
       magnitude = Math.abs(differential) / rollingStdDev;
       const threshold = this.config.spike.stddev_threshold * rollingStdDev;
-      isSpike = Math.abs(differential) > threshold;
+      isSpike = differential > threshold;
 
-      // Classify severity based on magnitude
-      if (magnitude >= 4.0) {
-        severity = 'severe';
-      } else if (magnitude >= 2.5) {
-        severity = 'moderate';
-      } else if (isSpike) {
-        severity = 'mild';
+      // Classify severity based on magnitude (only for an actual, slow spike)
+      if (isSpike) {
+        if (magnitude >= 4.0) {
+          severity = 'severe';
+        } else if (magnitude >= 2.5) {
+          severity = 'moderate';
+        } else {
+          severity = 'mild';
+        }
       }
     } else {
       // FALLBACK: Legacy threshold_percent approach
