@@ -9,6 +9,7 @@ import { buildSilentWavDataUri } from '../playback/silentWav'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
 import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
+import { PodStateStore } from '@ssi/core'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -233,6 +234,12 @@ const props = defineProps({
   upToSeed: {
     type: Number,
     default: null
+  },
+  /** Learner id — keys the shared two-doors pod counter (learner_pod_state).
+   *  Guests/demo keep a device-local counter. */
+  learnerId: {
+    type: String,
+    default: null
   }
 })
 
@@ -348,25 +355,81 @@ const ensureFineKnowns = async () => {
 }
 const lookupFineKnown = (text) => fineKnownByNorm.value.get(normForAudio(text)) || null
 
-// Per-(course, scene) forward-only rung counter. One completed Drill pass of
-// a scene = one rung climbed, at most once per sitting (massed reps in one
-// session must not fake the spacing). Device-local for now — the shared
-// two-doors decay counter is the planned successor.
-const currentSceneRung = ref(0)
-const rungAdvancedScenes = new Set()
-const sceneRungKey = (sceneNumber) => `ssi-fusion-rung:${props.courseCode}:${sceneNumber}`
-const loadSceneRung = (sceneNumber) => {
-  try { return Math.max(0, parseInt(localStorage.getItem(sceneRungKey(sceneNumber)) || '0', 10) || 0) } catch { return 0 }
+// ── Shared two-doors pod counter (learner_pod_state) ───────────────────────
+// exposures = views a sentence has COMPLETED across BOTH doors (main-flow pod
+// laps + this Drill). Drill serves fusion rung = effective exposures, where
+// effective = max(stored, derived main-flow floor) and the floor comes from
+// the lap ratchet's staggered intake: completed = completed_pod_rounds −
+// podOrdinal + 1. A completed Drill pass writes effective + 1 back — so main
+// flow lifts drill, drill lifts main flow. Guests keep a device-local map.
+const isGuestLearner = (id) => !id || id === 'demo-learner' || id.startsWith('guest-')
+const podExposuresMap = ref(new Map())
+const mainPodRounds = ref(0)
+let podStateLoadState = null // null | 'loading' | 'ready'
+const guestPodStateKey = () => `ssi-pod-exposures:${props.courseCode}`
+
+const ensurePodState = async () => {
+  if (podStateLoadState) return
+  podStateLoadState = 'loading'
+  try {
+    if (isGuestLearner(props.learnerId)) {
+      try {
+        const raw = JSON.parse(localStorage.getItem(guestPodStateKey()) || '{}')
+        podExposuresMap.value = new Map(Object.entries(raw).filter(([, v]) => typeof v === 'number'))
+      } catch { podExposuresMap.value = new Map() }
+    } else if (supabase?.value) {
+      const [state, enrollment] = await Promise.all([
+        new PodStateStore({ client: supabase.value }).loadAll(props.learnerId, props.courseCode),
+        supabase.value
+          .from('course_enrollments')
+          .select('completed_pod_rounds')
+          .eq('learner_id', props.learnerId)
+          .eq('course_id', props.courseCode)
+          .maybeSingle(),
+      ])
+      podExposuresMap.value = state
+      mainPodRounds.value = enrollment?.data?.completed_pod_rounds ?? 0
+    }
+    podStateLoadState = 'ready'
+    fusionComposeCache = new Map() // recompose at the real rungs
+  } catch (e) {
+    console.warn('[ListeningOverlay] pod state load failed (rung 0 fallback):', e?.message || e)
+    podStateLoadState = null
+  }
 }
-const advanceSceneRung = (sceneNumber) => {
-  if (rungAdvancedScenes.has(sceneNumber)) return
-  rungAdvancedScenes.add(sceneNumber)
-  // 12 comfortably clears any sentence's fusion depth; groups clamp anyway.
-  const next = Math.min(loadSceneRung(sceneNumber) + 1, 12)
-  try { localStorage.setItem(sceneRungKey(sceneNumber), String(next)) } catch { /* private mode */ }
-  if (selectedScene.value?.sceneNumber === sceneNumber) {
-    currentSceneRung.value = next
-    fusionComposeCache = new Map()
+
+/** Effective completed exposures for a sentence = max(shared counter,
+ *  derived main-flow floor). This IS the Drill rung (rung 0 = first visit). */
+const exposuresFor = (sentenceId, podOrdinal) => {
+  const stored = podExposuresMap.value.get(sentenceId) ?? 0
+  const derived = podOrdinal ? Math.max(0, mainPodRounds.value - podOrdinal + 1) : 0
+  return Math.max(stored, derived)
+}
+
+/** One completed Drill pass of a scene = +1 exposure for every sentence in it
+ *  — at most once per sitting (massed reps must not fake the spacing). */
+const rungAdvancedScenes = new Set()
+const advanceScenePodState = (scene) => {
+  if (rungAdvancedScenes.has(scene.sceneNumber)) return
+  rungAdvancedScenes.add(scene.sceneNumber)
+  const next = new Map(podExposuresMap.value)
+  const rows = []
+  for (const t of scene.turns) {
+    const s = t.sentences?.[0]
+    if (!s?.id) continue
+    const exposures = exposuresFor(s.id, s.podOrdinal) + 1
+    next.set(s.id, exposures)
+    rows.push({ sentence_id: s.id, exposures })
+  }
+  if (!rows.length) return
+  podExposuresMap.value = next
+  fusionComposeCache = new Map()
+  if (isGuestLearner(props.learnerId)) {
+    try { localStorage.setItem(guestPodStateKey(), JSON.stringify(Object.fromEntries(next))) } catch { /* private mode */ }
+  } else if (supabase?.value) {
+    new PodStateStore({ client: supabase.value })
+      .upsertMany(rows.map((r) => ({ learner_id: props.learnerId, course_code: props.courseCode, ...r })))
+      .catch((e) => console.warn('[ListeningOverlay] pod state write failed:', e?.message || e))
   }
 }
 
@@ -376,15 +439,17 @@ const activeStripIndex = ref(-1)
 // Rung compositions are pure + deterministic — memoise per (row, rung).
 let fusionComposeCache = new Map()
 const fusionRungFor = (phrase) => {
-  const groups = phrase.fusionGroups
-  if (!groups || !groups.length) return null
-  const key = `${phrase.id}:${currentSceneRung.value}:${fineKnownLoadState === 'ready' ? 1 : 0}`
+  const s = phrase.sentences?.[0]
+  const groups = phrase.fusionGroups || s?.fusionGroups
+  if (!groups || !groups.length || !s) return null
+  const rung = exposuresFor(s.id, s.podOrdinal)
+  const key = `${phrase.id}:${rung}:${fineKnownLoadState === 'ready' ? 1 : 0}`
   let out = fusionComposeCache.get(key)
   if (!out) {
     const strips = []
     const steps = []
     for (const g of groups) {
-      const r = rungStepsForGroup(g, currentSceneRung.value, FUSION_MODE, lookupFineKnown, strips.length)
+      const r = rungStepsForGroup(g, rung, FUSION_MODE, lookupFineKnown, strips.length)
       strips.push(...r.strips)
       steps.push(...r.steps)
     }
@@ -541,9 +606,10 @@ const jumpToBelt = (point) => {
 const openScene = (scene) => {
   stopPlayback()
   selectedScene.value = scene
-  // Fusion drill: this scene's rung (one climbed per completed Drill visit).
-  currentSceneRung.value = loadSceneRung(scene.sceneNumber)
+  // Fusion drill: pull the shared two-doors counters + main-flow floor (the
+  // rungs this scene's sentences resume at), and the fine-known clip map.
   fusionComposeCache = new Map()
+  void ensurePodState()
   if (scene.turns.some((t) => t.sentences?.[0]?.fusionGroups)) void ensureFineKnowns()
   // Flatten the scene's turns into ONE ROW PER CHUNK (per-phrase granularity,
   // Tom 2026-06-12). The turn grouping survives only as presentation: the
@@ -1176,10 +1242,9 @@ const audioIdsForWarm = (phrase) => {
   if (!phrase) return []
   // Fusion drill: warm exactly what this rung plays (Take G renders + the
   // fine-known clips) — the slices come out of the whole cached take.
-  // Turns (warmScene) carry the payload one level down on sentences[0].
-  const fusionGroups = phrase.fusionGroups || phrase.sentences?.[0]?.fusionGroups
-  if (isDialogueScene.value && listenMode.value === 'drill' && fusionGroups) {
-    const rung = fusionRungFor({ id: phrase.id, fusionGroups })
+  // fusionRungFor reads rows AND turns (payload lives on sentences[0]).
+  if (isDialogueScene.value && listenMode.value === 'drill') {
+    const rung = fusionRungFor(phrase)
     if (rung) return [...new Set(rung.steps.map((st) => st.clip?.id).filter(Boolean))]
   }
   const ids = []
@@ -1340,11 +1405,13 @@ const advanceToNext = async (myPlaybackId) => {
 const handleEndOfList = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId) return
 
-  // A completed Drill pass of a dialogue scene = one fusion-ladder visit —
-  // climb the scene's rung (at most once per sitting; groups clamp to their
-  // own depth, so topped-out sentences just repeat their whole).
+  // A completed Drill pass of a dialogue scene = one exposure for each of its
+  // sentences on the shared two-doors counter (at most once per sitting;
+  // groups clamp to their own depth, so topped-out sentences repeat their
+  // whole). The main flow reads the same counter, so drilled sentences enter
+  // their next pod lap past the breakdown they've outgrown.
   if (view.value === 'pods' && selectedScene.value && listenMode.value === 'drill') {
-    advanceSceneRung(selectedScene.value.sceneNumber)
+    advanceScenePodState(selectedScene.value)
   }
 
   // Dialogues view with a scene selected: loop the scene or auto-advance
