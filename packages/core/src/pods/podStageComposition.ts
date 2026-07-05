@@ -59,6 +59,11 @@ export const isTargetRole = (role: PodPlayRole): boolean =>
   role !== 'trans' && role !== 'explainer'
 
 export interface PodSentenceRow {
+  /** Stable per-sentence id — the source row's id, or `${id}:s${index}` for a
+   *  June-split unit. Joins this sentence to `learner_pod_state.sentence_id`
+   *  (the shared two-doors exposure counter). Optional: legacy callers that
+   *  don't set it simply get no cross-door credit. */
+  sentence_id?: string | null
   global_order: number
   target_text: string
   known_text: string

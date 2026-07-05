@@ -13037,6 +13037,7 @@ defineExpose({
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
         :up-to-seed="listeningCeilingSeed"
+        :learner-id="learnerId"
         @close="handleCloseListening"
       />
     </Transition>

@@ -35,6 +35,12 @@ export interface PodSentence {
   /** True when a glued group anchored on an EARLIER sentence covers this one
    *  — Drill skips this row (its material plays inside the anchor row). */
   fusionContinuation: boolean
+  /** 1-based position in the MAIN-FLOW scheduler's flattened pod ordering
+   *  (flattenPodRows without the text oracle) — the ordinal the pod-lap
+   *  ratchet staggers intake by. Lets Listening Mode derive a sentence's
+   *  main-flow maturity floor: completed = max(0, completed_pod_rounds −
+   *  ordinal + 1). */
+  podOrdinal: number
 }
 
 /**
@@ -73,6 +79,7 @@ export interface PodTurn {
     explainerAudioId: string | null
     fusionGroups: FusionGroup[] | null
     fusionContinuation: boolean
+    podOrdinal: number
   }>
   /** First sentence's global_order — used for ordering. */
   globalOrder: number
@@ -179,8 +186,14 @@ export function useListeningPods(
       // row is one PodSentence as before. The split itself lives in the shared
       // splitRowUnits helper so the overlay + the main-flow scheduler never drift.
       const buckets = new Map<number, PodSentence[]>()
+      // Running ordinal on the SCHEDULER's flatten (splitRowUnits WITHOUT the
+      // textById oracle — the scheduler doesn't apply it, and the two doors'
+      // derived maturity must count the same sequence). Rows arrive in
+      // global_order, which is the scheduler's fetch order too.
+      let podOrdinal = 1
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
+        const bareCount = splitRowUnits(row).length
         const units = splitRowUnits(row, textById)
 
         // Fusion drill payload (Aran's pairwise gradual-fusion ladder): the
@@ -221,8 +234,10 @@ export function useListeningPods(
             globalOrder: row.global_order + u.index * 0.001,
             fusionGroups: anchored && anchored.length ? anchored : null,
             fusionContinuation: continuation,
+            podOrdinal: podOrdinal + Math.min(u.index, bareCount - 1),
           })
         }
+        podOrdinal += bareCount
         buckets.set(row.scene_number, list)
       }
 
@@ -301,6 +316,7 @@ export function useListeningPods(
                 explainerAudioId: s.explainerAudioId,
                 fusionGroups: s.fusionGroups,
                 fusionContinuation: s.fusionContinuation,
+                podOrdinal: s.podOrdinal,
               },
             ],
             globalOrder: s.globalOrder,

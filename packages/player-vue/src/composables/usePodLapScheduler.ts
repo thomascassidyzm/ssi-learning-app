@@ -44,6 +44,7 @@ import {
   type PodPlay,
   type PodSentenceRow,
 } from '@ssi/core/pods'
+import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
 
 // Re-export the moved symbols so existing importers (LearningPlayer,
@@ -245,6 +246,8 @@ export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
     const units = splitRowUnits(row)
     if (units.length === 1) {
       expanded.push({
+        // Shared two-doors counter key — same convention the overlay uses.
+        sentence_id: row.id || null,
         global_order: row.global_order,
         target_text: row.target_text,
         known_text: row.known_text,
@@ -261,6 +264,7 @@ export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
       const atomGroups = partitionAtomMap(row.atom_map, units.map((u) => u.targetText))
       units.forEach((u, k) => {
         expanded.push({
+          sentence_id: row.id ? `${row.id}:s${k}` : null,
           global_order: row.global_order + k * 0.001,
           target_text: u.targetText,
           known_text: u.knownText,
@@ -369,6 +373,17 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   /** Independent ratchet counter. Increments only on completed laps. */
   const completedPodRounds = ref<number>(0)
 
+  // ── Shared two-doors exposure counter (learner_pod_state) ────────────────
+  // sentence_id → exposures COMPLETED across both doors (pod laps + Listening
+  // Drill). A sentence's stage maths use max(derived alive, stored + 1) so a
+  // drilled sentence enters/continues the lap ladder past the breakdown it
+  // has outgrown; each completed lap writes back the served view. Guests keep
+  // the derived-only behaviour (no rows).
+  let podExposures = new Map<string, number>()
+  /** Sentences served by the LAST built lap, with the exposure count each
+   *  will have completed once that lap finishes. Flushed by markLapCompleted. */
+  let pendingExposures: Array<{ sentence_id: string; exposures: number }> = []
+
   /**
    * Load pod sentences, bookends, and the learner's enrollment ratchet state.
    * Idempotent — safe to call again on course or learner change.
@@ -435,6 +450,18 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       }
       introAudio.value = byRole.get('bookend_listen_intro') || null
       outroAudio.value = byRole.get('bookend_listen_outro') || null
+
+      // Shared exposure counters — best-effort: a failed read degrades to the
+      // derived-only behaviour (identical to pre-bridge), never blocks init.
+      podExposures = new Map()
+      pendingExposures = []
+      if (!isGuestLearner(learnerId)) {
+        try {
+          podExposures = await new PodStateStore({ client: supabase }).loadAll(learnerId!, courseCode)
+        } catch (err) {
+          console.warn('[podLapScheduler] pod state read failed (derived-only):', err)
+        }
+      }
 
       const enrollment = (enrollmentResult as any)?.data
       if (enrollment) {
@@ -567,6 +594,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     const stage0Tiers = s0cfg?.tiers?.length ?? 0
 
     const plays: PodPlay[] = []
+    pendingExposures = []
     for (let i = 1; i <= activeCount; i++) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
@@ -578,23 +606,36 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
         !!s0cfg &&
         stage0Tiers > 0 &&
         resolveAtoms(sentence.atom_map, stage0MeansGloss, stage0TargetClip).some((a) => a.targetClipId)
-      const alive = podRound - i + 1
+      // Effective view: the derived lap-ladder position, lifted by the shared
+      // two-doors counter when Listening Drill has taken this sentence
+      // further (exposures = views COMPLETED → serve view = exposures + 1).
+      // Intake stays ratchet-driven (activeCount above) — drilling ahead
+      // never pulls a sentence into laps early, it just enters wiser.
+      const derivedAlive = podRound - i + 1
+      const stored = sentence.sentence_id ? podExposures.get(sentence.sentence_id) : undefined
+      const alive = Math.max(derivedAlive, (stored ?? 0) + 1)
       const view = stage0ViewFor(alive, sentenceHasStage0 ? stage0Tiers : 0)
       if (view.phase === 'stage0') {
         // s0cfg is guaranteed truthy here (sentenceHasStage0 requires it), but
         // guard for the type-checker — fall through harmlessly if ever null.
-        if (s0cfg) plays.push(...buildStage0Tier(sentence, s0cfg.tiers[view.tierIndex].key, i, s0cfg, stage0MeansGloss, stage0TargetClip))
+        if (s0cfg) {
+          plays.push(...buildStage0Tier(sentence, s0cfg.tiers[view.tierIndex].key, i, s0cfg, stage0MeansGloss, stage0TargetClip))
+          if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
+        }
         continue
       }
 
       // Main stages — entry shifts past the Stage-0 views so view N+1 = Stage 1.
-      const stageInfo = podStageFor(i + view.shift, podRound, stageDuration, totalStages, stageDurationsMap)
+      // podStageFor(entry=1, current=alive−shift) ≡ the old (i+shift, podRound)
+      // call, but driven by the EFFECTIVE view instead of the derived one.
+      const stageInfo = podStageFor(1, alive - view.shift, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue
       // Whole-sentence stage composition (explainer→trans fallback, end-on-target
       // invariant, glue) is the shared builder — same code the Progression walk runs.
       plays.push(...buildMainStage(sentence, stageInfo.stage, i, playlist))
+      if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
     }
     if (plays.length === 0) return null
 
@@ -615,6 +656,40 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     completedPodRounds.value += 1
     deferredPodPending.value = false
     await persistRatchet()
+    await flushExposures()
+  }
+
+  /**
+   * Write the last-built lap's exposure counts to the shared two-doors
+   * counter (learner_pod_state). In-memory map merges by max first so the
+   * next lap build sees the advance even if the network write fails; guests
+   * keep derived-only behaviour. Best-effort — never blocks playback.
+   */
+  const flushExposures = async (): Promise<void> => {
+    const batch = pendingExposures
+    pendingExposures = []
+    if (batch.length === 0) return
+    for (const r of batch) {
+      if ((podExposures.get(r.sentence_id) ?? 0) < r.exposures) podExposures.set(r.sentence_id, r.exposures)
+    }
+    const supabase = unwrap(supabaseRef)
+    const learnerId = unwrap(learnerIdRef)
+    const courseCode = unwrap(courseCodeRef)
+    if (!supabase || !courseCode || !learnerId || isGuestLearner(learnerId)) return
+    try {
+      await new PodStateStore({ client: supabase }).upsertMany(
+        batch.map((r) => ({
+          learner_id: learnerId,
+          course_code: courseCode,
+          sentence_id: r.sentence_id,
+          // The map holds the max seen this session — write that, so a stale
+          // batch never regresses a counter another pass just advanced.
+          exposures: podExposures.get(r.sentence_id) ?? r.exposures,
+        })),
+      )
+    } catch (err) {
+      console.warn('[podLapScheduler] pod state write failed:', err)
+    }
   }
 
   /**
@@ -636,6 +711,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const reset = async (): Promise<void> => {
     completedPodRounds.value = 0
     podActivationRound.value = DEFAULT_POD_ACTIVATION
+    podExposures = new Map()
+    pendingExposures = []
 
     const supabase = unwrap(supabaseRef)
     const learnerId = unwrap(learnerIdRef)
@@ -647,6 +724,8 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
         .update({ completed_pod_rounds: 0, pod_activation_round: null })
         .eq('learner_id', learnerId)
         .eq('course_id', courseCode)
+      // Course reset clears the shared two-doors counter too.
+      await new PodStateStore({ client: supabase }).deleteAll(learnerId, courseCode)
     } catch (err) {
       console.warn('[podLapScheduler] reset write failed:', err)
     }
