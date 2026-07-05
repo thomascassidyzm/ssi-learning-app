@@ -51,6 +51,7 @@ import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
+import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
 import { decomposePhrase } from '../utils/decomposePhrase'
 import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
 // Lazy: opt-in Listening-Pod mode, v-if="showListeningOverlay" — off by default,
@@ -550,27 +551,35 @@ const instantPlayback = useInstantPlayback(courseCode, {
         throw new Error('CourseEndNoNextLego')
       }
 
-      // The cursor (last_completed_lego_id) is the ONLY position. If it
+      // The cursor (last_completed_lego_id) is the primary position. If it
       // can't be located in the round-map — null on a fresh row, or
-      // stale/schema-drifted — start fresh at R1. No ceiling fallback:
-      // the learner's position is wherever their cursor says it is,
-      // nothing else (2026-07-04 cursor-only decision).
+      // stale/schema-drifted — fall back to the legacy ceiling
+      // (highest_completed_lego_id) when one is populated, so a learner
+      // with a null/unresolvable cursor but a real ceiling isn't dropped
+      // to R1 (2026-07-05: narrow reinstatement — read-only fallback,
+      // never ratcheted or written back). Only a learner with neither
+      // resolves fresh at R1.
+      const ceiling = enrollment?.highest_completed_lego_id ?? null
       const map = await instantPlayback.getOrFetchRoundMap()
-      const idx = lastCompleted ? map.rounds.findIndex(r => r.legoId === lastCompleted) : -1
-      if (idx === -1) {
+      const findIndex = (legoId: string) => map.rounds.findIndex(r => r.legoId === legoId)
+      const { legoId: anchor, viaCeiling } = resolveResumeAnchor(lastCompleted, ceiling, findIndex)
+      if (viaCeiling) {
+        console.warn(`[InstantPlayback] cursor ${lastCompleted} not in round-map; falling back to ceiling ${anchor}`)
+      }
+      if (!anchor) {
         if (lastCompleted) {
-          console.warn(`[InstantPlayback] cursor ${lastCompleted} not in round-map; starting at R1`)
+          console.warn(`[InstantPlayback] resume anchor ${lastCompleted} not in round-map; starting at R1`)
         }
         return null
       }
 
-      // lastCompleted names the round the learner is ON (position, not
+      // anchor names the round the learner is ON (position, not
       // completion), so resume lands there directly — no "+1". The saved
       // cycle index restores the exact mid-round spot. INF PLAY is handled
       // by the derived check above, so there's no course-end branch here:
       // a main-mode learner sitting on the final round simply resumes onto
       // it and enters INF PLAY when they finish it.
-      return lastCompleted
+      return anchor
     } catch (err) {
       if ((err as Error)?.message === 'CourseEndNoNextLego') throw err
       return null
@@ -10405,6 +10414,10 @@ onMounted(async () => {
         // localStorage has no position (after ?reset=1 / a new device), so a
         // returning learner resumes at their cursor, NOT round 1.
         let inferCursorLegoId: string | null = null
+        // Legacy ceiling (highest_completed_lego_id) — read-only fallback for
+        // when the cursor is null/unresolvable. Never written back / ratcheted
+        // from here (2026-07-05 narrow reinstatement).
+        let inferCeilingLegoId: string | null = null
         // The DB cycle within the cursor's round — so a cold-localStorage resume
         // (new device / different origin / after ?reset=1) lands on the exact
         // CYCLE, not the round's intro. Fixes "main resumes at LEGO intro".
@@ -10413,6 +10426,7 @@ onMounted(async () => {
           try {
             const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
             inferCursorLegoId = enr?.last_completed_lego_id ?? null
+            inferCeilingLegoId = enr?.highest_completed_lego_id ?? null
             // Cursor-only model: infinite-play is DERIVED from the cursor —
             // no is_new LEGO beyond it — not read from the enrollment.current_mode
             // column (2026-07-04). Infplay entry always stamps the cursor to the
@@ -10480,18 +10494,19 @@ onMounted(async () => {
               // without it, every ?reset=1 dropped signed-in learners at LEGO 1.
               if (!resume) {
                 const fastRounds = cachedScript.rounds as any[]
-                const findLego = (lego: string | null) => lego ? fastRounds.findIndex((r: any) => r?.legoId === lego) : -1
-                // Cursor-only model: the cursor is the ONLY position. If it
-                // can't be resolved against the cached rounds, start fresh
-                // at round 1 — no ceiling fallback (2026-07-04).
-                const cursorIdx = findLego(inferCursorLegoId)
-                if (cursorIdx >= 0) {
-                  // Resolved the CURSOR — land on its exact cycle from the DB
-                  // (current_cycle_index), not the round's intro. This is what
-                  // makes a cold-localStorage resume (new device / different
-                  // origin / after ?reset=1) match the warm-localStorage one.
-                  resumeRoundIndex = cursorIdx
-                  resumeCycle = inferCursorCycle
+                const findLego = (lego: string) => fastRounds.findIndex((r: any) => r?.legoId === lego)
+                // Cursor first; if the cursor is null/unresolvable, fall back
+                // to the legacy ceiling (highest_completed_lego_id) when
+                // populated — read-only, never ratcheted (2026-07-05 narrow
+                // reinstatement). Only a learner with neither starts at R1.
+                const { legoId: fastAnchor, viaCeiling: fastViaCeiling } =
+                  resolveResumeAnchor(inferCursorLegoId, inferCeilingLegoId, findLego)
+                if (fastAnchor) {
+                  resumeRoundIndex = findLego(fastAnchor)
+                  // The ceiling fallback has no saved cycle position — land on
+                  // the round's intro. Only the resolved CURSOR carries an
+                  // exact cycle (current_cycle_index) to restore.
+                  resumeCycle = fastViaCeiling ? 0 : inferCursorCycle
                   // Same gap rule on the DB-cursor path (cold localStorage):
                   // a real break restarts the round rather than the exact cycle.
                   // FAIL CLOSED: a missing/not-yet-loaded timestamp can't prove
@@ -10500,8 +10515,8 @@ onMounted(async () => {
                     const ts = savedLastPracticedAt.value
                     if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
                   }
-                } else if (inferCursorLegoId) {
-                  console.warn(`[InstantPlayback] cache fast-path: cursor (${inferCursorLegoId}) not in cached rounds; starting at R1`)
+                } else if (inferCursorLegoId || inferCeilingLegoId) {
+                  console.warn(`[InstantPlayback] cache fast-path: neither cursor (${inferCursorLegoId}) nor ceiling (${inferCeilingLegoId}) in cached rounds; starting at R1`)
                 }
               }
               if (resumeRoundIndex > 0 || resumeCycle > 0) {
@@ -10931,15 +10946,17 @@ onMounted(async () => {
                 // case, and every CJK course, whose matview is not stale) leaves the
                 // tier-3 /cycles queue and its authored tiling untouched.
                 try {
-                  const findInFull = (lego: string | null) =>
-                    lego ? fullRounds.findIndex((r: any) => r?.legoId === lego) : -1
+                  const findInFull = (lego: string) => fullRounds.findIndex((r: any) => r?.legoId === lego)
                   const landedLegoId = simplePlayer.currentRound?.value?.legoId ?? startedAtLegoId
-                  const landedIdx = findInFull(landedLegoId)
-                  // The learner's TRUE position: the cursor — the ONLY
-                  // position (2026-07-04 cursor-only model; no ceiling
-                  // fallback).
-                  const trueIdx = findInFull(inferCursorLegoId)
-                  let trueCycle = inferCursorCycle
+                  const landedIdx = landedLegoId ? findInFull(landedLegoId) : -1
+                  // The learner's TRUE position: cursor first, then the
+                  // legacy ceiling (highest_completed_lego_id) when the
+                  // cursor is null/unresolvable — read-only fallback, never
+                  // ratcheted (2026-07-05 narrow reinstatement).
+                  const { legoId: trueLego, viaCeiling: trueViaCeiling } =
+                    resolveResumeAnchor(inferCursorLegoId, inferCeilingLegoId, findInFull)
+                  const trueIdx = trueLego ? findInFull(trueLego) : -1
+                  let trueCycle = trueViaCeiling ? 0 : inferCursorCycle
                   // Only repair when the true position resolves in the full script
                   // AND is strictly AHEAD of where the bootstrap landed (the stale-
                   // matview fallback always lands EARLIER — R1/ceiling — never past

@@ -865,6 +865,14 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.18:
+    date: "2026-07-05"
+    title: "Resume: reinstate narrow ceiling fallback — cursor null/unresolvable + populated ceiling no longer drops learners to round 1"
+    changes:
+      - "Blocker fix: the 2026-07-04 cursor-only sweep (v2.1.17) dropped the ceiling fallback entirely, which stranded live learners with last_completed_lego_id NULL but highest_completed_lego_id populated (e.g. a learner at S0002L02) at round 1 on resume. Reinstated narrowly: resolveStartLegoId, the cache fast-path, and the mid-session stale-matview repair block now fall back to highest_completed_lego_id ONLY when the cursor is null/unresolvable AND the ceiling is populated — read-only, never written back or ratcheted. Neither resolving still starts fresh at round 1, matching the pre-2026-07-04 behaviour these three sites had (see docs/position-and-ownership-model.md)."
+      - "Extracted the shared decision (cursor → ceiling → null) to utils/resolveResumeAnchor.ts, unit-tested, and wired all three call sites through it instead of duplicated inline fallback logic."
+      - "Infinite-play derivation (hasReachedInfinitePlay, cursor-only) is UNCHANGED by this fix — this is resume-position only, not the infplay predicate."
+
   v2.1.17:
     date: "2026-07-04"
     title: "Cursor-only position (phase 1) — infinite-play + resume derived from the cursor, not the ratcheted ceiling"

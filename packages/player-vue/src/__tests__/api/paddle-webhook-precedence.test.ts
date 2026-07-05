@@ -12,14 +12,16 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
 
 const { wouldDowngradePlan, PLAN_PRECEDENCE } = await import('../../../../../api/teacher/paddle-webhook')
 
-function fakeSupabase(existingPlanName: string | null) {
+function fakeSupabase(existingPlanName: string | null, existingStatus: string = 'active') {
   return {
     from: () => ({
       select: () => ({
         eq: () => ({
           maybeSingle: () =>
             Promise.resolve(
-              existingPlanName ? { data: { plan_name: existingPlanName }, error: null } : { data: null, error: null },
+              existingPlanName
+                ? { data: { plan_name: existingPlanName, status: existingStatus }, error: null }
+                : { data: null, error: null },
             ),
         }),
       }),
@@ -61,5 +63,26 @@ describe('paddle-webhook plan precedence guard', () => {
     const supabase = fakeSupabase(null)
     const skip = await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Student Access')
     expect(skip).toBe(false)
+  })
+
+  it('allows a new paid plan to apply when the higher-ranked existing row is cancelled', async () => {
+    // Regression: a cancelled tutor-bundle row (rank 3) must not silently
+    // block a new paid Premium (rank 2) purchase — payment taken, no
+    // entitlement, webhook 200s.
+    const supabase = fakeSupabase('SSi Premium (tutor bundle)', 'cancelled')
+    const skip = await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Premium')
+    expect(skip).toBe(false)
+  })
+
+  it('allows a new paid plan to apply when the higher-ranked existing row has no active status', async () => {
+    const supabase = fakeSupabase('SSi Premium (tutor bundle)', 'none')
+    const skip = await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Student Access')
+    expect(skip).toBe(false)
+  })
+
+  it('still blocks a downgrade when the higher-ranked existing row is past_due (still entitled during dunning)', async () => {
+    const supabase = fakeSupabase('SSi Premium (tutor bundle)', 'past_due')
+    const skip = await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Premium')
+    expect(skip).toBe(true)
   })
 })
