@@ -21,9 +21,12 @@ export interface DetailEnrollment {
   last_practiced_at: string | null
   total_practice_minutes: number
   highest_completed_seed: number | null
-  /** Ratcheted ceiling — only ever increases. The canonical "highest LEGO". */
+  /** Legacy ratcheted ceiling — only ever increases. Being retired
+   *  (2026-07-04 cursor-only decision); last_completed_lego_id is now the
+   *  canonical position. Read only as a fallback for rows with no cursor. */
   highest_completed_lego_id: string | null
-  /** Most recently completed LEGO (may go down with re-plays). */
+  /** The cursor — the learner's canonical position. Moves freely, including
+   *  backward (belt-back, jump-to-belt). */
   last_completed_lego_id: string | null
 }
 
@@ -306,15 +309,16 @@ export function useAdminUserDetail(client: SupabaseClient) {
         const metricRows = legoMetrics.value.filter(r => r.course_code === courseId)
         const enrollment = enrollmentByCourse.get(courseId)
 
-        // Canonical position: course_enrollments.highest_completed_lego_id is
-        // the ratcheted ceiling (only ever increases — see migration
-        // 20260504_highest_completed_round_index). The LEGO id alone derives
-        // both seed and belt — no need to read highest_completed_seed
-        // separately (that column can lag the ratchet). Fall back to
-        // last_completed_lego_id, then telemetry-table max for courses that
-        // have engine fires but no enrollment ratchet write yet.
-        let highestLegoId: string | null = enrollment?.highest_completed_lego_id ?? null
-        if (!highestLegoId) highestLegoId = enrollment?.last_completed_lego_id ?? null
+        // Canonical position (2026-07-04 cursor-only model):
+        // course_enrollments.last_completed_lego_id is the cursor — the
+        // learner's actual position, which can move backward (belt-back,
+        // jump-to-belt). The LEGO id alone derives both seed and belt — no
+        // need to read highest_completed_seed separately. Fall back to the
+        // legacy ratcheted highest_completed_lego_id only for rows that
+        // predate the cursor column, then to telemetry-table max for
+        // courses that have engine fires but no enrollment row yet.
+        let highestLegoId: string | null = enrollment?.last_completed_lego_id ?? null
+        if (!highestLegoId) highestLegoId = enrollment?.highest_completed_lego_id ?? null
         if (!highestLegoId) {
           for (const r of l1Rows) {
             if (!highestLegoId || r.lego_id > highestLegoId) highestLegoId = r.lego_id

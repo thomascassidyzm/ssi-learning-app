@@ -255,7 +255,7 @@ const fetchLearnerEnrollments = async () => {
   try {
     const { data, error } = await supabaseClient.value
       .from('course_enrollments')
-      .select('course_id, highest_completed_lego_id, last_completed_lego_id, last_practiced_at, total_practice_minutes, current_cycle_index')
+      .select('course_id, last_completed_lego_id, last_practiced_at, total_practice_minutes, current_cycle_index')
       .eq('learner_id', auth.learner.value.id)
     if (error) {
       console.warn('[App] fetchLearnerEnrollments failed:', error.message)

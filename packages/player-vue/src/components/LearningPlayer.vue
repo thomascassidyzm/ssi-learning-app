@@ -50,6 +50,7 @@ import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
 import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
+import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
 import { decomposePhrase } from '../utils/decomposePhrase'
 import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
 // Lazy: opt-in Listening-Pod mode, v-if="showListeningOverlay" — off by default,
@@ -540,49 +541,36 @@ const instantPlayback = useInstantPlayback(courseCode, {
       // mode is designed around. The path is the same as the course-
       // end case below — throw and let the catch in LearningPlayer
       // pick up the legacy generator.
-      if (enrollment?.current_mode === 'infplay') {
+      //
+      // Cursor-only model: infinite-play is DERIVED — no is_new LEGO
+      // remains beyond the cursor — rather than trusted from the
+      // enrollment.current_mode column (2026-07-04).
+      const lastCompleted = enrollment?.last_completed_lego_id ?? null
+      if (await hasReachedInfinitePlay(lastCompleted, courseCode.value)) {
         throw new Error('CourseEndNoNextLego')
       }
 
-      const lastCompleted = enrollment?.last_completed_lego_id ?? null
-      const ceiling = enrollment?.highest_completed_lego_id ?? null
-
-      // A returning learner is anchored by their cursor (last_completed_lego_id
-      // == "where you left off"). But if that cursor can't be located in the
-      // round-map — null on a fresh row, or stale/schema-drifted — we must
-      // NOT silently fall back to round 1. Starting at R1 makes the very next
-      // round-completion overwrite the cursor with S0001L01 (saveRoundProgress
-      // legitimately tracks current position for belt-back), permanently
-      // pinning the learner to LEGO 1: the trigger protects highest, but the
-      // cursor has no floor, and every later resume then reads S0001L01. So a
-      // learner with a known ceiling falls back to the CEILING — they resume
-      // near how far they actually got, never seed 1. Only a genuinely fresh
-      // learner (no cursor AND no ceiling) defaults to R1.
+      // The cursor (last_completed_lego_id) is the ONLY position. If it
+      // can't be located in the round-map — null on a fresh row, or
+      // stale/schema-drifted — start fresh at R1. No ceiling fallback:
+      // the learner's position is wherever their cursor says it is,
+      // nothing else (2026-07-04 cursor-only decision).
       const map = await instantPlayback.getOrFetchRoundMap()
-      let anchor = lastCompleted
-      let idx = anchor ? map.rounds.findIndex(r => r.legoId === anchor) : -1
-      if (idx === -1 && ceiling) {
-        if (anchor) {
-          console.warn(`[InstantPlayback] cursor ${anchor} not in round-map; falling back to ceiling ${ceiling}`)
-        }
-        anchor = ceiling
-        idx = map.rounds.findIndex(r => r.legoId === ceiling)
-      }
+      const idx = lastCompleted ? map.rounds.findIndex(r => r.legoId === lastCompleted) : -1
       if (idx === -1) {
-        // Neither cursor nor ceiling resolvable → genuinely fresh start.
-        if (anchor) {
-          console.warn(`[InstantPlayback] resume anchor ${anchor} not in round-map; starting at R1`)
+        if (lastCompleted) {
+          console.warn(`[InstantPlayback] cursor ${lastCompleted} not in round-map; starting at R1`)
         }
         return null
       }
 
-      // anchor names the round the learner is ON (position, not completion),
-      // so resume lands there directly — no "+1". The saved cycle index
-      // restores the exact mid-round spot. INF PLAY is handled by the
-      // current_mode check above (cursor frozen at the ceiling), so there's
-      // no course-end branch here: a main-mode learner sitting on the final
-      // round simply resumes onto it and enters INF PLAY when they finish it.
-      return anchor
+      // lastCompleted names the round the learner is ON (position, not
+      // completion), so resume lands there directly — no "+1". The saved
+      // cycle index restores the exact mid-round spot. INF PLAY is handled
+      // by the derived check above, so there's no course-end branch here:
+      // a main-mode learner sitting on the final round simply resumes onto
+      // it and enters INF PLAY when they finish it.
+      return lastCompleted
     } catch (err) {
       if ((err as Error)?.message === 'CourseEndNoNextLego') throw err
       return null
@@ -897,7 +885,6 @@ const loadSavedProgress = async () => {
         highestCompletedRoundIndex: enrollment.highest_completed_round_index,
         currentCycleIndex: enrollment.current_cycle_index ?? 0,
         lastPracticedAt: enrollment.last_practiced_at ?? null,
-        currentMode: enrollment.current_mode ?? 'main',
         infplayRoundIndex: enrollment.infplay_round_index ?? 0,
       }
     }
@@ -916,41 +903,11 @@ const loadSavedProgress = async () => {
 let courseMainLoopCountCache: number | null = null
 let courseMainLoopCountCacheKey: string | null = null
 
-/**
- * True iff the learner has been introduced to every LEGO in the course
- * — i.e. they belong in infinite-play mode.
- *
- * highest_completed_lego_id is the canonical signal. The trigger on
- * course_enrollments ratchets it independently of round_index
- * (migration 20260512_lego_id_independent_ratchet.sql), and
- * saveRoundProgress substitutes the last main-loop LEGO when writing
- * the cursor for an infinite-play round, so the ceiling LEGO stays at
- * the actual course-progress boundary. Lexicographic comparison
- * works because lego_id is the zero-padded SNNNNLNN format.
- */
-const hasReachedInfinitePlay = async (
-  highestLegoId: string | null,
-  course: string,
-): Promise<boolean> => {
-  if (!highestLegoId || !supabase?.value || !course) return false
-  try {
-    const { data, error } = await supabase.value
-      .from('course_legos')
-      .select('lego_id')
-      .eq('course_code', course)
-      .eq('is_new', true)
-      .gt('lego_id', highestLegoId)
-      .limit(1)
-    if (error) {
-      console.warn('[LearningPlayer] hasReachedInfinitePlay query failed:', error)
-      return false
-    }
-    return (data?.length ?? 0) === 0
-  } catch (err) {
-    console.warn('[LearningPlayer] hasReachedInfinitePlay threw:', err)
-    return false
-  }
-}
+// hasReachedInfinitePlay lives in utils/infinitePlay.ts (cursor-only model,
+// 2026-07-04) so it's unit-testable outside this component. Thin wrapper
+// keeps every existing (legoId, course) call site in this file unchanged.
+const hasReachedInfinitePlay = (legoId: string | null, course: string): Promise<boolean> =>
+  hasReachedInfinitePlayPure(legoId, course, supabase?.value)
 
 /**
  * The course's final main-loop LEGO ID, plus the 0-indexed
@@ -1279,7 +1236,10 @@ watch(
         lastCompletedLegoIdRef.value = saved.lastCompletedLegoId ?? null
         savedCurrentCycleIndex.value = saved.currentCycleIndex ?? 0
         savedLastPracticedAt.value = saved.lastPracticedAt ?? null
-        currentMode.value = saved.currentMode ?? 'main'
+        // Cursor-only model (2026-07-04): infinite-play is derived from the
+        // cursor (no is_new LEGO remains beyond it), not read from the
+        // enrollment.current_mode column.
+        currentMode.value = (await hasReachedInfinitePlay(saved.lastCompletedLegoId, courseCode.value)) ? 'infplay' : 'main'
         infplayRoundIndex.value = saved.infplayRoundIndex ?? 0
       } else {
         highestCompletedRoundIndex.value = null
@@ -10441,23 +10401,25 @@ onMounted(async () => {
         // bootstrap. Tom 2026-05-25.
         let inferEnrollmentMode: 'main' | 'infplay' = 'main'
         let inferInfPlayRoundIndex = 1
-        // DB-canonical resume anchors — used by the cache fast-path below when
+        // DB-canonical resume anchor — used by the cache fast-path below when
         // localStorage has no position (after ?reset=1 / a new device), so a
         // returning learner resumes at their cursor, NOT round 1.
         let inferCursorLegoId: string | null = null
-        let inferCeilingLegoId: string | null = null
         // The DB cycle within the cursor's round — so a cold-localStorage resume
         // (new device / different origin / after ?reset=1) lands on the exact
-        // CYCLE, not the round's intro. Only meaningful for the cursor; the
-        // ceiling fallback stays cycle 0. Fixes "main resumes at LEGO intro".
+        // CYCLE, not the round's intro. Fixes "main resumes at LEGO intro".
         let inferCursorCycle = 0
         if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
           try {
             const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
-            inferEnrollmentMode = (enr?.current_mode === 'infplay') ? 'infplay' : 'main'
-            inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
             inferCursorLegoId = enr?.last_completed_lego_id ?? null
-            inferCeilingLegoId = enr?.highest_completed_lego_id ?? null
+            // Cursor-only model: infinite-play is DERIVED from the cursor —
+            // no is_new LEGO beyond it — not read from the enrollment.current_mode
+            // column (2026-07-04). Infplay entry always stamps the cursor to the
+            // course's final LEGO (setMode's ratchetHighestTo write), so this
+            // agrees with the explicit-entry ("belt-skipped past content") case too.
+            inferEnrollmentMode = (await hasReachedInfinitePlay(inferCursorLegoId, courseCode.value)) ? 'infplay' : 'main'
+            inferInfPlayRoundIndex = Math.max(1, enr?.infplay_round_index ?? 1)
             inferCursorCycle = Math.max(0, enr?.current_cycle_index ?? 0)
           } catch (modeErr) {
             console.warn('[InstantPlayback] mode pre-check failed, defaulting to main:', modeErr)
@@ -10519,9 +10481,9 @@ onMounted(async () => {
               if (!resume) {
                 const fastRounds = cachedScript.rounds as any[]
                 const findLego = (lego: string | null) => lego ? fastRounds.findIndex((r: any) => r?.legoId === lego) : -1
-                // Cursor first; if the cursor can't be resolved, fall to the
-                // ceiling (highest) — Tom's rule. Only a genuinely fresh learner
-                // (neither resolvable) starts at round 1.
+                // Cursor-only model: the cursor is the ONLY position. If it
+                // can't be resolved against the cached rounds, start fresh
+                // at round 1 — no ceiling fallback (2026-07-04).
                 const cursorIdx = findLego(inferCursorLegoId)
                 if (cursorIdx >= 0) {
                   // Resolved the CURSOR — land on its exact cycle from the DB
@@ -10538,15 +10500,8 @@ onMounted(async () => {
                     const ts = savedLastPracticedAt.value
                     if (!ts || (Date.now() - ts.getTime()) / 60000 >= resumeConfig.value.cycleResetMinutes) resumeCycle = 0
                   }
-                } else {
-                  const ceilingIdx = findLego(inferCeilingLegoId)
-                  if (ceilingIdx >= 0) {
-                    // Fell to the ceiling (highest) — start at its intro.
-                    resumeRoundIndex = ceilingIdx
-                    resumeCycle = 0
-                  } else if (inferCursorLegoId || inferCeilingLegoId) {
-                    console.warn(`[InstantPlayback] cache fast-path: neither cursor (${inferCursorLegoId}) nor ceiling (${inferCeilingLegoId}) in cached rounds; starting at R1`)
-                  }
+                } else if (inferCursorLegoId) {
+                  console.warn(`[InstantPlayback] cache fast-path: cursor (${inferCursorLegoId}) not in cached rounds; starting at R1`)
                 }
               }
               if (resumeRoundIndex > 0 || resumeCycle > 0) {
@@ -10673,7 +10628,11 @@ onMounted(async () => {
 
             // Belt anchor: course-end seed (top reachable belt), NOT the
             // revival round's random USE legoId. Mirrors enterInfPlay.
-            const finalLegoId = inferCeilingLegoId ?? courseFinalLegoRef.value?.legoId ?? null
+            // inferCursorLegoId is used here (not a separate ceiling): infplay
+            // entry always stamps the cursor to the course's final LEGO, so
+            // whenever inferEnrollmentMode === 'infplay' the cursor already IS
+            // the course-end anchor (2026-07-04 cursor-only model).
+            const finalLegoId = inferCursorLegoId ?? courseFinalLegoRef.value?.legoId ?? null
             if (finalLegoId) {
               if (!lastMainLoopLegoId.value || finalLegoId > lastMainLoopLegoId.value) {
                 lastMainLoopLegoId.value = finalLegoId
@@ -10807,7 +10766,10 @@ onMounted(async () => {
           // writer (visualLegoIdForRound) keeps anchoring to the ceiling
           // instead of falling through to each round's random USE seed.
           if (inferEnrollmentMode === 'infplay') {
-            const finalLegoId = inferCeilingLegoId ?? courseFinalLegoRef.value?.legoId ?? null
+            // inferCursorLegoId (not a separate ceiling): infplay entry always
+            // stamps the cursor to the course's final LEGO, so the cursor
+            // already IS the course-end anchor here (2026-07-04 cursor-only model).
+            const finalLegoId = inferCursorLegoId ?? courseFinalLegoRef.value?.legoId ?? null
             if (finalLegoId) {
               if (!lastMainLoopLegoId.value || finalLegoId > lastMainLoopLegoId.value) {
                 lastMainLoopLegoId.value = finalLegoId
@@ -10973,13 +10935,11 @@ onMounted(async () => {
                     lego ? fullRounds.findIndex((r: any) => r?.legoId === lego) : -1
                   const landedLegoId = simplePlayer.currentRound?.value?.legoId ?? startedAtLegoId
                   const landedIdx = findInFull(landedLegoId)
-                  // The learner's TRUE position: cursor first, then ceiling.
-                  let trueIdx = findInFull(inferCursorLegoId)
+                  // The learner's TRUE position: the cursor — the ONLY
+                  // position (2026-07-04 cursor-only model; no ceiling
+                  // fallback).
+                  const trueIdx = findInFull(inferCursorLegoId)
                   let trueCycle = inferCursorCycle
-                  if (trueIdx < 0) {
-                    trueIdx = findInFull(inferCeilingLegoId)
-                    trueCycle = 0
-                  }
                   // Only repair when the true position resolves in the full script
                   // AND is strictly AHEAD of where the bootstrap landed (the stale-
                   // matview fallback always lands EARLIER — R1/ceiling — never past
@@ -11225,30 +11185,20 @@ onMounted(async () => {
               // regardless of which LEGO the cursor (random USE review)
               // happens to have last touched.
               //
-              // freshHighestLego was already read at the top of this
-              // branch and mirrored into the ref. Run the infinite-play
-              // detection against it.
-              // Two ways to be "in infplay" for resume purposes:
-              //   1. Position-derived: highest_completed_lego_id IS the
-              //      course's literal final LEGO (natural progression
-              //      through every belt)
-              //   2. Mode-derived: current_mode === 'infplay'
-              //      (explicit purple-button entry — works even when
-              //      the learner belt-skipped forward and didn't
-              //      touch the literal final LEGO, e.g. Tom's deu
-              //      stuck at highest=S0281L01 in a 592-LEGO course)
-              //
-              // Either signal triggers the infplay resume branch,
-              // which jumps to first-infplay-round instead of the
-              // legoId-based resume that would replay S0281L01+1's
-              // intro.
-              const positionSaysInfPlay = await hasReachedInfinitePlay(
-                freshHighestLego,
+              // freshLastLego (the cursor) was already read at the top of
+              // this branch. Cursor-only model (2026-07-04): infinite-play
+              // is derived from the cursor — no is_new LEGO remains beyond
+              // it — rather than a separate ratcheted ceiling or a stored
+              // current_mode flag. This also covers explicit purple-button
+              // entry (belt-skipped forward without touching the literal
+              // final LEGO): setMode's ratchetHighestTo write stamps the
+              // cursor to the course's final LEGO on infplay entry, so the
+              // cursor already reflects "done with new content" either way.
+              hasReachedInfinitePlayInSession = await hasReachedInfinitePlay(
+                freshLastLego,
                 courseCode.value,
               )
-              const enrollmentSaysInfPlay = (freshProgress?.currentMode ?? 'main') === 'infplay'
-              hasReachedInfinitePlayInSession = positionSaysInfPlay || enrollmentSaysInfPlay
-              console.log(`[LearningPlayer] Infinite-play check: highest_lego=${freshHighestLego} positionSays=${positionSaysInfPlay} modeSays=${enrollmentSaysInfPlay} → ${hasReachedInfinitePlayInSession ? 'YES, in INF PLAY' : 'no, still in main loop'}`)
+              console.log(`[LearningPlayer] Infinite-play check: cursor_lego=${freshLastLego} → ${hasReachedInfinitePlayInSession ? 'YES, in INF PLAY' : 'no, still in main loop'}`)
 
               let endSeed: number
               if (hasReachedInfinitePlayInSession) {

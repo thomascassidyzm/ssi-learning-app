@@ -865,6 +865,17 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.17:
+    date: "2026-07-04"
+    title: "Cursor-only position (phase 1) — infinite-play + resume derived from the cursor, not the ratcheted ceiling"
+    changes:
+      - "Cursor-only decision (docs/position-and-ownership-model.md): course_enrollments.last_completed_lego_id/last_completed_round_index (the cursor) is the ONLY position going forward. The ratcheted ceiling (highest_completed_lego_id/highest_completed_round_index, trigger ratchet_highest_completed_round) and current_mode are being retired via expand-contract; this phase repoints CLIENT READS only — no schema change, writes to the legacy fields continue for stale-PWA compatibility."
+      - "Infinite-play is now DERIVED: hasReachedInfinitePlay (extracted to utils/infinitePlay.ts, unit-tested) — true iff no is_new LEGO remains beyond the CURSOR. Every call site (resolveStartLegoId's mode check, the instant-playback mode pre-check, the mid-session returning-user check) now passes the cursor (last_completed_lego_id), not the ratcheted ceiling or the stored current_mode column. Agrees with belt-skipped entries too: setMode's ratchetHighestTo write already stamps the cursor to the course's final LEGO on infplay entry."
+      - "resolveStartLegoId and the cache-fast-path resume anchor DROP the 'fall back to the ceiling if the cursor isn't found' branch — resume is cursor-only, nothing else. An unresolvable cursor now starts fresh at round 1 instead of falling back to highest_completed_lego_id."
+      - "useBeltProgress: fetchRemoteProgress reads last_completed_lego_id (not highest_completed_lego_id); mergeProgress adopts the remote cursor directly (no more Math.max ratchet merge) so a cursor moved back on another device is reflected here too; highestBeltIndex/highestLegoId no longer ratchet forward-only — they mirror the current cursor (setLastLegoId), so beltJourney's isComplete/isCurrent ticks (and CourseBrowser/PlayerContainer/SettingsScreen, which all read these refs) follow the cursor down as well as up."
+      - "current_mode / infplay_round_index remain as WRITES only (setMode, bumpInfplayRound unchanged) — depth-into-infplay display still reads the infplay_round_index counter because the cursor is deliberately frozen at the ceiling during INF PLAY (persistCursorAtCurrentRound/persistLivePositionToDb skip writes in infplay mode); deriving depth from cursor round_index would require unfreezing that write path, deferred to a later phase (see repoint report)."
+      - "App.vue / BrowseScreen.vue / CourseSelector.vue course-list cards (belt colour + 'N / total' position) now read last_completed_lego_id instead of highest_completed_lego_id. Admin useAdminUserDetail.ts / AdminUserDetail.vue prefer the cursor, falling back to the legacy ceiling only for rows that predate it."
+
   v2.1.16:
     date: "2026-06-08"
     title: "Cold-start instant-playback bootstrap + splash floor; welcome plays once EVER per learner; deleted-playback-module spec sync"

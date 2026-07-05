@@ -1075,15 +1075,14 @@ const confirmReset = async () => {
         }
       }
 
-      // Reset enrollment stats for this course only. Must also clear the
+      // Reset enrollment stats for this course only. Also clear the legacy
       // ratcheted "furthest reached" fields (highest_completed_lego_id,
       // highest_completed_round_index, completed_pod_rounds,
-      // infplay_round_index) alongside the resume cursor — these only ever
-      // move forward (DB ratchet trigger / pod scheduler), so leaving them
-      // set after a deliberate restart is what made a cleared/reset device
-      // still show belts as complete: useBeltProgress.mergeProgress() reads
-      // highest_completed_lego_id and takes max(local, remote), pulling the
-      // stale high-water mark right back in on the next load.
+      // infplay_round_index) alongside the resume cursor. These columns are
+      // being retired (2026-07-04 cursor-only decision) but are still
+      // written by the DB ratchet trigger / pod scheduler for stale-PWA
+      // compatibility, so a deliberate restart nulls them too rather than
+      // leaving inconsistent legacy state behind.
       await supabase.value
         .from('course_enrollments')
         .update({
