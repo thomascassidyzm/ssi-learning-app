@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
-import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS } from './usePodLapScheduler'
+import { usePodLapScheduler, podStageFor, DEFAULT_STAGE_DURATIONS, flattenPodRows } from './usePodLapScheduler'
 
 // ============================================================================
 // Supabase mock — covers the four query shapes the scheduler issues:
@@ -488,5 +488,179 @@ describe('usePodLapScheduler — reactive args', () => {
     await s.initialize()
     expect(s.isInitialized.value).toBe(true)
     expect(s.nextLap()!.podRound).toBe(1)
+  })
+})
+
+// ============================================================================
+// Unified ladder (2026-07-04) — replaces Stage-0..N for any turn carrying
+// atom_map_fine; turns without it keep the pre-ladder arc unchanged.
+// ============================================================================
+
+/** Richer mock: routes course_audio/pod_legos reads by their .eq()/.in() filters
+ *  so loadStage0ClipMaps + loadFineKnownMap resolve independently of the main
+ *  listening_pod_sentences / bookends reads (the flat makeMockSupabase above
+ *  returns the same rows for every course_audio query, which would wrongly
+ *  pollute the ladder's course-wide lookups). */
+function makeLadderMockSupabase(opts: {
+  podSentences: any[]
+  legoRows?: Array<{ lego_key: string; explainer_audio_id: string | null }>
+  atomClipRows?: Array<{ id: string; text: string }>
+  fineKnownRows?: Array<{ id: string; text_normalized: string }>
+  enrollment?: { pod_activation_round: number | null; completed_pod_rounds: number } | null
+}) {
+  const builder = (table: string) => {
+    const filters: Record<string, unknown> = {}
+    let mode: 'select' | 'update' = 'select'
+    const chain: any = {
+      select: () => chain,
+      eq: (col: string, val: unknown) => { filters[col] = val; return chain },
+      in: (col: string, vals: unknown[]) => { filters[col] = vals; return chain },
+      like: () => chain,
+      order: () => chain,
+      update: () => { mode = 'update'; return chain },
+      maybeSingle: () => Promise.resolve({
+        data: table === 'course_enrollments' ? (opts.enrollment ?? null) : null,
+        error: null,
+      }),
+      then: (cb: any) => {
+        if (mode === 'update') return Promise.resolve({ error: null }).then(cb)
+        let data: unknown[] = []
+        if (table === 'listening_pod_sentences') data = opts.podSentences
+        else if (table === 'pod_legos') data = opts.legoRows || []
+        else if (table === 'course_audio') {
+          if (filters.role === 'pod_fine_known') data = opts.fineKnownRows || []
+          else if (Array.isArray(filters.role)) data = [] // bookend_listen_intro/outro — none in these tests
+          else data = opts.atomClipRows || [] // role='pod_explainer' + like '[atom] %'
+        }
+        return Promise.resolve({ data, error: null }).then(cb)
+      },
+    }
+    return chain
+  }
+  return { from: builder } as any
+}
+
+// A single-sentence turn ("Muy bien"), 2 fine units, one Take G render.
+// single=true (one grammatical sentence) → fusion rungs only, no conjoin
+// rungs: spanLadder(2) → 2 levels (finest units, then the whole) + 7
+// speed-ramp rungs = 9 rungs total.
+const ladderTurn = {
+  id: 'c:pod-0:SC01-S001',
+  global_order: 1,
+  speaker: 'Sarah',
+  target_text: 'Muy bien',
+  known_text: 'very well',
+  target_audio_id: 'TURN_TGT',
+  known_audio_id: 'TURN_KN',
+  explainer_audio_id: null,
+  glue_to_next: false,
+  atom_map: null,
+  atom_map_fine: [
+    { lego_key: 'L1', kind: 'atom', gloss: 'very', target_surface: 'Muy', target_start_ms: 0, target_end_ms: 200 },
+    { lego_key: 'L2', kind: 'atom', gloss: 'well', target_surface: 'bien', target_start_ms: 200, target_end_ms: 500 },
+  ],
+  takeg_audio_ids: ['takeg-1'],
+}
+
+describe('usePodLapScheduler — unified ladder (atom_map_fine turns)', () => {
+  it('flattenPodRows keeps a ladder-eligible turn WHOLE — no per-sentence split', () => {
+    const rows = flattenPodRows([{ ...ladderTurn, sentence_audio_ids: ['t0'], sentence_known_audio_ids: ['k0'] } as any])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].target_audio_id).toBe('TURN_TGT')
+    expect(rows[0].atom_map_fine).toHaveLength(2)
+  })
+
+  it('rides the SAME ratchet as Stage-0/main stages: rung 0 (finest units) at alive=1, the whole at alive=2', async () => {
+    const state: MockState = {
+      podSentences: [ladderTurn],
+      bookends: [],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 0 },
+      enrollmentUpdates: [],
+    }
+    const legoRows = [
+      { lego_key: 'L1', explainer_audio_id: 'm1' },
+      { lego_key: 'L2', explainer_audio_id: 'm2' },
+    ]
+    const s = usePodLapScheduler({
+      supabase: makeLadderMockSupabase({ podSentences: state.podSentences, legoRows, enrollment: state.enrollment }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+
+    // podRound 1 → alive=1 → rung 0: each finest unit gets its own
+    // Take-G-sliced t·k·t·t (known falls back to the means-gloss clip —
+    // no fine-known rows supplied).
+    const lap1 = s.nextLap()!
+    expect(lap1.plays.map((p) => p.audioId)).toEqual(['takeg-1', 'm1', 'takeg-1', 'takeg-1', 'takeg-1', 'm2', 'takeg-1', 'takeg-1'])
+    expect(lap1.plays[0]).toMatchObject({ takegClipId: 'takeg-1', unitStartMs: 0, unitEndMs: 200, playRole: 'ps' })
+    expect(lap1.plays[4]).toMatchObject({ takegClipId: 'takeg-1', unitStartMs: 200, unitEndMs: 500, playRole: 'ps' })
+    expect(lap1.plays.every((p) => p.sentenceIdx === 1)).toBe(true)
+    await s.markLapCompleted()
+
+    // podRound 2 → alive=2 → rung 1: this sentence is already at its whole
+    // (2-unit ladder has only 2 levels) — the whole-turn clip, not Take G.
+    const lap2 = s.nextLap()!
+    expect(lap2.plays.map((p) => p.audioId)).toEqual(['TURN_TGT', 'TURN_KN', 'TURN_TGT', 'TURN_TGT'])
+    expect(lap2.plays.every((p) => p.takegClipId === undefined)).toBe(true)
+  })
+
+  it('never advances past the eternal final rung — ps2x forever once reached', async () => {
+    const state: MockState = {
+      podSentences: [ladderTurn],
+      bookends: [],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 50 }, // far past the 9-rung ladder
+      enrollmentUpdates: [],
+    }
+    const s = usePodLapScheduler({
+      supabase: makeLadderMockSupabase({ podSentences: state.podSentences, enrollment: state.enrollment }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLap()!
+    expect(lap.plays).toEqual([{
+      sentenceIdx: 1,
+      stage: 9,
+      playRole: 'ps2x',
+      audioId: 'TURN_TGT',
+      text: 'Muy bien',
+      playbackSpeed: 2,
+      glueToNextChunk: false, // ladderTurn.glue_to_next is false — carried through as-is, same as buildMainStage
+    }])
+  })
+
+  it('a course mixing a ladder turn with a non-ladder turn leaves the non-ladder turn on the untouched Stage-0..N arc', async () => {
+    const nonLadderTurn = {
+      id: 'c:pod-0:SC01-S002',
+      global_order: 2,
+      speaker: 'Sarah',
+      target_text: 'Ciao',
+      known_text: 'Hi',
+      target_audio_id: 'PLAIN_TGT',
+      known_audio_id: 'PLAIN_KN',
+      explainer_audio_id: null,
+      glue_to_next: false,
+      atom_map: null,
+    }
+    const state: MockState = {
+      podSentences: [ladderTurn, nonLadderTurn],
+      bookends: [],
+      enrollment: { pod_activation_round: 1, completed_pod_rounds: 1 }, // activeCount=2
+      enrollmentUpdates: [],
+    }
+    const s = usePodLapScheduler({
+      supabase: makeLadderMockSupabase({ podSentences: state.podSentences, enrollment: state.enrollment }),
+      courseCode: 'c',
+      learnerId: 'u',
+    })
+    await s.initialize()
+    const lap = s.nextLap()!
+    // Sentence 2 (non-ladder, alive=1) rides the pre-ladder arc: Stage 1
+    // ['ps','explainer','ps'] with the explainer→trans fallback (no
+    // explainer_audio_id) — same shape as the existing Stage-1 tests above.
+    const sentence2Plays = lap.plays.filter((p) => p.sentenceIdx === 2)
+    expect(sentence2Plays.map((p) => p.audioId)).toEqual(['PLAIN_TGT', 'PLAIN_KN', 'PLAIN_TGT'])
+    expect(sentence2Plays.map((p) => p.playRole)).toEqual(['ps', 'trans', 'ps'])
   })
 })

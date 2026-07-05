@@ -43,6 +43,12 @@ import {
   type PodPlayRole,
   type PodPlay,
   type PodSentenceRow,
+  isLadderEligible,
+  buildTurnLadderRungs,
+  ladderRungToPlays,
+  ladderViewFor,
+  loadFineKnownMap,
+  type LadderRung,
 } from '@ssi/core/pods'
 import { splitRowUnits } from './podSentenceSplit'
 
@@ -176,6 +182,10 @@ interface RawPodRow {
   atom_map?: AtomMapEntry[] | null
   sentence_audio_ids?: string[] | null
   sentence_known_audio_ids?: string[] | null
+  /** Ladder inputs (2026-07-04 schema) — see PodSentenceRow / isLadderEligible. */
+  atom_map_fine?: AtomMapEntry[] | null
+  takeg_audio_ids?: Array<string | null> | null
+  window_known_map?: Array<{ start: number; end: number; known: string }> | null
 }
 
 /** Strip everything but letters/numbers/combining-marks for a script-agnostic
@@ -242,6 +252,35 @@ export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
   // row.id — robust to a missing/duplicate id; sub-sentences of one turn share it.
   rawRows.forEach((row, rowIdx) => {
     const turnId = String(rowIdx)
+    // Ladder-eligible turns are NOT split into per-sentence units — the
+    // unified ladder's own fusion+conjoin climb operates on the WHOLE turn
+    // (spanning its grammatical sentences internally; see
+    // ladderComposition.ts / isLadderEligible). Rows without atom_map_fine
+    // fall through to the pre-ladder per-sentence split below unchanged —
+    // the automatic fallback for courses not yet through the Take G run.
+    const ladderReady = Array.isArray(row.atom_map_fine)
+      && row.atom_map_fine.some((a) => a.kind === 'atom' || a.kind === 'passthrough')
+    if (ladderReady) {
+      expanded.push({
+        global_order: row.global_order,
+        target_text: row.target_text,
+        known_text: row.known_text,
+        target_audio_id: row.target_audio_id ?? null,
+        known_audio_id: row.known_audio_id ?? null,
+        explainer_audio_id: row.explainer_audio_id ?? null,
+        glue_to_next: !!row.glue_to_next,
+        atom_map: row.atom_map ?? null,
+        atom_map_fine: row.atom_map_fine ?? null,
+        takeg_audio_ids: row.takeg_audio_ids ?? null,
+        window_known_map: row.window_known_map ?? null,
+        sentence_audio_ids: row.sentence_audio_ids ?? null,
+        sentence_known_audio_ids: row.sentence_known_audio_ids ?? null,
+        speaker: row.speaker ?? null,
+        _turnId: turnId,
+        _origGlue: !!row.glue_to_next,
+      })
+      return
+    }
     const units = splitRowUnits(row)
     if (units.length === 1) {
       expanded.push({
@@ -360,9 +399,19 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
   // Stage-0 course-wide lookups (built in init): lego_key → "means <gloss>"
   // clip, and target_surface → "[atom] <target>" clip. Empty when the course
-  // has no Stage-0 data, which disables the prepend for every sentence.
+  // has no Stage-0 data, which disables the prepend for every sentence. The
+  // unified ladder reuses these same two maps as ITS fallback lookups (a
+  // group with no Take G render butts these per-unit clips instead).
   let stage0MeansGloss = new Map<string, string>()
   let stage0TargetClip = new Map<string, string>()
+  // Ladder-only course-wide lookup: text_normalized → pod_fine_known clip.
+  // Empty when no sentence in this course is ladder-eligible.
+  let fineKnownMap = new Map<string, string>()
+  // Ladder rungs are pure + deterministic per turn — computed once per
+  // sentence object and cached for the life of this podSentences batch
+  // (a fresh initialize() call replaces podSentences.value and the cache
+  // starts empty again, so nothing here survives a course/learner switch).
+  const ladderRungsCache = new WeakMap<PodSentenceRow, LadderRung[]>()
 
   /** Main-round at which pods START FIRING. NULL → use default 6. */
   const podActivationRound = ref<number>(DEFAULT_POD_ACTIVATION)
@@ -384,7 +433,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
-          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
+          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, takeg_audio_ids, window_known_map')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true }),
         supabase
@@ -413,15 +462,22 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // works per-sentence by construction.
       podSentences.value = flattenPodRows((podsResult.data || []) as RawPodRow[])
 
-      // Stage-0 lookups — only when the ladder is enabled (config present) and
-      // at least one sentence carries an atom_map. Two small course-wide reads.
+      // Stage-0 lookups — loaded when EITHER the pre-ladder Stage-0 prepend is
+      // enabled (config present + a sentence carries an atom_map) OR at least
+      // one sentence is ladder-eligible (the unified ladder reuses these two
+      // maps as its own fallback lookups). Two small course-wide reads.
       stage0MeansGloss = new Map()
       stage0TargetClip = new Map()
+      fineKnownMap = new Map()
+      const hasLadderSentence = podSentences.value.some((s) => isLadderEligible(s))
       const stage0Enabled = !!unwrap(options.stage0) && podSentences.value.some((s) => Array.isArray(s.atom_map) && s.atom_map.length > 0)
-      if (stage0Enabled) {
+      if (stage0Enabled || hasLadderSentence) {
         const maps = await loadStage0ClipMaps(supabase, courseCode)
         stage0MeansGloss = maps.glossMap
         stage0TargetClip = maps.targetClipMap
+      }
+      if (hasLadderSentence) {
+        fineKnownMap = await loadFineKnownMap(supabase, courseCode)
       }
 
       const byRole = new Map<string, BookendAudio>()
@@ -571,7 +627,37 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
 
-      // ── Stage-0 prepend: a sentence with resolvable atoms spends its first
+      // ── The unified ladder REPLACES the Stage-0..N arc below for any turn
+      // carrying atom_map_fine (Tom 2026-07-03). One rung = one view; the
+      // ratchet's alive-count picks the rung exactly as it picks a Stage-0
+      // tier / main stage below, so the ladder rides the SAME ratchet with
+      // no new scheduling concept. Rungs are pure per turn — computed once,
+      // cached, and re-picked from every lap.
+      if (isLadderEligible(sentence)) {
+        let rungs = ladderRungsCache.get(sentence)
+        if (!rungs) {
+          rungs = buildTurnLadderRungs(sentence, {
+            glossMap: stage0MeansGloss,
+            targetClipMap: stage0TargetClip,
+            fineKnownMap,
+          })
+          ladderRungsCache.set(sentence, rungs)
+        }
+        if (rungs.length === 0) continue // atoms didn't resolve to a sentence group — nothing to play
+        const alive = podRound - i + 1
+        const view = ladderViewFor(alive, rungs.length)
+        const rungPlays = ladderRungToPlays(rungs[view], i, view + 1)
+        if (rungPlays.length) {
+          // Glue attaches to the ACTUAL last play, same convention as buildMainStage.
+          rungPlays[rungPlays.length - 1].glueToNextChunk = !!sentence.glue_to_next
+          plays.push(...rungPlays)
+        }
+        continue
+      }
+
+      // ── AUTOMATIC FALLBACK (turns without atom_map_fine — courses not yet
+      // through the Take G run): the pre-ladder Stage-0..N arc, unchanged. ──
+      // Stage-0 prepend: a sentence with resolvable atoms spends its first
       // N views (N = tier count) in the Stage-0 ladder, one tier per view,
       // before its existing Stages 1-9. Sentences with no atoms are untouched.
       const sentenceHasStage0 =

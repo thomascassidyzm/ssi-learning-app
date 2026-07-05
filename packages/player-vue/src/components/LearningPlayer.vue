@@ -27,6 +27,7 @@ import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
+import { SlicePlayer } from '../playback/SlicePlayer'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
@@ -3837,6 +3838,59 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
   })
 }
 
+// One SlicePlayer for the life of the component — reused across every ladder
+// chunk (same discipline as the single reusable Audio element: mobile Safari's
+// gesture-unlock is tied to one persistent playback resource). Its internal
+// AudioBuffer cache means a Take G clip sliced repeatedly within one lap (the
+// ladder's whole premise) is fetched + decoded exactly once.
+const slicePlayer = new SlicePlayer()
+
+/**
+ * Play a single unified-ladder slice (a Take G chunk — see
+ * PodPlay.takegClipId/unitStartMs/unitEndMs). Sibling of playPodSegment, same
+ * cancellation + safety-timeout shape, routed through SlicePlayer's Web Audio
+ * path instead of the whole-clip audioController.
+ */
+const playPodSliceSegment = async (
+  clipId: string,
+  startMs: number,
+  endMs: number,
+  playbackSpeed = 1.0,
+): Promise<PodSegmentResult> => {
+  slicePlayer.setCourseCode(courseCode.value)
+  return new Promise((resolve) => {
+    let cancelPoll: ReturnType<typeof setInterval> | null = null
+    let safetyTimeout: ReturnType<typeof setTimeout> | null = null
+    let settled = false
+    const cleanup = () => {
+      if (cancelPoll) clearInterval(cancelPoll)
+      if (safetyTimeout) clearTimeout(safetyTimeout)
+    }
+    const finish = (result: PodSegmentResult) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(result)
+    }
+    slicePlayer.playSlice(clipId, startMs, endMs, playbackSpeed)
+      .then(() => finish({ ok: true, reason: 'natural' }))
+      .catch((err: any) => {
+        console.warn('[LearningPlayer] Pod slice segment audio error:', err?.message || err)
+        finish({ ok: false, reason: 'safety_timeout' })
+      })
+    cancelPoll = setInterval(() => {
+      if (podLapCancelled.value) {
+        slicePlayer.stop()
+        finish({ ok: false, reason: 'cancelled' })
+      }
+    }, 100)
+    safetyTimeout = setTimeout(() => {
+      slicePlayer.stop()
+      finish({ ok: false, reason: 'safety_timeout' })
+    }, 30000)
+  })
+}
+
 /**
  * Inter-play gap matrix per Aran's 2026-05-05 spec.
  *
@@ -3959,8 +4013,15 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
       const play = lap.plays[i] as PodPlay
       const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
       const segStart = Date.now()
-      const cacheHit = audioCache.has(play.audioId)
-      const result = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
+      // Unified-ladder chunks (PodPlay.takegClipId set) play a Take G ms
+      // SLICE via the Web Audio SlicePlayer; every other play (the whole-clip
+      // path — ladder wholes/knowns and the pre-ladder Stage-0..N fallback)
+      // is unchanged, through the existing audioController.
+      const isSlice = play.takegClipId != null && play.unitStartMs != null && play.unitEndMs != null
+      const cacheHit = isSlice ? false : audioCache.has(play.audioId)
+      const result = isSlice
+        ? await playPodSliceSegment(play.takegClipId as string, play.unitStartMs as number, play.unitEndMs as number, play.playbackSpeed)
+        : await playPodSegment(play.audioId, undefined, play.playbackSpeed)
       const ok = handleSegmentResult(result, {
         url: audioUrlFor(play.audioId),
         role: play.playRole,
@@ -11905,6 +11966,10 @@ onUnmounted(() => {
   // URL.createObjectURL handles are revoked.
   audioCacheSource?.revokeAllBlobUrls()
   audioCacheSource = null
+
+  // Close the pod-ladder SlicePlayer's AudioContext — mobile browsers cap
+  // the number of live contexts per page.
+  slicePlayer.dispose()
 
   // End class session if active
   if (classSessionId.value) {

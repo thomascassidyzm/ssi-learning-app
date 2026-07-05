@@ -75,6 +75,25 @@ export interface PodSentenceRow {
   atom_map?: AtomMapEntry[] | null
   /** Speaker label (used to compute speaker-aware gaps). Optional. */
   speaker?: string | null
+  /** Aran-granularity unit map (prosodic breath-groups), flat across the
+   *  whole turn — the unified ladder's fusion base. Entries carry their own
+   *  target_start_ms/target_end_ms (unlike atom_map's course-wide indirection).
+   *  Null/absent → this turn isn't ladder-ready; see isLadderEligible /
+   *  ladderComposition.ts and usePodLapScheduler's automatic fallback. */
+  atom_map_fine?: AtomMapEntry[] | null
+  /** Take G gapped per-sentence renders, aligned to the ladder's GLUED
+   *  sentence groups within this turn (leading interjections glued forward);
+   *  null element = single-unit group (its unit IS the real sentence take).
+   *  atom_map_fine's unit ms spans index into these clips. */
+  takeg_audio_ids?: Array<string | null> | null
+  /** Authored known-language translations for fusion windows (contiguous
+   *  fine-unit spans), sibling of atom_map_fine: flat unit indices. */
+  window_known_map?: Array<{ start: number; end: number; known: string }> | null
+  /** Per-sentence split clips within this turn (silence-split target/known
+   *  takes) — the ladder's per-sentence-group "whole" fallback when no Take G
+   *  render exists for that group. */
+  sentence_audio_ids?: Array<string | null> | null
+  sentence_known_audio_ids?: Array<string | null> | null
 }
 
 export interface PodPlay {
@@ -87,8 +106,18 @@ export interface PodPlay {
   tier?: string
   /** What's playing in this slot of the lap */
   playRole: PodPlayRole
-  /** UUID of audio to play. For 'trans' = sentence.known_audio_id; otherwise sentence.target_audio_id. */
+  /** UUID of audio to play. For 'trans' = sentence.known_audio_id; otherwise sentence.target_audio_id.
+   *  Ladder slice plays: same id as takegClipId (so any caller reading audioId
+   *  alone still gets a valid, fetchable clip — just plays it whole instead
+   *  of the precise slice). */
   audioId: string
+  /** Ladder slice plays only: the Take G clip to slice, paired with
+   *  unitStartMs/unitEndMs. Undefined → play audioId whole (the pre-ladder
+   *  path, and every ladder step that isn't a Take G slice). */
+  takegClipId?: string
+  /** Ladder slice plays only: ms offsets into takegClipId's audio. */
+  unitStartMs?: number
+  unitEndMs?: number
   /** Display text (target for ps*; known for trans). May be empty. */
   text: string
   /** Native script variant when target uses romanization (future use). */
