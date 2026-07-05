@@ -2,13 +2,12 @@
  * fusionDrill — the pairwise gradual-fusion ladder for Listening Mode
  * Dialogues > Drill (Aran's model, Tom 2026-07-05).
  *
- * A turn's `atom_map_fine` gives the finest natural units (agent-authored
- * seams — units of meaning, not words; overlaps allowed where authored).
- * Drill climbs one rung per VISIT, ENTERING at the first fused level (the
- * atomic singles rung is skipped per SKIP_FINEST_RUNG — too bitty):
+ * A turn's `atom_map_fine` gives the natural chunks (agent-authored seams —
+ * MOLECULAR breath-groups per Tom's 2026-07-05 method, not atomic words;
+ * overlaps allowed where authored). Drill climbs one rung per VISIT:
  *
- *   rung 0:  a+b · c+d · e            pairwise fusion, odd tail stands alone
- *   rung 1:  a+b+c+d · e              …and so on…
+ *   rung 0:  a · b · c                the molecular chunks, each a strip
+ *   rung 1:  a+b · c                  pairwise fusion, odd tail stands alone
  *   top:     the whole SENTENCE       — and it stays there.
  *
  * Every chunk at every rung plays t·k·t·t (target · known · target · target).
@@ -292,15 +291,14 @@ export function buildFusionGroups(
 }
 
 /**
- * Skip the finest-units rung (Tom 2026-07-05, after hearing French): single
- * atomic units are too 'bitty' — they kill the sense of how the sentence
- * goes together, and every extra audio boundary is another chance for a
- * mis-set slice to bleed a word ("je suis désolée [mais]"). The ladder now
- * ENTERS at the first FUSED level (pairs), so the smallest thing a learner
- * hears is a phrase; two-unit sentences go straight to their whole. Flip
- * this to restore the atomic rung for A/B listening.
+ * Skip the finest-units rung. TRUE was the stopgap for the ATOMIC-era maps
+ * (Tom 2026-07-05: single atomic units too 'bitty'). The real fix was
+ * re-authoring the maps at MOLECULAR granularity (breath-group chunks,
+ * Tom's method, same day) — the finest level IS now the level he specified
+ * ("3 separate strips that go in turn"), so the ladder enters there again.
+ * Flip to true only for courses still carrying atomic-era maps.
  */
-export const SKIP_FINEST_RUNG = true
+export const SKIP_FINEST_RUNG = false
 
 /** The ladder a group actually climbs: span levels (finest rung skipped per
  *  SKIP_FINEST_RUNG), or just the whole for non-sliceable groups. */

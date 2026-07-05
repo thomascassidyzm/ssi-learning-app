@@ -201,33 +201,33 @@ describe('rungStepsForGroup — t·k·t·t at every chunk size, capped at the se
     return buildFusionGroups(input)![0]
   }
 
-  it('rung 0 ENTERS at pairs (finest singles rung skipped) — window translations + span-union slices', () => {
+  it('rung 0: the molecular chunks, one strip each, t·k·t·t, sliced from Take G', () => {
     const { strips, steps } = rungStepsForGroup(group(), 0, 'pairwise', lookup)
+    expect(strips).toHaveLength(4)
+    expect(strips[0]).toEqual({ target: 'Naravno', known: 'of course' })
+    const unit0 = steps.filter((s) => s.stripIndex === 0)
+    expect(unit0.map((s) => s.kind)).toEqual(['chunk', 'known', 'chunk', 'chunk'])
+    expect(unit0[0].clip).toEqual({ id: 'takeg-0', startMs: 0, endMs: 800 })
+    expect(unit0[1].clip).toEqual({ id: 'fk-of-course' })
+    // chunk 2 ("would you like") has NO fine-known clip → t t t, text stays
+    const unit2 = steps.filter((s) => s.stripIndex === 2)
+    expect(unit2.map((s) => s.kind)).toEqual(['chunk', 'chunk', 'chunk'])
+  })
+
+  it('rung 1: pairwise a+b c+d — window translations + span-union slices', () => {
+    const { strips, steps } = rungStepsForGroup(group(), 1, 'pairwise', lookup)
     expect(strips).toHaveLength(2)
     expect(strips[0].target).toBe('Naravno A što')
     expect(strips[0].known).toBe('of course and what')
     const pair0 = steps.filter((s) => s.stripIndex === 0)
-    expect(pair0.map((s) => s.kind)).toEqual(['chunk', 'known', 'chunk', 'chunk'])
     expect(pair0[0].clip).toEqual({ id: 'takeg-0', startMs: 0, endMs: 1400 })
     expect(pair0[1].clip).toEqual({ id: 'fk-window-1' })
-    // second window's known comes from the authored window translation
-    expect(strips[1].known).toBe('would you like to drink')
-  })
-
-  it('drops the known slot (t·t·t) where no real known clip exists', () => {
-    // lookup without the second window's translation → its known audio drops,
-    // the strip still shows the gloss-join text.
-    const sparse = (t: string) =>
-      normalizeForAudio(t) === normalizeForAudio('of course and what') ? 'fk-window-1' : null
-    const { strips, steps } = rungStepsForGroup(group(), 0, 'pairwise', sparse)
-    const pair1 = steps.filter((s) => s.stripIndex === 1)
-    expect(pair1.map((s) => s.kind)).toEqual(['chunk', 'chunk', 'chunk'])
     expect(strips[1].known).toBe('would you like to drink')
   })
 
   it('top rung: the whole SENTENCE — and a beyond-depth rung stays there', () => {
     const depth = groupDepth(group(), 'pairwise')
-    expect(depth).toBe(2) // 4 units → [2, 1] with the singles rung skipped
+    expect(depth).toBe(3) // 4 chunks → [4, 2, 1]
     const atTop = rungStepsForGroup(group(), depth - 1, 'pairwise', lookup)
     expect(atTop.strips).toHaveLength(1)
     expect(atTop.strips[0].target).toBe('Naravno. A što biste željeli za piće?')
@@ -237,13 +237,6 @@ describe('rungStepsForGroup — t·k·t·t at every chunk size, capped at the se
     const wholeSteps = atTop.steps
     expect(wholeSteps[1].kind).toBe('known')
     expect(wholeSteps[1].clip).toEqual({ id: 'fk-sentence' })
-  })
-
-  it('a two-unit sentence goes straight to its whole (nothing smaller than a pair plays)', () => {
-    const twoUnit = { ...group(), units: group().units.slice(0, 2), sliceable: true }
-    expect(groupDepth(twoUnit, 'pairwise')).toBe(1)
-    const r0 = rungStepsForGroup(twoUnit, 0, 'pairwise', lookup)
-    expect(r0.strips).toHaveLength(1)
   })
 
   it('non-sliceable groups clamp to their whole at every rung', () => {
@@ -265,11 +258,11 @@ describe('rungStepsForGroup — t·k·t·t at every chunk size, capped at the se
       glue_to_next: true,
     }
 
-    it('rung 0 (pairs entry) becomes ps/trans plays with Take G slices at 1×', () => {
-      const plays = buildFusionRungPlays(sentence, group(), 0, 7, 'pairwise', lookup)
+    it('rung 1 (pairs) becomes ps/trans plays with Take G slices at 1×', () => {
+      const plays = buildFusionRungPlays(sentence, group(), 1, 7, 'pairwise', lookup)
       // two windows: (t k t t) + (t k t t) = 8 plays
       expect(plays).toHaveLength(8)
-      expect(plays.every((p) => p.sentenceIdx === 7 && p.stage === 0 && p.tier === 'fusion-r0')).toBe(true)
+      expect(plays.every((p) => p.sentenceIdx === 7 && p.stage === 0 && p.tier === 'fusion-r1')).toBe(true)
       expect(plays.every((p) => p.playbackSpeed === 1.0)).toBe(true)
       expect(plays[0]).toMatchObject({ playRole: 'ps', audioId: 'takeg-0', startMs: 0, endMs: 1400 })
       expect(plays[1]).toMatchObject({ playRole: 'trans', audioId: 'fk-window-1' })
@@ -277,6 +270,13 @@ describe('rungStepsForGroup — t·k·t·t at every chunk size, capped at the se
       // glue rides only the LAST play of the sentence's rung
       expect(plays.slice(0, -1).every((p) => !p.glueToNextChunk)).toBe(true)
       expect(plays[plays.length - 1].glueToNextChunk).toBe(true)
+    })
+
+    it('rung 0 plays every molecular chunk; knowns drop (t·t·t) where no clip exists', () => {
+      const plays = buildFusionRungPlays(sentence, group(), 0, 7, 'pairwise', lookup)
+      // 4 chunks; chunks 0/1 have fine-knowns (t k t t), chunks 2/3 do not (t t t)
+      expect(plays).toHaveLength(4 + 4 + 3 + 3)
+      expect(plays.filter((p) => p.playRole === 'trans')).toHaveLength(2)
     })
   })
 })
