@@ -118,9 +118,17 @@ export const PLAN_PRECEDENCE: Record<string, number> = {
   'SSi Student Access': 1,
 }
 
+// subscriptions.status values this webhook writes (SUB_STATUS_MAP above,
+// plus the 'none' default fallback): active | past_due | cancelled | none.
+// Only a NON-TERMINAL existing row can outrank an incoming plan — a
+// cancelled/none row already grants nothing, so it must never block a new
+// paid purchase from being entitled.
+const NON_TERMINAL_SUB_STATUSES = new Set(['active', 'past_due'])
+
 // Returns true if writing `incomingPlanName` for `learnerId` would DOWNGRADE
-// an existing higher-ranked plan — in which case the caller must skip the
-// upsert (leaving the higher-ranked row untouched) rather than clobber it.
+// an existing higher-ranked, still-active plan — in which case the caller
+// must skip the upsert (leaving the higher-ranked row untouched) rather than
+// clobber it.
 export async function wouldDowngradePlan(
   supabase: any,
   learnerId: string,
@@ -128,10 +136,11 @@ export async function wouldDowngradePlan(
 ): Promise<boolean> {
   const { data: existing, error } = await supabase
     .from('subscriptions')
-    .select('plan_name')
+    .select('plan_name, status')
     .eq('learner_id', learnerId)
     .maybeSingle()
   if (error || !existing?.plan_name) return false // no existing row → nothing to downgrade
+  if (!NON_TERMINAL_SUB_STATUSES.has(existing.status)) return false // terminal (cancelled/none) → grants nothing, never blocks
 
   const incomingRank = PLAN_PRECEDENCE[incomingPlanName] ?? 0
   const existingRank = PLAN_PRECEDENCE[existing.plan_name] ?? 0
