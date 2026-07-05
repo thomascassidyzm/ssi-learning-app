@@ -14,6 +14,7 @@
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
+import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 
 export interface PodSentence {
   id: string
@@ -27,6 +28,13 @@ export interface PodSentence {
    *  translation instead in any explainer slot. */
   explainerAudioId: string | null
   globalOrder: number
+  /** Fusion-drill groups anchored on this sentence (agent-authored fine
+   *  seams + Take G slices) — null where the course has no fine data or it
+   *  doesn't align with this turn (Drill then falls back to plain t·k·t·t). */
+  fusionGroups: FusionGroup[] | null
+  /** True when a glued group anchored on an EARLIER sentence covers this one
+   *  — Drill skips this row (its material plays inside the anchor row). */
+  fusionContinuation: boolean
 }
 
 /**
@@ -63,6 +71,8 @@ export interface PodTurn {
     targetAudioId: string | null
     knownAudioId: string | null
     explainerAudioId: string | null
+    fusionGroups: FusionGroup[] | null
+    fusionContinuation: boolean
   }>
   /** First sentence's global_order — used for ordering. */
   globalOrder: number
@@ -132,7 +142,7 @@ export function useListeningPods(
       const podId = `${course}:pod-0`
       const { data, error: fetchErr } = await supabase
         .from('listening_pod_sentences')
-        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids')
+        .select('id, scene_number, sentence_number, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids')
         .eq('pod_id', podId)
         .order('global_order', { ascending: true })
 
@@ -170,7 +180,31 @@ export function useListeningPods(
       for (const row of data || []) {
         const list = buckets.get(row.scene_number) || []
         const units = splitRowUnits(row, textById)
+
+        // Fusion drill payload (Aran's pairwise gradual-fusion ladder): the
+        // turn's agent-authored fine seams resolved into per-sentence groups.
+        // Null wherever the authored data doesn't line up with this turn —
+        // Drill then falls back to the plain per-sentence t·k·t·t.
+        const fusionGroups = Array.isArray(row.atom_map_fine) && row.atom_map_fine.length
+          ? buildFusionGroups({
+              turnTargetText: row.target_text || '',
+              fineMap: row.atom_map_fine,
+              windowKnownMap: row.window_known_map || null,
+              takegAudioIds: row.takeg_audio_ids || null,
+              rows: units.map((u) => ({
+                targetAudioId: u.targetAudioId,
+                knownAudioId: u.knownAudioId,
+                targetText: u.targetText,
+                knownText: u.knownText,
+              })),
+            })
+          : null
+
         for (const u of units) {
+          // Groups anchor on their FIRST covered row; a glued group's later
+          // rows are continuations the drill skips.
+          const anchored = fusionGroups?.filter((g) => g.rowFirst === u.index) || null
+          const continuation = !!fusionGroups?.some((g) => g.rowFirst < u.index && g.rowLast >= u.index)
           list.push({
             id: u.isSplit ? `${row.id}:s${u.index}` : row.id,
             speaker: row.speaker || '',
@@ -183,6 +217,8 @@ export function useListeningPods(
             // The Tom-voiced explainer is per-TURN; a split sentence has none.
             explainerAudioId: u.isSplit ? null : (row.explainer_audio_id || null),
             globalOrder: row.global_order + u.index * 0.001,
+            fusionGroups: anchored && anchored.length ? anchored : null,
+            fusionContinuation: continuation,
           })
         }
         buckets.set(row.scene_number, list)
@@ -261,6 +297,8 @@ export function useListeningPods(
                 targetAudioId: s.targetAudioId,
                 knownAudioId: s.knownAudioId,
                 explainerAudioId: s.explainerAudioId,
+                fusionGroups: s.fusionGroups,
+                fusionContinuation: s.fusionContinuation,
               },
             ],
             globalOrder: s.globalOrder,

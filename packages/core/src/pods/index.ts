@@ -9,3 +9,4 @@
  */
 export * from './stage0Sequence'
 export * from './podStageComposition'
+export * from './fusionDrill'
