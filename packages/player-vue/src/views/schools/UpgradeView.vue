@@ -32,10 +32,18 @@
 import { ref, computed, inject, onMounted, type Ref } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolCheckout } from '@/composables/useSchoolCheckout'
+import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 
 const supabase = inject<Ref<any>>('supabase', ref(null))
 const { currentUser, isSchoolAdmin } = useSchoolContext()
+
+// DECISION A (worklist 07-02): no seat-cap gating of any kind — instead make
+// the display honest so admins self-correct. `teachers.value.length` is the
+// ACTUAL joined-teacher count, shown alongside `paidSeats` (the billed count)
+// so a school that's outgrown its paid seats sees it plainly.
+const { teachers: joinedTeachers, fetchTeachers } = useTeachersData()
+const joinedTeacherCount = computed(() => joinedTeachers.value.length)
 
 const PRICE_PER_SEAT_GBP = 15
 // Per-seat annual price. There is ONE annual Paddle price underneath (a school
@@ -124,6 +132,11 @@ const paidSeats = ref<number | null>(null)
 const isSubscribed = computed(() => platformStatus.value === 'active')
 const isUpdatingSeats = ref(false)
 const seatsMessage = ref('')
+// True once loadSubscription() has resolved — mirrors tutorSubLoaded below.
+// Until then the Subscribe CTA stays blocked: an already-subscribed admin
+// clicking during the load window (isSubscribed still false) would open a
+// SECOND initial checkout = a second Paddle subscription = double billing.
+const schoolSubLoaded = ref(false)
 
 // True once an inline checkout has been mounted into the container, so the
 // template can show the sized frame (and hide the now-redundant CTA).
@@ -153,11 +166,18 @@ async function loadSubscription() {
     }
   } catch {
     // Non-fatal — page just stays in its default (Subscribe) state.
+  } finally {
+    schoolSubLoaded.value = true
   }
 }
 
 async function subscribeSchool() {
   if (!schoolId.value) return
+  // Double-subscribe guard (mirrors subscribeTutor): never open an INITIAL
+  // checkout until the server has confirmed the school isn't already
+  // subscribed — a second checkout is a second subscription, double-billed.
+  if (!schoolSubLoaded.value) await loadSubscription()
+  if (isSubscribed.value) return // template now shows the seat-edit CTA
   checkoutOpen.value = true
   await startSchoolCheckout({
     schoolId: schoolId.value,
@@ -245,7 +265,12 @@ async function loadTutorSubscription(): Promise<void> {
     const res = await fetch('/api/school/subscription', { headers })
     if (res.ok) {
       const data = await res.json()
-      tutorPlatformActive.value = data?.teacher?.platform_status === 'active'
+      // teacher_paid = a LIVE Paddle subscription (active OR past_due while
+      // Paddle retries the card, incl. the webhook-lag backstop) — exactly the
+      // "route to portal, never a second checkout" condition. A raw
+      // status==='active' check missed past_due: a declined-card tutor saw
+      // "Subscribe" and could open a second concurrent subscription.
+      tutorPlatformActive.value = data?.teacher_paid === true
     }
   } catch { /* non-fatal — default Subscribe state */ }
   finally { tutorSubLoaded.value = true }
@@ -330,6 +355,7 @@ async function subscribeTutor() {
 onMounted(() => {
   if (isSchoolLane.value) {
     loadSubscription()
+    void fetchTeachers()
   } else {
     // Tutor lane: resolve the teacher id up-front (so the button can unblock)
     // and read platform status (so we can route an active tutor to the portal).
@@ -398,6 +424,15 @@ onMounted(() => {
           <span class="seat-total">£{{ schoolTotalGbp }}<span class="seat-per">{{ periodSuffix }}</span></span>
         </div>
 
+        <!-- Honest seats-vs-actual display (no gating — just self-correction). -->
+        <p v-if="isSubscribed" class="upgrade-note seats-actual-note">
+          {{ joinedTeacherCount }} teacher{{ joinedTeacherCount === 1 ? '' : 's' }} joined ·
+          {{ paidSeats ?? seatCount }} seat{{ (paidSeats ?? seatCount) === 1 ? '' : 's' }} paid
+          <span v-if="paidSeats !== null && joinedTeacherCount > paidSeats" class="seats-over-note">
+            — {{ joinedTeacherCount - paidSeats }} more teacher{{ joinedTeacherCount - paidSeats === 1 ? '' : 's' }} joined than paid seats
+          </span>
+        </p>
+
         <p v-if="checkoutError" class="upgrade-error">{{ checkoutError }}</p>
         <p v-if="seatsMessage" class="upgrade-note">{{ seatsMessage }}</p>
 
@@ -416,10 +451,10 @@ onMounted(() => {
           v-else-if="!checkoutOpen"
           type="button"
           class="btn-play btn-play--block upgrade-cta"
-          :disabled="!schoolId || isOpeningCheckout"
+          :disabled="!schoolId || isOpeningCheckout || !schoolSubLoaded"
           @click="subscribeSchool"
         >
-          {{ isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
+          {{ !schoolSubLoaded ? 'Loading…' : isOpeningCheckout ? 'Opening…' : `Subscribe — £${schoolTotalGbp}${periodSuffix}` }}
         </button>
       </template>
 
@@ -610,6 +645,7 @@ onMounted(() => {
 }
 .upgrade-error { color: #dc2626; margin: 0 0 0.75rem; font-size: 0.85rem; }
 .upgrade-note { color: var(--text-secondary, #64748b); margin: 0 0 0.75rem; font-size: 0.85rem; }
+.seats-over-note { color: #b8860b; font-weight: 600; }
 
 /* Inline Paddle checkout container — sized so the checkout is comfortable and
    doesn't scroll on desktop; full width keeps it responsive on mobile. */

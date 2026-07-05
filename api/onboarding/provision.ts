@@ -207,7 +207,15 @@ export default async function handler(
       // bouncing a tutor back to /tutors/dashboard instead of the "no school"
       // wall), while still giving BrowseScreen a durable signal to surface the
       // tutor's own dashboard link. Idempotent — only write when it differs.
-      if (learner.educational_role !== 'tutor') {
+      //
+      // NEVER DOWNGRADE a school role to 'tutor': hasSchoolRole is derived from
+      // educational_role ALONE, so clobbering 'school_admin' here would bounce
+      // the admin off their own school dashboard forever (the schools row stays
+      // intact but the /schools guard no longer lets them near it). A school
+      // person can still hold a tutor account — the tutor surface resolves via
+      // the teachers row, not this role.
+      const KEEP_ROLES = ['school_admin', 'govt_admin', 'teacher']
+      if (learner.educational_role !== 'tutor' && !KEEP_ROLES.includes(learner.educational_role || '')) {
         const { error: roleErr } = await supabase
           .from('learners')
           .update({ educational_role: 'tutor' })
@@ -256,7 +264,9 @@ export default async function handler(
       trialBurned = r.burned
     } else {
       role = 'school_admin'
-      if (learner.educational_role !== 'school_admin') {
+      // Upgrading 'tutor'→'school_admin' is safe (the tutor surface reads the
+      // teachers row, not this role) — but never downgrade a govt_admin.
+      if (learner.educational_role !== 'school_admin' && learner.educational_role !== 'govt_admin') {
         const { error: roleErr } = await supabase
           .from('learners')
           .update({ educational_role: 'school_admin' })
@@ -296,6 +306,13 @@ export default async function handler(
         if (sErr || !school) throw new Error(`school create failed: ${sErr?.message}`)
         schoolId = school.id
       }
+
+      // Register the trigger-generated join codes in invite_codes — redemption
+      // (/api/code/validate) reads invite_codes, NOT schools.teacher_join_code,
+      // so an unregistered code is shown to the admin but can never be redeemed
+      // (the silent-failure class api/admin/create-school.ts fixed for the admin
+      // path). Runs on every provision (not just create) so pre-fix schools heal.
+      await ensureJoinCodesRegistered(supabase, schoolId, auth.userId)
 
       // ONE trialled language per school. A second DIFFERENT course on a school
       // that already trialled (and isn't paying) must go through checkout, not a
@@ -413,6 +430,45 @@ async function burnTrial(
   // Any other DB error: fail open (don't block onboarding on the burn ledger).
   console.warn('[onboarding/provision] trial-burn insert failed (fail-open):', error.code, error.message)
   return { burned: false, schemaUnavailable: true }
+}
+
+/**
+ * Ensure the school's join codes exist in invite_codes so they can actually be
+ * redeemed. Idempotent (ON CONFLICT code DO NOTHING) — safe on re-provision.
+ * Non-fatal: signup must not die on the invite ledger, but failures are logged
+ * loudly because a missing row means "Invalid code" for every invited teacher.
+ */
+async function ensureJoinCodesRegistered(
+  supabase: any,
+  schoolId: string,
+  createdBy: string,
+): Promise<void> {
+  const { data: school, error: readErr } = await supabase
+    .from('schools')
+    .select('teacher_join_code, admin_join_code')
+    .eq('id', schoolId)
+    .maybeSingle()
+  if (readErr || !school) {
+    console.error('[onboarding/provision] join-code read failed:', readErr?.message)
+    return
+  }
+  const rows = [
+    { code: school.teacher_join_code, code_type: 'teacher' },
+    { code: school.admin_join_code, code_type: 'school_admin_join' },
+  ]
+    .filter((r) => !!r.code)
+    .map((r) => ({ ...r, created_by: createdBy, grants_school_id: schoolId, is_active: true }))
+  if (!rows.length) return
+  const { error } = await supabase
+    .from('invite_codes')
+    .upsert(rows, { onConflict: 'code', ignoreDuplicates: true })
+  if (error) {
+    console.error(
+      '[onboarding/provision] join-code registration failed (invites will not redeem):',
+      error.code,
+      error.message,
+    )
+  }
 }
 
 async function provisionSchoolPlatformTrial(

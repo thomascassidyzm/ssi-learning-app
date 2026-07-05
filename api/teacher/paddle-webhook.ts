@@ -103,6 +103,56 @@ function planIdOf(data: any): string | null {
   return firstItem?.price?.id || null
 }
 
+// ── PLAN PRECEDENCE GUARD (worklist 07-02 decision C) ───────────────────────
+// `subscriptions` is UNIQUE(learner_id) and all three purchase kinds upsert it,
+// so a tutor who also buys a student sub would otherwise clobber their
+// tutor-bundle row with a lower-value plan_name. Rank reflects what each plan
+// GRANTS: the tutor bundle already includes learner premium (D2 bundle, see
+// handleTutorPlatformSubscription), which in turn unlocks more than a
+// class-scoped student subscription. An upsert may only raise or hold the
+// rank, never lower it — a downgrade is skipped (logged), same-or-higher
+// proceeds normally (renewals, upgrades, status changes on the SAME plan).
+export const PLAN_PRECEDENCE: Record<string, number> = {
+  'SSi Premium (tutor bundle)': 3,
+  'SSi Premium': 2,
+  'SSi Student Access': 1,
+}
+
+// subscriptions.status values this webhook writes (SUB_STATUS_MAP above,
+// plus the 'none' default fallback): active | past_due | cancelled | none.
+// Only a NON-TERMINAL existing row can outrank an incoming plan — a
+// cancelled/none row already grants nothing, so it must never block a new
+// paid purchase from being entitled.
+const NON_TERMINAL_SUB_STATUSES = new Set(['active', 'past_due'])
+
+// Returns true if writing `incomingPlanName` for `learnerId` would DOWNGRADE
+// an existing higher-ranked, still-active plan — in which case the caller
+// must skip the upsert (leaving the higher-ranked row untouched) rather than
+// clobber it.
+export async function wouldDowngradePlan(
+  supabase: any,
+  learnerId: string,
+  incomingPlanName: string
+): Promise<boolean> {
+  const { data: existing, error } = await supabase
+    .from('subscriptions')
+    .select('plan_name, status')
+    .eq('learner_id', learnerId)
+    .maybeSingle()
+  if (error || !existing?.plan_name) return false // no existing row → nothing to downgrade
+  if (!NON_TERMINAL_SUB_STATUSES.has(existing.status)) return false // terminal (cancelled/none) → grants nothing, never blocks
+
+  const incomingRank = PLAN_PRECEDENCE[incomingPlanName] ?? 0
+  const existingRank = PLAN_PRECEDENCE[existing.plan_name] ?? 0
+  if (existingRank > incomingRank) {
+    console.warn(
+      `[paddle-webhook] plan precedence guard: skipping upsert for learner ${learnerId} — existing '${existing.plan_name}' (rank ${existingRank}) outranks incoming '${incomingPlanName}' (rank ${incomingRank})`
+    )
+    return true
+  }
+  return false
+}
+
 // Real collected amount (minor units / pence) from a transaction payload. Paddle
 // puts the charged total on details.totals.grandTotal (string). Returns null when
 // it can't be read so callers can decide a safe default.
@@ -296,13 +346,50 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
   const kind = customData.kind as string | undefined
 
   if (kind === 'premium' || kind === 'teacher_plan' || kind === 'learner_premium') {
+    // 'learner_premium' is the CURRENT consumer premium flow. customData.kind is
+    // CLIENT-supplied, so the entitlement it claims must be backed by a
+    // premium-tier price ACTUALLY billed (the same protection the platform
+    // branch below applies). Without this, a tampered checkout on the cheapest
+    // live price (£5 student) + kind:'learner_premium' would upsert full
+    // 'SSi Premium'. The billed price id is read from Paddle's payload and
+    // can't be faked. Legacy 'premium'/'teacher_plan' predate PRICE_CATALOG and
+    // may renew on an un-catalogued price, so they are left untouched here to
+    // avoid breaking their renewals.
+    if (kind === 'learner_premium') {
+      const billedPriceId = planIdOf(data)
+      const meta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
+      if (meta?.tier !== 'premium') {
+        console.error(
+          '[paddle-webhook] REJECTED learner_premium subscription: billed price is not the premium tier:',
+          { kind, billedPriceId, tier: meta?.tier ?? 'unknown', customData }
+        )
+        return
+      }
+    }
     await handlePremiumSubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
-  } else if (kind === 'school_platform') {
-    await handleSchoolPlatformSubscription(supabase, data, customData)
-  } else if (kind === 'tutor_platform') {
-    await handleTutorPlatformSubscription(supabase, data, customData)
+  } else if (kind === 'school_platform' || kind === 'tutor_platform') {
+    // customData.kind comes from CLIENT JS, but the entitlement it claims
+    // (the paid dashboard) must be backed by the PLATFORM price actually
+    // billed. Without this check, a tampered checkout on the cheapest live
+    // price (£5 student) + kind:'school_platform' would set
+    // platform_status='active' for a fraction of £15/seat. The billed price
+    // id can't be faked — it's read from Paddle's own payload.
+    const billedPriceId = planIdOf(data)
+    const meta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
+    if (meta?.tier !== 'premium') {
+      console.error(
+        '[paddle-webhook] REJECTED platform subscription: billed price does not match the platform tier:',
+        { kind, billedPriceId, tier: meta?.tier ?? 'unknown', customData }
+      )
+      return
+    }
+    if (kind === 'school_platform') {
+      await handleSchoolPlatformSubscription(supabase, data, customData)
+    } else {
+      await handleTutorPlatformSubscription(supabase, data, customData)
+    }
   } else {
     console.log('[paddle-webhook] Skipping subscription event for kind:', kind)
   }
@@ -443,7 +530,20 @@ async function handleTutorPlatformSubscription(
   // row a learner_premium checkout would create. Kept best-effort + separate from
   // the platform update so a learner-resolution miss can't undo the dashboard grant.
   if (learnerId) {
-    await grantLearnerPremium(supabase, data, learnerId, 'SSi Premium (tutor bundle)')
+    const subId = await grantLearnerPremium(supabase, data, learnerId, 'SSi Premium (tutor bundle)')
+    // Link the subscription row back to the teacher — api/teacher/portal
+    // resolves the Paddle customer via teachers.own_subscription_id, so
+    // without this write "Manage subscription" 404s for every tutor who
+    // paid through the canonical tutor_platform checkout.
+    if (subId) {
+      const { error: linkErr } = await supabase
+        .from('teachers')
+        .update({ own_subscription_id: subId })
+        .eq('id', teacherId)
+      if (linkErr) {
+        console.error('[paddle-webhook] tutor_platform: own_subscription_id link failed:', linkErr.message)
+      }
+    }
   } else {
     console.warn('[paddle-webhook] tutor_platform: no learner resolved — platform set, learner premium NOT granted:', teacherId)
   }
@@ -473,6 +573,8 @@ async function grantLearnerPremium(
   const periodEnd: string | null =
     data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
   const planId = planIdOf(data)
+
+  if (await wouldDowngradePlan(supabase, learnerId, planName)) return null
 
   const { data: subRow, error } = await supabase
     .from('subscriptions')
@@ -545,6 +647,8 @@ async function handlePremiumSubscription(
   const planId: string | null = firstItem?.price?.id || null
 
   const signupCourse = (customData.course as string | undefined)?.trim() || null
+
+  if (await wouldDowngradePlan(supabase, learnerId, 'SSi Premium')) return
 
   const { data: subRow, error: upsertErr } = await supabase
     .from('subscriptions')
@@ -706,6 +810,8 @@ async function handleStudentSubscription(
     data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
   const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
   const planId: string | null = firstItem?.price?.id || null
+
+  if (await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access')) return
 
   // Upsert subscription row
   const { data: subRow, error: subErr } = await supabase

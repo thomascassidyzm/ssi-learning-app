@@ -133,6 +133,11 @@ export function useSubscription(): UseSubscriptionReturn {
   }
 
   function clearCache(): void {
+    // Reset in-memory state too, not just the persisted copy — otherwise the
+    // previous user's subscription lingers in the ref after sign-out (useAuth
+    // calls this on logout) until a reload. isSubscribed is computed from
+    // `subscription`, so it follows automatically.
+    subscription.value = null
     try {
       localStorage.removeItem(SUBSCRIPTION_KEY)
     } catch {

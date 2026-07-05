@@ -314,6 +314,24 @@ function handlePlayClass(cls: ClassInfo) {
         </template>
       </Greeting>
 
+      <!-- First-run: the school is empty → offer the guided setup wizard.
+           /schools/setup has no nav tab, so this banner is its entry point.
+           Gated on currentSchool so it can't flash while stats are loading. -->
+      <router-link
+        v-if="currentSchool && !totalClasses && !totalStudents"
+        to="/schools/setup"
+        class="schools-card schools-card-pad setup-banner"
+      >
+        <div>
+          <div class="schools-kicker">Get started</div>
+          <p class="setup-banner-text">
+            Set up your school in four quick steps — name it, invite your
+            teachers, and create your first class.
+          </p>
+        </div>
+        <span class="btn-play setup-banner-cta">Start setup →</span>
+      </router-link>
+
       <div class="stat-strip stat-strip--5">
         <div class="stat-card">
           <span class="arsenal stat-value">{{ totalStudents }}</span>
@@ -555,6 +573,24 @@ function handlePlayClass(cls: ClassInfo) {
 .class-cell-link:hover .class-name {
   color: var(--schools-red);
 }
+
+/* ---------- First-run setup banner ---------- */
+.setup-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  text-decoration: none;
+  color: inherit;
+}
+.setup-banner-text {
+  margin: 4px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--schools-fg-2, #5a534c);
+}
+.setup-banner-cta { white-space: nowrap; }
 
 /* ---------- Stat strip ---------- */
 .stat-strip {

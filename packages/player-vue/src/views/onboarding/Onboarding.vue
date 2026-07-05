@@ -8,7 +8,7 @@ import { useUserRole } from '@/composables/useUserRole'
 import {
   TRACKS,
   coursesForTrack,
-  isFreeTier,
+  isYearTrialCourse,
   targetLangName,
   targetLabel,
   knownLangName,
@@ -24,13 +24,18 @@ const supabase = inject('supabase', ref(null)) as any
 
 const cfg = computed(() => TRACKS[props.track])
 
-// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE-languages
-// door: it must surface Welsh + Irish first and must NOT default to English. The
-// other school door (/schools2) and the tutor door keep the English-first default.
-// Keyed off the route NAME because both school doors share track: 'school'.
+// schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door: its
+// list is the whole 365-day-school-trial set (every free/community course +
+// Welsh — the same rule provision.ts prices the trial by, via
+// isYearTrialCourse), with Welsh + Irish pinned first, and it must NOT default
+// to English. The other school door (/schools2) and the tutor door keep the
+// English-first default. Keyed off the route NAME because both school doors
+// share track: 'school'.
 const route = useRoute()
 const isHeritageDoor = computed(() => route.name === 'onboard-school-1')
-const HERITAGE_LANGS = ['cym', 'gle'] // Welsh, Irish (Welsh N/S are course variants under 'cym')
+// The PIN order for the heritage dropdown — NOT the door's course list (that's
+// derived from the offer). Welsh N/S are course variants under 'cym'.
+const HERITAGE_LANGS = ['cym', 'gle'] // Welsh, Irish
 
 type Step = 'choose' | 'otp' | 'done'
 const step = ref<Step>('choose')
@@ -49,16 +54,16 @@ const targetLang = ref('eng')
 const courses = computed(() =>
   trackCourses.value.filter((c) => c.target_lang === targetLang.value)
 )
-// A learner-language row reads as the plain known-language name ("English") —
-// UNLESS the chosen target has 2+ course variants for that SAME known_lang (e.g.
-// cym → North/South Welsh, both eng), where two bare "English" rows would be
-// indistinguishable. Then we disambiguate with the target variant: "English —
-// North Welsh". Used by both list renderings + search.
+// A course card follows the canonical naming paradigm: "X for Y speakers",
+// written IN Y — the language the learners already speak. The catalogue's
+// display names are authored exactly that way ("French for English Speakers",
+// "フランス語 — 日本語話者向け"), so the card both names the course and
+// self-identifies the learner language by content AND script. This replaced
+// the old synthetic "English — North Welsh" labels, which read as if the
+// learners spoke a language called "English–North Welsh" (Tom, 07-03).
+// Used by both list renderings + search.
 function rowLabel(c: LiveCourse): string {
-  const name = knownLangName(c.known_lang)
-  const sameKnown = courses.value.filter((x) => x.known_lang === c.known_lang)
-  if (sameKnown.length < 2) return name
-  return `${name} — ${targetLabel(c)}`
+  return courseLabel(c)
 }
 // Search-first only when the list is long; otherwise browse the tiles.
 const langQuery = ref('')
@@ -92,20 +97,27 @@ watch(targetLang, () => {
 // Either way the user shouldn't have to click the only option. Multiple options
 // still require an explicit click — browsing/typing never commits a wider choice.
 function maybeAutoSelect() {
-  // The heritage door has no learner-language list to auto-resolve — selection is
-  // explicit via the course-level dropdown, so never auto-commit here.
-  if (isHeritageDoor.value) return
   if (selectedCourse.value) return
+  if (isHeritageDoor.value) {
+    // Heritage door: selection is explicit via the course-level dropdown —
+    // EXCEPT when exactly ONE heritage course is deployed. The dropdown only
+    // renders with 2+ options and this door never falls back to the generic
+    // learner-language list, so without this commit the lone course would be
+    // unpickable and the door dead-ends (Send stays disabled, silently).
+    const only = targetOptions.value.length === 1 ? targetOptions.value[0] : null
+    if (only?.courseCode) {
+      targetLang.value = only.lang
+      selectedCourse.value = only.courseCode
+    }
+    return
+  }
   if (courses.value.length === 1) {
     selectedCourse.value = courses.value[0].course_code
   } else if (langQuery.value.trim() && visibleCourses.value.length === 1) {
     selectedCourse.value = visibleCourses.value[0].course_code
   }
 }
-// Watch both lists: courses changes when the target (or catalogue) changes (case
-// a); visibleCourses changes as the user types (case b). { immediate } covers the
-// catalogue arriving after mount.
-watch([courses, visibleCourses], maybeAutoSelect, { immediate: true })
+// (The auto-select watcher is registered below targetOptions — it watches it.)
 
 // Custom taught-language dropdown (English pinned first, then A–Z). The dropdown
 // is a LANGUAGE picker, so the label is the language name ("Welsh"), NOT a course
@@ -119,33 +131,69 @@ function targetName(code: string): string {
 // dropdown selects by), a display `name`, and — on the heritage door only — the
 // `courseCode` it commits directly.
 //
-// HERITAGE DOOR (schools1): the dropdown is COURSE-level, not language-level —
-// Welsh (North), Welsh (South), Irish are offered as three separate entries
-// (Tom's call: a collapsed "Welsh" hides the dialect choice). Picking one commits
-// that course directly. Pinned in HERITAGE_LANGS order, then by label.
+// HERITAGE DOOR (schools1): the dropdown is COURSE-level, not language-level,
+// and lists the ENTIRE year-free offer (isYearTrialCourse), not a hand-kept
+// pair — a new community course joins the door with zero code changes. Welsh
+// (North), Welsh (South), Irish stay pinned first (the door's identity; Tom's
+// call: a collapsed "Welsh" hides the dialect choice), the rest run A–Z.
+// Picking an entry commits that course directly. A target taught FROM more
+// than one learner language shows the FULL course name in the learners' own
+// language — the canonical "X for Y speakers, in Y" paradigm ("Catalan for
+// English Speakers" / "Catalán para hispanohablantes"), so each variant
+// self-identifies by content and script. Single-known targets (incl. the
+// Welsh N/S pair) keep their bare language label for scannability.
 // EVERY OTHER DOOR: language-level as before (English pinned first, then A–Z),
-// with the learner-language list below resolving the specific course.
+// with the learner-language course list below resolving the specific course.
 const targetOptions = computed(() => {
   if (isHeritageDoor.value) {
-    return trackCourses.value
-      .filter((c) => HERITAGE_LANGS.includes(c.target_lang))
+    const pool = trackCourses.value.filter(isYearTrialCourse)
+    const knownsByTarget = new Map<string, Set<string>>()
+    for (const c of pool) {
+      const s = knownsByTarget.get(c.target_lang) || new Set<string>()
+      s.add(c.known_lang)
+      knownsByTarget.set(c.target_lang, s)
+    }
+    const pinRank = (lang: string) => {
+      const i = HERITAGE_LANGS.indexOf(lang)
+      return i === -1 ? HERITAGE_LANGS.length : i
+    }
+    return pool
       .map((c) => ({
         value: c.course_code,
-        name: targetLabel(c),
+        name:
+          (knownsByTarget.get(c.target_lang)?.size || 1) > 1
+            ? courseLabel(c)
+            : targetLabel(c),
         courseCode: c.course_code,
         lang: c.target_lang,
       }))
-      .sort(
-        (a, b) =>
-          HERITAGE_LANGS.indexOf(a.lang) - HERITAGE_LANGS.indexOf(b.lang) ||
-          a.name.localeCompare(b.name)
-      )
+      .sort((a, b) => pinRank(a.lang) - pinRank(b.lang) || a.name.localeCompare(b.name))
   }
   const rank = (code: string) => (code === 'eng' ? -1 : 1)
   return [...availableTargetLangs.value]
     .map((code) => ({ value: code, name: targetName(code), courseCode: null as string | null, lang: code }))
     .sort((a, b) => rank(a.value) - rank(b.value) || a.name.localeCompare(b.name))
 })
+
+// Targets whose EVERY deployed course is on the year-free school offer — the
+// "Free for a year" badge in the /schools2 dropdown. Badge only what's
+// unambiguously true, and never on the tutor door (tutor trial = 30 days
+// always) or the heritage door (there the offer IS the door's premise).
+const yearTrialTargets = computed(() => {
+  const set = new Set<string>()
+  if (props.track !== 'school' || isHeritageDoor.value) return set
+  for (const code of availableTargetLangs.value) {
+    const cs = trackCourses.value.filter((c) => c.target_lang === code)
+    if (cs.length && cs.every(isYearTrialCourse)) set.add(code)
+  }
+  return set
+})
+// Watch all three: courses changes when the target (or catalogue) changes;
+// visibleCourses changes as the user types; targetOptions covers the heritage
+// door's single-course commit. { immediate } covers the catalogue arriving
+// after mount.
+watch([courses, visibleCourses, targetOptions], maybeAutoSelect, { immediate: true })
+
 // There will eventually be hundreds of target languages, so the open menu is
 // filterable by name (mirrors the learner-language search below).
 const targetQuery = ref('')
@@ -167,9 +215,16 @@ const pickerValueLabel = computed(() => {
 function isOptionActive(o: { value: string; courseCode: string | null }): boolean {
   return isHeritageDoor.value ? o.courseCode === selectedCourse.value : o.value === targetLang.value
 }
+// The trigger button — focus returns here when the menu closes, otherwise the
+// v-if unmount drops keyboard/screen-reader focus to <body>.
+const targetTriggerEl = ref<HTMLButtonElement | null>(null)
 function openTarget() {
   targetOpen.value = !targetOpen.value
   if (targetOpen.value) targetQuery.value = ''
+}
+function closeTarget() {
+  targetOpen.value = false
+  targetTriggerEl.value?.focus()
 }
 function selectTarget(value: string) {
   const opt = targetOptions.value.find((o) => o.value === value)
@@ -181,7 +236,7 @@ function selectTarget(value: string) {
   } else {
     targetLang.value = value
   }
-  targetOpen.value = false
+  closeTarget()
 }
 const email = ref('')
 const otp = ref('')
@@ -194,7 +249,16 @@ watch(otp, (v) => {
 const busy = ref(false)
 const error = ref('')
 const otpVerified = ref(false)
+// The exact address whose OTP verified. otpVerified alone is not enough: after
+// a verify-then-provision-failure the user can click "Change email" and type a
+// DIFFERENT address — skipping verifyOtp then would silently provision under
+// the OLD email's session while the UI implies the new one succeeded.
+const verifiedEmail = ref('')
 const coursesLoaded = ref(false)
+// Provision 409s ("trial already used — subscribe") must not dead-end on the
+// OTP step: the user is already OTP-verified, so offer a real way through —
+// straight into their dashboard, where the platform gate routes to checkout.
+const requiresCheckout = ref(false)
 
 // done-step state
 const trial = ref<{ course_code: string; expires_at: string; days: number } | null>(null)
@@ -226,13 +290,15 @@ const selectedCourseObj = computed(
   () => trackCourses.value.find((x) => x.course_code === selectedCourse.value) || null
 )
 // Platform-trial length is decided per course, server-side too (provision.ts):
-// Welsh OR any free/community course → 1 year; every other (premium) course →
-// 1 month. We don't surface "free vs premium" upfront — the learner picks a
-// language, then we tell them their trial.
-function trialDaysFor(course: { course_code?: string; pricing_tier?: string } | null): number {
+// SCHOOL track: Welsh OR any free/community course → 1 year; every other
+// (premium) course → 1 month. TUTOR track: 1 month ALWAYS, regardless of course
+// (provisionTutorPlatformTrial) — promising 365 here and delivering 30 on the
+// done screen would break trust at the door. We don't surface "free vs premium"
+// upfront — the learner picks a language, then we tell them their trial.
+function trialDaysFor(course: LiveCourse | null): number {
   if (!course) return 30
-  const isWelsh = (course.course_code || '').startsWith('cym')
-  return isWelsh || isFreeTier(course as any) ? 365 : 30
+  if (props.track === 'tutor') return 30
+  return isYearTrialCourse(course) ? 365 : 30
 }
 const selectedTrialDays = computed(() => trialDaysFor(selectedCourseObj.value))
 const offerLine = computed(() => {
@@ -240,28 +306,48 @@ const offerLine = computed(() => {
   return `Free for ${selectedTrialDays.value} days — no card needed`
 })
 
-onMounted(async () => {
+// A failed catalogue fetch must read as an OUTAGE with a retry, not as "no
+// languages exist for this signup" — the latter copy sends a real school away.
+const catalogueError = ref(false)
+
+async function loadCatalogue(): Promise<void> {
+  coursesLoaded.value = false
+  catalogueError.value = false
   try {
     const res = await fetch('/api/courses/available')
     if (res.ok) liveCourses.value = await res.json()
+    else catalogueError.value = true
   } catch {
-    // Non-fatal — the picker just shows nothing until the catalogue loads.
+    catalogueError.value = true
   } finally {
     coursesLoaded.value = true
   }
-  // Default the taught language. The heritage door (schools1) defaults to the first
-  // available heritage language (Welsh, then Irish) and NEVER to English; every other
-  // door defaults to English (most schools/tutors teach English). Either way, fall
-  // back to the first available target if the preferred one isn't deployed.
+}
+
+// Default the taught language. The heritage door (schools1) defaults to the first
+// available heritage language (Welsh, then Irish) and NEVER to English — with no
+// heritage course deployed it keeps its current value and the empty state shows;
+// every other door defaults to English (most schools/tutors teach English), then
+// falls back to the first available target.
+function applyDefaultTarget(): void {
   const preferred = isHeritageDoor.value ? HERITAGE_LANGS : ['eng']
   targetLang.value =
     preferred.find((code) => availableTargetLangs.value.includes(code)) ||
-    availableTargetLangs.value[0] ||
-    'eng'
-  // Preselect when the chosen target offers exactly one learner-language. The
-  // targetLang watch above re-runs maybeAutoSelect when the value actually
-  // changes; call it directly too in case it stayed 'eng' (no change → no watch).
+    (isHeritageDoor.value ? targetLang.value : availableTargetLangs.value[0] || 'eng')
+  // Preselect when the choice is unambiguous. The targetLang watch re-runs
+  // maybeAutoSelect when the value actually changes; call it directly too in
+  // case it stayed put (no change → no watch).
   maybeAutoSelect()
+}
+
+async function retryCatalogue(): Promise<void> {
+  await loadCatalogue()
+  applyDefaultTarget()
+}
+
+onMounted(async () => {
+  await loadCatalogue()
+  applyDefaultTarget()
 })
 
 async function authToken(): Promise<string | null> {
@@ -270,10 +356,21 @@ async function authToken(): Promise<string | null> {
   return data?.session?.access_token ?? null
 }
 
+// Back to the email step. Clear the typed code so six stale digits don't sit
+// pre-filled against a possibly different address (verify() re-checks the
+// address against verifiedEmail either way).
+function changeEmail() {
+  step.value = 'choose'
+  otp.value = ''
+  error.value = ''
+  requiresCheckout.value = false
+}
+
 async function sendCode() {
   if (!canSend.value || !supabase.value) return
   busy.value = true
   error.value = ''
+  requiresCheckout.value = false
   try {
     const { error: e } = await supabase.value.auth.signInWithOtp({ email: email.value.trim() })
     if (e) {
@@ -293,11 +390,14 @@ async function verify() {
   busy.value = true
   error.value = ''
   try {
-    // Verify the OTP once. If it succeeds but provisioning then fails, a retry must
-    // NOT re-run verifyOtp (the token is already consumed) — it re-runs provision only.
-    if (!otpVerified.value) {
+    // Verify the OTP once PER ADDRESS. If it succeeds but provisioning then
+    // fails, a same-email retry must NOT re-run verifyOtp (the token is already
+    // consumed) — it re-runs provision only. But an email CHANGE after a
+    // successful verify must verify the new address for real.
+    const addr = email.value.trim()
+    if (!otpVerified.value || verifiedEmail.value !== addr) {
       const { error: e } = await supabase.value.auth.verifyOtp({
-        email: email.value.trim(),
+        email: addr,
         token: otp.value.trim(),
         type: 'email',
       })
@@ -306,6 +406,7 @@ async function verify() {
         return
       }
       otpVerified.value = true
+      verifiedEmail.value = addr
     }
     // Account is verified — confirm the account + activate the free trial.
     const token = await authToken()
@@ -317,6 +418,7 @@ async function verify() {
     const data = await res.json()
     if (!res.ok) {
       error.value = data.error || 'We could not finish setting up your account'
+      requiresCheckout.value = !!data.requires_checkout
       return
     }
     // Show the PLATFORM trial window (the school/tutor's free period: 365 or 30
@@ -330,6 +432,14 @@ async function verify() {
   } finally {
     busy.value = false
   }
+}
+
+// The 409 escape: already-verified user whose trial is burned/used goes to
+// their dashboard. Same stale-role-cache clear as continueIn (the guard would
+// otherwise bounce on the pre-signup "plain learner" cache).
+function goToDashboard() {
+  useUserRole().clear()
+  window.location.href = props.track === 'tutor' ? '/tutors/dashboard' : '/schools'
 }
 
 async function continueIn() {
@@ -442,9 +552,10 @@ async function continueIn() {
           <div
             v-if="targetOptions.length > 1"
             class="ob-known-wrap"
-            @keyup.escape="targetOpen = false"
+            @keyup.escape="closeTarget"
           >
             <button
+              ref="targetTriggerEl"
               type="button"
               class="ob-known"
               :aria-expanded="targetOpen"
@@ -457,7 +568,7 @@ async function continueIn() {
                 <path d="M5 8l5 5 5-5" />
               </svg>
             </button>
-            <div v-if="targetOpen" class="ob-known-backdrop" @click="targetOpen = false"></div>
+            <div v-if="targetOpen" class="ob-known-backdrop" @click="closeTarget"></div>
             <div v-if="targetOpen" class="ob-known-menu" role="listbox">
               <!-- Filterable: hundreds of target languages, so the open menu has
                    its own search (mirrors the learner-language search). -->
@@ -479,7 +590,12 @@ async function continueIn() {
                     :aria-selected="isOptionActive(o)"
                     @click="selectTarget(o.value)"
                   >
-                    <span>{{ o.name }}</span>
+                    <span class="ob-known-opt-name">
+                      {{ o.name }}
+                      <!-- The attractive signal: languages on the year-long
+                           school offer, visible at the choice point. -->
+                      <span v-if="yearTrialTargets.has(o.value)" class="ob-tier">Free for a year</span>
+                    </span>
                     <svg v-if="isOptionActive(o)" class="ob-known-tick" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M5 12.5l4.2 4.2L19 7" />
                     </svg>
@@ -505,8 +621,11 @@ async function continueIn() {
               <svg class="ob-claim-check" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 12.5l4.2 4.2L19 7" />
               </svg>
+              <!-- Only offer "Change" when there is genuinely another option —
+                   with a single heritage course the auto-select would just
+                   recommit it, making the button a no-op. -->
               <button
-                v-if="isHeritageDoor || courses.length > 1"
+                v-if="isHeritageDoor ? targetOptions.length > 1 : courses.length > 1"
                 type="button"
                 class="ob-claim-change"
                 @click="selectedCourse = ''"
@@ -514,11 +633,22 @@ async function continueIn() {
             </FrostCard>
           </div>
 
+          <!-- Catalogue outage: say so and offer a retry — "no languages
+               available" copy for a transient 500 sends a real school away. -->
+          <div v-else-if="catalogueError" class="ob-field">
+            <p class="ob-muted">
+              We couldn't load the language list.
+              <button type="button" class="ob-link" @click="retryCatalogue">Try again</button>
+            </p>
+          </div>
+
           <!-- The learner-language list resolves the specific course on every door
                EXCEPT heritage (schools1), where the course-level dropdown above
                already commits the variant directly. -->
           <fieldset v-else-if="!isHeritageDoor" class="ob-field ob-langset">
-            <legend class="ob-label">Your learners speak</legend>
+            <!-- Cards carry the full course name in the LEARNERS' language,
+                 so the ask is "pick the course", not "name their language". -->
+            <legend class="ob-label">Choose the course for your learners</legend>
 
             <!-- LONG list (tutors / non-heritage): browse a compact, scrollable
                  list AND filter with the search box. -->
@@ -585,6 +715,14 @@ async function continueIn() {
               <p v-else class="ob-muted">No languages available for this signup yet.</p>
             </template>
           </fieldset>
+
+          <!-- Heritage door with nothing selected: with 0 deployed heritage
+               courses there is no picker at all, so say so instead of leaving
+               a silent blank form with Send permanently disabled. -->
+          <p v-else-if="!coursesLoaded" class="ob-muted">Loading languages…</p>
+          <p v-else-if="!targetOptions.length" class="ob-muted">
+            No languages available for this signup yet.
+          </p>
 
           <div class="ob-field">
             <label class="ob-label" for="ob-email">Your email</label>
@@ -660,7 +798,21 @@ async function continueIn() {
 
           <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
 
+          <!-- "Trial already used" 409: the account is verified, so the way
+               forward is their dashboard (its gate routes to checkout) — not
+               retrying the code. -->
           <Button
+            v-if="requiresCheckout"
+            variant="primary"
+            size="lg"
+            block
+            :loading="busy"
+            @click="goToDashboard"
+          >
+            Go to your school dashboard
+          </Button>
+          <Button
+            v-else
             variant="primary"
             size="lg"
             block
@@ -672,7 +824,7 @@ async function continueIn() {
           </Button>
 
           <div class="ob-links">
-            <button type="button" class="ob-link" @click="step = 'choose'">Change email</button>
+            <button type="button" class="ob-link" @click="changeEmail">Change email</button>
             <span class="ob-link-sep" aria-hidden="true">·</span>
             <button type="button" class="ob-link" :disabled="busy" @click="sendCode">Resend code</button>
           </div>
@@ -1163,6 +1315,12 @@ async function continueIn() {
   box-shadow: inset 0 0 0 2px var(--ob-accent-2);
 }
 .ob-known-opt.is-on { color: var(--ob-accent-ink); font-weight: var(--font-semibold, 600); }
+.ob-known-opt-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
 .ob-known-tick {
   width: 18px; height: 18px; flex: none;
   fill: none; stroke: var(--ob-accent-ink);

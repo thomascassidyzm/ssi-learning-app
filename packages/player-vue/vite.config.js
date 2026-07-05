@@ -38,11 +38,28 @@ export default defineConfig(({ mode }) => ({
       registerType: 'prompt',
 
       workbox: {
-        // Precache app shell
+        // Precache the app SHELL only. globPatterns catches all built assets;
+        // globIgnores then removes weight no learner needs on the critical path:
+        //   - the eruda debug console (~500KB, only ever loaded via ?debug)
+        //   - the entire /admin surface chunks (admins are never offline)
+        //   - static marketing/design mockups copied from public/
+        // These still load from the network on demand if ever reached; keeping
+        // them out of the precache shrinks the install every learner pays for.
+        // DEFERRED to a staging-validated follow-up (they touch offline-teacher
+        // use and the delicate stale-bundle path): trimming the schools-view +
+        // echarts chunks, and the shadowed NetworkFirst navigation route.
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
 
-        // DON'T cache audio via workbox precache - runtime caching handles it
-        globIgnores: ['**/*.{mp3,wav,ogg,m4a}'],
+        globIgnores: [
+          '**/*.{mp3,wav,ogg,m4a}', // audio → runtime caching / IndexedDB, never precache
+          '**/eruda-*.js',          // debug console, ?debug-only
+          '**/Admin*.js',           // /admin surface chunks — never needed offline by learners
+          '**/echarts-*.js',        // ~1MB charting lib, lazy-loaded only inside insight/admin boards
+          '**/schools-*.js',        // /schools surface, loaded on demand (never an offline learner path)
+          '**/_schools-mockups/**', // static HTML mockups
+          '**/paddle-review/**',    // Paddle verification artifact
+          '**/design/**',           // design-doc mockups
+        ],
 
         // Workbox' default navigation handler returns the cached index.html
         // for *every* document navigation, which intercepts requests like
@@ -184,6 +201,27 @@ export default defineConfig(({ mode }) => ({
           // @ssi/core resolves via the pnpm workspace symlink to packages/core/dist
           if (n.includes('/packages/core/dist') || n.includes('/@ssi/core/')) {
             return 'core'
+          }
+          // echarts (+ its zrender dep) is only ever reached via `import('echarts')`
+          // inside insight/admin widgets. Force it into its own named chunk so it
+          // stays out of the entry graph AND can be excluded from the SW precache
+          // below — otherwise it's a ~1MB download every learner pays for on
+          // install despite never opening a board. Still lazy: loads on demand
+          // when a board first mounts, then lives in the HTTP cache.
+          if (n.includes('/node_modules/echarts/') || n.includes('/node_modules/zrender/')) {
+            return 'echarts'
+          }
+          // The whole /schools surface is route-lazy and never imported by the
+          // learner player (verified: nothing outside src/*/schools/ imports it).
+          // Group it into one named chunk so it, too, stays out of the precache —
+          // teachers/admins load it on demand online; it's never an offline
+          // learner path.
+          if (
+            n.includes('/src/views/schools/') ||
+            n.includes('/src/composables/schools/') ||
+            n.includes('/src/components/schools/')
+          ) {
+            return 'schools'
           }
         },
       },

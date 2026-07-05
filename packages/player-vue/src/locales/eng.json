@@ -300,6 +300,9 @@
     "stagePreparing2": "calibrating rhythm patterns",
     "stageReady": "ready"
   },
+  "firstBoot": {
+    "speakBeforeThem": "You'll hear a phrase you know — say it out loud in {lang} before the speakers do."
+  },
   "languages": {
     "eng": "English",
     "spa": "Spanish",

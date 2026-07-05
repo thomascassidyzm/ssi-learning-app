@@ -255,7 +255,7 @@ const fetchLearnerEnrollments = async () => {
   try {
     const { data, error } = await supabaseClient.value
       .from('course_enrollments')
-      .select('course_id, highest_completed_lego_id, last_completed_lego_id, last_practiced_at, total_practice_minutes, current_cycle_index')
+      .select('course_id, last_completed_lego_id, last_practiced_at, total_practice_minutes, current_cycle_index')
       .eq('learner_id', auth.learner.value.id)
     if (error) {
       console.warn('[App] fetchLearnerEnrollments failed:', error.message)
@@ -462,6 +462,13 @@ const fetchEnrolledCourses = async () => {
         // Keep the warm-start cache honest before the player mounts. The full
         // walk itself is LearningPlayer's deferred handoff — not fired here.
         checkCourseContentVersion(supabaseClient.value, defaultCourse.course_code)
+
+        // Warm the instant-playback caches for the auto-selected default course
+        // too — previously only handleCourseSelect (an explicit switch) did this,
+        // so a fresh visitor's very first boot always paid the cold round-map +
+        // first-cycles round-trips instead of hitting the prewarmed cache.
+        // Fire-and-forget; mirrors the handleCourseSelect wiring above.
+        void prewarmInstantCaches(defaultCourse.course_code)
       }
     }
   } catch (err) {
@@ -629,7 +636,16 @@ onMounted(async () => {
     const detail = e.detail
     if (detail?.course_code) {
       console.log('[App] Demo course switch:', detail.course_code)
-      handleCourseSelect(detail)
+      // Callers (dev tools / test scripts) may pass a bare { course_code }
+      // stub. Derive target_lang/known_lang from the 'X_for_Y' convention
+      // when missing so PlayerRestingState's useI18n lookups don't throw
+      // on an undefined langCode.
+      const [derivedTarget, derivedKnown] = detail.course_code.split('_for_')
+      handleCourseSelect({
+        target_lang: derivedTarget,
+        known_lang: derivedKnown,
+        ...detail,
+      })
     }
   })
 

@@ -99,15 +99,19 @@ describe('useBeltProgress - local only', () => {
     expect(bp.highestLegoId.value).toBe('S0005L02')
   })
 
-  it('highestLegoId only goes forward', () => {
+  it('highestLegoId mirrors the cursor — cursor-only model, no ratchet', () => {
+    // 2026-07-04 decision: highestLegoId is no longer a "furthest reached"
+    // high-water mark — it mirrors setLastLegoId's argument directly, same
+    // as lastLegoId, so belt-complete displays follow the cursor down too.
     const bp = useBeltProgress('test_course')
     bp.initializeSync()
 
     bp.setLastLegoId('S0020L01')
-    bp.setLastLegoId('S0010L01') // Go backwards
+    bp.setLastLegoId('S0010L01') // Go backwards (belt-back / jump-to-belt)
 
-    expect(bp.lastLegoId.value).toBe('S0010L01')  // lastLegoId tracks current position
-    expect(bp.highestLegoId.value).toBe('S0020L01') // highestLegoId stays at high-water mark
+    expect(bp.lastLegoId.value).toBe('S0010L01')
+    expect(bp.highestLegoId.value).toBe('S0010L01')
+    expect(bp.highestBeltIndex.value).toBe(getBeltIndexForSeed(10))
   })
 
   it('triggers belt promotion when crossing threshold', () => {
@@ -171,12 +175,12 @@ describe('useBeltProgress - Supabase sync', () => {
     vi.useRealTimers()
   })
 
-  it('fetchRemoteProgress returns belt index and lastLegoId', async () => {
+  it('fetchRemoteProgress derives belt from the cursor, not a ratcheted ceiling', async () => {
     mockSupabase.maybeSingle.mockResolvedValue({
-      // Column renamed from highest_completed_seed to highest_completed_lego_id
-      // (see useBeltProgress.ts:191 — composable reads the lego_id form,
-      // deriving belt index client-side).
-      data: { highest_completed_lego_id: 'S0045L03', last_completed_lego_id: 'S0045L03' },
+      // Deliberately mismatched: highest_completed_lego_id (legacy ceiling)
+      // is far ahead of last_completed_lego_id (the cursor). Cursor-only
+      // model (2026-07-04) must read the cursor and ignore the ceiling.
+      data: { highest_completed_lego_id: 'S0600L01', last_completed_lego_id: 'S0045L03' },
       error: null,
     })
 
@@ -189,13 +193,15 @@ describe('useBeltProgress - Supabase sync', () => {
     // mergeProgress calls fetchRemoteProgress internally
     await bp.mergeProgress()
 
-    // Remote was at seed 45 (green belt), local is at 0 — remote wins
     expect(bp.highestLegoId.value).toBe('S0045L03')
     expect(bp.lastLegoId.value).toBe('S0045L03')
+    expect(mockSupabase.select).toHaveBeenCalledWith('last_completed_lego_id')
   })
 
-  it('mergeProgress takes highest of local vs remote belt', async () => {
-    // Local: seed 60 (green, belt index 3)
+  it('mergeProgress adopts the remote cursor even when it is BEHIND local — no ratchet', async () => {
+    // 2026-07-04 decision: the remote cursor IS the position. A learner who
+    // moved their cursor back on another device is simply AT that belt
+    // here too — local must NOT win just because it's further ahead.
     localStorageMock.setItem(
       'ssi_belt_progress_test_merge',
       JSON.stringify({
@@ -206,7 +212,8 @@ describe('useBeltProgress - Supabase sync', () => {
       })
     )
 
-    // Remote: seed 20 (orange, belt index 2) — behind local
+    // Remote: seed 20 (orange, belt index 2) — behind local (e.g. belt-back
+    // on another device)
     mockSupabase.maybeSingle.mockResolvedValue({
       data: { highest_completed_lego_id: 'S0020L01', last_completed_lego_id: 'S0020L01' },
       error: null,
@@ -221,9 +228,9 @@ describe('useBeltProgress - Supabase sync', () => {
 
     await bp.mergeProgress()
 
-    // Local was ahead — should keep local values
-    expect(bp.highestBeltIndex.value).toBe(3) // Green (local)
-    expect(bp.highestLegoId.value).toBe('S0060L01') // Local legoId
+    // Remote cursor wins even though it's behind — no snap-forward.
+    expect(bp.highestBeltIndex.value).toBe(2) // Orange (remote)
+    expect(bp.highestLegoId.value).toBe('S0020L01') // Remote legoId
   })
 
   it('mergeProgress takes remote legoId when remote is ahead', async () => {

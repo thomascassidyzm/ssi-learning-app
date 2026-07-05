@@ -98,7 +98,7 @@ onMounted(async () => {
   const client = supabaseRef.value
   if (client && props.courseId) {
     const journey = useLearnerJourney(client)
-    await journey.fetchContribution(props.courseId)
+    await journey.fetchContribution(props.courseId, auth?.learnerId?.value ?? null)
     contributionData.value = journey.contribution.value
     contributionReady.value = true
   }

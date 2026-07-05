@@ -1075,7 +1075,14 @@ const confirmReset = async () => {
         }
       }
 
-      // Reset enrollment stats for this course only
+      // Reset enrollment stats for this course only. Also clear the legacy
+      // ratcheted "furthest reached" fields (highest_completed_lego_id,
+      // highest_completed_round_index, completed_pod_rounds,
+      // infplay_round_index) alongside the resume cursor. These columns are
+      // being retired (2026-07-04 cursor-only decision) but are still
+      // written by the DB ratchet trigger / pod scheduler for stale-PWA
+      // compatibility, so a deliberate restart nulls them too rather than
+      // leaving inconsistent legacy state behind.
       await supabase.value
         .from('course_enrollments')
         .update({
@@ -1083,6 +1090,13 @@ const confirmReset = async () => {
           last_practiced_at: null,
           highest_completed_seed: 0,
           last_completed_lego_id: null,
+          highest_completed_lego_id: null,
+          last_completed_round_index: null,
+          highest_completed_round_index: null,
+          completed_pod_rounds: 0,
+          pod_activation_round: null,
+          infplay_round_index: 0,
+          current_mode: 'main',
         })
         .eq('learner_id', learnerId)
         .eq('course_id', course)

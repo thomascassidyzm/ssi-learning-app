@@ -104,6 +104,34 @@ async function loadSubscription() {
   }
 }
 
+// Paddle billing portal — invoices, card updates, cancellation. Only
+// meaningful once subscribed (the webhook stamps provider_customer_id).
+const isOpeningPortal = ref(false)
+const portalError = ref('')
+async function openBillingPortal() {
+  if (isOpeningPortal.value) return
+  isOpeningPortal.value = true
+  portalError.value = ''
+  try {
+    const headers = await authHeaders()
+    if (!headers) {
+      portalError.value = 'Sign in again to open billing'
+      return
+    }
+    const res = await fetch('/api/school/portal', { headers })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data?.portalUrl) {
+      window.location.href = data.portalUrl
+      return
+    }
+    portalError.value = data?.error || 'Could not open the billing portal — try again'
+  } catch {
+    portalError.value = 'Could not open the billing portal — try again'
+  } finally {
+    isOpeningPortal.value = false
+  }
+}
+
 function syncFromSchoolData() {
   const school = activeSchool.value || currentSchool.value
   schoolNameEdit.value = school?.school_name || currentUser.value?.school_name || ''
@@ -141,10 +169,13 @@ async function saveSchoolProfile() {
   try {
     const { getSchoolsClient } = await import('@/composables/schools/client')
     const client = getSchoolsClient()
-    await client
+    // Supabase .update() returns { error } rather than throwing, so an ignored
+    // error (e.g. an RLS denial) previously still showed "Saved". Surface it.
+    const { error: updateError } = await client
       .from('schools')
       .update({ school_name: schoolNameEdit.value })
       .eq('id', school.id)
+    if (updateError) throw updateError
     profileSaveStatus.value = 'saved'
     setTimeout(() => { profileSaveStatus.value = 'idle' }, 2000)
     await fetchSchools()
@@ -359,8 +390,18 @@ function toggleDataItem(id: string) {
             <router-link to="/schools/upgrade" class="btn-play">
               {{ isSubscribed ? 'Manage subscription & seats →' : 'Subscribe / choose seats →' }}
             </router-link>
-            <button type="button" class="btn-ghost">Download invoices</button>
+            <!-- Paddle portal: invoices, card updates, cancellation. -->
+            <button
+              v-if="isSubscribed"
+              type="button"
+              class="btn-ghost"
+              :disabled="isOpeningPortal"
+              @click="openBillingPortal"
+            >
+              {{ isOpeningPortal ? 'Opening…' : 'Billing & invoices' }}
+            </button>
           </div>
+          <p v-if="portalError" class="portal-error" role="alert">{{ portalError }}</p>
         </section>
       </div>
     </div>
@@ -492,6 +533,12 @@ function toggleDataItem(id: string) {
   display: flex;
   gap: 8px;
   padding-top: 6px;
+}
+
+.portal-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ssi-red, #c23a3a);
 }
 
 .data-actions {

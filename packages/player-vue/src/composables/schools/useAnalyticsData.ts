@@ -77,115 +77,43 @@ export function useAnalyticsData() {
     error.value = null
 
     try {
-      // Get class IDs for the scope (school or group)
-      let classIds: string[] = []
-
-      if (isSchoolAdmin.value && selectedUser.value.school_id) {
-        const { data: classesData } = await client
-          .from('classes')
-          .select('id')
-          .eq('school_id', selectedUser.value.school_id)
-          .eq('is_active', true)
-
-        classIds = (classesData || []).map(c => c.id)
-      } else if (isGovtAdmin.value && (selectedUser.value.group_id || selectedUser.value.region_code)) {
-        let schoolIds: string[] = []
-        if (selectedUser.value.group_path) {
-          const { data: subtreeGroups } = await client.from('groups').select('id').like('path', selectedUser.value.group_path + '%')
-          const groupIds = (subtreeGroups || []).map(g => g.id)
-          if (groupIds.length > 0) {
-            const { data: groupSchools } = await client.from('schools').select('id').in('group_id', groupIds)
-            schoolIds = (groupSchools || []).map(s => s.id)
-          }
-        } else {
-          const { data: regionSchools } = await client.from('schools').select('id').eq('region_code', selectedUser.value.region_code!)
-          schoolIds = (regionSchools || []).map(s => s.id)
-        }
-
-        if (schoolIds.length > 0) {
-          const { data: classesData } = await client
-            .from('classes')
-            .select('id')
-            .in('school_id', schoolIds)
-            .eq('is_active', true)
-
-          classIds = (classesData || []).map(c => c.id)
-        }
-      }
-
-      if (classIds.length === 0) {
+      // Server-mediated: /api/school/daily-activity resolves the caller's
+      // visible scope (teacher/school/gov) and aggregates the player_events
+      // rollup (learner_speaking_opportunities) per day. Replaces the old direct
+      // read of the legacy `sessions` table + the client-side hierarchy walk +
+      // the unbounded learner_id .in() that could truncate for a whole region.
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
         dailyActivity.value = []
         return
       }
 
-      // Get learner IDs for these classes
-      const { data: tagsData } = await client
-        .from('user_tags')
-        .select('user_id')
-        .in('tag_value', classIds.map(id => `CLASS:${id}`))
-        .eq('tag_type', 'class')
-        .eq('role_in_context', 'student')
-        .is('removed_at', null)
-
-      const studentUserIds = [...new Set((tagsData || []).map(t => t.user_id))]
-
-      if (studentUserIds.length === 0) {
-        dailyActivity.value = []
-        return
-      }
-
-      // Get learner IDs. Check the error (learners is RLS-protected as of
-      // 2026-06-10) — a silent failure here would empty the whole analytics
-      // view with no diagnostic, the exact regression rlsGuard warns about.
-      const { data: learnersData, error: learnersError } = await client
-        .from('learners')
-        .select('id')
-        .in('user_id', studentUserIds)
-
-      if (learnersError) throw learnersError
-
-      const learnerIds = (learnersData || []).map(l => l.id)
-
-      // Fetch sessions from last 30 days
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-      const { data: sessionsData, error: sessionsError } = await client
-        .from('sessions')
-        .select('learner_id, started_at, duration_seconds')
-        .in('learner_id', learnerIds)
-        .gte('started_at', thirtyDaysAgo.toISOString())
-        .order('started_at')
-
-      if (sessionsError) throw sessionsError
-
-      // Aggregate by day
-      const dayMap = new Map<string, { sessions: number; minutes: number; students: Set<string> }>()
-
-      sessionsData?.forEach(s => {
-        const date = s.started_at.split('T')[0]
-        const existing = dayMap.get(date) || { sessions: 0, minutes: 0, students: new Set() }
-        existing.sessions++
-        existing.minutes += (s.duration_seconds || 0) / 60
-        existing.students.add(s.learner_id)
-        dayMap.set(date, existing)
+      const res = await fetch('/api/school/daily-activity?days=30', {
+        headers: { Authorization: `Bearer ${token}` },
       })
+      if (!res.ok) throw new Error(`daily-activity ${res.status}`)
+      const { activity } = (await res.json()) as {
+        activity: Array<{ day: string; practice_minutes: number; active_students: number; cycles: number }>
+      }
 
-      // Convert to array, fill in missing days
+      const byDay = new Map(activity.map(a => [a.day, a]))
+
+      // Emit a filled 30-day series (0 for days with no activity).
       const result: DailyActivity[] = []
       const today = new Date()
-
       for (let i = 29; i >= 0; i--) {
         const date = new Date(today)
         date.setDate(date.getDate() - i)
         const dateStr = date.toISOString().split('T')[0]
-        const stats = dayMap.get(dateStr)
-
+        const a = byDay.get(dateStr)
         result.push({
           date: dateStr,
-          sessions: stats?.sessions || 0,
-          practice_minutes: Math.round(stats?.minutes || 0),
-          active_students: stats?.students.size || 0,
+          // LSO is a daily rollup with no per-session count; cycles (speaking
+          // opportunities) is the closest volume proxy for the legacy "sessions".
+          sessions: a?.cycles || 0,
+          practice_minutes: a?.practice_minutes || 0,
+          active_students: a?.active_students || 0,
         })
       }
 
@@ -244,7 +172,7 @@ export function useAnalyticsData() {
       // Get course enrollments
       const { data: enrollmentsData, error: enrollError } = await client
         .from('course_enrollments')
-        .select('course_id, total_practice_minutes, learner_id')
+        .select('course_id, learner_id')
         .in('learner_id', learnerIds)
 
       if (enrollError) throw enrollError
@@ -260,13 +188,23 @@ export function useAnalyticsData() {
 
       if (seedsError) throw seedsError
 
+      // Practice minutes per course from the player_events rollup RPC — the
+      // course_enrollments.total_practice_minutes counter is no longer
+      // maintained. Returns per-course TOTALS across the scoped learners; we
+      // divide by enrolled_count below for the average.
+      const { data: minutesRows } = await client
+        .rpc('admin_practice_minutes_by_course', { p_learner_ids: learnerIds })
+      const minutesByCourse = new Map<string, number>()
+      ;(minutesRows as Array<{ course_code: string; practice_minutes: number }> | null)?.forEach(r => {
+        if (r.course_code) minutesByCourse.set(r.course_code, r.practice_minutes || 0)
+      })
+
       // Aggregate by course
-      const courseMap = new Map<string, { count: number; totalMinutes: number; totalSeeds: number }>()
+      const courseMap = new Map<string, { count: number }>()
 
       enrollmentsData?.forEach(e => {
-        const existing = courseMap.get(e.course_id) || { count: 0, totalMinutes: 0, totalSeeds: 0 }
+        const existing = courseMap.get(e.course_id) || { count: 0 }
         existing.count++
-        existing.totalMinutes += e.total_practice_minutes || 0
         courseMap.set(e.course_id, existing)
       })
 
@@ -282,11 +220,12 @@ export function useAnalyticsData() {
       courseStats.value = Array.from(courseMap.entries()).map(([course_code, stats]) => {
         const seedCounts = seedCountMap.get(course_code)
         const totalSeeds = seedCounts ? Array.from(seedCounts.values()).reduce((a, b) => a + b, 0) : 0
+        const totalMinutes = minutesByCourse.get(course_code) || 0
 
         return {
           course_code,
           enrolled_count: stats.count,
-          avg_practice_minutes: stats.count > 0 ? Math.round(stats.totalMinutes / stats.count) : 0,
+          avg_practice_minutes: stats.count > 0 ? Math.round(totalMinutes / stats.count) : 0,
           avg_seeds_completed: stats.count > 0 ? Math.round(totalSeeds / stats.count) : 0,
         }
       }).sort((a, b) => b.enrolled_count - a.enrolled_count)

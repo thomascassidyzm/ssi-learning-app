@@ -1,8 +1,9 @@
 /**
  * useBeltProgress - Belt progression system with localStorage + Supabase sync
  *
- * Simple model - tracks only TWO things:
- * 1. highestBeltIndex (0-7) - Achievement level, only ever increases
+ * Cursor-only model (2026-07-04) - tracks only TWO things:
+ * 1. highestBeltIndex (0-7) - the belt for the CURRENT cursor position;
+ *    moves forward AND back with the cursor, no ratchet
  * 2. lastLegoId - Resume position, e.g., "S0045L03"
  *
  * Current playing position is read from the player at runtime, not stored here.
@@ -10,8 +11,8 @@
  * Sync Strategy:
  * - localStorage is primary (instant, works offline)
  * - Supabase is background sync (cross-device)
- * - On load: merge local + remote, take highest belt
- * - Belt never goes backward (max wins)
+ * - On load: adopt the remote cursor position directly (remote is
+ *   authoritative) — no "take the furthest of local vs remote"
  *
  * Belt System (from APML):
  * - 8 belts: White → Yellow → Orange → Green → Blue → Purple → Brown → Black
@@ -59,9 +60,9 @@ const SESSION_HISTORY_KEY_PREFIX = 'ssi_session_history_'
 // ============================================================================
 
 interface StoredProgress {
-  highestBeltIndex: number  // 0-7, the belt ACHIEVED
+  highestBeltIndex: number  // 0-7, the belt for the current cursor position
   lastLegoId: string | null // Resume position, e.g., "S0045L03"
-  highestLegoId: string | null // High-water mark, only goes forward
+  highestLegoId: string | null // Mirrors lastLegoId (cursor-only model)
   lastUpdated: number
 }
 
@@ -119,9 +120,9 @@ export function getBeltIndexForSeed(seedNumber: number): number {
 
 export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyncConfig) {
   // Core state
-  const highestBeltIndex = ref(0)  // 0-7, only ever increases
+  const highestBeltIndex = ref(0)  // 0-7, belt for the current cursor position
   const lastLegoId = ref<string | null>(null)  // Resume position
-  const highestLegoId = ref<string | null>(null)  // High-water mark, only goes forward
+  const highestLegoId = ref<string | null>(null)  // Mirrors lastLegoId (cursor-only model)
 
   // Course seed count — determines which belts are reachable
   const courseSeedCount = ref(TOTAL_SEEDS) // Fallback until set from DB
@@ -191,7 +192,7 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
     try {
       const { data, error } = await supabase
         .from('course_enrollments')
-        .select('highest_completed_lego_id, last_completed_lego_id')
+        .select('last_completed_lego_id')
         .eq('learner_id', learnerId)
         .eq('course_id', courseCode)
         .maybeSingle()
@@ -201,19 +202,18 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
         return null
       }
 
-      // Belt is derived from the highest LEGO the learner has reached.
-      // We deliberately do NOT read `highest_completed_seed` — that column
-      // is dead code and gets stale because nothing in the sync path
-      // writes to it (the upsert in syncToRemote only touches
-      // last_completed_lego_id + last_practiced_at). The lego_id is the
-      // canonical position per the existing memory rule, and the seed
-      // number is encoded inside it (S0044L03 → 44).
-      const highestLegoId = data?.highest_completed_lego_id ?? null
-      const highestSeed = highestLegoId ? getSeedFromLegoId(highestLegoId) : null
-      if (highestSeed === null) return null
+      // Belt is derived from the cursor (last_completed_lego_id) — the
+      // ONLY position (cursor-only model, 2026-07-04). Previously this read
+      // the ratcheted highest_completed_lego_id ceiling, which meant a
+      // learner who moved their cursor back on another device would still
+      // see the OLD, further-ahead belt here. The seed number is encoded
+      // inside the lego id (S0044L03 → 44).
+      const cursorLegoId = data?.last_completed_lego_id ?? null
+      const cursorSeed = cursorLegoId ? getSeedFromLegoId(cursorLegoId) : null
+      if (cursorSeed === null) return null
       return {
-        beltIndex: getBeltIndexForSeed(highestSeed),
-        lastLegoId: data?.last_completed_lego_id ?? null,
+        beltIndex: getBeltIndexForSeed(cursorSeed),
+        lastLegoId: cursorLegoId,
       }
     } catch (err) {
       console.warn('[BeltProgress] Remote fetch failed:', err)
@@ -286,37 +286,25 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
       return localBelt
     }
 
+    // Cursor-only model (2026-07-04): the remote cursor IS the position —
+    // no ratchet, no "furthest of local vs remote wins". localStorage is
+    // just an instant-load cache of the last-known cursor; the DB row is
+    // authoritative whenever it's reachable. A learner who moved their
+    // cursor back on another device is simply AT that belt here too —
+    // adopting a stale, further-ahead local value would violate "moving
+    // the cursor back is simply AT that belt, no snap-forward".
     const remoteBelt = remoteData.beltIndex
     const remoteLegoId = remoteData.lastLegoId
-    const mergedBelt = Math.max(localBelt, remoteBelt)
-    let changed = false
 
-    // Merge lastLegoId — take whichever is further (lexicographic: "S0045L03" > "S0020L01")
-    if (remoteLegoId && (!highestLegoId.value || remoteLegoId > highestLegoId.value)) {
+    if (remoteBelt !== localBelt || remoteLegoId !== highestLegoId.value) {
+      console.log('[BeltProgress] Adopting remote cursor position: belt', remoteBelt, 'lego', remoteLegoId)
+      highestBeltIndex.value = remoteBelt
       highestLegoId.value = remoteLegoId
       lastLegoId.value = remoteLegoId
-      changed = true
-      console.log('[BeltProgress] Remote resume position is ahead:', remoteLegoId)
-    }
-
-    if (mergedBelt !== localBelt) {
-      console.log('[BeltProgress] Merged: local belt', localBelt, '+ remote belt', remoteBelt, '=', mergedBelt)
-      highestBeltIndex.value = mergedBelt
-      changed = true
-    }
-
-    if (changed) {
       saveProgressLocal()
     }
 
-    // Push local state to remote if local is ahead
-    const localAhead = mergedBelt > remoteBelt ||
-      (highestLegoId.value && (!remoteLegoId || highestLegoId.value > remoteLegoId))
-    if (localAhead) {
-      syncToRemote(mergedBelt)
-    }
-
-    return mergedBelt
+    return remoteBelt
   }
 
   // ============================================================================
@@ -445,16 +433,17 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   // ============================================================================
-  // BELT INFO (your belt = highest you've engaged with, never regresses)
+  // BELT INFO (your belt = the current cursor position — no ratchet)
   //
   // The displayed belt IS the playing position — the belt of the LEGO the
   // current round introduced. ONE position, ONE belt. Belts are a POSITION
   // measure, NOT an award: jump-to-belt, LEGO-skip and cycle-skip give all the
-  // nav flexibility, so the old "engagement breadth" ratchet (max with highest)
-  // was unnecessary and actively confusing — when the cursor moves back, the
-  // belt follows it back. The high-water mark is still recorded (highestBelt
-  // Index) but ONLY for the separate "you've been as far as" readout, never the
-  // displayed belt. De-ratcheted with Tom 2026-05-30.
+  // nav flexibility, so a ratchet (max with highest) was unnecessary and
+  // actively confusing — when the cursor moves back, the belt follows it
+  // back. De-ratcheted with Tom 2026-05-30; highestBeltIndex itself stopped
+  // ratcheting on 2026-07-04 (cursor-only model) — it now mirrors the same
+  // cursor position as currentBelt, just fed via setLastLegoId instead of
+  // setPlayingPosition.
   // ============================================================================
 
   const currentBelt = computed((): Belt => {
@@ -587,17 +576,21 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // ============================================================================
 
   /**
-   * Check if a seed number warrants a belt promotion
-   * Only updates if the seed crosses into a higher belt than current
-   * Returns the previous belt if promotion happened, null otherwise
+   * Move the belt to match a seed number — cursor-only model (2026-07-04):
+   * highestBeltIndex mirrors the CURRENT cursor position, moving both
+   * forward and back, rather than ratcheting to a "furthest ever" high
+   * water mark. Still logs + returns the previous belt on a forward
+   * crossing so callers can drive a promotion celebration.
    */
   const checkBeltPromotion = (seedNumber: number): Belt | null => {
     const beltForSeed = getBeltIndexForSeed(seedNumber)
+    if (beltForSeed === highestBeltIndex.value) return null
 
-    if (beltForSeed > highestBeltIndex.value) {
-      const previousBeltValue = currentBelt.value
-      highestBeltIndex.value = beltForSeed
-      saveProgress()
+    const previousBeltValue = currentBelt.value
+    const promoted = beltForSeed > highestBeltIndex.value
+    highestBeltIndex.value = beltForSeed
+    saveProgress()
+    if (promoted) {
       console.log(`[BeltProgress] 🎉 Belt promotion: ${previousBeltValue.name} → ${BELTS[beltForSeed].name}`)
       return previousBeltValue
     }
@@ -617,16 +610,15 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   }
 
   /**
-   * Update resume position (call when player moves to a new LEGO)
-   * Also updates highestLegoId if this is further than we've ever been
+   * Update resume position (call when player moves to a new LEGO).
+   * Cursor-only model (2026-07-04): highestLegoId mirrors the CURRENT
+   * cursor, moving both forward and back — there's no separate "furthest
+   * reached" copy to preserve here (CourseBrowser / SettingsScreen /
+   * PlayerContainer all read this as "where am I", not "how far did I get").
    */
   const setLastLegoId = (legoId: string | null) => {
     lastLegoId.value = legoId
-
-    // Update high-water mark (only goes forward)
-    if (legoId && (!highestLegoId.value || legoId > highestLegoId.value)) {
-      highestLegoId.value = legoId
-    }
+    highestLegoId.value = legoId
 
     saveProgressLocal()
 
@@ -672,6 +664,9 @@ export function useBeltProgress(courseCode: string, syncConfig?: BeltProgressSyn
   // BELT JOURNEY DATA (for progress visualization)
   // ============================================================================
 
+  // highestBeltIndex mirrors the cursor (cursor-only model, 2026-07-04), so
+  // "complete" here means "at or behind the cursor" — not a ratcheted
+  // lifetime achievement. Moving the cursor back correctly un-completes belts.
   const beltJourney = computed(() => {
     return BELTS.map((belt, index) => {
       const isComplete = highestBeltIndex.value >= index

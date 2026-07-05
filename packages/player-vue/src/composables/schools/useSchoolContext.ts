@@ -23,7 +23,10 @@ import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSchoolsClient } from './client'
 
-export type EducationalRole = 'student' | 'teacher' | 'school_admin' | 'govt_admin'
+// 'tutor' = the freelance (no-school) teacher role provision.ts writes —
+// deliberately distinct from the school 'teacher' so /schools guards can
+// bounce tutors to their own dashboard instead of the member wall.
+export type EducationalRole = 'student' | 'teacher' | 'tutor' | 'school_admin' | 'govt_admin'
 
 export interface SchoolUser {
   user_id: string
@@ -58,13 +61,18 @@ const isStudent = computed(() => currentRole.value === 'student')
 /**
  * The platform-subscription gate (lever-3). FAIL-OPEN by design:
  *   active = status === 'active'
+ *         || status === 'past_due'                 (dunning grace — see below)
  *         || status == null                       (legacy / pre-migration)
  *         || (status === 'trial' && (expires_at == null || expires_at > now))
  * A NULL/absent status (legacy school, pre-migration DB, govt/admin context, or
  * a demo persona) resolves to ACTIVE, AND a 'trial' with no expiry resolves to
  * ACTIVE (the bare DEFAULT 'trial' the migration writes before provision.ts
- * stamps a real window — see below). Only an explicit expired/past_due/cancelled
- * or an ELAPSED trial (non-null expiry in the past) returns false.
+ * stamps a real window — see below). A 'past_due' school ALSO resolves to
+ * ACTIVE, mirroring the tutor lane's teacher_paid grace: Paddle is still
+ * billing and retrying the card, so instant lockout would strand a school
+ * mid-dunning over a declined card. Use `platformPastDue` to show the
+ * payment-problem banner. Only an explicit expired/cancelled or an ELAPSED
+ * trial (non-null expiry in the past) returns false.
  */
 const platformActive = computed((): boolean => {
   const u = currentUser.value
@@ -74,6 +82,7 @@ const platformActive = computed((): boolean => {
   const status = u.platform_status
   if (status == null) return true // legacy / pre-migration / unloaded → fail open
   if (status === 'active') return true
+  if (status === 'past_due') return true // dunning grace — still a live, billed subscription
   if (status === 'trial') {
     // A 'trial' with NO expiry = grandfathered / not-yet-stamped: the bare
     // schools.platform_status DEFAULT 'trial' (migration 20260616) before
@@ -83,8 +92,11 @@ const platformActive = computed((): boolean => {
     if (!u.platform_expires_at) return true
     return new Date(u.platform_expires_at).getTime() > Date.now()
   }
-  return false // expired | past_due | cancelled
+  return false // expired | cancelled
 })
+
+/** True while a payment-problem banner should show (dunning in progress). */
+const platformPastDue = computed((): boolean => currentUser.value?.platform_status === 'past_due')
 
 export function useSchoolContext() {
   /**
@@ -149,12 +161,16 @@ export function useSchoolContext() {
         }
       }
     } else if (['school_admin', 'teacher'].includes(learner.educational_role || '')) {
+      // Deterministic when a user belongs to 2+ schools: without an ORDER BY
+      // the picked school could flip between sessions (limit(1) on an
+      // unordered read). First-joined wins, stably.
       const { data: tag } = await c
         .from('user_tags')
         .select('tag_value')
         .eq('user_id', userId)
         .eq('tag_type', 'school')
         .is('removed_at', null)
+        .order('added_at', { ascending: true })
         .limit(1)
         .single()
 
@@ -388,6 +404,7 @@ export function useSchoolContext() {
     isTeacher,
     isStudent,
     platformActive,
+    platformPastDue,
     loadFromAuth,
     loadAsPersona,
     loadFromSchoolId,

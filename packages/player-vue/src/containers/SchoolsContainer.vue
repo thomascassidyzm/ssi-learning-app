@@ -23,7 +23,7 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
 
@@ -99,9 +99,16 @@ const showLogin = computed(() =>
 // context). Loop-safe: we only ever redirect AWAY from /schools to /teach (a
 // different route that unmounts this container), and only while showNoAccess
 // is genuinely active — so there is no path back into this watcher.
+// NB: a real freelance tutor's educational_role is literally 'tutor'
+// (provision.ts keeps it deliberately distinct from the school 'teacher'
+// role) — so the 'teacher'-shaped checks alone MISS them on a cold load,
+// stranding the exact user this redirect exists for.
 const isTutorNoSchool = computed(
   () =>
-    (isTeacher.value || ctx.isTeacher.value) &&
+    (isTeacher.value ||
+      ctx.isTeacher.value ||
+      educationalRole.value === 'tutor' ||
+      ctx.currentUser.value?.educational_role === 'tutor') &&
     !ctx.currentUser.value?.school_id,
 )
 watch(
@@ -449,7 +456,8 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
     <div v-else-if="showExpired" class="schools-expired">
       <div class="expired-card">
         <span class="expired-pill">● Trial ended</span>
-        <h1 class="arsenal expired-headline">Your free month has ended</h1>
+        <!-- "trial", not "month": free/Welsh-track schools get a full year. -->
+        <h1 class="arsenal expired-headline">Your free trial has ended</h1>
         <p class="expired-lede">
           Subscribe below to keep your classes, analytics and student progress.
           Your data is safe — nothing is deleted.
@@ -461,6 +469,15 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
       <SchoolsTopBar />
+
+      <!-- Dunning grace: Paddle marked past_due but retries are still running.
+           Access is retained (see ctx.platformActive); this banner is the only
+           visible sign something needs attention, so admins fix the card before
+           the terminal lockout. -->
+      <div v-if="ctx.platformPastDue.value" class="schools-past-due-banner">
+        ⚠️ There's a problem with your school's payment. Please update your card to avoid losing access.
+        <router-link to="/schools/upgrade">Manage billing</router-link>
+      </div>
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
         <router-view v-slot="{ Component }">
@@ -512,6 +529,25 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
   height: 100vh;
   gap: 16px;
   color: var(--text-muted, #8A8078);
+}
+
+/* Dunning grace banner (past_due — access retained, card needs fixing) */
+.schools-past-due-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: #fdf1d6;
+  border-bottom: 1px solid rgba(184, 134, 11, 0.3);
+  color: #7a5a00;
+  font-size: 14px;
+  text-align: center;
+}
+.schools-past-due-banner a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 /* Expired / renew panel */

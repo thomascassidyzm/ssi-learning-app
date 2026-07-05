@@ -531,7 +531,9 @@ const loadLegoOrdinals = async () => {
       .eq('course_code', props.courseCode)
       .order('seed_number', { ascending: true })
       .order('lego_index', { ascending: true })
-      .limit(2000)
+      // Full courses can top 2000 LEGOs; 10000 sits under the server max-rows
+      // and comfortably above any real course, so the ordinal map stays whole.
+      .limit(10000)
     if (props.upToSeed) q = q.lt('seed_number', props.upToSeed)
     const { data, error: ordErr } = await q
     if (ordErr) {
@@ -596,6 +598,10 @@ const loadPhrases = async (offset = 0) => {
         .select('*', { count: 'exact', head: true })
         .eq('course_code', props.courseCode)
         .in('phrase_role', ['use', 'eternal_eligible'])
+        // Only rows with linked audio — unlinked rows (audio not yet
+        // generated or not yet relinked) would render but play nothing,
+        // so the auto-advance spins silently through the whole list.
+        .or('target1_audio_id.not.is.null,target2_audio_id.not.is.null')
 
       if (props.upToSeed) {
         countQuery = countQuery.lt('seed_number', props.upToSeed)
@@ -615,6 +621,7 @@ const loadPhrases = async (offset = 0) => {
       .select('seed_number, lego_index, known_text, target_text, position, target1_audio_id, target2_audio_id')
       .eq('course_code', props.courseCode)
       .in('phrase_role', ['use', 'eternal_eligible'])
+      .or('target1_audio_id.not.is.null,target2_audio_id.not.is.null')
 
     if (props.upToSeed) {
       dataQuery = dataQuery.lt('seed_number', props.upToSeed)
@@ -985,7 +992,11 @@ const buildPlayQueue = (phrase) => {
     return phrase.audioIds.filter(Boolean).map((id) => ({ id, rate: null }))
   }
   const useVoice1 = Math.random() < 0.5
-  const audioId = useVoice1 ? phrase.target1AudioId : phrase.target2AudioId
+  // Random voice per cycle, but never silence when only one voice is
+  // linked — fall back to whichever id exists.
+  const audioId = (useVoice1 ? phrase.target1AudioId : phrase.target2AudioId)
+    || phrase.target1AudioId
+    || phrase.target2AudioId
   return audioId ? [{ id: audioId, rate: null }] : []
 }
 
@@ -1229,6 +1240,21 @@ const handlePhraseClick = (displayIndex) => {
   playFromIndex(displayIndex)
 }
 
+/** Bottom-nav ‹ › while listening mode is open: step the active sentence
+ *  back/forward one. Mirrors a row tap (stop, then play from the new index),
+ *  clamped to the list. No-op in the Dialogues scene list — no active
+ *  sentence to step there. */
+const stepSentence = (delta) => {
+  if (view.value === 'pods' && !selectedScene.value) return
+  const len = availablePhrases.value.length
+  if (!len) return
+  const idx = Math.min(Math.max(currentIndex.value + delta, 0), len - 1)
+  stopPlayback()
+  playFromIndex(idx)
+}
+
+defineExpose({ stepSentence })
+
 const setMode = (newMode) => {
   if (newMode === mode.value) return
 
@@ -1405,6 +1431,11 @@ const fetchAllAudioIds = async () => {
     .select('target1_audio_id, target2_audio_id')
     .eq('course_code', props.courseCode)
     .in('phrase_role', ['use', 'eternal_eligible'])
+    // Without an explicit limit this defaults to ~1000 rows; the USE +
+    // eternal_eligible pool runs to ~5000 on big courses, so the listening
+    // download pack was missing most of its audio ids. 10000 sits under the
+    // server max-rows and above the real pool.
+    .limit(10000)
 
   if (props.upToSeed) {
     query = query.lt('seed_number', props.upToSeed)
@@ -2012,9 +2043,11 @@ watch(
 }
 
 .shuffle-toggle.active {
-  background: var(--belt-color, var(--text-primary));
-  border-color: var(--belt-color, var(--text-primary));
-  color: white;
+  /* Standard activation language: green circle when ON (see .edge-glyph.active
+   * / ModeTray .mode-trigger.active). Belt colour was invisible on white belt. */
+  background: rgba(240, 255, 245, 0.95);
+  border-color: rgba(22, 163, 74, 0.4);
+  color: #16a34a;
 }
 
 .shuffle-toggle svg {
@@ -2473,8 +2506,10 @@ watch(
   padding: 0.7rem 1rem;
   border: none;
   border-radius: 0.75rem;
-  background: var(--belt-color, #c23a3a);
-  color: #fff;
+  /* Ink pill, NOT belt colour — a belt-colour fill is invisible on white
+   * belt (white text on white background), same trap as the mode toggle. */
+  background: var(--text-primary);
+  color: var(--bg-primary, #ffffff);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
@@ -2645,8 +2680,10 @@ watch(
 
 /* (Back-to-scenes moved to the top corner — see .back-fab.) */
 
-/* Bare glyphs — hairlines and type, never circle clusters. A 40px hit
- * area around an 18px mark; state is colour, not chrome. */
+/* Toggle glyphs — the app's standard activation language (Tom 2026-07-04):
+ * a circle that fills green when ON and returns to grey when OFF, matching
+ * the ModeTray headphones trigger (.mode-trigger.active). The previous
+ * ink-darkens-only treatment was too subtle to read as a state change. */
 .edge-glyph {
   display: flex;
   align-items: center;
@@ -2655,23 +2692,24 @@ watch(
   height: 40px;
   padding: 0;
   background: transparent;
-  border: 0;
+  border: 1px solid var(--border-medium);
+  border-radius: 50%;
   color: var(--text-muted);
   cursor: pointer;
-  transition: color 0.2s ease, opacity 0.2s ease;
+  transition: all 0.2s ease;
   -webkit-tap-highlight-color: transparent;
   flex-shrink: 0;
-  opacity: 0.65;
 }
 
 .edge-glyph:hover {
+  background: var(--pill-bg-hover);
   color: var(--text-secondary);
-  opacity: 1;
 }
 
 .edge-glyph.active {
-  color: var(--text-primary);
-  opacity: 1;
+  background: rgba(240, 255, 245, 0.95);
+  border-color: rgba(22, 163, 74, 0.4);
+  color: #16a34a;
 }
 
 /* The gloss eye reads "on" as present-but-quiet and "off" as struck-through

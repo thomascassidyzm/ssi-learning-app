@@ -49,19 +49,35 @@ export default async function handler(
       .eq('learner_id', learner.id)
       .maybeSingle()
 
-    if (!teacher || !teacher.own_subscription_id) {
-      res.status(404).json({ error: 'No active subscription' })
+    if (!teacher) {
+      res.status(404).json({ error: 'Not a teacher' })
       return
     }
 
-    const { data: sub } = await supabase
-      .from('subscriptions')
-      .select('provider_customer_id, provider_subscription_id')
-      .eq('id', teacher.own_subscription_id)
-      .maybeSingle()
+    let sub: { provider_customer_id: string | null; provider_subscription_id: string | null } | null = null
+    if (teacher.own_subscription_id) {
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('provider_customer_id, provider_subscription_id')
+        .eq('id', teacher.own_subscription_id)
+        .maybeSingle()
+      sub = data
+    }
+    if (!sub?.provider_customer_id) {
+      // Fallback: tutors who paid via the tutor_platform checkout before the
+      // webhook linked own_subscription_id have a subscriptions row keyed on
+      // their learner_id (UNIQUE) — resolve the Paddle customer from it
+      // directly so "Manage subscription" works for them too.
+      const { data } = await supabase
+        .from('subscriptions')
+        .select('provider_customer_id, provider_subscription_id')
+        .eq('learner_id', learner.id)
+        .maybeSingle()
+      sub = data
+    }
 
     if (!sub?.provider_customer_id) {
-      res.status(404).json({ error: 'Subscription not linked to a Paddle customer' })
+      res.status(404).json({ error: 'No active subscription' })
       return
     }
 

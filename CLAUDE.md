@@ -75,22 +75,35 @@ Tom works at the level of **intention** — what we're building, what matters, t
 
 ---
 
-## TODO: Tighten RLS before first paying school (2026-Q2)
+## TODO: Tighten RLS on the schools org tables (condition-gated)
 
-**Current state (2026-04):** Phase 1 RLS only — own-row learner data locked down, content and schools tables are permissive. Tom has deliberately kept schools tables permissive because proper RLS causes silent failures that are painful to debug during active development.
+**Current state (2026-07-04):** the learner-data spine (learners, sessions, course_enrollments, lego/seed_progress, daily_contributions, user_tags, class_sessions) has own-row RLS **live since 2026-06-10** — canaried, real-JWT verified. Content tables stay permissive by design. What remains RLS-off is the six org tables: `schools`, `classes`, `groups`, `govt_admins`, `invite_codes`, `entitlement_grants`. Grant hygiene shipped 2026-07-04 (classes DELETE, govt_admins DELETE/TRUNCATE, entitlement_grants anon SELECT all revoked; privileged bearer codes bounded), so the residual exposure is authenticated cross-reads of org structure — demo data today.
 
-**Trigger to tighten:** When schools onboarding for the **first paying school** is 2–3 weeks out. Not before. Current schools activity is pilot/exploratory — sharing play links, no actual school set up yet.
+**Trigger to tighten (conditions, NOT the calendar):** run the org-table RLS pass when ALL THREE hold — do not wait for a paying school to be imminent, and do not run it before they hold:
+1. **Demo schools data regenerated to conform** (real auth uids, not Clerk-fake ids — feat_17 toolkit exists) — otherwise the pass blacks out the dashboards being demoed, by design.
+2. **Client org-table reads repointed** to server endpoints on the `resolveVisibleScope` pattern (`api/_utils/schoolScope.ts`) — every repoint shrinks the policy surface; the pass should find near-zero raw browser reads to police.
+3. **Schools write path settled** — the class_teachers/user_tags model stable and the open forks (tutor billing shape; assessment-telemetry portability) resolved enough that policies won't be rewritten within weeks.
 
-**What to do when the trigger hits:**
+**Division of labour (the settled architecture — keep it):** RLS answers exactly one question, *"is this my row?"* (own-row + deny-by-default). ALL hierarchy/cross-user authz (teacher⊂school⊂govt) lives in server-mediated endpoints with tests — the deliberate alternative to RLS's silent-fail. Don't author clever RLS policies.
 
-1. Enable RLS on the schools-touching tables:
-   - `classes`, `user_tags`, `learners`, `sessions`, `course_enrollments`, `seed_progress`, `class_student_progress`
-2. Keep content tables permissive: `course_seeds`, `course_legos`, `course_audio`, `courses`, `canonical_seeds`, `canonical_seed_translations`
-3. Use the existing `rlsGuard.assertScope()` helper (`packages/player-vue/src/composables/schools/rlsGuard.ts`) as the dev-loop safety net — in dev/test it throws on violations, so silent failures surface as clear `[RLS_VIOLATION]` console errors instead of mystery empty arrays. Already wired into `useClassesData`; extend to the other 15 schools composables during the rollout.
-4. Stage on `staging` for a full week minimum. Every schools view + role (govt_admin, school_admin, teacher, student) must be exercised.
-5. Merge to `main` only after zero `[RLS_VIOLATION]` logs for 48h.
+**Runbook when the conditions hold:**
+1. Enable RLS on the six org tables (five carry dormant pre-authored policies — verify predicates use `auth.uid()::text`, not stale Clerk-era `jwt->>'sub'`, via `pg_get_expr` before trusting them; `groups` + `entitlement_grants` need policies written).
+2. Apply the gated migrations parked in `supabase/migrations/` (`20260704_gated_invite_codes_select_revoke.sql` once `api/admin/codes.ts` is on main; `20260704_course_scope_progress_unique.sql` once the course_id read fix is on main).
+3. Use `rlsGuard.assertScope()` (`packages/player-vue/src/composables/schools/rlsGuard.ts`) as the dev-loop net — extend from `useClassesData` to the other schools composables.
+4. Canary method mandatory (toolkit + runbook: `supabase/secfix-toolkit/`): apply in one txn, replay real app queries as real roles, assert leak-closed AND every-legit-path-alive, COMMIT iff green.
+5. Stage on `staging` for a full week minimum; every schools view × role (govt_admin, school_admin, teacher, student) exercised; merge to `main` only after zero `[RLS_VIOLATION]` logs for 48h.
 
-**Memory references:** `feedback_no_rls.md`, `feedback_supabase_rls.md` in auto-memory have Tom's specific RLS pain points and constraints (never use `auth.users`, always reload PostgREST after policy changes).
+**RLS doctrine (standing rules — these are why RLS stopped hurting):**
+1. RLS = "is this my row?" only; hierarchy authz = endpoints. Never clever policies.
+2. Every REVOKE or policy migration carries its GRANTs in the same file. Symptom split: "permission denied" = grant layer; silent empty = policy layer.
+3. No DB-auth change without a canary run (rule 4 above). No exceptions — the March silent-empty era and the June one-night three-lane sweep differ only by this.
+4. Identity casts live only in `current_learner_id()`; keep the direct `user_id = auth.uid()::text` disjunct on learners' own-row SELECT (INSERT..RETURNING can't see its row through a STABLE fn).
+5. Every new view ships `security_invoker=on`; deliberate DEFINER objects go on a short audited allowlist with view-level GRANTs locked.
+6. Every policy/grant migration ends with `NOTIFY pgrst, 'reload schema'`; never reference `auth.users` in a policy — JWT claims only.
+7. Every new table gets an explicit posture at creation (RLS on + own-row, or service-role-only) — never Supabase's grant-open default.
+8. Convert silent to loud: client code never swallows PostgREST write errors (the false-"Saved" class), and demo data expected to go dark is regenerated first or declared in the pass plan.
+
+**Memory references:** `feedback_supabase_rls.md`, `project_ssi_live_db_security_state.md` in auto-memory carry the full burn history and live-state detail.
 
 ---
 

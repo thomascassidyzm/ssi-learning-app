@@ -71,6 +71,21 @@ export async function checkKillSwitch(): Promise<boolean> {
     const config: ServiceWorkerConfig = await res.json()
 
     if (config.killSwitch) {
+      // Guard against an infinite reload loop. The kill switch stays true until
+      // an operator flips it off, but once we've unregistered + reloaded, the
+      // page is already serving fresh content — re-running cleanup+reload on the
+      // next mount would brick every client in a reload loop. sessionStorage
+      // survives the reload (same tab session) but not a fresh visit, so each
+      // new session still gets exactly one clean recovery pass.
+      const GUARD_KEY = 'ssi-sw-killswitch-handled'
+      let alreadyHandled = false
+      try { alreadyHandled = sessionStorage.getItem(GUARD_KEY) === '1' } catch { /* storage blocked */ }
+
+      if (alreadyHandled) {
+        console.warn('[SW Safety] Kill switch already handled this session - not reloading again')
+        return false
+      }
+
       console.warn('[SW Safety] Kill switch ACTIVATED - unregistering service workers')
 
       // Show message if provided
@@ -80,6 +95,8 @@ export async function checkKillSwitch(): Promise<boolean> {
 
       await unregisterAllServiceWorkers()
       await clearAllCaches()
+
+      try { sessionStorage.setItem(GUARD_KEY, '1') } catch { /* storage blocked */ }
 
       // Reload to get fresh content
       window.location.reload()

@@ -256,6 +256,9 @@
     "stagePreparing2": "calibrando patrones de ritmo",
     "stageReady": "listo"
   },
+  "firstBoot": {
+    "speakBeforeThem": "Escucharás una frase que ya conoces — dila en voz alta en {lang} antes de que lo hagan los locutores."
+  },
   "languages": {
     "eng": "Inglés",
     "spa": "Español",

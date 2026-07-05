@@ -5,6 +5,20 @@
 > POSITION (where in the script it's playing).** Conflating them caused every
 > belt/resume bug we hit (Dutch belt desync, INF-PLAY false-green, the
 > resume overshoots). Locked with Tom, 2026-05-29.
+>
+> **2026-07-04 update — cursor-only position.** Tom decided
+> `course_enrollments.last_completed_lego_id`/`last_completed_round_index`
+> (the cursor) is the ONLY stored position. The ratcheted ceiling
+> (`highest_completed_lego_id`/`highest_completed_round_index`, trigger
+> `ratchet_highest_completed_round`) and `current_mode` are being retired via
+> expand-contract — a second ratcheted copy of position contradicted "learners
+> get full agency to move anywhere." Infinite-play is now DERIVED ("no
+> `is_new` LEGO remains beyond the cursor" — `utils/infinitePlay.ts`,
+> unit-tested) rather than read from the ceiling or the mode column. Phase 1
+> (this pass) repointed every CLIENT READ; the DB columns, trigger, and the
+> INF-PLAY cursor-freeze write behaviour described below are **unchanged** —
+> they ride later phases. Sections below are annotated where they now
+> describe legacy/write-only behaviour vs. the current read path.
 
 ## The distinction
 
@@ -69,12 +83,26 @@ Record both.
   (the `+1` is at **cycle/slot** granularity, never round-level). Because every
   advance requires voice 2, the cursor structurally cannot run ahead of
   completion (loaded-but-unplayed rounds never advance it).
-- **Resume resolution rule: cursor → highest → R1.** If the cursor can't be
-  resolved (null / not in the round set), fall to the ceiling (highest), never
-  silently to round 1.
+- **Resume resolution rule (2026-07-05, revised): cursor → ceiling → R1.**
+  The cursor is primary. If it's null or unresolvable (not in the round set —
+  a fresh row, or stale/schema-drifted), fall back to the legacy ceiling
+  (`highest_completed_lego_id`) **only when populated**, so a learner with a
+  null cursor but a real ceiling resumes near where they actually got, not at
+  round 1. This is a **read-only** fallback — resolving via the ceiling never
+  writes it back as the cursor and never ratchets anything; it only decides
+  where THIS resume lands. Only a learner with neither cursor nor ceiling
+  starts fresh at round 1. (The 2026-07-04 cursor-only sweep had removed this
+  fallback outright, which dropped learners with a null cursor and a
+  populated ceiling to round 1 in prod — reinstated narrowly, see
+  `utils/resolveResumeAnchor.ts`.)
 - **INF PLAY** = a sticky mode; the cursor is **frozen at the ceiling**
-  (`cursor == highest == final LEGO`). The belt pins to the final belt. Only an
-  express exit (belt-back / jump) leaves the mode and moves the cursor.
+  (`cursor == highest == final LEGO`) — this WRITE-path behaviour is
+  unchanged in phase 1 (unfreezing it to derive infplay depth from
+  `round_index` instead of the `infplay_round_index` counter is deferred; see
+  the repoint report). The belt pins to the final belt. Only an express exit
+  (belt-back / jump) leaves the mode and moves the cursor. Whether the
+  learner IS in INF PLAY, though, is now DERIVED from the cursor (no
+  `is_new` LEGO beyond it) rather than read from `current_mode`.
 - **INF PLAY content = the frozen online script run FORWARD (deterministic).**
   It is the SAME revival rounds the belts already build: `generateScript()`'s
   ~50-round tail — the decreasing-Fibonacci **SR drain** (`SPACED_REP_OFFSETS`,
@@ -93,12 +121,21 @@ Record both.
 
 ## DB shape
 - `course_enrollments.last_completed_lego_id` / `last_completed_round_index` =
-  the **cursor** (a POSITION, despite the "completed" name — treat as position).
-- `highest_completed_lego_id` / `highest_completed_round_index` = the ceiling.
-- The trigger `20260512_lego_id_independent_ratchet.sql` ratchets `highest` from
-  `last_completed` (lexicographic). **Direct writes to `highest_*` are reverted —
+  the **cursor** (a POSITION, despite the "completed" name — treat as
+  position). **The ONLY position (2026-07-04 cursor-only decision).**
+- `highest_completed_lego_id` / `highest_completed_round_index` = the legacy
+  ratcheted ceiling. **Being retired** — the only client read of these
+  columns is the narrow resume fallback above (cursor null/unresolvable →
+  ceiling); still written (trigger `20260512_lego_id_independent_ratchet.sql`
+  ratchets `highest` from `last_completed`) for stale-PWA compatibility until
+  the columns are dropped. **Direct writes to `highest_*` are reverted —
   always write `last_completed_*`.**
-- `current_mode` (`main` | `infplay`), `infplay_round_index`.
+- `current_mode` (`main` | `infplay`), `infplay_round_index` — still written
+  (`ProgressStore.setMode` / `bumpInfplayRound`, unchanged), but no longer the
+  READ source for "is this learner in infinite play": that's derived from the
+  cursor (see above). `infplay_round_index` remains the read source for
+  *depth* into infplay (which revival round to resume on) since the cursor is
+  frozen during INF PLAY and can't stand in for it yet.
 
 ## Navigation controls — "granularity = location"
 
