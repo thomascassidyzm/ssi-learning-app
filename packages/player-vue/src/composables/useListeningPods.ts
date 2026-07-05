@@ -167,7 +167,9 @@ export function useListeningPods(
           .from('course_audio')
           .select('id, text')
           .in('id', idArr.slice(i, i + 150))
-        for (const c of clips || []) if (c.text) textById.set(c.id, c.text)
+        // Record EVERY returned id (even empty text) — textById doubles as the
+        // existence oracle splitRowUnits uses to drop stale split slices.
+        for (const c of clips || []) textById.set(c.id, c.text || '')
       }
       if (myFetch !== activeFetch) return
 
