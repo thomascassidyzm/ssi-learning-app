@@ -4,11 +4,11 @@
  *
  * A turn's `atom_map_fine` gives the finest natural units (agent-authored
  * seams — units of meaning, not words; overlaps allowed where authored).
- * Drill climbs one rung per VISIT:
+ * Drill climbs one rung per VISIT, ENTERING at the first fused level (the
+ * atomic singles rung is skipped per SKIP_FINEST_RUNG — too bitty):
  *
- *   rung 0:  a · b · c · d · e        every unit alone
- *   rung 1:  a+b · c+d · e            pairwise fusion, odd tail stands alone
- *   rung 2:  a+b+c+d · e              …and so on…
+ *   rung 0:  a+b · c+d · e            pairwise fusion, odd tail stands alone
+ *   rung 1:  a+b+c+d · e              …and so on…
  *   top:     the whole SENTENCE       — and it stays there.
  *
  * Every chunk at every rung plays t·k·t·t (target · known · target · target).
@@ -291,11 +291,30 @@ export function buildFusionGroups(
   })
 }
 
+/**
+ * Skip the finest-units rung (Tom 2026-07-05, after hearing French): single
+ * atomic units are too 'bitty' — they kill the sense of how the sentence
+ * goes together, and every extra audio boundary is another chance for a
+ * mis-set slice to bleed a word ("je suis désolée [mais]"). The ladder now
+ * ENTERS at the first FUSED level (pairs), so the smallest thing a learner
+ * hears is a phrase; two-unit sentences go straight to their whole. Flip
+ * this to restore the atomic rung for A/B listening.
+ */
+export const SKIP_FINEST_RUNG = true
+
+/** The ladder a group actually climbs: span levels (finest rung skipped per
+ *  SKIP_FINEST_RUNG), or just the whole for non-sliceable groups. */
+function ladderFor(group: FusionGroup, mode: FusionMode): Array<Array<{ start: number; end: number }>> {
+  if (!group.sliceable) return [[{ start: 0, end: group.units.length - 1 }]]
+  let levels = spanLadder(group.units.length, mode)
+  if (SKIP_FINEST_RUNG && levels.length > 1) levels = levels.slice(1)
+  return levels
+}
+
 /** The number of rungs this group's own ladder has under a fusion mode. A
  *  group with no sliceable audio clamps straight to its whole (depth 1). */
 export function groupDepth(group: FusionGroup, mode: FusionMode): number {
-  if (!group.sliceable) return 1
-  return spanLadder(group.units.length, mode).length
+  return ladderFor(group, mode).length
 }
 
 /** Progression-badge tier label for a fusion rung ("fusion-r0", "fusion-r1"…). */
@@ -357,9 +376,7 @@ export function rungStepsForGroup(
   lookupKnownClip: (text: string) => string | null,
   stripOffset = 0,
 ): { strips: DrillStrip[]; steps: DrillQueueStep[] } {
-  const ladder = group.sliceable
-    ? spanLadder(group.units.length, mode)
-    : [[{ start: 0, end: group.units.length - 1 }]]
+  const ladder = ladderFor(group, mode)
   const level = ladder[Math.min(rung, ladder.length - 1)]
 
   const strips: DrillStrip[] = []
