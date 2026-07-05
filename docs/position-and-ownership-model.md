@@ -83,11 +83,18 @@ Record both.
   (the `+1` is at **cycle/slot** granularity, never round-level). Because every
   advance requires voice 2, the cursor structurally cannot run ahead of
   completion (loaded-but-unplayed rounds never advance it).
-- **Resume resolution rule (2026-07-04, cursor-only): cursor → R1.** The
-  cursor is the ONLY position — if it can't be resolved (null / not in the
-  round set), start fresh at round 1. The old "fall back to the ceiling"
-  branch is removed: a learner's position is wherever their cursor says it
-  is, nothing else.
+- **Resume resolution rule (2026-07-05, revised): cursor → ceiling → R1.**
+  The cursor is primary. If it's null or unresolvable (not in the round set —
+  a fresh row, or stale/schema-drifted), fall back to the legacy ceiling
+  (`highest_completed_lego_id`) **only when populated**, so a learner with a
+  null cursor but a real ceiling resumes near where they actually got, not at
+  round 1. This is a **read-only** fallback — resolving via the ceiling never
+  writes it back as the cursor and never ratchets anything; it only decides
+  where THIS resume lands. Only a learner with neither cursor nor ceiling
+  starts fresh at round 1. (The 2026-07-04 cursor-only sweep had removed this
+  fallback outright, which dropped learners with a null cursor and a
+  populated ceiling to round 1 in prod — reinstated narrowly, see
+  `utils/resolveResumeAnchor.ts`.)
 - **INF PLAY** = a sticky mode; the cursor is **frozen at the ceiling**
   (`cursor == highest == final LEGO`) — this WRITE-path behaviour is
   unchanged in phase 1 (unfreezing it to derive infplay depth from
@@ -117,8 +124,9 @@ Record both.
   the **cursor** (a POSITION, despite the "completed" name — treat as
   position). **The ONLY position (2026-07-04 cursor-only decision).**
 - `highest_completed_lego_id` / `highest_completed_round_index` = the legacy
-  ratcheted ceiling. **Being retired** — no new client reads of these
-  columns; still written (trigger `20260512_lego_id_independent_ratchet.sql`
+  ratcheted ceiling. **Being retired** — the only client read of these
+  columns is the narrow resume fallback above (cursor null/unresolvable →
+  ceiling); still written (trigger `20260512_lego_id_independent_ratchet.sql`
   ratchets `highest` from `last_completed`) for stale-PWA compatibility until
   the columns are dropped. **Direct writes to `highest_*` are reverted —
   always write `last_completed_*`.**
