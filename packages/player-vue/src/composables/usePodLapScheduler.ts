@@ -40,12 +40,22 @@ import {
   buildStage0Tier,
   buildMainStage,
   loadStage0ClipMaps,
+  buildFusionGroups,
+  buildFusionRungPlays,
+  groupDepth,
+  normalizeForAudio,
+  type FusionGroup,
   type PodPlayRole,
   type PodPlay,
   type PodSentenceRow,
 } from '@ssi/core/pods'
 import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
+
+/** Fusion mode for the main-flow unified ladder — pairwise per Aran's model
+ *  (Tom 2026-07-05). The chained-overlap alternative stays a composer flag;
+ *  flip here (or lift to algorithm_config) if the Lab audition prefers it. */
+const MAIN_FUSION_MODE = 'pairwise' as const
 
 // Re-export the moved symbols so existing importers (LearningPlayer,
 // ListeningOverlay, PodStageAuditioner, tests) keep their import paths.
@@ -177,7 +187,13 @@ interface RawPodRow {
   atom_map?: AtomMapEntry[] | null
   sentence_audio_ids?: string[] | null
   sentence_known_audio_ids?: string[] | null
+  atom_map_fine?: unknown[] | null
+  window_known_map?: unknown[] | null
+  takeg_audio_ids?: Array<string | null> | null
 }
+
+/** A flattened sentence + its (optional) fusion group for the unified ladder. */
+export type SchedulerPodRow = PodSentenceRow & { fusion_group?: FusionGroup | null }
 
 /** Strip everything but letters/numbers/combining-marks for a script-agnostic
  *  structural comparison (NOT a linguistic judgment — just whitespace/
@@ -236,14 +252,46 @@ export function partitionAtomMap(
  * paragraph runs tight; a speaker change breathes). Split siblings of one turn
  * always glue; speakerless pods fall back to the row's original glue_to_next.
  */
-export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
-  type Expanded = PodSentenceRow & { _turnId: string; _origGlue: boolean }
+export function flattenPodRows(rawRows: RawPodRow[]): SchedulerPodRow[] {
+  type Expanded = SchedulerPodRow & { _turnId: string; _origGlue: boolean }
   const expanded: Expanded[] = []
   // Sibling detection keys off the SOURCE-ROW index (unique per turn), not
   // row.id — robust to a missing/duplicate id; sub-sentences of one turn share it.
   rawRows.forEach((row, rowIdx) => {
     const turnId = String(rowIdx)
     const units = splitRowUnits(row)
+
+    // Unified-ladder fusion groups (agent-authored fine seams + Take G
+    // slices). The lap's items are ROWS, so groups must map 1:1 onto them —
+    // splitGlued emits a glued turn as per-row groups (the interjection row
+    // keeps its own take at depth 1; the continuation row slices the shared
+    // Take G). Anything that still doesn't map 1:1 (e.g. an unsplit
+    // multi-sentence turn) keeps the legacy path.
+    let groupByUnit: Array<FusionGroup | null> = units.map(() => null)
+    if (Array.isArray(row.atom_map_fine) && row.atom_map_fine.length > 0) {
+      const groups = buildFusionGroups(
+        {
+          turnTargetText: row.target_text || '',
+          fineMap: row.atom_map_fine as never,
+          windowKnownMap: (row.window_known_map as never) || null,
+          takegAudioIds: row.takeg_audio_ids || null,
+          rows: units.map((u) => ({
+            targetAudioId: u.targetAudioId,
+            knownAudioId: u.knownAudioId,
+            targetText: u.targetText,
+            knownText: u.knownText,
+          })),
+        },
+        { splitGlued: true },
+      )
+      if (
+        groups &&
+        groups.length === units.length &&
+        groups.every((g, gi) => g.rowFirst === gi && g.rowLast === gi)
+      ) {
+        groupByUnit = groups
+      }
+    }
     if (units.length === 1) {
       expanded.push({
         // Shared two-doors counter key — same convention the overlay uses.
@@ -257,6 +305,7 @@ export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
         glue_to_next: !!row.glue_to_next,
         atom_map: row.atom_map ?? null,
         speaker: row.speaker ?? null,
+        fusion_group: groupByUnit[0],
         _turnId: turnId,
         _origGlue: !!row.glue_to_next,
       })
@@ -276,6 +325,7 @@ export function flattenPodRows(rawRows: RawPodRow[]): PodSentenceRow[] {
           glue_to_next: false, // set in the speaker-aware pass below
           atom_map: atomGroups ? atomGroups[k] : null,
           speaker: row.speaker ?? null,
+          fusion_group: groupByUnit[k],
           _turnId: turnId,
           _origGlue: !!row.glue_to_next,
         })
@@ -358,7 +408,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
 
   const isInitialized = ref(false)
   const isLoading = ref(false)
-  const podSentences = shallowRef<PodSentenceRow[]>([])
+  const podSentences = shallowRef<SchedulerPodRow[]>([])
   const introAudio = ref<BookendAudio | null>(null)
   const outroAudio = ref<BookendAudio | null>(null)
 
@@ -367,6 +417,13 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   // has no Stage-0 data, which disables the prepend for every sentence.
   let stage0MeansGloss = new Map<string, string>()
   let stage0TargetClip = new Map<string, string>()
+
+  // Fine-known clips for the unified ladder's fusion rungs (agent-authored
+  // unit glosses / window translations), text-keyed by text_normalized.
+  // Loaded once per course when any sentence carries a fusion group.
+  let fineKnownByNorm = new Map<string, string>()
+  const lookupFineKnown = (text: string): string | null =>
+    fineKnownByNorm.get(normalizeForAudio(text)) || null
 
   /** Main-round at which pods START FIRING. NULL → use default 6. */
   const podActivationRound = ref<number>(DEFAULT_POD_ACTIVATION)
@@ -399,7 +456,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
-          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
+          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true }),
         supabase
@@ -437,6 +494,29 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
         const maps = await loadStage0ClipMaps(supabase, courseCode)
         stage0MeansGloss = maps.glossMap
         stage0TargetClip = maps.targetClipMap
+      }
+
+      // Fine-known clips for fusion rungs — paged under PostgREST's row cap.
+      // Best-effort: a failed read just drops the known slot at fused rungs
+      // (t·t instead of t·k·t·t); the targets still play.
+      fineKnownByNorm = new Map()
+      if (podSentences.value.some((s) => s.fusion_group)) {
+        try {
+          const page = 1000
+          for (let from = 0; ; from += page) {
+            const { data: fineRows, error: fineErr } = await supabase
+              .from('course_audio')
+              .select('id, text_normalized')
+              .eq('course_code', courseCode)
+              .eq('role', 'pod_fine_known')
+              .range(from, from + page - 1)
+            if (fineErr) throw fineErr
+            for (const r of fineRows || []) fineKnownByNorm.set(r.text_normalized, r.id)
+            if (!fineRows || fineRows.length < page) break
+          }
+        } catch (err) {
+          console.warn('[podLapScheduler] fine-known load failed (knowns drop at fused rungs):', err)
+        }
       }
 
       const byRole = new Map<string, BookendAudio>()
@@ -614,6 +694,37 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const derivedAlive = podRound - i + 1
       const stored = sentence.sentence_id ? podExposures.get(sentence.sentence_id) : undefined
       const alive = Math.max(derivedAlive, (stored ?? 0) + 1)
+
+      // ── UNIFIED LADDER (Tom 2026-07-03, sentence-capped 2026-07-05): where
+      // a sentence carries an agent-authored fusion group, its ladder is the
+      // fusion rungs (finest units → pairwise fusions, every chunk t·k·t·t at
+      // 1×, Take G ms-slices) and then the config speed cascade. The whole-
+      // sentence t·k·t·t ≡ Stage 1, so view depth = Stage 1's first view —
+      // the splice is seamless. Fusion REPLACES the Stage-0 explainer ladder
+      // for these sentences (no explainer stage, no 'means' formula). Drill
+      // reads the same counter, so its rungs and these are one scale.
+      if (sentence.fusion_group) {
+        const depth = groupDepth(sentence.fusion_group, MAIN_FUSION_MODE)
+        if (alive < depth) {
+          const rungPlays = buildFusionRungPlays(sentence, sentence.fusion_group, alive - 1, i, MAIN_FUSION_MODE, lookupFineKnown)
+          if (rungPlays.length > 0) {
+            plays.push(...rungPlays)
+            if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
+            continue
+          }
+          // No real clips for this rung (shouldn't happen) — fall through to
+          // the legacy path rather than serve silence.
+        } else {
+          const stageInfo = podStageFor(1, alive - depth + 1, stageDuration, totalStages, stageDurationsMap)
+          if (!stageInfo) continue
+          const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
+          if (!playlist) continue
+          plays.push(...buildMainStage(sentence, stageInfo.stage, i, playlist))
+          if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
+          continue
+        }
+      }
+
       const view = stage0ViewFor(alive, sentenceHasStage0 ? stage0Tiers : 0)
       if (view.phase === 'stage0') {
         // s0cfg is guaranteed truthy here (sentenceHasStage0 requires it), but

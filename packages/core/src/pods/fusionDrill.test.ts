@@ -7,10 +7,12 @@ import {
   buildFusionGroups,
   groupDepth,
   rungStepsForGroup,
+  buildFusionRungPlays,
   normalizeForAudio,
   type FineUnit,
   type FusionTurnInput,
 } from './fusionDrill'
+import type { PodSentenceRow } from './podStageComposition'
 
 const u = (surface: string, gloss: string, startMs: number | null = 0, endMs: number | null = 1000): FineUnit => ({
   kind: 'atom',
@@ -244,5 +246,39 @@ describe('rungStepsForGroup — t·k·t·t at every chunk size, capped at the se
     const r0 = rungStepsForGroup(g, 0, 'pairwise', lookup)
     expect(r0.strips).toHaveLength(1)
     expect(r0.strips[0].target).toBe(g.targetText)
+  })
+
+  describe('buildFusionRungPlays — the main-flow lap vocabulary', () => {
+    const sentence: PodSentenceRow = {
+      sentence_id: 'row:s1',
+      global_order: 4,
+      target_text: 'A što biste željeli za piće?',
+      known_text: 'And what would you like to drink?',
+      target_audio_id: 'sent-1',
+      known_audio_id: 'ksent-1',
+      explainer_audio_id: null,
+      glue_to_next: true,
+    }
+
+    it('rung 1 becomes ps/trans plays with Take G slices at 1×', () => {
+      const plays = buildFusionRungPlays(sentence, group(), 1, 7, 'pairwise', lookup)
+      // two windows: (t k t t) + (t k t t) = 8 plays
+      expect(plays).toHaveLength(8)
+      expect(plays.every((p) => p.sentenceIdx === 7 && p.stage === 0 && p.tier === 'fusion-r1')).toBe(true)
+      expect(plays.every((p) => p.playbackSpeed === 1.0)).toBe(true)
+      expect(plays[0]).toMatchObject({ playRole: 'ps', audioId: 'takeg-0', startMs: 0, endMs: 1400 })
+      expect(plays[1]).toMatchObject({ playRole: 'trans', audioId: 'fk-window-1' })
+      expect(plays[1].startMs).toBeUndefined() // knowns are whole clips
+      // glue rides only the LAST play of the sentence's rung
+      expect(plays.slice(0, -1).every((p) => !p.glueToNextChunk)).toBe(true)
+      expect(plays[plays.length - 1].glueToNextChunk).toBe(true)
+    })
+
+    it('drops the known slot (t·t·t) where no real known clip exists', () => {
+      const plays = buildFusionRungPlays(sentence, group(), 0, 7, 'pairwise', lookup)
+      // rung 0 = 4 units; units 0/1 have fine-knowns (t k t t), units 2/3 don't (t t t)
+      expect(plays).toHaveLength(4 + 4 + 3 + 3)
+      expect(plays.filter((p) => p.playRole === 'trans')).toHaveLength(2)
+    })
   })
 })
