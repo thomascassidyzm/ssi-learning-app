@@ -31,6 +31,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -206,7 +207,7 @@ export default async function handler(
         .limit(10000),
       supabase
         .from('courses')
-        .select('content_version')
+        .select('content_version, target_lang, pricing_tier, is_community')
         .eq('course_code', code)
         .single(),
     ])
@@ -223,6 +224,30 @@ export default async function handler(
     }
     if (courseResult.error || !courseResult.data) {
       res.status(404).json({ error: 'Course not found' })
+      return
+    }
+
+    // --- Entitlement gate -----------------------------------------------------
+    // INF PLAY is post-main-loop content — by definition it's only reachable
+    // after finishing the free-preview window (seed <=19), so unlike cycles.ts
+    // /bundle.ts there's no partial-preview slice that makes sense here: a
+    // caller who isn't fully entitled gets a hard denial, not a truncated
+    // response. Free/community courses remain fully ungated.
+    const courseRow = courseResult.data as unknown as {
+      content_version: number | null
+      target_lang: string | null
+      pricing_tier: string | null
+      is_community: boolean | null
+    }
+    const access = await resolveServerCourseAccess(req, supabase, {
+      course_code: code,
+      pricing_tier: courseRow.pricing_tier,
+      is_community: courseRow.is_community,
+      target_lang: courseRow.target_lang,
+    })
+    if (!access.canAccess) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(403).json({ error: 'Subscription required', reason: access.reason })
       return
     }
 
