@@ -106,6 +106,10 @@ export interface PodPlay {
   /** Stage-0 only: explicit gap (ms) to wait AFTER this play, taken from the
    *  stage0 config rather than the role gap-matrix. */
   gapAfterMs?: number
+  /** Fusion rungs only: play just this ms span of the clip (a chunk sliced
+   *  out of the sentence's Take G render). Absent → play the whole clip. */
+  startMs?: number
+  endMs?: number
 }
 
 /** Warn-once-per-stage guard for the trailing-known defensive close, so a

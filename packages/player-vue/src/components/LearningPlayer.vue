@@ -3798,7 +3798,12 @@ const podLapCancelled = ref(false)
 type PodSegmentReason = 'natural' | 'cancelled' | 'safety_timeout'
 type PodSegmentResult = { ok: boolean; reason: PodSegmentReason }
 
-const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<PodSegmentResult> => {
+const playPodSegment = async (
+  audioId: string,
+  durationMs?: number,
+  playbackSpeed = 1.0,
+  slice?: { startMs: number; endMs: number },
+): Promise<PodSegmentResult> => {
   if (!audioId || !audioController.value) return { ok: false, reason: 'safety_timeout' }
   const audio = audioController.value
   return new Promise((resolve) => {
@@ -3827,7 +3832,13 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
     try {
       ;(audio as any).setPlaybackRate?.(playbackSpeed)
     } catch {}
-    audio.play({ id: audioId, url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`, duration_ms: durationMs })
+    audio.play({
+      id: audioId,
+      url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,
+      duration_ms: durationMs,
+      // Fusion-rung chunks: an ms slice of the sentence's Take G render.
+      ...(slice ? { startMs: slice.startMs, endMs: slice.endMs } : {}),
+    })
       .catch((err: any) => {
         console.warn('[LearningPlayer] Pod segment audio error:', err?.message || err)
         finish({ ok: false, reason: 'safety_timeout' })
@@ -3969,7 +3980,12 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
       const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
       const segStart = Date.now()
       const cacheHit = audioCache.has(play.audioId)
-      const result = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
+      const result = await playPodSegment(
+        play.audioId,
+        undefined,
+        play.playbackSpeed,
+        play.startMs != null && play.endMs != null ? { startMs: play.startMs, endMs: play.endMs } : undefined,
+      )
       const ok = handleSegmentResult(result, {
         url: audioUrlFor(play.audioId),
         role: play.playRole,
@@ -5712,9 +5728,25 @@ class RealAudioController {
     return new Promise<void>((resolve) => {
       // Audio element is created in constructor for mobile compatibility
 
+      // ms-slice plays (fusion-rung chunks cut from a Take G render): seek to
+      // startMs once metadata is in, stop at endMs via rAF + a rate-scaled
+      // wall-timer backstop. Under a locked screen both freeze — the slice
+      // then runs to the clip's natural end and 'ended' still advances the
+      // lap (over-plays the chunk's siblings; pacing survives).
+      const sliceStart = typeof audioRef.startMs === 'number' ? audioRef.startMs : null
+      const sliceEnd = typeof audioRef.endMs === 'number' ? audioRef.endMs : null
+      let sliceRaf: number | null = null
+      let sliceTimer: ReturnType<typeof setTimeout> | null = null
+      const cancelSliceWatch = () => {
+        if (sliceRaf != null) { cancelAnimationFrame(sliceRaf); sliceRaf = null }
+        if (sliceTimer != null) { clearTimeout(sliceTimer); sliceTimer = null }
+      }
+
       const onEnded = () => {
+        cancelSliceWatch()
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        this.audio?.removeEventListener('loadedmetadata', onSliceMetadata)
         this.currentCleanup = null
         // Only notify if this play wasn't cancelled by a subsequent stop()
         if (this.playGeneration === playGen) {
@@ -5725,14 +5757,35 @@ class RealAudioController {
 
       const onError = (e) => {
         // Audio errors are handled gracefully - cycle continues
+        cancelSliceWatch()
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        this.audio?.removeEventListener('loadedmetadata', onSliceMetadata)
         this.currentCleanup = null
         // Only notify if this play wasn't cancelled
         if (this.playGeneration === playGen) {
           this._notifyEnded()
         }
         resolve()
+      }
+
+      const endSlice = () => {
+        if (this.playGeneration !== playGen) return
+        try { this.audio.pause() } catch {}
+        onEnded()
+      }
+      const onSliceMetadata = () => {
+        if (this.playGeneration !== playGen || sliceStart == null || sliceEnd == null) return
+        try { this.audio.currentTime = sliceStart / 1000 } catch { /* pre-seek race — play whole */ }
+        const endSec = sliceEnd / 1000
+        const watch = () => {
+          if (this.playGeneration !== playGen) return
+          if ((this.audio.currentTime || 0) >= endSec) { endSlice(); return }
+          sliceRaf = requestAnimationFrame(watch)
+        }
+        sliceRaf = requestAnimationFrame(watch)
+        const rate = this.audio.playbackRate || 1
+        sliceTimer = setTimeout(endSlice, Math.max(0, sliceEnd - sliceStart) / rate + 400)
       }
 
       // Remove any stale listeners first (if they exist)
@@ -5752,8 +5805,10 @@ class RealAudioController {
 
       // Store cleanup
       this.currentCleanup = () => {
+        cancelSliceWatch()
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        this.audio?.removeEventListener('loadedmetadata', onSliceMetadata)
       }
 
       // Set source and play
@@ -5767,6 +5822,12 @@ class RealAudioController {
       // this too. (Tom 2026-06-16 — heard the bookends at 2× on Safari/WebKit;
       // Chromium resets on load() so the bug was invisible there.)
       this.audio.playbackRate = this.pendingPlaybackRate || 1.0
+
+      // Arm the slice seek+stop (no-op for whole-clip plays).
+      if (sliceStart != null && sliceEnd != null) {
+        if (this.audio.readyState >= 1) onSliceMetadata()
+        else this.audio.addEventListener('loadedmetadata', onSliceMetadata)
+      }
 
       const playPromise = this.audio.play()
       if (playPromise) {

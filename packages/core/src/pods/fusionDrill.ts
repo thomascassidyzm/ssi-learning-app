@@ -2,13 +2,12 @@
  * fusionDrill — the pairwise gradual-fusion ladder for Listening Mode
  * Dialogues > Drill (Aran's model, Tom 2026-07-05).
  *
- * A turn's `atom_map_fine` gives the finest natural units (agent-authored
- * seams — units of meaning, not words; overlaps allowed where authored).
- * Drill climbs one rung per VISIT:
+ * A turn's `atom_map_fine` gives the natural chunks (agent-authored seams —
+ * MOLECULAR breath-groups per Tom's 2026-07-05 method, not atomic words;
+ * overlaps allowed where authored). Drill climbs one rung per VISIT:
  *
- *   rung 0:  a · b · c · d · e        every unit alone
- *   rung 1:  a+b · c+d · e            pairwise fusion, odd tail stands alone
- *   rung 2:  a+b+c+d · e              …and so on…
+ *   rung 0:  a · b · c                the molecular chunks, each a strip
+ *   rung 1:  a+b · c                  pairwise fusion, odd tail stands alone
  *   top:     the whole SENTENCE       — and it stays there.
  *
  * Every chunk at every rung plays t·k·t·t (target · known · target · target).
@@ -26,6 +25,8 @@
  * Pure functions only — the player and the dashboard Pod Lab must compose
  * from ONE engine (no second drifting copy).
  */
+
+import type { PodPlay, PodSentenceRow } from './podStageComposition'
 
 export type FusionMode = 'pairwise' | 'chained'
 
@@ -184,13 +185,27 @@ export function glueLeadingInterjection(groups: number[][]): number[][] {
   return groups
 }
 
+export interface BuildFusionGroupsOpts {
+  /** Emit GLUED turns as per-row groups instead of one spanning group. The
+   *  interjection row keeps its own take (depth 1 — nothing to fuse); the
+   *  continuation row slices its chunks from the SHARED Take G (unit ms
+   *  spans are in that clip's timebase either way). The main-flow lap
+   *  scheduler needs this — its items are rows, so a spanning group would
+   *  double-play material; Drill keeps the spanning group (it anchors the
+   *  glue and skips the continuation row). */
+  splitGlued?: boolean
+}
+
 /**
  * Resolve a turn's fine map into drill-ready sentence groups. Returns null
  * when the authored data doesn't line up with this turn (no fine map, group/
  * row mismatch, Take G misalignment) — the caller falls back to the plain
  * per-sentence t·k·t·t drill. Honest data or nothing; never guess a cut.
  */
-export function buildFusionGroups(input: FusionTurnInput): FusionGroup[] | null {
+export function buildFusionGroups(
+  input: FusionTurnInput,
+  opts?: BuildFusionGroupsOpts,
+): FusionGroup[] | null {
   const units = (input.fineMap || []).filter(
     (u) => u && (u.kind === undefined || u.kind === 'atom' || u.kind === 'passthrough') && u.target_surface,
   )
@@ -209,11 +224,21 @@ export function buildFusionGroups(input: FusionTurnInput): FusionGroup[] | null 
   const takeg = input.takegAudioIds
   if (takeg && takeg.length !== glued.length) return null
 
-  // Flat offsets per glued group (window_known_map uses flat unit indices).
+  // Rows covered per glued group: glue only ever merges raw row 0 into 1.
+  const gluedOffset = glued.length === raw.length ? 0 : 1
+
+  // splitGlued: compose from the RAW partition (1:1 with rows) and point the
+  // glue-affected raw groups at the shared glued Take G.
+  const splitGlued = !!opts?.splitGlued && gluedOffset === 1
+  const groupsSrc = splitGlued ? raw : glued
+  const takegIndexFor = (gi: number) => (splitGlued ? Math.max(0, gi - 1) : gi)
+
+  // Flat offsets per group (window_known_map uses flat unit indices; the flat
+  // order is identical for raw and glued — gluing only merges neighbours).
   const flatStarts: number[] = []
   {
     let off = 0
-    for (const g of glued) {
+    for (const g of groupsSrc) {
       flatStarts.push(off)
       off += g.length
     }
@@ -222,19 +247,16 @@ export function buildFusionGroups(input: FusionTurnInput): FusionGroup[] | null 
   const windowIndex: Record<string, string> = {}
   for (const w of input.windowKnownMap || []) windowIndex[`${w.start}-${w.end}`] = w.known
 
-  // Rows covered per glued group: glue only ever merges raw row 0 into 1.
-  const gluedOffset = glued.length === raw.length ? 0 : 1
-
-  return glued.map((unitIdxs, gi) => {
+  return groupsSrc.map((unitIdxs, gi) => {
     const groupUnits = unitIdxs.map((i) => units[i])
-    const rowFirst = singleRow ? 0 : gi === 0 ? 0 : gi + gluedOffset
-    const rowLast = singleRow ? 0 : gi === 0 ? gluedOffset : gi + gluedOffset
+    const rowFirst = singleRow ? 0 : splitGlued ? gi : gi === 0 ? 0 : gi + gluedOffset
+    const rowLast = singleRow ? 0 : splitGlued ? gi : gi === 0 ? gluedOffset : gi + gluedOffset
     const rowsOfGroup = rows.slice(rowFirst, rowLast + 1)
     // A per-sentence row maps 1:1 onto this group (the common case).
     const perSentenceRow = !singleRow && rowsOfGroup.length === 1 ? rowsOfGroup[0] : null
-    const wholeTurnGroup = singleRow && glued.length === 1 ? rows[0] : null
+    const wholeTurnGroup = singleRow && groupsSrc.length === 1 ? rows[0] : null
 
-    const takegId = takeg ? takeg[gi] || null : null
+    const takegId = takeg ? takeg[takegIndexFor(gi)] || null : null
     const sliceable =
       !!takegId &&
       groupUnits.length > 1 &&
@@ -268,11 +290,73 @@ export function buildFusionGroups(input: FusionTurnInput): FusionGroup[] | null 
   })
 }
 
+/**
+ * Skip the finest-units rung. TRUE was the stopgap for the ATOMIC-era maps
+ * (Tom 2026-07-05: single atomic units too 'bitty'). The real fix was
+ * re-authoring the maps at MOLECULAR granularity (breath-group chunks,
+ * Tom's method, same day) — the finest level IS now the level he specified
+ * ("3 separate strips that go in turn"), so the ladder enters there again.
+ * Flip to true only for courses still carrying atomic-era maps.
+ */
+export const SKIP_FINEST_RUNG = false
+
+/** The ladder a group actually climbs: span levels (finest rung skipped per
+ *  SKIP_FINEST_RUNG), or just the whole for non-sliceable groups. */
+function ladderFor(group: FusionGroup, mode: FusionMode): Array<Array<{ start: number; end: number }>> {
+  if (!group.sliceable) return [[{ start: 0, end: group.units.length - 1 }]]
+  let levels = spanLadder(group.units.length, mode)
+  if (SKIP_FINEST_RUNG && levels.length > 1) levels = levels.slice(1)
+  return levels
+}
+
 /** The number of rungs this group's own ladder has under a fusion mode. A
  *  group with no sliceable audio clamps straight to its whole (depth 1). */
 export function groupDepth(group: FusionGroup, mode: FusionMode): number {
-  if (!group.sliceable) return 1
-  return spanLadder(group.units.length, mode).length
+  return ladderFor(group, mode).length
+}
+
+/** Progression-badge tier label for a fusion rung ("fusion-r0", "fusion-r1"…). */
+export const FUSION_TIER_PREFIX = 'fusion-r'
+
+/**
+ * MAIN-FLOW unified ladder (Tom 2026-07-03 lock, sentence-capped per the
+ * 2026-07-05 ruling): a sentence's ladder = its fusion rungs, then the
+ * config speed cascade. This composes ONE fusion rung as PodPlays for the
+ * pod-lap scheduler — the same steps Drill plays (chunk t·k·t·t at 1×,
+ * Take G ms-slices, fine-known translations), expressed in the lap's play
+ * vocabulary so gaps/telemetry/Progression all work unchanged. The rung
+ * BELOW the whole belongs here; the whole-sentence t·k·t·t ≡ engine
+ * Stage 1, where the existing stage playlists take over (the splice is
+ * seamless — same shape, same speed).
+ */
+export function buildFusionRungPlays(
+  sentence: PodSentenceRow,
+  group: FusionGroup,
+  rung: number,
+  sentenceIdx: number,
+  mode: FusionMode,
+  lookupKnownClip: (text: string) => string | null,
+): PodPlay[] {
+  const { steps } = rungStepsForGroup(group, rung, mode, lookupKnownClip)
+  const plays: PodPlay[] = []
+  for (const st of steps) {
+    if (!st.clip) continue // no real clip for this slot — the text-only known drops
+    plays.push({
+      sentenceIdx,
+      stage: 0,
+      tier: `${FUSION_TIER_PREFIX}${rung}`,
+      playRole: st.kind === 'known' ? 'trans' : 'ps',
+      audioId: st.clip.id,
+      text: st.text,
+      playbackSpeed: 1.0,
+      glueToNextChunk: false,
+      ...(st.clip.startMs != null && st.clip.endMs != null
+        ? { startMs: st.clip.startMs, endMs: st.clip.endMs }
+        : {}),
+    })
+  }
+  if (plays.length > 0 && sentence.glue_to_next) plays[plays.length - 1].glueToNextChunk = true
+  return plays
 }
 
 /**
@@ -290,9 +374,7 @@ export function rungStepsForGroup(
   lookupKnownClip: (text: string) => string | null,
   stripOffset = 0,
 ): { strips: DrillStrip[]; steps: DrillQueueStep[] } {
-  const ladder = group.sliceable
-    ? spanLadder(group.units.length, mode)
-    : [[{ start: 0, end: group.units.length - 1 }]]
+  const ladder = ladderFor(group, mode)
   const level = ladder[Math.min(rung, ladder.length - 1)]
 
   const strips: DrillStrip[] = []
