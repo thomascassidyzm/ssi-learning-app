@@ -39,6 +39,7 @@ import type {
   AudioLifecycle,
   PhraseRole,
 } from '../../../packages/player-vue/src/types/courseBundle'
+import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -51,6 +52,9 @@ const COURSE_CODE_RE = /^[a-z0-9_]+$/
 
 interface CourseRow {
   content_version: number | null
+  target_lang: string | null
+  pricing_tier: string | null
+  is_community: boolean | null
 }
 
 interface LegoRow {
@@ -265,7 +269,7 @@ export default async function handler(
     const [courseRes, legosRes, phrasesRes, roundsRes, podsRes, bookendsRes] = await Promise.all([
       supabase
         .from('courses')
-        .select('content_version')
+        .select('content_version, target_lang, pricing_tier, is_community')
         .eq('course_code', code)
         .maybeSingle(),
       supabase
@@ -347,7 +351,8 @@ export default async function handler(
     const legoRows: LegoRow[] = (legosRes.data || []) as unknown as LegoRow[]
     const phraseRows: PhraseRow[] = (phrasesRes.data || []) as unknown as PhraseRow[]
     const roundRows: RoundIndexRow[] = (roundsRes.data || []) as unknown as RoundIndexRow[]
-    const version = ((courseRes.data as unknown as CourseRow).content_version ?? 1)
+    const courseRow = courseRes.data as unknown as CourseRow
+    const version = (courseRow.content_version ?? 1)
 
     // Course exists but the materialised round-index is empty — operator
     // action needed (refresh the view). Surfacing as 503 lets clients
@@ -360,8 +365,39 @@ export default async function handler(
       return
     }
 
+    // --- Entitlement gate -----------------------------------------------------
+    // Free/community courses skip auth entirely. Premium courses require a
+    // valid Supabase Auth token + active subscription/entitlement for full
+    // content; anonymous or unsubscribed callers get sliced down to the
+    // free-preview window (through Yellow Belt) rather than the whole course.
+    // This is the server-side authority — the client's checkCourseAccess is
+    // UI-only and must never be trusted for what content actually ships.
+    const access = await resolveServerCourseAccess(req, supabase, {
+      course_code: code,
+      pricing_tier: courseRow.pricing_tier,
+      is_community: courseRow.is_community,
+      target_lang: courseRow.target_lang,
+    })
+    const previewOnly = !access.canAccess
+    if (previewOnly && !(access.canPreview && access.previewMaxSeed)) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(403).json({ error: 'Subscription required', reason: access.reason })
+      return
+    }
+    const previewMaxSeed = access.previewMaxSeed ?? 0
+
+    const scopedLegoRows = previewOnly
+      ? legoRows.filter((row) => row.seed_number <= previewMaxSeed)
+      : legoRows
+    const scopedPhraseRows = previewOnly
+      ? phraseRows.filter((row) => row.seed_number <= previewMaxSeed)
+      : phraseRows
+    const scopedRoundRows = previewOnly
+      ? roundRows.filter((row) => row.seed_number <= previewMaxSeed)
+      : roundRows
+
     // --- LEGOs --------------------------------------------------------------
-    const legos: BundleLego[] = legoRows.map((row) => {
+    const legos: BundleLego[] = scopedLegoRows.map((row) => {
       const legoId = buildLegoId(row.seed_number, row.lego_index)
       const seedId = buildSeedId(row.seed_number)
       const targets = pickTargets(row)
@@ -404,7 +440,7 @@ export default async function handler(
     // order. This is the spec'd id format: ${legoId}_${role}_${position}.
     const positionCounters = new Map<string, number>()
     const phrases: BundlePhrase[] = []
-    for (const row of phraseRows) {
+    for (const row of scopedPhraseRows) {
       const role = normaliseRole(row.phrase_role)
       if (!role) continue
       const legoId = buildLegoId(row.seed_number, row.lego_index)
@@ -447,7 +483,7 @@ export default async function handler(
     }
 
     // --- Round map ----------------------------------------------------------
-    const roundMap: BundleRoundMapEntry[] = roundRows.map((r) => ({
+    const roundMap: BundleRoundMapEntry[] = scopedRoundRows.map((r) => ({
       roundIndex: r.round_index,
       legoId: r.lego_id,
       seedNumber: r.seed_number,
@@ -458,7 +494,7 @@ export default async function handler(
     // seed list reads top-to-bottom in the order the learner will encounter.
     const seenSeeds = new Set<number>()
     const seeds: BundleSeed[] = []
-    for (const r of roundRows) {
+    for (const r of scopedRoundRows) {
       if (seenSeeds.has(r.seed_number)) continue
       seenSeeds.add(r.seed_number)
       seeds.push({ seedId: buildSeedId(r.seed_number), seedNumber: r.seed_number })
@@ -467,8 +503,10 @@ export default async function handler(
     // --- Pods (Layer 2) -----------------------------------------------------
     // Two-step: pod rows tell us which pod_ids to fetch sentences for.
     // Done sequentially because the second query depends on the first.
-    // Skipped entirely if the course has no pods row.
-    const podRows: PodRow[] = (podsRes?.data || []) as unknown as PodRow[]
+    // Skipped entirely if the course has no pods row, OR the caller is on
+    // the free-preview slice — Layer 2 listening content is premium-only,
+    // never shipped to an unentitled caller.
+    const podRows: PodRow[] = previewOnly ? [] : ((podsRes?.data || []) as unknown as PodRow[])
     const bookendRows: Array<{ id: string; role: string; duration_ms: number | null }> =
       (bookendsRes?.data || []) as unknown as Array<{ id: string; role: string; duration_ms: number | null }>
 
@@ -533,13 +571,17 @@ export default async function handler(
     const bundle: CourseBundle = {
       courseCode: code,
       version,
-      mainLoopCount: roundRows.length,
+      // Consistent with the scoped roundMap actually shipped below — a
+      // preview caller's mainLoopCount reflects only the preview window,
+      // never the full course's true round count.
+      mainLoopCount: scopedRoundRows.length,
       legos,
       phrases,
       seeds,
       roundMap,
       pods,
     }
+    if (previewOnly) bundle.previewOnly = true
 
     res.setHeader(
       'Cache-Control',
