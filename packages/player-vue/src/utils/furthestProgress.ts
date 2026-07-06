@@ -23,10 +23,17 @@ export function parseLegoPosition(legoId: string | null): { seed: number; legoIn
   return { seed: parseInt(match[1], 10), legoIndex: parseInt(match[2], 10) }
 }
 
-/** "Seed 44 / Lego 3" display string for the furthest-point-reached readout. Null when there's nothing to show. */
-export function formatFurthestPoint(legoId: string | null): string | null {
+/**
+ * "Seed 44 / Lego 3" display string for the furthest-point-reached readout,
+ * or "Seed 44 — "known-language sentence"" when a seed sentence is available.
+ * `seedText` is best-effort (a lookup that may not have resolved yet, or a
+ * seed the app doesn't have text for) — falls back to the coordinate-only
+ * form rather than block the readout on it. Null when there's nothing to show.
+ */
+export function formatFurthestPoint(legoId: string | null, seedText?: string | null): string | null {
   const pos = parseLegoPosition(legoId)
   if (!pos) return null
+  if (seedText) return `Seed ${pos.seed} — "${seedText}"`
   return `Seed ${pos.seed} / Lego ${pos.legoIndex}`
 }
 
