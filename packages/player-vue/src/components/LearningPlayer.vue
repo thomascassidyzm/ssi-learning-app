@@ -7801,6 +7801,37 @@ const handleRoundForward = async () => {
  * lookahead), so it's not mode-conditional — but flipping mode first keeps
  * downstream state (cursor freeze, belt anchor) consistent with 'main'.
  */
+/**
+ * Merge freshly-generated rounds (a generateScript() result) into both the
+ * live SimplePlayer queue and the component's loadedRounds mirror. Shared by
+ * loadSeedIfNeeded (foreground, belt-skip miss) and the INF-PLAY idle warm
+ * (background, so a later belt-skip hits the cheap already-loaded path
+ * instead of paying this walk at jump time). addRounds dedupes by legoId and
+ * inserts in legoId-sorted order — index-safe (shifts roundIndex when
+ * inserting ahead of the live cursor), so calling this while INF PLAY is
+ * actively playing does not disturb the active round/cycle/phase.
+ */
+const mergeGeneratedRoundsIntoQueue = (items: any[]): any[] => {
+  const newRounds = toSimpleRoundsWithComponents(items)
+  if (newRounds.length === 0) return newRounds
+  simplePlayer.addRounds(newRounds as any)
+  // Keep the component's loadedRounds mirror in lockstep with the engine
+  // so cachedRounds[idx] (read by the jump) and updateBeltForPosition see
+  // the newly-added main-loop rounds. SimplePlayer.addRounds mirrors into
+  // its own roundsRef; loadedRounds is a separate array we must sync here.
+  const existingLegoIds = new Set((loadedRounds.value as any[]).map((r) => r.legoId))
+  const merged = [...(loadedRounds.value as any[])]
+  for (const r of newRounds as any[]) {
+    if (existingLegoIds.has(r.legoId)) continue
+    const insertAt = merged.findIndex((m) => m.legoId > r.legoId)
+    if (insertAt === -1) merged.push(r)
+    else merged.splice(insertAt, 0, r)
+    existingLegoIds.add(r.legoId)
+  }
+  loadedRounds.value = merged as any
+  return newRounds
+}
+
 const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) => {
   if (!forceReload) {
     const existingRoundIndex = simplePlayer.findRoundIndexForBeltThreshold(targetThreshold)
@@ -7816,25 +7847,7 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
 
   if (skipResult.items.length > 0) {
     if (skipResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = skipResult.mainLoopRoundCount
-    const newRounds = toSimpleRoundsWithComponents(skipResult.items)
-    // addRounds dedupes by legoId and inserts in legoId-sorted order, so
-    // main-loop belt rounds land in front of the appended INF-PLAY set —
-    // findRoundIndexForBeltThreshold then resolves the belt's first LEGO.
-    simplePlayer.addRounds(newRounds as any)
-    // Keep the component's loadedRounds mirror in lockstep with the engine
-    // so cachedRounds[idx] (read by the jump) and updateBeltForPosition see
-    // the newly-added main-loop rounds. SimplePlayer.addRounds mirrors into
-    // its own roundsRef; loadedRounds is a separate array we must sync here.
-    const existingLegoIds = new Set((loadedRounds.value as any[]).map((r) => r.legoId))
-    const merged = [...(loadedRounds.value as any[])]
-    for (const r of newRounds as any[]) {
-      if (existingLegoIds.has(r.legoId)) continue
-      const insertAt = merged.findIndex((m) => m.legoId > r.legoId)
-      if (insertAt === -1) merged.push(r)
-      else merged.splice(insertAt, 0, r)
-      existingLegoIds.add(r.legoId)
-    }
-    loadedRounds.value = merged as any
+    const newRounds = mergeGeneratedRoundsIntoQueue(skipResult.items)
     console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
   }
 }
@@ -8015,22 +8028,28 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     cancelInFlightLap()
     haltAllPlayback()
     // If we're currently in INF PLAY, picking an earlier content belt must
-    // EXIT to main loop. Flip mode FIRST, then force a main-loop load — the
-    // loaded queue is otherwise only the recycled INF-PLAY set and the
-    // target belt's main-loop rounds aren't present (the same trap that
-    // stranded back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
+    // EXIT to main loop. Flip mode FIRST (optimistically — the DB write
+    // settles in the background so the jump below isn't blocked on it;
+    // failures are logged, not swallowed), then load — the loaded queue is
+    // otherwise only the recycled INF-PLAY set and the target belt's
+    // main-loop rounds aren't present (the same trap that stranded
+    // back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
     const inInfplay = currentMode.value === 'infplay'
     if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-      try {
-        await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
-        currentMode.value = 'main'
-      } catch (modeErr) {
+      currentMode.value = 'main'
+      void progressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
         console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
-      }
+      })
     }
     console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`, { fromInfplay: inInfplay })
 
-    await loadSeedIfNeeded(targetSeed, /* forceReload */ inInfplay)
+    // Cheap already-loaded check FIRST — the INF-PLAY idle warm (above, near
+    // the ∞ bootstrap) usually means the target belt's main-loop rounds are
+    // already merged into the live queue, so this returns immediately
+    // instead of paying the full course-wide generateScript() walk in the
+    // foreground (the several-second belt-jump regression). Only a genuine
+    // miss falls through to the regen inside loadSeedIfNeeded.
+    await loadSeedIfNeeded(targetSeed)
     // Resolve the picked belt's FIRST LEGO by NEAREST >= match.
     let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
     // Unresolved + we came from INF PLAY: try one more main-loop load. Only
@@ -8053,7 +8072,12 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     deriveBeltFromLandedRound()
 
     // Belt-pill jump can land anywhere (forward or back) — persist cursor.
-    await persistCursorAtCurrentRound()
+    // Optimistic UI: the learner has already landed on the target round;
+    // let the write settle in the background rather than blocking on it
+    // (setRemoteCursor inside already logs failures, never throws).
+    void persistCursorAtCurrentRound().catch((err) => {
+      console.warn('[LearningPlayer] persistCursorAtCurrentRound after belt skip failed:', err)
+    })
   } finally {
     isSkippingBelt.value = false
   }
@@ -10930,16 +10954,50 @@ onMounted(async () => {
             })
           }
 
-          // Full-script handoff: kick off generateScript() in the
-          // background. INF PLAY skips this — its content comes from
-          // the /infplay-cycles endpoint, paginated batch-by-batch.
-          // generateScript would emit a full main-loop + 50 infplay
-          // rounds which would replace the queue with content that
-          // doesn't make sense in INF PLAY (no need to re-walk main
-          // loop the learner has chosen to leave).
+          // INF PLAY: content comes from the /infplay-cycles endpoint,
+          // paginated batch-by-batch — the live queue here is the
+          // deterministic revival set and must NOT be replaced with it.
+          // BUT skipping the full-script walk entirely (as before fa33a295)
+          // meant it ran for the FIRST time exactly when the learner jumped
+          // back to an earlier belt via the modal, blocking the UI on the
+          // whole course-wide generateScript() walk (Tom's "belt jump takes
+          // several seconds" 2026-07-06). So still warm it on idle — merge
+          // the main-loop rounds in via addRounds (dedupes by legoId,
+          // index-safe against the live cursor — see mergeGeneratedRoundsIntoQueue)
+          // so a later handleSkipToBelt's loadSeedIfNeeded finds the target
+          // belt already loaded and skips the walk. Guarded on currentMode
+          // still being 'infplay' when the idle task fires so a fast exit
+          // doesn't race a stale merge in behind it.
           if (inferEnrollmentMode === 'infplay') {
             positionInitialized.value = true
             dataReady = true
+            scheduleIdleTask(() => {
+              void generateScript()
+                .then(async (result) => {
+                  if (currentMode.value !== 'infplay') return
+                  if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
+                  if (result.items.length === 0) return
+                  mergeGeneratedRoundsIntoQueue(result.items)
+                  cachedRounds.value = toSimpleRoundsWithComponents(result.items) as any[]
+                  try {
+                    await setCachedScript(courseCode.value, {
+                      rounds: cachedRounds.value,
+                      totalSeeds: cachedRounds.value.length,
+                      totalLegos: cachedRounds.value.length,
+                      totalCycles: result.cycleCount,
+                      estimatedMinutes: Math.round(result.cycleCount * 0.2),
+                      audioMapObj: {},
+                      courseWelcome: cachedCourseWelcome.value || undefined,
+                      mainLoopRoundCount: result.mainLoopRoundCount,
+                    })
+                  } catch (cacheErr) {
+                    console.warn('[InstantPlayback] setCachedScript failed during INF-PLAY idle warm (non-fatal):', cacheErr)
+                  }
+                })
+                .catch((err) => {
+                  console.warn('[InstantPlayback] INF-PLAY idle full-script warm failed, belt-skip will fall back to foreground regen:', err)
+                })
+            })
             return
           }
 

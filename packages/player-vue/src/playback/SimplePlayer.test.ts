@@ -200,6 +200,56 @@ describe('SimplePlayer.replaceQueueFromCurrent', () => {
   })
 })
 
+describe('SimplePlayer.addRounds', () => {
+  beforeEach(() => {
+    vi.stubGlobal('Audio', vi.fn(makeMockAudio))
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('does not disturb the actively-playing round when merging rounds ahead of it', () => {
+    // Regression guard for the INF-PLAY idle warm (belt-jump latency fix):
+    // merging main-loop rounds into the queue while INF PLAY is actively
+    // playing must leave the live round/cycle untouched, only shifting the
+    // index so it still points at the same round object.
+    const infplay = ['S0500L01', 'S0500L02'].map(makeRound)
+    const player = new SimplePlayer(infplay)
+    ;(player as any).state.roundIndex = 1 // playing S0500L02
+    ;(player as any).state.cycleIndex = 0
+    const livePlayingRound = (player as any).rounds[1]
+
+    const mainLoop = ['S0001L01', 'S0002L01', 'S0003L01'].map(makeRound)
+    player.addRounds(mainLoop)
+
+    const after = (player as any).rounds
+    // Main-loop rounds inserted ahead of the still-live INF-PLAY rounds.
+    expect(after.map((r: any) => r.legoId)).toEqual([
+      'S0001L01', 'S0002L01', 'S0003L01', 'S0500L01', 'S0500L02',
+    ])
+    // roundIndex shifted by the 3 prepended rounds — still pointing at the
+    // exact same round object that was playing before the merge.
+    expect((player as any).state.roundIndex).toBe(4)
+    expect(after[4]).toBe(livePlayingRound)
+    expect((player as any).state.cycleIndex).toBe(0)
+  })
+
+  it('dedupes by legoId — a round already in the queue is not re-inserted', () => {
+    const initial = ['S0001L01', 'S0001L02'].map(makeRound)
+    const player = new SimplePlayer(initial)
+    player.addRounds(['S0001L01', 'S0001L03'].map(makeRound))
+    const after = (player as any).rounds
+    expect(after.map((r: any) => r.legoId)).toEqual(['S0001L01', 'S0001L02', 'S0001L03'])
+  })
+
+  it('no-ops on empty batch', () => {
+    const initial = ['S0001L01'].map(makeRound)
+    const player = new SimplePlayer(initial)
+    player.addRounds([])
+    expect((player as any).rounds).toHaveLength(1)
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Background-safe PAUSE phase.
 //
