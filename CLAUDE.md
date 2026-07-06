@@ -88,7 +88,7 @@ Tom works at the level of **intention** — what we're building, what matters, t
 
 **Runbook when the conditions hold:**
 1. Enable RLS on the six org tables (five carry dormant pre-authored policies — verify predicates use `auth.uid()::text`, not stale Clerk-era `jwt->>'sub'`, via `pg_get_expr` before trusting them; `groups` + `entitlement_grants` need policies written).
-2. Apply the gated migrations parked in `supabase/migrations/` (`20260704_gated_invite_codes_select_revoke.sql` once `api/admin/codes.ts` is on main; `20260704_course_scope_progress_unique.sql` once the course_id read fix is on main).
+2. ~~Apply the gated migrations parked in `supabase/migrations/`~~ **DONE 2026-07-05:** both 20260704 gated migrations (`invite_codes` SELECT revoke; course-scoped progress unique keys) were canary-applied live after their code dependencies shipped to main (`6841adc7`) — do not re-apply.
 3. Use `rlsGuard.assertScope()` (`packages/player-vue/src/composables/schools/rlsGuard.ts`) as the dev-loop net — extend from `useClassesData` to the other schools composables.
 4. Canary method mandatory (toolkit + runbook: `supabase/secfix-toolkit/`): apply in one txn, replay real app queries as real roles, assert leak-closed AND every-legit-path-alive, COMMIT iff green.
 5. Stage on `staging` for a full week minimum; every schools view × role (govt_admin, school_admin, teacher, student) exercised; merge to `main` only after zero `[RLS_VIOLATION]` logs for 48h.

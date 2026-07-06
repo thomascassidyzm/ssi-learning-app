@@ -12,6 +12,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 // load otherwise (mirrors the pattern in api/courses/[code]/cycles.ts).
 process.env.SUPABASE_URL = 'http://localhost:54321'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
+// verifyAuthToken (api/_utils/auth.ts) bails out early as "unauthenticated"
+// unless an anon key is present too — needed for the entitlement-gating tests.
+process.env.SUPABASE_ANON_KEY = 'test-anon-key'
 
 // ---------------------------------------------------------------------------
 // Supabase mock — the handler chains:
@@ -29,6 +32,14 @@ interface QueryResult<T> {
 
 let tableResponses: Record<string, QueryResult<unknown>> = {}
 let lastFromCalls: string[] = []
+// Controls verifyAuthToken's internal supabase.auth.getUser() call (used by
+// the entitlement gate) and the cascade-entitlement RPC. Defaults to
+// "no session" so tests that don't care about auth get the anonymous path.
+let authUserResponse: { data: { user: { id: string } | null }; error: { message: string } | null } = {
+  data: { user: null },
+  error: null,
+}
+let rpcResponse: { data: unknown; error: unknown } = { data: null, error: null }
 
 function makeBuilder(table: string): unknown {
   const response = tableResponses[table] ?? { data: null, error: null }
@@ -61,6 +72,8 @@ vi.mock('@supabase/supabase-js', () => ({
       lastFromCalls.push(table)
       return makeBuilder(table)
     },
+    auth: { getUser: () => Promise.resolve(authUserResponse) },
+    rpc: () => Promise.resolve(rpcResponse),
   }),
 }))
 
@@ -80,8 +93,12 @@ interface FakeRes {
   setHeader: (k: string, v: string) => void
 }
 
-function makeReq(query: Record<string, string>, method = 'GET'): any {
-  return { method, query }
+function makeReq(
+  query: Record<string, string>,
+  method = 'GET',
+  headers: Record<string, string> = {},
+): any {
+  return { method, query, headers }
 }
 
 function makeRes(): FakeRes {
@@ -280,6 +297,8 @@ describe('GET /api/courses/:code/bundle', () => {
   beforeEach(() => {
     tableResponses = {}
     lastFromCalls = []
+    authUserResponse = { data: { user: null }, error: null }
+    rpcResponse = { data: null, error: null }
   })
 
   it('returns a well-formed CourseBundle for the happy path', async () => {
@@ -519,5 +538,251 @@ describe('GET /api/courses/:code/bundle', () => {
     const res = makeRes()
     await handler(makeReq({ code: 'Spanish v2!' }), res as any)
     expect(res._status).toBe(400)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Entitlement gating (server-side authority — see api/_utils/courseAccess.ts)
+// ---------------------------------------------------------------------------
+
+function setupPremiumFixture() {
+  tableResponses = {
+    courses: {
+      data: { content_version: 3, target_lang: 'spa', pricing_tier: 'premium', is_community: false },
+      error: null,
+    },
+    course_legos: {
+      data: [
+        {
+          seed_number: 10, // inside the free-preview window (<= 19)
+          lego_index: 1,
+          type: 'A',
+          known_text: 'inside preview',
+          target_text: 'dentro',
+          target_text_roman: null,
+          components: null,
+          is_new: true,
+          known_audio_id: 'k10',
+          target1_audio_id: 't1-10',
+          target2_audio_id: 't2-10',
+          presentation_audio_id: null,
+          target1_duration_ms: 1000,
+          target2_duration_ms: 1000,
+        },
+        {
+          seed_number: 25, // beyond the free-preview window
+          lego_index: 1,
+          type: 'A',
+          known_text: 'beyond preview',
+          target_text: 'mas alla',
+          target_text_roman: null,
+          components: null,
+          is_new: true,
+          known_audio_id: 'k25',
+          target1_audio_id: 't1-25',
+          target2_audio_id: 't2-25',
+          presentation_audio_id: null,
+          target1_duration_ms: 1000,
+          target2_duration_ms: 1000,
+        },
+      ],
+      error: null,
+    },
+    course_practice_phrases: {
+      data: [
+        {
+          seed_number: 10,
+          lego_index: 1,
+          position: 1,
+          phrase_role: 'use',
+          known_text: 'k10 use',
+          target_text: 't10 use',
+          target_text_roman: null,
+          decomposition: null,
+          known_audio_id: 'p-k10',
+          target1_audio_id: 'p-t1-10',
+          target2_audio_id: 'p-t2-10',
+          known_duration_ms: 900,
+          target1_duration_ms: 900,
+          target2_duration_ms: 900,
+        },
+        {
+          seed_number: 25,
+          lego_index: 1,
+          position: 1,
+          phrase_role: 'use',
+          known_text: 'k25 use',
+          target_text: 't25 use',
+          target_text_roman: null,
+          decomposition: null,
+          known_audio_id: 'p-k25',
+          target1_audio_id: 'p-t1-25',
+          target2_audio_id: 'p-t2-25',
+          known_duration_ms: 900,
+          target1_duration_ms: 900,
+          target2_duration_ms: 900,
+        },
+      ],
+      error: null,
+    },
+    course_round_index: {
+      data: [
+        { round_index: 1, seed_number: 10, lego_id: 'S0010L01' },
+        { round_index: 2, seed_number: 25, lego_id: 'S0025L01' },
+      ],
+      error: null,
+    },
+    listening_pods: {
+      data: [{ id: 'premium_course:pod-0', pod_order: null, title: 'Premium Pod' }],
+      error: null,
+    },
+    course_audio: {
+      data: [
+        { id: 'intro-aud', role: 'bookend_listen_intro', duration_ms: 2000 },
+        { id: 'outro-aud', role: 'bookend_listen_outro', duration_ms: 2000 },
+      ],
+      error: null,
+    },
+    listening_pod_sentences: {
+      data: [
+        {
+          pod_id: 'premium_course:pod-0',
+          global_order: 1,
+          target_text: 'x',
+          known_text: 'y',
+          target_audio_id: 'pod-tgt',
+          known_audio_id: 'pod-kn',
+          glue_to_next: false,
+        },
+      ],
+      error: null,
+    },
+  }
+}
+
+describe('GET /api/courses/:code/bundle — entitlement gating', () => {
+  beforeEach(() => {
+    tableResponses = {}
+    lastFromCalls = []
+    authUserResponse = { data: { user: null }, error: null }
+    rpcResponse = { data: null, error: null }
+  })
+
+  it('slices a premium course down to the free-preview window for an unauthenticated caller', async () => {
+    setupPremiumFixture()
+    const res = makeRes()
+    await handler(makeReq({ code: 'premium_course' }), res as any)
+
+    expect(res._status).toBe(200)
+    const bundle = res._body as any
+    expect(bundle.previewOnly).toBe(true)
+    // Only the seed-10 LEGO/phrase/round survive; seed 25 is never shipped.
+    expect(bundle.legos).toHaveLength(1)
+    expect(bundle.legos[0].seedNumber).toBe(10)
+    expect(bundle.phrases).toHaveLength(1)
+    expect(bundle.phrases[0].legoId).toBe('S0010L01')
+    expect(bundle.roundMap).toHaveLength(1)
+    expect(bundle.seeds).toEqual([{ seedId: 'S0010', seedNumber: 10 }])
+    expect(bundle.mainLoopCount).toBe(1)
+    // Layer 2 pods are premium-only — never shipped in a preview slice.
+    expect(bundle.pods).toEqual([])
+  })
+
+  it('slices a premium course for an authenticated caller with no active subscription', async () => {
+    setupPremiumFixture()
+    authUserResponse = { data: { user: { id: 'auth-user-1' } }, error: null }
+    tableResponses.learners = {
+      data: { id: 'learner-1', platform_role: null, educational_role: null },
+      error: null,
+    }
+    tableResponses.subscriptions = { data: null, error: null }
+    tableResponses.user_entitlements = { data: [], error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'premium_course' }, 'GET', { authorization: 'Bearer faketoken' }), res as any)
+
+    expect(res._status).toBe(200)
+    const bundle = res._body as any
+    expect(bundle.previewOnly).toBe(true)
+    expect(bundle.legos).toHaveLength(1)
+  })
+
+  it('ships the full premium course to an authenticated, actively-subscribed caller', async () => {
+    setupPremiumFixture()
+    authUserResponse = { data: { user: { id: 'auth-user-2' } }, error: null }
+    tableResponses.learners = {
+      data: { id: 'learner-2', platform_role: null, educational_role: null },
+      error: null,
+    }
+    tableResponses.subscriptions = { data: { status: 'active', current_period_end: null }, error: null }
+    tableResponses.user_entitlements = { data: [], error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'premium_course' }, 'GET', { authorization: 'Bearer faketoken' }), res as any)
+
+    expect(res._status).toBe(200)
+    const bundle = res._body as any
+    expect(bundle.previewOnly).toBeUndefined()
+    expect(bundle.legos).toHaveLength(2)
+    expect(bundle.legos.map((l: any) => l.seedNumber).sort()).toEqual([10, 25])
+    expect(bundle.pods).toHaveLength(1)
+    expect(bundle.mainLoopCount).toBe(2)
+  })
+
+  it('ships the full premium course to an ssi_admin regardless of subscription', async () => {
+    setupPremiumFixture()
+    authUserResponse = { data: { user: { id: 'auth-user-3' } }, error: null }
+    tableResponses.learners = {
+      data: { id: 'learner-3', platform_role: 'ssi_admin', educational_role: null },
+      error: null,
+    }
+    tableResponses.subscriptions = { data: null, error: null }
+    tableResponses.user_entitlements = { data: [], error: null }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'premium_course' }, 'GET', { authorization: 'Bearer faketoken' }), res as any)
+
+    expect(res._status).toBe(200)
+    const bundle = res._body as any
+    expect(bundle.previewOnly).toBeUndefined()
+    expect(bundle.legos).toHaveLength(2)
+  })
+
+  it('ships the full premium course to a caller with a course-specific entitlement', async () => {
+    setupPremiumFixture()
+    authUserResponse = { data: { user: { id: 'auth-user-4' } }, error: null }
+    tableResponses.learners = {
+      data: { id: 'learner-4', platform_role: null, educational_role: null },
+      error: null,
+    }
+    tableResponses.subscriptions = { data: null, error: null }
+    tableResponses.user_entitlements = {
+      data: [{ access_type: 'courses', granted_courses: ['premium_course'], expires_at: null }],
+      error: null,
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'premium_course' }, 'GET', { authorization: 'Bearer faketoken' }), res as any)
+
+    expect(res._status).toBe(200)
+    const bundle = res._body as any
+    expect(bundle.previewOnly).toBeUndefined()
+    expect(bundle.legos).toHaveLength(2)
+  })
+
+  it('never gates a community course, even without auth', async () => {
+    setupPremiumFixture()
+    tableResponses.courses = {
+      data: { content_version: 1, target_lang: 'cym', pricing_tier: 'community', is_community: true },
+      error: null,
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ code: 'premium_course' }), res as any)
+
+    expect(res._status).toBe(200)
+    const bundle = res._body as any
+    expect(bundle.previewOnly).toBeUndefined()
+    expect(bundle.legos).toHaveLength(2)
   })
 })

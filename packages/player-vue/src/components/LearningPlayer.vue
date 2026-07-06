@@ -3798,7 +3798,12 @@ const podLapCancelled = ref(false)
 type PodSegmentReason = 'natural' | 'cancelled' | 'safety_timeout'
 type PodSegmentResult = { ok: boolean; reason: PodSegmentReason }
 
-const playPodSegment = async (audioId: string, durationMs?: number, playbackSpeed = 1.0): Promise<PodSegmentResult> => {
+const playPodSegment = async (
+  audioId: string,
+  durationMs?: number,
+  playbackSpeed = 1.0,
+  slice?: { startMs: number; endMs: number },
+): Promise<PodSegmentResult> => {
   if (!audioId || !audioController.value) return { ok: false, reason: 'safety_timeout' }
   const audio = audioController.value
   return new Promise((resolve) => {
@@ -3827,7 +3832,13 @@ const playPodSegment = async (audioId: string, durationMs?: number, playbackSpee
     try {
       ;(audio as any).setPlaybackRate?.(playbackSpeed)
     } catch {}
-    audio.play({ id: audioId, url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`, duration_ms: durationMs })
+    audio.play({
+      id: audioId,
+      url: `/api/audio/${audioId}?courseId=${encodeURIComponent(courseCode.value)}`,
+      duration_ms: durationMs,
+      // Fusion-rung chunks: an ms slice of the sentence's Take G render.
+      ...(slice ? { startMs: slice.startMs, endMs: slice.endMs } : {}),
+    })
       .catch((err: any) => {
         console.warn('[LearningPlayer] Pod segment audio error:', err?.message || err)
         finish({ ok: false, reason: 'safety_timeout' })
@@ -3969,7 +3980,12 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
       const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
       const segStart = Date.now()
       const cacheHit = audioCache.has(play.audioId)
-      const result = await playPodSegment(play.audioId, undefined, play.playbackSpeed)
+      const result = await playPodSegment(
+        play.audioId,
+        undefined,
+        play.playbackSpeed,
+        play.startMs != null && play.endMs != null ? { startMs: play.startMs, endMs: play.endMs } : undefined,
+      )
       const ok = handleSegmentResult(result, {
         url: audioUrlFor(play.audioId),
         role: play.playRole,
@@ -5712,9 +5728,25 @@ class RealAudioController {
     return new Promise<void>((resolve) => {
       // Audio element is created in constructor for mobile compatibility
 
+      // ms-slice plays (fusion-rung chunks cut from a Take G render): seek to
+      // startMs once metadata is in, stop at endMs via rAF + a rate-scaled
+      // wall-timer backstop. Under a locked screen both freeze — the slice
+      // then runs to the clip's natural end and 'ended' still advances the
+      // lap (over-plays the chunk's siblings; pacing survives).
+      const sliceStart = typeof audioRef.startMs === 'number' ? audioRef.startMs : null
+      const sliceEnd = typeof audioRef.endMs === 'number' ? audioRef.endMs : null
+      let sliceRaf: number | null = null
+      let sliceTimer: ReturnType<typeof setTimeout> | null = null
+      const cancelSliceWatch = () => {
+        if (sliceRaf != null) { cancelAnimationFrame(sliceRaf); sliceRaf = null }
+        if (sliceTimer != null) { clearTimeout(sliceTimer); sliceTimer = null }
+      }
+
       const onEnded = () => {
+        cancelSliceWatch()
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        this.audio?.removeEventListener('loadedmetadata', onSliceMetadata)
         this.currentCleanup = null
         // Only notify if this play wasn't cancelled by a subsequent stop()
         if (this.playGeneration === playGen) {
@@ -5725,14 +5757,35 @@ class RealAudioController {
 
       const onError = (e) => {
         // Audio errors are handled gracefully - cycle continues
+        cancelSliceWatch()
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        this.audio?.removeEventListener('loadedmetadata', onSliceMetadata)
         this.currentCleanup = null
         // Only notify if this play wasn't cancelled
         if (this.playGeneration === playGen) {
           this._notifyEnded()
         }
         resolve()
+      }
+
+      const endSlice = () => {
+        if (this.playGeneration !== playGen) return
+        try { this.audio.pause() } catch {}
+        onEnded()
+      }
+      const onSliceMetadata = () => {
+        if (this.playGeneration !== playGen || sliceStart == null || sliceEnd == null) return
+        try { this.audio.currentTime = sliceStart / 1000 } catch { /* pre-seek race — play whole */ }
+        const endSec = sliceEnd / 1000
+        const watch = () => {
+          if (this.playGeneration !== playGen) return
+          if ((this.audio.currentTime || 0) >= endSec) { endSlice(); return }
+          sliceRaf = requestAnimationFrame(watch)
+        }
+        sliceRaf = requestAnimationFrame(watch)
+        const rate = this.audio.playbackRate || 1
+        sliceTimer = setTimeout(endSlice, Math.max(0, sliceEnd - sliceStart) / rate + 400)
       }
 
       // Remove any stale listeners first (if they exist)
@@ -5752,8 +5805,10 @@ class RealAudioController {
 
       // Store cleanup
       this.currentCleanup = () => {
+        cancelSliceWatch()
         this.audio?.removeEventListener('ended', onEnded)
         this.audio?.removeEventListener('error', onError)
+        this.audio?.removeEventListener('loadedmetadata', onSliceMetadata)
       }
 
       // Set source and play
@@ -5767,6 +5822,12 @@ class RealAudioController {
       // this too. (Tom 2026-06-16 — heard the bookends at 2× on Safari/WebKit;
       // Chromium resets on load() so the bug was invisible there.)
       this.audio.playbackRate = this.pendingPlaybackRate || 1.0
+
+      // Arm the slice seek+stop (no-op for whole-clip plays).
+      if (sliceStart != null && sliceEnd != null) {
+        if (this.audio.readyState >= 1) onSliceMetadata()
+        else this.audio.addEventListener('loadedmetadata', onSliceMetadata)
+      }
 
       const playPromise = this.audio.play()
       if (playPromise) {
@@ -7740,6 +7801,37 @@ const handleRoundForward = async () => {
  * lookahead), so it's not mode-conditional — but flipping mode first keeps
  * downstream state (cursor freeze, belt anchor) consistent with 'main'.
  */
+/**
+ * Merge freshly-generated rounds (a generateScript() result) into both the
+ * live SimplePlayer queue and the component's loadedRounds mirror. Shared by
+ * loadSeedIfNeeded (foreground, belt-skip miss) and the INF-PLAY idle warm
+ * (background, so a later belt-skip hits the cheap already-loaded path
+ * instead of paying this walk at jump time). addRounds dedupes by legoId and
+ * inserts in legoId-sorted order — index-safe (shifts roundIndex when
+ * inserting ahead of the live cursor), so calling this while INF PLAY is
+ * actively playing does not disturb the active round/cycle/phase.
+ */
+const mergeGeneratedRoundsIntoQueue = (items: any[]): any[] => {
+  const newRounds = toSimpleRoundsWithComponents(items)
+  if (newRounds.length === 0) return newRounds
+  simplePlayer.addRounds(newRounds as any)
+  // Keep the component's loadedRounds mirror in lockstep with the engine
+  // so cachedRounds[idx] (read by the jump) and updateBeltForPosition see
+  // the newly-added main-loop rounds. SimplePlayer.addRounds mirrors into
+  // its own roundsRef; loadedRounds is a separate array we must sync here.
+  const existingLegoIds = new Set((loadedRounds.value as any[]).map((r) => r.legoId))
+  const merged = [...(loadedRounds.value as any[])]
+  for (const r of newRounds as any[]) {
+    if (existingLegoIds.has(r.legoId)) continue
+    const insertAt = merged.findIndex((m) => m.legoId > r.legoId)
+    if (insertAt === -1) merged.push(r)
+    else merged.splice(insertAt, 0, r)
+    existingLegoIds.add(r.legoId)
+  }
+  loadedRounds.value = merged as any
+  return newRounds
+}
+
 const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) => {
   if (!forceReload) {
     const existingRoundIndex = simplePlayer.findRoundIndexForBeltThreshold(targetThreshold)
@@ -7755,25 +7847,7 @@ const loadSeedIfNeeded = async (targetThreshold: number, forceReload = false) =>
 
   if (skipResult.items.length > 0) {
     if (skipResult.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = skipResult.mainLoopRoundCount
-    const newRounds = toSimpleRoundsWithComponents(skipResult.items)
-    // addRounds dedupes by legoId and inserts in legoId-sorted order, so
-    // main-loop belt rounds land in front of the appended INF-PLAY set —
-    // findRoundIndexForBeltThreshold then resolves the belt's first LEGO.
-    simplePlayer.addRounds(newRounds as any)
-    // Keep the component's loadedRounds mirror in lockstep with the engine
-    // so cachedRounds[idx] (read by the jump) and updateBeltForPosition see
-    // the newly-added main-loop rounds. SimplePlayer.addRounds mirrors into
-    // its own roundsRef; loadedRounds is a separate array we must sync here.
-    const existingLegoIds = new Set((loadedRounds.value as any[]).map((r) => r.legoId))
-    const merged = [...(loadedRounds.value as any[])]
-    for (const r of newRounds as any[]) {
-      if (existingLegoIds.has(r.legoId)) continue
-      const insertAt = merged.findIndex((m) => m.legoId > r.legoId)
-      if (insertAt === -1) merged.push(r)
-      else merged.splice(insertAt, 0, r)
-      existingLegoIds.add(r.legoId)
-    }
-    loadedRounds.value = merged as any
+    const newRounds = mergeGeneratedRoundsIntoQueue(skipResult.items)
     console.debug(`[progressiveLoad] Belt skip: added ${newRounds.length} rounds`)
   }
 }
@@ -7954,22 +8028,28 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     cancelInFlightLap()
     haltAllPlayback()
     // If we're currently in INF PLAY, picking an earlier content belt must
-    // EXIT to main loop. Flip mode FIRST, then force a main-loop load — the
-    // loaded queue is otherwise only the recycled INF-PLAY set and the
-    // target belt's main-loop rounds aren't present (the same trap that
-    // stranded back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
+    // EXIT to main loop. Flip mode FIRST (optimistically — the DB write
+    // settles in the background so the jump below isn't blocked on it;
+    // failures are logged, not swallowed), then load — the loaded queue is
+    // otherwise only the recycled INF-PLAY set and the target belt's
+    // main-loop rounds aren't present (the same trap that stranded
+    // back-skip). Mirrors handleGoBackBelt's INF-PLAY exit.
     const inInfplay = currentMode.value === 'infplay'
     if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
-      try {
-        await progressStore.value.setMode(learnerId.value, courseCode.value, 'main')
-        currentMode.value = 'main'
-      } catch (modeErr) {
+      currentMode.value = 'main'
+      void progressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
         console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
-      }
+      })
     }
     console.log(`[LearningPlayer] Skipping to ${belt.name} belt - seed ${targetSeed}`, { fromInfplay: inInfplay })
 
-    await loadSeedIfNeeded(targetSeed, /* forceReload */ inInfplay)
+    // Cheap already-loaded check FIRST — the INF-PLAY idle warm (above, near
+    // the ∞ bootstrap) usually means the target belt's main-loop rounds are
+    // already merged into the live queue, so this returns immediately
+    // instead of paying the full course-wide generateScript() walk in the
+    // foreground (the several-second belt-jump regression). Only a genuine
+    // miss falls through to the regen inside loadSeedIfNeeded.
+    await loadSeedIfNeeded(targetSeed)
     // Resolve the picked belt's FIRST LEGO by NEAREST >= match.
     let resolvedTargetIdx = simplePlayer.findRoundIndexForBeltThreshold(targetSeed)
     // Unresolved + we came from INF PLAY: try one more main-loop load. Only
@@ -7992,7 +8072,12 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     deriveBeltFromLandedRound()
 
     // Belt-pill jump can land anywhere (forward or back) — persist cursor.
-    await persistCursorAtCurrentRound()
+    // Optimistic UI: the learner has already landed on the target round;
+    // let the write settle in the background rather than blocking on it
+    // (setRemoteCursor inside already logs failures, never throws).
+    void persistCursorAtCurrentRound().catch((err) => {
+      console.warn('[LearningPlayer] persistCursorAtCurrentRound after belt skip failed:', err)
+    })
   } finally {
     isSkippingBelt.value = false
   }
@@ -10869,16 +10954,50 @@ onMounted(async () => {
             })
           }
 
-          // Full-script handoff: kick off generateScript() in the
-          // background. INF PLAY skips this — its content comes from
-          // the /infplay-cycles endpoint, paginated batch-by-batch.
-          // generateScript would emit a full main-loop + 50 infplay
-          // rounds which would replace the queue with content that
-          // doesn't make sense in INF PLAY (no need to re-walk main
-          // loop the learner has chosen to leave).
+          // INF PLAY: content comes from the /infplay-cycles endpoint,
+          // paginated batch-by-batch — the live queue here is the
+          // deterministic revival set and must NOT be replaced with it.
+          // BUT skipping the full-script walk entirely (as before fa33a295)
+          // meant it ran for the FIRST time exactly when the learner jumped
+          // back to an earlier belt via the modal, blocking the UI on the
+          // whole course-wide generateScript() walk (Tom's "belt jump takes
+          // several seconds" 2026-07-06). So still warm it on idle — merge
+          // the main-loop rounds in via addRounds (dedupes by legoId,
+          // index-safe against the live cursor — see mergeGeneratedRoundsIntoQueue)
+          // so a later handleSkipToBelt's loadSeedIfNeeded finds the target
+          // belt already loaded and skips the walk. Guarded on currentMode
+          // still being 'infplay' when the idle task fires so a fast exit
+          // doesn't race a stale merge in behind it.
           if (inferEnrollmentMode === 'infplay') {
             positionInitialized.value = true
             dataReady = true
+            scheduleIdleTask(() => {
+              void generateScript()
+                .then(async (result) => {
+                  if (currentMode.value !== 'infplay') return
+                  if (result.mainLoopRoundCount > 0) liveMainLoopRoundCount.value = result.mainLoopRoundCount
+                  if (result.items.length === 0) return
+                  mergeGeneratedRoundsIntoQueue(result.items)
+                  cachedRounds.value = toSimpleRoundsWithComponents(result.items) as any[]
+                  try {
+                    await setCachedScript(courseCode.value, {
+                      rounds: cachedRounds.value,
+                      totalSeeds: cachedRounds.value.length,
+                      totalLegos: cachedRounds.value.length,
+                      totalCycles: result.cycleCount,
+                      estimatedMinutes: Math.round(result.cycleCount * 0.2),
+                      audioMapObj: {},
+                      courseWelcome: cachedCourseWelcome.value || undefined,
+                      mainLoopRoundCount: result.mainLoopRoundCount,
+                    })
+                  } catch (cacheErr) {
+                    console.warn('[InstantPlayback] setCachedScript failed during INF-PLAY idle warm (non-fatal):', cacheErr)
+                  }
+                })
+                .catch((err) => {
+                  console.warn('[InstantPlayback] INF-PLAY idle full-script warm failed, belt-skip will fall back to foreground regen:', err)
+                })
+            })
             return
           }
 
@@ -13037,6 +13156,7 @@ defineExpose({
         :course-code="activeCourseCode"
         :belt-color="currentBelt.color"
         :up-to-seed="listeningCeilingSeed"
+        :learner-id="learnerId"
         @close="handleCloseListening"
       />
     </Transition>

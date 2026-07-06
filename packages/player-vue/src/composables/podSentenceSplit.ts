@@ -64,6 +64,29 @@ export function splitRowUnits(row: SplittableRow, textById?: Map<string, string>
   const clips = (Array.isArray(row.sentence_audio_ids) ? row.sentence_audio_ids : []).filter(Boolean) as string[]
   const knownClips = (Array.isArray(row.sentence_known_audio_ids) ? row.sentence_known_audio_ids : []).filter(Boolean) as string[]
 
+  // Stale-slice guard. Split clip ids can outlive the course_audio rows they
+  // point at — e.g. a course's main audio is re-rendered and the old June
+  // per-sentence slices are deleted, but the pod row still lists them. Playing
+  // a dangling id fails silently ("can't find the phrase"). When the caller
+  // gives us textById (built from the clips that DO exist in course_audio), it
+  // is the existence oracle: if any target/known split clip is missing, don't
+  // emit a broken split — fall through to the whole-turn clip, which is the
+  // canonical render and is always present. All-or-nothing so a partial split
+  // never misaligns audio against the regex-split text.
+  if (textById && (
+    !clips.every((id) => textById.has(id)) ||
+    (knownClips.length > 0 && !knownClips.every((id) => textById.has(id)))
+  )) {
+    return [{
+      index: 0,
+      targetText: row.target_text || '',
+      knownText: row.known_text || '',
+      targetAudioId: row.target_audio_id || null,
+      knownAudioId: row.known_audio_id || null,
+      isSplit: false,
+    }]
+  }
+
   if (clips.length < 2) {
     return [{
       index: 0,

@@ -70,6 +70,43 @@ describe('splitRowUnits', () => {
     expect(units).toHaveLength(2)
     expect(units.every((u) => u.knownAudioId === null)).toBe(true)
   })
+
+  it('falls back to the whole turn when a split clip is stale (not in textById)', () => {
+    // French/Portuguese pods: main-course audio was re-rendered and the old
+    // June split slices deleted, but the pod row still lists them. The clip
+    // ids don't resolve, so the split must fall back to the whole-turn render.
+    const row = {
+      target_text: 'Buongiorno. Come stai?',
+      known_text: 'Good morning. How are you?',
+      target_audio_id: 'WHOLE_T',
+      known_audio_id: 'WHOLE_K',
+      sentence_audio_ids: ['t0', 't1'],       // t1 was deleted
+      sentence_known_audio_ids: ['k0', 'k1'],
+    }
+    const textById = new Map([
+      ['t0', 'Buongiorno.'],
+      // t1 missing → stale slice
+      ['k0', 'Good morning.'],
+      ['k1', 'How are you?'],
+    ])
+    const units = splitRowUnits(row, textById)
+    expect(units).toHaveLength(1)
+    expect(units[0]).toMatchObject({ isSplit: false, targetAudioId: 'WHOLE_T', knownAudioId: 'WHOLE_K' })
+  })
+
+  it('still splits when every clip resolves in textById', () => {
+    const row = {
+      target_text: 'Buongiorno. Come stai?',
+      known_text: 'Good morning. How are you?',
+      sentence_audio_ids: ['t0', 't1'],
+      sentence_known_audio_ids: ['k0', 'k1'],
+    }
+    const textById = new Map([
+      ['t0', 'Buongiorno.'], ['t1', 'Come stai?'],
+      ['k0', 'Good morning.'], ['k1', 'How are you?'],
+    ])
+    expect(splitRowUnits(row, textById)).toHaveLength(2)
+  })
 })
 
 describe('partitionAtomMap', () => {

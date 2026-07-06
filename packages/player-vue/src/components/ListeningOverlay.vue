@@ -8,6 +8,8 @@ import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPo
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
+import { rungStepsForGroup, normalizeForAudio as normForAudio } from '@ssi/core/pods'
+import { PodStateStore } from '@ssi/core'
 
 // ============================================================================
 // Listening Overlay - Teleprompter style overlay for passive listening
@@ -84,14 +86,26 @@ class ListeningAudioController {
   }
 
   /** Play one clip. rateOverride (stage-pattern ×2 plays) takes precedence
-   *  over the user's global speed for THIS clip only. */
-  async play(url, rateOverride = null) {
+   *  over the user's global speed for THIS clip only.
+   *
+   *  `slice` = {startMs, endMs}: play only that ms span of the clip — the
+   *  fusion drill plays chunks as contiguous slices of a sentence's Take G
+   *  render. Seek happens once metadata is in; the stop is rAF-granularity
+   *  (ontimeupdate fires ~4/s — ~250ms overshoot, audibly bleeds the next
+   *  chunk) with a rate-scaled wall-timer backstop. Under a locked screen
+   *  both freeze — the slice then plays to the clip's natural end and the
+   *  'ended' handler still advances; drill is a screen-on, eyes-on-strips
+   *  activity, so the trade is acceptable.
+   */
+  async play(url, rateOverride = null, slice = null) {
     if (!url) {
       console.warn('[ListeningAudio] No audio URL')
       return
     }
 
     this._ensureAudio()
+    // A new play always cancels the previous slice watchers (reused element).
+    if (this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
 
     this.audio.src = url
     this.audio.load()
@@ -100,12 +114,18 @@ class ListeningAudioController {
       let settled = false
       let safetyTimer = null
       let stallCheck = null
+      let sliceRaf = null
+      let sliceTimer = null
 
       const cleanup = () => {
         if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null }
         if (stallCheck) { clearInterval(stallCheck); stallCheck = null }
+        if (sliceRaf) { cancelAnimationFrame(sliceRaf); sliceRaf = null }
+        if (sliceTimer) { clearTimeout(sliceTimer); sliceTimer = null }
+        this._cancelSlice = null
         this.audio.removeEventListener('ended', onEnded)
         this.audio.removeEventListener('error', onError)
+        this.audio.removeEventListener('loadedmetadata', onMetadata)
       }
 
       const onEnded = () => {
@@ -122,8 +142,43 @@ class ListeningAudioController {
         reject(e)
       }
 
+      // Slice end: pause at endMs and resolve as if the clip ended.
+      const endSlice = () => {
+        if (settled) return
+        this.audio.pause()
+        onEnded()
+      }
+
+      const armSliceStop = () => {
+        const endSec = slice.endMs / 1000
+        const watch = () => {
+          if (settled) return
+          if ((this.audio.currentTime || 0) >= endSec) { endSlice(); return }
+          sliceRaf = requestAnimationFrame(watch)
+        }
+        sliceRaf = requestAnimationFrame(watch)
+        // Backstop: expected span length at the effective rate + a beat.
+        const rate = this.audio.playbackRate || 1
+        const spanMs = Math.max(0, slice.endMs - slice.startMs)
+        sliceTimer = setTimeout(endSlice, spanMs / rate + 400)
+      }
+
+      const onMetadata = () => {
+        if (settled || !slice) return
+        try { this.audio.currentTime = slice.startMs / 1000 } catch { /* pre-seek race — play from 0 */ }
+        armSliceStop()
+      }
+
       this.audio.addEventListener('ended', onEnded)
       this.audio.addEventListener('error', onError)
+      if (slice) {
+        // Cancelling (a new play / stop) resolves the pending promise — the
+        // caller's playbackId guard discards the stale continuation.
+        this._cancelSlice = () => { if (!settled) onEnded() }
+        // Metadata may already be in (cached blob) — seek straight away.
+        if (this.audio.readyState >= 1) onMetadata()
+        else this.audio.addEventListener('loadedmetadata', onMetadata)
+      }
 
       // Stall detection: resolve if currentTime stops advancing for 3s
       let lastTime = -1
@@ -152,6 +207,7 @@ class ListeningAudioController {
   }
 
   stop() {
+    if (this._cancelSlice) { this._cancelSlice(); this._cancelSlice = null }
     if (this.audio) {
       this.audio.pause()
       this.audio.currentTime = 0
@@ -177,6 +233,12 @@ const props = defineProps({
    */
   upToSeed: {
     type: Number,
+    default: null
+  },
+  /** Learner id — keys the shared two-doors pod counter (learner_pod_state).
+   *  Guests/demo keep a device-local counter. */
+  learnerId: {
+    type: String,
     default: null
   }
 })
@@ -255,6 +317,151 @@ watch(listenMode, (m) => { try { localStorage.setItem('ssi-listening-mode', m) }
 // Keep the selection valid: a retired key (Flow/Guided/Practice/Turbo/audit)
 // falls back to the default.
 watch(validModeKeys, (keys) => { if (!keys.has(listenMode.value)) listenMode.value = 'immersion' }, { immediate: true })
+
+// ── Fusion drill (Aran's pairwise gradual-fusion model, Tom 2026-07-05) ────
+// Dialogue Drill climbs one rung per VISIT of a scene: finest agent-authored
+// units → pairwise fusions → the whole SENTENCE, where it stays. Every chunk
+// at every rung is t·k·t·t. Capped at the sentence — a 3-4 sentence turn is
+// far too much to hold, so the turn-whole never drills (Immersion owns it).
+const FUSION_MODE = 'pairwise'
+
+// pod_fine_known clips (agent-authored unit glosses / window translations),
+// text-keyed by course_audio.text_normalized. Loaded once per course, paged
+// under PostgREST's row cap.
+const fineKnownByNorm = ref(new Map())
+let fineKnownLoadState = null // null | 'loading' | 'ready'
+const ensureFineKnowns = async () => {
+  if (fineKnownLoadState || !supabase?.value || !props.courseCode) return
+  fineKnownLoadState = 'loading'
+  try {
+    const page = 1000
+    for (let from = 0; ; from += page) {
+      const { data, error: err } = await supabase.value
+        .from('course_audio')
+        .select('id, text_normalized')
+        .eq('course_code', props.courseCode)
+        .eq('role', 'pod_fine_known')
+        .range(from, from + page - 1)
+      if (err) throw err
+      for (const r of data || []) fineKnownByNorm.value.set(r.text_normalized, r.id)
+      if (!data || data.length < page) break
+    }
+    fineKnownLoadState = 'ready'
+    fusionComposeCache = new Map() // recompose with real knowns now they exist
+  } catch (e) {
+    console.warn('[ListeningOverlay] fine-known load failed:', e?.message || e)
+    fineKnownLoadState = null // transient — retry on next scene open
+  }
+}
+const lookupFineKnown = (text) => fineKnownByNorm.value.get(normForAudio(text)) || null
+
+// ── Shared two-doors pod counter (learner_pod_state) ───────────────────────
+// exposures = views a sentence has COMPLETED across BOTH doors (main-flow pod
+// laps + this Drill). Drill serves fusion rung = effective exposures, where
+// effective = max(stored, derived main-flow floor) and the floor comes from
+// the lap ratchet's staggered intake: completed = completed_pod_rounds −
+// podOrdinal + 1. A completed Drill pass writes effective + 1 back — so main
+// flow lifts drill, drill lifts main flow. Guests keep a device-local map.
+const isGuestLearner = (id) => !id || id === 'demo-learner' || id.startsWith('guest-')
+const podExposuresMap = ref(new Map())
+const mainPodRounds = ref(0)
+let podStateLoadState = null // null | 'loading' | 'ready'
+const guestPodStateKey = () => `ssi-pod-exposures:${props.courseCode}`
+
+const ensurePodState = async () => {
+  if (podStateLoadState) return
+  podStateLoadState = 'loading'
+  try {
+    if (isGuestLearner(props.learnerId)) {
+      try {
+        const raw = JSON.parse(localStorage.getItem(guestPodStateKey()) || '{}')
+        podExposuresMap.value = new Map(Object.entries(raw).filter(([, v]) => typeof v === 'number'))
+      } catch { podExposuresMap.value = new Map() }
+    } else if (supabase?.value) {
+      const [state, enrollment] = await Promise.all([
+        new PodStateStore({ client: supabase.value }).loadAll(props.learnerId, props.courseCode),
+        supabase.value
+          .from('course_enrollments')
+          .select('completed_pod_rounds')
+          .eq('learner_id', props.learnerId)
+          .eq('course_id', props.courseCode)
+          .maybeSingle(),
+      ])
+      podExposuresMap.value = state
+      mainPodRounds.value = enrollment?.data?.completed_pod_rounds ?? 0
+    }
+    podStateLoadState = 'ready'
+    fusionComposeCache = new Map() // recompose at the real rungs
+  } catch (e) {
+    console.warn('[ListeningOverlay] pod state load failed (rung 0 fallback):', e?.message || e)
+    podStateLoadState = null
+  }
+}
+
+/** Effective completed exposures for a sentence = max(shared counter,
+ *  derived main-flow floor). This IS the Drill rung (rung 0 = first visit). */
+const exposuresFor = (sentenceId, podOrdinal) => {
+  const stored = podExposuresMap.value.get(sentenceId) ?? 0
+  const derived = podOrdinal ? Math.max(0, mainPodRounds.value - podOrdinal + 1) : 0
+  return Math.max(stored, derived)
+}
+
+/** One completed Drill pass of a scene = +1 exposure for every sentence in it
+ *  — at most once per sitting (massed reps must not fake the spacing). */
+const rungAdvancedScenes = new Set()
+const advanceScenePodState = (scene) => {
+  if (rungAdvancedScenes.has(scene.sceneNumber)) return
+  rungAdvancedScenes.add(scene.sceneNumber)
+  const next = new Map(podExposuresMap.value)
+  const rows = []
+  for (const t of scene.turns) {
+    const s = t.sentences?.[0]
+    if (!s?.id) continue
+    const exposures = exposuresFor(s.id, s.podOrdinal) + 1
+    next.set(s.id, exposures)
+    rows.push({ sentence_id: s.id, exposures })
+  }
+  if (!rows.length) return
+  podExposuresMap.value = next
+  fusionComposeCache = new Map()
+  if (isGuestLearner(props.learnerId)) {
+    try { localStorage.setItem(guestPodStateKey(), JSON.stringify(Object.fromEntries(next))) } catch { /* private mode */ }
+  } else if (supabase?.value) {
+    new PodStateStore({ client: supabase.value })
+      .upsertMany(rows.map((r) => ({ learner_id: props.learnerId, course_code: props.courseCode, ...r })))
+      .catch((e) => console.warn('[ListeningOverlay] pod state write failed:', e?.message || e))
+  }
+}
+
+// Which strip of the current row is sounding — drives the strip highlight.
+const activeStripIndex = ref(-1)
+
+// Rung compositions are pure + deterministic — memoise per (row, rung).
+let fusionComposeCache = new Map()
+const fusionRungFor = (phrase) => {
+  const s = phrase.sentences?.[0]
+  const groups = phrase.fusionGroups || s?.fusionGroups
+  if (!groups || !groups.length || !s) return null
+  const rung = exposuresFor(s.id, s.podOrdinal)
+  const key = `${phrase.id}:${rung}:${fineKnownLoadState === 'ready' ? 1 : 0}`
+  let out = fusionComposeCache.get(key)
+  if (!out) {
+    const strips = []
+    const steps = []
+    for (const g of groups) {
+      const r = rungStepsForGroup(g, rung, FUSION_MODE, lookupFineKnown, strips.length)
+      strips.push(...r.strips)
+      steps.push(...r.steps)
+    }
+    out = { strips, steps }
+    fusionComposeCache.set(key, out)
+  }
+  return out
+}
+const fusionStripsFor = (phrase) => {
+  if (!isDialogueScene.value || listenMode.value !== 'drill') return null
+  return fusionRungFor(phrase)?.strips || null
+}
 
 // Known-language glosses can be hidden entirely (long canon-v2 turns make
 // the gloss block heavy when you don't need it).
@@ -399,6 +606,11 @@ const jumpToBelt = (point) => {
 const openScene = (scene) => {
   stopPlayback()
   selectedScene.value = scene
+  // Fusion drill: pull the shared two-doors counters + main-flow floor (the
+  // rungs this scene's sentences resume at), and the fine-known clip map.
+  fusionComposeCache = new Map()
+  void ensurePodState()
+  if (scene.turns.some((t) => t.sentences?.[0]?.fusionGroups)) void ensureFineKnowns()
   // Flatten the scene's turns into ONE ROW PER CHUNK (per-phrase granularity,
   // Tom 2026-06-12). The turn grouping survives only as presentation: the
   // speaker chip shows on a turn's FIRST chunk, and the inter-row gap is
@@ -448,6 +660,9 @@ const openScene = (scene) => {
         audioIds: s.targetAudioId ? [s.targetAudioId] : [],
         // Single-chunk detail — keeps the play queue + gloss split working.
         sentences: [s],
+        // Fusion-drill payload (null → Drill falls back to plain t·k·t·t).
+        fusionGroups: s.fusionGroups || null,
+        fusionContinuation: !!s.fusionContinuation,
         // True only on a speaker change — drives the speaker-aware gap (tight
         // within a paragraph, a full breath across speakers).
         isTurnStart: paragraphStart,
@@ -977,6 +1192,26 @@ const buildModalQueue = (units) => {
  */
 const buildPlayQueue = (phrase) => {
   if (isDialogueScene.value) {
+    // Drill with authored fine seams: the pairwise gradual-fusion ladder.
+    // Chunks at this scene's rung, each t·k·t·t, chunk audio = ms slices of
+    // the sentence's Take G. A glued continuation row plays inside its
+    // anchor row, so its own queue is empty.
+    if (listenMode.value === 'drill') {
+      if (phrase.fusionContinuation) return []
+      const rung = fusionRungFor(phrase)
+      if (rung) {
+        const base = playbackSpeed.value || 1
+        return rung.steps
+          .filter((st) => st.clip)
+          .map((st) => ({
+            id: st.clip.id,
+            rate: base,
+            startMs: st.clip.startMs,
+            endMs: st.clip.endMs,
+            stripIndex: st.stripIndex,
+          }))
+      }
+    }
     // Per-chunk detail drives both modes; fall back to the turn's first
     // audio id if a row somehow lacks sentence detail.
     const units = (Array.isArray(phrase.sentences) && phrase.sentences.length > 0)
@@ -1005,6 +1240,13 @@ const buildPlayQueue = (phrase) => {
  *  now leads each line. */
 const audioIdsForWarm = (phrase) => {
   if (!phrase) return []
+  // Fusion drill: warm exactly what this rung plays (Take G renders + the
+  // fine-known clips) — the slices come out of the whole cached take.
+  // fusionRungFor reads rows AND turns (payload lives on sentences[0]).
+  if (isDialogueScene.value && listenMode.value === 'drill') {
+    const rung = fusionRungFor(phrase)
+    if (rung) return [...new Set(rung.steps.map((st) => st.clip?.id).filter(Boolean))]
+  }
   const ids = []
   const wantKnown = modeSurface.value && listenMode.value === 'drill'
   if (Array.isArray(phrase.sentences) && phrase.sentences.length > 0) {
@@ -1074,10 +1316,11 @@ const playCurrentPhrase = async (myPlaybackId) => {
   // deliberate practice; Immersion keeps the tight 50ms that joins a
   // speaker's consecutive chunks into natural continuous speech.
   const interClipGap = (modeSurface.value && listenMode.value === 'drill') ? GAP_DRILL_MS : GAP_IMMERSION_JOIN_MS
+  activeStripIndex.value = -1
   for (let i = 0; i < playQueue.length; i++) {
     if (myPlaybackId !== playbackId) return
     const item = playQueue[i]
-    const { id, rate } = item
+    const { id, rate, startMs, endMs, stripIndex } = item
     const proxyUrl = getAudioUrl(id)
     if (!proxyUrl) continue
     // Resolve through the SHARED substrate: a cached WAV blob from IndexedDB
@@ -1092,7 +1335,13 @@ const playCurrentPhrase = async (myPlaybackId) => {
       // chosen speed, Drill = 1×/2×/2×), so a Core/All speed never leaks in.
       // Core/All pass rate=null and lean on the controller's rate watch.
       const effectiveRate = modeSurface.value ? (rate ?? 1) : rate
-      await audioController.value.play(audioUrl, effectiveRate)
+      // Fusion-drill strips: light the strip this step belongs to.
+      activeStripIndex.value = stripIndex ?? -1
+      await audioController.value.play(
+        audioUrl,
+        effectiveRate,
+        startMs != null && endMs != null ? { startMs, endMs } : null,
+      )
     } catch (err) {
       console.error('[ListeningOverlay] Audio play failed:', err)
     }
@@ -1155,6 +1404,15 @@ const advanceToNext = async (myPlaybackId) => {
 
 const handleEndOfList = async (myPlaybackId) => {
   if (myPlaybackId !== playbackId) return
+
+  // A completed Drill pass of a dialogue scene = one exposure for each of its
+  // sentences on the shared two-doors counter (at most once per sitting;
+  // groups clamp to their own depth, so topped-out sentences repeat their
+  // whole). The main flow reads the same counter, so drilled sentences enter
+  // their next pod lap past the breakdown they've outgrown.
+  if (view.value === 'pods' && selectedScene.value && listenMode.value === 'drill') {
+    advanceScenePodState(selectedScene.value)
+  }
 
   // Dialogues view with a scene selected: loop the scene or auto-advance
   // to the next scene, depending on the loop toggle. Default is auto-
@@ -1227,6 +1485,7 @@ const playAllScenes = async () => {
 const stopPlayback = () => {
   playbackId++
   isPlaying.value = false
+  activeStripIndex.value = -1
   audioController.value?.stop()
 }
 
@@ -1910,11 +2169,26 @@ watch(
             <div v-if="phrase.speakerName" class="phrase-speaker" :style="{ color: phrase.speakerColor }">
               <span class="phrase-speaker-dot" :style="{ background: phrase.speakerColor }"></span>{{ phrase.speakerName }}
             </div>
+            <!-- Fusion drill (Dialogues > Drill with authored fine seams):
+                 the sentence at its current rung — separate strips that go
+                 in turn, one per chunk, each playing t·k·t·t. The sounding
+                 strip is lit; the rest wait quietly. -->
+            <template v-if="phrase.isCurrent && fusionStripsFor(phrase)">
+              <div
+                v-for="(strip, si) in fusionStripsFor(phrase)"
+                :key="si"
+                class="phrase-pair fusion-strip"
+                :class="{ active: si === activeStripIndex }"
+              >
+                <div class="phrase-target">{{ strip.target }}</div>
+                <div v-if="showGloss && strip.known" class="phrase-known interleaved">{{ strip.known }}</div>
+              </div>
+            </template>
             <!-- Current dialogue turn: interleave target and gloss sentence
                  by sentence (aligned from per-sentence data + faithful-canon
                  sentence splitting) so long turns stay matchable. Other rows
                  keep the plain paragraph. Gloss honours the eye toggle. -->
-            <template v-if="phrase.isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
+            <template v-else-if="phrase.isCurrent && Array.isArray(phrase.sentences) && phrase.sentences.length">
               <div v-for="(pair, pi) in glossPairsFor(phrase)" :key="pi" class="phrase-pair">
                 <div class="phrase-target">{{ pair.target }}</div>
                 <div v-if="showGloss && pair.known" class="phrase-known interleaved">{{ pair.known }}</div>
@@ -2809,5 +3083,16 @@ watch(
 }
 .phrase-known.interleaved {
   margin-top: 0.1rem;
+}
+
+/* Fusion-drill strips — the sentence at its current rung, one strip per
+ * chunk. The sounding strip is lit; siblings wait quietly. State is
+ * opacity, not chrome: the strips must read as parts of ONE sentence. */
+.fusion-strip {
+  opacity: 0.35;
+  transition: opacity 0.2s ease;
+}
+.fusion-strip.active {
+  opacity: 1;
 }
 </style>

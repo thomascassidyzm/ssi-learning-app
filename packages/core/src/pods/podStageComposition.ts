@@ -59,6 +59,11 @@ export const isTargetRole = (role: PodPlayRole): boolean =>
   role !== 'trans' && role !== 'explainer'
 
 export interface PodSentenceRow {
+  /** Stable per-sentence id — the source row's id, or `${id}:s${index}` for a
+   *  June-split unit. Joins this sentence to `learner_pod_state.sentence_id`
+   *  (the shared two-doors exposure counter). Optional: legacy callers that
+   *  don't set it simply get no cross-door credit. */
+  sentence_id?: string | null
   global_order: number
   target_text: string
   known_text: string
@@ -101,6 +106,10 @@ export interface PodPlay {
   /** Stage-0 only: explicit gap (ms) to wait AFTER this play, taken from the
    *  stage0 config rather than the role gap-matrix. */
   gapAfterMs?: number
+  /** Fusion rungs only: play just this ms span of the clip (a chunk sliced
+   *  out of the sentence's Take G render). Absent → play the whole clip. */
+  startMs?: number
+  endMs?: number
 }
 
 /** Warn-once-per-stage guard for the trailing-known defensive close, so a
