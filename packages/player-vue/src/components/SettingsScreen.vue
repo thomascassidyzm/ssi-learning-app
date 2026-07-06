@@ -14,6 +14,7 @@ import { useCheckout } from '../composables/useCheckout'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
+import { formatFurthestPoint, canRecoverToFurthest } from '../utils/furthestProgress'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -53,6 +54,119 @@ const seedsCompleted = computed(() => {
   return match ? parseInt(match[1], 10) : 0
 })
 const hasProgress = computed(() => seedsCompleted.value > 0 || totalLearningMinutes.value > 0)
+
+// ============================================================================
+// FURTHEST-POINT RECOVERY (catastrophe recovery — settings-only, opt-in)
+//
+// Reads the ratcheted ceiling (course_enrollments.highest_completed_lego_id /
+// highest_completed_round_index) directly — this is deliberately NOT the same
+// as useBeltProgress's `highestLegoId`, which mirrors the cursor under the
+// 2026-07-04 cursor-only model. The ceiling is the one value that only ever
+// moves forward and is written by the DB ratchet trigger, so it survives an
+// uninstall + fresh login even if the local cursor is lost. See
+// utils/furthestProgress.ts for the "highest incomplete LEGO" definition.
+//
+// Read-only here: this never writes the ceiling, and never moves the cursor
+// except through the explicit confirmRecover action below.
+// ============================================================================
+const furthestLegoId = ref<string | null>(null)
+const furthestRoundIndex = ref<number | null>(null)
+const cursorLegoId = ref<string | null>(null)
+
+const loadFurthestProgress = async () => {
+  if (!supabase?.value || !auth?.learnerId?.value || auth.learnerId.value.startsWith('guest-') || !courseCode.value) {
+    return
+  }
+  try {
+    const { data, error } = await supabase.value
+      .from('course_enrollments')
+      .select('last_completed_lego_id, highest_completed_lego_id, highest_completed_round_index')
+      .eq('learner_id', auth.learnerId.value)
+      .eq('course_id', courseCode.value)
+      .maybeSingle()
+
+    if (error) {
+      console.warn('[Settings] Failed to load furthest progress:', error.message)
+      return
+    }
+
+    cursorLegoId.value = data?.last_completed_lego_id ?? null
+    furthestLegoId.value = data?.highest_completed_lego_id ?? null
+    furthestRoundIndex.value = typeof data?.highest_completed_round_index === 'number'
+      ? data.highest_completed_round_index
+      : null
+  } catch (err) {
+    console.warn('[Settings] Failed to load furthest progress:', err)
+  }
+}
+
+const furthestPointDisplay = computed(() => formatFurthestPoint(furthestLegoId.value))
+const canRecover = computed(() =>
+  canRecoverToFurthest(cursorLegoId.value, furthestLegoId.value) && furthestRoundIndex.value !== null
+)
+
+onMounted(loadFurthestProgress)
+
+// Recover-to-furthest confirmation state
+const showRecoverConfirm = ref(false)
+const isRecovering = ref(false)
+const recoverError = ref<string | null>(null)
+const recoverSuccess = ref(false)
+
+const handleRecoverClick = () => {
+  if (!canRecover.value) return
+  showRecoverConfirm.value = true
+  recoverError.value = null
+  recoverSuccess.value = false
+}
+
+const cancelRecover = () => {
+  showRecoverConfirm.value = false
+}
+
+const confirmRecover = async () => {
+  if (!supabase?.value || !auth?.learnerId?.value || !courseCode.value || !furthestLegoId.value || furthestRoundIndex.value === null) {
+    recoverError.value = 'Unable to recover position'
+    return
+  }
+
+  isRecovering.value = true
+  recoverError.value = null
+
+  try {
+    const { error } = await supabase.value
+      .from('course_enrollments')
+      .update({
+        last_completed_lego_id: furthestLegoId.value,
+        last_completed_round_index: furthestRoundIndex.value,
+        current_cycle_index: 0,
+        last_practiced_at: new Date().toISOString(),
+      })
+      .eq('learner_id', auth.learnerId.value)
+      .eq('course_id', courseCode.value)
+
+    if (error) throw error
+
+    // The device's cached position (localStorage) is checked BEFORE the
+    // server cursor on resume — clear it so the reload below actually picks
+    // up the recovered position instead of re-serving a stale local cache.
+    try {
+      localStorage.removeItem(`ssi_learning_position_${courseCode.value}`)
+    } catch { /* ignore — best-effort */ }
+
+    recoverSuccess.value = true
+    setTimeout(() => {
+      showRecoverConfirm.value = false
+      recoverSuccess.value = false
+      window.location.reload()
+    }, 1200)
+  } catch (err) {
+    console.error('[Settings] Recover-to-furthest error:', err)
+    recoverError.value = 'Failed to recover position'
+  } finally {
+    isRecovering.value = false
+  }
+}
 
 const formattedLearningTime = computed(() => {
   const mins = totalLearningMinutes.value
@@ -1166,6 +1280,33 @@ const confirmReset = async () => {
       </div>
     </Transition>
 
+    <!-- Recover-to-furthest confirm dialog -->
+    <Transition name="fade">
+      <div v-if="showRecoverConfirm" class="reset-overlay">
+        <div class="reset-dialog">
+          <div class="reset-icon recover-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 19V5M5 12l7-7 7 7"/>
+            </svg>
+          </div>
+          <h3 class="reset-title">Move to your furthest point?</h3>
+          <p class="reset-desc">
+            This will move your position to {{ furthestPointDisplay }} — continue?
+          </p>
+          <p v-if="recoverError" class="reset-error">{{ recoverError }}</p>
+          <p v-if="recoverSuccess" class="reset-success">Position recovered!</p>
+          <div class="reset-actions">
+            <button class="reset-btn reset-btn--cancel" @click="cancelRecover" :disabled="isRecovering">
+              Cancel
+            </button>
+            <button class="reset-btn reset-btn--recover" @click="confirmRecover" :disabled="isRecovering">
+              {{ isRecovering ? 'Moving...' : 'Move Position' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Clear Cache confirm dialog -->
     <Transition name="fade">
       <div v-if="showClearConfirm" class="reset-overlay">
@@ -1769,6 +1910,31 @@ const confirmReset = async () => {
               <span class="setting-desc">£15/month — unlimited access to all languages</span>
             </div>
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- Progress Recovery Section — catastrophe-recovery path. The cursor
+           (last_completed_lego_id) stays the live position everywhere else;
+           this is the ONLY place the ceiling can move it, and only on an
+           explicit tap + confirm. Never auto-moves the learner. -->
+      <section v-if="isSignedIn && furthestPointDisplay" class="section">
+        <h3 class="section-title">Progress Recovery</h3>
+        <div class="card">
+          <div
+            class="setting-row"
+            :class="{ clickable: canRecover }"
+            @click="canRecover && handleRecoverClick()"
+          >
+            <div class="setting-info">
+              <span class="setting-label">Furthest point reached: {{ furthestPointDisplay }}</span>
+              <span class="setting-desc">
+                {{ canRecover ? 'Lost your place? Recover to your furthest point.' : "You're at your furthest point." }}
+              </span>
+            </div>
+            <svg v-if="canRecover" class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
@@ -2785,6 +2951,10 @@ const confirmReset = async () => {
   height: 100%;
 }
 
+.recover-icon {
+  color: var(--accent);
+}
+
 .reset-title {
   font-size: 1.25rem;
   font-weight: 600;
@@ -2873,6 +3043,15 @@ const confirmReset = async () => {
 
 .reset-btn--confirm:hover:not(:disabled) {
   background: #dc2626;
+}
+
+.reset-btn--recover {
+  background: var(--accent);
+  color: var(--text-on-accent);
+}
+
+.reset-btn--recover:hover:not(:disabled) {
+  filter: brightness(0.9);
 }
 
 /* Offline Download Styles */
