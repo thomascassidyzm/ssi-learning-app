@@ -27,6 +27,18 @@ describe('formatFurthestPoint', () => {
     expect(formatFurthestPoint(null)).toBeNull()
     expect(formatFurthestPoint('garbage')).toBeNull()
   })
+
+  it('includes the seed sentence when provided', () => {
+    expect(formatFurthestPoint('S0150L02', 'I want to speak Ukrainian with my friends')).toBe(
+      'Seed 150 — "I want to speak Ukrainian with my friends"'
+    )
+  })
+
+  it('falls back to the coordinate-only form when seed text is absent', () => {
+    expect(formatFurthestPoint('S0150L02', null)).toBe('Seed 150 / Lego 2')
+    expect(formatFurthestPoint('S0150L02', undefined)).toBe('Seed 150 / Lego 2')
+    expect(formatFurthestPoint('S0150L02', '')).toBe('Seed 150 / Lego 2')
+  })
 })
 
 describe('canRecoverToFurthest', () => {
