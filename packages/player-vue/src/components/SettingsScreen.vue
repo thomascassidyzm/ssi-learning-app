@@ -14,7 +14,7 @@ import { useCheckout } from '../composables/useCheckout'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
-import { formatFurthestPoint, canRecoverToFurthest } from '../utils/furthestProgress'
+import { formatFurthestPoint, canRecoverToFurthest, parseLegoPosition } from '../utils/furthestProgress'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -73,6 +73,13 @@ const furthestLegoId = ref<string | null>(null)
 const furthestRoundIndex = ref<number | null>(null)
 const cursorLegoId = ref<string | null>(null)
 
+// Seed sentences (known-language) for the furthest/cursor readouts — best
+// effort only. A miss here (course_seeds row not found, query error) just
+// falls back to the coordinate-only display; it never blocks the recovery
+// action, which only needs the lego id + round index above.
+const furthestSeedText = ref<string | null>(null)
+const cursorSeedText = ref<string | null>(null)
+
 const loadFurthestProgress = async () => {
   if (!supabase?.value || !auth?.learnerId?.value || auth.learnerId.value.startsWith('guest-') || !courseCode.value) {
     return
@@ -95,12 +102,46 @@ const loadFurthestProgress = async () => {
     furthestRoundIndex.value = typeof data?.highest_completed_round_index === 'number'
       ? data.highest_completed_round_index
       : null
+
+    loadSeedTexts()
   } catch (err) {
     console.warn('[Settings] Failed to load furthest progress:', err)
   }
 }
 
-const furthestPointDisplay = computed(() => formatFurthestPoint(furthestLegoId.value))
+// Best-effort lookup of the known-language sentence for the furthest/cursor
+// seed numbers, so the readout can say what those positions actually mean.
+const loadSeedTexts = async () => {
+  if (!supabase?.value || !courseCode.value) return
+
+  const seedNumbers = [...new Set(
+    [furthestLegoId.value, cursorLegoId.value]
+      .map(id => parseLegoPosition(id)?.seed)
+      .filter((n): n is number => typeof n === 'number')
+  )]
+  if (seedNumbers.length === 0) return
+
+  try {
+    const { data, error } = await supabase.value
+      .from('course_seeds')
+      .select('seed_number, known_text')
+      .eq('course_code', courseCode.value)
+      .in('seed_number', seedNumbers)
+
+    if (error || !data) return
+
+    const textBySeed = new Map<number, string>(data.map((row: any) => [row.seed_number, row.known_text]))
+    const furthestSeed = parseLegoPosition(furthestLegoId.value)?.seed
+    const cursorSeed = parseLegoPosition(cursorLegoId.value)?.seed
+    furthestSeedText.value = (furthestSeed !== undefined ? textBySeed.get(furthestSeed) : null) ?? null
+    cursorSeedText.value = (cursorSeed !== undefined ? textBySeed.get(cursorSeed) : null) ?? null
+  } catch (err) {
+    console.warn('[Settings] Failed to load seed text (non-fatal):', err)
+  }
+}
+
+const furthestPointDisplay = computed(() => formatFurthestPoint(furthestLegoId.value, furthestSeedText.value))
+const cursorPointDisplay = computed(() => formatFurthestPoint(cursorLegoId.value, cursorSeedText.value))
 const canRecover = computed(() =>
   canRecoverToFurthest(cursorLegoId.value, furthestLegoId.value) && furthestRoundIndex.value !== null
 )
@@ -2075,6 +2116,7 @@ const confirmReset = async () => {
                   {{ canRecover
                     ? `If this device's progress ever resets, jump back to your furthest point (${furthestPointDisplay}).`
                     : `You're at your furthest point (${furthestPointDisplay}).` }}
+                  <template v-if="canRecover && cursorPointDisplay"> You are at: {{ cursorPointDisplay }}.</template>
                 </span>
               </div>
               <svg v-if="canRecover" class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
