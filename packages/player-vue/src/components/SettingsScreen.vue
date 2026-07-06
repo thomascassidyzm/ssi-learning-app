@@ -1916,31 +1916,6 @@ const confirmReset = async () => {
         </div>
       </section>
 
-      <!-- Progress Recovery Section — catastrophe-recovery path. The cursor
-           (last_completed_lego_id) stays the live position everywhere else;
-           this is the ONLY place the ceiling can move it, and only on an
-           explicit tap + confirm. Never auto-moves the learner. -->
-      <section v-if="isSignedIn && furthestPointDisplay" class="section">
-        <h3 class="section-title">Progress Recovery</h3>
-        <div class="card">
-          <div
-            class="setting-row"
-            :class="{ clickable: canRecover }"
-            @click="canRecover && handleRecoverClick()"
-          >
-            <div class="setting-info">
-              <span class="setting-label">Furthest point reached: {{ furthestPointDisplay }}</span>
-              <span class="setting-desc">
-                {{ canRecover ? 'Lost your place? Recover to your furthest point.' : "You're at your furthest point." }}
-              </span>
-            </div>
-            <svg v-if="canRecover" class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-        </div>
-      </section>
-
       <!-- Data Section -->
       <section class="section">
         <h3 class="section-title">{{ t('settings.data') }}</h3>
@@ -2081,6 +2056,32 @@ const confirmReset = async () => {
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </div>
+
+          <!-- Quiet catastrophe-recovery affordance — deliberately understated
+               and buried here, not a top-level feature. Only for the rare case
+               where a device loses its position (uninstall, fresh login, a
+               reset gone wrong); most learners never need this. Read-only
+               display + explicit tap + confirm — never auto-moves anyone. -->
+          <template v-if="isSignedIn && furthestPointDisplay">
+            <div class="divider"></div>
+            <div
+              class="setting-row"
+              :class="{ clickable: canRecover }"
+              @click="canRecover && handleRecoverClick()"
+            >
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.recoverPosition', 'Recover a lost position') }}</span>
+                <span class="setting-desc">
+                  {{ canRecover
+                    ? `If this device's progress ever resets, jump back to your furthest point (${furthestPointDisplay}).`
+                    : `You're at your furthest point (${furthestPointDisplay}).` }}
+                </span>
+              </div>
+              <svg v-if="canRecover" class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
+            </div>
+          </template>
         </div>
       </section>
 
