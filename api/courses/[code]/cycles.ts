@@ -39,6 +39,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
+import { resolveServerCourseAccess } from '../../_utils/courseAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -206,18 +207,34 @@ export default async function handler(
     // Single Postgres call: everything we need (course version, round window,
     // legos for that window, phrases for that window's seeds) in one network
     // round-trip. See migration 20260518_course_cycles_window_fn.sql for the
-    // function definition.
+    // function definition. The RPC's `course` payload only carries
+    // course_code + version (no pricing metadata), so the entitlement gate
+    // needs its own tiny lookup — run in parallel, it's a single indexed row.
     const ROUND_FETCH = Math.min(limit + 2, MAX_LIMIT + 2)
-    const { data, error } = await supabase.rpc('get_course_cycles_window', {
-      p_course_code: code,
-      p_from_lego_id: from,
-      p_round_limit: ROUND_FETCH,
-    })
+    const [rpcResult, pricingRes] = await Promise.all([
+      supabase.rpc('get_course_cycles_window', {
+        p_course_code: code,
+        p_from_lego_id: from,
+        p_round_limit: ROUND_FETCH,
+      }),
+      supabase
+        .from('courses')
+        .select('target_lang, pricing_tier, is_community')
+        .eq('course_code', code)
+        .maybeSingle(),
+    ])
+    const { data, error } = rpcResult
 
     if (error) {
       console.error('[Cycles] rpc error:', error.message)
       res.setHeader('Cache-Control', 'no-store')
       res.status(500).json({ error: 'Failed to load cycles window' })
+      return
+    }
+    if (pricingRes.error) {
+      console.error('[Cycles] pricing lookup failed:', pricingRes.error.message)
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(500).json({ error: 'Failed to load course pricing' })
       return
     }
 
@@ -240,9 +257,51 @@ export default async function handler(
     }
 
     const version = payload.course.version
-    const rounds = payload.rounds
-    const legoRows = payload.legos || []
-    const phraseRows = payload.phrases || []
+
+    // --- Entitlement gate -----------------------------------------------------
+    // Free/community courses skip auth entirely. Premium courses require a
+    // valid Supabase Auth token + active subscription/entitlement for full
+    // content; anonymous or unsubscribed callers get sliced down to the
+    // free-preview window (through Yellow Belt), mirroring bundle.ts. A
+    // request starting `from` a LEGO beyond the preview window is denied
+    // outright (400) rather than silently returning an empty cycle list —
+    // there's nothing to preview-slice mid-window the way bundle.ts slices
+    // a whole-course payload.
+    const pricingRow = (pricingRes.data || {}) as {
+      target_lang: string | null
+      pricing_tier: string | null
+      is_community: boolean | null
+    }
+    const access = await resolveServerCourseAccess(req, supabase, {
+      course_code: code,
+      pricing_tier: pricingRow.pricing_tier,
+      is_community: pricingRow.is_community,
+      target_lang: pricingRow.target_lang,
+    })
+    const previewOnly = !access.canAccess
+    if (previewOnly && !(access.canPreview && access.previewMaxSeed)) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(403).json({ error: 'Subscription required', reason: access.reason })
+      return
+    }
+    const previewMaxSeed = access.previewMaxSeed ?? 0
+
+    const fromParsed = parseLegoId(from)
+    if (previewOnly && fromParsed && fromParsed.seedNumber > previewMaxSeed) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(403).json({ error: 'Subscription required', reason: access.reason })
+      return
+    }
+
+    const rounds = previewOnly
+      ? payload.rounds.filter((r) => r.seed_number <= previewMaxSeed)
+      : payload.rounds
+    const legoRows = previewOnly
+      ? (payload.legos || []).filter((l) => l.seed_number <= previewMaxSeed)
+      : payload.legos || []
+    const phraseRows = previewOnly
+      ? (payload.phrases || []).filter((p) => p.seed_number <= previewMaxSeed)
+      : payload.phrases || []
 
     // Index for O(1) lookup during the per-LEGO walk.
     const legoByKey = new Map<string, CourseLegoRow>()
@@ -302,12 +361,16 @@ export default async function handler(
       }
     }
 
+    // On a preview slice, a null nextLegoId means "preview window exhausted",
+    // NOT "course finished" — the previewOnly flag lets the frontend tell
+    // the two apart and show the paywall instead of a completion screen.
     res.setHeader('Cache-Control', 'private, max-age=60')
     res.status(200).json({
       course_code: code,
       version,
       cycles,
       next_lego_id: nextLegoId,
+      ...(previewOnly ? { preview_only: true } : {}),
     })
   } catch (error) {
     console.error('[Cycles] Unexpected error:', error)

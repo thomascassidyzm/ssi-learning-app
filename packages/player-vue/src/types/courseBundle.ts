@@ -28,7 +28,11 @@
  *
  * Endpoint contract (see api/courses/[code]/bundle.ts):
  *   GET /api/courses/:code/bundle
- *   - 200: CourseBundle (Cache-Control: private, max-age=300, s-maxage=86400)
+ *   - 200: CourseBundle (Cache-Control: private, max-age=300, s-maxage=86400).
+ *     Free/community courses and full-access premium callers get everything;
+ *     an unauthenticated/unsubscribed caller on a premium course gets the
+ *     same shape truncated to the free-preview window (`previewOnly: true`).
+ *   - 403: premium course, caller has no access and (defensively) no preview
  *   - 404: course_code unknown
  *   - 503: round-index materialised view empty (operator action needed)
  */
@@ -282,6 +286,13 @@ export interface CourseBundle {
   roundMap: BundleRoundMapEntry[]
   /** Listening pods (Layer 2) — empty array if the course has none. */
   pods: BundlePod[]
+  /**
+   * True when the server sliced this bundle down to the free-preview window
+   * (unauthenticated or unsubscribed caller on a premium course) — content
+   * beyond `previewMaxSeed`/Yellow Belt was never fetched, not just hidden.
+   * Absent/false = the full course.
+   */
+  previewOnly?: boolean
 }
 
 // ============================================================================
