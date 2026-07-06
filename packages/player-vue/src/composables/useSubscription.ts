@@ -28,6 +28,20 @@ import type {
 const SUBSCRIPTION_KEY = 'ssi_subscription'
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
+// Bounds the "hasHydrated stays false" grace period on the initial fetch.
+// isPending (derived from !hasHydrated in useEntitlement) optimistically
+// unlocks premium UI while a legitimate fetch is in flight — necessary
+// because a page-load race shouldn't bounce a paying subscriber to the
+// paywall. But that same optimism fails OPEN forever if /api/subscription
+// is simply never allowed to resolve (blocked request, dead connection).
+// After this timeout we declare hydration done (fail closed — not
+// subscribed) regardless; the in-flight fetch keeps running in the
+// background and will correct `subscription` the moment it actually
+// resolves. Real content enforcement is server-side (checkCourseAccess
+// here is UI-only), so this only bounds how long the cosmetic grace
+// period can be held open.
+const HYDRATION_TIMEOUT_MS = 8000
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -317,7 +331,13 @@ export function useSubscription(): UseSubscriptionReturn {
 
   async function initialize(): Promise<void> {
     if (!resolveSupabase(supabaseRef)) return
-    await fetchSubscription()
+    await Promise.race([
+      fetchSubscription(),
+      new Promise<void>((resolve) => setTimeout(resolve, HYDRATION_TIMEOUT_MS)),
+    ])
+    // Timed out before fetchSubscription set it itself — fail closed rather
+    // than leave isPending optimistically true indefinitely.
+    if (!hasHydrated.value) hasHydrated.value = true
     // Just came back from Paddle checkout — keep polling until the activating
     // webhook lands so the learner doesn't bounce off the paywall mid-redirect.
     try {

@@ -2,6 +2,15 @@
 -- highest_completed_lego_id to be honored as a deliberate reset, instead of
 -- being silently restored to OLD by the ratchet-up-only trigger.
 --
+-- Applied to live 2026-07-04 (commit eb98de2f, "fix(progress): honor explicit
+-- NULL as deliberate reset in ratchet trigger") as a hand-applied one-off
+-- (supabase/pending_ratchet_allow_explicit_reset.sql, never numbered) and
+-- already reflected in schema.sql's ratchet_highest_completed_round().
+-- Promoted into a numbered migration here (2026-07-06 security-fix pass) so
+-- this history isn't only a hand-run SQL file outside the migrations
+-- directory — schema.sql remains the canonical source of truth per
+-- supabase/migrations/README.md; this file is the drop-in record.
+--
 -- PostgREST partial updates: a column NOT present in the request payload
 -- arrives in NEW carrying its OLD value. So at trigger entry (before this
 -- function does anything), NEW.highest_completed_round_index IS NULL only if
