@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLegoPosition, formatFurthestPoint, canRecoverToFurthest } from './furthestProgress'
+import { parseLegoPosition, formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from './furthestProgress'
 
 describe('parseLegoPosition', () => {
   it('parses a well-formed lego id', () => {
@@ -19,7 +19,7 @@ describe('parseLegoPosition', () => {
 })
 
 describe('formatFurthestPoint', () => {
-  it('returns null for a valid lego id with no sentence available', () => {
+  it('returns null for a valid lego id with no lego text available', () => {
     expect(formatFurthestPoint('S0044L03')).toBeNull()
   })
 
@@ -28,16 +28,38 @@ describe('formatFurthestPoint', () => {
     expect(formatFurthestPoint('garbage')).toBeNull()
   })
 
-  it('quotes the seed sentence when provided, never labelling it as a seed/position', () => {
-    expect(formatFurthestPoint('S0150L02', 'I want to speak Ukrainian with my friends')).toBe(
-      '"I want to speak Ukrainian with my friends"'
+  it('quotes target + known lego text as a pair, never labelling it as a seed/position', () => {
+    expect(formatFurthestPoint('S0150L02', 'quiero aprender', 'I want to learn')).toBe(
+      '"quiero aprender" — "I want to learn"'
     )
   })
 
-  it('returns null when seed text is absent (no coordinate fallback)', () => {
-    expect(formatFurthestPoint('S0150L02', null)).toBeNull()
-    expect(formatFurthestPoint('S0150L02', undefined)).toBeNull()
-    expect(formatFurthestPoint('S0150L02', '')).toBeNull()
+  it('returns null when either text is absent (no coordinate fallback)', () => {
+    expect(formatFurthestPoint('S0150L02', null, 'I want to learn')).toBeNull()
+    expect(formatFurthestPoint('S0150L02', 'quiero aprender', null)).toBeNull()
+    expect(formatFurthestPoint('S0150L02', undefined, undefined)).toBeNull()
+    expect(formatFurthestPoint('S0150L02', '', '')).toBeNull()
+  })
+})
+
+describe('formatFurthestTarget', () => {
+  it('returns null for a valid lego id with no target text available', () => {
+    expect(formatFurthestTarget('S0044L03')).toBeNull()
+  })
+
+  it('returns null when there is nothing to show', () => {
+    expect(formatFurthestTarget(null)).toBeNull()
+    expect(formatFurthestTarget('garbage')).toBeNull()
+  })
+
+  it('quotes only the target text, never labelling it as a seed/position', () => {
+    expect(formatFurthestTarget('S0150L02', 'quiero aprender')).toBe('"quiero aprender"')
+  })
+
+  it('returns null when target text is absent (no coordinate fallback)', () => {
+    expect(formatFurthestTarget('S0150L02', null)).toBeNull()
+    expect(formatFurthestTarget('S0150L02', undefined)).toBeNull()
+    expect(formatFurthestTarget('S0150L02', '')).toBeNull()
   })
 })
 
