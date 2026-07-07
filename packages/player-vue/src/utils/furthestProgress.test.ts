@@ -19,8 +19,8 @@ describe('parseLegoPosition', () => {
 })
 
 describe('formatFurthestPoint', () => {
-  it('formats a valid lego id', () => {
-    expect(formatFurthestPoint('S0044L03')).toBe('Seed 44 / Lego 3')
+  it('returns null for a valid lego id with no sentence available', () => {
+    expect(formatFurthestPoint('S0044L03')).toBeNull()
   })
 
   it('returns null when there is nothing to show', () => {
@@ -28,16 +28,16 @@ describe('formatFurthestPoint', () => {
     expect(formatFurthestPoint('garbage')).toBeNull()
   })
 
-  it('includes the seed sentence when provided', () => {
+  it('quotes the seed sentence when provided, never labelling it as a seed/position', () => {
     expect(formatFurthestPoint('S0150L02', 'I want to speak Ukrainian with my friends')).toBe(
-      'Seed 150 — "I want to speak Ukrainian with my friends"'
+      '"I want to speak Ukrainian with my friends"'
     )
   })
 
-  it('falls back to the coordinate-only form when seed text is absent', () => {
-    expect(formatFurthestPoint('S0150L02', null)).toBe('Seed 150 / Lego 2')
-    expect(formatFurthestPoint('S0150L02', undefined)).toBe('Seed 150 / Lego 2')
-    expect(formatFurthestPoint('S0150L02', '')).toBe('Seed 150 / Lego 2')
+  it('returns null when seed text is absent (no coordinate fallback)', () => {
+    expect(formatFurthestPoint('S0150L02', null)).toBeNull()
+    expect(formatFurthestPoint('S0150L02', undefined)).toBeNull()
+    expect(formatFurthestPoint('S0150L02', '')).toBeNull()
   })
 })
 
