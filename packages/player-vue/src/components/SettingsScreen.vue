@@ -140,10 +140,32 @@ const loadSeedTexts = async () => {
   }
 }
 
+// Position is never shown as "Seed N" — only the sentence (when resolved) or
+// generic "your furthest point" wording. `hasFurthestPoint` (not the display
+// string, which may be null when the sentence lookup hasn't resolved) gates
+// whether the feature row appears at all.
 const furthestPointDisplay = computed(() => formatFurthestPoint(furthestLegoId.value, furthestSeedText.value))
 const cursorPointDisplay = computed(() => formatFurthestPoint(cursorLegoId.value, cursorSeedText.value))
+const hasFurthestPoint = computed(() => !!furthestLegoId.value)
 const canRecover = computed(() =>
   canRecoverToFurthest(cursorLegoId.value, furthestLegoId.value) && furthestRoundIndex.value !== null
+)
+const recoverDescription = computed(() => {
+  const furthest = furthestPointDisplay.value
+  const cursor = cursorPointDisplay.value
+  if (canRecover.value) {
+    const base = furthest
+      ? `If this device's progress ever resets, jump back to your furthest point: ${furthest}.`
+      : `If this device's progress ever resets, jump back to your furthest point.`
+    return cursor ? `${base} You are currently at: ${cursor}.` : base
+  }
+  return furthest
+    ? `You're at your furthest point: ${furthest}.`
+    : `You're at your furthest point.`
+})
+const recoverConfirmText = computed(() => furthestPointDisplay.value
+  ? `This will move your position to your furthest point: ${furthestPointDisplay.value} — continue?`
+  : 'This will move your position to your furthest point — continue?'
 )
 
 onMounted(loadFurthestProgress)
@@ -1332,7 +1354,7 @@ const confirmReset = async () => {
           </div>
           <h3 class="reset-title">Move to your furthest point?</h3>
           <p class="reset-desc">
-            This will move your position to {{ furthestPointDisplay }} — continue?
+            {{ recoverConfirmText }}
           </p>
           <p v-if="recoverError" class="reset-error">{{ recoverError }}</p>
           <p v-if="recoverSuccess" class="reset-success">Position recovered!</p>
@@ -2103,7 +2125,7 @@ const confirmReset = async () => {
                where a device loses its position (uninstall, fresh login, a
                reset gone wrong); most learners never need this. Read-only
                display + explicit tap + confirm — never auto-moves anyone. -->
-          <template v-if="isSignedIn && furthestPointDisplay">
+          <template v-if="isSignedIn && hasFurthestPoint">
             <div class="divider"></div>
             <div
               class="setting-row"
@@ -2112,12 +2134,7 @@ const confirmReset = async () => {
             >
               <div class="setting-info">
                 <span class="setting-label">{{ t('settings.recoverPosition', 'Recover a lost position') }}</span>
-                <span class="setting-desc">
-                  {{ canRecover
-                    ? `If this device's progress ever resets, jump back to your furthest point (${furthestPointDisplay}).`
-                    : `You're at your furthest point (${furthestPointDisplay}).` }}
-                  <template v-if="canRecover && cursorPointDisplay"> You are at: {{ cursorPointDisplay }}.</template>
-                </span>
+                <span class="setting-desc">{{ recoverDescription }}</span>
               </div>
               <svg v-if="canRecover" class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M9 18l6-6-6-6"/>
