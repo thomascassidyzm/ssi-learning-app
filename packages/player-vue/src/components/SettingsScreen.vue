@@ -14,7 +14,7 @@ import { useCheckout } from '../composables/useCheckout'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
-import { formatFurthestPoint, canRecoverToFurthest, parseLegoPosition } from '../utils/furthestProgress'
+import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -73,12 +73,12 @@ const furthestLegoId = ref<string | null>(null)
 const furthestRoundIndex = ref<number | null>(null)
 const cursorLegoId = ref<string | null>(null)
 
-// Seed sentences (known-language) for the furthest/cursor readouts — best
-// effort only. A miss here (course_seeds row not found, query error) just
-// falls back to the coordinate-only display; it never blocks the recovery
-// action, which only needs the lego id + round index above.
-const furthestSeedText = ref<string | null>(null)
-const cursorSeedText = ref<string | null>(null)
+// The furthest lego's own content, both languages — best effort only. A miss
+// here (course_legos row not found, query error) just falls back to generic
+// "your furthest point" wording; it never blocks the recovery action, which
+// only needs the lego id + round index above.
+const furthestTargetText = ref<string | null>(null)
+const furthestKnownText = ref<string | null>(null)
 
 const loadFurthestProgress = async () => {
   if (!supabase?.value || !auth?.learnerId?.value || auth.learnerId.value.startsWith('guest-') || !courseCode.value) {
@@ -103,68 +103,59 @@ const loadFurthestProgress = async () => {
       ? data.highest_completed_round_index
       : null
 
-    loadSeedTexts()
+    loadFurthestLegoText()
   } catch (err) {
     console.warn('[Settings] Failed to load furthest progress:', err)
   }
 }
 
-// Best-effort lookup of the known-language sentence for the furthest/cursor
-// seed numbers, so the readout can say what those positions actually mean.
-const loadSeedTexts = async () => {
-  if (!supabase?.value || !courseCode.value) return
-
-  const seedNumbers = [...new Set(
-    [furthestLegoId.value, cursorLegoId.value]
-      .map(id => parseLegoPosition(id)?.seed)
-      .filter((n): n is number => typeof n === 'number')
-  )]
-  if (seedNumbers.length === 0) return
+// Best-effort lookup of the furthest lego's own target/known text — the app
+// already loads lego content for play, so reuse the same table here rather
+// than seed sentences (which don't identify what was actually introduced).
+const loadFurthestLegoText = async () => {
+  if (!supabase?.value || !courseCode.value || !furthestLegoId.value) return
 
   try {
     const { data, error } = await supabase.value
-      .from('course_seeds')
-      .select('seed_number, known_text')
+      .from('course_legos')
+      .select('target_text, target_text_roman, known_text')
       .eq('course_code', courseCode.value)
-      .in('seed_number', seedNumbers)
+      .eq('lego_id', furthestLegoId.value)
+      .maybeSingle()
 
     if (error || !data) return
 
-    const textBySeed = new Map<number, string>(data.map((row: any) => [row.seed_number, row.known_text]))
-    const furthestSeed = parseLegoPosition(furthestLegoId.value)?.seed
-    const cursorSeed = parseLegoPosition(cursorLegoId.value)?.seed
-    furthestSeedText.value = (furthestSeed !== undefined ? textBySeed.get(furthestSeed) : null) ?? null
-    cursorSeedText.value = (cursorSeed !== undefined ? textBySeed.get(cursorSeed) : null) ?? null
+    furthestTargetText.value = data.target_text_roman || data.target_text || null
+    furthestKnownText.value = data.known_text ?? null
   } catch (err) {
-    console.warn('[Settings] Failed to load seed text (non-fatal):', err)
+    console.warn('[Settings] Failed to load furthest lego text (non-fatal):', err)
   }
 }
 
-// Position is never shown as "Seed N" — only the sentence (when resolved) or
-// generic "your furthest point" wording. `hasFurthestPoint` (not the display
-// string, which may be null when the sentence lookup hasn't resolved) gates
-// whether the feature row appears at all.
-const furthestPointDisplay = computed(() => formatFurthestPoint(furthestLegoId.value, furthestSeedText.value))
-const cursorPointDisplay = computed(() => formatFurthestPoint(cursorLegoId.value, cursorSeedText.value))
+// Position is never shown as "Seed N" or a seed sentence — only the lego's
+// own target+known text (when resolved) or generic "your furthest point"
+// wording. `hasFurthestPoint` (not the display string, which may be null
+// while the text lookup hasn't resolved) gates whether the row appears.
+const furthestPointDisplay = computed(() => formatFurthestPoint(furthestLegoId.value, furthestTargetText.value, furthestKnownText.value))
+const furthestTargetDisplay = computed(() => formatFurthestTarget(furthestLegoId.value, furthestTargetText.value))
 const hasFurthestPoint = computed(() => !!furthestLegoId.value)
 const canRecover = computed(() =>
   canRecoverToFurthest(cursorLegoId.value, furthestLegoId.value) && furthestRoundIndex.value !== null
 )
 const recoverDescription = computed(() => {
   const furthest = furthestPointDisplay.value
-  const cursor = cursorPointDisplay.value
-  if (canRecover.value) {
-    const base = furthest
-      ? `If this device's progress ever resets, jump back to your furthest point: ${furthest}.`
-      : `If this device's progress ever resets, jump back to your furthest point.`
-    return cursor ? `${base} You are currently at: ${cursor}.` : base
-  }
-  return furthest
-    ? `You're at your furthest point: ${furthest}.`
+  const base = furthest
+    ? `The furthest you've been in this course was: ${furthest}.`
     : `You're at your furthest point.`
+  if (canRecover.value) {
+    return furthest
+      ? `${base} If this device's progress ever resets, you can jump back there.`
+      : `If this device's progress ever resets, jump back to your furthest point.`
+  }
+  return base
 })
-const recoverConfirmText = computed(() => furthestPointDisplay.value
-  ? `This will move your position to your furthest point: ${furthestPointDisplay.value} — continue?`
+const recoverConfirmText = computed(() => furthestTargetDisplay.value
+  ? `This will move you back to where ${furthestTargetDisplay.value} was introduced — continue?`
   : 'This will move your position to your furthest point — continue?'
 )
 
@@ -202,6 +193,13 @@ const confirmRecover = async () => {
       .update({
         last_completed_lego_id: furthestLegoId.value,
         last_completed_round_index: furthestRoundIndex.value,
+        // 0, not a saved mid-round cycle: every resume path (bootstrap,
+        // cache fast-path, stale-matview repair) reads current_cycle_index
+        // only when the cursor resolves to THIS lego id, and each round's
+        // own primary lego is unique to it (toSimpleRounds) — so landing on
+        // furthestLegoId's round at cycle 0 is that round's intro cycle,
+        // i.e. arriving feels like the original introduction, never a
+        // mid-round drop.
         current_cycle_index: 0,
         last_practiced_at: new Date().toISOString(),
       })

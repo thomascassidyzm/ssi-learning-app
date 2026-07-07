@@ -24,15 +24,33 @@ export function parseLegoPosition(legoId: string | null): { seed: number; legoIn
 }
 
 /**
- * Quoted known-language sentence for the furthest-point-reached readout
- * (e.g. `"I want to speak Ukrainian with my friends"`), or null when there's
- * no valid lego id, or `seedText` (best-effort — a lookup that may not have
- * resolved yet) isn't available. Position is never expressed as "Seed N" —
- * learners never see raw seed/lego coordinates, only the sentence they reached.
+ * The learner-meaningful fact for the furthest-point readout: the LEGO's own
+ * content in both languages — the last target-language word/phrase that was
+ * introduced, and what it meant (e.g. `"quiero aprender" — "I want to learn"`).
+ * Null when there's no valid lego id, or the lego's target/known text (a
+ * lookup that may not have resolved yet) isn't available. Position is never
+ * expressed as "Seed N" or a seed sentence — learners never see raw
+ * seed/lego coordinates, only the lego content they reached.
  */
-export function formatFurthestPoint(legoId: string | null, seedText?: string | null): string | null {
+export function formatFurthestPoint(
+  legoId: string | null,
+  targetText?: string | null,
+  knownText?: string | null,
+): string | null {
   if (!parseLegoPosition(legoId)) return null
-  return seedText ? `"${seedText}"` : null
+  if (!targetText || !knownText) return null
+  return `"${targetText}" — "${knownText}"`
+}
+
+/**
+ * Target-language-only quote of the lego's content (e.g. `"quiero aprender"`),
+ * for contexts — the recovery confirm dialog — that only need "where '<phrase>'
+ * was introduced" rather than the full target+known pair. Same fallback rules
+ * as formatFurthestPoint: null on an invalid lego id or missing text.
+ */
+export function formatFurthestTarget(legoId: string | null, targetText?: string | null): string | null {
+  if (!parseLegoPosition(legoId)) return null
+  return targetText ? `"${targetText}"` : null
 }
 
 /**
