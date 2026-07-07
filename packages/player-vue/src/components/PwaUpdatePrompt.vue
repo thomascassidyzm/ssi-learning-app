@@ -8,8 +8,14 @@
  * as Update) or the next SW update arrives.
  */
 import { useRegisterSW } from 'virtual:pwa-register/vue'
-import { computed, onUnmounted, watch } from 'vue'
-import { updateAvailable, userDismissed, setApplyUpdate } from '@/composables/usePwaUpdate'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import {
+  updateAvailable, userDismissed, setApplyUpdate,
+  isDifferentBuild, fetchLatestBuildNumber,
+} from '@/composables/usePwaUpdate'
+
+// @ts-ignore - __BUILD_NUMBER__ is defined by Vite (same pattern as App.vue).
+const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
 
 let updateCheckInterval: ReturnType<typeof setInterval> | null = null
 
@@ -29,18 +35,43 @@ const {
   onRegisterError(error) {
     console.error('[PWA] Service worker registration error:', error)
   },
-  onNeedRefresh() {
-    // Fresh notification — clear any stale dismissal so the banner shows.
-    userDismissed.value = false
-  },
 })
 
-// Mirror needRefresh into the shared ref so the blue dot (rendered
+// needRefresh only means "a new SW is waiting" — NOT "the running app is
+// behind". Navigations are NetworkFirst, so the page can already be on the
+// latest build before the new SW finishes installing; verify against the
+// build actually live (/version.json) before surfacing anything. Starts
+// false so nothing flashes while the check is in flight.
+const verifiedNewBuild = ref(false)
+
+async function verifyAgainstLiveBuild() {
+  const latest = await fetchLatestBuildNumber()
+  // needRefresh may have flipped back false while we were checking (or this
+  // is a re-check for a build we already verified) — only act if still relevant.
+  if (!needRefresh.value) return
+  if (isDifferentBuild(BUILD_VERSION, latest)) {
+    verifiedNewBuild.value = true
+    userDismissed.value = false // fresh, genuine notification — clear any stale dismissal
+  } else {
+    console.log('[PWA] needRefresh fired but /version.json matches the running build — suppressing stale banner')
+    verifiedNewBuild.value = false
+  }
+}
+
+watch(needRefresh, (v) => {
+  if (v) {
+    void verifyAgainstLiveBuild()
+  } else {
+    verifiedNewBuild.value = false
+  }
+}, { immediate: true })
+
+// Mirror the verified signal into the shared ref so the blue dot (rendered
 // elsewhere) can react.
-watch(needRefresh, (v) => { updateAvailable.value = v }, { immediate: true })
+watch(verifiedNewBuild, (v) => { updateAvailable.value = v })
 
 // Banner is visible only until the user dismisses — then the dot takes over.
-const showBanner = computed(() => needRefresh.value && !userDismissed.value)
+const showBanner = computed(() => verifiedNewBuild.value && !userDismissed.value)
 
 // vite-plugin-pwa's updateServiceWorker(true) posts SKIP_WAITING and the
 // library reloads on controllerchange. The 3s fallback covers a stuck SW
@@ -48,6 +79,7 @@ const showBanner = computed(() => needRefresh.value && !userDismissed.value)
 function onUpdate() {
   console.log('[PWA] Updating...')
   updateAvailable.value = false
+  verifiedNewBuild.value = false
   userDismissed.value = false
   const fallback = setTimeout(() => {
     console.warn('[PWA] SW controlling event did not fire within 3s, forcing reload')

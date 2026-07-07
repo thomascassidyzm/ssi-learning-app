@@ -22,10 +22,29 @@ const buildNumber = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
 const swSelfUpdate = process.env.VERCEL_ENV !== 'production'
   && process.env.VERCEL_GIT_COMMIT_REF !== 'staging'
 
+// Emits /version.json (static, never precached — see globPatterns below) so
+// the running app can ask "what build is actually live right now?" without
+// going through the service worker at all. This is what lets the update
+// banner tell a genuinely-new deploy apart from a waiting SW that's stale
+// only in SW-bookkeeping terms (see PwaUpdatePrompt.vue for why that gap
+// exists). Reuses the exact same buildNumber as __BUILD_NUMBER__ so the two
+// are always comparable.
+const versionFilePlugin = () => ({
+  name: 'ssi-version-file',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'version.json',
+      source: JSON.stringify({ buildNumber }),
+    })
+  },
+})
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
+    versionFilePlugin(),
     VitePWA({
       // prompt: new SW waits until the user actively triggers it (banner
       // or blue dot). Tom's hard rule (2026-05-21): NEVER force-update
