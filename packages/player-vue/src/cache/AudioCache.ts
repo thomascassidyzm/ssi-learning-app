@@ -81,6 +81,7 @@ export class AudioCacheImpl implements AudioCache {
     // Bind namespace facades to `this`.
     this.persistent = {
       ensure: (id) => this.persistentEnsure(id),
+      ensureFromUrl: (id, url) => this.persistentEnsureFromUrl(id, url),
       has: (id) => this.persistentIds.has(id),
       getBlobUrl: (id) => this.getBlobUrl(id),
       evictToTarget: (targetBytes) => this.persistentEvictToTarget(targetBytes),
@@ -163,9 +164,26 @@ export class AudioCacheImpl implements AudioCache {
     return p
   }
 
+  private persistentEnsureFromUrl(id: AudioId, url: string): Promise<void> {
+    if (this.persistentIds.has(id)) return Promise.resolve()
+    const existing = this.inflight.get(id)
+    if (existing) return existing
+
+    const p = this.doFetchAndStore(id, {
+      lifecycle: 'persistent',
+      ephemeralOwnerLegoId: null,
+      url,
+    })
+      .finally(() => {
+        this.inflight.delete(id)
+      })
+    this.inflight.set(id, p)
+    return p
+  }
+
   private async doFetchAndStore(
     id: AudioId,
-    opts: { lifecycle: AudioLifecycle; ephemeralOwnerLegoId: string | null; signal?: AbortSignal },
+    opts: { lifecycle: AudioLifecycle; ephemeralOwnerLegoId: string | null; signal?: AbortSignal; url?: string },
   ): Promise<void> {
     await this.init()
     if (!this.db) throw new Error('AudioCache: DB not initialized')
@@ -197,7 +215,7 @@ export class AudioCacheImpl implements AudioCache {
       this.ephemeralIds.delete(id)
     }
 
-    const res = await fetch(this.audioUrl(id), opts.signal ? { signal: opts.signal } : undefined)
+    const res = await fetch(opts.url ?? this.audioUrl(id), opts.signal ? { signal: opts.signal } : undefined)
     if (!res.ok) {
       throw new Error(`AudioCache: fetch ${id} → ${res.status}`)
     }

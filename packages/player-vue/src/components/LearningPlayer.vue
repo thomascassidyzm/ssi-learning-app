@@ -45,6 +45,7 @@ import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { computePauseDuration } from '../playback/computePauseDuration'
+import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
@@ -9371,39 +9372,26 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] downloading ${missing.length} of ${ids.length} audio files (depth: ${roundsAhead === Infinity ? 'rest of course' : roundsAhead + ' rounds'})`)
-  // Concurrency: aggressive when nothing is playing (the download is the only
-  // network user), polite when a session is live (protect the live next-clip
-  // fetch). Re-evaluated EACH batch — the learner can hit play mid-download.
-  // 12 is past the point where the bottleneck is network latency (these clips
-  // are ~24KB); going higher mainly raises backend cold-start/throttle risk for
-  // little speed gain.
-  const concNow = () => (isPlaying.value ? 4 : 12)
-  // Retry a clip a few times with backoff before counting it failed, so a
-  // transient backend throttle (429 under burst) doesn't become a permanent
-  // "download incomplete". ensure() dedupes in-flight, so retries never
-  // double-fetch.
-  const ensureWithRetry = async (id: string): Promise<void> => {
-    for (let attempt = 0; ; attempt++) {
-      try { await audioCache.persistent.ensure(id); return }
-      catch (err) {
-        if (attempt >= 2) throw err                                   // 3 tries total
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))  // 300ms, 600ms backoff
-      }
-    }
-  }
-  let i = 0
-  while (i < missing.length) {
-    if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
-    const batch = missing.slice(i, i + concNow())
-    i += batch.length
-    await Promise.all(batch.map(async (id) => {
-      // Count ONLY genuine cache writes. A clip that still fails after retries
-      // must NOT tick progress — otherwise "Ready ✓" lies and offline plays
-      // silence (the train test).
-      try { await ensureWithRetry(id); offlineDlDone.value++ }
-      catch { offlineDlFailed.value++ }
-    }))
-  }
+  // Batches presigned S3 URLs and fetches bytes directly, falling back to the
+  // per-clip /api/audio proxy (ensure()) for anything the batch path can't
+  // resolve. Counts ONLY genuine cache writes — a clip that still fails after
+  // retries must NOT tick progress, else "Ready ✓" lies and offline plays
+  // silence (the train test).
+  const completed = await bulkDownloadAudio(
+    missing,
+    {
+      fetchBatchUrls: fetchBatchAudioUrls,
+      ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
+      ensure: (id) => audioCache.persistent.ensure(id),
+      isCancelled: () => !offlineActive.value,
+      isPlaying: () => isPlaying.value,
+    },
+    {
+      onDone: () => { offlineDlDone.value++ },
+      onFailed: () => { offlineDlFailed.value++ },
+    },
+  )
+  if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT (round structure) to IndexedDB, not just the audio.
   // The offline cold-reopen fast-path reads getCachedScript() to know what
@@ -9851,26 +9839,21 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] INF PLAY USE-only: downloading ${missing.length} of ${ids.length} audio files`)
-  const concNow = () => (isPlaying.value ? 4 : 12)
-  const ensureWithRetry = async (id: string): Promise<void> => {
-    for (let attempt = 0; ; attempt++) {
-      try { await audioCache.persistent.ensure(id); return }
-      catch (err) {
-        if (attempt >= 2) throw err
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
-      }
-    }
-  }
-  let i = 0
-  while (i < missing.length) {
-    if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
-    const batch = missing.slice(i, i + concNow())
-    i += batch.length
-    await Promise.all(batch.map(async (id) => {
-      try { await ensureWithRetry(id); offlineDlDone.value++ }
-      catch { offlineDlFailed.value++ }
-    }))
-  }
+  const completed = await bulkDownloadAudio(
+    missing,
+    {
+      fetchBatchUrls: fetchBatchAudioUrls,
+      ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
+      ensure: (id) => audioCache.persistent.ensure(id),
+      isCancelled: () => !offlineActive.value,
+      isPlaying: () => isPlaying.value,
+    },
+    {
+      onDone: () => { offlineDlDone.value++ },
+      onFailed: () => { offlineDlFailed.value++ },
+    },
+  )
+  if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT for the cold-reopen fast-path — identical to
   // downloadForOffline. For INF PLAY cachedRounds is already the USE-only
