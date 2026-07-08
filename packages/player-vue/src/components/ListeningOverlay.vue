@@ -5,6 +5,7 @@ import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepaliv
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
+import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -950,13 +951,28 @@ const loadSeeds = async () => {
     isLoading.value = true
     error.value = null
 
-    const { data, error: fetchError } = await supabase.value
-      .from('course_seeds')
-      .select('seed_number, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id')
-      .eq('course_code', props.courseCode)
-      .order('seed_number', { ascending: true })
-
-    if (fetchError) throw fetchError
+    // Offline (or a mid-air fetch failure): serve the seed list persisted by
+    // the deliberate offline download. Cache-first when offline so the tab
+    // opens instantly instead of waiting on a doomed fetch.
+    const seedsFromCache = async () => (await getCachedListeningMeta(props.courseCode))?.coreSeeds ?? null
+    let data = null
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      data = await seedsFromCache()
+    }
+    if (!data) {
+      const { data: liveData, error: fetchError } = await supabase.value
+        .from('course_seeds')
+        .select('seed_number, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id')
+        .eq('course_code', props.courseCode)
+        .order('seed_number', { ascending: true })
+      if (fetchError) {
+        data = await seedsFromCache()
+        if (!data) throw fetchError
+        console.warn('[ListeningOverlay] live seed fetch failed — using offline metadata cache:', fetchError.message)
+      } else {
+        data = liveData
+      }
+    }
 
     const rows = (data || []).map((s) => {
       const beltIndex = beltIndexForSeed(s.seed_number)
@@ -989,7 +1005,11 @@ const loadSeeds = async () => {
     prefetchTopRows()
   } catch (err) {
     console.error('[ListeningOverlay] loadSeeds error:', err)
-    error.value = 'Failed to load seeds'
+    // Offline with nothing downloaded: a clear human state, never an
+    // infinite spinner or a raw fetch error (Tom's airplane-mode test).
+    error.value = typeof navigator !== 'undefined' && navigator.onLine === false
+      ? "Core isn't downloaded yet — connect once and download for offline to bring it along."
+      : 'Failed to load seeds'
   } finally {
     isLoading.value = false
   }
