@@ -8912,6 +8912,34 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
 
 const offlinePlaybackActive = (): boolean =>
   (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
+
+// Which belts the pill nav must grey out while offline. A belt is available
+// offline iff its landing round (the belt's first LEGO, via findRoundIndex-
+// ForBeltThreshold) has at least one cycle whose audio is ACTUALLY in the
+// persistent cache — not merely a loaded round object. cachedRounds (script
+// structure) races well ahead of audioCache (the heavy bytes): background
+// script expansion can populate rounds for belts whose audio was never
+// fetched, so a round-presence-only check under-greys and a tapped pill
+// would land on silence. Mirrors shouldSkipCycle's own offline audio-
+// presence check (the engine's own bar for "playable offline"), so a pill
+// reads available exactly when landing there would actually produce sound.
+// White belt (seedsRequired 0, the course start) is always present.
+const offlineUnavailableBeltNames = computed<Set<string>>(() => {
+  if (!offlinePlaybackActive()) return new Set()
+  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
+  const audioCached = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
+  const rounds = cachedRounds.value || []
+  const names = new Set<string>()
+  for (const belt of BELTS) {
+    if (belt.seedsRequired === 0) continue
+    const idx = simplePlayer.findRoundIndexForBeltThreshold(belt.seedsRequired)
+    const cycles = idx >= 0 ? (((rounds[idx]) as any)?.cycles || []) : []
+    const hasPlayableCycle = cycles.some((c: any) =>
+      audioCached(c?.known?.audioUrl) && audioCached(c?.target?.voice1Url) && audioCached(c?.target?.voice2Url))
+    if (!hasPlayableCycle) names.add(belt.name)
+  }
+  return names
+})
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
 // from useOfflineDownloadStatus and written by downloadForOffline below. The UI
 // for it now lives on the mode button (the ring) + the Offline row in ModeTray,
@@ -9205,6 +9233,107 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
 // buffer stays topped up through a lock instead of draining and falling back to
 // streaming every clip.
 
+// Ceiling for the offline Listening-mode bundle (Core seeds + All USE
+// phrases): the learner's actual course POSITION — the ratcheted ceiling
+// (highestCompletedLegoId), never a seed-based notion of position. Content
+// past this hasn't been taught yet, so there's nothing there to review.
+// +1 mirrors ListeningOverlay's own upToSeed convention (its DB filter is
+// strictly seed_number < upToSeed), so this seed is included, not excluded.
+const listeningOfflineCeilingSeed = (): number | null => {
+  const legoId = highestCompletedLegoId.value
+  if (!legoId) return null
+  const seed = getSeedFromLegoId(legoId)
+  return seed != null ? seed + 1 : null
+}
+
+/**
+ * Core (course_seeds whole-sentence audio) + All (course_practice_phrases
+ * USE-phrase audio) — the same two pools ListeningOverlay's Core/All tabs
+ * read live — bounded to the learner's position so a deliberate offline
+ * download makes both playable with no network (Tom 2026-07-08). Returns []
+ * before anything's been completed (nothing to review yet). Paginated
+ * (mirrors collectInfPlayUseAudioIds) — a single .limit() silently
+ * truncates on big courses (banked lesson).
+ */
+const collectListeningModeAudioIds = async (): Promise<string[]> => {
+  const client = supabase.value
+  const code = courseCode.value
+  if (!client || !code) return []
+  const ceilingSeed = listeningOfflineCeilingSeed()
+  if (ceilingSeed == null) return []
+  const ids = new Set<string>()
+  const PAGE = 1000
+
+  // Core — every seed's whole-sentence audio, paginated.
+  try {
+    const { count, error: countErr } = await client
+      .from('course_seeds')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_code', code)
+      .lt('seed_number', ceilingSeed)
+    if (countErr) {
+      console.warn('[Offline] Listening Core (seeds) count failed:', countErr.message)
+    } else {
+      const total = count ?? 0
+      const pageCount = Math.ceil(total / PAGE)
+      const pages = await Promise.all(
+        Array.from({ length: pageCount }, (_, i) =>
+          client
+            .from('course_seeds')
+            .select('known_audio_id, target1_audio_id, target2_audio_id')
+            .eq('course_code', code)
+            .lt('seed_number', ceilingSeed)
+            .range(i * PAGE, i * PAGE + PAGE - 1)
+        )
+      )
+      for (const page of pages) {
+        if (page.error) { console.warn('[Offline] Listening Core (seeds) page failed:', page.error.message); continue }
+        for (const row of page.data || []) {
+          if (row.known_audio_id) ids.add(row.known_audio_id)
+          if (row.target1_audio_id) ids.add(row.target1_audio_id)
+          if (row.target2_audio_id) ids.add(row.target2_audio_id)
+        }
+      }
+    }
+  } catch (e) { console.warn('[Offline] Listening Core (seeds) fetch threw:', e) }
+
+  // All — every USE phrase's audio, paginated.
+  try {
+    const { count, error: countErr } = await client
+      .from('course_practice_phrases')
+      .select('*', { count: 'exact', head: true })
+      .eq('course_code', code)
+      .in('phrase_role', ['use', 'eternal_eligible'])
+      .lt('seed_number', ceilingSeed)
+    if (countErr) {
+      console.warn('[Offline] Listening All (phrases) count failed:', countErr.message)
+    } else {
+      const total = count ?? 0
+      const pageCount = Math.ceil(total / PAGE)
+      const pages = await Promise.all(
+        Array.from({ length: pageCount }, (_, i) =>
+          client
+            .from('course_practice_phrases')
+            .select('target1_audio_id, target2_audio_id')
+            .eq('course_code', code)
+            .in('phrase_role', ['use', 'eternal_eligible'])
+            .lt('seed_number', ceilingSeed)
+            .range(i * PAGE, i * PAGE + PAGE - 1)
+        )
+      )
+      for (const page of pages) {
+        if (page.error) { console.warn('[Offline] Listening All (phrases) page failed:', page.error.message); continue }
+        for (const row of page.data || []) {
+          if (row.target1_audio_id) ids.add(row.target1_audio_id)
+          if (row.target2_audio_id) ids.add(row.target2_audio_id)
+        }
+      }
+    }
+  } catch (e) { console.warn('[Offline] Listening All (phrases) fetch threw:', e) }
+
+  return [...ids]
+}
+
 // Commentary (welcome/instructions/encouragements) and pod audio are
 // scheduled at RUNTIME — encouragements are a random pull from a pool, pod
 // laps advance on a ratchet — so we can't predict which exact clips fire in
@@ -9214,6 +9343,13 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
 // miss → it falls to the network → the 60s commentary safety timeout stalls
 // the lesson (the "plays ~10 rounds then stops dead" bug, 2026-05-28). Also
 // the reason pods can now play during an offline journey, per the model.
+//
+// ALSO gathers the Listening-mode Core/All bundle (course-position-bounded)
+// and ALL dialogue pod content for the course (pods are never position-
+// limited — every scene the course has, per Tom 2026-07-08) — this
+// function is the single place both offline download paths (the mid-course
+// picker and the INF-PLAY single option) already call for "everything
+// besides the main-loop cycles".
 const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
   const ids = new Set<string>()
   const provider = courseDataProvider.value
@@ -9260,6 +9396,9 @@ const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
       if (l1Scheduler.outroAudio.value?.id) ids.add(l1Scheduler.outroAudio.value.id)
     } catch (e) { console.warn('[Offline] L1 enumerate failed:', e) }
   }
+  try {
+    for (const id of await collectListeningModeAudioIds()) ids.add(id)
+  } catch (e) { console.warn('[Offline] Listening mode (Core/All) enumerate failed:', e) }
   return [...ids]
 }
 
@@ -12536,6 +12675,7 @@ defineExpose({
     :highest-belt-index="highestBeltIndex"
     :is-infplay="isInfPlayActive"
     :is-offline="offlinePlaybackActive()"
+    :offline-unavailable-belt-names="offlineUnavailableBeltNames"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
     @enterInfPlay="handleActivateInfPlay"

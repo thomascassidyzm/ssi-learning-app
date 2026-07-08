@@ -49,10 +49,16 @@ const props = defineProps<{
   // Whether the learner is currently in INF PLAY. The ∞ activator stays
   // tappable in this state (re-entry is idempotent) but reads as "active".
   isInfplay?: boolean
-  // Offline playback. BELT jumps are disabled offline — a belt jump leaps
-  // out of the downloaded plan to content we can't fetch. LEGO/cycle nav stays
-  // enabled (it steps within the cached plan); only this modal's belt jumps go.
+  // Offline playback. Belt jumps to a belt whose content isn't on the device
+  // are disabled — a jump there would leap out of the downloaded plan to
+  // content we can't fetch. LEGO/cycle nav stays enabled (it steps within
+  // the cached plan); only out-of-reach belt jumps go.
   isOffline?: boolean
+  // Names of belts NOT yet on the device while offline (future / never
+  // downloaded). Belts absent from this set are already downloaded/played
+  // and stay fully tappable offline — only this set greys out. Ignored
+  // (and every belt tappable) when isOffline is false.
+  offlineUnavailableBeltNames?: Set<string>
 }>()
 
 const emit = defineEmits<{
@@ -168,8 +174,20 @@ const beltCssVars = computed(() => ({
 
 const isCurrentBelt = (belt: Belt) => belt.name === props.currentBelt.name
 
+// Only a belt whose content isn't on the device is unavailable offline —
+// NOT every non-current belt (that was the "everything greyed out" bug).
+const isBeltUnavailableOffline = (belt: Belt) =>
+  !!props.isOffline && !!props.offlineUnavailableBeltNames?.has(belt.name)
+
+// Only warn about connectivity when it would actually block a jump — most
+// offline sessions have every belt up to position downloaded, so the old
+// blanket "offline — belt jumps need a connection" line was misleading.
+const hasUndownloadedBelt = computed(() =>
+  !!props.isOffline && belts.value.some((b) => isBeltUnavailableOffline(b)))
+
 function handleBeltClick(belt: Belt) {
   if (isCurrentBelt(belt)) return
+  if (isBeltUnavailableOffline(belt)) return
   emit('skipToBelt', belt)
 }
 
@@ -336,12 +354,12 @@ onUnmounted(() => {
                   :class="{
                     'map-chip--current': isCurrentBelt(belt),
                     'is-skipping': isSkipping,
-                    'is-offline': isOffline,
+                    'is-offline': isBeltUnavailableOffline(belt),
                   }"
                   :style="{ '--chip-color': belt.color }"
-                  :disabled="isCurrentBelt(belt) || isSkipping || isOffline"
-                  :title="isOffline ? 'Belt jumps need a connection — offline you can still step LEGO by LEGO' : `Jump to ${belt.name} belt`"
-                  :aria-label="isOffline ? `${belt.name} belt — belt jumps unavailable offline` : `Jump to ${belt.name} belt`"
+                  :disabled="isCurrentBelt(belt) || isSkipping || isBeltUnavailableOffline(belt)"
+                  :title="isBeltUnavailableOffline(belt) ? `${belt.name} belt isn't downloaded — reconnect to jump there` : `Jump to ${belt.name} belt`"
+                  :aria-label="isBeltUnavailableOffline(belt) ? `${belt.name} belt — not downloaded, unavailable offline` : `Jump to ${belt.name} belt`"
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
@@ -385,8 +403,8 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <p class="belt-strip-hint">{{ isOffline
-              ? 'offline — belt jumps need a connection; tap ∞ at the end for infinite play'
+            <p class="belt-strip-hint">{{ hasUndownloadedBelt
+              ? 'offline — downloaded belts still jump freely; greyed belts need a connection'
               : 'tap a belt to jump there, or ∞ at the end for infinite play' }}</p>
           </section>
         </div>
