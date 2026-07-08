@@ -24,6 +24,7 @@ const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
+import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
@@ -9083,31 +9084,54 @@ const courseTotalRounds = (): number => mainLoopBoundary()
 const roundsLoadedAhead = (): number =>
   Math.max(0, (cachedRounds.value?.length ?? 0) - Math.max(0, currentRoundIndex.value))
 
-// Expand the script for the deliberate offline download (same
-// machinery INF PLAY uses) until `roundsAhead` rounds are loaded ahead of the
-// cursor, the generator runs dry (course tail), or the user cancels. Guard is a
-// runaway backstop only; the real stop is rounds-reached or added === 0.
+// True when cachedRounds genuinely starts at the course start (round 1) —
+// round numbers are course-global 1-based on every producer (full walk,
+// cached script, /cycles bootstrap), so a mid-course bootstrap window that
+// never ran the full walk fails this and needs an expandScript first. The
+// offline bundle must include the behind-position prefix, so collection
+// can't run against a cursor-anchored window.
+const behindPositionRoundsLoaded = (): boolean => {
+  if (currentRoundIndex.value <= 0) return true
+  const first = (cachedRounds.value || [])[0] as any
+  return first?.roundNumber === 1
+}
+
+// Expand the script for the deliberate offline download (same machinery INF
+// PLAY uses) until the behind-position prefix (course start → cursor) is
+// loaded AND `roundsAhead` rounds are loaded ahead of the cursor, the
+// generator runs dry (course tail), or the user cancels. One expandScript is
+// normally enough for the prefix — generateScript walks the whole course.
+// Guard is a runaway backstop only; the real stop is rounds-reached or
+// added === 0.
 const ensureOfflineRoundsLoaded = async (roundsAhead: number): Promise<void> => {
   let guard = 0
-  while (offlineActive.value && roundsLoadedAhead() < roundsAhead && guard++ < 2000) {
+  while (
+    offlineActive.value &&
+    (roundsLoadedAhead() < roundsAhead || !behindPositionRoundsLoaded()) &&
+    guard++ < 2000
+  ) {
     const added = await expandScript()
     if (added === 0) break  // generator exhausted — course tail reached
   }
 }
 
-// Walk forward `roundsAhead` rounds from the cursor, collecting unique
-// /api/audio ids. Infinity = to the end of what's loaded. Dedupes (a clip
-// reused across the span counts once) — same shape as collectSpanAudioIds.
+// Collect unique /api/audio ids for the offline bundle: ALWAYS every loaded
+// round from the COURSE START up to the cursor (behind-position content is
+// unconditional — a fresh device has none of it cached, and without it the
+// earlier belts are dead offline despite "downloaded course"), PLUS
+// `roundsAhead` rounds ahead of the cursor (the slider's "how much new
+// learning I carry"). Infinity = to the end of what's loaded. Dedupes (a
+// clip reused across the span counts once) — same shape as collectSpanAudioIds.
 const collectRoundsAudioIds = (roundsAhead: number): string[] => {
   const rounds = cachedRounds.value || []
-  const start = Math.max(0, currentRoundIndex.value)
-  const end = roundsAhead === Infinity ? rounds.length : Math.min(rounds.length, start + roundsAhead)
+  const cursor = Math.max(0, currentRoundIndex.value)
+  const end = roundsAhead === Infinity ? rounds.length : Math.min(rounds.length, cursor + roundsAhead)
   const ids = new Set<string>()
   const add = (url?: string) => {
     const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
     if (m) ids.add(m[1])
   }
-  for (let i = start; i < end; i++) {
+  for (let i = 0; i < end; i++) {
     for (const c of (((rounds[i]) as any).cycles || [])) {
       add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
     }
@@ -9235,54 +9259,32 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
 // streaming every clip.
 
 /**
- * Core (course_seeds whole-sentence audio) — the same pool ListeningOverlay's
- * Core tab reads live — downloaded in FULL, course-wide, with no position
- * scoping (Tom 2026-07-08: "no position scoping anywhere in the offline
- * listening bundle — simpler and fully deterministic"). 'All' (USE-phrase
- * audio) is deliberately NOT part of the offline bundle — it's disabled in
- * the UI while offline instead (see ListeningOverlay's :is-offline prop).
- * Paginated (mirrors collectInfPlayUseAudioIds) — a single .limit() silently
- * truncates on big courses (banked lesson).
+ * Listening-mode bundle — Core (every seed's whole-sentence audio) + the pod
+ * scene structure's full clip set (split sentences, explainers, Take-G fusion
+ * slices, fine-known glosses, bookends) — downloaded in FULL, course-wide,
+ * with no position scoping (Tom 2026-07-08: "no position scoping anywhere in
+ * the offline listening bundle — simpler and fully deterministic"). 'All'
+ * (USE-phrase audio) is deliberately NOT part of the offline bundle — it's
+ * disabled in the UI while offline instead (see ListeningOverlay's
+ * :is-offline prop).
+ *
+ * fetchAndCacheListeningMeta ALSO persists the listening METADATA (pod rows,
+ * Core seed list, bookends, fine-known map, LEGO catalogue) to IndexedDB —
+ * that's what lets the Listening overlay + pod/L1 schedulers open offline
+ * instead of dying on a dead Supabase fetch ("listening_pod_sentences:
+ * TypeError: Load failed"). The audio ids are derived from those same
+ * persisted rows, so metadata and audio can't drift apart.
  */
 const collectListeningModeAudioIds = async (): Promise<string[]> => {
   const client = supabase.value
   const code = courseCode.value
   if (!client || !code) return []
-  const ids = new Set<string>()
-  const PAGE = 1000
-
-  // Core — every seed's whole-sentence audio, paginated, course-wide.
-  try {
-    const { count, error: countErr } = await client
-      .from('course_seeds')
-      .select('*', { count: 'exact', head: true })
-      .eq('course_code', code)
-    if (countErr) {
-      console.warn('[Offline] Listening Core (seeds) count failed:', countErr.message)
-    } else {
-      const total = count ?? 0
-      const pageCount = Math.ceil(total / PAGE)
-      const pages = await Promise.all(
-        Array.from({ length: pageCount }, (_, i) =>
-          client
-            .from('course_seeds')
-            .select('known_audio_id, target1_audio_id, target2_audio_id')
-            .eq('course_code', code)
-            .range(i * PAGE, i * PAGE + PAGE - 1)
-        )
-      )
-      for (const page of pages) {
-        if (page.error) { console.warn('[Offline] Listening Core (seeds) page failed:', page.error.message); continue }
-        for (const row of page.data || []) {
-          if (row.known_audio_id) ids.add(row.known_audio_id)
-          if (row.target1_audio_id) ids.add(row.target1_audio_id)
-          if (row.target2_audio_id) ids.add(row.target2_audio_id)
-        }
-      }
-    }
-  } catch (e) { console.warn('[Offline] Listening Core (seeds) fetch threw:', e) }
-
-  return [...ids]
+  const meta = await fetchAndCacheListeningMeta(client, code)
+  if (!meta) {
+    console.warn('[Offline] listening metadata fetch failed — listening bundle skipped this run')
+    return []
+  }
+  return collectListeningMetaAudioIds(meta)
 }
 
 // Commentary (welcome/instructions/encouragements) and pod audio are
@@ -9615,7 +9617,9 @@ const refreshOfflineEstimates = async (): Promise<void> => {
     let lowSpace = false
     try { lowSpace = (await audioCache.quotaPressure()) > 0.9 } catch { /* best-effort */ }
     // Files per round from the loaded sample (deduped), else a sane fallback.
-    const sampleRounds = roundsLoadedAhead()
+    // collectRoundsAudioIds(Infinity) spans the WHOLE loaded array (behind +
+    // ahead), so the denominator is the full loaded length, not rounds-ahead.
+    const sampleRounds = (cachedRounds.value || []).length
     const sampleFiles = collectRoundsAudioIds(Infinity).length
     const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
     offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true }
@@ -9634,10 +9638,15 @@ const offlineSelectedRounds = computed((): number => {
 // number). The old "% of device" was dropped: it divided by an iOS-unreliable
 // storage quota and read as a meaningless sliver. lowSpace surfaces a plain
 // warning only when the cache is genuinely near the cap.
+// The bundle ALWAYS includes the behind-position prefix (course start →
+// cursor) on top of the slider's ahead-span, so the estimate counts both —
+// otherwise a mid-course learner on a fresh device sees a number ~half the
+// real download.
 const offlineSelectedEstimate = computed(() => {
-  const { avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
+  const { start, avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
   if (!ready) return { size: '', lowSpace: false }
-  const files = Math.round(avgFilesPerRound * offlineSelectedRounds.value)
+  const behindRounds = offlineAtTail.value ? 0 : Math.max(0, start)
+  const files = Math.round(avgFilesPerRound * (behindRounds + offlineSelectedRounds.value))
   const mb = (files * avgBytesPerFile) / 1e6
   return { size: `≈ ${formatMb(mb)}`, lowSpace }
 })
@@ -12552,6 +12561,11 @@ defineExpose({
               {{ offlineCourseBar.finished
                 ? (offlineSelectedFraction >= 1 ? 'The whole course, kept offline' : `~${Math.round(offlineCourseBar.newPct)}% of the course, kept offline`)
                 : (offlineSelectedFraction >= 1 ? 'Everything left to learn' : `New learning — carries you ~${Math.round(offlineCourseBar.newPct)}% further`) }}
+            </p>
+            <!-- Behind-position content is always in the bundle — the slider only
+                 chooses how much NEW learning rides along. -->
+            <p v-if="!offlineCourseBar.finished && offlineCourseBar.donePct > 0" class="offline-depth-caption">
+              Plus everything up to where you are — included automatically
             </p>
 
             <button class="offline-depth-download" @click="startOfflineDownload">Download</button>
