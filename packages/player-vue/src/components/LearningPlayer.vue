@@ -9233,44 +9233,29 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
 // buffer stays topped up through a lock instead of draining and falling back to
 // streaming every clip.
 
-// Ceiling for the offline Listening-mode bundle (Core seeds + All USE
-// phrases): the learner's actual course POSITION — the ratcheted ceiling
-// (highestCompletedLegoId), never a seed-based notion of position. Content
-// past this hasn't been taught yet, so there's nothing there to review.
-// +1 mirrors ListeningOverlay's own upToSeed convention (its DB filter is
-// strictly seed_number < upToSeed), so this seed is included, not excluded.
-const listeningOfflineCeilingSeed = (): number | null => {
-  const legoId = highestCompletedLegoId.value
-  if (!legoId) return null
-  const seed = getSeedFromLegoId(legoId)
-  return seed != null ? seed + 1 : null
-}
-
 /**
- * Core (course_seeds whole-sentence audio) + All (course_practice_phrases
- * USE-phrase audio) — the same two pools ListeningOverlay's Core/All tabs
- * read live — bounded to the learner's position so a deliberate offline
- * download makes both playable with no network (Tom 2026-07-08). Returns []
- * before anything's been completed (nothing to review yet). Paginated
- * (mirrors collectInfPlayUseAudioIds) — a single .limit() silently
+ * Core (course_seeds whole-sentence audio) — the same pool ListeningOverlay's
+ * Core tab reads live — downloaded in FULL, course-wide, with no position
+ * scoping (Tom 2026-07-08: "no position scoping anywhere in the offline
+ * listening bundle — simpler and fully deterministic"). 'All' (USE-phrase
+ * audio) is deliberately NOT part of the offline bundle — it's disabled in
+ * the UI while offline instead (see ListeningOverlay's :is-offline prop).
+ * Paginated (mirrors collectInfPlayUseAudioIds) — a single .limit() silently
  * truncates on big courses (banked lesson).
  */
 const collectListeningModeAudioIds = async (): Promise<string[]> => {
   const client = supabase.value
   const code = courseCode.value
   if (!client || !code) return []
-  const ceilingSeed = listeningOfflineCeilingSeed()
-  if (ceilingSeed == null) return []
   const ids = new Set<string>()
   const PAGE = 1000
 
-  // Core — every seed's whole-sentence audio, paginated.
+  // Core — every seed's whole-sentence audio, paginated, course-wide.
   try {
     const { count, error: countErr } = await client
       .from('course_seeds')
       .select('*', { count: 'exact', head: true })
       .eq('course_code', code)
-      .lt('seed_number', ceilingSeed)
     if (countErr) {
       console.warn('[Offline] Listening Core (seeds) count failed:', countErr.message)
     } else {
@@ -9282,7 +9267,6 @@ const collectListeningModeAudioIds = async (): Promise<string[]> => {
             .from('course_seeds')
             .select('known_audio_id, target1_audio_id, target2_audio_id')
             .eq('course_code', code)
-            .lt('seed_number', ceilingSeed)
             .range(i * PAGE, i * PAGE + PAGE - 1)
         )
       )
@@ -9297,40 +9281,6 @@ const collectListeningModeAudioIds = async (): Promise<string[]> => {
     }
   } catch (e) { console.warn('[Offline] Listening Core (seeds) fetch threw:', e) }
 
-  // All — every USE phrase's audio, paginated.
-  try {
-    const { count, error: countErr } = await client
-      .from('course_practice_phrases')
-      .select('*', { count: 'exact', head: true })
-      .eq('course_code', code)
-      .in('phrase_role', ['use', 'eternal_eligible'])
-      .lt('seed_number', ceilingSeed)
-    if (countErr) {
-      console.warn('[Offline] Listening All (phrases) count failed:', countErr.message)
-    } else {
-      const total = count ?? 0
-      const pageCount = Math.ceil(total / PAGE)
-      const pages = await Promise.all(
-        Array.from({ length: pageCount }, (_, i) =>
-          client
-            .from('course_practice_phrases')
-            .select('target1_audio_id, target2_audio_id')
-            .eq('course_code', code)
-            .in('phrase_role', ['use', 'eternal_eligible'])
-            .lt('seed_number', ceilingSeed)
-            .range(i * PAGE, i * PAGE + PAGE - 1)
-        )
-      )
-      for (const page of pages) {
-        if (page.error) { console.warn('[Offline] Listening All (phrases) page failed:', page.error.message); continue }
-        for (const row of page.data || []) {
-          if (row.target1_audio_id) ids.add(row.target1_audio_id)
-          if (row.target2_audio_id) ids.add(row.target2_audio_id)
-        }
-      }
-    }
-  } catch (e) { console.warn('[Offline] Listening All (phrases) fetch threw:', e) }
-
   return [...ids]
 }
 
@@ -9344,12 +9294,13 @@ const collectListeningModeAudioIds = async (): Promise<string[]> => {
 // the lesson (the "plays ~10 rounds then stops dead" bug, 2026-05-28). Also
 // the reason pods can now play during an offline journey, per the model.
 //
-// ALSO gathers the Listening-mode Core/All bundle (course-position-bounded)
-// and ALL dialogue pod content for the course (pods are never position-
-// limited — every scene the course has, per Tom 2026-07-08) — this
-// function is the single place both offline download paths (the mid-course
-// picker and the INF-PLAY single option) already call for "everything
-// besides the main-loop cycles".
+// ALSO gathers the Listening-mode Core bundle (the whole course, no position
+// scoping) and ALL dialogue pod content for the course (pods are likewise
+// never position-limited — every scene the course has, per Tom 2026-07-08)
+// — this function is the single place both offline download paths (the
+// mid-course picker and the INF-PLAY single option) already call for
+// "everything besides the main-loop cycles". 'All' (USE phrases) is
+// deliberately excluded from the offline bundle — see collectListeningModeAudioIds.
 const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
   const ids = new Set<string>()
   const provider = courseDataProvider.value
@@ -13297,6 +13248,7 @@ defineExpose({
         :belt-color="currentBelt.color"
         :up-to-seed="listeningCeilingSeed"
         :learner-id="learnerId"
+        :is-offline="offlinePlaybackActive()"
         @close="handleCloseListening"
       />
     </Transition>

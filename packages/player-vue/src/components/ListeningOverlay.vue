@@ -240,6 +240,15 @@ const props = defineProps({
   learnerId: {
     type: String,
     default: null
+  },
+  /** True while the app is playing offline. The 'All' tab (USE phrases) is
+   *  never part of the offline download bundle (Tom 2026-07-08 — Core
+   *  downloads in full, All doesn't download at all), so it's disabled here
+   *  rather than shown and then failing to fetch. Online behaviour is
+   *  unchanged. */
+  isOffline: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -713,7 +722,14 @@ const exitScene = () => {
 }
 
 /** Switch top-level view. Resets transient state. */
+// Going offline mid-session while sat on 'All' (e.g. the connection drops)
+// bounces back to Dialogues — 'All' never has offline audio to play.
+watch(() => props.isOffline, (offline) => {
+  if (offline && view.value === 'phrases') setView('pods')
+})
+
 const setView = (v) => {
+  if (v === 'phrases' && props.isOffline) return // 'All' never downloads offline — disabled in the template too
   if (view.value === v) return
   stopPlayback()
   selectedScene.value = null
@@ -1905,7 +1921,10 @@ watch(
       >Core</button>
       <button
         class="view-tab"
-        :class="{ active: view === 'phrases' }"
+        :class="{ active: view === 'phrases', disabled: isOffline }"
+        :disabled="isOffline"
+        :aria-disabled="isOffline"
+        :title="isOffline ? 'All isn\'t included in offline downloads — connect to use it' : undefined"
         @click="setView('phrases')"
       >All</button>
     </div>
@@ -2731,6 +2750,16 @@ watch(
   background: var(--text-primary);
   color: var(--bg-primary, #ffffff);
   font-weight: 600;
+}
+
+.view-tab.disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.view-tab.disabled:hover {
+  color: var(--text-muted);
 }
 
 /* ═══════════════════════════════════════════════════════════════
