@@ -185,6 +185,20 @@ const isBeltUnavailableOffline = (belt: Belt) =>
 const hasUndownloadedBelt = computed(() =>
   !!props.isOffline && belts.value.some((b) => isBeltUnavailableOffline(b)))
 
+// Highest belt that's ready offline — the ladder is downloaded contiguously
+// from the start (behind-position is always in the bundle), so "belts up to
+// X ready" is the honest, unambiguous summary. Walk until the first
+// unavailable belt; White (the course start) is always present.
+const offlineReadyUpToBeltName = computed<string | null>(() => {
+  if (!hasUndownloadedBelt.value) return null
+  let last: string | null = null
+  for (const b of belts.value) {
+    if (isBeltUnavailableOffline(b)) break
+    last = b.name
+  }
+  return last
+})
+
 function handleBeltClick(belt: Belt) {
   if (isCurrentBelt(belt)) return
   if (isBeltUnavailableOffline(belt)) return
@@ -363,6 +377,19 @@ onUnmounted(() => {
                   @click="handleBeltClick(belt)"
                 >
                   <span class="map-chip-dot"></span>
+                  <!-- Lock affordance: dimming alone read as "murky" on-device
+                       (Tom 2026-07-09) — the padlock makes not-downloaded
+                       unmistakable at a glance. -->
+                  <svg
+                    v-if="isBeltUnavailableOffline(belt)"
+                    class="map-chip-lock"
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true" focusable="false"
+                  >
+                    <rect x="4" y="11" width="16" height="10" rx="2"/>
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                  </svg>
                 </button>
 
                 <!-- ∞ INF-PLAY — the TERMINAL ladder entry, after the last belt
@@ -404,7 +431,9 @@ onUnmounted(() => {
             </div>
 
             <p class="belt-strip-hint">{{ hasUndownloadedBelt
-              ? 'offline — downloaded belts still jump freely; greyed belts need a connection'
+              ? (offlineReadyUpToBeltName
+                ? `offline — belts up to ${offlineReadyUpToBeltName} ready to play; beyond needs a connection`
+                : 'offline — locked belts aren\'t downloaded; connect to jump there')
               : 'tap a belt to jump there, or ∞ at the end for infinite play' }}</p>
           </section>
         </div>
@@ -800,11 +829,31 @@ onUnmounted(() => {
 }
 
 /* Offline: belt jumps leap out of the downloaded plan, so they're disabled.
-   Dim them so they READ as unavailable (the bare :disabled only changes the
-   cursor — deliberately, so the always-disabled current belt stays
-   highlighted). Opacity is theme-agnostic, so one rule covers mist too. */
+   Dim HARD + desaturate the dot + overlay a padlock so the split between
+   ready and not-downloaded is unmistakable — 0.4 opacity alone read as
+   "murky as hell what was ready to play" on-device (Tom 2026-07-09). The
+   always-disabled current belt stays fully lit (bare :disabled only changes
+   the cursor, deliberately). */
 .map-chip.is-offline {
-  opacity: 0.4;
+  opacity: 0.45;
+  background: #f1efeb;
+  border-style: dashed;
+}
+.map-chip.is-offline .map-chip-dot {
+  filter: grayscale(0.85);
+  box-shadow: none;
+}
+.map-chip-lock {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  top: 3px;
+  right: 3px;
+  color: rgba(0, 0, 0, 0.75);
+}
+/* Anchor for the lock overlay — no visual change to available chips. */
+.map-chip {
+  position: relative;
 }
 
 .map-chip--current {

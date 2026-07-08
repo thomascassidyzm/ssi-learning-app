@@ -1,6 +1,7 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. PLUS the lease is now STATEFUL: offline_leases table = server authority → revocation kill-switch + trial-used memory; renewal is LAZY + weak-signal-safe (timeout/fail-open, never on first load). See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts, supabase/migrations/20260616_offline_leases.sql)
+# Last Updated: 2026-07-09 (offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
+# Prev: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. PLUS the lease is now STATEFUL: offline_leases table = server authority → revocation kill-switch + trial-used memory; renewal is LAZY + weak-signal-safe (timeout/fail-open, never on first load). See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts, supabase/migrations/20260616_offline_leases.sql)
 # Prev: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
 
 spec audio_caching_architecture:
@@ -203,6 +204,15 @@ spec audio_caching_architecture:
         INF PLAY and recycles the cache forever, so 'hours offline' is infinite
         regardless of download size. The knob controls how much NEW course
         material you carry, not how long you can listen.
+      behind_position: >
+        UNCONDITIONAL (2026-07-09): the bundle ALWAYS includes every main-flow
+        round from the COURSE START up to the cursor, on top of the slider's
+        ahead-span. A fresh device mid-course (account sync) has none of the
+        earlier belts' audio cached, so a cursor-forward-only bundle left them
+        dead offline despite "downloaded course" (Tom's airplane-mode test).
+        Slider semantics unchanged — it only chooses the NEW learning carried;
+        the MB estimate counts behind + ahead, and the picker says "Plus
+        everything up to where you are — included automatically".
 
     flow:
       - "Tapping 'Offline mode' closes the mode tray (handleOffline) and opens the 'Take it offline' picker (showOfflinePicker)"
@@ -258,9 +268,64 @@ spec audio_caching_architecture:
     key_functions:
       courseTotalRounds: "course length (main-loop), the % denominator"
       roundsForCourseFraction: "fraction → round count ahead, capped at course tail; >=1 → Infinity"
-      ensureOfflineRoundsLoaded: "expandScript() until N rounds loaded ahead or generator dry"
-      collectRoundsAudioIds: "unique /api/audio ids over N rounds ahead of cursor"
+      ensureOfflineRoundsLoaded: "expandScript() until the behind-position prefix (round 1 → cursor) is loaded AND N rounds loaded ahead, or generator dry"
+      behindPositionRoundsLoaded: "cachedRounds[0].roundNumber === 1 — round numbers are course-global 1-based on every producer, so this detects a cursor-anchored bootstrap window that still needs the full walk"
+      collectRoundsAudioIds: "unique /api/audio ids over [course start … cursor + N rounds ahead] — behind-position always included"
       downloadForOffline: "(roundsAhead) — ensure + collect + fetch missing into IndexedDB"
+
+    listening_metadata_offline:
+      file: "packages/player-vue/src/composables/listeningMetaCache.ts"
+      purpose: >
+        The Listening overlay (Dialogues/Core), the pod-lap scheduler and the
+        L1 scheduler read their STRUCTURE (listening_pod_sentences rows, Core
+        seed list, bookends, pod_fine_known map, LEGO catalogue) live from
+        Supabase. The download cached the AUDIO but not this metadata — so in
+        airplane mode the overlay showed "listening_pod_sentences: TypeError:
+        Load failed" and Core spun on a dead fetch (Tom 2026-07-09).
+      write: >
+        downloadForOffline → collectAuxiliaryAudioIds →
+        collectListeningModeAudioIds → fetchAndCacheListeningMeta persists ONE
+        all-or-nothing entry per course to IndexedDB (ssi-listening-meta,
+        same pattern as the script cache). The listening bundle's audio ids
+        (collectListeningMetaAudioIds) are DERIVED from those same rows —
+        Core seeds, pod turns, per-sentence split clips, explainers, Take-G
+        fusion slices, fine-known glosses, bookends — so metadata and audio
+        can never drift apart. (Take-G + fine-known clips joined the bundle
+        here: with metadata cached, Drill's fusion rungs are reachable
+        offline, so their audio must be too.)
+      read: >
+        Network-first with cache fallback everywhere; cache-first when
+        navigator.onLine === false (no doomed fetch, no error noise).
+        Readers: useListeningPods (rows + split-clip texts), ListeningOverlay
+        loadSeeds (Core list), usePodLapScheduler.initialize (rows +
+        bookends + fine-knowns; Stage-0 clip-map load is now try/caught —
+        offline just skips the Stage-0 prepend), useLayer1Scheduler.initialize
+        (seeds + catalogue + bookends).
+      not_downloaded_state: >
+        Offline with NO cached entry → explicit copy ("Dialogues/Core aren't
+        downloaded yet — connect once and download for offline…"), never an
+        infinite spinner or a raw TypeError. Entry-present always means
+        fully-usable (all-or-nothing write). Tested in
+        listeningMetaCache.test.ts (fake-indexeddb, incl. the useListeningPods
+        offline fallback both ways).
+
+    belt_pill_offline_clarity:
+      file: "packages/player-vue/src/components/ProgressModal.vue"
+      source_of_truth: >
+        offlineUnavailableBeltNames (LearningPlayer) — a belt is available
+        offline iff its landing round has ≥1 cycle whose audio is ACTUALLY in
+        the persistent cache (unchanged; it was correct, just visually
+        ambiguous).
+      visual: >
+        Unavailable pills: hard dim + greyscaled dot + dashed border + a
+        padlock glyph overlay (map-chip-lock). Available pills fully normal.
+        0.4 opacity alone read as "murky as hell what was ready to play"
+        on-device (Tom 2026-07-09).
+      hint: >
+        With the behind-position bundle the downloaded ladder is contiguous
+        from the start, so the modal hint names the edge exactly:
+        "offline — belts up to <X> ready to play; beyond needs a connection"
+        (offlineReadyUpToBeltName = last belt before the first unavailable).
 
     premium_gate:
       requirement: >
