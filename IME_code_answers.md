@@ -120,3 +120,63 @@ There is no app-store binary from this repo; "install size" for the web app mean
 So a full course held offline is on the order of **100 MB**, comfortably inside browser storage quotas. The app monitors quota via `navigator.storage.estimate()` and flags "low space" when usage exceeds 90% of quota (`AudioCache.ts:424-438` `quotaPressure()`; threshold `> 0.9` at `LearningPlayer.vue:9619`). `CLAUDE.md` cites a ~1 GB Safari storage limit as ~200× headroom for one course; the code treats iOS quota reporting as unreliable and uses the usage/quota *ratio* instead (comment at `LearningPlayer.vue:9613-9617`).
 
 **Caveats:** the per-clip sizes above are the app's own estimation constants plus a 15-file sample; a definitive average would need a measurement across the production S3 bucket (**not visible in this repo**). Course length varies by course (the "entire course" option is capped at 10 hours of audio in the UI config); the storage needs of the legacy Flutter app (which uses pre-rendered 30–50 MB session files per `CLAUDE.md`) are **not visible in this repo**.
+
+---
+
+## Q3. Mobile data per session, offline capabilities, low-bandwidth optimisations
+
+### Audio format and bitrate
+
+Measured directly from the 15 MP3 samples bundled in the repo (`packages/player-vue/public/audio/`, MPEG frame headers parsed): **MP3, 56 kbps constant bitrate, 44.1 kHz**, clip durations 1.8–3.8 s, file sizes 12–27 KB (average ~19 KB; the app's own planning constant is 24 KB — `packages/player-vue/src/components/LearningPlayer.vue:9608`).
+
+*Caveat:* these are the bundled demo samples. Audio mastering/encoding happens in the separate content-creation repo (`ssi-dashboard-v7-clean`, Phase 8 TTS pipeline per `CLAUDE.md`) — the production encoding settings are **not visible in this repo**, though the file-size constants the app uses for planning are consistent with 56 kbps.
+
+### Streamed or downloaded?
+
+Both, as two deliberate, separate paths (design note dated 2026-05-24 in `packages/player-vue/vite.config.js`, runtime-caching comment block):
+
+- **Normal playback is streaming-first.** Each clip is fetched from `/api/audio/:audioId` when needed; the service worker deliberately does **not** cache audio (it caused iOS Safari range-request bugs — same comment block). Repeat plays are served by the browser's ordinary HTTP cache, which works because the proxy sets `Cache-Control: public, max-age=31536000, immutable` (`api/audio/[audioId].ts:150`).
+- **Prefetching is minimal and just-in-time:** the player warms only the *next* cycle's three clips ahead of playback, with fetch-priority hints (`SimplePlayer.prefetchNextCycle`, `packages/player-vue/src/playback/SimplePlayer.ts:1026-1040`; known-prompt fetched at `'high'` priority, target voices at `'low'`).
+- **Offline is a separate, user-initiated bulk download** into IndexedDB (see below) — it is not something a typical online session incurs.
+
+**Stale-doc warning:** `CLAUDE.md` describes a "Prefetch Manager" holding a 30-minute audio buffer (`usePrefetchManager.ts`). **That component no longer exists** — there is no such file; only comments referencing the old design remain (`packages/player-vue/src/composables/useInstantPlayback.ts:19-25`). Actual behaviour today is the leaner next-cycle-only prefetch, which is *better* for data usage than the documented design.
+
+### Estimated data for a typical 10-minute session
+
+Grounded in the repo's own validated numbers (`CLAUDE.md`: ~11 s per cycle; ~198 unique clips ≈ 4.8 MB per 30-minute session, echoed in the code comment at `LearningPlayer.vue:9608`):
+
+- 10 minutes ≈ 55 cycles × 3 clips, but spaced repetition re-plays many clips, and repeats hit the HTTP cache — roughly 65 *unique* clips ≈ **1.3–1.6 MB of audio**.
+- Course structure/script data: ~300–500 KB per course on *first* load, then cached in IndexedDB (`packages/player-vue/src/composables/useScriptCache.ts:5` comment and implementation); Supabase progress/API traffic is small JSON (a few tens of KB).
+- App shell: ~2.3 MB **once** on first visit/install (service-worker precache, Q2); near-zero on return visits (hashed immutable assets + vendor chunk splitting in `vite.config.js`).
+
+**Bottom line: ~1.5–2 MB for a typical 10-minute session** once the app has been used before; **~4–5 MB worst case for the very first session** (shell + course script + audio). A deliberate offline download is extra and user-chosen: ~5 MB (current belt) up to ~96 MB (entire course) per Q2. Theoretical ceiling if every clip were unique and uncached: 55 cycles × 3 × 24 KB ≈ 4 MB / 10 min — real usage sits well under this because of repetition reuse.
+
+### Offline capabilities — implemented (with evidence)
+
+1. **PWA service worker / app shell offline** — implemented. Precaches the full app shell (199 entries ≈ 2.3 MB); navigations are NetworkFirst with a 3-second timeout falling back to cache, so the app opens offline; new versions wait for explicit user consent ("prompt" update, never interrupting a live session). All in `packages/player-vue/vite.config.js` (`registerType: 'prompt'`, `navigateFallback` config, `networkTimeoutSeconds: 3`, `cleanupOutdatedCaches: true`).
+2. **Download-in-advance** — implemented. User-selectable depth: "Current belt" (0.5 h), "Next 2 hours", "Next 5 hours", "Entire course" (10 h) (`packages/player-vue/src/config/audioConfig.ts:34-37`). `downloadForOffline` (`LearningPlayer.vue:9359`) builds the full lesson script, dedupes audio IDs, and bulk-fetches.
+3. **Efficient bulk fetch** — implemented. `POST /api/audio/batch-urls` returns up to 500 presigned S3 URLs per request (5-minute TTL), resolved just-in-time chunk by chunk so URLs never expire mid-queue; the client then fetches straight from S3 at concurrency 24 (throttled to 6 while audio is playing), falling back per-clip to the proxy at concurrency 12/4, with bounded retries (`api/audio/batch-urls.ts`; `packages/player-vue/src/playback/bulkAudioDownload.ts:66-73` and header comment).
+4. **Durable audio store** — implemented. IndexedDB database `ssi-audio-cache-v2` with `persistent` (deliberate downloads) vs `ephemeral` tiers, per-tier byte/count stats and storage-quota pressure monitoring (`packages/player-vue/src/cache/AudioCache.ts`).
+5. **Script persisted for cold offline reopen** — implemented. The round structure is written to IndexedDB alongside the audio so the app knows what to play and where to resume when opened with no network (`LearningPlayer.vue:9398-9427`; `useScriptCache.ts`).
+6. **Resume of interrupted downloads** — implemented, but *implicit*: on re-trigger, the loop skips everything already cached (`missing = ids.filter(id => !audioCache.persistent.has(id))`, `LearningPlayer.vue:9372`) and already-cached files count toward the progress bar. There is **no** persisted auto-resume scheduler. **Stale-doc warning:** `CLAUDE.md`'s "downloads persist across app restarts (localStorage), resume within 24 hours" describes a deleted component (`packages/core` has no cache module — the directory referenced does not exist); do not repeat that claim to the partner.
+7. **Graceful degradation during offline playback** — implemented. Four-level fallback hierarchy: `normal → belt-only → use-phrases → repeat` (typed at `packages/player-vue/src/composables/useOfflinePlay.ts:29`), so playback degrades to any-cached content rather than stopping.
+8. **WebKit/iOS offline playback fix** — implemented. Cached MP3 bytes are decoded and re-encoded as 16-bit WAV blobs at play time, offline path only, because WebKit refuses MP3 blob URLs from IndexedDB (`packages/player-vue/src/cache/wav.ts` header comment; used via `AudioCache.ts:415-416`).
+9. **30-day offline lease** — implemented. Downloaded content carries a server-granted 30-day lease (`api/entitlement/offline-lease`, `offline_leases` table); renewal is lazy and **fails open** (a weak signal can never lock a paying user out); expiry soft-locks playback while preserving the bytes, and reconnecting re-validates (`packages/player-vue/src/composables/useOfflineLease.ts` header; `locked` state in `useOfflineDownloadStatus.ts`).
+10. **Download progress UI** — implemented; counts only genuinely cached files so "Ready ✓" can't lie about partial downloads; failures leave a persistent error state prompting retry on better signal (`useOfflineDownloadStatus.ts`; `LearningPlayer.vue:9435-9440`).
+
+### Low-bandwidth optimisations — implemented
+
+- 56 kbps audio in small atomic clips (nothing is re-downloaded to fix one phrase).
+- 1-year immutable HTTP caching on audio (`api/audio/[audioId].ts:150`) — repeat plays cost zero data.
+- Prefetch limited to the next cycle only, with low fetch priority on the less-urgent files (`SimplePlayer.ts:1026-1040`).
+- Download concurrency throttled while audio plays (6 direct / 4 proxy vs 24/12 idle — `bulkAudioDownload.ts:66-73`).
+- Presigned batch URLs eliminate ~2,000 serverless round-trips for a course download (`batch-urls.ts` header).
+- Service-worker precache excludes ~1.8 MB of chunks learners don't need (echarts, debug console, schools/admin — `vite.config.js` `globIgnores`).
+- Vendor/core chunk splitting so app updates don't re-download ~700–800 kB of unchanged framework code (`vite.config.js` `manualChunks` comment).
+- 3-second network timeout on navigation, then cache (`networkTimeoutSeconds: 3`).
+
+### Planned / not implemented
+
+- **Data-saver awareness: not implemented.** The only trace is a comment: `// fire-and-forget. Future: respect navigator.connection.saveData / type.` (`LearningPlayer.vue:1834`). The app does not currently detect connection type or a data-saver preference.
+- **Adaptive bitrate / lower-quality audio variant: not visible in this repo** — one fixed encoding per clip.
+- No other bandwidth-related items appear in `WORKLIST.md` as planned work.
