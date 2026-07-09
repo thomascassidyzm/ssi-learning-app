@@ -180,3 +180,66 @@ Grounded in the repo's own validated numbers (`CLAUDE.md`: ~11 s per cycle; ~198
 - **Data-saver awareness: not implemented.** The only trace is a comment: `// fire-and-forget. Future: respect navigator.connection.saveData / type.` (`LearningPlayer.vue:1834`). The app does not currently detect connection type or a data-saver preference.
 - **Adaptive bitrate / lower-quality audio variant: not visible in this repo** — one fixed encoding per clip.
 - No other bandwidth-related items appear in `WORKLIST.md` as planned work.
+
+---
+
+## Q4. Speech-listening / personalised pacing: what it measures, how, and what is stored
+
+*(Correction to Q2: Q2 said "no microphone requirement" — that is true as a hard requirement, but the app does have two optional, consent-gated microphone features. This section is the precise account.)*
+
+There are **two separate microphone features**, both implemented, both optional:
+
+- **A. Adaptive pacing ("adaptation")** — runs silently during the normal learning cycle. `packages/core/src/audio/VoiceActivityDetector.ts` + `SpeechTimingAnalyzer.ts`, wired in via `packages/player-vue/src/components/LearningPlayer.vue` and `packages/player-vue/src/composables/useAdaptationEngine.ts`.
+- **B. Pronunciation practice mode** — a deliberate overlay the learner opens. `packages/player-vue/src/components/PronunciationOverlay.vue` + `packages/core/src/audio/PronunciationEngine.ts`.
+
+### What is measured
+
+**A. Adaptive pacing measures energy and timing only — no prosody, no individual sounds, no words.** The detector computes RMS energy in dB from a Web Audio `AnalyserNode` (`VoiceActivityDetector.ts:211-229`, `getCurrentEnergy()` — sums frequency-bin magnitudes into a single RMS value). From energy-over-time it derives *when* the learner spoke, producing a `SpeechTimingResult` (`packages/core/src/audio/types.ts:86-133`):
+
+> `response_latency_ms` — "Time from prompt start to speech start"
+> `learner_duration_ms` — "How long the learner spoke"
+> `duration_delta_ms` — "learner_duration - model_duration"
+> `started_during_prompt` — "Learner started speaking before prompt audio finished (anticipation)"
+> `still_speaking_at_voice1` — "Learner was still speaking when VOICE_1 started (struggling)"
+
+It cannot tell what was said or whether it was correct — only that sound above threshold occurred, when, and for how long.
+
+**B. Pronunciation mode measures prosody at the envelope level — still no individual sounds.** The engine's own header (`PronunciationEngine.ts:1-15`):
+
+> "Compares learner speech against native audio using envelope matching. **No speech-to-text, no frame-level pitch DTW.** Three signals (what a human listener actually notices): 1. Duration — is the utterance roughly the right length? 2. Peak count — does it have the right number of 'bumps' (≈ syllables)? 3. Envelope shape — does the stress pattern roughly match?"
+
+So: amplitude envelope, syllable-count approximation, and duration. Pitch (F0) is extracted but, per the type comment, "kept for visualization" only (`PronunciationEngine.ts:24`) — it is not part of the score. Scoring weights are combined per `ProsodyScore` (duration / peakCount / envelope, each 0–100; `PronunciationEngine.ts:34-43`).
+
+### Library / approach
+
+**No third-party speech or ML library.** Everything is hand-written on the browser's native Web Audio API: `getUserMedia` + `AudioContext` + `AnalyserNode` for analysis, `MediaRecorder` for the pronunciation-mode capture (`VoiceActivityDetector.ts:84-105`; `AudioRecorder` class at `PronunciationEngine.ts:437-495`). There are no speech dependencies in any `package.json`.
+
+### Speech recognition?
+
+**No.** There is no speech-to-text anywhere: a repo-wide search for `SpeechRecognition` / `webkitSpeechRecognition` / transcription returns only the PronunciationEngine comment quoted above declaring its absence. `CLAUDE.md` lists "Speech recognition during PAUSE phase" under **Future** — it is planned at most, with zero code.
+
+### Is audio ever recorded or stored?
+
+- **Adaptive pacing (A): never recorded.** The mic stream feeds an `AnalyserNode` only; no `MediaRecorder` is attached on this path, and only numeric energy samples are held in memory. The class header states the intent: "Browser-only, no server storage" (`VoiceActivityDetector.ts:5`).
+- **Pronunciation mode (B): recorded transiently in memory, never stored, never transmitted.** `MediaRecorder` captures webm/opus chunks into an in-memory `Blob`, which is immediately decoded to an `AudioBuffer` for local comparison (`PronunciationEngine.ts:445-484`). In `PronunciationOverlay.vue` the only Supabase calls are read-only phrase queries (lines 151–184); there is **no** insert/upsert/upload of audio or scores, and nothing is written to IndexedDB or localStorage. The recording is garbage-collected when the next one starts.
+- **What IS persisted (numbers only):** the derived timing metrics. Response latency feeds the per-LEGO adaptation engine, whose mastery state and a bounded latency series sync to Supabase (`useAdaptationEngine.ts` header: "Rolling stats persist in memory; mastery state persists in Supabase"; series capped at 20 values, line 32). The core library can also write per-cycle rows to `response_metrics` (`response_latency_ms`, `phrase_length`, `normalized_latency`…) and `spike_events` (`packages/core/src/persistence/SessionStore.ts:220-275`). These are millisecond numbers, not audio.
+- **Consent gating — implemented:** the whole mic pipeline is off unless the learner opts in; consent is stored client-side under the key `ssi-adaptation-consent` (`LearningPlayer.vue:8508`, toggle in `SettingsScreen.vue:917-968`), and a denied mic permission is automatically recorded as declined consent (`LearningPlayer.vue:8591-8594`).
+
+### Accent-specific calibration
+
+**None.** Nothing in the code adjusts for the learner's accent. Two adjacent things exist, to be precise:
+
+1. **Per-language (not per-accent) scoring weights** — implemented: a static table weighting duration/peak-count/envelope differently for tonal (cmn/yue/tha/vie), pitch-accent (jpn/kor), stress-timed (eng/deu/rus), syllable-timed (spa/fra/ita/por), Celtic, and Semitic languages (`PronunciationEngine.ts:68-100`, `PROSODY_WEIGHTS`).
+2. **Per-learner *timing* baseline** — implemented in the core library but **dormant/not wired**: `LearnerBaseline` ("Calibrated baseline… so that z-scores are calculated relative to their personal baseline", `packages/core/src/learning/types.ts:404-440`; save/load in `ProgressStore.ts:683+`) has **zero references in the app code** and no `learner_baseline` table in `supabase/schema.sql`. What the live app actually personalises is per-LEGO pause length via mastery state: multipliers 1.2 → 1.0 → 0.85 → 0.7 (acquisition → mastered) applied to the baked pause (`useAdaptationEngine.ts:35-42`; applied at `LearningPlayer.vue:8153`).
+
+### Background noise and multiple voices
+
+**Implemented mitigations:**
+
+- Browser-level DSP requested on every mic stream: `{ echoCancellation: true, noiseSuppression: true, autoGainControl: true }` (`VoiceActivityDetector.ts:84-91`; identically in `PronunciationOverlay.vue:302`).
+- **Fixed energy gate:** speech = RMS energy above **−45 dB** for at least **3 consecutive frames**; end-of-speech is debounced **200 ms**; utterances under **100 ms** don't count (`DEFAULT_CONTINUOUS_VAD_CONFIG`, `types.ts:138-145`; same values passed explicitly at `LearningPlayer.vue:8579-8582`).
+- **Noise-aware silence trimming** in pronunciation scoring — threshold is relative to the learner's own signal: "Threshold = 25% of peak energy — high enough to cut through background noise. In a noisy room, the 'silence' floor is much higher than in a studio" (`PronunciationEngine.ts:174-177`, `threshold = Math.max(peak * 0.25, 0.008)`).
+- Scoring is deliberately tolerant of noisy boundaries: "Duration score — very generous, noisy trimming shifts boundaries. ±40% is still 80+" (`PronunciationEngine.ts:333-334`).
+- Pronunciation mode waits for **1 s of sustained silence** below −45 dB (8 s timeout) before concluding the learner finished (`PronunciationOverlay.vue`, `waitForSilence`, `{ silenceDurationMs = 1000, maxWaitMs = 8000, silenceThresholdDb = -45 }`).
+
+**Honest limitations (nothing in code handles these):** there is **no speaker separation or voice identification** — a TV, a second person, or any noise above −45 dB is indistinguishable from the learner speaking, and would register as speech (skewing timing metrics or pronunciation scores). The −45 dB threshold is a **fixed constant**, not calibrated per device or ambient noise level (the only adaptive floor is the 25%-of-peak trim inside pronunciation scoring). Because the pacing feature only awards bonuses/adjusts pauses, the failure mode of noise is mis-timed pacing and inflated points, not blocked progress.
