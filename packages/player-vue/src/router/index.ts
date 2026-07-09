@@ -540,6 +540,23 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // Hidden power-user/support alias for the existing `?reset=1` recovery
+  // mode (App.vue) — a *typed-in* URL must be speakable over the phone to a
+  // stuck learner; query strings aren't. Deliberately not linked from any
+  // UI copy (the boot-watchdog floor screen has its own self-contained "Fix
+  // the app" button per Tom's ruling — this route is the support-channel
+  // fallback, never something the app itself points users at). A hard
+  // navigation, not a client-side route change, so the full reset flow
+  // (App.vue's top-level check) actually runs.
+  {
+    path: '/reset',
+    name: 'reset-alias',
+    beforeEnter: () => {
+      window.location.replace('/?reset=1')
+      return false
+    },
+    component: { render: () => null }, // never rendered — beforeEnter always hard-redirects first
+  },
   // Catch-all redirect to player
   {
     path: '/:pathMatch(.*)*',

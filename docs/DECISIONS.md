@@ -159,3 +159,49 @@ change, no new signal without a consumer (wedge telemetry explicitly deferred).
 **Search width:** re-levelled (symptom-patches → boot-line defence + authority ruling); one
 genuine floor surfaced (guest data has one copy — warned, not coded around).
 **Decided by:** agent (design pass; implementation staged Sonnet-executable, Tom gates promotion)
+
+## 2026-07-09 — PWA lifecycle Stage 1 shipped: never-wedge boot watchdog, Tom's one-button ruling
+**Move:** Implemented Stage 1 of the design above on `sonnet-impl/pwa-lifecycle-stage1`: (1)
+`window.__SSI_BOOTED` handshake in `main.js` + a plain, import-free inline watchdog in
+`index.html` armed only when `navigator.serviceWorker.controller` exists, with a fast path
+(capture-phase `error` listener for failed script/module loads) and a slow path (15s timeout);
+(2) a 2-attempt heal ladder (unregister SW + clear every Cache Storage entry except
+`ssi-auth-handoff`, then reload) guarded by a sessionStorage attempt counter; (3) the floor
+screen, rewritten per Tom's verbatim ruling (now the accepted fitness function, recorded at the
+top of `docs/pwa-lifecycle-design.md`) as ONE button, "Fix the app", with zero instructions —
+no mention of caching, service workers, browser menus, or `/reset` — wired directly to the same
+full-heal routine; (4) `vite:preloadError` reload-once in `main.js` for mid-deploy chunk skew;
+(5) a hidden `/reset` route (hard `window.location.replace`, not a SPA redirect) as the
+power-user/support alias to the existing `?reset=1` nuclear recovery mode — never surfaced by
+any UI copy; (6) the `?wedge=1` dev cheat (`utils/wedgeCheat.ts` + wiring in `main.js`, gated by
+a new `__ENABLE_WEDGE_CHEAT__` vite define that reuses `swSelfUpdate`'s exact env carve-out) so
+testers can deliberately corrupt two precached JS chunks — preferring ones actually referenced
+by the current page's entry graph, so the corruption reproduces a real wedge rather than a
+lazy-chunk no-op — and rehearse the watchdog's recovery on demand.
+**Better:** Jonathan's T5/T6 regression class (Firefox-update wedge, `?wedge=1` drill) now heals
+without any user action beyond, at the absolute floor, one unambiguous tap — matching Tom's
+ruling that a PWA update "has to be relatively straightforward," not a caching lesson.
+**Simpler:** the decision logic (attempt counting, cache-preserve list, arming condition, the
+wedge-poison chunk selection) lives in two pure, unit-tested modules
+(`utils/bootHeal.ts`, `utils/wedgeCheat.ts`) that the inline script hand-mirrors — one place to
+reason about the ladder's numbers instead of re-deriving them from the inline script by eye.
+**Cheaper (total):** ~90 lines of dependency-free inline script + two small pure utils + one
+router entry; zero SW architecture change; reuses the existing `clearAllCaches`/reset machinery
+for the `/reset` alias instead of writing a second recovery path; the wedge cheat reuses
+`swSelfUpdate`'s env logic rather than inventing a second dev/prod check.
+**Searched & rejected:**
+- Point the floor screen at `/reset` with instructions (the design's original text) — rejected
+  outright by Tom's ruling: any step requiring the user to read and follow an instruction, or
+  understand what `/reset` does, fails "all they need to do is click update app."
+- Have `/reset` run the SAME scoped SW-only heal as the floor button, instead of the existing
+  nuclear `?reset=1` wipe — considered for consistency, but the design doc (§2.1) already
+  specifies `/reset` as "a tiny route alias for `?reset=1`," and that existing nuclear path is
+  already documented (CLAUDE.md Recovery Mode) and used elsewhere (Settings troubleshoot) as the
+  deliberate full-wipe escape hatch for a human on the phone with support — reusing it outright
+  is cheaper than authoring a second, narrower recovery flow with its own test surface. Flagging
+  this interpretation explicitly in case Tom intended the narrower scope.
+- SPA `redirect:` for the `/reset` route — rejected: a client-side route change wouldn't re-run
+  App.vue's top-level `?reset=1` check (that code runs once, at initial module evaluation), so
+  the alias needs a hard `window.location.replace`, not router-level `redirect`.
+**Search width:** visible-options (implementation of an already-designed, Tom-ruled spec).
+**Decided by:** agent (Stage 1 execution per the design's staging table + Tom's verbatim ruling)

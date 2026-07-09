@@ -7,6 +7,19 @@
 > `docs/position-and-ownership-model.md` (cursor-only position, locked 2026-07-04).
 > Decision doctrine applied throughout; journal entry appended to `docs/DECISIONS.md`.
 
+> **RULING (Tom, 2026-07-09) — the accepted fitness function, overrides this design where they
+> differ.** Verbatim: *"We really need a solution which doesn't necessitate users doing
+> anything in particular. The update itself has to basically do all the things that need to be
+> done. All they need to do is click update app — and if this is complicated we need to rethink
+> the design. We don't want to hassle them; we have to sell the advantages of a PWA to them so
+> it has to be relatively straightforward."* Concretely: normal updates are fully automatic, at
+> most one tap. Wedge recovery is fully automatic — the watchdog heals silently. The floor
+> screen below (§2.1 Attempt 3) does NOT read out `/reset` instructions to the user; it is ONE
+> button ("Fix the app") that runs the full heal routine itself. No step anywhere may require a
+> user to understand caching, service workers, or browser menus. `/reset` still exists as a
+> hidden power-user/support alias (a typed URL a support agent can read over the phone) — it is
+> never something the app itself points a user at.
+
 ---
 
 ## 0. Executive summary, ranked by user pain
