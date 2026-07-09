@@ -45,6 +45,11 @@
       "types": "./dist/pods/index.d.ts",
       "import": "./dist/pods/index.mjs",
       "require": "./dist/pods/index.js"
+    },
+    "./script": {
+      "types": "./dist/script/index.d.ts",
+      "import": "./dist/script/index.mjs",
+      "require": "./dist/script/index.js"
     }
   },
   "scripts": {

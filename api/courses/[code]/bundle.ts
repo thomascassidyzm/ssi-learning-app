@@ -11,13 +11,22 @@
  * the raw structure once; the client owns assembly, sampling and
  * caching.
  *
- * Wire format: see `packages/player-vue/src/types/courseBundle.ts`.
+ * Wire format: see `packages/core/src/script/courseBundle.ts`
+ * (`packages/player-vue/src/types/courseBundle.ts` re-exports it).
  *
- * Query strategy — 4 parallel Supabase queries, no migrations:
+ * `?head=1` — version probe (bundle-cutover Phase 1, docs/bundle-cutover-design.md
+ * §3): returns `{ contentVersion, scriptShapeVersion }` only, skipping every
+ * query except `courses` + `algorithm_config`. Replaces round-map.ts's version
+ * role and `checkContentVersion`'s direct `courses` read.
+ *
+ * Query strategy — parallel Supabase queries, no migrations beyond the
+ * additive `algorithm_config.version` column:
  *   - `courses`                (content_version + 404 probe)
+ *   - `algorithm_config`       (script_shape row — values + version)
  *   - `course_legos`           (is_new = true, ordered)
  *   - `course_practice_phrases` (build/use, including legacy roles)
  *   - `course_round_index`     (main-loop ordering)
+ *   - `course_seeds`           (seed text+audio — feeds SEED-PHASE spaced-rep reviews)
  *
  * Returns 503 if course_round_index is empty for an existing course
  * (the materialised view hasn't been refreshed yet — operator action
@@ -36,10 +45,37 @@ import type {
   BundleAudioRef,
   BundlePod,
   BundlePodSentence,
+  BundleScriptShape,
   AudioLifecycle,
   PhraseRole,
 } from '../../../packages/player-vue/src/types/courseBundle'
 import { resolveServerCourseAccess } from '../../_utils/courseAccess'
+
+/**
+ * Identifies the shared generator's assembly-algorithm CODE version, echoed
+ * into every bundle payload (design §2). Duplicated here rather than
+ * imported from `@ssi/core` — this file's dependency graph is traced by
+ * Vercel's serverless bundler via relative TS-source imports, and the
+ * type-only imports above already prove that path works; a runtime `import`
+ * from a bare package specifier is untested territory for `api/` and not
+ * worth risking for one integer. Keep in lockstep with
+ * `packages/core/src/script/generateScript.ts`'s `GENERATOR_VERSION`.
+ */
+const GENERATOR_VERSION = 1
+
+/**
+ * Fallback script shape — mirrors `algorithm_config` key='script_shape' and
+ * `providers/generateLearningScript.ts`'s `DEFAULT_SCRIPT_SHAPE`. Used only
+ * if the `algorithm_config` row is missing (non-fatal, same posture as the
+ * pods/bookends queries below).
+ */
+const DEFAULT_SCRIPT_SHAPE: BundleScriptShape = {
+  spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584],
+  maxBuildPhrases: 7,
+  useConsolidationCount: 2,
+  maxSpacedRepPhrases: 12,
+  n1PhraseCount: 3,
+}
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -116,6 +152,24 @@ interface RoundIndexRow {
   // "S0042L01"), NOT lego_index. See round-map.ts which uses lego_id
   // directly. We carry it through and slice the index out where needed.
   lego_id: string
+}
+
+/** Same columns `generateLearningScript.ts` reads at :406-409 — feeds
+ *  BundleSeed's text+audio so the shared generator can emit SEED-PHASE
+ *  spaced-rep reviews (bundle-cutover Phase 1 parity item). */
+interface SeedRow {
+  seed_number: number
+  known_text: string | null
+  target_text: string | null
+  target_text_roman: string | null
+  known_audio_id: string | null
+  target1_audio_id: string | null
+  target2_audio_id: string | null
+}
+
+interface AlgorithmConfigRow {
+  config: Record<string, unknown> | null
+  version: number | null
 }
 
 interface PodRow {
@@ -256,6 +310,8 @@ export default async function handler(
     return
   }
 
+  const isHeadProbe = req.query.head === '1'
+
   try {
     const supabase = createClient(
       supabaseUrl,
@@ -263,15 +319,44 @@ export default async function handler(
         (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim(),
     )
 
-    // 6 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
+    // Version probe (design §3): two cheap queries, skips everything else.
+    // No entitlement check — content_version/scriptShapeVersion are course-
+    // level constants, not content, so there's nothing to gate.
+    if (isHeadProbe) {
+      const [courseHeadRes, shapeHeadRes] = await Promise.all([
+        supabase.from('courses').select('content_version').eq('course_code', code).maybeSingle(),
+        supabase.from('algorithm_config').select('version').eq('key', 'script_shape').maybeSingle(),
+      ])
+      if (courseHeadRes.error) {
+        res.setHeader('Cache-Control', 'no-store')
+        res.status(500).json({ error: 'Failed to load course' })
+        return
+      }
+      if (!courseHeadRes.data) {
+        res.setHeader('Cache-Control', 'no-store')
+        res.status(404).json({ error: 'Course not found' })
+        return
+      }
+      const courseHeadRow = courseHeadRes.data as unknown as { content_version: number | null }
+      const shapeHeadRow = shapeHeadRes.data as unknown as AlgorithmConfigRow | null
+      res.setHeader('Cache-Control', 'private, max-age=60, s-maxage=300, stale-while-revalidate=300')
+      res.status(200).json({
+        contentVersion: courseHeadRow.content_version ?? 1,
+        scriptShapeVersion: shapeHeadRow?.version ?? 1,
+      })
+      return
+    }
+
+    // 8 queries in parallel. Each Vercel→Supabase round-trip is ~100-150ms
     // of physics; collapsing into Promise.all keeps the whole bundle
-    // assemble at ~150-300ms instead of 6× that.
-    const [courseRes, legosRes, phrasesRes, roundsRes, podsRes, bookendsRes] = await Promise.all([
+    // assemble at ~150-300ms instead of 8× that.
+    const [courseRes, shapeRes, legosRes, phrasesRes, roundsRes, seedsRes, podsRes, bookendsRes] = await Promise.all([
       supabase
         .from('courses')
         .select('content_version, target_lang, pricing_tier, is_community')
         .eq('course_code', code)
         .maybeSingle(),
+      supabase.from('algorithm_config').select('config, version').eq('key', 'script_shape').maybeSingle(),
       supabase
         .from('course_legos')
         .select(
@@ -291,6 +376,17 @@ export default async function handler(
         .select('round_index, seed_number, lego_id')
         .eq('course_code', code)
         .order('round_index', { ascending: true }),
+      // Seed text+audio — feeds SEED-PHASE spaced-rep reviews (offsets ≥144).
+      // Non-fatal like pods/bookends: absent seed audio just falls back to
+      // an ordinary use-phrase review at generation time.
+      supabase
+        .from('course_seeds')
+        .select(
+          'seed_number, known_text, target_text, target_text_roman, ' +
+            'known_audio_id, target1_audio_id, target2_audio_id',
+        )
+        .eq('course_code', code)
+        .order('seed_number', { ascending: true }),
       supabase
         .from('listening_pods')
         .select('id, pod_order, title')
@@ -337,22 +433,41 @@ export default async function handler(
       res.status(500).json({ error: 'Failed to load course round-index' })
       return
     }
-    // Pods + bookends are non-fatal. A course can ship without Layer 2 yet
-    // (no pods row → empty pods[]); a bookend miss just means the lap
-    // plays without the intro/outro narration. Log and continue so we
-    // never lose the rest of the bundle over pod content gaps.
+    // Pods + bookends + script-shape + seeds are non-fatal. A course can
+    // ship without Layer 2 yet (no pods row → empty pods[]); a bookend miss
+    // just means the lap plays without the intro/outro narration; a missing
+    // script_shape row falls back to DEFAULT_SCRIPT_SHAPE; missing/errored
+    // seed rows just mean SEED-PHASE reviews fall back to use-phrases at
+    // generation time. Log and continue so we never lose the rest of the
+    // bundle over any of these.
     if (podsRes.error) {
       console.warn('[Bundle] listening_pods query failed (non-fatal):', podsRes.error.message)
     }
     if (bookendsRes.error) {
       console.warn('[Bundle] bookend audio query failed (non-fatal):', bookendsRes.error.message)
     }
+    if (shapeRes.error) {
+      console.warn('[Bundle] algorithm_config script_shape query failed (non-fatal):', shapeRes.error.message)
+    }
+    if (seedsRes.error) {
+      console.warn('[Bundle] course_seeds query failed (non-fatal):', seedsRes.error.message)
+    }
 
     const legoRows: LegoRow[] = (legosRes.data || []) as unknown as LegoRow[]
     const phraseRows: PhraseRow[] = (phrasesRes.data || []) as unknown as PhraseRow[]
     const roundRows: RoundIndexRow[] = (roundsRes.data || []) as unknown as RoundIndexRow[]
+    const seedRows: SeedRow[] = (seedsRes.data || []) as unknown as SeedRow[]
     const courseRow = courseRes.data as unknown as CourseRow
     const version = (courseRow.content_version ?? 1)
+
+    const shapeRow = shapeRes.data as unknown as AlgorithmConfigRow | null
+    const scriptShape: BundleScriptShape = shapeRow?.config
+      ? { ...DEFAULT_SCRIPT_SHAPE, ...(shapeRow.config as Partial<BundleScriptShape>) }
+      : DEFAULT_SCRIPT_SHAPE
+    const scriptShapeVersion = shapeRow?.version ?? 1
+
+    const seedRowByNumber = new Map<number, SeedRow>()
+    for (const row of seedRows) seedRowByNumber.set(row.seed_number, row)
 
     // Course exists but the materialised round-index is empty — operator
     // action needed (refresh the view). Surfacing as 503 lets clients
@@ -489,15 +604,35 @@ export default async function handler(
       seedNumber: r.seed_number,
     }))
 
-    // --- Seeds (derived from the round map — no extra DB query) -------------
+    // --- Seeds (round map for ordering; course_seeds for text+audio) --------
     // De-dup while preserving first-seen order (round_index ascending), so
     // seed list reads top-to-bottom in the order the learner will encounter.
+    // Looking seed rows up only for seeds already in `scopedRoundRows` keeps
+    // this naturally preview-scoped — no separate slicing needed.
     const seenSeeds = new Set<number>()
     const seeds: BundleSeed[] = []
     for (const r of scopedRoundRows) {
       if (seenSeeds.has(r.seed_number)) continue
       seenSeeds.add(r.seed_number)
-      seeds.push({ seedId: buildSeedId(r.seed_number), seedNumber: r.seed_number })
+      const seed: BundleSeed = { seedId: buildSeedId(r.seed_number), seedNumber: r.seed_number }
+      const seedRow = seedRowByNumber.get(r.seed_number)
+      if (seedRow) {
+        const targets = pickTargets(seedRow)
+        const known = buildAudioRef(seedRow.known_audio_id, 'persistent', null)
+        const target1 = buildAudioRef(seedRow.target1_audio_id, 'persistent', null)
+        const target2 = buildAudioRef(seedRow.target2_audio_id, 'persistent', null)
+        seed.knownText = seedRow.known_text ?? ''
+        seed.targetText = targets.targetText
+        if (targets.targetTextNative !== undefined) seed.targetTextNative = targets.targetTextNative
+        if (known || target1 || target2) {
+          seed.audio = {
+            ...(known ? { known } : {}),
+            ...(target1 ? { target1 } : {}),
+            ...(target2 ? { target2 } : {}),
+          }
+        }
+      }
+      seeds.push(seed)
     }
 
     // --- Pods (Layer 2) -----------------------------------------------------
@@ -571,6 +706,10 @@ export default async function handler(
     const bundle: CourseBundle = {
       courseCode: code,
       version,
+      contentVersion: version,
+      scriptShape,
+      scriptShapeVersion,
+      generatorVersion: GENERATOR_VERSION,
       // Consistent with the scoped roundMap actually shipped below — a
       // preview caller's mainLoopCount reflects only the preview window,
       // never the full course's true round count.
