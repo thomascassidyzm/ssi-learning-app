@@ -162,6 +162,97 @@ describe('bulkDownloadAudio', () => {
     expect(counts.done).toBe(1200)
   })
 
+  it('resolves URLs just-in-time: each chunk downloads before the next chunk is requested', async () => {
+    const ids = Array.from({ length: 600 }, (_, i) => `id-${i}`)
+    const events: string[] = []
+    const fetchBatchUrls = vi.fn(async (chunk: string[]): Promise<BatchUrlsResult> => {
+      events.push('batch')
+      return {
+        urls: Object.fromEntries(chunk.map((id) => [id, `https://s3.example.com/${id}`])),
+        denied: [],
+      }
+    })
+    const ensureFromUrl = vi.fn(async () => { events.push('download') })
+    const { counters, counts } = makeCounters()
+
+    const result = await bulkDownloadAudio(ids, makeDeps({ fetchBatchUrls, ensureFromUrl }), counters)
+
+    expect(result).toBe(true)
+    expect(fetchBatchUrls).toHaveBeenCalledTimes(2) // 500 + 100, never all upfront
+    const secondBatchAt = events.indexOf('batch', events.indexOf('batch') + 1)
+    const firstDownloadAt = events.indexOf('download')
+    // Chunk 1's downloads run before chunk 2's URLs are requested.
+    expect(firstDownloadAt).toBeGreaterThan(-1)
+    expect(secondBatchAt).toBeGreaterThan(firstDownloadAt)
+    expect(events.slice(0, secondBatchAt).filter((e) => e === 'download')).toHaveLength(500)
+    expect(counts.done).toBe(600)
+  })
+
+  it('re-requests a fresh URL on 403 (expired) instead of retrying or proxying', async () => {
+    const ids = Array.from({ length: 600 }, (_, i) => `id-${i}`)
+    let batchCall = 0
+    const fetchBatchUrls = vi.fn(async (chunk: string[]): Promise<BatchUrlsResult> => {
+      batchCall++
+      return {
+        urls: Object.fromEntries(chunk.map((id) => [id, `https://s3.example.com/${id}?v=${batchCall}`])),
+        denied: [],
+        ttlSeconds: 300,
+      }
+    })
+    // Chunk 2's original URLs (v=2) are expired; refreshed URLs (v>=3) work.
+    const ensureFromUrl = vi.fn(async (id: string, url: string) => {
+      if (url.endsWith('?v=2')) throw new Error(`AudioCache: fetch ${id} → 403`)
+    })
+    const ensure = vi.fn(async () => {})
+    const { counters, counts } = makeCounters()
+
+    const result = await bulkDownloadAudio(ids, makeDeps({ fetchBatchUrls, ensureFromUrl, ensure }), counters)
+
+    expect(result).toBe(true)
+    expect(ensure).not.toHaveBeenCalled() // fresh URLs succeeded — no proxy fallback
+    expect(counts.done).toBe(600)
+    expect(counts.failed).toBe(0)
+    // Each expired URL was tried exactly once — no blind retries on a dead URL.
+    const deadUrlCalls = ensureFromUrl.mock.calls.filter(([, url]) => url.endsWith('?v=2'))
+    expect(deadUrlCalls).toHaveLength(100)
+    // One fresh-URL re-request per expired id (calls 3..102), on top of the 2 chunk requests.
+    expect(fetchBatchUrls).toHaveBeenCalledTimes(102)
+  })
+
+  it('batch-refreshes remaining URLs when a chunk outlives the TTL safety margin', async () => {
+    const ids = Array.from({ length: 30 }, (_, i) => `id-${i}`)
+    let t = 0
+    let batchCall = 0
+    const fetchBatchUrls = vi.fn(async (chunk: string[]): Promise<BatchUrlsResult> => {
+      batchCall++
+      return {
+        urls: Object.fromEntries(chunk.map((id) => [id, `https://s3.example.com/${id}?v=${batchCall}`])),
+        denied: [],
+        ttlSeconds: 300,
+      }
+    })
+    const downloadedUrls: string[] = []
+    const ensureFromUrl = vi.fn(async (_id: string, url: string) => {
+      downloadedUrls.push(url)
+      t = 200_000 // first dispatch pushes the clock past 60% of the 300s TTL
+    })
+    const { counters, counts } = makeCounters()
+
+    const result = await bulkDownloadAudio(
+      ids,
+      makeDeps({ fetchBatchUrls, ensureFromUrl, now: () => t }),
+      counters,
+    )
+
+    expect(result).toBe(true)
+    expect(counts.done).toBe(30)
+    // First dispatch of 24 used the original URLs; the remaining 6 were
+    // re-requested in one batch before dispatch, not sent stale.
+    expect(fetchBatchUrls).toHaveBeenCalledTimes(2)
+    expect(fetchBatchUrls.mock.calls[1][0]).toHaveLength(6)
+    expect(downloadedUrls.slice(24).every((u) => u.endsWith('?v=2'))).toBe(true)
+  })
+
   it('uses higher concurrency while idle than while playing (direct path)', async () => {
     let concurrentPeak = 0
     let inFlight = 0
@@ -183,14 +274,14 @@ describe('bulkDownloadAudio', () => {
 describe('fetchBatchAudioUrls', () => {
   const originalFetch = globalThis.fetch
 
-  it('returns urls and denied on a 200 response', async () => {
+  it('returns urls, denied and ttlSeconds on a 200 response', async () => {
     globalThis.fetch = vi.fn(async () => new Response(
       JSON.stringify({ urls: { a: 'https://s3/a' }, denied: ['b'], ttlSeconds: 300 }),
       { status: 200 },
     )) as unknown as typeof fetch
 
     const result = await fetchBatchAudioUrls(['a', 'b'])
-    expect(result).toEqual({ urls: { a: 'https://s3/a' }, denied: ['b'] })
+    expect(result).toEqual({ urls: { a: 'https://s3/a' }, denied: ['b'], ttlSeconds: 300 })
 
     globalThis.fetch = originalFetch
   })
@@ -213,7 +304,7 @@ describe('fetchBatchAudioUrls', () => {
     globalThis.fetch = originalFetch
   })
 
-  it('defaults denied to [] when the response omits it', async () => {
+  it('defaults denied to [] and leaves ttlSeconds unset when the response omits them', async () => {
     globalThis.fetch = vi.fn(async () => new Response(
       JSON.stringify({ urls: { a: 'https://s3/a' } }),
       { status: 200 },
@@ -221,6 +312,7 @@ describe('fetchBatchAudioUrls', () => {
 
     const result = await fetchBatchAudioUrls(['a'])
     expect(result).toEqual({ urls: { a: 'https://s3/a' }, denied: [] })
+    expect(result?.ttlSeconds).toBeUndefined()
 
     globalThis.fetch = originalFetch
   })

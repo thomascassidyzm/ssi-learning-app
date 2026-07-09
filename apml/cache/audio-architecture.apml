@@ -1,6 +1,6 @@
 # APML v2.0.0 - Audio Caching Architecture
 # SSI Learning App
-# Last Updated: 2026-07-09 (offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
+# Last Updated: 2026-07-09 (bulk download: presigned URLs resolved JUST-IN-TIME per chunk + TTL-aware expiry recovery — see offline_download.bulk_download_transport. Same day, earlier: offline round 3: behind-position bundle unconditional; listening METADATA cached offline via listeningMetaCache.ts — see offline_download.behind_position / listening_metadata_offline / belt_pill_offline_clarity)
 # Prev: 2026-06-16 (offline download now OPEN TO ALL with a free 30-day TASTE for non-payers — "pay for convenience, not content"; reverses the earlier premium hard-gate, the 30-day LEASE plugs the leak by expiry. PLUS the lease is now STATEFUL: offline_leases table = server authority → revocation kill-switch + trial-used memory; renewal is LAZY + weak-signal-safe (timeout/fail-open, never on first load). See premium_gate + offline_lease sections; useEntitlement.offlineRenews, LearningPlayer.canStartOfflineDownload, config/offlineLease.ts, composables/useOfflineLease.ts, api/entitlement/offline-lease.ts, supabase/migrations/20260616_offline_leases.sql)
 # Prev: 2026-06-08 (ONE cache-first player; online=offline via cachePlayOnline; rolling filler + AudioCache; AudioPrefetcher/BundleDownloader/usePrefetchManager/OfflineCache/AudioSource all DELETED)
 
@@ -272,6 +272,33 @@ spec audio_caching_architecture:
       behindPositionRoundsLoaded: "cachedRounds[0].roundNumber === 1 — round numbers are course-global 1-based on every producer, so this detects a cursor-anchored bootstrap window that still needs the full walk"
       collectRoundsAudioIds: "unique /api/audio ids over [course start … cursor + N rounds ahead] — behind-position always included"
       downloadForOffline: "(roundsAhead) — ensure + collect + fetch missing into IndexedDB"
+
+    bulk_download_transport:
+      file: "packages/player-vue/src/playback/bulkAudioDownload.ts"
+      purpose: >
+        Transport layer for downloadForOffline / INF-PLAY bulk fetches: resolves
+        ids to presigned S3 GET URLs in batches (POST /api/audio/batch-urls,
+        cap 500 ids, ~5-min TTL) and fetches bytes directly from S3 at high
+        concurrency (24 idle / 6 playing), skipping the per-clip serverless
+        proxy hop. Proxy path (12 / 4) remains the fallback for endpoint
+        failure, denied ids, and clips whose direct fetch fails.
+      jit_url_resolution: >
+        Presigned URLs are requested JUST-IN-TIME, one chunk at a time: resolve
+        chunk → download chunk to completion → resolve next chunk. Never
+        resolve all chunks upfront — the v3 bundle takes longer than the 5-min
+        TTL on real connections, so upfront resolution meant every clip after
+        the TTL hit an expired URL → S3 403 → 3 wasted retries + backoff on a
+        dead URL → slow proxy tail (Tom's on-device stutter, 2026-07-09).
+      ttl_handling: >
+        The endpoint's ttlSeconds (default 300) is honoured with a 60% safety
+        margin. A chunk that outlives the margin mid-download (slow network,
+        suspended tab) gets its REMAINING ids batch re-requested before
+        dispatch. An individual fetch that fails expired-looking (403 in the
+        error, or URL past the margin) is NEVER retried on the same URL:
+        exactly one fresh-URL re-request for that id, then proxy fallback.
+        withRetry (3 attempts, linear backoff) still covers genuinely
+        transient errors on non-expired URLs.
+      tested: "bulkAudioDownload.test.ts — incl. JIT interleaving (no upfront resolution), 403→fresh-URL recovery without proxy fallback, and mid-chunk TTL-margin batch refresh via an injected clock"
 
     listening_metadata_offline:
       file: "packages/player-vue/src/composables/listeningMetaCache.ts"
