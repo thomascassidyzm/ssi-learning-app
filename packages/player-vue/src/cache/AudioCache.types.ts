@@ -68,6 +68,19 @@ export interface PersistentNamespace {
   ensure(id: AudioId): Promise<void>
 
   /**
+   * Same contract as `ensure`, but fetches from an arbitrary URL (e.g. a
+   * presigned S3 GET) instead of the configured `/api/audio/:id` proxy.
+   * The stored row is byte-for-byte identical in shape to what `ensure`
+   * produces — same cache key, same lifecycle — so playback and the belt-
+   * availability checks can't tell the two apart. Caller is the bulk
+   * offline downloader, which resolves batches of presigned URLs up front
+   * to avoid a per-clip proxy round-trip.
+   *
+   * Throws on fetch/storage failure, same as `ensure`.
+   */
+  ensureFromUrl(id: AudioId, url: string): Promise<void>
+
+  /**
    * Synchronous in-memory check. Backed by a Set populated at init time
    * and maintained on every ensure/evict. Cheap enough to call once per
    * cycle on the hot playback path.

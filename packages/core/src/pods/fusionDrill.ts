@@ -118,7 +118,7 @@ export interface DrillQueueStep {
 export const normalizeForAudio = (t: string | null | undefined): string =>
   (t || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[.!。！]+$/, '')
 
-export const SENTENCE_PUNCT = /[.!?…。！？]/
+export const SENTENCE_PUNCT = /[.!?…。！？؟]/ // ؟ = Arabic/Farsi question mark — ~9 turns per RTL pod-0 have one mid-turn
 
 /**
  * One fusion step over spans of unit indices.

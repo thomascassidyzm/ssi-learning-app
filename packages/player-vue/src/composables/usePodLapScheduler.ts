@@ -51,6 +51,7 @@ import {
 } from '@ssi/core/pods'
 import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
+import { getCachedListeningMeta } from './listeningMetaCache'
 
 /** Fusion mode for the main-flow unified ladder — pairwise per Aran's model
  *  (Tom 2026-07-05). The chained-overlap alternative stays a composer flag;
@@ -475,15 +476,30 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
           : Promise.resolve({ data: null, error: null } as { data: null; error: null }),
       ])
 
-      if (podsResult.error) throw new Error(`pod sentences: ${podsResult.error.message}`)
-      if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
+      // Offline fallback (Tom's airplane-mode test 2026-07-09): when the live
+      // metadata queries fail (offline, mid-air drop), serve the rows/bookends
+      // persisted by the deliberate offline download. Never-downloaded +
+      // offline keeps the old failure path (init warns, pods just don't fire).
+      let podRowsData = podsResult.data as RawPodRow[] | null
+      let bookendData = bookendsResult.data as Array<{ role: string; text: string; id: string; duration_ms?: number }> | null
+      if (podsResult.error || bookendsResult.error) {
+        const cached = await getCachedListeningMeta(courseCode)
+        if (cached) {
+          console.warn('[podLapScheduler] live metadata fetch failed — using offline cache')
+          if (podsResult.error) podRowsData = cached.podRows as unknown as RawPodRow[]
+          if (bookendsResult.error) bookendData = cached.bookends
+        } else {
+          if (podsResult.error) throw new Error(`pod sentences: ${podsResult.error.message}`)
+          throw new Error(`bookends: ${bookendsResult.error!.message}`)
+        }
+      }
 
       // Flatten turn-rows into per-SENTENCE units: a silence-split turn plays
       // as target→known→target PER SENTENCE (not 3 target sentences then 3
       // known — too hard to follow, Tom 2026-06-16). Rows without a split pass
       // through unchanged. Everything downstream (stages, Stage-0, gaps) then
       // works per-sentence by construction.
-      podSentences.value = flattenPodRows((podsResult.data || []) as RawPodRow[])
+      podSentences.value = flattenPodRows((podRowsData || []) as RawPodRow[])
 
       // Stage-0 lookups — only when the ladder is enabled (config present) and
       // at least one sentence carries an atom_map. Two small course-wide reads.
@@ -491,9 +507,16 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       stage0TargetClip = new Map()
       const stage0Enabled = !!unwrap(options.stage0) && podSentences.value.some((s) => Array.isArray(s.atom_map) && s.atom_map.length > 0)
       if (stage0Enabled) {
-        const maps = await loadStage0ClipMaps(supabase, courseCode)
-        stage0MeansGloss = maps.glossMap
-        stage0TargetClip = maps.targetClipMap
+        // Best-effort: offline (or a failed read) just skips the Stage-0
+        // prepend — the sentence's Stages 1-9 still play — rather than
+        // failing the whole init.
+        try {
+          const maps = await loadStage0ClipMaps(supabase, courseCode)
+          stage0MeansGloss = maps.glossMap
+          stage0TargetClip = maps.targetClipMap
+        } catch (err) {
+          console.warn('[podLapScheduler] Stage-0 clip-map load failed (ladder skipped):', err)
+        }
       }
 
       // Fine-known clips for fusion rungs — paged under PostgREST's row cap.
@@ -515,17 +538,19 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
             if (!fineRows || fineRows.length < page) break
           }
         } catch (err) {
-          console.warn('[podLapScheduler] fine-known load failed (knowns drop at fused rungs):', err)
+          // Offline fallback — the map persisted by the offline download.
+          const cached = await getCachedListeningMeta(courseCode)
+          if (cached && Object.keys(cached.fineKnowns).length > 0) {
+            fineKnownByNorm = new Map(Object.entries(cached.fineKnowns))
+            console.warn('[podLapScheduler] fine-known live load failed — using offline cache')
+          } else {
+            console.warn('[podLapScheduler] fine-known load failed (knowns drop at fused rungs):', err)
+          }
         }
       }
 
       const byRole = new Map<string, BookendAudio>()
-      for (const row of (bookendsResult.data || []) as Array<{
-        role: string
-        text: string
-        id: string
-        duration_ms?: number
-      }>) {
+      for (const row of bookendData || []) {
         byRole.set(row.role, { id: row.id, text: row.text, duration_ms: row.duration_ms })
       }
       introAudio.value = byRole.get('bookend_listen_intro') || null
