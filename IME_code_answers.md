@@ -299,3 +299,61 @@ So: amplitude envelope, syllable-count approximation, and duration. Pitch (F0) i
 **Not implemented:** there is no raw-data export endpoint, no learner-facing "download my data" (data-portability) feature, and no scheduled report generation. Bulk raw access would be via direct Supabase access (outside this repo).
 
 **Deletion (relevant adjacent capability):** a learner-facing "Delete Account" exists (`SettingsScreen.vue:831-890`) but it is **partial**: it deletes rows from six tables (`response_metrics`, `spike_events`, `lego_progress`, `seed_progress`, `sessions`, `course_enrollments`) plus the `learners` row, then signs out and clears local storage. It does **not** delete `player_events`, `learner_lego_metrics`, `learner_lego_pairings`, `daily_contributions`, `learner_speaking_opportunities`, or pod/listening state, and it does **not** delete the Supabase Auth user itself (the email remains in the auth system). Anyone answering a "right to erasure" question should know the current implementation is incomplete.
+
+---
+
+## Q6. Third-party services, partner-facing API surface, and scaling assessment
+
+### Every third-party service integrated in the code
+
+| Service | Role | Where it appears | Status |
+|---|---|---|---|
+| **Supabase** | PostgreSQL database, authentication (passwordless email OTP), PostgREST API | Client: `@supabase/supabase-js` in both `package.json`s, `packages/player-vue/src/config/env.ts`. Server: service-role client in every `api/*` endpoint (e.g. `api/_utils/audioAccess.ts:21-23`) | Implemented — the platform's core backend |
+| **Paddle** | Payments/subscriptions (merchant of record; hosted checkout) | Client SDK `@paddle/paddle-js` (`packages/player-vue/package.json`); server SDK `@paddle/paddle-node-sdk` via `api/_utils/paddle.ts` (webhook signature verification, `PADDLE_ENV` sandbox/production); endpoints `api/subscription/*`, `api/teacher/paddle-webhook.ts`, `/paddle-review` static page | Implemented |
+| **Wise** | Teacher commission payouts (bank transfers) | `api/_utils/wise.ts` (first-party Wise Business account, API token auth, RSA webhook verification, sandbox override), `api/teacher/payout-recipient.ts`, `api/teacher/wise-webhook.ts`, monthly cron `api/cron/teacher-payouts.ts` | Implemented |
+| **AWS S3** | Course-audio object storage | `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (root `package.json`); `api/_utils/audioAccess.ts` (bucket default `ssi-audio-stage`, region default `eu-west-1`); presigned URLs in `api/audio/batch-urls.ts` | Implemented |
+| **Vercel** | Hosting: static CDN, serverless functions, cron scheduler, geo headers | `vercel.json` (build, functions, crons, rewrites); `@vercel/node` types; `x-vercel-ip-country` used in `api/player-events.ts:95`; cron authenticated via `CRON_SECRET` bearer (`api/cron/teacher-payouts.ts:39-94`) | Implemented |
+| **Google Fonts** | Web fonts (Arsenal, Open Sans) fetched at runtime from learner devices | `packages/player-vue/index.html` (preconnect + stylesheet); service-worker runtime caching in `vite.config.js` | Implemented |
+| **GitHub Actions** | Dev tooling only: auto-merge of `claude/**` branches to `dev` | `.github/workflows/auto-merge-claude.yml` | Implemented (not learner-facing) |
+
+**Notable absences (verified by search):** no email-sending service in this repo — OTP emails are sent by Supabase Auth, whose SMTP/provider config lives in the Supabase dashboard (**not visible in this repo**). No TTS service — audio generation happens in the separate dashboard repo; the only "tts" references here are data labels (e.g. `origin: 'tts'`, `CourseDataProvider.ts:578`). No analytics/crash SDKs (Q5). No push-notification, SMS, CDN-vendor, or AI-API integrations.
+
+### API surface for external / institutional partners
+
+**There is no API intended for external programmatic partners** — no API-key or OAuth client scheme for third parties, no OpenAPI spec, no versioned public API. `docs/api-reference.md` is an internal endpoint inventory ("Auto-generated from codebase audit 2026-04-10"), not partner documentation. The only machine-to-machine surfaces are **inbound** vendor webhooks (Paddle, Wise — both signature-verified).
+
+What exists for institutions is **first-party and UI-driven** (all implemented):
+
+- **Invite codes** (`/api/code/validate|redeem`, `api/invite/create.ts`) — role assignment and school joining for teachers/admins.
+- **Entitlement codes and grants** (`api/entitlement/*`) — course access for cohorts.
+- **Email allowlists** (`api/access/grant-emails.ts`) — admin pastes a list of emails; those users get free access automatically on next sign-in (header comment, lines 1-16). This is the closest thing to bulk institutional provisioning.
+- **Try-links** (`api/try-link/create.ts`) — "shareable try-link for zero-friction course previews", admin-only.
+- **Government/multi-school layer** — `govt_admins` role, `groups` of schools, `/schools/all` view, `api/admin/create-school.ts`, `create-govt-admin.ts` — built for the government-contract model described in `CLAUDE.md`.
+- Privileged codes are deliberately bounded bearer tokens: forced expiry (default 7 days, max 90) and use caps (default 1, max 50) — `api/_utils/codeGuard.ts:1-30`.
+
+A partner integration requiring server-to-server APIs (SSO, roster sync/LTI, data feeds) would be **net-new work**.
+
+### Scaling assessment
+
+**Serving architecture (what the code shows):**
+- Static Vue SPA served from Vercel's CDN; all `/api/*` endpoints are stateless Vercel serverless functions (no containers, no long-lived servers anywhere in the repo).
+- Browsers query Supabase **directly** for most reads/writes (course content, progress); serverless functions handle privileged operations.
+- Audio: streamed per-clip through the serverless proxy from S3, or fetched directly from S3 via short-lived presigned URLs for bulk downloads.
+- One scheduled job (monthly payouts cron).
+
+**Where the obvious bottlenecks are at much higher concurrency:**
+
+1. **Audio proxy has no shared edge cache — deliberate.** `api/audio/[audioId].ts:138-151` sets `Vercel-CDN-Cache-Control: no-store` because Vercel's edge mangles Range requests into the "exact malformed shape iOS Safari rejects"; the comment is explicit: "Cross-user edge caching is sacrificed; per-device browser caching (the dominant repeat-play path) is retained." Consequence: **every first play of every clip by every learner is a serverless invocation + S3 GET** (Supabase lookup included, `maxDuration: 10` per `vercel.json`). Fine at current scale; at tens of thousands of concurrent learners this is the first cost/latency pressure point. The designed escape hatch exists: `VITE_S3_AUDIO_BASE_URL` (`audioConfig.ts:20`) and the proxy's stated purpose "Future CDN flexibility" mean a real audio CDN (e.g. CloudFront) can be put in front without an app rebuild — but none is configured in this repo.
+2. **A single shared Postgres.** All environments point at **one Supabase database — dev, staging, and prod share it** (stated in `CLAUDE.md`, identity-rationalisation section: "dev/staging/prod share ONE DB"). Beyond the operational risk, Postgres is the vertical-scaling choke point: browsers connect directly (via Supabase's pooler), and the app is telemetry-write-heavy (per-cycle metrics, `player_events`). Mitigations already in code: event batching (≤50/POST, `api/player-events.ts:65`), adaptation-state flushes every 10 cycles (`useAdaptationEngine.ts:29`), pairings batched per-session (`usePairingsTelemetry.ts:9-16`). Database compute tier, pooler settings, and read-replica options are Supabase-dashboard matters — **not visible in this repo**.
+3. **No rate limiting anywhere.** A search across `api/` finds no rate-limit middleware or service. The telemetry endpoint additionally trusts a spoofable cookie (its own comment, `api/player-events.ts:6-9`). At partner scale this is both an abuse and a cost exposure.
+4. **Serverless fan-out is otherwise a good fit:** functions are stateless and Vercel scales them horizontally; the bulk-download path was explicitly engineered around function-invocation limits (one `batch-urls` call per 500 clips instead of 2,000 proxy round-trips — `api/audio/batch-urls.ts` header).
+5. **No load-testing artifacts** exist in the repo (no k6/artillery/locust configs), so all high-concurrency behaviour is untested as far as this repo shows.
+
+**Visible here vs. living elsewhere:**
+
+| In this repo | Outside (must check elsewhere) |
+|---|---|
+| Function definitions, cron schedule, cache headers, batching/concurrency constants, bucket/region *defaults* | Vercel plan limits, function concurrency quotas, actual deploy regions |
+| Supabase table usage, migrations, client config | Supabase compute tier, connection pooler config, region, backups, read replicas |
+| S3 SDK usage, presigning TTL (300 s) | S3 bucket policies, request-rate limits, whether any CloudFront/CDN fronts the bucket, IAM |
+| Paddle/Wise SDK code and webhook verification | Paddle/Wise account limits and configuration |
