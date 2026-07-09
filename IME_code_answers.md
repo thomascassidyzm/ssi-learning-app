@@ -357,3 +357,46 @@ A partner integration requiring server-to-server APIs (SSO, roster sync/LTI, dat
 | Supabase table usage, migrations, client config | Supabase compute tier, connection pooler config, region, backups, read replicas |
 | S3 SDK usage, presigning TTL (300 s) | S3 bucket policies, request-rate limits, whether any CloudFront/CDN fronts the bucket, IAM |
 | Paddle/Wise SDK code and webhook verification | Paddle/Wise account limits and configuration |
+
+---
+
+## Q7. Course-creation pipeline: steps, AI usage, human review, language edge cases
+
+### The critical boundary first
+
+**The course-creation tool is not in this repository.** It lives in the separate repo `ssi-dashboard-v7-clean` ("Popty"). A step-by-step walkthrough of translation, phrasebank generation, and publishing as *implemented* — including which AI models are called and what the reviewer/proofreading screens look like — **must be answered from that repo**. What follows is everything that IS verifiable from this side: the pipeline's documented shape, the artifacts it deposits, the QA hooks built into the learner app, and the language special-casing in the delivery code.
+
+### Pipeline shape as documented here
+
+`CLAUDE.md` ("Ecosystem: Two Repositories") describes the dashboard pipeline as: **Phases 1–3** translation, LEGO chunking, and phrase-basket generation → **Phase 8** audio generation (TTS) uploading `mastered/{uuid}.mp3` to S3 and rows to `course_audio` → **Phase 9** manifest compilation (legacy path), plus a "Production API: QA, recording". This repo consumes the outputs (Supabase tables `course_seeds` / `course_legos` / `course_practice_phrases` / `course_audio`, and S3 audio).
+
+Two docs in this repo describe the *method*:
+- `docs/COURSE_BUILDER_BRIEF.md` — a task brief instructing a builder to "Create ~260 LEGOs and ~5,000 phrases by working through the 260 seed sentences, using your language knowledge": translate each seed naturally, chunk into A-type/M-type LEGOs passing the "Zero Uncertainty Test", reuse existing LEGOs, then generate practice phrases using only already-introduced vocabulary. It reads as a prompt brief for an LLM-driven build, **but no model or API is named anywhere in this repo**.
+- `docs/POR_FOR_ENG_COURSE_SUMMARY.md` — a build report showing **automated validation gates**: vocabulary violations (phrases must only use introduced LEGOs — "0 violations"), minimum phrases per LEGO (≥7), and syllable-length requirements for spaced-repetition "ETERNAL" phrases — evidence that machine-checkable quality gates exist in the pipeline, distinct from human review.
+
+### Which steps use AI, and which models — what is visible
+
+- **Voice creation (Phase 8): Microsoft Azure neural TTS — visible via data.** Voice IDs are embedded in this repo's migrations: `azure_zh-CN-XiaoxiaoMultilingualNeural`, `azure_zh-CN-YunyiMultilingualNeural` (`supabase/migrations/20260704_relink_zho_for_eng_phrase_audio.sql`), `azure_en-GB-SoniaNeural` (elsewhere in migrations). No ElevenLabs/Amazon Polly/other TTS references exist. Whether *all* courses use Azure TTS, and whether any use human recordings (the Welsh-legacy doc `docs/welsh-json-to-v12-mapping.md` references a `welsh_source_voice`), is **not determinable from this repo**.
+- **Translation and phrasebank generation:** almost certainly LLM-driven per the brief above, but the model/API is **not visible in this repo** — verify in the dashboard repo.
+- **The delivery app itself runs no AI**: no AI/LLM API integration exists in this codebase (Q6).
+
+### Human review points — what is actually built in (this repo's side)
+
+- **Learner flagging — implemented in the player.** Every phrase in the player carries a flag button (`packages/player-vue/src/components/ReportIssueButton.vue`). Flagging inserts a `content_feedback` row with full session context (seed/LEGO/cycle IDs, known and target text) and upserts a `sample_flags` row with `status: 'needs_review'`, `flagged_by: 'learner'` — the code comment says explicitly: "Also create sample_flags entry for Dashboard QA workflow" (lines 93-109). So a learner-to-reviewer flag queue exists end-to-end; the *reviewing* interface is on the dashboard side (**not visible here**).
+- **Tester feedback — implemented:** a structured feedback component writing to `tester_feedback` (`TesterFeedback.vue`).
+- **Internal QA playback — implemented:** a Course Explorer with a "QA Script" mode (`packages/player-vue/src/components/CourseExplorer.vue`, badge at line 1012; admin/QA round-builder flag at line 124) letting staff step through a course's script outside the normal learner flow; the player also threads a `qa_mode` flag into flag reports (`ReportIssueButton.vue` session context).
+- **Approval/sign-off steps, proofreading interfaces, and any human-in-the-loop gates during generation: not visible in this repo** — these would be in the dashboard's "Production API: QA, recording" surface.
+
+### Language types handled badly or specially — what the code shows
+
+**Special-casing that exists (implemented):**
+- **CJK scripts:** per-character tokenisation instead of whitespace word-splitting, plus dedicated `is-cjk` styling, in the tile-assembly UI (`packages/player-vue/src/components/LegoAssembly.vue:126-133` — "per-character for CJK, per-word for alphabetic"; CJK class handling at lines 368-389 listing `zho`/`cmn`/`jpn`/`kor`).
+- **Tonal / pitch-accent languages:** the pronunciation scorer weights envelope shape highest for tonal languages (Mandarin, Cantonese, Thai, Vietnamese) and adjusts for pitch-accent (Japanese, Korean), stress-timed, and syllable-timed families (`packages/core/src/audio/PronunciationEngine.ts:68-100`, see Q4).
+- **Accent-sensitive text matching:** clip lookup is case-insensitive but accent-preserving, with an Italian-specific comment ("'È'=is stays distinct from 'e'=and") and a warning that getting this wrong silently drops ~10% of atoms (`packages/core/src/pods/stage0Sequence.ts:138-144`).
+- **UI localisation:** the app UI ships 22 locale files including Arabic, Urdu, and five Indic languages — Bengali, Gujarati, Hindi, Punjabi, Tamil, plus Sinhala (`packages/player-vue/src/locales/`: `ara, aze, ben, cym, deu, eng, fra, gle, guj, hin, ita, jpn, kor, lit, pan, por, sin, spa, tam, urd, yor, zho`).
+
+**Evidence of a language pipeline going wrong (honest disclosure):** the Chinese course shipped with a large audio-linking defect — only 891 of 6,835 practice-phrase rows carried an audio pointer after content sweeps "bumped rows without re-pointing them", causing the listening mode to advance "through thousands of silent rows". It was repaired by a data-only relink migration (`supabase/migrations/20260704_relink_zho_for_eng_phrase_audio.sql`, header comment). This is a link-integrity failure mode, not a Chinese-specific linguistic one, but it shows the pipeline's text↔audio binding can drift — which is exactly why the app's "Cycle refactor" rule exists ("Audio bound by ID, never by text lookup… A Cycle is complete or doesn't exist", `CLAUDE.md`).
+
+**Gaps (not handled anywhere in this repo):**
+- **Right-to-left scripts: no support.** There is no `dir="rtl"` attribute, no `direction: rtl` CSS, and no RTL-aware layout logic anywhere in the player — despite Arabic and Urdu UI locale files existing. Delivering a course *in* an RTL-script target language would need net-new player work.
+- **Languages with weak LLM support:** no special handling, fallback, or commentary is visible in this repo. How the pipeline behaves for low-resource languages is a dashboard-repo question — **not visible here**.
