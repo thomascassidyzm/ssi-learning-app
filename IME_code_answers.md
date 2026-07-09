@@ -243,3 +243,59 @@ So: amplitude envelope, syllable-count approximation, and duration. Pitch (F0) i
 - Pronunciation mode waits for **1 s of sustained silence** below −45 dB (8 s timeout) before concluding the learner finished (`PronunciationOverlay.vue`, `waitForSilence`, `{ silenceDurationMs = 1000, maxWaitMs = 8000, silenceThresholdDb = -45 }`).
 
 **Honest limitations (nothing in code handles these):** there is **no speaker separation or voice identification** — a TV, a second person, or any noise above −45 dB is indistinguishable from the learner speaking, and would register as speech (skewing timing metrics or pronunciation scores). The −45 dB threshold is a **fixed constant**, not calibrated per device or ambient noise level (the only adaptive floor is the 25%-of-peak trim inside pronunciation scoring). Because the pacing feature only awards bonuses/adjusts pauses, the failure mode of noise is mis-timed pacing and inflated points, not blocked progress.
+
+---
+
+## Q5. Learner data collected, where it goes, age-gating, and export capability
+
+### Categories of learner data collected (all stored in Supabase PostgreSQL unless noted)
+
+**1. Account / identity — implemented**
+- Email address: held by **Supabase Auth** (sign-in is passwordless email OTP; "signInWithOtp handles both sign-in AND sign-up automatically" — `packages/player-vue/src/components/auth/SignInModal.vue:131,144`). Additional verified emails in `learners.verified_emails` and a `learner_emails` table (server-verified via `api/email/verify.ts`).
+- Profile: `learners` table — `display_name`, `preferences` (volume, session length…), `educational_role` (student/teacher/school_admin/govt_admin), `platform_role` (`supabase/schema.sql:4658-4675`). Teachers may add an `institution` string (`api/onboarding/profile.ts:8-9,39-41`). **No real name, phone, address, age, or date of birth is collected anywhere.**
+
+**2. Learning progress — implemented**
+`course_enrollments`, `lego_progress`, `seed_progress`, `sessions`, `daily_contributions`, listening/pod state (`learner_pod_state`, `learner_meta_commentary_state`) — written directly from the browser via the Supabase client (table usage counted across `packages/player-vue/src` and `packages/core/src`).
+
+**3. Speech-derived measurements — implemented, numbers only (see Q4 — no audio ever)**
+`response_metrics` (per-cycle response latency ms, phrase length, normalised latency), `spike_events` (hesitation spikes), `learner_lego_metrics` (per-LEGO mastery state + bounded latency series, cap 20 values), `learner_speaking_opportunities` (`packages/core/src/persistence/SessionStore.ts:220-275`; `packages/player-vue/src/composables/useAdaptationEngine.ts`).
+
+**4. Behavioural telemetry — implemented**
+- `player_events` via `POST /api/player-events` (`api/player-events.ts`): event type, JSON payload (e.g. audio plays with URL/LEGO id/playback speed), course code, session id, client version, plus **server-derived** `device_type` (from User-Agent) and `ip_country` (from Vercel's `x-vercel-ip-country` geo header — **country code only; the IP address itself is not stored**) and environment tag (lines 93-117). Identity comes from an `ssi-user-id` cookie; the endpoint's own comment notes it is diagnostics-grade, not verified ("anyone can spoof… for diagnostic use that's fine", lines 6-9).
+- LEGO co-occurrence tallies `learner_lego_pairings` — batched counts with, per its comment, "no live reader — substrate for a future brain-view / adaptive-selection feature" (`packages/player-vue/src/composables/usePairingsTelemetry.ts:9-16`).
+
+**5. User-submitted feedback — implemented:** `tester_feedback`, `content_feedback` (`TesterFeedback.vue`, `ReportIssueButton.vue`).
+
+**6. Commercial data — implemented**
+- Subscriptions: `subscriptions`, `user_entitlements`, entitlement codes/grants, `trial_burns`, `offline_leases`. **Card details are never touched by this codebase** — checkout is Paddle-hosted (`@paddle/paddle-js` client SDK; server webhooks verified in `api/_utils/paddle.ts`); the DB stores Paddle IDs/status.
+- Teacher payouts: bank details are submitted **pass-through to Wise** and only the resulting `wise_recipient_id` is stored on the `teachers` row — the IBAN/account details themselves are not persisted in the platform DB (`api/teacher/payout-recipient.ts:12-20, 122-131`).
+
+**7. Schools organisational data — implemented:** `schools`, `classes`, `class_sessions`, aggregate views (`class_student_progress`, `class_activity_stats`, `school_summary`), `user_tags`, invite codes.
+
+### Where it is sent and stored — and what isn't visible here
+
+| Destination | What | Region |
+|---|---|---|
+| Supabase (PostgreSQL + Auth) | Everything above except audio | **Not visible in this repo** — the project URL is an env var (`VITE_SUPABASE_URL`); hosting region is set in the Supabase dashboard |
+| Vercel serverless (`api/*`) | Telemetry ingestion, payments, admin — processing, not storage | No `regions` key in `vercel.json` → function region not pinned in code; **actual region not visible in this repo** |
+| AWS S3 | Course audio only (content, not learner data) | Default `eu-west-1` in code (`api/_utils/audioAccess.ts:36`); production value is a Vercel env var |
+| Paddle | Payment/checkout PII | Third party — **not visible in this repo** |
+| Wise | Teacher payout bank details | Third party — **not visible in this repo** |
+| Google Fonts | Font files fetched at runtime (`fonts.googleapis.com` / `gstatic.com` cached by the service worker, `vite.config.js` runtimeCaching) — a third-party request from learner devices, though no learner data is sent beyond the request itself | Google |
+
+**Third-party analytics SDKs: none.** No Sentry, Google Analytics, Mixpanel, PostHog, Segment, Amplitude, Hotjar, or similar appears in `packages/player-vue/package.json`, `index.html`, or the source. All telemetry is first-party into the platform's own `player_events` table. (The only external scripts are Paddle's checkout SDK and Google Fonts.)
+
+### Age-gating / parental consent
+
+**None exists in this repo.** Searched the signup and onboarding flows (`SignInModal.vue`, `views/onboarding/Onboarding.vue`, `api/onboarding/*`) for age, date-of-birth, parental/guardian consent, and COPPA-style handling: there is no age question, no DOB field, no parental-consent step, and no terms-of-service acceptance checkbox — entering an email OTP creates the account directly. Static `/terms` and `/privacy` pages are served (rewrites in `vercel.json`) but nothing in the signup flow requires acknowledging them. School students onboard via class join codes with the same absence of age handling. If the India partner requires age-gating or parental consent (e.g. under the DPDP Act for children under 18), **this would be net-new work**.
+
+### Data export capability
+
+**Implemented (aggregated, schools-facing):**
+- **Teacher CSV export** — per-class summary CSV from the teacher dashboard (`packages/player-vue/src/views/schools/TeacherDashboard.vue:311-344`, "Export CSV" button).
+- **School-wide CSV export** — "Download all data (.csv)" in school settings: one row per student with class, seeds completed, practice seconds, last active (`packages/player-vue/src/views/schools/SettingsView.vue:198-218, 373-374`).
+- **Admin read APIs/dashboards** — `api/admin/users.ts`, `api/admin/attention.ts`, `api/me/engaged-time.ts`, `api/school/daily-activity.ts`, `api/school/class-practice-7d.ts`, plus admin views (`AdminAnalytics.vue`, `AdminUserDetail.vue`) — on-screen reporting, not file export.
+
+**Not implemented:** there is no raw-data export endpoint, no learner-facing "download my data" (data-portability) feature, and no scheduled report generation. Bulk raw access would be via direct Supabase access (outside this repo).
+
+**Deletion (relevant adjacent capability):** a learner-facing "Delete Account" exists (`SettingsScreen.vue:831-890`) but it is **partial**: it deletes rows from six tables (`response_metrics`, `spike_events`, `lego_progress`, `seed_progress`, `sessions`, `course_enrollments`) plus the `learners` row, then signs out and clears local storage. It does **not** delete `player_events`, `learner_lego_metrics`, `learner_lego_pairings`, `daily_contributions`, `learner_speaking_opportunities`, or pod/listening state, and it does **not** delete the Supabase Auth user itself (the email remains in the auth system). Anyone answering a "right to erasure" question should know the current implementation is incomplete.
