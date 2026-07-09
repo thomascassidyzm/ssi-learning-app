@@ -66,3 +66,57 @@ The platform is a single web application (a Vue 3 single-page app, installable a
 
 - `CLAUDE.md` (last updated 2026-04-11) references packages that **no longer exist** in the tree: `apps/web` (PWA), `packages/ui`, `packages/demo`, `packages/vue-adapter`, `packages/react-adapter`. The actual workspace today contains only `packages/core`, `packages/player-vue`, and `packages/lesson-player` (which is an empty directory with no source or package.json — vestigial). The PWA functionality described for "apps/web" was implemented inside `player-vue` instead.
 - Answers here describe the `dev` branch. Production runs from `main`, which may lag behind; a claim-by-claim diff against `main` can be produced if needed.
+
+---
+
+## Q2. Minimum OS versions, device requirements, app size, and content storage
+
+### Native app (iOS / Android) minimums — not visible in this repo
+
+There are **no native build configurations in this repository**. A search for `*.xcodeproj`, `Info.plist`, `build.gradle*`, `AndroidManifest.xml`, `Podfile`, and `capacitor.config.*` returns nothing (excluding node_modules). Therefore:
+
+- **iOS deployment target: not visible in this repo.** It lives in the separate Flutter app repository.
+- **Android minSdkVersion / targetSdkVersion: not visible in this repo.** Same — Flutter repo.
+
+These values must be read from the Flutter repo before answering the partner definitively. The planned Capacitor wrap (`docs/native-migration-feasibility.md`) has **no code yet** — no Capacitor config exists, so no future minimums can be cited either.
+
+### Web app browser requirements
+
+There is **no explicit browser-support declaration**: no `browserslist` field in any `package.json` (checked root, `packages/player-vue`, `packages/core`) and no `.browserslistrc` file anywhere in the repo. The vite config (`packages/player-vue/vite.config.js`) does not set `build.target`. The effective requirements therefore come from tool defaults:
+
+- **Build tool:** Vite `^7.2.4` (`packages/player-vue/package.json:44`). Vite 7's default build target is `'baseline-widely-available'`, which corresponds to approximately **Chrome/Edge 107+, Firefox 104+, Safari 16+ (≈ iOS 16+, released Sept 2022)**. *This is derived from the tool's documented default, not from an explicit config value in the repo — treat it as the practical floor, not a tested guarantee.*
+- **TypeScript compile targets** (syntax floor only): `ES2020` for the app (`packages/player-vue/tsconfig.json:3`), `ES2022` for the core engine and serverless API (`packages/core/tsconfig.json:3`, `tsconfig.api.json:3`).
+- **What is actually tested** (implemented — Playwright E2E matrix, `packages/player-vue/playwright.config.ts:34-56`): Desktop Chrome, Desktop Safari (WebKit), iPhone 14 emulation, Pixel 7 emulation. Real-device testing beyond these emulations is not visible in this repo.
+- **Hard functional requirements** for full functionality: a service worker + IndexedDB capable browser (offline/PWA features — `vite-plugin-pwa ^1.2.0`, IndexedDB cache `packages/player-vue/src/cache/AudioCache.ts`, DB name `ssi-audio-cache-v2`). The app can run online-only without these, degrading offline capability.
+- **PWA install properties** (`vite.config.js` manifest block): `display: 'standalone'`, `orientation: 'portrait'` — the installed app is portrait-only by manifest.
+- No microphone, camera, or GPS requirement anywhere in the code — the learner speaks aloud but the app does not record (speech recognition is listed as "Future" in `CLAUDE.md`).
+
+### Installed app size — measured from a local production build (commit `4d58759`, 2026-07-09)
+
+There is no app-store binary from this repo; "install size" for the web app means what the PWA downloads:
+
+- **PWA install payload (service-worker precache): ~2.3 MB** — build output reports `precache 199 entries (2331.28 KiB)`. This is the complete offline app shell every learner gets.
+- Heavy modules are deliberately excluded from that install and fetched on demand only (`vite.config.js` `globIgnores`): the echarts charting library (~1,043 kB, admin/insight boards only), the eruda debug console (~506 kB, `?debug` only), the schools dashboard chunk (~244 kB), and admin chunks.
+- Full static deployment payload is ~15 MB excluding sourcemaps (measured on `dist/`), but a learner's browser only ever downloads the shell plus the chunks they actually visit; all app JS combined is ~1.0 MB gzipped.
+
+### Course content storage requirements
+
+**How audio is stored:** as thousands of small "atomic" MP3 clips (one per phrase per voice), not as long lesson files. Delivered via `/api/audio/:audioId` or presigned S3 URLs, cached client-side in IndexedDB (`packages/player-vue/src/cache/AudioCache.ts`).
+
+**Typical file size — implemented values in code:**
+- The offline-download estimator uses **~24 KB per clip** as its fallback: `avgBytesPerFile = 24 * 1024  // ~24 KB/clip fallback (CLAUDE.md: 4.8 MB / 198 files)` (`packages/player-vue/src/components/LearningPlayer.vue:9608`), refined at runtime from actual cached-file sizes. A second estimator uses 25 KB/file (`packages/player-vue/src/composables/useScriptCache.ts:394`).
+- The 15 sample MP3s bundled in the repo corroborate this: 340 KB total ≈ **~23 KB average** (`packages/player-vue/public/audio/`).
+- Rounds average ~12 audio files each (fallback `avgFilesPerRound = 12`, `LearningPlayer.vue:9625`).
+
+**Storage needed for downloaded content** (arithmetic from the code's own constants — ~4.8 MB per 30 minutes of lesson audio):
+
+| Download option (`packages/player-vue/src/config/audioConfig.ts:34-37`) | Hours | Estimated size |
+|---|---|---|
+| Current belt | 0.5 | ~5 MB |
+| Next 2 hours | 2 | ~19 MB |
+| Next 5 hours | 5 | ~48 MB |
+| Entire course | 10 | **~96 MB** |
+
+So a full course held offline is on the order of **100 MB**, comfortably inside browser storage quotas. The app monitors quota via `navigator.storage.estimate()` and flags "low space" when usage exceeds 90% of quota (`AudioCache.ts:424-438` `quotaPressure()`; threshold `> 0.9` at `LearningPlayer.vue:9619`). `CLAUDE.md` cites a ~1 GB Safari storage limit as ~200× headroom for one course; the code treats iOS quota reporting as unreliable and uses the usage/quota *ratio* instead (comment at `LearningPlayer.vue:9613-9617`).
+
+**Caveats:** the per-clip sizes above are the app's own estimation constants plus a 15-file sample; a definitive average would need a measurement across the production S3 bucket (**not visible in this repo**). Course length varies by course (the "entire course" option is capped at 10 hours of audio in the UI config); the storage needs of the legacy Flutter app (which uses pre-rendered 30–50 MB session files per `CLAUDE.md`) are **not visible in this repo**.
