@@ -218,3 +218,7 @@ All to `dev`, one logical change each, suite green before each merge (`typecheck
 
 - **D1 — Seats:** "up to 6 learner accounts" = **6 total including you** (my spec), or 6 members + you = 7? One word: *including* / *plus*.
 - **D2 — Annual price:** create £250/yr alongside £25/mo at launch? My recommendation: yes (house 10× pattern, zero extra code). *Y / N.*
+
+## Decisions confirmed (Tom, 2026-07-10)
+- **D1 — Seats:** up to 6 learner accounts INCLUDING the payer (as specced).
+- **D2 — Annual:** yes — create £250/yr alongside £25/mo at launch.
