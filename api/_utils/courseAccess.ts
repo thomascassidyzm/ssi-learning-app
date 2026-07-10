@@ -20,6 +20,7 @@
 import type { VercelRequest } from '@vercel/node'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from './auth'
+import { resolveEffectiveSubscription } from './familyAccess'
 import {
   checkCourseAccess,
   inferPricingTier,
@@ -83,22 +84,18 @@ export async function resolveServerCourseAccess(
   let entitlements: UserEntitlement[] = []
 
   if (learner?.id) {
-    const [subRes, entRes] = await Promise.all([
-      supabase
-        .from('subscriptions')
-        .select('status, current_period_end')
-        .eq('learner_id', learner.id)
-        .maybeSingle(),
+    const [subResult, entRes] = await Promise.all([
+      resolveEffectiveSubscription(supabase, learner.id, 'status, current_period_end'),
       supabase
         .from('user_entitlements')
         .select('access_type, granted_courses, expires_at')
         .eq('learner_id', learner.id),
     ])
 
-    if (subRes.data) {
+    if (subResult.sub) {
       const isActive =
-        subRes.data.status === 'active' &&
-        (!subRes.data.current_period_end || new Date(subRes.data.current_period_end) > new Date())
+        subResult.sub.status === 'active' &&
+        (!subResult.sub.current_period_end || new Date(subResult.sub.current_period_end) > new Date())
       subscription = { isActive, tier: isActive ? 'paid' : 'free' }
     }
 

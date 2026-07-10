@@ -10,6 +10,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { getAuthUserId } from '../_utils/auth'
+import { resolveEffectiveSubscription } from '../_utils/familyAccess'
 
 // Supabase client with service role (to bypass RLS for reading)
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -77,19 +78,8 @@ export default async function handler(
       return
     }
 
-    // Get subscription
-    const { data: subscription, error: subError } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('learner_id', learner.id)
-      .single()
-
-    if (subError && subError.code !== 'PGRST116' && subError.code !== 'PGRST205') {
-      // PGRST116 = no rows found, PGRST205 = table doesn't exist — both mean no subscription
-      console.error('[subscription] Query error:', subError)
-      res.status(500).json({ error: 'Failed to fetch subscription' })
-      return
-    }
+    // Get subscription — own row, or (member of an active family) the owner's.
+    const { sub: subscription, viaFamily } = await resolveEffectiveSubscription(supabase, learner.id)
 
     if (!subscription) {
       res.status(200).json({
@@ -111,7 +101,11 @@ export default async function handler(
         learnerId: sub.learner_id,
         status: sub.status,
         planId: sub.plan_id,
-        planName: sub.plan_name,
+        // A member reads the owner's plan_name literally ('SSi Family') from
+        // the row above — override to a distinct virtual name so the client
+        // can render "covered by your family plan" rather than implying this
+        // learner owns the Family subscription themselves (spec §3, §4.3).
+        planName: viaFamily ? 'SSi Family (member)' : sub.plan_name,
         currentPeriodEnd: sub.current_period_end,
         cancelAtPeriodEnd: sub.cancel_at_period_end,
         provider: sub.provider,
