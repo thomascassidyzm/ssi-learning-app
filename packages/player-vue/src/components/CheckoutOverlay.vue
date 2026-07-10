@@ -18,10 +18,11 @@
  * All three call useCheckout().closeCheckout(), which closes Paddle (guarded)
  * and tears down this overlay + resets state.
  */
-import { watch, onBeforeUnmount } from 'vue'
+import { watch, onBeforeUnmount, computed } from 'vue'
 import { useCheckout, CHECKOUT_FRAME_TARGET } from '@/composables/useCheckout'
 
-const { overlayOpen, closeCheckout } = useCheckout()
+const { overlayOpen, overlayPlan, closeCheckout } = useCheckout()
+const overlayTitle = computed(() => (overlayPlan.value === 'family' ? 'SSi Family' : 'SSi Premium'))
 
 // The static host class below MUST equal the frameTarget Paddle renders into.
 // Guard it so a rename can't silently break the mount in production.
@@ -60,12 +61,12 @@ onBeforeUnmount(() => {
       class="checkout-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label="Subscribe to SSi Premium"
+      :aria-label="`Subscribe to ${overlayTitle}`"
       @click.self="closeCheckout"
     >
       <div class="checkout-card" @click.stop>
         <header class="checkout-bar">
-          <span class="checkout-title">SSi Premium</span>
+          <span class="checkout-title">{{ overlayTitle }}</span>
           <button
             type="button"
             class="checkout-close"

@@ -11,6 +11,8 @@ import { useRouter } from 'vue-router'
 import { getLanguageName, getLanguageEndonym, setLocale, useI18n } from '../composables/useI18n'
 import { useSharedSubscription } from '../composables/useSubscription'
 import { useCheckout } from '../composables/useCheckout'
+import { paddleConfig } from '../lib/paddle'
+import FamilyManagementModal from './FamilyManagementModal.vue'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
@@ -527,6 +529,22 @@ function goPremium() {
   // modal first, then auto-continue into Paddle). No marketing page.
   startCheckout({ courseCode: props.course?.course_code || null })
 }
+
+// SSi Family (FAMILY-PLAN-SPEC.md §4). The paywall option only appears once
+// Tom has created the Paddle product and set the price env vars — hidden
+// (not a broken button) until then, same pattern as the annual-price-unset
+// case elsewhere in this file.
+const familyPlanAvailable = computed(() => !!paddleConfig.familyMonthlyPriceId)
+function goFamily() {
+  startCheckout({ plan: 'family', billingPeriod: 'monthly' })
+}
+
+// A member's own subscription row is virtual ('SSi Family (member)' —
+// api/subscription/index.ts) so the UI never offers a Paddle portal they
+// don't own (spec §4.3). The owner's row reads the real plan_name.
+const isFamilyMember = computed(() => subscription.value?.planName === 'SSi Family (member)')
+const isFamilyOwner = computed(() => subscription.value?.planName === 'SSi Family')
+const showFamilyModal = ref(false)
 
 // Account management state
 const showDeleteConfirm = ref(false)
@@ -1962,7 +1980,17 @@ const confirmReset = async () => {
       <section class="section" v-if="isSignedIn">
         <h3 class="section-title">{{ t('settings.subscription') }}</h3>
         <div class="card">
-          <template v-if="isSubscribed">
+          <!-- Family member — covered by someone else's plan. Never a Paddle
+               portal they don't own (spec §4.3): no cancel, no "payment & invoices". -->
+          <template v-if="isFamilyMember">
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">SSi Family</span>
+                <span class="setting-desc">Covered by your family plan</span>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="isSubscribed">
             <!-- Status -->
             <div class="setting-row">
               <div class="setting-info">
@@ -1974,6 +2002,19 @@ const confirmReset = async () => {
                 </span>
               </div>
             </div>
+            <!-- Family owner: manage members (list/add/QR/remove) -->
+            <template v-if="isFamilyOwner">
+              <div class="divider"></div>
+              <div class="setting-row clickable" @click="showFamilyModal = true">
+                <div class="setting-info">
+                  <span class="setting-label">Manage family</span>
+                  <span class="setting-desc">Add or remove members, up to 6 accounts</span>
+                </div>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </div>
+            </template>
             <!-- Cancel (in-app) — hidden once a cancellation is scheduled -->
             <template v-if="!isCancelScheduled">
               <div class="divider"></div>
@@ -2000,15 +2041,29 @@ const confirmReset = async () => {
             </div>
           </template>
           <!-- Not subscribed -->
-          <div v-else class="setting-row clickable" @click="goPremium">
-            <div class="setting-info">
-              <span class="setting-label">{{ t('settings.goPremium') }}</span>
-              <span class="setting-desc">£15/month — unlimited access to all languages</span>
+          <template v-else>
+            <div class="setting-row clickable" @click="goPremium">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.goPremium') }}</span>
+                <span class="setting-desc">£15/month — unlimited access to all languages</span>
+              </div>
+              <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6"/>
+              </svg>
             </div>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
+            <template v-if="familyPlanAvailable">
+              <div class="divider"></div>
+              <div class="setting-row clickable" @click="goFamily">
+                <div class="setting-info">
+                  <span class="setting-label">Go Family</span>
+                  <span class="setting-desc">£25/month — up to 6 accounts, everyone's own progress</span>
+                </div>
+                <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              </div>
+            </template>
+          </template>
         </div>
       </section>
 
@@ -2242,6 +2297,8 @@ const confirmReset = async () => {
         <p class="legal-entity">© 2026 SaySomethingIn Cyf · Glaslyn, Ffordd y Parc, Bangor, Gwynedd LL57 4FE, Wales</p>
       </footer>
     </main>
+
+    <FamilyManagementModal :is-open="showFamilyModal" @close="showFamilyModal = false" />
   </div>
 </template>
 
