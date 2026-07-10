@@ -95,6 +95,14 @@ localStorage.removeItem('ssi-god-mode-user')
 sessionStorage.removeItem('ssi-god-mode-user')
 localStorage.removeItem('ssi-god-fab-pos')
 
+// One-shot flag SettingsScreen.vue sets immediately before a reset/
+// recover reload, to stop LearningPlayer's pagehide dormancy flush from
+// re-saving the pre-reset position during that reload. sessionStorage
+// survives the reload itself (same tab), so it must be cleared here, at
+// the start of the FRESH boot, or it would silently suspend every
+// position save for the rest of the session.
+sessionStorage.removeItem('ssi-position-writes-suspended')
+
 // Initialize theme (reads from localStorage, applies to document)
 const { theme, toggleTheme, setTheme } = useTheme()
 
@@ -122,14 +130,14 @@ const invalidateStaleCaches = () => {
       if (key.startsWith('ssi-script-')) {
         keysToRemove.push(key)
       }
-      // Clear position caches (LearningPlayer)
-      if (key.startsWith('ssi_learning_position_')) {
-        keysToRemove.push(key)
-      }
-      // Clear position caches (CourseExplorer)
-      if (key.startsWith('ssi_explorer_position_')) {
-        keysToRemove.push(key)
-      }
+      // Position caches (ssi_learning_position_*, ssi_explorer_position_*)
+      // are deliberately NOT cleared here — they're stored as absolute
+      // ids precisely so they survive a deploy/script regeneration (see
+      // savePositionToLocalStorage's comment), and wiping them on every
+      // build silently restarted every guest at round 1 (guests have no
+      // server row to fall back to). Position authority ruling
+      // (docs/pwa-lifecycle-design.md §2.3) — only learner intent
+      // (reset, sign-out) may clear a position key.
       // Clear stale belt version key (we use BUILD_VERSION now)
       if (key === 'ssi_app_version') {
         keysToRemove.push(key)

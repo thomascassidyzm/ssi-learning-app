@@ -215,6 +215,13 @@ const confirmRecover = async () => {
       localStorage.removeItem(`ssi_learning_position_${courseCode.value}`)
     } catch { /* ignore — best-effort */ }
 
+    // Same pagehide race as confirmReset below: Settings only pauses
+    // playback, so a dormancy flush on the reload could re-save the
+    // pre-recovery round over the clear above. Cleared once at next boot.
+    try {
+      sessionStorage.setItem('ssi-position-writes-suspended', '1')
+    } catch { /* ignore — best-effort */ }
+
     recoverSuccess.value = true
     setTimeout(() => {
       showRecoverConfirm.value = false
@@ -1258,11 +1265,21 @@ const confirmReset = async () => {
       // written by the DB ratchet trigger / pod scheduler for stale-PWA
       // compatibility, so a deliberate restart nulls them too rather than
       // leaving inconsistent legacy state behind.
+      //
+      // last_practiced_at is STAMPED to now, not nulled — the position
+      // authority ruling (docs/pwa-lifecycle-design.md §2.3) trusts the
+      // device's cached position over the server cursor only when the
+      // cache is strictly fresher than this timestamp. Stamping it means
+      // the reset always wins that comparison outright, even if the local
+      // key below somehow survives (race, storage error) — closing the
+      // resurrection bug where a leftover local key + a null timestamp let
+      // the old position get resumed and then re-ratcheted back into the
+      // DB hours later.
       await supabase.value
         .from('course_enrollments')
         .update({
           total_practice_minutes: 0,
-          last_practiced_at: null,
+          last_practiced_at: new Date().toISOString(),
           highest_completed_seed: 0,
           last_completed_lego_id: null,
           highest_completed_lego_id: null,
@@ -1276,6 +1293,24 @@ const confirmReset = async () => {
         .eq('learner_id', learnerId)
         .eq('course_id', course)
     }
+
+    // The device's cached position (localStorage) is checked before the
+    // server cursor on resume when it's fresher — clear it so a reset
+    // can't be resurrected by a stale local key (same fix as
+    // confirmRecover above; the two flows used to disagree here).
+    try {
+      localStorage.removeItem(`ssi_learning_position_${course}`)
+    } catch { /* ignore — best-effort */ }
+
+    // Suspend position writes until the reload below actually happens —
+    // opening Settings only pauses playback, it doesn't unmount
+    // LearningPlayer, so a pagehide-triggered dormancy flush could
+    // otherwise re-save the pre-reset round into both localStorage and
+    // the DB before the reload discards it. Cleared once at next boot
+    // (App.vue).
+    try {
+      sessionStorage.setItem('ssi-position-writes-suspended', '1')
+    } catch { /* ignore — best-effort */ }
 
     // Always reset local belt progress (localStorage + session history)
     beltProgressInstance.resetProgress()

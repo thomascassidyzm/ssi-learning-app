@@ -191,6 +191,11 @@ export default defineConfig(({ mode }) => ({
   define: {
     __BUILD_TIME__: JSON.stringify(buildTime),
     __BUILD_NUMBER__: JSON.stringify(buildNumber),
+    // `?wedge=1` boot-watchdog rehearsal cheat (docs/pwa-lifecycle-design.md
+    // §3) — dev only. Reuses swSelfUpdate's exact env carve-out (not
+    // production, not the staging branch) rather than inventing a second
+    // "is this dev" check.
+    __ENABLE_WEDGE_CHEAT__: JSON.stringify(swSelfUpdate),
   },
   build: {
     sourcemap: true,

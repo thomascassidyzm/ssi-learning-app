@@ -25,3 +25,6 @@ export * from './audio';
 
 // Pricing (Big 10 languages, access control)
 export * from './pricing';
+
+// Script generation (unified main-loop + INF PLAY generator, CourseBundle wire format)
+export * from './script';

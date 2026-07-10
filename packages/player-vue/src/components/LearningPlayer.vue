@@ -54,6 +54,7 @@ import type { LegoBlock } from './LegoAssembly.vue'
 import { ensureTileCoverage } from '../utils/ensureTileCoverage'
 import { hasReachedInfinitePlay as hasReachedInfinitePlayPure } from '../utils/infinitePlay'
 import { resolveResumeAnchor } from '../utils/resolveResumeAnchor'
+import { resolveAuthoritativePosition } from '../utils/resolveAuthoritativePosition'
 import { decomposePhrase } from '../utils/decomposePhrase'
 import { buildWordTiles, buildWordPairTiles, nativeFromRomanTiles, buildSegmentedTiles } from '../utils/alignRomanToNative'
 // Lazy: opt-in Listening-Pod mode, v-if="showListeningOverlay" — off by default,
@@ -517,28 +518,54 @@ const activeCourseCode = courseCode
 // and renders the first cycle from the new endpoints.
 const instantPlayback = useInstantPlayback(courseCode, {
   resolveStartLegoId: async () => {
-    // localStorage is the device's last-known position — checked first
-    // for everyone (guest + signed-in). Same code path; no special-
-    // case for guests defaulting to LEGO 1. The position survives
-    // refresh / browser close / iOS app kill and reads in <1ms.
-    // Tom 2026-05-26.
-    if (courseCode.value) {
-      const localPos = loadPositionFromLocalStorage()
-      if (localPos?.legoId) return localPos.legoId
+    // Position authority ruling (docs/pwa-lifecycle-design.md §2.3,
+    // 2026-07-09): the server enrollment row is authoritative for a
+    // signed-in learner; localStorage is a device CACHE trusted only
+    // when strictly fresher than the server's last_practiced_at. A
+    // guest (no enrollment row to consult) still resolves local-only,
+    // same as before. Tom 2026-05-26 established local as the fast
+    // path; this closes the resurrection bug that model reopened
+    // (reset nulled the DB but local survived and re-ratcheted it back).
+    const localPos = courseCode.value ? loadPositionFromLocalStorage() : null
+    const localSnapshot = localPos?.legoId
+      ? { legoId: localPos.legoId, lastUpdated: localPos.lastUpdated ?? null }
+      : null
+
+    // No server row to compare against — guest, no progress store, or a
+    // guest-prefixed learner id (fails the UUID column constraint on
+    // course_enrollments, so never worth querying). Fail to local exactly
+    // as resume always has when there's nothing to compare.
+    if (!progressStore?.value || !learnerId.value || !courseCode.value || learnerId.value.startsWith('guest-')) {
+      return localSnapshot?.legoId ?? null
     }
 
-    if (!progressStore?.value || !learnerId.value || !courseCode.value) return null
-    // Guest learner IDs have a `guest-` prefix that doesn't pass the UUID
-    // column constraint on course_enrollments — Supabase returns 400 on
-    // the lookup. With no localStorage cursor (handled above), let
-    // bootstrap default to round 1.
-    if (learnerId.value.startsWith('guest-')) return null
+    // Bounded race: server answered in time → apply the freshness rule;
+    // timed out / offline / errored → fail to local (keeps offline resume
+    // working exactly as it did before this ruling).
+    const ENROLLMENT_FETCH_TIMEOUT_MS = 2000
+    const TIMEOUT = Symbol('enrollment-fetch-timeout')
+    let enrollment: Awaited<ReturnType<typeof progressStore.value.getEnrollment>> | null = null
     try {
-      const enrollment = await progressStore.value.getEnrollment(
-        learnerId.value,
-        courseCode.value,
-      )
+      const result = await Promise.race([
+        progressStore.value.getEnrollment(learnerId.value, courseCode.value),
+        new Promise<typeof TIMEOUT>((resolve) => setTimeout(() => resolve(TIMEOUT), ENROLLMENT_FETCH_TIMEOUT_MS)),
+      ])
+      if (result === TIMEOUT) return localSnapshot?.legoId ?? null
+      enrollment = result
+    } catch {
+      enrollment = null
+    }
 
+    const winner = resolveAuthoritativePosition(localSnapshot, enrollment ? {
+      cursorLegoId: enrollment.last_completed_lego_id ?? null,
+      lastPracticedAt: enrollment.last_practiced_at ? enrollment.last_practiced_at.getTime() : null,
+    } : null)
+
+    if (winner.source !== 'server') {
+      return winner.legoId
+    }
+
+    try {
       // INF PLAY mode: skip instant-playback entirely and fall to the
       // legacy path, which emits the spaced-rep + random-USE rounds the
       // mode is designed around. The path is the same as the course-
@@ -548,7 +575,7 @@ const instantPlayback = useInstantPlayback(courseCode, {
       // Cursor-only model: infinite-play is DERIVED — no is_new LEGO
       // remains beyond the cursor — rather than trusted from the
       // enrollment.current_mode column (2026-07-04).
-      const lastCompleted = enrollment?.last_completed_lego_id ?? null
+      const lastCompleted = winner.legoId
       if (await hasReachedInfinitePlay(lastCompleted, courseCode.value)) {
         throw new Error('CourseEndNoNextLego')
       }
@@ -2636,6 +2663,26 @@ const POSITION_STORAGE_KEY_PREFIX = 'ssi_learning_position_'
 
 const getPositionStorageKey = () => `${POSITION_STORAGE_KEY_PREFIX}${courseCode.value}`
 
+// Set by SettingsScreen.vue (confirmReset / confirmRecover) immediately
+// before it clears the local cursor and reloads. Closes a race the reset
+// fix would otherwise reopen: opening Settings only PAUSES playback, it
+// doesn't unmount LearningPlayer, so the round the learner was on before
+// reset is still sitting in `simplePlayer.currentRound`. `reload()` fires
+// a `pagehide` event first — which `saveResumeAudio` (below) listens for
+// — and without this guard it would flush that stale pre-reset round back
+// into both localStorage AND the DB (with a fresh timestamp) a moment
+// after the reset cleared them, re-ratcheting the very position reset was
+// meant to erase. sessionStorage (not a module variable) because the
+// setter lives in a different component; App.vue clears it once at boot.
+const POSITION_WRITES_SUSPENDED_KEY = 'ssi-position-writes-suspended'
+const arePositionWritesSuspended = () => {
+  try {
+    return sessionStorage.getItem(POSITION_WRITES_SUSPENDED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 /**
  * Extract seed number from seedId (e.g., "S0045" → 45)
  */
@@ -2722,12 +2769,14 @@ const loadPositionFromLocalStorage = () => {
       return null
     }
 
-    // Check if position is stale (older than 7 days)
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
-    if (position.lastUpdated && Date.now() - position.lastUpdated > sevenDaysMs) {
-      console.log('[LearningPlayer] Saved position is stale (>7 days), starting fresh')
-      return null
-    }
+    // No age-based expiry here (deleted per the position authority
+    // ruling, docs/pwa-lifecycle-design.md §2.3): for a signed-in
+    // learner, staleness is now handled by the freshness comparison in
+    // resolveAuthoritativePosition (server wins once it's fresher, no
+    // arbitrary cutoff needed); for a guest, an age cutoff only meant a
+    // returning learner with no server row got silently restarted at
+    // round 1 — the actual "long pause" pedagogical rule is
+    // cycleResetMinutes (resolveResumePosition below), which stays.
 
     // Must have absolute identifiers
     if (!position.legoId || typeof position.seedNumber !== 'number') {
@@ -7135,7 +7184,7 @@ const saveResumeAudio = () => {
   // (phase='prompt' entry) handles steady-state; this covers the
   // case where the user backgrounds the app mid-cycle without
   // advancing. Tom 2026-05-26.
-  if (positionInitialized.value && useRoundBasedPlayback.value) {
+  if (positionInitialized.value && useRoundBasedPlayback.value && !arePositionWritesSuspended()) {
     // Lifecycle save: position only, no practice timestamp.
     savePositionToLocalStorage(simplePlayer.cycleIndex.value, false)
     // Also flush the LIVE position to the DB with the engine's EXACT cycle —

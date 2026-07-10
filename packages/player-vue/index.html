@@ -80,10 +80,141 @@
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
+
+      /* Boot-heal message + floor screen (below) — painted by the inline
+         watchdog, which runs before any app CSS is available. Kept minimal
+         and self-contained on purpose. */
+      .ssi-boot-heal,
+      .ssi-boot-floor {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        height: 100vh;
+        height: 100dvh;
+        padding: 24px;
+        box-sizing: border-box;
+        text-align: center;
+      }
+
+      .ssi-boot-heal p,
+      .ssi-boot-floor p {
+        margin: 0;
+        font-size: 16px;
+        opacity: 0.85;
+      }
+
+      .ssi-boot-floor button {
+        font-family: inherit;
+        font-size: 17px;
+        font-weight: 600;
+        color: #ffffff;
+        background: #c23a3a;
+        border: none;
+        border-radius: 12px;
+        padding: 14px 28px;
+        min-height: 48px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
     <div id="app" class="app-loading"></div>
+    <script>
+      // Boot watchdog — inline, outside the service worker, no imports (it
+      // must run even when every module fetch fails). Armed only when a SW
+      // already controls this page: a slow FIRST visit (no SW yet) must
+      // never trigger cache-nuking. See utils/bootHeal.ts for the unit-
+      // tested decision logic this hand-mirrors, and
+      // docs/pwa-lifecycle-design.md §2.1 for the full design.
+      (function () {
+        if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+
+        var MAX_ATTEMPTS = 2;
+        var ATTEMPT_KEY = 'ssi-boot-heal-attempts';
+        var PRESERVE_CACHES = ['ssi-auth-handoff'];
+        var healTriggered = false;
+
+        function readAttempts() {
+          try { return parseInt(sessionStorage.getItem(ATTEMPT_KEY), 10) || 0; }
+          catch (e) { return 0; }
+        }
+        function writeAttempts(n) {
+          try { sessionStorage.setItem(ATTEMPT_KEY, String(n)); } catch (e) { /* storage blocked */ }
+        }
+
+        function showHealMessage() {
+          var el = document.getElementById('app');
+          if (!el) return;
+          el.className = 'ssi-boot-heal';
+          el.innerHTML = '<p>Updating the app…</p>';
+        }
+
+        // Tom's ruling: the floor is ONE button that does everything itself.
+        // No instructions, no mention of caching/service-workers/menus, no
+        // pointer at /reset — the user should never need to understand why
+        // the app is broken, only that tapping this fixes it.
+        function showFloor() {
+          var el = document.getElementById('app');
+          if (!el) return;
+          el.className = 'ssi-boot-floor';
+          el.innerHTML = '<p>The app needs a fix.</p><button type="button" id="ssi-fix-app-btn">Fix the app</button>';
+          var btn = document.getElementById('ssi-fix-app-btn');
+          if (btn) btn.addEventListener('click', fullHeal);
+        }
+
+        function fullHeal() {
+          var unregister = ('serviceWorker' in navigator)
+            ? navigator.serviceWorker.getRegistrations().then(function (regs) {
+                return Promise.all(regs.map(function (r) { return r.unregister(); }));
+              })
+            : Promise.resolve();
+
+          var clearCaches = ('caches' in window)
+            ? caches.keys().then(function (names) {
+                return Promise.all(names
+                  .filter(function (n) { return PRESERVE_CACHES.indexOf(n) === -1; })
+                  .map(function (n) { return caches.delete(n); }));
+              })
+            : Promise.resolve();
+
+          // IndexedDB (audio, progress) and localStorage are deliberately
+          // never touched here — a boot failure can only come from
+          // HTML/JS/CSS, which live exclusively in SW caches.
+          Promise.all([unregister, clearCaches])
+            .catch(function () { /* best-effort — reload regardless */ })
+            .then(function () { window.location.reload(); });
+        }
+
+        function heal() {
+          if (healTriggered) return;
+          healTriggered = true;
+          var attempts = readAttempts();
+          if (attempts >= MAX_ATTEMPTS) {
+            showFloor();
+            return;
+          }
+          writeAttempts(attempts + 1);
+          showHealMessage();
+          fullHeal();
+        }
+
+        // Fast path: a failed script/module load anywhere in the entry graph.
+        window.addEventListener('error', function (evt) {
+          if (window.__SSI_BOOTED) return;
+          var target = evt && evt.target;
+          if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+            heal();
+          }
+        }, true);
+
+        // Slow path: mount never happened.
+        setTimeout(function () {
+          if (!window.__SSI_BOOTED) heal();
+        }, 15000);
+      })();
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
