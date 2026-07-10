@@ -19,6 +19,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
+import { resolveLearnerId, attachPendingInvitesForEmail } from '../_utils/familyMembership'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -60,12 +61,27 @@ export default async function handler(
 
   try {
     const result = await applyGrantsForEmail(supabase, user.id, email)
-    res.status(200).json(result)
+
+    // FAMILY-PLAN-SPEC.md §4.1(a) fold-in: any pending invite to this exact
+    // verified sign-in email attaches now — Grandpa's total pain is the OTP
+    // sign-in he'd have done anyway; he never sees the word "family". Never
+    // allowed to break sign-in, same as the grant path above.
+    let familyAttached = 0
+    try {
+      const learnerId = await resolveLearnerId(supabase, user.id)
+      if (learnerId) {
+        familyAttached = (await attachPendingInvitesForEmail(supabase, learnerId, email)).attached
+      }
+    } catch (familyErr) {
+      console.error('[AccessClaim] Family invite attach failed (non-fatal):', familyErr)
+    }
+
+    res.status(200).json({ ...result, familyAttached })
   } catch (err) {
     // Never throw to the client — an allowlist claim failure must not break
     // sign-in. Log and return an empty result.
     console.error('[AccessClaim] Error:', err)
-    res.status(200).json({ granted: 0, items: [] })
+    res.status(200).json({ granted: 0, items: [], familyAttached: 0 })
   }
 }
 
