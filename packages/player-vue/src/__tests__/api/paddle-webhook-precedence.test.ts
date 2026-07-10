@@ -30,9 +30,31 @@ function fakeSupabase(existingPlanName: string | null, existingStatus: string = 
 }
 
 describe('paddle-webhook plan precedence guard', () => {
-  it('ranks tutor bundle > premium > student access', () => {
+  it('ranks Family top, then tutor bundle > premium > student access', () => {
+    expect(PLAN_PRECEDENCE['SSi Family']).toBeGreaterThan(PLAN_PRECEDENCE['SSi Premium (tutor bundle)'])
     expect(PLAN_PRECEDENCE['SSi Premium (tutor bundle)']).toBeGreaterThan(PLAN_PRECEDENCE['SSi Premium'])
     expect(PLAN_PRECEDENCE['SSi Premium']).toBeGreaterThan(PLAN_PRECEDENCE['SSi Student Access'])
+  })
+
+  it('a tutor (rank 3) buying Family (rank 4) is never blocked — the owner row becomes Family', async () => {
+    // The tension case FAMILY-PLAN-SPEC.md §2.4 calls out by name: if Family
+    // ranked below the tutor bundle, this write would be silently skipped
+    // (webhook 200s, Paddle collected, family gets nothing).
+    const supabase = fakeSupabase('SSi Premium (tutor bundle)')
+    const skip = await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Family')
+    expect(skip).toBe(false)
+  })
+
+  it('blocks any lower-ranked plan from clobbering an existing active Family row', async () => {
+    const supabase = fakeSupabase('SSi Family')
+    expect(await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Premium (tutor bundle)')).toBe(true)
+    expect(await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Premium')).toBe(true)
+    expect(await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Student Access')).toBe(true)
+  })
+
+  it('allows a same-plan Family renewal/status update', async () => {
+    const supabase = fakeSupabase('SSi Family')
+    expect(await wouldDowngradePlan(supabase as any, 'learner-1', 'SSi Family')).toBe(false)
   })
 
   it('blocks a student-access upsert from clobbering an existing tutor-bundle row', async () => {

@@ -79,7 +79,7 @@ const REFERRAL_STATUS_MAP: Record<string, string> = {
 // do NOT change them here. Amounts are GBP reference pence — Paddle country pricing
 // can legitimately bill a different amount/currency on the SAME price id, so amount
 // is validated leniently (we trust the price id's TIER, not the raw pence).
-type PriceTier = 'premium' | 'student_tutor' | 'student_school'
+type PriceTier = 'premium' | 'student_tutor' | 'student_school' | 'family'
 interface PriceMeta {
   tier: PriceTier
   gbpPence: number
@@ -96,6 +96,20 @@ const PRICE_CATALOG: Record<string, PriceMeta> = {
   // Student-via-SCHOOL — £5/mo, £50/yr. No commission.
   pri_01kv5wrc5cz17pwgeva4zk8s0r: { tier: 'student_school', gbpPence: 500, period: 'monthly' },
   pri_01kvaj05x1y16trwvm8pdm2wcb: { tier: 'student_school', gbpPence: 5000, period: 'annual' },
+  // SSi Family — £25/mo, £250/yr, up to 6 learners incl. the payer
+  // (FAMILY-PLAN-SPEC.md §2.1). NO hardcoded fallback: unlike the tiers
+  // above, this Paddle product does not exist yet — Tom creates it by hand
+  // and pastes the two price ids into Vercel env (all environments):
+  //   VITE_PADDLE_FAMILY_PRICE_MONTHLY, VITE_PADDLE_FAMILY_PRICE_ANNUAL
+  // Until both are set, these entries are simply absent, so an incoming
+  // kind:'family_plan' event fails the tier check below and is REJECTED —
+  // tolerant of the product not existing yet, never a crash.
+  ...(process.env.VITE_PADDLE_FAMILY_PRICE_MONTHLY?.trim()
+    ? { [process.env.VITE_PADDLE_FAMILY_PRICE_MONTHLY.trim()]: { tier: 'family' as const, gbpPence: 2500, period: 'monthly' as const } }
+    : {}),
+  ...(process.env.VITE_PADDLE_FAMILY_PRICE_ANNUAL?.trim()
+    ? { [process.env.VITE_PADDLE_FAMILY_PRICE_ANNUAL.trim()]: { tier: 'family' as const, gbpPence: 25000, period: 'annual' as const } }
+    : {}),
 }
 
 function planIdOf(data: any): string | null {
@@ -112,7 +126,13 @@ function planIdOf(data: any): string | null {
 // class-scoped student subscription. An upsert may only raise or hold the
 // rank, never lower it — a downgrade is skipped (logged), same-or-higher
 // proceeds normally (renewals, upgrades, status changes on the SAME plan).
+// 'SSi Family' ranks TOP (FAMILY-PLAN-SPEC.md §2.4): the owner's row carries
+// five other people's access — nothing may clobber it. The tutor-bundle
+// overlap is safe because the dashboard grant lives on teachers.platform_status
+// (set unconditionally by handleTutorPlatformSubscription), not the
+// subscriptions row — only the redundant row write is precedence-gated here.
 export const PLAN_PRECEDENCE: Record<string, number> = {
+  'SSi Family': 4,
   'SSi Premium (tutor bundle)': 3,
   'SSi Premium': 2,
   'SSi Student Access': 1,
@@ -341,7 +361,7 @@ export default async function handler(
 // SUBSCRIPTION EVENTS
 // ============================================
 
-async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> {
+export async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> {
   const customData = (data.customData || {}) as Record<string, unknown>
   const kind = customData.kind as string | undefined
 
@@ -367,6 +387,22 @@ async function handleSubscriptionEvent(supabase: any, data: any): Promise<void> 
       }
     }
     await handlePremiumSubscription(supabase, data, customData)
+  } else if (kind === 'family_plan') {
+    // customData.kind is CLIENT-supplied — the entitlement it claims (Family,
+    // which grants up to 6 learners) must be backed by the FAMILY price
+    // actually billed, same protection as learner_premium/platform below.
+    // Without this, a tampered checkout on the cheapest live price + kind:
+    // 'family_plan' would upsert 'SSi Family' for a fraction of £25/mo.
+    const billedPriceId = planIdOf(data)
+    const meta = billedPriceId ? PRICE_CATALOG[billedPriceId] : undefined
+    if (meta?.tier !== 'family') {
+      console.error(
+        '[paddle-webhook] REJECTED family_plan subscription: billed price is not the family tier (product may not be configured yet — see VITE_PADDLE_FAMILY_PRICE_MONTHLY/ANNUAL):',
+        { kind, billedPriceId, tier: meta?.tier ?? 'unknown', customData }
+      )
+      return
+    }
+    await handleFamilySubscription(supabase, data, customData)
   } else if (kind === 'student_via_teacher') {
     await handleStudentSubscription(supabase, data, customData)
   } else if (kind === 'school_platform' || kind === 'tutor_platform') {
@@ -773,6 +809,80 @@ export async function handlePremiumSubscription(
     'referral_active:',
     referralActive
   )
+}
+
+// ============================================
+// SSi FAMILY SUBSCRIPTION (FAMILY-PLAN-SPEC.md §2.3)
+// ============================================
+// The webhook stays dumb: one absolute, idempotent write to the OWNER's
+// subscriptions row. No membership side effects here — family_members is
+// managed entirely by /api/family/* afterwards. Checkout never sends member
+// info (customData is just { kind: 'family_plan', supabase_user_id }), so
+// there is nothing else to do at purchase time. transaction.paid/adjustments
+// need zero family-specific changes: a family sub has no teacher_referrals
+// row (early return, no commission — correct) and a full refund/chargeback
+// rides the existing revoke path, which flips this one owner row and the
+// whole family switches off through the entitlement resolver (§3) with no
+// fan-out writes.
+export async function handleFamilySubscription(
+  supabase: any,
+  data: any,
+  customData: Record<string, unknown>
+): Promise<void> {
+  const supabaseUserId = customData.supabase_user_id as string | undefined
+  if (!supabaseUserId) {
+    console.error('[paddle-webhook] Family subscription missing supabase_user_id in customData')
+    return
+  }
+
+  const { data: learner, error: learnerErr } = await supabase
+    .from('learners')
+    .select('id')
+    .eq('user_id', supabaseUserId)
+    .single()
+  if (learnerErr || !learner) {
+    console.error('[paddle-webhook] Learner not found for supabase_user_id:', supabaseUserId, learnerErr)
+    return
+  }
+  const learnerId = learner.id
+
+  const status = SUB_STATUS_MAP[data.status] || 'none'
+  const periodEnd: string | null = data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
+  const planId = planIdOf(data)
+
+  // 'SSi Family' is top-ranked (PLAN_PRECEDENCE = 4), so this only ever skips
+  // when the owner's row is ALREADY 'SSi Family' — i.e. never a downgrade,
+  // just the same guard every handler uses for renewals/status updates.
+  const skipRowWrite = await wouldDowngradePlan(supabase, learnerId, 'SSi Family')
+  if (skipRowWrite) {
+    console.log('[paddle-webhook] Family subscription row write skipped (existing row already outranks — unexpected, Family is top rank):', data.id)
+    return
+  }
+
+  const { error: upsertErr } = await supabase
+    .from('subscriptions')
+    .upsert(
+      {
+        learner_id: learnerId,
+        status,
+        plan_id: planId,
+        plan_name: 'SSi Family',
+        current_period_end: periodEnd,
+        cancel_at_period_end: !!data.scheduledChange,
+        provider: 'paddle',
+        provider_subscription_id: data.id,
+        provider_customer_id: data.customerId,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'learner_id' }
+    )
+
+  if (upsertErr) {
+    console.error('[paddle-webhook] Failed to upsert family subscription:', upsertErr)
+    return
+  }
+
+  console.log('[paddle-webhook] Family subscription processed:', data.id, 'status:', status, 'owner learner:', learnerId)
 }
 
 export async function handleStudentSubscription(
