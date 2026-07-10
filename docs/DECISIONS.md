@@ -583,3 +583,47 @@ already being applied by hand.
   (or a `bypassrls` role) would then be riding on the loose grants with nobody having checked them.
 **Search width:** visible-options (the fix is the documented rule 7 pattern, not a novel design).
 **Decided by:** agent
+
+## 2026-07-10 — family plan resolver: two point-lookups instead of one PostgREST join
+**Move:** `resolveEffectiveSubscription` (FAMILY-PLAN-SPEC.md §3) implements the "own row OR
+family join" resolution as two sequential queries (family_members, then subscriptions) rather
+than the one-query embedded join the spec pseudocode sketches.
+**Better:** identical behaviour for every caller — the spec's predicate list (removed_at,
+status='active', plan_name='SSi Family', status='active', period-end freshness) is applied
+exactly, just as two round trips instead of one.
+**Simpler:** there is no direct FK from `family_members` to `subscriptions` (both reference
+`learners.id` independently), so PostgREST can't auto-embed one across the other without a
+manual join hint — the two-query version is the straight-line read anyone maintaining this file
+can follow without knowing PostgREST's embed-hint syntax.
+**Cheaper (total):** both queries hit an index already on the table (`family_members_one_family`
+on member_learner_id; subscriptions' own learner_id uniqueness) — two indexed point-lookups cost
+about the same as one join for a table this small, and the resolver only runs on the
+"no own row" branch (the common case — most learners aren't family members — never pays the
+second query at all).
+**Searched & rejected:**
+- A PostgREST embedded join via a manual FK hint / view — rejected: adds a schema object (a
+  view, or a synthetic FK) purely to satisfy a query-shape preference; the two-query version
+  needs neither and is exactly as correct.
+**Search width:** visible-options.
+**Decided by:** agent (spec pseudocode is a sketch of the LOGIC, not a mandated query shape —
+implementation detail per CLAUDE.md's altitude rule).
+
+## 2026-07-10 — family plan QR: added `qrcode` (client-side, lazy-loaded) rather than a hosted QR API
+**Move:** The create-child sign-in link (FAMILY-PLAN-SPEC.md §4.1(b)) renders as a QR code via
+the `qrcode` npm package, dynamically imported inside FamilyManagementModal.vue so it lazy-loads
+into its own chunk (verified in the production build — separate from the SettingsScreen bundle).
+**Better:** the alternative — a third-party "QR image" HTTP API (`data=<url>` query param) —
+would leak the bearer sign-in link (a credential granting full access to a child's account) to
+an external service's request logs. Client-side generation never sends the link anywhere.
+**Simpler:** one well-established, dependency-free-at-runtime library call
+(`QRCode.toDataURL(link)`) vs. building/hosting a QR endpoint ourselves.
+**Cheaper (total):** ~26KB gzipped, lazy-loaded only when a parent actually adds a child — zero
+cost for every other user of the app; no new server surface, no third-party runtime dependency.
+**Searched & rejected:**
+- A hosted third-party QR image API — rejected outright on the security leg, not a trade-off:
+  the payload here is a live magic-link credential, not public data.
+- No QR at all, link-only — rejected: spec explicitly calls for "one-time sign-in link, rendered
+  as link + QR" as the age-verification-sidestep UX; a parent scanning with a phone camera is the
+  whole point of the flow (no manual URL retyping onto a kid's device).
+**Search width:** visible-options.
+**Decided by:** agent
