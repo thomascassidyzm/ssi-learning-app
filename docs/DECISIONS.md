@@ -205,3 +205,73 @@ for the `/reset` alias instead of writing a second recovery path; the wedge chea
   the alias needs a hard `window.location.replace`, not router-level `redirect`.
 **Search width:** visible-options (implementation of an already-designed, Tom-ruled spec).
 **Decided by:** agent (Stage 1 execution per the design's staging table + Tom's verbatim ruling)
+
+## 2026-07-09 — PWA lifecycle Stage 2 shipped: position authority ruling wired in, plus a race the design didn't name
+**Move:** Implemented Stage 2 on `sonnet-impl/pwa-lifecycle-stage2` (branched from `origin/dev`,
+not stage 1 — stage 1 hasn't merged yet): (1) `utils/resolveAuthoritativePosition.ts` — pure
+freshness comparison between a device-cached position and the server enrollment row, wired into
+`resolveStartLegoId` (the sole resume-anchor site — `INSTANT_PLAYBACK_ALL = true` means every
+course runs this path today, the legacy per-call-site local-first logic elsewhere is the
+error-fallback safety net, out of scope); the enrollment fetch races a 2s timeout so
+offline/slow-network fails to local exactly as before. (2) `SettingsScreen.vue` `confirmReset`:
+clears the local position key (mirroring `confirmRecover`'s existing pattern) and STAMPS
+`last_practiced_at` to now instead of nulling it, so a reset carries a real, comparable freshness
+signal. (3) `App.vue` `invalidateStaleCaches`: deploys no longer clear `ssi_learning_position_*`/
+`ssi_explorer_position_*`. (4) The 7-day local-position expiry in `loadPositionFromLocalStorage`
+is deleted (superseded by the freshness comparison for signed-in learners; was actively harmful
+for guests). (5) **Not in the design doc, found during implementation and fixed in the same
+stroke:** opening Settings only pauses playback, it doesn't unmount `LearningPlayer` — so
+`window.location.reload()` in `confirmReset`/`confirmRecover` fires a `pagehide` event first,
+which `saveResumeAudio` was still listening for, and would flush the STALE pre-reset round back
+into both localStorage and the DB (with a fresh timestamp) a moment after the reset cleared them —
+re-ratcheting the exact position reset was meant to erase, at the DB level, inside the same user
+action. Closed with a `sessionStorage` suspend flag (`ssi-position-writes-suspended`): set by
+`confirmReset`/`confirmRecover` immediately before clearing the local key and reloading, checked by
+`saveResumeAudio`'s position-write branch, cleared once at the top of `App.vue`'s boot script (it
+must survive the reload itself — same tab, same session — but not linger past it).
+**Better:** T10 ("reset stays reset") now holds in the realistic case the design's own test matrix
+describes — mid-session, Settings opened over a still-mounted, paused player — not just in a cold
+scenario where no dormancy flush could fire. Without the suspend-flag fix, the reset+localStorage-
+clear change would have shipped looking correct (matches the design's literal instruction, passes
+a superficial test) while silently failing its own flagship regression test in the most common
+real path — exactly the "verify the real path, not the ledger" failure class the audio saga burned
+five separate incidents establishing.
+**Simpler:** one pure, exhaustively-unit-tested function (16 cases: both-null, null-cursor-plus-
+fresh-local, fresh-cursor-plus-stale-local, exact-tie, null-timestamp-with-real-cursor treated as
+maximally-fresh, guest/no-row fail-to-local, T10 reset variants, cross-device both directions, and
+— found while writing the enumeration, not in the design — a brand-new enrollment row (signup,
+never practiced) must NOT beat carried-over guest local progress, since `migrateGuestProgress`
+deliberately leaves the local position key untouched and a null-cursor/null-timestamp row is
+indistinguishable from "just signed up" unless the null-timestamp special case is scoped to rows
+that have a real cursor). The suspend-flag reuses the existing local/session-storage
+cross-component signalling idiom the reset/recover flows already use (no new architecture).
+**Cheaper (total):** the util adds one bounded (2s) round-trip only on the signed-in resume path,
+same call already made when local was empty; the suspend flag is a single sessionStorage read on
+one hot path, false the overwhelming majority of the time.
+**Searched & rejected:**
+- Treat any null `last_practiced_at` as "server maximally fresh, always wins" (a literal reading
+  of the design doc's own parenthetical) — rejected after writing the guest-signup test: it
+  regresses "a guest who played locally then signs up resumes where they left off," which the
+  PRE-ruling code got right (local-first unconditional) and nothing in the design intended to
+  break. Scoped the null-timestamp-wins rule to rows that also carry a real cursor (protects an
+  unstamped-but-real position) or a real timestamp (a reset, which stamps one) — a row with
+  neither has simply never been touched under this account and has no standing to override local.
+- Guard the pagehide race by re-registering a second `pagehide` listener in SettingsScreen that
+  re-clears the key after `saveResumeAudio`'s (relying on DOM listener registration order) —
+  rejected: doesn't stop `persistLivePositionToDb`'s fire-and-forget Supabase write from firing in
+  the first listener, which could still land the stale position in the DB with a fresh timestamp
+  before the tab navigates away; a race on *who overwrites localStorage last* doesn't touch the
+  DB-write vector at all. The suspend flag prevents the write from being attempted, closing both.
+- Fetch the enrollment row via `App.vue`'s already-loaded `learnerEnrollments` map instead of a
+  fresh `progressStore.getEnrollment` call (the design's own suggestion, "the row is already
+  fetched at boot") — rejected for Stage 2: that map is missing `highest_completed_lego_id` (the
+  ceiling fallback still needs it) and isn't guaranteed populated by the time `resolveStartLegoId`
+  runs on mount; reusing the existing `getEnrollment` call this function already made when local
+  was empty is one code path instead of two, and `useInstantPlayback`'s round-map fetch is already
+  cache-backed so the added latency is bounded and usually near-zero. Flagged as a legitimate
+  follow-up if resume latency ever needs shaving.
+**Search width:** re-levelled once (the pagehide race is a genuine gap the design didn't name,
+not a visible-options choice among things the design already listed).
+**Decided by:** agent (Stage 2 execution per the design + Tom's ruling; the pagehide-race fix and
+the null-timestamp scoping correction are judgment calls made against the ruling's stated intent,
+flagged here rather than silently shipped)
