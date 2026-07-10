@@ -4309,7 +4309,8 @@ CREATE TABLE public.algorithm_config (
     config jsonb NOT NULL,
     description text,
     updated_at timestamp with time zone DEFAULT now(),
-    updated_by text
+    updated_by text,
+    version integer DEFAULT 1 NOT NULL
 );
 
 
@@ -6970,6 +6971,33 @@ COMMENT ON TABLE public.learner_milestones IS 'Journey timeline - transformation
 
 
 --
+-- Name: learner_pod_state; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.learner_pod_state (
+    learner_id uuid NOT NULL,
+    course_code text NOT NULL,
+    sentence_id text NOT NULL,
+    exposures integer DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE learner_pod_state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.learner_pod_state IS 'Per-learner per-pod-sentence exposure counter shared by BOTH pod doors (main-flow pod laps + Listening Mode Drill). exposures = completed exposures; main flow serves view exposures+1, drill serves fusion rung = exposures. Forward-only; derived main-flow alive remains the inheritance floor.';
+
+
+--
+-- Name: COLUMN learner_pod_state.sentence_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_pod_state.sentence_id IS 'listening_pod_sentences.id, or `${id}:s${index}` for a June-split per-sentence unit — the client-side per-sentence id convention.';
+
+
+--
 -- Name: learner_points; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -8948,6 +8976,14 @@ ALTER TABLE ONLY public.learner_milestones
 
 
 --
+-- Name: learner_pod_state learner_pod_state_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.learner_pod_state
+    ADD CONSTRAINT learner_pod_state_pkey PRIMARY KEY (learner_id, course_code, sentence_id);
+
+
+--
 -- Name: learner_points learner_points_learner_id_course_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9012,11 +9048,11 @@ ALTER TABLE ONLY public.lego_introductions
 
 
 --
--- Name: lego_progress lego_progress_learner_id_lego_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: lego_progress lego_progress_learner_id_lego_id_course_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.lego_progress
-    ADD CONSTRAINT lego_progress_learner_id_lego_id_key UNIQUE (learner_id, lego_id);
+    ADD CONSTRAINT lego_progress_learner_id_lego_id_course_id_key UNIQUE (learner_id, lego_id, course_id);
 
 
 --
@@ -9252,11 +9288,11 @@ ALTER TABLE ONLY public.schools
 
 
 --
--- Name: seed_progress seed_progress_learner_id_seed_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: seed_progress seed_progress_learner_id_seed_id_course_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.seed_progress
-    ADD CONSTRAINT seed_progress_learner_id_seed_id_key UNIQUE (learner_id, seed_id);
+    ADD CONSTRAINT seed_progress_learner_id_seed_id_course_id_key UNIQUE (learner_id, seed_id, course_id);
 
 
 --
@@ -10313,6 +10349,13 @@ CREATE INDEX idx_learner_lego_metrics_learner_course ON public.learner_lego_metr
 
 
 --
+-- Name: idx_learner_pod_state_learner_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_learner_pod_state_learner_course ON public.learner_pod_state USING btree (learner_id, course_code);
+
+
+--
 -- Name: idx_learner_points_course; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11335,6 +11378,13 @@ CREATE TRIGGER update_learner_lego_metrics_updated_at BEFORE UPDATE ON public.le
 
 
 --
+-- Name: learner_pod_state update_learner_pod_state_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER update_learner_pod_state_updated_at BEFORE UPDATE ON public.learner_pod_state FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+
+--
 -- Name: learner_points update_learner_points_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -11758,6 +11808,14 @@ ALTER TABLE ONLY public.learner_milestones
 
 
 --
+-- Name: learner_pod_state learner_pod_state_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.learner_pod_state
+    ADD CONSTRAINT learner_pod_state_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
+
+
+--
 -- Name: learner_points learner_points_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12040,6 +12098,13 @@ CREATE POLICY "Admins can read all learner_l1_state" ON public.learner_l1_state 
 --
 
 CREATE POLICY "Admins can read all learner_lego_metrics" ON public.learner_lego_metrics FOR SELECT TO authenticated USING (public.is_ssi_admin());
+
+
+--
+-- Name: learner_pod_state Admins can read all learner_pod_state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can read all learner_pod_state" ON public.learner_pod_state FOR SELECT TO authenticated USING (public.is_ssi_admin());
 
 
 --
@@ -12414,6 +12479,15 @@ CREATE POLICY "Users can delete own lego pairings" ON public.learner_lego_pairin
 
 
 --
+-- Name: learner_pod_state Users can delete own pod state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can delete own pod state" ON public.learner_pod_state FOR DELETE USING ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
 -- Name: learner_l1_state Users can insert own l1 state; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12445,6 +12519,15 @@ CREATE POLICY "Users can insert own lego pairings" ON public.learner_lego_pairin
 --
 
 CREATE POLICY "Users can insert own meta commentary state" ON public.learner_meta_commentary_state FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
+-- Name: learner_pod_state Users can insert own pod state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can insert own pod state" ON public.learner_pod_state FOR INSERT WITH CHECK ((learner_id IN ( SELECT learners.id
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
@@ -12490,6 +12573,15 @@ CREATE POLICY "Users can update own lego pairings" ON public.learner_lego_pairin
 --
 
 CREATE POLICY "Users can update own meta commentary state" ON public.learner_meta_commentary_state FOR UPDATE USING ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
+-- Name: learner_pod_state Users can update own pod state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update own pod state" ON public.learner_pod_state FOR UPDATE USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
@@ -12542,6 +12634,15 @@ CREATE POLICY "Users can view own lego pairings" ON public.learner_lego_pairings
 --
 
 CREATE POLICY "Users can view own meta commentary state" ON public.learner_meta_commentary_state FOR SELECT USING ((learner_id IN ( SELECT learners.id
+   FROM public.learners
+  WHERE (learners.user_id = (auth.uid())::text))));
+
+
+--
+-- Name: learner_pod_state Users can view own pod state; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view own pod state" ON public.learner_pod_state FOR SELECT USING ((learner_id IN ( SELECT learners.id
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
@@ -13075,6 +13176,12 @@ CREATE POLICY learner_milestones_own_select ON public.learner_milestones FOR SEL
 
 CREATE POLICY learner_milestones_own_update ON public.learner_milestones FOR UPDATE TO authenticated USING ((learner_id = public.current_learner_id())) WITH CHECK ((learner_id = public.current_learner_id()));
 
+
+--
+-- Name: learner_pod_state; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.learner_pod_state ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: learner_points; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15366,7 +15473,7 @@ GRANT ALL ON SEQUENCE public.insight_discoveries_id_seq TO service_role;
 --
 
 GRANT REFERENCES,TRIGGER,MAINTAIN ON TABLE public.invite_codes TO anon;
-GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.invite_codes TO authenticated;
+GRANT REFERENCES,TRIGGER,MAINTAIN ON TABLE public.invite_codes TO authenticated;
 GRANT ALL ON TABLE public.invite_codes TO service_role;
 
 
@@ -15451,6 +15558,15 @@ GRANT ALL ON TABLE public.learner_meta_commentary_state TO service_role;
 
 GRANT SELECT,INSERT,MAINTAIN,UPDATE ON TABLE public.learner_milestones TO authenticated;
 GRANT ALL ON TABLE public.learner_milestones TO service_role;
+
+
+--
+-- Name: TABLE learner_pod_state; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.learner_pod_state TO anon;
+GRANT ALL ON TABLE public.learner_pod_state TO authenticated;
+GRANT ALL ON TABLE public.learner_pod_state TO service_role;
 
 
 --

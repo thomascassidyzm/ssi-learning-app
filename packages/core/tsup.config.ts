@@ -10,6 +10,7 @@ export default defineConfig({
     'persistence/index': 'src/persistence/index.ts',
     'audio/index': 'src/audio/index.ts',
     'pods/index': 'src/pods/index.ts',
+    'script/index': 'src/script/index.ts',
   },
   format: ['cjs', 'esm'],
   dts: true,

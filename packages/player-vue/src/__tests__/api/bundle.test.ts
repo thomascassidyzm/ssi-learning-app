@@ -367,14 +367,24 @@ describe('GET /api/courses/:code/bundle', () => {
     expect([...new Set(lastFromCalls)].sort()).toEqual(
       [
         'courses',
+        'algorithm_config',
         'course_legos',
         'course_practice_phrases',
         'course_round_index',
+        'course_seeds',
         'listening_pods',
         'course_audio',
         'listening_pod_sentences',
       ].sort(),
     )
+
+    // Script artifact identity block (bundle-cutover Phase 1, design §2) —
+    // no algorithm_config mock set up here, so it falls back to defaults.
+    expect(bundle.contentVersion).toBe(7)
+    expect(bundle.scriptShapeVersion).toBe(1)
+    expect(bundle.generatorVersion).toBe(1)
+    expect(bundle.scriptShape.spacedRepOffsets).toContain(144)
+    expect(bundle.scriptShape.n1PhraseCount).toBe(3)
 
     // Pods shape: one pod with two sentences, intro+outro inlined from
     // course_audio.
@@ -538,6 +548,129 @@ describe('GET /api/courses/:code/bundle', () => {
     const res = makeRes()
     await handler(makeReq({ code: 'Spanish v2!' }), res as any)
     expect(res._status).toBe(400)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Script artifact identity — scriptShape/scriptShapeVersion/generatorVersion,
+// seed text+audio, and the ?head=1 version probe (bundle-cutover Phase 1,
+// docs/bundle-cutover-design.md §2, §3).
+// ---------------------------------------------------------------------------
+describe('GET /api/courses/:code/bundle — script artifact identity', () => {
+  beforeEach(() => {
+    tableResponses = {}
+    lastFromCalls = []
+    authUserResponse = { data: { user: null }, error: null }
+    rpcResponse = { data: null, error: null }
+  })
+
+  it('embeds the algorithm_config script_shape row and its version', async () => {
+    setupHappyFixture()
+    tableResponses.algorithm_config = {
+      data: {
+        config: {
+          spacedRepOffsets: [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144],
+          maxBuildPhrases: 5,
+          useConsolidationCount: 2,
+          maxSpacedRepPhrases: 10,
+          n1PhraseCount: 3,
+        },
+        version: 4,
+      },
+      error: null,
+    }
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    const bundle = res._body as any
+    expect(bundle.scriptShapeVersion).toBe(4)
+    expect(bundle.scriptShape.maxBuildPhrases).toBe(5)
+    expect(bundle.scriptShape.spacedRepOffsets).toContain(144)
+    expect(bundle.contentVersion).toBe(bundle.version)
+    expect(bundle.generatorVersion).toBe(1)
+  })
+
+  it('attaches seed text+audio from course_seeds, feeding SEED-PHASE reviews', async () => {
+    setupHappyFixture()
+    tableResponses.course_seeds = {
+      data: [
+        {
+          seed_number: 1,
+          known_text: 'hello',
+          target_text: 'hola',
+          target_text_roman: null,
+          known_audio_id: 'seed1-known',
+          target1_audio_id: 'seed1-t1',
+          target2_audio_id: 'seed1-t2',
+        },
+        {
+          seed_number: 2,
+          known_text: 'good morning',
+          target_text: 'おはよう',
+          target_text_roman: 'ohayou',
+          known_audio_id: 'seed2-known',
+          target1_audio_id: 'seed2-t1',
+          target2_audio_id: null, // missing — should be omitted
+        },
+      ],
+      error: null,
+    }
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    const bundle = res._body as any
+    const seed1 = bundle.seeds.find((s: any) => s.seedId === 'S0001')
+    expect(seed1.knownText).toBe('hello')
+    expect(seed1.targetText).toBe('hola')
+    expect(seed1.targetTextNative).toBeUndefined()
+    expect(seed1.audio.known).toEqual({ id: 'seed1-known', lifecycle: 'persistent' })
+    expect(seed1.audio.target1).toEqual({ id: 'seed1-t1', lifecycle: 'persistent' })
+    expect(seed1.audio.target2).toEqual({ id: 'seed1-t2', lifecycle: 'persistent' })
+
+    // Romanised seed: same target_text_roman → targetText, native → targetTextNative
+    // pattern as legos/phrases. Missing target2 → omitted, not null.
+    const seed2 = bundle.seeds.find((s: any) => s.seedId === 'S0002')
+    expect(seed2.targetText).toBe('ohayou')
+    expect(seed2.targetTextNative).toBe('おはよう')
+    expect('target2' in seed2.audio).toBe(false)
+  })
+
+  it('leaves seeds bare (no knownText/audio) when course_seeds has no matching row', async () => {
+    setupHappyFixture()
+    tableResponses.course_seeds = { data: [], error: null }
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2' }), res as any)
+
+    const bundle = res._body as any
+    expect(bundle.seeds).toEqual([
+      { seedId: 'S0001', seedNumber: 1 },
+      { seedId: 'S0002', seedNumber: 2 },
+    ])
+  })
+
+  it('?head=1 returns only contentVersion/scriptShapeVersion, skipping every other query', async () => {
+    tableResponses = {
+      courses: { data: { content_version: 9 }, error: null },
+      algorithm_config: { data: { config: {}, version: 3 }, error: null },
+    }
+    const res = makeRes()
+    await handler(makeReq({ code: 'spa_for_eng_v2', head: '1' }), res as any)
+
+    expect(res._status).toBe(200)
+    expect(res._body).toEqual({ contentVersion: 9, scriptShapeVersion: 3 })
+    expect([...new Set(lastFromCalls)].sort()).toEqual(['algorithm_config', 'courses'])
+  })
+
+  it('?head=1 returns 404 for an unknown course without querying content tables', async () => {
+    tableResponses = {
+      courses: { data: null, error: null },
+      algorithm_config: { data: null, error: null },
+    }
+    const res = makeRes()
+    await handler(makeReq({ code: 'nonexistent', head: '1' }), res as any)
+
+    expect(res._status).toBe(404)
+    expect(lastFromCalls).not.toContain('course_legos')
   })
 })
 
