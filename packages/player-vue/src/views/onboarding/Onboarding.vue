@@ -24,6 +24,25 @@ const supabase = inject('supabase', ref(null)) as any
 
 const cfg = computed(() => TRACKS[props.track])
 
+// The left panel's desktop checklist — the doubts someone actually has at the
+// moment of signup, per track. The landing page did the selling; this retires
+// the residual "how much work is this for me?" questions while the right
+// column takes the email. Copy drawn from the www /schools1 landing content.
+const panelFacts = computed(() =>
+  props.track === 'tutor'
+    ? [
+        'No planning, no marking — sessions run themselves',
+        'Press play — the session leads, you coach',
+        'Every learner’s practice and progress on your dashboard',
+      ]
+    : [
+        'No planning, no marking — you press play, the session leads',
+        'No fluency needed — you learn alongside your class',
+        'The whole class speaks together — pupils need no accounts',
+        'Every class on your dashboard — progress you can see',
+      ]
+)
+
 // schools1 (/schools1, route name 'onboard-school-1') is the HERITAGE door: its
 // list is the whole 365-day-school-trial set (every free/community course +
 // Welsh — the same rule provision.ts prices the trial by, via
@@ -497,14 +516,34 @@ async function continueIn() {
           <span class="ob-brand-sub">{{ cfg.heading }}</span>
         </header>
 
-        <!-- The 17-year proof, as a designed editorial moment. -->
-        <div class="ob-proof" role="img" aria-label="Seventeen years of proven results">
-          <span class="ob-proof-num" aria-hidden="true">17</span>
-          <span class="ob-proof-words" aria-hidden="true">
-            <span class="ob-proof-years">years</span>
-            <span class="ob-proof-line">the most effective way<br />to speak a new language</span>
+        <!-- The proof: the Cardiff University finding, as a designed editorial
+             moment. Replaces the old free-floating "17 years" (which carried
+             no claim); this number means something at the point of signup. -->
+        <div
+          class="ob-proof"
+          role="img"
+          aria-label="Independent Cardiff University study, 2024: one in two pupils scored in the top ten percent of possible marks, from five minutes of speaking practice a week"
+        >
+          <span class="ob-proof-eyebrow" aria-hidden="true">Independently evaluated — Cardiff University</span>
+          <span class="ob-proof-stat" aria-hidden="true">
+            <span class="ob-proof-num">1 in 2</span>
+            <span class="ob-proof-words">
+              <span class="ob-proof-years">pupils in the top 10%</span>
+              <span class="ob-proof-line">of possible marks — from five minutes<br />of speaking practice a week</span>
+            </span>
           </span>
         </div>
+
+        <!-- Desktop-only: the doubts a teacher actually has at the door,
+             retired in four lines. Mobile keeps its compact band untouched. -->
+        <ul class="ob-facts">
+          <li v-for="f in panelFacts" :key="f" class="ob-fact">
+            <svg class="ob-fact-tick" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12.5l4.2 4.2L19 7" />
+            </svg>
+            <span>{{ f }}</span>
+          </li>
+        </ul>
 
         <!-- Evolving line — responds to the chosen language + the step.
              This is what makes the panel "breathe" across steps. -->
@@ -1042,22 +1081,35 @@ async function continueIn() {
   max-width: 26ch;
 }
 
-/* --- The 17-year proof: an editorial centrepiece, not a caption --- */
+/* --- The Cardiff proof: an editorial centrepiece, not a caption --- */
 .ob-proof {
   position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: clamp(0.75rem, 1.6vw, 1.25rem);
-  margin-top: auto;
+  flex-direction: column;
+  gap: clamp(0.6rem, 1.2vh, 1rem);
   z-index: 1;
   animation: ob-rise 0.8s var(--ease-out-expo, ease) 0.1s both;
+}
+.ob-proof-eyebrow {
+  font-family: var(--font-body);
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: var(--font-semibold, 600);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ob-accent-ink);
+}
+.ob-proof-stat {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(0.75rem, 1.6vw, 1.25rem);
 }
 .ob-proof-num {
   font-family: var(--font-display);
   font-weight: var(--font-light, 300);
-  font-size: clamp(5rem, 13vw, 9.5rem);
-  line-height: 0.82;
-  letter-spacing: -0.04em;
+  font-size: clamp(2.9rem, 5.4vw, 4.4rem);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
   color: var(--text-primary, #2c2622);
   background: linear-gradient(160deg, var(--ob-accent-2) 0%, var(--ob-accent-ink) 70%);
   -webkit-background-clip: text;
@@ -1068,7 +1120,7 @@ async function continueIn() {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  padding-top: 0.4em;
+  padding-top: 0.15em;
 }
 .ob-proof-years {
   font-family: var(--font-display);
@@ -1085,11 +1137,52 @@ async function continueIn() {
   color: var(--text-secondary, #4a4440);
 }
 
+/* --- Desktop checklist: signup-moment doubts, retired --- */
+.ob-facts {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.6rem, 1.4vh, 1rem);
+  animation: ob-rise 0.8s var(--ease-out-expo, ease) 0.2s both;
+}
+.ob-fact {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-family: var(--font-body);
+  font-size: var(--text-sm, 0.875rem);
+  line-height: var(--leading-snug, 1.375);
+  color: var(--text-secondary, #4a4440);
+  max-width: 36ch;
+}
+.ob-fact-tick {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--ob-accent-soft);
+  fill: none;
+  stroke: var(--ob-accent-ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* --- Evolving line — the panel "breathes" across the three steps --- */
 .ob-evolve {
   position: relative;
   z-index: 1;
   margin: 0;
+  /* Brand + proof + facts flow from the top; the evolving line + marker
+     anchor to the bottom. The old layout auto-pushed the proof down instead,
+     leaving a void through the middle of the panel. */
+  margin-top: auto;
   font-family: var(--font-body);
   font-size: var(--text-base, 1rem);
   line-height: var(--leading-relaxed, 1.625);
@@ -1831,8 +1924,10 @@ async function continueIn() {
   }
   .ob-brand { flex: 1 1 14rem; }
   .ob-proof { margin-top: 0; }
-  .ob-proof-num { font-size: clamp(3.5rem, 16vw, 5.5rem); }
-  .ob-evolve { flex: 1 1 100%; max-width: none; }
+  .ob-proof-num { font-size: clamp(2.4rem, 9vw, 3.4rem); }
+  /* The checklist is desktop enrichment only — the mobile band stays compact. */
+  .ob-facts { display: none; }
+  .ob-evolve { flex: 1 1 100%; max-width: none; margin-top: 0; }
   .ob-marker { flex: 1 1 100%; }
   .ob-spine {
     top: clamp(1.5rem, 5vw, 2.25rem);
