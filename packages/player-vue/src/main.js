@@ -5,6 +5,8 @@ import './styles/design-tokens.css'
 import './styles/global.css'
 import App from './App.vue'
 import router from './router'
+import { shouldReloadForPreloadError } from './utils/bootHeal'
+import { selectPrecacheEntriesToPoison } from './utils/wedgeCheat'
 
 // Cold-start boot marks (all from navigation start via performance.now()).
 // mainExec = the main bundle (Vue + App + its static dep tree) has finished
@@ -48,6 +50,56 @@ if (DEBUG_TOOLS && !window.eruda) {
   }).catch(() => { /* chunk not precached yet (first load was offline) — noop */ })
 }
 
+// `?wedge=1` dev cheat (docs/pwa-lifecycle-design.md §3, T6/T7): deliberately
+// corrupts two precached JS chunks so a tester can rehearse the boot
+// watchdog's recovery without waiting for a real browser-update wedge.
+// __ENABLE_WEDGE_CHEAT__ is false on staging/production builds. Guarded by
+// sessionStorage so it poisons exactly once per session — the poisoned
+// reload is meant to fail and hand off to the watchdog's own heal ladder,
+// not re-poison itself on every subsequent heal reload.
+// @ts-ignore - __ENABLE_WEDGE_CHEAT__ is defined by Vite
+const ENABLE_WEDGE_CHEAT = typeof __ENABLE_WEDGE_CHEAT__ !== 'undefined' && __ENABLE_WEDGE_CHEAT__
+if (ENABLE_WEDGE_CHEAT && location.search.includes('wedge=1') && 'caches' in window) {
+  const ARMED_KEY = 'ssi-wedge-armed'
+  let alreadyArmed = false
+  try { alreadyArmed = sessionStorage.getItem(ARMED_KEY) === '1' } catch { /* storage blocked */ }
+  if (!alreadyArmed) {
+    try { sessionStorage.setItem(ARMED_KEY, '1') } catch { /* storage blocked */ }
+    poisonPrecacheForWedgeTest().catch(() => {}).finally(() => window.location.reload())
+  }
+}
+
+async function poisonPrecacheForWedgeTest() {
+  const entryGraphUrls = Array.from(
+    document.querySelectorAll('script[src], link[rel="modulepreload"][href]')
+  ).map((el) => el.src || el.href)
+
+  const entries = [] // { cache, request }
+  for (const cacheName of await caches.keys()) {
+    const cache = await caches.open(cacheName)
+    for (const request of await cache.keys()) {
+      if (request.url.endsWith('.js')) entries.push({ cache, request })
+    }
+  }
+
+  const targets = new Set(
+    selectPrecacheEntriesToPoison(entries.map((e) => e.request.url), entryGraphUrls)
+  )
+
+  await Promise.all(
+    entries
+      .filter((e) => targets.has(e.request.url))
+      .map((e) =>
+        e.cache.put(
+          e.request,
+          new Response('/* ssi wedge poison test — deliberately corrupt */', {
+            headers: { 'Content-Type': 'application/javascript' },
+          })
+        )
+      )
+  )
+}
+
 const app = createApp(App)
 
 // Configure router
@@ -56,5 +108,25 @@ app.use(router)
 app.mount('#app')
 __ssiBoot.mountedMs = Math.round(typeof performance !== 'undefined' ? performance.now() : 0)
 
+// Boot handshake for the inline watchdog in index.html — it can't import
+// anything (must run even when every module fetch fails), so this is the
+// one signal it polls for. Set immediately on mount, before anything else
+// that could throw. See utils/bootHeal.ts + docs/pwa-lifecycle-design.md §2.1.
+window.__SSI_BOOTED = true
+
 // Remove loading state once app is mounted
 document.getElementById('app')?.classList.remove('app-loading')
+
+// vite:preloadError fires when a dynamic import 404s because a deploy
+// rotated hashed chunk filenames mid-session (the chunk the running page
+// knows about no longer exists). Reload once to pick up the new build;
+// sessionStorage-guarded so a genuinely broken chunk doesn't reload-loop.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault()
+  const GUARD_KEY = 'ssi-preload-error-reloaded'
+  let alreadyReloaded = false
+  try { alreadyReloaded = sessionStorage.getItem(GUARD_KEY) === '1' } catch { /* storage blocked */ }
+  if (!shouldReloadForPreloadError(alreadyReloaded)) return
+  try { sessionStorage.setItem(GUARD_KEY, '1') } catch { /* storage blocked */ }
+  window.location.reload()
+})
