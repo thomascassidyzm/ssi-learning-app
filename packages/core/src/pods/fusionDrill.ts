@@ -28,6 +28,15 @@
 
 import type { PodPlay, PodSentenceRow } from './podStageComposition'
 
+/**
+ * Kill switch for sub-sentence ms-slice playback (2026-07-10 seam diagnosis:
+ * ~35% of ita groups have misplaced seams — the ffmpeg silence-detect fallback
+ * picks wrong gaps, and a BAD split is WORSE than NO split). While false, every
+ * group degrades to text chunk strips + whole-sentence audio; text chunking and
+ * glosses stay fully intact. Flip to true when per-chunk rendered clips land.
+ */
+const DRILL_SLICE_PLAYBACK_ENABLED = false
+
 export type FusionMode = 'pairwise' | 'chained'
 
 /** One authored fine unit from `listening_pod_sentences.atom_map_fine`. */
@@ -258,6 +267,7 @@ export function buildFusionGroups(
 
     const takegId = takeg ? takeg[takegIndexFor(gi)] || null : null
     const sliceable =
+      DRILL_SLICE_PLAYBACK_ENABLED &&
       !!takegId &&
       groupUnits.length > 1 &&
       groupUnits.every((u) => u.target_start_ms != null && u.target_end_ms != null)

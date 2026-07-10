@@ -107,7 +107,9 @@ describe('buildFusionGroups', () => {
     expect(g.rowFirst).toBe(0)
     expect(g.rowLast).toBe(1)
     expect(g.takegAudioId).toBe('takeg-0')
-    expect(g.sliceable).toBe(true)
+    // DRILL_SLICE_PLAYBACK_ENABLED=false (2026-07-10 seam diagnosis) forces
+    // every built group to clamp to its whole — flip back with the const.
+    expect(g.sliceable).toBe(false)
     // glued group has no single natural take → whole = its full Take G
     expect(g.wholeTargetClipId).toBe('takeg-0')
     expect(g.targetText).toBe('Naravno. A što biste željeli za piće?')
@@ -133,9 +135,9 @@ describe('buildFusionGroups', () => {
     const groups = buildFusionGroups(input)!
     expect(groups).toHaveLength(2)
     expect(groups[0].wholeTargetClipId).toBe('sent-0')
-    expect(groups[0].sliceable).toBe(true)
+    expect(groups[0].sliceable).toBe(false) // kill switch — see above
     expect(groups[1].wholeTargetClipId).toBe('sent-1')
-    expect(groups[1].sliceable).toBe(true)
+    expect(groups[1].sliceable).toBe(false)
     expect(groups[1].flatStart).toBe(2)
   })
 
@@ -198,7 +200,9 @@ describe('rungStepsForGroup — t·k·t·t at every chunk size, capped at the se
         { targetAudioId: 'sent-1', knownAudioId: 'ksent-1', targetText: 'A što biste željeli za piće?', knownText: 'And what would you like to drink?' },
       ],
     }
-    return buildFusionGroups(input)![0]
+    // sliceable=true override: keeps the slicing ladder under test while the
+    // DRILL_SLICE_PLAYBACK_ENABLED kill switch holds it off in production.
+    return { ...buildFusionGroups(input)![0], sliceable: true }
   }
 
   it('rung 0: the molecular chunks, one strip each, t·k·t·t, sliced from Take G', () => {
