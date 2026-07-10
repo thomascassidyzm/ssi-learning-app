@@ -177,6 +177,13 @@ const entitlementSecret = (
   process.env.ENTITLEMENT_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 ).trim()
 
+// FAMILY-PLAN-SPEC.md §3 future-proofing note: whenever `et` tokens start
+// being MINTED (not just verified) and ENTITLEMENT_ENFORCE=strict arms, the
+// mint call site must resolve entitlement via
+// api/_utils/familyAccess.ts's resolveEffectiveSubscription — same as every
+// other entitlement-deciding subscriptions reader — so a family member's
+// audio doesn't fail-closed the moment strict mode is live.
+
 /** Is this course premium (Big-10 target or Welsh)? Community/other → free. */
 export function isPremiumCourse(courseCode: string): boolean {
   if (!courseCode || courseCode.startsWith('community_')) return false
