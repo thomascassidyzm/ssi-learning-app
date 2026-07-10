@@ -123,6 +123,15 @@ export interface CachedScript {
   // or sub lapsed past the graceful tail), offline playback LOCKS — the bytes
   // stay, one reconnect re-validates and unlocks. Absent on free/legacy caches
   // (a download made before leasing existed has no lease → treated as 'none').
+  //
+  // Keyed by auth user id (or 'anon' signed-out) — NOT global to the device.
+  // Audio/script bytes below are content, shared by whoever uses the device;
+  // only the lease (the entitlement proof) partitions per learner. Without
+  // this, one sibling's paid lease unlocks offline play for the whole shared
+  // household iPad (family-plan's home turf — see FAMILY-PLAN-SPEC.md §5).
+  offlineLeases?: Record<string, OfflineLease>
+  /** @deprecated legacy single-lease field, pre-dates per-user keying. Read
+   *  and adopted into offlineLeases on first access; never written anymore. */
   offlineLease?: OfflineLease
 }
 
@@ -174,35 +183,73 @@ export const setCachedScript = async (
 
 // ── Offline lease (read / patch in place) ──────────────────────────────────
 // The lease lives on the CachedScript row, but the renew/lock paths only touch
-// the lease field — they must NOT rewrite the (large) rounds blob. These two
-// helpers read just the lease and patch it back onto the existing row.
+// the lease field — they must NOT rewrite the (large) rounds blob. These
+// helpers read just the lease map and patch it back onto the existing row.
 
-export const getOfflineLease = async (
-  courseCode: string,
-): Promise<OfflineLease | null> => {
-  const script = await getCachedScript(courseCode)
-  return script?.offlineLease ?? null
+/**
+ * Pure: fold a legacy single-lease field into the per-user map, treating it as
+ * belonging to `userId`. No-op once a script already carries `offlineLeases`
+ * (a legacy field left over from before migration is simply ignored — the map
+ * is authoritative the moment it exists).
+ */
+function withAdoptedLease(script: CachedScript, userId: string): CachedScript {
+  if (script.offlineLeases || !script.offlineLease) return script
+  const { offlineLease, ...rest } = script
+  return { ...rest, offlineLeases: { [userId]: offlineLease } }
 }
 
 /**
- * Patch the lease onto an existing cached script in place. No-op (returns false)
- * if there's no cached script for the course — you can't lease content you never
- * downloaded. Read-modify-write of the single row; the rounds blob is preserved
- * untouched by reusing the loaded object.
+ * Read a script and, if it still carries the legacy single-lease field,
+ * adopt it into `userId`'s slot and persist the migration once (deletes the
+ * legacy field) so nobody's existing download locks on upgrade day.
+ */
+async function loadScriptWithAdoptedLease(
+  courseCode: string,
+  userId: string,
+): Promise<CachedScript | null> {
+  const script = await getCachedScript(courseCode)
+  if (!script) return null
+  const migrated = withAdoptedLease(script, userId)
+  if (migrated === script) return script // nothing to adopt
+  try {
+    const db = await scriptDb()
+    const plain = JSON.parse(JSON.stringify(migrated)) as CachedScript
+    await db.put(SCRIPT_STORE, plain, idbKey(courseCode))
+  } catch (err) {
+    console.warn('[ScriptCache] Legacy lease adoption failed:', (err as any)?.message)
+  }
+  return migrated
+}
+
+export const getOfflineLease = async (
+  courseCode: string,
+  userId: string,
+): Promise<OfflineLease | null> => {
+  const script = await loadScriptWithAdoptedLease(courseCode, userId)
+  return script?.offlineLeases?.[userId] ?? null
+}
+
+/**
+ * Patch `userId`'s lease onto an existing cached script in place. No-op
+ * (returns false) if there's no cached script for the course — you can't
+ * lease content you never downloaded. Read-modify-write of the single row;
+ * the rounds blob is preserved untouched by reusing the loaded object.
  */
 export const setOfflineLease = async (
   courseCode: string,
+  userId: string,
   lease: OfflineLease,
 ): Promise<boolean> => {
   try {
-    const db = await scriptDb()
-    const existing = (await db.get(SCRIPT_STORE, idbKey(courseCode))) as
-      | CachedScript
-      | undefined
+    const existing = await loadScriptWithAdoptedLease(courseCode, userId)
     if (!existing || !existing.rounds || existing.rounds.length === 0) return false
-    const next: CachedScript = { ...existing, offlineLease: lease }
+    const next: CachedScript = {
+      ...existing,
+      offlineLeases: { ...existing.offlineLeases, [userId]: lease },
+    }
     // CachedScript is pure data; round-trip to drop any Vue proxies safely.
     const plain = JSON.parse(JSON.stringify(next)) as CachedScript
+    const db = await scriptDb()
     await db.put(SCRIPT_STORE, plain, idbKey(courseCode))
     return true
   } catch (err) {
@@ -211,19 +258,23 @@ export const setOfflineLease = async (
   }
 }
 
-/** All cached-script entries that carry a lease — used by the renewer to slide
- *  every downloaded course forward in one online check. Returns [code, lease]. */
-export const getAllOfflineLeases = async (): Promise<
-  Array<{ courseCode: string; lease: OfflineLease }>
-> => {
+/** All cached-script entries that carry a lease FOR THIS USER — used by the
+ *  renewer to slide every downloaded course forward in one online check.
+ *  Returns [code, lease]. Adopts a legacy lease in-memory for the read (actual
+ *  persistence happens the next time getOfflineLease/setOfflineLease touches
+ *  that row) rather than writing during the cursor scan. */
+export const getAllOfflineLeases = async (
+  userId: string,
+): Promise<Array<{ courseCode: string; lease: OfflineLease }>> => {
   try {
     const db = await scriptDb()
     const out: Array<{ courseCode: string; lease: OfflineLease }> = []
     let cursor = await db.transaction(SCRIPT_STORE).store.openCursor()
     while (cursor) {
       const val = cursor.value as CachedScript | undefined
-      if (val?.offlineLease && val.courseCode) {
-        out.push({ courseCode: val.courseCode, lease: val.offlineLease })
+      if (val?.courseCode) {
+        const lease = withAdoptedLease(val, userId).offlineLeases?.[userId]
+        if (lease) out.push({ courseCode: val.courseCode, lease })
       }
       cursor = await cursor.continue()
     }
