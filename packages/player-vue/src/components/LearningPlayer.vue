@@ -11323,14 +11323,22 @@ onMounted(async () => {
               startingSeed = seedMatch ? parseInt(seedMatch[1], 10) : 0
               isReturningUser = startingSeed > 0
             } else {
-              const dbSeed = freshLastLego ? (getSeedFromLegoId(freshLastLego) ?? 0) : 0
-              const completedSeeds = beltProgress.value?.completedRounds.value ?? 0
-              const currentSeedFromLegoId = beltProgress.value?.currentSeedNumber.value ?? 0
-              // Take the max of all three sources — the DB read is
-              // authoritative but the legacy beltProgress paths can
-              // occasionally have a higher value (e.g. mid-session
-              // updates not yet written to the enrollment row).
-              startingSeed = Math.max(dbSeed, currentSeedFromLegoId, completedSeeds)
+              // Cursor-only resume (2026-07-04 decision): the DB cursor
+              // (freshLastLego) is the sole position source. The legacy
+              // ceiling (freshHighestLego) is a read-only fallback used
+              // ONLY when the cursor is null/unresolvable — never
+              // ratcheted against beltProgress's localStorage-derived
+              // completedRounds/currentSeedNumber, which is exactly the
+              // ratchet semantics the cursor-only decision killed. Same
+              // resolveResumeAnchor helper the instant-playback path
+              // uses; "resolvable" here means the legoId parses to a
+              // seed (no round-map is loaded yet at this point in boot).
+              const findResolvable = (legoId: string) => (getSeedFromLegoId(legoId) !== null ? 0 : -1)
+              const { legoId: anchorLegoId, viaCeiling } = resolveResumeAnchor(freshLastLego, freshHighestLego, findResolvable)
+              if (viaCeiling) {
+                console.warn(`[LearningPlayer] cursor ${freshLastLego} unresolvable; falling back to ceiling ${anchorLegoId}`)
+              }
+              startingSeed = anchorLegoId ? (getSeedFromLegoId(anchorLegoId) ?? 0) : 0
               isReturningUser = startingSeed > 0 || !!freshHighestLego
             }
 
