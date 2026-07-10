@@ -562,3 +562,24 @@ accounting).
 **Decided by:** agent under the project brief "cache freshness: structural self-invalidation";
 verified by unit tests + live e2e (doctored stale-vintage IndexedDB entries self-refreshed on
 online boot against the real DB).
+## 2026-07-10 — family_members table: revoked the grant-open default despite RLS already blocking it
+**Move:** Applied `family_members` (FAMILY-PLAN-SPEC.md §1) directly to the live DB — RLS ON, zero
+policies — then found Supabase's table-creation default had granted `ALL` to `anon` and
+`authenticated` alongside `service_role`. Ran a second REVOKE ALL FROM anon, authenticated pass
+before snapshotting, leaving only `postgres` (owner) and `service_role` with any privilege.
+**Better:** matches the explicit posture CLAUDE.md rule 7 requires ("never Supabase's grant-open
+default") and the pattern already established on `govt_admins`/`invite_codes` during the 2026-07-04
+grant-hygiene pass — this table now reads the same way on inspection as every other
+service-role-only table, not as an outlier that happens to be safe for a different reason.
+**Simpler:** one posture, enforced at both layers (RLS row-level + GRANT table-level) — a future
+reader checking "can anon touch this?" gets the same answer from either layer, instead of RLS being
+silently the only thing standing between the default grants and a leak.
+**Cheaper (total):** zero runtime cost; the REVOKE is one extra statement in a migration that's
+already being applied by hand.
+**Searched & rejected:**
+- Leave the default ALL grants in place since RLS-with-no-policies already denies every operation
+  for anon/authenticated regardless of table grants — rejected: correct today, but it's exactly the
+  "RLS already covers it" reasoning the rule exists to rule out; a future policy added carelessly
+  (or a `bypassrls` role) would then be riding on the loose grants with nobody having checked them.
+**Search width:** visible-options (the fix is the documented rule 7 pattern, not a novel design).
+**Decided by:** agent
