@@ -574,7 +574,19 @@ async function grantLearnerPremium(
     data.currentBillingPeriod?.endsAt || data.nextBilledAt || null
   const planId = planIdOf(data)
 
-  if (await wouldDowngradePlan(supabase, learnerId, planName)) return null
+  // The precedence guard only suppresses the redundant subscription-ROW
+  // write. Callers (e.g. the tutor-bundle own_subscription_id link) still
+  // need a subscription id back even when the write is skipped — returning
+  // null here would silently drop that link (portal-404) even though the
+  // learner already holds an equal-or-higher-ranked row.
+  if (await wouldDowngradePlan(supabase, learnerId, planName)) {
+    const { data: existingRow } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('learner_id', learnerId)
+      .maybeSingle()
+    return existingRow?.id ?? null
+  }
 
   const { data: subRow, error } = await supabase
     .from('subscriptions')
@@ -603,7 +615,7 @@ async function grantLearnerPremium(
   return subRow.id
 }
 
-async function handlePremiumSubscription(
+export async function handlePremiumSubscription(
   supabase: any,
   data: any,
   customData: Record<string, unknown>
@@ -648,30 +660,56 @@ async function handlePremiumSubscription(
 
   const signupCourse = (customData.course as string | undefined)?.trim() || null
 
-  if (await wouldDowngradePlan(supabase, learnerId, 'SSi Premium')) return
+  // The precedence guard only suppresses the redundant subscription-ROW
+  // write (an incoming lower-ranked plan must never clobber a higher-ranked
+  // one already active). It must NEVER short-circuit the orthogonal side
+  // effects below (signup-course attribution, teacher-link/own_subscription_id) —
+  // a teacher who already holds the tutor bundle and buys/renews a plain
+  // premium checkout still paid Paddle and still needs those effects to run
+  // against their EXISTING (higher-ranked) subscription row.
+  const skipRowWrite = await wouldDowngradePlan(supabase, learnerId, 'SSi Premium')
+  let subRow: { id: string } | null = null
 
-  const { data: subRow, error: upsertErr } = await supabase
-    .from('subscriptions')
-    .upsert(
-      {
-        learner_id: learnerId,
-        status,
-        plan_id: planId,
-        plan_name: 'SSi Premium',
-        current_period_end: periodEnd,
-        cancel_at_period_end: !!data.scheduledChange,
-        provider: 'paddle',
-        provider_subscription_id: data.id,
-        provider_customer_id: data.customerId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'learner_id' }
-    )
-    .select('id')
-    .single()
+  if (!skipRowWrite) {
+    const { data: upsertedRow, error: upsertErr } = await supabase
+      .from('subscriptions')
+      .upsert(
+        {
+          learner_id: learnerId,
+          status,
+          plan_id: planId,
+          plan_name: 'SSi Premium',
+          current_period_end: periodEnd,
+          cancel_at_period_end: !!data.scheduledChange,
+          provider: 'paddle',
+          provider_subscription_id: data.id,
+          provider_customer_id: data.customerId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'learner_id' }
+      )
+      .select('id')
+      .single()
 
-  if (upsertErr || !subRow) {
-    console.error('[paddle-webhook] Failed to upsert premium subscription:', upsertErr)
+    if (upsertErr || !upsertedRow) {
+      console.error('[paddle-webhook] Failed to upsert premium subscription:', upsertErr)
+      return
+    }
+    subRow = upsertedRow
+  } else {
+    // Row write skipped (existing plan outranks this one) — fetch the
+    // existing row so the downstream teacher link still has a subscription
+    // id to point at, instead of losing it entirely.
+    const { data: existingRow } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('learner_id', learnerId)
+      .maybeSingle()
+    subRow = existingRow ?? null
+  }
+
+  if (!subRow) {
+    console.error('[paddle-webhook] No subscription row available (write skipped, none existing) for learner:', learnerId)
     return
   }
 
@@ -737,7 +775,7 @@ async function handlePremiumSubscription(
   )
 }
 
-async function handleStudentSubscription(
+export async function handleStudentSubscription(
   supabase: any,
   data: any,
   customData: Record<string, unknown>
@@ -811,53 +849,80 @@ async function handleStudentSubscription(
   const firstItem = Array.isArray(data.items) && data.items.length > 0 ? data.items[0] : null
   const planId: string | null = firstItem?.price?.id || null
 
-  if (await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access')) return
+  // The precedence guard only suppresses the redundant subscription-ROW
+  // write (a lower-ranked plan must never clobber a higher-ranked one
+  // already active — e.g. a tutor/premium holder buying a class seat).
+  // It must NEVER suppress the orthogonal side effects below (referral,
+  // tag, class enrollment) — the student paid Paddle for this class seat
+  // regardless of which plan_name ends up on their subscriptions row, so
+  // enrollment/tagging must always run or the payment is silently lost
+  // (webhook 200s, Paddle collected, learner never enrolled).
+  const skipRowWrite = await wouldDowngradePlan(supabase, learner.id, 'SSi Student Access')
+  let subRow: { id: string } | null = null
 
-  // Upsert subscription row
-  const { data: subRow, error: subErr } = await supabase
-    .from('subscriptions')
-    .upsert(
-      {
-        learner_id: learner.id,
-        status,
-        plan_id: planId,
-        plan_name: 'SSi Student Access',
-        current_period_end: periodEnd,
-        cancel_at_period_end: !!data.scheduledChange,
-        provider: 'paddle',
-        provider_subscription_id: data.id,
-        provider_customer_id: data.customerId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'learner_id' }
-    )
-    .select('id')
-    .single()
+  if (!skipRowWrite) {
+    const { data: upsertedRow, error: subErr } = await supabase
+      .from('subscriptions')
+      .upsert(
+        {
+          learner_id: learner.id,
+          status,
+          plan_id: planId,
+          plan_name: 'SSi Student Access',
+          current_period_end: periodEnd,
+          cancel_at_period_end: !!data.scheduledChange,
+          provider: 'paddle',
+          provider_subscription_id: data.id,
+          provider_customer_id: data.customerId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'learner_id' }
+      )
+      .select('id')
+      .single()
 
-  if (subErr || !subRow) {
-    console.error('[paddle-webhook] Failed to upsert student subscription:', subErr)
-    return
+    if (subErr || !upsertedRow) {
+      console.error('[paddle-webhook] Failed to upsert student subscription:', subErr)
+      return
+    }
+    subRow = upsertedRow
+  } else {
+    // Row write skipped (existing plan outranks 'SSi Student Access') —
+    // fetch the existing row so the referral upsert below still has a
+    // subscription id to key off, instead of losing the referral entirely.
+    const { data: existingRow } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('learner_id', learner.id)
+      .maybeSingle()
+    subRow = existingRow ?? null
   }
 
-  // Upsert teacher_referrals (idempotent on subscription_id via partial unique index)
-  const referralStatus = REFERRAL_STATUS_MAP[data.status] || 'lapsed'
-  const { error: referralErr } = await supabase
-    .from('teacher_referrals')
-    .upsert(
-      {
-        class_id: classId,
-        student_learner_id: learner.id,
-        source: 'signup_link',
-        locked_price_pence: lockedPricePence,
-        status: referralStatus,
-        subscription_id: subRow.id,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'subscription_id' }
-    )
+  // Upsert teacher_referrals (idempotent on subscription_id via partial unique index).
+  // Best-effort: teacher_referrals.subscription_id is required, so this can only run
+  // when a row resolved above — but class enrollment/tagging below never depend on it.
+  if (subRow) {
+    const referralStatus = REFERRAL_STATUS_MAP[data.status] || 'lapsed'
+    const { error: referralErr } = await supabase
+      .from('teacher_referrals')
+      .upsert(
+        {
+          class_id: classId,
+          student_learner_id: learner.id,
+          source: 'signup_link',
+          locked_price_pence: lockedPricePence,
+          status: referralStatus,
+          subscription_id: subRow.id,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'subscription_id' }
+      )
 
-  if (referralErr) {
-    console.error('[paddle-webhook] Failed to upsert teacher_referrals:', referralErr)
+    if (referralErr) {
+      console.error('[paddle-webhook] Failed to upsert teacher_referrals:', referralErr)
+    }
+  } else {
+    console.warn('[paddle-webhook] student_via_teacher: no subscription row resolved, referral skipped (enrollment/tagging still proceed):', learner.id)
   }
 
   // Insert user_tags row linking student to class (idempotent on the unique constraint)

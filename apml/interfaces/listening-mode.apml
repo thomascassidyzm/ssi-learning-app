@@ -1,7 +1,7 @@
 # APML Interface: Listening MODE — Dialogue surface
 # SSI Learning App
 # Version: 1.1.0
-# Last updated: 2026-06-29
+# Last updated: 2026-07-10
 # Source: packages/player-vue/src/components/ListeningOverlay.vue
 #         packages/player-vue/src/composables/useListeningPods.ts
 
@@ -92,6 +92,16 @@ DIALOGUE_MODES:
     speed_row: true   # the speed selector is now EXPOSED in Drill (the chosen
                       # speed is the "normal" rate; the fixed-pace caption/spacer
                       # is retired).
+    slice_playback: |
+      DISABLED (2026-07-10). Sub-sentence ms-slice playback of Take G is off
+      via DRILL_SLICE_PLAYBACK_ENABLED=false in @ssi/core pods/fusionDrill.ts:
+      the seam diagnosis found ~35% of ita groups with misplaced seams (ffmpeg
+      silence-detect fallback picks wrong gaps), and a bad split is worse than
+      no split (Tom). Every fusion group self-clamps to its whole: Drill shows
+      one text strip per sentence and plays the natural sentence take; the
+      main-flow unified ladder likewise enters at Stage 1. Text chunking,
+      glosses and window knowns stay authored and intact. Flip the const back
+      when per-chunk rendered clips land.
 
   audit:
     key: "audit"
