@@ -6,7 +6,7 @@
  * configured tolerance (Tom hasn't created the Paddle product yet).
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 process.env.SUPABASE_URL = 'http://localhost:54321'
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
@@ -130,7 +130,8 @@ describe('paddle-webhook: SSi Family — product not yet configured (Tom has not
     // Re-import with the env vars absent, simulating pre-Paddle-product state.
     delete process.env.VITE_PADDLE_FAMILY_PRICE_MONTHLY
     delete process.env.VITE_PADDLE_FAMILY_PRICE_ANNUAL
-    const mod = await import('../../../../../api/teacher/paddle-webhook?unconfigured')
+    vi.resetModules()
+    const mod = await import('../../../../../api/teacher/paddle-webhook')
     const supabase = makeSupabaseMock({
       learners: { data: { id: 'learner-owner-1' }, error: null },
       subscriptions: { data: null, error: null },
