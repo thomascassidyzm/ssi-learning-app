@@ -187,6 +187,37 @@ describe('AudioCache', () => {
     expect(cache.has('a')).toBe(true)
   })
 
+  it('persistent.ensureFromUrl fetches the given URL and stores under id, same shape as ensure', async () => {
+    await cache.persistent.ensureFromUrl('a', 'https://s3.example.com/a?sig=xyz')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('https://s3.example.com/a?sig=xyz')
+    expect(cache.persistent.has('a')).toBe(true)
+    expect(cache.has('a')).toBe(true)
+
+    const row = await readRow('a')
+    expect(row?.lifecycle).toBe('persistent')
+  })
+
+  it('persistent.ensureFromUrl is idempotent on already-cached', async () => {
+    await cache.persistent.ensureFromUrl('a', 'https://s3.example.com/a')
+    await cache.persistent.ensureFromUrl('a', 'https://s3.example.com/a')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('persistent.ensureFromUrl and persistent.ensure de-dupe in-flight for the same id', async () => {
+    fetchMock = makeFetchMock({ delayMs: 20 })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    await Promise.all([
+      cache.persistent.ensureFromUrl('a', 'https://s3.example.com/a'),
+      cache.persistent.ensure('a'),
+    ])
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(cache.has('a')).toBe(true)
+  })
+
   // ==========================================================================
   // EPHEMERAL
   // ==========================================================================

@@ -5,6 +5,7 @@ import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepaliv
 import { usePlayerLog } from '../composables/usePlayerLog'
 import { BELTS } from '../composables/useBeltProgress'
 import { useListeningPods, SPEAKER_PALETTE } from '../composables/useListeningPods'
+import { getCachedListeningMeta } from '../composables/listeningMetaCache'
 import { buildSilentWavDataUri } from '../playback/silentWav'
 import ListeningModeToggle from './ListeningModeToggle.vue'
 import { resolveCachedPlaybackUrl } from '../cache/resolvePlaybackUrl'
@@ -240,6 +241,15 @@ const props = defineProps({
   learnerId: {
     type: String,
     default: null
+  },
+  /** True while the app is playing offline. The 'All' tab (USE phrases) is
+   *  never part of the offline download bundle (Tom 2026-07-08 — Core
+   *  downloads in full, All doesn't download at all), so it's disabled here
+   *  rather than shown and then failing to fetch. Online behaviour is
+   *  unchanged. */
+  isOffline: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -713,7 +723,14 @@ const exitScene = () => {
 }
 
 /** Switch top-level view. Resets transient state. */
+// Going offline mid-session while sat on 'All' (e.g. the connection drops)
+// bounces back to Dialogues — 'All' never has offline audio to play.
+watch(() => props.isOffline, (offline) => {
+  if (offline && view.value === 'phrases') setView('pods')
+})
+
 const setView = (v) => {
+  if (v === 'phrases' && props.isOffline) return // 'All' never downloads offline — disabled in the template too
   if (view.value === v) return
   stopPlayback()
   selectedScene.value = null
@@ -934,13 +951,28 @@ const loadSeeds = async () => {
     isLoading.value = true
     error.value = null
 
-    const { data, error: fetchError } = await supabase.value
-      .from('course_seeds')
-      .select('seed_number, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id')
-      .eq('course_code', props.courseCode)
-      .order('seed_number', { ascending: true })
-
-    if (fetchError) throw fetchError
+    // Offline (or a mid-air fetch failure): serve the seed list persisted by
+    // the deliberate offline download. Cache-first when offline so the tab
+    // opens instantly instead of waiting on a doomed fetch.
+    const seedsFromCache = async () => (await getCachedListeningMeta(props.courseCode))?.coreSeeds ?? null
+    let data = null
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      data = await seedsFromCache()
+    }
+    if (!data) {
+      const { data: liveData, error: fetchError } = await supabase.value
+        .from('course_seeds')
+        .select('seed_number, known_text, target_text, known_audio_id, target1_audio_id, target2_audio_id')
+        .eq('course_code', props.courseCode)
+        .order('seed_number', { ascending: true })
+      if (fetchError) {
+        data = await seedsFromCache()
+        if (!data) throw fetchError
+        console.warn('[ListeningOverlay] live seed fetch failed — using offline metadata cache:', fetchError.message)
+      } else {
+        data = liveData
+      }
+    }
 
     const rows = (data || []).map((s) => {
       const beltIndex = beltIndexForSeed(s.seed_number)
@@ -973,7 +1005,11 @@ const loadSeeds = async () => {
     prefetchTopRows()
   } catch (err) {
     console.error('[ListeningOverlay] loadSeeds error:', err)
-    error.value = 'Failed to load seeds'
+    // Offline with nothing downloaded: a clear human state, never an
+    // infinite spinner or a raw fetch error (Tom's airplane-mode test).
+    error.value = typeof navigator !== 'undefined' && navigator.onLine === false
+      ? "Core isn't downloaded yet — connect once and download for offline to bring it along."
+      : 'Failed to load seeds'
   } finally {
     isLoading.value = false
   }
@@ -1905,7 +1941,10 @@ watch(
       >Core</button>
       <button
         class="view-tab"
-        :class="{ active: view === 'phrases' }"
+        :class="{ active: view === 'phrases', disabled: isOffline }"
+        :disabled="isOffline"
+        :aria-disabled="isOffline"
+        :title="isOffline ? 'All isn\'t included in offline downloads — connect to use it' : undefined"
         @click="setView('phrases')"
       >All</button>
     </div>
@@ -2731,6 +2770,16 @@ watch(
   background: var(--text-primary);
   color: var(--bg-primary, #ffffff);
   font-weight: 600;
+}
+
+.view-tab.disabled {
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.view-tab.disabled:hover {
+  color: var(--text-muted);
 }
 
 /* ═══════════════════════════════════════════════════════════════

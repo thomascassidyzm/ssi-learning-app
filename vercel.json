@@ -6,6 +6,9 @@
   "functions": {
     "api/audio/[audioId].ts": {
       "maxDuration": 10
+    },
+    "api/audio/batch-urls.ts": {
+      "maxDuration": 10
     }
   },
   "headers": [

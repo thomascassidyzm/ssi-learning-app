@@ -51,6 +51,7 @@
 
 import { ref, shallowRef, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { getCachedListeningMeta } from './listeningMetaCache'
 
 // ============================================================================
 // Pure logic (exported for unit testing — no Vue/Supabase here)
@@ -414,16 +415,33 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
           .in('role', ['bookend_listen_intro', 'bookend_listen_outro']),
       ])
 
-      if (seedsResult.error) throw new Error(`seeds: ${seedsResult.error.message}`)
-      if (catalogueResult.error) throw new Error(`catalogue: ${catalogueResult.error.message}`)
-      if (bookendsResult.error) throw new Error(`bookends: ${bookendsResult.error.message}`)
+      // Offline fallback (Tom's airplane-mode test 2026-07-09): when the live
+      // metadata queries fail, serve the rows persisted by the deliberate
+      // offline download. Never-downloaded + offline keeps the old failure
+      // path (init warns, L1 laps just don't fire).
+      let seedRows = seedsResult.data as L1SeedRow[] | null
+      let catalogueRows = catalogueResult.data as Array<{ seed_number: number; lego_index: number }> | null
+      let bookendRows = bookendsResult.data as Array<{ role: string; text: string; id: string; duration_ms?: number }> | null
+      if (seedsResult.error || catalogueResult.error || bookendsResult.error) {
+        const cached = await getCachedListeningMeta(courseCode)
+        if (cached) {
+          console.warn('[layer1Scheduler] live metadata fetch failed — using offline cache')
+          if (seedsResult.error) seedRows = cached.coreSeeds as unknown as L1SeedRow[]
+          if (catalogueResult.error) catalogueRows = cached.legoCatalogue
+          if (bookendsResult.error) bookendRows = cached.bookends
+        } else {
+          if (seedsResult.error) throw new Error(`seeds: ${seedsResult.error.message}`)
+          if (catalogueResult.error) throw new Error(`catalogue: ${catalogueResult.error.message}`)
+          throw new Error(`bookends: ${bookendsResult.error!.message}`)
+        }
+      }
 
       const seedMap = new Map<number, L1SeedRow>()
-      for (const row of (seedsResult.data || []) as L1SeedRow[]) seedMap.set(row.seed_number, row)
+      for (const row of (seedRows || []) as L1SeedRow[]) seedMap.set(row.seed_number, row)
       seeds.value = seedMap
 
       const lastOrd = computeSeedLastOrdinals(
-        (catalogueResult.data || []) as Array<{ seed_number: number; lego_index: number }>,
+        (catalogueRows || []) as Array<{ seed_number: number; lego_index: number }>,
       )
       seedLastOrdinal.value = lastOrd
       const intro = buildIntroductionOrder(lastOrd)
@@ -431,7 +449,7 @@ export function useLayer1Scheduler(options: UseLayer1SchedulerOptions) {
       sortedOrdinals.value = intro.ordinals
 
       const byRole = new Map<string, L1BookendAudio>()
-      for (const row of (bookendsResult.data || []) as Array<{ role: string; text: string; id: string; duration_ms?: number }>) {
+      for (const row of bookendRows || []) {
         byRole.set(row.role, { id: row.id, text: row.text, duration_ms: row.duration_ms })
       }
       introAudio.value = byRole.get('bookend_listen_intro') || null

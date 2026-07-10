@@ -14,6 +14,7 @@
 import { ref, watch, inject, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { splitRowUnits } from './podSentenceSplit'
+import { getCachedListeningMeta } from './listeningMetaCache'
 import { buildFusionGroups, type FusionGroup } from '@ssi/core/pods'
 
 export interface PodSentence {
@@ -143,7 +144,17 @@ export function useListeningPods(
     isLoading.value = true
     error.value = null
 
-    try {
+    // Offline fallback: rows + split-clip texts from the metadata persisted
+    // by the deliberate offline download. Null when never downloaded.
+    const loadFromCache = async (): Promise<{ rows: any[]; textById: Map<string, string> } | null> => {
+      const cached = await getCachedListeningMeta(course)
+      if (!cached) return null
+      return { rows: cached.podRows, textById: new Map(Object.entries(cached.clipTexts)) }
+    }
+
+    // Live fetch. Throws on any query error (offline, RLS, transient) so the
+    // caller can fall back to the offline cache.
+    const loadFromNetwork = async (): Promise<{ rows: any[]; textById: Map<string, string> }> => {
       // Pod id convention: `${courseCode}:pod-0`. Fetch every sentence in
       // global order, group by scene_number client-side.
       const podId = `${course}:pod-0`
@@ -154,7 +165,6 @@ export function useListeningPods(
         .order('global_order', { ascending: true })
 
       if (fetchErr) throw new Error(`listening_pod_sentences: ${fetchErr.message}`)
-      if (myFetch !== activeFetch) return
 
       // Per-sentence DISPLAY text must come from each split clip's OWN stored text
       // (authoritative + language-agnostic). The Latin boundary regex in
@@ -170,14 +180,35 @@ export function useListeningPods(
       const textById = new Map<string, string>()
       const idArr = Array.from(clipIds)
       for (let i = 0; i < idArr.length; i += 150) {
-        const { data: clips } = await supabase
+        const { data: clips, error: clipErr } = await supabase
           .from('course_audio')
           .select('id, text')
           .in('id', idArr.slice(i, i + 150))
+        if (clipErr) throw new Error(`split-clip texts: ${clipErr.message}`)
         // Record EVERY returned id (even empty text) — textById doubles as the
         // existence oracle splitRowUnits uses to drop stale split slices.
         for (const c of clips || []) textById.set(c.id, c.text || '')
       }
+      return { rows: data || [], textById }
+    }
+
+    try {
+      let loaded: { rows: any[]; textById: Map<string, string> } | null = null
+      const offlineNow = typeof navigator !== 'undefined' && navigator.onLine === false
+      // Offline: cache first (no doomed fetch, no error noise). Online (or
+      // cache miss): live fetch, falling back to cache when the fetch fails
+      // mid-air (connection dropped after onLine reported true).
+      if (offlineNow) loaded = await loadFromCache()
+      if (!loaded) {
+        try {
+          loaded = await loadFromNetwork()
+        } catch (netErr) {
+          loaded = await loadFromCache()
+          if (!loaded) throw netErr
+          console.warn('[useListeningPods] live fetch failed — using offline metadata cache:', netErr)
+        }
+      }
+      const { rows: data, textById } = loaded
       if (myFetch !== activeFetch) return
 
       // Bucket by scene_number. A multi-sentence TURN row that's been split
@@ -361,7 +392,11 @@ export function useListeningPods(
       if (myFetch !== activeFetch) return
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[useListeningPods] fetch failed:', msg)
-      error.value = msg
+      // Offline with no downloaded metadata: a clear human state, never the
+      // raw TypeError (Tom's airplane-mode test, 2026-07-09).
+      error.value = typeof navigator !== 'undefined' && navigator.onLine === false
+        ? "Dialogues aren't downloaded yet — connect once and download for offline to bring them along."
+        : msg
     } finally {
       if (myFetch === activeFetch) {
         isLoading.value = false

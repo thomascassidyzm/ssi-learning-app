@@ -24,6 +24,7 @@ const ReportIssueButton = defineAsyncComponent(() => import('./ReportIssueButton
 // AwakeningLoader removed - loading state now shown inline in player
 import { useLearningSession } from '../composables/useLearningSession'
 import { useScriptCache, setCachedScript } from '../composables/useScriptCache'
+import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../composables/listeningMetaCache'
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
@@ -45,6 +46,7 @@ import { resolvePodActivationRound } from '../composables/usePodActivation'
 import { toSimpleRounds, type TargetSpeedConfig } from '../providers/toSimpleRounds'
 import { useAlgorithmConfig } from '../composables/useAlgorithmConfig'
 import { computePauseDuration } from '../playback/computePauseDuration'
+import { bulkDownloadAudio, fetchBatchAudioUrls } from '../playback/bulkAudioDownload'
 import { useAuthModal } from '../composables/useAuthModal'
 import { useCheckout } from '../composables/useCheckout'
 import LegoAssembly from './LegoAssembly.vue'
@@ -8912,6 +8914,34 @@ const canStartOfflineDownload = async (): Promise<boolean> => {
 
 const offlinePlaybackActive = (): boolean =>
   (offlineActive.value || !isOnline.value) && !offlineLeaseLocked.value
+
+// Which belts the pill nav must grey out while offline. A belt is available
+// offline iff its landing round (the belt's first LEGO, via findRoundIndex-
+// ForBeltThreshold) has at least one cycle whose audio is ACTUALLY in the
+// persistent cache — not merely a loaded round object. cachedRounds (script
+// structure) races well ahead of audioCache (the heavy bytes): background
+// script expansion can populate rounds for belts whose audio was never
+// fetched, so a round-presence-only check under-greys and a tapped pill
+// would land on silence. Mirrors shouldSkipCycle's own offline audio-
+// presence check (the engine's own bar for "playable offline"), so a pill
+// reads available exactly when landing there would actually produce sound.
+// White belt (seedsRequired 0, the course start) is always present.
+const offlineUnavailableBeltNames = computed<Set<string>>(() => {
+  if (!offlinePlaybackActive()) return new Set()
+  const idOf = (u?: string) => (typeof u === 'string' ? u.match(/\/api\/audio\/([^?]+)/)?.[1] : null)
+  const audioCached = (u?: string) => { const id = idOf(u); return !id || audioCache.persistent.has(id) }
+  const rounds = cachedRounds.value || []
+  const names = new Set<string>()
+  for (const belt of BELTS) {
+    if (belt.seedsRequired === 0) continue
+    const idx = simplePlayer.findRoundIndexForBeltThreshold(belt.seedsRequired)
+    const cycles = idx >= 0 ? (((rounds[idx]) as any)?.cycles || []) : []
+    const hasPlayableCycle = cycles.some((c: any) =>
+      audioCached(c?.known?.audioUrl) && audioCached(c?.target?.voice1Url) && audioCached(c?.target?.voice2Url))
+    if (!hasPlayableCycle) names.add(belt.name)
+  }
+  return names
+})
 // Offline-download progress state (offlineDlState/Done/Total/Failed) is imported
 // from useOfflineDownloadStatus and written by downloadForOffline below. The UI
 // for it now lives on the mode button (the ring) + the Offline row in ModeTray,
@@ -9054,31 +9084,54 @@ const courseTotalRounds = (): number => mainLoopBoundary()
 const roundsLoadedAhead = (): number =>
   Math.max(0, (cachedRounds.value?.length ?? 0) - Math.max(0, currentRoundIndex.value))
 
-// Expand the script for the deliberate offline download (same
-// machinery INF PLAY uses) until `roundsAhead` rounds are loaded ahead of the
-// cursor, the generator runs dry (course tail), or the user cancels. Guard is a
-// runaway backstop only; the real stop is rounds-reached or added === 0.
+// True when cachedRounds genuinely starts at the course start (round 1) —
+// round numbers are course-global 1-based on every producer (full walk,
+// cached script, /cycles bootstrap), so a mid-course bootstrap window that
+// never ran the full walk fails this and needs an expandScript first. The
+// offline bundle must include the behind-position prefix, so collection
+// can't run against a cursor-anchored window.
+const behindPositionRoundsLoaded = (): boolean => {
+  if (currentRoundIndex.value <= 0) return true
+  const first = (cachedRounds.value || [])[0] as any
+  return first?.roundNumber === 1
+}
+
+// Expand the script for the deliberate offline download (same machinery INF
+// PLAY uses) until the behind-position prefix (course start → cursor) is
+// loaded AND `roundsAhead` rounds are loaded ahead of the cursor, the
+// generator runs dry (course tail), or the user cancels. One expandScript is
+// normally enough for the prefix — generateScript walks the whole course.
+// Guard is a runaway backstop only; the real stop is rounds-reached or
+// added === 0.
 const ensureOfflineRoundsLoaded = async (roundsAhead: number): Promise<void> => {
   let guard = 0
-  while (offlineActive.value && roundsLoadedAhead() < roundsAhead && guard++ < 2000) {
+  while (
+    offlineActive.value &&
+    (roundsLoadedAhead() < roundsAhead || !behindPositionRoundsLoaded()) &&
+    guard++ < 2000
+  ) {
     const added = await expandScript()
     if (added === 0) break  // generator exhausted — course tail reached
   }
 }
 
-// Walk forward `roundsAhead` rounds from the cursor, collecting unique
-// /api/audio ids. Infinity = to the end of what's loaded. Dedupes (a clip
-// reused across the span counts once) — same shape as collectSpanAudioIds.
+// Collect unique /api/audio ids for the offline bundle: ALWAYS every loaded
+// round from the COURSE START up to the cursor (behind-position content is
+// unconditional — a fresh device has none of it cached, and without it the
+// earlier belts are dead offline despite "downloaded course"), PLUS
+// `roundsAhead` rounds ahead of the cursor (the slider's "how much new
+// learning I carry"). Infinity = to the end of what's loaded. Dedupes (a
+// clip reused across the span counts once) — same shape as collectSpanAudioIds.
 const collectRoundsAudioIds = (roundsAhead: number): string[] => {
   const rounds = cachedRounds.value || []
-  const start = Math.max(0, currentRoundIndex.value)
-  const end = roundsAhead === Infinity ? rounds.length : Math.min(rounds.length, start + roundsAhead)
+  const cursor = Math.max(0, currentRoundIndex.value)
+  const end = roundsAhead === Infinity ? rounds.length : Math.min(rounds.length, cursor + roundsAhead)
   const ids = new Set<string>()
   const add = (url?: string) => {
     const m = typeof url === 'string' ? url.match(/\/api\/audio\/([^?]+)/) : null
     if (m) ids.add(m[1])
   }
-  for (let i = start; i < end; i++) {
+  for (let i = 0; i < end; i++) {
     for (const c of (((rounds[i]) as any).cycles || [])) {
       add(c?.known?.audioUrl); add(c?.target?.voice1Url); add(c?.target?.voice2Url)
     }
@@ -9205,6 +9258,35 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
 // buffer stays topped up through a lock instead of draining and falling back to
 // streaming every clip.
 
+/**
+ * Listening-mode bundle — Core (every seed's whole-sentence audio) + the pod
+ * scene structure's full clip set (split sentences, explainers, Take-G fusion
+ * slices, fine-known glosses, bookends) — downloaded in FULL, course-wide,
+ * with no position scoping (Tom 2026-07-08: "no position scoping anywhere in
+ * the offline listening bundle — simpler and fully deterministic"). 'All'
+ * (USE-phrase audio) is deliberately NOT part of the offline bundle — it's
+ * disabled in the UI while offline instead (see ListeningOverlay's
+ * :is-offline prop).
+ *
+ * fetchAndCacheListeningMeta ALSO persists the listening METADATA (pod rows,
+ * Core seed list, bookends, fine-known map, LEGO catalogue) to IndexedDB —
+ * that's what lets the Listening overlay + pod/L1 schedulers open offline
+ * instead of dying on a dead Supabase fetch ("listening_pod_sentences:
+ * TypeError: Load failed"). The audio ids are derived from those same
+ * persisted rows, so metadata and audio can't drift apart.
+ */
+const collectListeningModeAudioIds = async (): Promise<string[]> => {
+  const client = supabase.value
+  const code = courseCode.value
+  if (!client || !code) return []
+  const meta = await fetchAndCacheListeningMeta(client, code)
+  if (!meta) {
+    console.warn('[Offline] listening metadata fetch failed — listening bundle skipped this run')
+    return []
+  }
+  return collectListeningMetaAudioIds(meta)
+}
+
 // Commentary (welcome/instructions/encouragements) and pod audio are
 // scheduled at RUNTIME — encouragements are a random pull from a pool, pod
 // laps advance on a ratchet — so we can't predict which exact clips fire in
@@ -9214,6 +9296,14 @@ watch(isPlaying, (playing) => { if (!playing) void warmBurst() })
 // miss → it falls to the network → the 60s commentary safety timeout stalls
 // the lesson (the "plays ~10 rounds then stops dead" bug, 2026-05-28). Also
 // the reason pods can now play during an offline journey, per the model.
+//
+// ALSO gathers the Listening-mode Core bundle (the whole course, no position
+// scoping) and ALL dialogue pod content for the course (pods are likewise
+// never position-limited — every scene the course has, per Tom 2026-07-08)
+// — this function is the single place both offline download paths (the
+// mid-course picker and the INF-PLAY single option) already call for
+// "everything besides the main-loop cycles". 'All' (USE phrases) is
+// deliberately excluded from the offline bundle — see collectListeningModeAudioIds.
 const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
   const ids = new Set<string>()
   const provider = courseDataProvider.value
@@ -9260,6 +9350,9 @@ const collectAuxiliaryAudioIds = async (): Promise<string[]> => {
       if (l1Scheduler.outroAudio.value?.id) ids.add(l1Scheduler.outroAudio.value.id)
     } catch (e) { console.warn('[Offline] L1 enumerate failed:', e) }
   }
+  try {
+    for (const id of await collectListeningModeAudioIds()) ids.add(id)
+  } catch (e) { console.warn('[Offline] Listening mode (Core/All) enumerate failed:', e) }
   return [...ids]
 }
 
@@ -9281,39 +9374,26 @@ const downloadForOffline = async (roundsAhead: number = Infinity) => {
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] downloading ${missing.length} of ${ids.length} audio files (depth: ${roundsAhead === Infinity ? 'rest of course' : roundsAhead + ' rounds'})`)
-  // Concurrency: aggressive when nothing is playing (the download is the only
-  // network user), polite when a session is live (protect the live next-clip
-  // fetch). Re-evaluated EACH batch — the learner can hit play mid-download.
-  // 12 is past the point where the bottleneck is network latency (these clips
-  // are ~24KB); going higher mainly raises backend cold-start/throttle risk for
-  // little speed gain.
-  const concNow = () => (isPlaying.value ? 4 : 12)
-  // Retry a clip a few times with backoff before counting it failed, so a
-  // transient backend throttle (429 under burst) doesn't become a permanent
-  // "download incomplete". ensure() dedupes in-flight, so retries never
-  // double-fetch.
-  const ensureWithRetry = async (id: string): Promise<void> => {
-    for (let attempt = 0; ; attempt++) {
-      try { await audioCache.persistent.ensure(id); return }
-      catch (err) {
-        if (attempt >= 2) throw err                                   // 3 tries total
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))  // 300ms, 600ms backoff
-      }
-    }
-  }
-  let i = 0
-  while (i < missing.length) {
-    if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
-    const batch = missing.slice(i, i + concNow())
-    i += batch.length
-    await Promise.all(batch.map(async (id) => {
-      // Count ONLY genuine cache writes. A clip that still fails after retries
-      // must NOT tick progress — otherwise "Ready ✓" lies and offline plays
-      // silence (the train test).
-      try { await ensureWithRetry(id); offlineDlDone.value++ }
-      catch { offlineDlFailed.value++ }
-    }))
-  }
+  // Batches presigned S3 URLs and fetches bytes directly, falling back to the
+  // per-clip /api/audio proxy (ensure()) for anything the batch path can't
+  // resolve. Counts ONLY genuine cache writes — a clip that still fails after
+  // retries must NOT tick progress, else "Ready ✓" lies and offline plays
+  // silence (the train test).
+  const completed = await bulkDownloadAudio(
+    missing,
+    {
+      fetchBatchUrls: fetchBatchAudioUrls,
+      ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
+      ensure: (id) => audioCache.persistent.ensure(id),
+      isCancelled: () => !offlineActive.value,
+      isPlaying: () => isPlaying.value,
+    },
+    {
+      onDone: () => { offlineDlDone.value++ },
+      onFailed: () => { offlineDlFailed.value++ },
+    },
+  )
+  if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT (round structure) to IndexedDB, not just the audio.
   // The offline cold-reopen fast-path reads getCachedScript() to know what
@@ -9537,7 +9617,9 @@ const refreshOfflineEstimates = async (): Promise<void> => {
     let lowSpace = false
     try { lowSpace = (await audioCache.quotaPressure()) > 0.9 } catch { /* best-effort */ }
     // Files per round from the loaded sample (deduped), else a sane fallback.
-    const sampleRounds = roundsLoadedAhead()
+    // collectRoundsAudioIds(Infinity) spans the WHOLE loaded array (behind +
+    // ahead), so the denominator is the full loaded length, not rounds-ahead.
+    const sampleRounds = (cachedRounds.value || []).length
     const sampleFiles = collectRoundsAudioIds(Infinity).length
     const avgFilesPerRound = sampleRounds >= 3 && sampleFiles > 0 ? sampleFiles / sampleRounds : 12
     offlineEst.value = { total, start, avgBytesPerFile, avgFilesPerRound, lowSpace, ready: true }
@@ -9556,10 +9638,15 @@ const offlineSelectedRounds = computed((): number => {
 // number). The old "% of device" was dropped: it divided by an iOS-unreliable
 // storage quota and read as a meaningless sliver. lowSpace surfaces a plain
 // warning only when the cache is genuinely near the cap.
+// The bundle ALWAYS includes the behind-position prefix (course start →
+// cursor) on top of the slider's ahead-span, so the estimate counts both —
+// otherwise a mid-course learner on a fresh device sees a number ~half the
+// real download.
 const offlineSelectedEstimate = computed(() => {
-  const { avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
+  const { start, avgFilesPerRound, avgBytesPerFile, lowSpace, ready } = offlineEst.value
   if (!ready) return { size: '', lowSpace: false }
-  const files = Math.round(avgFilesPerRound * offlineSelectedRounds.value)
+  const behindRounds = offlineAtTail.value ? 0 : Math.max(0, start)
+  const files = Math.round(avgFilesPerRound * (behindRounds + offlineSelectedRounds.value))
   const mb = (files * avgBytesPerFile) / 1e6
   return { size: `≈ ${formatMb(mb)}`, lowSpace }
 })
@@ -9761,26 +9848,21 @@ const startOfflineDownloadInfPlay = async (): Promise<void> => {
   offlineDlFailed.value = 0
   offlineDlState.value = 'downloading'
   console.log(`[Offline] INF PLAY USE-only: downloading ${missing.length} of ${ids.length} audio files`)
-  const concNow = () => (isPlaying.value ? 4 : 12)
-  const ensureWithRetry = async (id: string): Promise<void> => {
-    for (let attempt = 0; ; attempt++) {
-      try { await audioCache.persistent.ensure(id); return }
-      catch (err) {
-        if (attempt >= 2) throw err
-        await new Promise((r) => setTimeout(r, 300 * (attempt + 1)))
-      }
-    }
-  }
-  let i = 0
-  while (i < missing.length) {
-    if (!offlineActive.value) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
-    const batch = missing.slice(i, i + concNow())
-    i += batch.length
-    await Promise.all(batch.map(async (id) => {
-      try { await ensureWithRetry(id); offlineDlDone.value++ }
-      catch { offlineDlFailed.value++ }
-    }))
-  }
+  const completed = await bulkDownloadAudio(
+    missing,
+    {
+      fetchBatchUrls: fetchBatchAudioUrls,
+      ensureFromUrl: (id, url) => audioCache.persistent.ensureFromUrl(id, url),
+      ensure: (id) => audioCache.persistent.ensure(id),
+      isCancelled: () => !offlineActive.value,
+      isPlaying: () => isPlaying.value,
+    },
+    {
+      onDone: () => { offlineDlDone.value++ },
+      onFailed: () => { offlineDlFailed.value++ },
+    },
+  )
+  if (!completed) { offlineDlState.value = 'idle'; return }  // user turned it off mid-download
 
   // Persist the SCRIPT for the cold-reopen fast-path — identical to
   // downloadForOffline. For INF PLAY cachedRounds is already the USE-only
@@ -12480,6 +12562,11 @@ defineExpose({
                 ? (offlineSelectedFraction >= 1 ? 'The whole course, kept offline' : `~${Math.round(offlineCourseBar.newPct)}% of the course, kept offline`)
                 : (offlineSelectedFraction >= 1 ? 'Everything left to learn' : `New learning — carries you ~${Math.round(offlineCourseBar.newPct)}% further`) }}
             </p>
+            <!-- Behind-position content is always in the bundle — the slider only
+                 chooses how much NEW learning rides along. -->
+            <p v-if="!offlineCourseBar.finished && offlineCourseBar.donePct > 0" class="offline-depth-caption">
+              Plus everything up to where you are — included automatically
+            </p>
 
             <button class="offline-depth-download" @click="startOfflineDownload">Download</button>
           </div>
@@ -12536,6 +12623,7 @@ defineExpose({
     :highest-belt-index="highestBeltIndex"
     :is-infplay="isInfPlayActive"
     :is-offline="offlinePlaybackActive()"
+    :offline-unavailable-belt-names="offlineUnavailableBeltNames"
     @close="showProgressModal = false"
     @skipToBelt="handleSkipToBelt"
     @enterInfPlay="handleActivateInfPlay"
@@ -13157,6 +13245,7 @@ defineExpose({
         :belt-color="currentBelt.color"
         :up-to-seed="listeningCeilingSeed"
         :learner-id="learnerId"
+        :is-offline="offlinePlaybackActive()"
         @close="handleCloseListening"
       />
     </Transition>
