@@ -31,6 +31,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { resolveEffectiveSubscription } from '../_utils/familyAccess'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -123,12 +124,12 @@ export default async function handler(
     const eduRole = learner.educational_role
     const isPrivileged = role === 'ssi_admin' || role === 'tester' || eduRole === 'god'
 
-    // Active subscription?
-    const { data: subscription } = await supabase
-      .from('subscriptions')
-      .select('id, status, current_period_end')
-      .eq('learner_id', learner.id)
-      .single()
+    // Active subscription? — own row, or (members ride free) an active family.
+    const { sub: subscription } = await resolveEffectiveSubscription(
+      supabase,
+      learner.id,
+      'id, status, current_period_end',
+    )
 
     const subActive =
       !!subscription &&

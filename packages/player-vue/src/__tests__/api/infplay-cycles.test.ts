@@ -28,6 +28,7 @@ function makeBuilder(table: string): unknown {
   const builder: any = {
     select: () => builder,
     eq: () => builder,
+    is: () => builder,
     in: () => builder,
     order: () => builder,
     limit: () => builder,
