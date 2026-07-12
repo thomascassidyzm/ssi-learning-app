@@ -331,6 +331,17 @@ export function useInstantPlayback(
    * abort everything when the user navigates away.
    */
   const activeAborts = new Set<AbortController>()
+  const abortTimers = new WeakMap<AbortController, ReturnType<typeof setTimeout>>()
+
+  // The round-map / cycles fetches below are the boot-critical path
+  // (bootstrap() awaits them directly from LearningPlayer's onMounted).
+  // None of these fetch() calls carried a timeout — on a flaky mobile
+  // connection they hang unboundedly, which is what stretched cold_start
+  // telemetry's tail to 10s-133s+. Bounding at makeAbort() covers every
+  // call site (bootstrap, bootstrapInfPlay, prefetch) with one change;
+  // existing catch/finally blocks already treat abort as an ordinary
+  // failure, so this only bounds worst-case duration, not behavior.
+  const BOOT_FETCH_TIMEOUT_MS = 9000
 
   // -----------------------------------------------------------
   // Computed
@@ -351,11 +362,17 @@ export function useInstantPlayback(
   function makeAbort(): AbortController {
     const ctrl = new AbortController()
     activeAborts.add(ctrl)
+    abortTimers.set(ctrl, setTimeout(() => ctrl.abort(), BOOT_FETCH_TIMEOUT_MS))
     return ctrl
   }
 
   function releaseAbort(ctrl: AbortController): void {
     activeAborts.delete(ctrl)
+    const timer = abortTimers.get(ctrl)
+    if (timer) {
+      clearTimeout(timer)
+      abortTimers.delete(ctrl)
+    }
   }
 
   async function fetchRoundMap(): Promise<RoundMap> {
