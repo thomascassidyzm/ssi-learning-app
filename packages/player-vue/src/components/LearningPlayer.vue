@@ -905,16 +905,24 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
 }
 
 // Load saved progress from database
+// Bounded the same way as resolveStartLegoId's getEnrollment call: on a
+// flaky connection the bare Supabase fetch can hang unboundedly (no
+// AbortController/timeout on the client — see App.vue), which was
+// stalling boot for minutes for cold_start telemetry's slow tail. Timeout
+// fails to null exactly like "no saved progress" — callers already treat
+// that as fall-through to local cache / round 1 defaults.
+const ENROLLMENT_FETCH_TIMEOUT_MS = 2000
 const loadSavedProgress = async () => {
   if (isGuestLearner.value || !progressStore?.value) {
     return null
   }
 
   try {
-    const enrollment = await progressStore.value.getEnrollment(
-      learnerId.value,
-      courseCode.value
-    )
+    const TIMEOUT = Symbol('enrollment-fetch-timeout')
+    const enrollment = await Promise.race([
+      progressStore.value.getEnrollment(learnerId.value, courseCode.value),
+      new Promise<typeof TIMEOUT>((resolve) => setTimeout(() => resolve(TIMEOUT), ENROLLMENT_FETCH_TIMEOUT_MS)),
+    ]).then((result) => (result === TIMEOUT ? null : result))
     if (enrollment && enrollment.last_completed_round_index !== null) {
       return {
         lastCompletedLegoId: enrollment.last_completed_lego_id,
@@ -10640,7 +10648,22 @@ onMounted(async () => {
         let inferCursorCycle = 0
         if (!isGuestLearner.value && progressStore?.value && learnerId.value) {
           try {
-            const enr = await progressStore.value.getEnrollment(learnerId.value, courseCode.value)
+            // Bounded: this pre-check runs ahead of the cache fast-path below,
+            // so an unbounded hang here (flaky mobile connection, no timeout
+            // on the Supabase client — see App.vue) stalled cold start for
+            // every signed-in learner regardless of whether they had a warm
+            // cache. Timeout falls to the catch below same as any other
+            // enrollment-read failure — mode defaults to 'main', cursor/
+            // ceiling stay null, and the cache fast-path or legacy load
+            // takes over exactly as it does today when this read errors.
+            const MODE_PRECHECK_TIMEOUT_MS = 2000
+            const TIMEOUT = Symbol('mode-precheck-timeout')
+            const result = await Promise.race([
+              progressStore.value.getEnrollment(learnerId.value, courseCode.value),
+              new Promise<typeof TIMEOUT>((resolve) => setTimeout(() => resolve(TIMEOUT), MODE_PRECHECK_TIMEOUT_MS)),
+            ])
+            if (result === TIMEOUT) throw new Error('enrollment mode pre-check timed out')
+            const enr = result
             inferCursorLegoId = enr?.last_completed_lego_id ?? null
             inferCeilingLegoId = enr?.highest_completed_lego_id ?? null
             // Cursor-only model: infinite-play is DERIVED from the cursor —
