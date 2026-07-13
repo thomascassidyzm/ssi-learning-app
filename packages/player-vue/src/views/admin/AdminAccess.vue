@@ -19,7 +19,6 @@ interface InviteCode {
   id: string
   code: string
   code_type: string
-  grants_region: string | null
   grants_group_id: string | null
   grants_school_id: string | null
   grants_class_id: string | null
@@ -341,7 +340,8 @@ async function createInviteCode(): Promise<void> {
     }
 
     const result = await response.json()
-    successMessage.value = `Code created: ${result.code}`
+    const path = inviteCodeType.value === 'govt_admin' ? '/group/' : '/redeem/'
+    successMessage.value = `Invite link created: ${window.location.origin}${path}${result.code}`
 
     inviteOrgName.value = ''
     inviteGroup.value = ''
@@ -446,20 +446,33 @@ async function toggleActive(row: Row): Promise<void> {
   }
 }
 
-async function copyCode(code: string): Promise<void> {
+async function copyText(text: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(code)
+    await navigator.clipboard.writeText(text)
   } catch {
     const el = document.createElement('textarea')
-    el.value = code
+    el.value = text
     document.body.appendChild(el)
     el.select()
     document.execCommand('copy')
     document.body.removeChild(el)
   }
-  copiedCode.value = code
+}
+
+// Link-first doctrine: sharing a code means sharing the door it opens.
+// Govt admin invites land on the branded /group/:code door; everything
+// else redeems via the generic /redeem/:code page.
+function rowInviteLink(row: Row): string {
+  const codeType = row.kind === 'invite' ? (row.row as InviteCode).code_type : null
+  const path = codeType === 'govt_admin' ? '/group/' : '/redeem/'
+  return `${window.location.origin}${path}${row.row.code}`
+}
+
+async function copyRowLink(row: Row): Promise<void> {
+  await copyText(rowInviteLink(row))
+  copiedCode.value = row.row.code
   setTimeout(() => {
-    if (copiedCode.value === code) copiedCode.value = null
+    if (copiedCode.value === row.row.code) copiedCode.value = null
   }, 1800)
 }
 
@@ -940,8 +953,8 @@ onMounted(() => {
               <button
                 class="code-chip"
                 :class="{ 'is-copied': copiedCode === r.row.code }"
-                :title="copiedCode === r.row.code ? 'Copied!' : 'Click to copy'"
-                @click="copyCode(r.row.code)"
+                :title="copiedCode === r.row.code ? 'Copied link!' : 'Click to copy shareable link'"
+                @click="copyRowLink(r)"
               >
                 <span class="code-value mono-nums">{{ r.row.code }}</span>
                 <svg v-if="copiedCode !== r.row.code" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -993,8 +1006,8 @@ onMounted(() => {
             <td class="cell-actions">
               <button
                 class="row-action"
-                :title="copiedCode === r.row.code ? 'Copied!' : 'Copy code'"
-                @click.stop="copyCode(r.row.code)"
+                :title="copiedCode === r.row.code ? 'Copied!' : 'Copy shareable link'"
+                @click.stop="copyRowLink(r)"
               >
                 <svg v-if="copiedCode !== r.row.code" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>

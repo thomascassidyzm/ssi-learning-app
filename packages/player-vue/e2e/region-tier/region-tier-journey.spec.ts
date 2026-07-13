@@ -184,7 +184,7 @@ test.describe('Region-tier full journey (staging)', () => {
         await leaderPage.goto('/schools')
         // Dashboard branches on isGovtAdmin, which resolves after an async
         // role fetch on top of the fresh reload — give it real headroom.
-        await expect(leaderPage.locator('.name-group-card, .govt-schools-grid, .add-schools-card')).toBeVisible({ timeout: 40_000 })
+        await expect(leaderPage.locator('.name-group-card, .govt-schools-grid, .add-schools-card').first()).toBeVisible({ timeout: 40_000 })
       },
       leaderPage
     )
