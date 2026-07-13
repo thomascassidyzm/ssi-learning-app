@@ -291,9 +291,25 @@ One-time links expire; a leaked slip QR is a bounded risk the re-mint revokes.
 
 ---
 
-## 6. Open taste-forks (genuine only)
+## 6. Open taste-forks — RESOLVED (owner, 2026-07-13)
 
-**F1 — Seats vs stacking: does a school-linked child count against the family
+**F1 — RESOLVED: seats, honestly priced.** A school-linked child counts as an
+ordinary family-plan seat. One custody primitive, one cap; a family of
+school-kids-only being cheaper on £5 subs is honest pricing, not a leak.
+
+**F2 — DISSOLVED, not deferred: there is NO in-school individual learning.**
+Owner's ruling: all in-school activity is "play as class" — the teacher's
+session, the class as the unit. Children never sign in individually on school
+hardware at all; the parent-owned individual account lives entirely in the home
+context. This deletes the shared-device safeguarding surface rather than
+deferring it, and draws the product boundary cleanly: **school = collective
+play under the teacher's session; home = individual learning under the
+parent's custody.** Any future request for individual in-school sign-in is a
+new product decision, not a deferred design.
+
+Original fork analysis kept below for the record.
+
+**F1 (original) — Seats vs stacking: does a school-linked child count against the family
 plan's 6 seats?** My recommendation: **yes — a seat is a seat.** One custody
 primitive, one cap, no special child classes; a family-covered child never needs
 the £5 sub (resolver rank 4 > 1), and the "already covered — you can cancel the £5"
