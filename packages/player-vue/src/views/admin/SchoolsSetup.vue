@@ -894,12 +894,78 @@ onMounted(() => {
 
     <!-- ───── GROUPS TAB ───── -->
     <template v-if="activeTab === 'groups'">
-      <!-- Create group form panel -->
+      <!-- Add a group (hero action — invite its leader) -->
       <div class="schools-card form-panel">
         <div class="panel-head">
-          <span class="schools-kicker">Create group</span>
-          <span class="panel-hint">A bucket for schools that share entitlements.</span>
+          <span class="schools-kicker">Add a group</span>
+          <span class="panel-hint">Invite a group leader — they name their group and manage their own schools.</span>
         </div>
+        <form class="form-grid" @submit.prevent="createGovtAdmin">
+          <div class="field">
+            <label class="schools-kicker">Name <span class="required">*</span></label>
+            <input v-model="newGovtName" type="text" class="frost-input" placeholder="e.g. Gwilym Thomas" />
+          </div>
+          <div class="field">
+            <label class="schools-kicker">Email <span class="required">*</span></label>
+            <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
+          </div>
+          <div class="field">
+            <label class="schools-kicker">Group <span class="optional">(optional)</span></label>
+            <select v-model="newGovtGroup" class="frost-select">
+              <option value="">— Leader names their own group on first login —</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">
+                {{ g.name }}
+              </option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="schools-kicker">Organisation <span class="required">*</span></label>
+            <input v-model="newGovtOrg" type="text" class="frost-input" placeholder="e.g. Welsh Government Language Office" />
+          </div>
+
+          <div v-if="govtAdminCode" class="field field-wide invite-result">
+            <span class="schools-kicker">Invite link</span>
+            <button
+              type="button"
+              class="code-chip is-large"
+              :class="{ 'is-copied': copiedCode === groupInviteLink(govtAdminCode) }"
+              @click="copyCode(groupInviteLink(govtAdminCode!))"
+            >
+              <span class="code-value frost-mono-nums">{{ groupInviteLink(govtAdminCode) }}</span>
+              <svg v-if="copiedCode !== groupInviteLink(govtAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+            <span class="invite-hint">Share this link — clicking it takes them straight to sign-in.</span>
+          </div>
+
+          <div class="field-actions">
+            <button
+              type="submit"
+              class="btn-primary"
+              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtOrg.trim()"
+            >
+              <svg v-if="!isCreatingGovt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-else class="spinner"></span>
+              {{ isCreatingGovt ? 'Creating…' : 'Send invite' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Create an empty group (advanced) — pre-build a bucket without inviting a leader yet -->
+      <details class="schools-card form-panel advanced-panel">
+        <summary class="panel-head panel-head--summary">
+          <span class="schools-kicker">Create an empty group (advanced)</span>
+          <span class="panel-hint">Pre-build a group or hierarchy without inviting a leader yet — e.g. for a signed contract.</span>
+        </summary>
         <form class="form-grid" @submit.prevent="createGroup">
           <div class="field field-wide">
             <label class="schools-kicker">Group name <span class="required">*</span></label>
@@ -948,7 +1014,7 @@ onMounted(() => {
             </button>
           </div>
         </form>
-      </div>
+      </details>
 
       <!-- Groups tree panel -->
       <div class="schools-card tree-panel">
@@ -1060,71 +1126,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Add Govt Admin -->
-      <div class="schools-card form-panel">
-        <div class="panel-head">
-          <span class="schools-kicker">Add govt admin</span>
-          <span class="panel-hint">Invite someone to oversee all schools within a group.</span>
-        </div>
-        <form class="form-grid" @submit.prevent="createGovtAdmin">
-          <div class="field">
-            <label class="schools-kicker">Name <span class="required">*</span></label>
-            <input v-model="newGovtName" type="text" class="frost-input" placeholder="e.g. Gwilym Thomas" />
-          </div>
-          <div class="field">
-            <label class="schools-kicker">Email <span class="required">*</span></label>
-            <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
-          </div>
-          <div class="field">
-            <label class="schools-kicker">Group <span class="optional">(optional)</span></label>
-            <select v-model="newGovtGroup" class="frost-select">
-              <option value="">— Leader names their own group on first login —</option>
-              <option v-for="g in groups" :key="g.id" :value="g.id">
-                {{ g.name }}
-              </option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="schools-kicker">Organisation <span class="required">*</span></label>
-            <input v-model="newGovtOrg" type="text" class="frost-input" placeholder="e.g. Welsh Government Language Office" />
-          </div>
-
-          <div v-if="govtAdminCode" class="field field-wide invite-result">
-            <span class="schools-kicker">Invite link</span>
-            <button
-              type="button"
-              class="code-chip is-large"
-              :class="{ 'is-copied': copiedCode === groupInviteLink(govtAdminCode) }"
-              @click="copyCode(groupInviteLink(govtAdminCode!))"
-            >
-              <span class="code-value frost-mono-nums">{{ groupInviteLink(govtAdminCode) }}</span>
-              <svg v-if="copiedCode !== groupInviteLink(govtAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </button>
-            <span class="invite-hint">Share this link — clicking it takes them straight to sign-in.</span>
-          </div>
-
-          <div class="field-actions">
-            <button
-              type="submit"
-              class="btn-primary"
-              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtOrg.trim()"
-            >
-              <svg v-if="!isCreatingGovt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              <span v-else class="spinner"></span>
-              {{ isCreatingGovt ? 'Creating…' : 'Create govt admin' }}
-            </button>
-          </div>
-        </form>
-      </div>
     </template>
 
     <!-- ───── SCHOOLS TAB ───── -->
@@ -1606,6 +1607,31 @@ onMounted(() => {
 .panel-hint {
   font-size: var(--text-xs);
   color: var(--schools-fg-3);
+}
+
+/* Advanced panel (collapsed create-empty-group form) */
+.advanced-panel {
+  opacity: 0.85;
+}
+
+.panel-head--summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.panel-head--summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel-head--summary::before {
+  content: '▸';
+  color: var(--schools-fg-3);
+  margin-right: var(--space-2);
+  transition: transform var(--transition-fast);
+}
+
+.advanced-panel[open] .panel-head--summary::before {
+  transform: rotate(90deg);
 }
 
 /* Form grid (frost) */
