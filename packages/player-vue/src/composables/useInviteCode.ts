@@ -25,6 +25,18 @@ const validationError = ref<string | null>(null)
 const isValidating = ref(false)
 const isRedeeming = ref(false)
 
+// Single-flight guard for redeemCode(). RedeemCode.vue calls doRedeem() from
+// two sites (handleVerifyOtp's direct call, and the isSignedIn watcher that
+// fires when the OTP verify's auth-state-change event lands) — both are
+// intentional (the watcher is the primary path; the direct call covers the
+// watcher not firing fast enough), but without this guard both could reach
+// here concurrently and POST /api/code/redeem twice before either had
+// cleared pendingCode, doubling up server-side writes (confirmed: 3 `schools`
+// rows for one admin on staging). Memoizing the in-flight promise means the
+// second caller gets the first call's result instead of firing a second
+// request.
+let inFlightRedeem: Promise<{ success: boolean; role?: string; redirectTo?: string; label?: string; codeKind?: string; error?: string }> | null = null
+
 // Restore from sessionStorage on load (survives OAuth redirect)
 const SESSION_KEY = 'ssi-pending-invite-code'
 try {
@@ -92,41 +104,50 @@ export function useInviteCode() {
   }
 
   async function redeemCode(authToken: string): Promise<{ success: boolean; role?: string; redirectTo?: string; label?: string; codeKind?: string; error?: string }> {
+    // Single-flight: a redemption already in progress wins; concurrent callers
+    // (see comment on inFlightRedeem above) get its result rather than firing
+    // a second request. Checked+set synchronously (no await before it), so
+    // there's no interleaving window between the check and the set.
+    if (inFlightRedeem) return inFlightRedeem
     if (!pendingCode.value) {
       return { success: false, error: 'No pending code' }
     }
     isRedeeming.value = true
-    try {
-      const res = await fetch('/api/code/redeem', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          code: pendingCode.value.code,
-          codeKind: pendingCode.value.codeKind,
-        }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        const codeKind = pendingCode.value.codeKind
-        clearPendingCode()
-        return {
-          success: true,
-          codeKind,
-          role: data.role,
-          label: data.label,
-          redirectTo: data.redirectTo,
+    const codeAtStart = pendingCode.value
+    inFlightRedeem = (async () => {
+      try {
+        const res = await fetch('/api/code/redeem', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            code: codeAtStart.code,
+            codeKind: codeAtStart.codeKind,
+          }),
+        })
+        const data = await res.json()
+        if (data.success) {
+          clearPendingCode()
+          return {
+            success: true,
+            codeKind: codeAtStart.codeKind,
+            role: data.role,
+            label: data.label,
+            redirectTo: data.redirectTo,
+          }
+        } else {
+          return { success: false, error: data.error || 'Failed to redeem code' }
         }
-      } else {
-        return { success: false, error: data.error || 'Failed to redeem code' }
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Failed to redeem code' }
+      } finally {
+        isRedeeming.value = false
+        inFlightRedeem = null
       }
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Failed to redeem code' }
-    } finally {
-      isRedeeming.value = false
-    }
+    })()
+    return inFlightRedeem
   }
 
   function clearPendingCode() {

@@ -255,6 +255,22 @@ async function redeemInviteCode(
     // abandoned first-runs, and the leader can never end up group-less.
     let groupId = inviteRow.grants_group_id as string | null
     if (!groupId) {
+      // Idempotent re-redemption / lost-the-race check: if this admin already
+      // has a govt_admins row (this code redeemed concurrently, or retried),
+      // reuse its group rather than minting a second "New region" group.
+      const { data: existingGovt } = await supabase
+        .from('govt_admins')
+        .select('group_id')
+        .eq('user_id', userId)
+        .maybeSingle()
+      groupId = (existingGovt as any)?.group_id ?? null
+    }
+    // Tracks whether THIS request minted the group below, so we can clean up
+    // an orphan if we then lose the govt_admins race (no unique key on
+    // groups — the govt_admins unique key is the real backstop, this just
+    // avoids leaving a stray empty "New region" group behind).
+    let createdGroupThisRequest = false
+    if (!groupId) {
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
         .insert({
@@ -269,6 +285,7 @@ async function redeemInviteCode(
         return
       }
       groupId = newGroup.id as string
+      createdGroupThisRequest = true
     }
 
     const { error: govtError } = await supabase
@@ -283,38 +300,80 @@ async function redeemInviteCode(
         created_by: userId,
         invite_code_id: inviteRow.id,
       })
-    if (govtError) {
+    // 23505 = unique_violation on govt_admins_user_id_key (2026-07-13 migration):
+    // a concurrent redemption for this same admin won the race and already
+    // created the row — idempotent no-op, not an error, since the winner's
+    // row grants the same role this request was asking for.
+    if (govtError && govtError.code !== '23505') {
       console.error('[CodeRedeem] Failed to create govt_admin record:', govtError)
       res.status(500).json({ error: 'Internal server error' })
       return
     }
+    if (govtError?.code === '23505' && createdGroupThisRequest) {
+      // Lost the race after already minting a group for it — delete the
+      // orphan (best-effort; a leftover empty group is cosmetic, not worth
+      // failing the response over).
+      await supabase.from('groups').delete().eq('id', groupId)
+    }
   } else if (codeType === 'school_admin') {
-    const { data: newSchool, error: schoolError } = await supabase
+    // Idempotent select-then-insert: reuse an existing school for this admin
+    // (re-redemption, or a concurrent request that already won). The real
+    // backstop against the double-redeem race is the unique index on
+    // admin_user_id (2026-07-13 migration) caught as 23505 below — this
+    // select just avoids paying for a doomed insert on the common path.
+    const { data: existing } = await supabase
       .from('schools')
-      .insert({
-        admin_user_id: userId,
-        school_name: inviteRow.metadata?.school_name || '',
-        region_code: inviteRow.metadata?.region_code || null,
-        // Automatic group attachment at birth, no adoption step. NEVER trust a
-        // client-supplied group_id — this comes only from the invite row,
-        // which itself was stamped from the minting leader's own group.
-        group_id: inviteRow.grants_group_id || null,
-        invite_code_id: inviteRow.id,
-      })
       .select('id, teacher_join_code, admin_join_code')
-      .single()
+      .eq('admin_user_id', userId)
+      .maybeSingle()
 
-    if (schoolError || !newSchool) {
-      console.error('[CodeRedeem] Failed to create school:', schoolError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
+    let newSchool: { id: string; teacher_join_code?: string; admin_join_code?: string } | null =
+      existing as any
+
+    if (!newSchool) {
+      const { data: inserted, error: schoolError } = await supabase
+        .from('schools')
+        .insert({
+          admin_user_id: userId,
+          school_name: inviteRow.metadata?.school_name || '',
+          region_code: inviteRow.metadata?.region_code || null,
+          // Automatic group attachment at birth, no adoption step. NEVER trust a
+          // client-supplied group_id — this comes only from the invite row,
+          // which itself was stamped from the minting leader's own group.
+          group_id: inviteRow.grants_group_id || null,
+          invite_code_id: inviteRow.id,
+        })
+        .select('id, teacher_join_code, admin_join_code')
+        .single()
+
+      if (schoolError?.code === '23505') {
+        // Lost the race: another concurrent redemption for this admin
+        // inserted first. Reuse the winner's row instead of erroring.
+        const { data: raced } = await supabase
+          .from('schools')
+          .select('id, teacher_join_code, admin_join_code')
+          .eq('admin_user_id', userId)
+          .maybeSingle()
+        if (!raced) {
+          console.error('[CodeRedeem] school unique-violation but no row found on re-read')
+          res.status(500).json({ error: 'Internal server error' })
+          return
+        }
+        newSchool = raced as any
+      } else if (schoolError || !inserted) {
+        console.error('[CodeRedeem] Failed to create school:', schoolError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      } else {
+        newSchool = inserted as any
+      }
     }
 
     // Register BOTH the teacher and school-admin join codes (the pre-existing
     // bug: this branch only ever registered the teacher one, silently leaving
     // the admin join code unredeemable — same class of fix as provision.ts's
     // ensureJoinCodesRegistered, now shared from there).
-    await ensureJoinCodesRegistered(supabase, newSchool.id as string, userId)
+    await ensureJoinCodesRegistered(supabase, newSchool!.id as string, userId)
   } else if (codeType === 'school_admin_join') {
     const { error: tagError } = await supabase
       .from('user_tags')

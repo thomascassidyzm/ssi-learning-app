@@ -32,6 +32,7 @@ function makeChainable(table: string) {
     insert: (obj: unknown) => { calls.push(['insert', obj]); recordWrite(table, 'insert', obj); return builder },
     update: (obj: unknown) => { calls.push(['update', obj]); recordWrite(table, 'update', obj); return builder },
     upsert: (obj: unknown, opts: unknown) => { calls.push(['upsert', obj, opts]); recordWrite(table, 'upsert', obj); return builder },
+    delete: () => { calls.push(['delete']); recordWrite(table, 'delete', undefined); return builder },
     eq: (col: string, val: unknown) => { calls.push(['eq', col, val]); return builder },
     is: (col: string, val: unknown) => { calls.push(['is', col, val]); return builder },
     resolve: () => {
@@ -195,12 +196,20 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     responders.learners = () => ({ data: { id: 'learner-3' }, error: null })
     responders.schools = (calls) => {
       const isInsert = calls.some((c) => c[0] === 'insert')
-      const isSelectJoinCodes = calls.some((c) => c[0] === 'select' && String(c[1]).includes('teacher_join_code'))
+      // The pre-insert existence check selects 'id' alongside the join codes;
+      // ensureJoinCodesRegistered's own select does not — that's how the two
+      // are told apart here. Pre-check → no existing school (this test covers
+      // the fresh-insert path).
+      const isPreCheckSelect = calls.some((c) => c[0] === 'select' && /\bid\b/.test(String(c[1])) && String(c[1]).includes('teacher_join_code'))
+      const isSelectJoinCodes = calls.some((c) => c[0] === 'select' && String(c[1]).includes('teacher_join_code') && !/\bid\b/.test(String(c[1])))
       if (isInsert) {
         return {
           data: { id: 'school-1', teacher_join_code: 'TEACH-1', admin_join_code: 'ADMIN-1' },
           error: null,
         }
+      }
+      if (isPreCheckSelect) {
+        return { data: null, error: null }
       }
       if (isSelectJoinCodes) {
         return { data: { teacher_join_code: 'TEACH-1', admin_join_code: 'ADMIN-1' }, error: null }
@@ -249,7 +258,9 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     responders.learners = () => ({ data: { id: 'learner-4' }, error: null })
     responders.schools = (calls) => {
       const isInsert = calls.some((c) => c[0] === 'insert')
+      const isPreCheckSelect = calls.some((c) => c[0] === 'select' && /\bid\b/.test(String(c[1])) && String(c[1]).includes('teacher_join_code'))
       if (isInsert) return { data: { id: 'school-2', teacher_join_code: 'TEACH-2', admin_join_code: 'ADMIN-2' }, error: null }
+      if (isPreCheckSelect) return { data: null, error: null }
       return { data: { teacher_join_code: 'TEACH-2', admin_join_code: 'ADMIN-2' }, error: null }
     }
 
@@ -258,5 +269,135 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
 
     expect(res._status).toBe(200)
     expect(writes.schools[0].payload.group_id).toBe(null)
+  })
+
+  it('school_admin branch: two concurrent redemptions for the same admin produce exactly ONE school (double-redeem race, WORKLIST 07-13)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-race',
+            code: 'SCH-RACE',
+            code_type: 'school_admin',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: { school_name: 'Race Test School' },
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-race' }, error: null })
+
+    // Models the real DB: the FIRST insert to actually commit wins and sets
+    // the row; any insert attempted after that hits the 20260713 unique
+    // index on admin_user_id and gets 23505, regardless of call ordering.
+    let committedSchool: any = null
+    responders.schools = (calls) => {
+      const isInsert = calls.some((c) => c[0] === 'insert')
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isInsert) {
+        if (committedSchool) {
+          return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "schools_admin_user_id_key"' } }
+        }
+        committedSchool = { id: 'school-race', teacher_join_code: 'TEACH-R', admin_join_code: 'ADMIN-R' }
+        return { data: committedSchool, error: null }
+      }
+      if (isSelect) return { data: committedSchool, error: null }
+      return { data: null, error: null }
+    }
+
+    const res1 = makeRes()
+    const res2 = makeRes()
+    await Promise.all([
+      handler(makeReq({ body: { code: 'SCH-RACE', codeKind: 'invite' } }), res1),
+      handler(makeReq({ body: { code: 'SCH-RACE', codeKind: 'invite' } }), res2),
+    ])
+
+    // Both requests report success (idempotent — the loser reuses the winner's row).
+    expect(res1._json.success).toBe(true)
+    expect(res2._json.success).toBe(true)
+    // Exactly one school row actually committed.
+    expect(writes.schools.filter((w) => w.op === 'insert')).toHaveLength(2) // both attempted the insert...
+    expect(committedSchool.id).toBe('school-race') // ...but only one write ever "took"
+  })
+
+  it('govt_admin branch: two concurrent redemptions for the same admin produce exactly ONE govt_admins row', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-govt-race',
+            code: 'GOVT-RACE',
+            code_type: 'govt_admin',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: { organization_name: 'Race Region' },
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-govt-race' }, error: null })
+    // Neither request sees the other's group ahead of time (no grants_group_id
+    // to share, and no committed govt_admins row yet) — each mints its own,
+    // exactly as two truly concurrent requests would.
+    let groupInsertCount = 0
+    responders.groups = (calls) => {
+      const isInsert = calls.some((c) => c[0] === 'insert')
+      if (isInsert) {
+        groupInsertCount++
+        return { data: { id: `group-${groupInsertCount}` }, error: null }
+      }
+      return { data: null, error: null }
+    }
+
+    let committedGovtAdmin: any = null
+    responders.govt_admins = (calls) => {
+      const isInsert = calls.some((c) => c[0] === 'insert')
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isInsert) {
+        if (committedGovtAdmin) {
+          return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "govt_admins_user_id_key"' } }
+        }
+        const payload = calls.find((c) => c[0] === 'insert')![1]
+        committedGovtAdmin = { group_id: payload.group_id }
+        return { data: committedGovtAdmin, error: null }
+      }
+      if (isSelect) return { data: committedGovtAdmin, error: null }
+      return { data: null, error: null }
+    }
+
+    const res1 = makeRes()
+    const res2 = makeRes()
+    await Promise.all([
+      handler(makeReq({ body: { code: 'GOVT-RACE', codeKind: 'invite' } }), res1),
+      handler(makeReq({ body: { code: 'GOVT-RACE', codeKind: 'invite' } }), res2),
+    ])
+
+    expect(res1._json.success).toBe(true)
+    expect(res2._json.success).toBe(true)
+    // Exactly one govt_admins row survives.
+    expect(committedGovtAdmin).not.toBeNull()
+    // Both requests minted their own group (no shared group_id to race on),
+    // but the loser's orphan group gets cleaned up — one delete, one survivor.
+    expect(writes.groups.filter((w) => w.op === 'insert')).toHaveLength(2)
+    expect(writes.groups.filter((w) => w.op === 'delete')).toHaveLength(1)
   })
 })
