@@ -23,7 +23,7 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
 
@@ -81,8 +81,19 @@ const showExpired = computed(() =>
   !platformActive.value,
 )
 
+// Auth completing (session found) can race ahead of the role cache — the
+// learner-row fetch that populates useUserRole runs after auth resolves, so
+// there's a window where isAuthenticated is true but roles are still
+// unknown. showDashboard/showExpired fail safe in that window (they require
+// canAccessSchools, which defaults false until roles load) — but showNoAccess
+// is the false-positive risk: it reads "no role yet" as "no access", flashing
+// (or sticking on) the join-code wall for a legitimate ssi_admin/teacher on a
+// cold load. Gate it on isRoleInitialized so it can only fire once we
+// actually know the answer.
+const isRoleLoading = computed(() => isAuthenticated.value && !isRoleInitialized.value)
+
 const showNoAccess = computed(() =>
-  isAuthenticated.value && !canAccessSchools.value && !isAuthLoading.value,
+  isAuthenticated.value && isRoleInitialized.value && !canAccessSchools.value && !isAuthLoading.value,
 )
 
 const showLogin = computed(() =>
@@ -264,8 +275,8 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
 
 <template>
   <div class="schools-container schools-surface">
-    <!-- Loading spinner while auth initialises -->
-    <div v-if="isAuthLoading" class="schools-loading">
+    <!-- Loading spinner while auth or the role cache initialises -->
+    <div v-if="isAuthLoading || isRoleLoading" class="schools-loading">
       <div class="loading-spinner"></div>
       <p>Loading...</p>
     </div>
