@@ -159,7 +159,11 @@ onMounted(async () => {
   }
 })
 
-// Watch for auth state changes (e.g. after OTP verify propagates)
+// Watch for auth state changes (e.g. after OTP verify propagates). This can
+// race handleVerifyOtp's own direct doRedeem() call below (Supabase's
+// onAuthStateChange can fire before verifyOtp()'s own promise resolves) —
+// useInviteCode's redeemCode() single-flights, so whichever call gets here
+// first wins and the other just gets its result back, no double POST.
 watch(isSignedIn, async (signedIn) => {
   if (signedIn && step.value === 'otp') {
     await doRedeem()
@@ -214,8 +218,10 @@ async function handleVerifyOtp() {
       error.value = verifyError.message || 'Invalid code. Please try again.'
       return
     }
-    // Auth state will update via onAuthStateChange — doRedeem called from watcher
-    // But also try directly in case watcher doesn't fire fast enough
+    // Auth state will update via onAuthStateChange — doRedeem called from watcher.
+    // But also try directly in case watcher doesn't fire fast enough (both are
+    // intentional; the single-flight guard in useInviteCode.redeemCode() is
+    // what keeps this from double-redeeming).
     await doRedeem()
   } catch (err: any) {
     error.value = err.message || 'Verification failed. Please try again.'
