@@ -9,6 +9,7 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
+import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
@@ -36,6 +37,82 @@ const {
   getClassReport,
 } = useClassesData()
 
+const {
+  links: schoolLinks,
+  fetchSchoolLinks,
+  mintSchoolLink,
+  createSchoolInMyGroup,
+  renameGroup,
+} = useGovtAdminActions()
+
+// ---------- Govt admin: "name your region" first-run card ----------
+const regionNameDraft = ref('')
+const isSavingRegionName = ref(false)
+const regionNameError = ref<string | null>(null)
+const showNameRegionCard = computed(() =>
+  isGovtAdmin.value && !isViewingSchool.value && groupSummary.value?.name_confirmed === false
+)
+
+async function saveRegionName() {
+  const name = regionNameDraft.value.trim()
+  const groupId = groupSummary.value?.group_id
+  if (!name || !groupId) return
+  isSavingRegionName.value = true
+  regionNameError.value = null
+  const ok = await renameGroup(groupId, name)
+  isSavingRegionName.value = false
+  if (ok) {
+    await fetchSchools()
+  } else {
+    regionNameError.value = 'Could not save — try again.'
+  }
+}
+
+// ---------- Govt admin: mint school links + create school directly ----------
+const isMintingLink = ref(false)
+const isCreatingSchool = ref(false)
+const newSchoolLabel = ref('')
+const mintedCode = ref<string | null>(null)
+const copiedLinkId = ref<string | null>(null)
+
+function schoolInviteUrl(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
+
+async function copyLink(id: string, code: string) {
+  try {
+    await navigator.clipboard.writeText(schoolInviteUrl(code))
+    copiedLinkId.value = id
+    setTimeout(() => { if (copiedLinkId.value === id) copiedLinkId.value = null }, 2000)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function handleMintLink() {
+  isMintingLink.value = true
+  mintedCode.value = null
+  const result = await mintSchoolLink(newSchoolLabel.value.trim())
+  isMintingLink.value = false
+  if (result) {
+    mintedCode.value = result.code
+    newSchoolLabel.value = ''
+    await fetchSchoolLinks()
+  }
+}
+
+async function handleCreateSchool() {
+  const name = newSchoolLabel.value.trim()
+  if (!name) return
+  isCreatingSchool.value = true
+  const result = await createSchoolInMyGroup(name)
+  isCreatingSchool.value = false
+  if (result) {
+    newSchoolLabel.value = ''
+    await Promise.all([fetchSchools(), fetchSchoolLinks()])
+  }
+}
+
 // Per-class benchmark reports, fetched lazily.
 const classReports = reactive(new Map<string, ClassReport>())
 
@@ -56,6 +133,9 @@ watch(currentUser, (user) => {
   fetchSchools()
   if (isTeacher.value || isSchoolAdmin.value) {
     fetchClasses().then(fetchReports)
+  }
+  if (isGovtAdmin.value) {
+    fetchSchoolLinks()
   }
 }, { immediate: true })
 
@@ -442,6 +522,80 @@ function handlePlayClass(cls: ClassInfo) {
         </template>
       </Greeting>
 
+      <!-- First-run: name your region (design §1d) -->
+      <div v-if="showNameRegionCard" class="schools-card schools-card-pad name-region-card">
+        <h3 class="arsenal card-header-title">Name your region</h3>
+        <p class="schools-subtle">This is what schools will see when they join.</p>
+        <div class="name-region-row">
+          <input
+            v-model="regionNameDraft"
+            type="text"
+            class="field-input"
+            placeholder="e.g. Gwynedd Education Authority"
+            :disabled="isSavingRegionName"
+            @keyup.enter="saveRegionName"
+          />
+          <button
+            class="btn-play"
+            :disabled="isSavingRegionName || !regionNameDraft.trim()"
+            @click="saveRegionName"
+          >
+            {{ isSavingRegionName ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+        <p v-if="regionNameError" class="name-region-error">{{ regionNameError }}</p>
+      </div>
+
+      <!-- Add schools / Create school (design §1e, §5c revised) -->
+      <div v-if="!isViewingSchool" class="schools-card schools-card-pad add-schools-card">
+        <header class="card-header-row">
+          <h3 class="arsenal card-header-title">Schools in your region</h3>
+        </header>
+        <div class="add-schools-row">
+          <input
+            v-model="newSchoolLabel"
+            type="text"
+            class="field-input field-input-flex"
+            placeholder="School name (optional label)"
+          />
+          <button class="btn-ghost" :disabled="isMintingLink" @click="handleMintLink">
+            {{ isMintingLink ? 'Creating…' : 'Invite a school' }}
+          </button>
+          <button class="btn-play" :disabled="isCreatingSchool || !newSchoolLabel.trim()" @click="handleCreateSchool">
+            {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
+          </button>
+        </div>
+        <p v-if="mintedCode" class="schools-subtle">
+          Link created: <code>{{ schoolInviteUrl(mintedCode) }}</code>
+        </p>
+
+        <table v-if="schoolLinks.length" class="ssi-table">
+          <thead>
+            <tr>
+              <th>Link</th>
+              <th>State</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="link in schoolLinks" :key="link.id">
+              <td>{{ link.label || link.code }}</td>
+              <td class="schools-subtle">
+                <span v-if="link.redeemed">Redeemed — {{ link.school?.school_name }}</span>
+                <span v-else-if="!link.is_active">Deactivated</span>
+                <span v-else>Pending</span>
+              </td>
+              <td>
+                <button v-if="!link.redeemed" class="btn-ghost" @click="copyLink(link.id, link.code)">
+                  {{ copiedLinkId === link.id ? 'Copied!' : 'Copy link' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="empty-row">No schools invited yet.</p>
+      </div>
+
       <div v-if="!isViewingSchool" class="govt-schools-grid">
         <button
           v-for="school in schools"
@@ -756,6 +910,16 @@ function handlePlayClass(cls: ClassInfo) {
   text-decoration: none;
 }
 .card-header-link:hover { color: var(--schools-fg); }
+
+.name-region-card, .add-schools-card { margin-bottom: 20px; }
+.name-region-row, .add-schools-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.name-region-error { color: var(--schools-danger, #c0392b); font-size: 13px; margin-top: 8px; }
 
 .class-cell {
   display: flex;
