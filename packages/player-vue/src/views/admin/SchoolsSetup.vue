@@ -1117,7 +1117,7 @@ onMounted(() => {
       </div>
 
       <!-- Empty state for groups -->
-      <div class="schools-card empty">
+      <div v-if="rootGroups.length === 0" class="schools-card empty">
         <div class="empty-ghost">groups</div>
         <div class="empty-copy">
           <strong>No groups yet</strong>
