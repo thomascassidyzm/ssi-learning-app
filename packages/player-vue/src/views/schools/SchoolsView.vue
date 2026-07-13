@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
+import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 
 const router = useRouter()
 const { currentUser } = useSchoolContext()
@@ -17,6 +18,7 @@ const {
   fetchSchools,
   selectSchoolToView,
 } = useSchoolData()
+const { mintSchoolLink, error: inviteError } = useGovtAdminActions()
 
 const searchQuery = ref('')
 type SortKey = 'hours' | 'students' | 'name'
@@ -73,8 +75,100 @@ function handleSchoolClick(school: School) {
   router.push('/schools')
 }
 
+// ---------- Onboard new school (region-tier-design.md §1e) ----------
+const showInviteModal = ref(false)
+const inviteSchoolName = ref('')
+const isMintingInvite = ref(false)
+const mintedInviteCode = ref<string | null>(null)
+const copiedInviteLink = ref(false)
+
+function inviteUrl(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
+
+function openInviteModal() {
+  inviteSchoolName.value = ''
+  mintedInviteCode.value = null
+  copiedInviteLink.value = false
+  showInviteModal.value = true
+}
+
+function closeInviteModal() {
+  showInviteModal.value = false
+}
+
+async function handleMintInvite() {
+  isMintingInvite.value = true
+  const result = await mintSchoolLink(inviteSchoolName.value.trim())
+  isMintingInvite.value = false
+  if (result) mintedInviteCode.value = result.code
+}
+
+async function copyInviteLink() {
+  if (!mintedInviteCode.value) return
+  try {
+    await navigator.clipboard.writeText(inviteUrl(mintedInviteCode.value))
+    copiedInviteLink.value = true
+    setTimeout(() => { copiedInviteLink.value = false }, 2000)
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---------- CSV export ----------
+function csvCell(value: string | number): string {
+  const s = String(value)
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function handleExport() {
+  const header = ['School', 'City', 'Students', 'Teachers', 'Classes', 'Hours', 'Joined', 'Health']
+  const rows = filteredSchools.value.map((s) => [
+    s.school_name,
+    '—',
+    s.student_count,
+    s.teacher_count,
+    s.class_count,
+    Math.round(s.total_practice_hours),
+    formatJoined(s.created_at),
+    s.health?.replace('-', ' ') || '',
+  ])
+  const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'schools.csv'
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+// ---------- Refetch on visibility/focus (schools created via redemption in
+// another tab shouldn't need a manual refresh) ----------
+let refetchTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleRefetch() {
+  if (!currentUser.value) return
+  if (refetchTimer) clearTimeout(refetchTimer)
+  refetchTimer = setTimeout(() => {
+    refetchTimer = null
+    fetchSchools()
+  }, 400)
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') scheduleRefetch()
+}
+
 onMounted(() => {
   if (currentUser.value) fetchSchools()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('focus', scheduleRefetch)
+})
+
+onBeforeUnmount(() => {
+  if (refetchTimer) clearTimeout(refetchTimer)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('focus', scheduleRefetch)
 })
 
 watch(currentUser, (u) => {
@@ -91,8 +185,10 @@ watch(currentUser, (u) => {
         <p class="hero-lede schools-subtle">{{ headerLede }}</p>
       </div>
       <div class="hero-actions">
-        <button type="button" class="btn-ghost">Export</button>
-        <button type="button" class="btn-play">+ Onboard new school</button>
+        <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
+          Export
+        </button>
+        <button type="button" class="btn-play" @click="openInviteModal">+ Onboard new school</button>
       </div>
     </div>
 
@@ -190,6 +286,44 @@ watch(currentUser, (u) => {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="showInviteModal" class="invite-modal-backdrop" @click.self="closeInviteModal">
+      <div class="schools-card invite-modal">
+        <h3 class="arsenal invite-modal-title">Onboard new school</h3>
+        <p class="schools-subtle invite-modal-lede">
+          Create a shareable link that lets a school admin claim their own school in your programme.
+        </p>
+        <input
+          v-model="inviteSchoolName"
+          type="text"
+          class="invite-modal-input"
+          placeholder="School name (optional label)"
+          :disabled="isMintingInvite"
+          @keyup.enter="handleMintInvite"
+        />
+        <p v-if="inviteError" class="invite-modal-error">{{ inviteError }}</p>
+        <div v-if="mintedInviteCode" class="invite-modal-link-row">
+          <code class="invite-modal-link">{{ inviteUrl(mintedInviteCode) }}</code>
+          <button type="button" class="btn-ghost" @click="copyInviteLink">
+            {{ copiedInviteLink ? 'Copied!' : 'Copy' }}
+          </button>
+        </div>
+        <div class="invite-modal-actions">
+          <button type="button" class="btn-ghost" @click="closeInviteModal">
+            {{ mintedInviteCode ? 'Done' : 'Cancel' }}
+          </button>
+          <button
+            v-if="!mintedInviteCode"
+            type="button"
+            class="btn-play"
+            :disabled="isMintingInvite"
+            @click="handleMintInvite"
+          >
+            {{ isMintingInvite ? 'Creating…' : 'Create link' }}
+          </button>
+        </div>
+      </div>
     </div>
   </main>
 </template>
@@ -377,6 +511,86 @@ watch(currentUser, (u) => {
   .kpi-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+.invite-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 16, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.invite-modal {
+  width: 100%;
+  max-width: 420px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.invite-modal-title {
+  font-size: 20px;
+  margin: 0;
+}
+
+.invite-modal-lede {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.invite-modal-input {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fafaf6;
+  font-family: var(--font-body);
+  color: var(--schools-fg);
+  width: 100%;
+}
+
+.invite-modal-input:focus {
+  outline: none;
+  border-color: var(--schools-red);
+  background: #fff;
+}
+
+.invite-modal-error {
+  font-size: 12px;
+  color: var(--schools-red);
+  margin: 0;
+}
+
+.invite-modal-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fafaf6;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.invite-modal-link {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.invite-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 @media (max-width: 960px) {
