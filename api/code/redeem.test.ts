@@ -332,6 +332,76 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(update.payload).toEqual({ group_id: 'group-gwynedd' })
   })
 
+  it('school_admin branch: attaches group_id when a concurrent ungrouped insert (e.g. self-serve /schools1 provision) wins the race, not just when found at precheck', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-6',
+            code: 'SCH-RACE-ATTACH',
+            code_type: 'school_admin',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-gwynedd',
+            metadata: { school_name: 'Gwynedd School 002' },
+            max_uses: 1,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-6' }, error: null })
+    // Precheck finds NOTHING (this is the first this admin has been seen), so
+    // redeem.ts attempts its own grouped insert — but a concurrent ungrouped
+    // insert (e.g. an abandoned self-serve /schools1 onboarding provisioning
+    // late) commits first and wins the unique-index race.
+    let idSelectCount = 0
+    responders.schools = (calls) => {
+      // Order matters: an insert's own chained .select().single() re-uses the
+      // same 'id, teacher_join_code, ...' column string as the precheck AND
+      // the post-23505 re-read select — isInsert must be checked first, and
+      // the two bare selects are told apart by CALL ORDER (precheck is
+      // always first, re-read always second), not by shape.
+      const isInsert = calls.some((c) => c[0] === 'insert')
+      const isIdSelect = !isInsert && calls.some(
+        (c) => c[0] === 'select' && /\bid\b/.test(String(c[1])) && String(c[1]).includes('teacher_join_code'),
+      )
+      const isUpdate = calls.some((c) => c[0] === 'update')
+      const isSelectJoinCodes = calls.some(
+        (c) => c[0] === 'select' && String(c[1]).includes('teacher_join_code') && !/\bid\b/.test(String(c[1])),
+      )
+      if (isInsert) {
+        return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "schools_admin_user_id_key"' } }
+      }
+      if (isIdSelect) {
+        idSelectCount += 1
+        if (idSelectCount === 1) return { data: null, error: null } // precheck: nothing yet
+        // Post-23505 re-read — the raced winner's row, ungrouped.
+        return { data: { id: 'school-raced-winner', teacher_join_code: 'TEACH-6', admin_join_code: 'ADMIN-6', group_id: null }, error: null }
+      }
+      if (isUpdate) return { data: null, error: null }
+      if (isSelectJoinCodes) return { data: { teacher_join_code: 'TEACH-6', admin_join_code: 'ADMIN-6' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SCH-RACE-ATTACH', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    // The invite's group_id was backfilled onto the raced-winner row — this is
+    // the fix: the 23505 recovery path must not skip group attachment just
+    // because it didn't come through the precheck-existing branch.
+    const update = writes.schools.find((w) => w.op === 'update')!
+    expect(update.payload).toEqual({ group_id: 'group-gwynedd' })
+  })
+
   it('school_admin branch: two concurrent redemptions for the same admin produce exactly ONE school (double-redeem race, WORKLIST 07-13)', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')

@@ -330,6 +330,12 @@ async function redeemInviteCode(
 
     let newSchool: { id: string; teacher_join_code?: string; admin_join_code?: string; group_id?: string | null } | null =
       existing as any
+    // True only when THIS request's own insert won — group_id was just written
+    // from inviteRow above, so the reattach check below is redundant (and the
+    // mocked insert response in tests may not echo it back). False for the
+    // precheck-existing and 23505-race-reread cases, where reattachment is
+    // exactly the point.
+    let freshlyInserted = false
 
     if (!newSchool) {
       const { data: inserted, error: schoolError } = await supabase
@@ -353,8 +359,13 @@ async function redeemInviteCode(
         .single()
 
       if (schoolError?.code === '23505') {
-        // Lost the race: another concurrent redemption for this admin
-        // inserted first. Reuse the winner's row instead of erroring.
+        // Lost the race: another concurrent request for this admin inserted
+        // first — either another redemption of THIS invite (already carries
+        // the same group_id, nothing to do) or an unrelated ungrouped insert
+        // (e.g. a self-serve /schools1 provision that raced ahead of this
+        // redemption — the exact leak that slipped through group_id
+        // reattachment below only running for the precheck-existing branch).
+        // Reuse the winner's row instead of erroring.
         const { data: raced } = await supabase
           .from('schools')
           .select('id, teacher_join_code, admin_join_code, group_id')
@@ -372,10 +383,15 @@ async function redeemInviteCode(
         return
       } else {
         newSchool = inserted as any
+        freshlyInserted = true
       }
-    } else if (inviteRow.grants_group_id && !newSchool.group_id) {
-      // Reusing a PRE-EXISTING school for this admin (e.g. an earlier
-      // ungrouped self-serve signup) that predates this group-stamped invite.
+    }
+
+    if (!freshlyInserted && inviteRow.grants_group_id && newSchool && !newSchool.group_id) {
+      // Reusing a PRE-EXISTING school for this admin that predates this
+      // group-stamped invite — whether found at the precheck (e.g. an
+      // earlier ungrouped self-serve signup) or via the 23505 race re-read
+      // above (e.g. a concurrent self-serve provision won the insert race).
       // Without this, the invite's group grant was silently dropped — the
       // admin ended up with a working, ungrouped school the leader's group
       // view could never see (the actual leak this branch used to have).
