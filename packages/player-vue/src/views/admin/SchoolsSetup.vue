@@ -312,7 +312,6 @@ async function createStaff(): Promise<void> {
 
 async function createGovtAdmin(): Promise<void> {
   if (!newGovtName.value.trim()) { error.value = 'Name is required'; return }
-  if (!newGovtEmail.value.trim()) { error.value = 'Email is required'; return }
   if (!newGovtOrg.value.trim()) { error.value = 'Organization name is required'; return }
 
   isCreatingGovt.value = true
@@ -337,7 +336,7 @@ async function createGovtAdmin(): Promise<void> {
       },
       body: JSON.stringify({
         display_name: newGovtName.value.trim(),
-        email: newGovtEmail.value.trim().toLowerCase(),
+        email: newGovtEmail.value.trim().toLowerCase() || undefined,
         group_id: newGovtGroup.value || undefined,
         organization_name: newGovtOrg.value.trim(),
       }),
@@ -906,7 +905,7 @@ onMounted(() => {
             <input v-model="newGovtName" type="text" class="frost-input" placeholder="e.g. Gwilym Thomas" />
           </div>
           <div class="field">
-            <label class="schools-kicker">Email <span class="required">*</span></label>
+            <label class="schools-kicker">Email <span class="optional">(optional — for your records; the invite works for whoever opens the link)</span></label>
             <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
           </div>
           <div class="field">
@@ -947,7 +946,7 @@ onMounted(() => {
             <button
               type="submit"
               class="btn-primary"
-              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtOrg.trim()"
+              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtOrg.trim()"
             >
               <svg v-if="!isCreatingGovt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>

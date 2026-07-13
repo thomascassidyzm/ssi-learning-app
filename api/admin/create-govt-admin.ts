@@ -60,10 +60,6 @@ export default async function handler(
     res.status(400).json({ error: 'display_name is required' })
     return
   }
-  if (!email) {
-    res.status(400).json({ error: 'email is required' })
-    return
-  }
   if (!organizationName) {
     res.status(400).json({ error: 'organization_name is required' })
     return
@@ -106,7 +102,9 @@ export default async function handler(
       max_uses: 1,
       metadata: {
         organization_name: organizationName,
-        recipient_email: email,
+        // Informational only — redemption never checks it; the invite is
+        // possession-based (whoever redeems the link, under their own OTP email).
+        recipient_email: email || null,
         recipient_name: displayName,
       },
     })
