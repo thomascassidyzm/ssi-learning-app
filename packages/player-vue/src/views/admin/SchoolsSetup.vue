@@ -561,14 +561,30 @@ async function updateSchoolGroup(school: School, groupId: string): Promise<void>
   const previousGroupId = school.group_id
   const previousGroupName = previousGroupId ? getGroupName(previousGroupId) : null
 
+  // schools.update moved server-side (/api/admin/update-school) — the
+  // 2026-07-04 grant-hygiene window revoked direct client writes on the
+  // org tables (see CLAUDE.md RLS section).
   try {
-    const client = getClient()
-    const { error: updateError } = await client
-      .from('schools')
-      .update({ group_id: groupId || null })
-      .eq('id', school.id)
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
 
-    if (updateError) throw updateError
+    const resp = await fetch('/api/admin/update-school', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        school_id: school.id,
+        group_id: groupId || null,
+      }),
+    })
+
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      throw new Error(data.error || `HTTP ${resp.status}`)
+    }
+
     school.group_id = groupId || null
 
     if (groupId && previousGroupName) {
