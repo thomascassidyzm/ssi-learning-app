@@ -3,7 +3,7 @@
  *
  * PATCH: Rename a group (name/type/parent_id — ssi_admin), OR a name-only
  *   self-rename by the leader who governs this exact group
- *   (region-tier-design.md §1d — "name your region"). The leader path is a
+ *   (region-tier-design.md §1d — "name your group"). The leader path is a
  *   SERVER-DERIVED ownership check: the caller's own govt_admins.group_id
  *   must equal the target id — never trust a client claim of which group
  *   they lead. type/parent_id stay ssi_admin-only: a leader must never
