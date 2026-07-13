@@ -39,6 +39,10 @@ export interface School {
   student_count: number
   total_practice_hours: number
   created_at: string
+  // Drives the "confirm your school's name" first-run card (invite-born
+  // admins only — see schools.name_confirmed migration). Optional so
+  // existing constructors don't break; undefined reads as already-confirmed.
+  name_confirmed?: boolean
   // Dashboard extras — optional so existing constructors don't break.
   active_days_last_7?: number
   health?: SchoolHealth
@@ -227,6 +231,7 @@ export function useSchoolData() {
             student_count: data.student_count,
             total_practice_hours: data.total_practice_hours,
             created_at: data.created_at,
+            name_confirmed: data.name_confirmed,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(data.student_count || 0, activeDays),
           }
@@ -239,6 +244,26 @@ export function useSchoolData() {
     } finally {
       isLoading.value = false
     }
+  }
+
+  // Confirm/rename a school's name — the invite-born admin's first-run card
+  // (same client-side-update pattern SettingsView.vue already uses for
+  // renaming; schools carries no RLS yet so this is a direct table write).
+  // Errors surface so the card can show "Could not save" rather than a
+  // false "Saved" (the ignored-RLS-denial class this codebase treats as a bug).
+  async function confirmSchoolName(schoolId: string, name: string): Promise<boolean> {
+    const { error: updateError } = await client
+      .from('schools')
+      .update({ school_name: name, name_confirmed: true })
+      .eq('id', schoolId)
+    if (updateError) {
+      error.value = updateError.message
+      return false
+    }
+    if (currentSchool.value?.id === schoolId) {
+      currentSchool.value = { ...currentSchool.value, school_name: name, name_confirmed: true }
+    }
+    return true
   }
 
   // Drill-down: select a school to view (for govt admin)
@@ -299,6 +324,7 @@ export function useSchoolData() {
 
     // Actions
     fetchSchools,
+    confirmSchoolName,
     selectSchoolToView,
     clearViewingSchool,
   }

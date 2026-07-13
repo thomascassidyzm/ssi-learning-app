@@ -12,6 +12,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 import { recordRoleChange } from '../_utils/auditRole'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -342,6 +343,11 @@ async function redeemInviteCode(
           // which itself was stamped from the minting leader's own group.
           group_id: inviteRow.grants_group_id || null,
           invite_code_id: inviteRow.id,
+          // The invite label pre-fills the name, but it's the LEADER's guess,
+          // not the admin's own choice — unconfirmed until DashboardView's
+          // rename card (same pattern as groups.name_confirmed, region-tier
+          // -design.md §1d) is saved once by this school's own admin.
+          name_confirmed: false,
         })
         .select('id, teacher_join_code, admin_join_code, group_id')
         .single()
@@ -392,6 +398,27 @@ async function redeemInviteCode(
     // the admin join code unredeemable — same class of fix as provision.ts's
     // ensureJoinCodesRegistered, now shared from there).
     await ensureJoinCodesRegistered(supabase, newSchool!.id as string, userId)
+
+    // Set the platform trial clocks HERE, at redemption, instead of routing
+    // the admin through the /schools1 onboarding continuation to trigger
+    // POST /api/onboarding/provision (the old design, region-tier-design.md
+    // §1f) — that continuation forced a SECOND email+OTP because Onboarding.vue
+    // always starts at its 'choose' step with no session check, discarding the
+    // one just established here. No course is chosen yet at invite redemption
+    // (the invite only carries a school_name label, never a course_code), so
+    // this grants the same generous no-course-lock 1-year window self-serve
+    // gives minority-language schools — TeacherDashboard.vue's
+    // schoolAvailableCourses already reads a null trial_course_code as "no
+    // restriction", so the admin can freely try any course until they commit
+    // to one. Best-effort: a failure here must not fail the redemption itself,
+    // same fail-open posture as every other platform-trial write.
+    try {
+      const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+      const email = (authUser?.user?.email || '').trim().toLowerCase()
+      await provisionSchoolPlatformTrial(supabase, email, newSchool!.id as string, null, true)
+    } catch (trialError) {
+      console.error('[CodeRedeem] Platform-trial provisioning failed (non-fatal):', trialError)
+    }
   } else if (codeType === 'school_admin_join') {
     const { error: tagError } = await supabase
       .from('user_tags')
@@ -439,16 +466,15 @@ async function redeemInviteCode(
     }
   }
 
-  // school_admin routes through the existing course-picking onboarding
-  // continuation (not straight to /schools) so POST /api/onboarding/provision
-  // runs: it finds the school just created above (by admin_user_id, idempotent)
-  // and sets the platform trial clocks + re-runs ensureJoinCodesRegistered —
-  // today an invite-created school skips provision entirely and never gets a
-  // trial clock at all. Group schools get the same terms as self-serve schools
-  // for free, with zero new billing code.
+  // school_admin (invite-born — the ONLY way this code_type reaches redeem.ts;
+  // self-serve signup never redeems a code, it goes straight from Onboarding.vue's
+  // OTP step to POST /api/onboarding/provision) goes straight to /schools —
+  // its trial clocks are already set above at redemption, and NO second
+  // onboarding journey (the /schools1 continuation, which used to force a
+  // second email+OTP) runs for it. Self-serve's own /schools1 course-picking
+  // journey is untouched — this redirect only fires from redeem.ts.
   const redirectTo = codeType === 'ssi_admin' ? '/admin'
-    : codeType === 'school_admin' ? '/schools1'
-    : ['god', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
+    : ['school_admin', 'god', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
     : '/'
 
   console.log('[CodeRedeem] Redeemed invite code:', inviteRow.code, 'for user:', userId, 'role:', codeType)

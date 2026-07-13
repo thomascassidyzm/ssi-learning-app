@@ -181,6 +181,42 @@ describe('useSchoolData', () => {
     expect(mockClient.from).not.toHaveBeenCalled()
   })
 
+  // --- confirm/rename (invite-born admin first-run card) ---
+
+  it('confirmSchoolName updates the school_name + name_confirmed and syncs currentSchool', async () => {
+    const sd = await setup({
+      school_summary: {
+        data: { school_id: 's1', school_name: 'Ysgol y Garnedd', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
+        error: null,
+      },
+      schools: { data: null, error: null },
+    }, 'school_admin')
+
+    await sd.fetchSchools()
+    expect(sd.currentSchool.value?.name_confirmed).toBe(false)
+
+    const ok = await sd.confirmSchoolName('s1', 'Ysgol y Garnedd (Bangor)')
+    expect(ok).toBe(true)
+    expect(sd.currentSchool.value?.school_name).toBe('Ysgol y Garnedd (Bangor)')
+    expect(sd.currentSchool.value?.name_confirmed).toBe(true)
+  })
+
+  it('confirmSchoolName surfaces the error and does not touch currentSchool on failure', async () => {
+    const sd = await setup({
+      school_summary: {
+        data: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
+        error: null,
+      },
+      schools: { data: null, error: { message: 'update failed' } },
+    }, 'school_admin')
+
+    await sd.fetchSchools()
+    const ok = await sd.confirmSchoolName('s1', 'New Name')
+    expect(ok).toBe(false)
+    expect(sd.error.value).toBeTruthy()
+    expect(sd.currentSchool.value?.school_name).toBe('My School')
+  })
+
   it('sets error on fetch failure', async () => {
     const sd = await setup({
       school_summary: { data: null, error: { message: 'DB error' } },

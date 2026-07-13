@@ -222,13 +222,19 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
 
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(true)
-    expect(res._json.redirectTo).toBe('/schools1') // routes through onboarding/provision for trial clocks
-    expect(writes.schools).toHaveLength(1)
+    // Goes straight to /schools — no second onboarding journey / second OTP.
+    expect(res._json.redirectTo).toBe('/schools')
+    expect(writes.schools.filter((w) => w.op === 'insert')).toHaveLength(1)
     expect(writes.schools[0].payload.group_id).toBe('group-gwynedd')
+    expect(writes.schools[0].payload.name_confirmed).toBe(false)
     expect(writes.invite_codes.some((w) => w.op === 'upsert')).toBe(true)
     const upserted = writes.invite_codes.find((w) => w.op === 'upsert')!.payload
     const codeTypes = upserted.map((r: any) => r.code_type)
     expect(codeTypes).toEqual(expect.arrayContaining(['teacher', 'school_admin_join']))
+    // Trial clocks are set AT REDEMPTION, not via a later /schools1 → provision hop.
+    expect(writes.trial_burns.some((w) => w.op === 'insert')).toBe(true)
+    const trialUpdate = writes.schools.find((w) => w.op === 'update')!
+    expect(trialUpdate.payload).toMatchObject({ platform_status: 'trial', trial_kind: 'free_1yr', trial_course_code: null })
   })
 
   it('school_admin branch: group_id is null when the invite carries none (self-serve, ungrouped)', async () => {
