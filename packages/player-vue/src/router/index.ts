@@ -495,6 +495,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/RedeemCode.vue'),
     meta: { title: 'Redeem Code' },
   },
+  // Group leader landing door (owner addendum 2026-07-13): a signup-page-
+  // skinned entry to the govt_admin invite flow, matching the /schools1 /
+  // /tutors landing-page convention. Reuses RedeemCode's redemption
+  // machinery unchanged — /group?code=XYZ and /group/:code both work (the
+  // code param is optional so the bare query form resolves too).
+  {
+    path: '/group/:code?',
+    name: 'group-landing',
+    component: () => import('@/views/RedeemCode.vue'),
+    props: { variant: 'landing' },
+    meta: { title: 'Bring SSi to your group' },
+  },
   // Try link gateway (no auth required — zero-friction course preview)
   {
     path: '/try/:code',

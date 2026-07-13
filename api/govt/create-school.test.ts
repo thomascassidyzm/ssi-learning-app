@@ -91,7 +91,7 @@ describe('POST /api/govt/create-school', () => {
     expect(insertedSchool).toBeNull()
   })
 
-  it('rejects a govt_admin with no group_id yet (region not named/joined)', async () => {
+  it('rejects a govt_admin with no group_id yet (group not named/joined)', async () => {
     govtAdminRow = { group_id: null }
     const req = makeReq({ school_name: 'X' })
     const res = makeRes()

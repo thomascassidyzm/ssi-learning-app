@@ -45,26 +45,26 @@ const {
   renameGroup,
 } = useGovtAdminActions()
 
-// ---------- Govt admin: "name your region" first-run card ----------
-const regionNameDraft = ref('')
-const isSavingRegionName = ref(false)
-const regionNameError = ref<string | null>(null)
-const showNameRegionCard = computed(() =>
+// ---------- Govt admin: "name your group" first-run card ----------
+const groupNameDraft = ref('')
+const isSavingGroupName = ref(false)
+const groupNameError = ref<string | null>(null)
+const showNameGroupCard = computed(() =>
   isGovtAdmin.value && !isViewingSchool.value && groupSummary.value?.name_confirmed === false
 )
 
-async function saveRegionName() {
-  const name = regionNameDraft.value.trim()
+async function saveGroupName() {
+  const name = groupNameDraft.value.trim()
   const groupId = groupSummary.value?.group_id
   if (!name || !groupId) return
-  isSavingRegionName.value = true
-  regionNameError.value = null
+  isSavingGroupName.value = true
+  groupNameError.value = null
   const ok = await renameGroup(groupId, name)
-  isSavingRegionName.value = false
+  isSavingGroupName.value = false
   if (ok) {
     await fetchSchools()
   } else {
-    regionNameError.value = 'Could not save — try again.'
+    groupNameError.value = 'Could not save — try again.'
   }
 }
 
@@ -522,34 +522,34 @@ function handlePlayClass(cls: ClassInfo) {
         </template>
       </Greeting>
 
-      <!-- First-run: name your region (design §1d) -->
-      <div v-if="showNameRegionCard" class="schools-card schools-card-pad name-region-card">
-        <h3 class="arsenal card-header-title">Name your region</h3>
+      <!-- First-run: name your group (design §1d) -->
+      <div v-if="showNameGroupCard" class="schools-card schools-card-pad name-group-card">
+        <h3 class="arsenal card-header-title">Name your group</h3>
         <p class="schools-subtle">This is what schools will see when they join.</p>
-        <div class="name-region-row">
+        <div class="name-group-row">
           <input
-            v-model="regionNameDraft"
+            v-model="groupNameDraft"
             type="text"
             class="field-input"
             placeholder="e.g. Gwynedd Education Authority"
-            :disabled="isSavingRegionName"
-            @keyup.enter="saveRegionName"
+            :disabled="isSavingGroupName"
+            @keyup.enter="saveGroupName"
           />
           <button
             class="btn-play"
-            :disabled="isSavingRegionName || !regionNameDraft.trim()"
-            @click="saveRegionName"
+            :disabled="isSavingGroupName || !groupNameDraft.trim()"
+            @click="saveGroupName"
           >
-            {{ isSavingRegionName ? 'Saving…' : 'Save' }}
+            {{ isSavingGroupName ? 'Saving…' : 'Save' }}
           </button>
         </div>
-        <p v-if="regionNameError" class="name-region-error">{{ regionNameError }}</p>
+        <p v-if="groupNameError" class="name-group-error">{{ groupNameError }}</p>
       </div>
 
       <!-- Add schools / Create school (design §1e, §5c revised) -->
       <div v-if="!isViewingSchool" class="schools-card schools-card-pad add-schools-card">
         <header class="card-header-row">
-          <h3 class="arsenal card-header-title">Schools in your region</h3>
+          <h3 class="arsenal card-header-title">Schools in your group</h3>
         </header>
         <div class="add-schools-row">
           <input
@@ -911,15 +911,15 @@ function handlePlayClass(cls: ClassInfo) {
 }
 .card-header-link:hover { color: var(--schools-fg); }
 
-.name-region-card, .add-schools-card { margin-bottom: 20px; }
-.name-region-row, .add-schools-row {
+.name-group-card, .add-schools-card { margin-bottom: 20px; }
+.name-group-row, .add-schools-row {
   display: flex;
   gap: 10px;
   align-items: center;
   margin-top: 10px;
   flex-wrap: wrap;
 }
-.name-region-error { color: var(--schools-danger, #c0392b); font-size: 13px; margin-top: 8px; }
+.name-group-error { color: var(--schools-danger, #c0392b); font-size: 13px; margin-top: 8px; }
 
 .class-cell {
   display: flex;

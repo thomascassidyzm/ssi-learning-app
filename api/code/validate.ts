@@ -88,6 +88,11 @@ export default async function handler(
           .eq('code', inviteRow.grants_region)
           .single()
         context.groupName = region?.name
+      } else if (codeType === 'govt_admin' && inviteRow.metadata?.organization_name) {
+        // Brand-new leader-named group (no grants_group_id/grants_region yet —
+        // the group is created at redemption, region-tier-design.md §1c). The
+        // /group landing page still wants something to show in its hero.
+        context.groupName = inviteRow.metadata.organization_name
       } else if (codeType === 'school_admin' && inviteRow.grants_group_id) {
         const { data: group } = await supabase
           .from('groups')

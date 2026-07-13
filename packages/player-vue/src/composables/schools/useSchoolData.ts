@@ -14,7 +14,7 @@ interface GroupSummary {
   group_name: string
   group_path?: string
   region_code?: string
-  // Drives the "name your region" first-run card (region-tier-design.md
+  // Drives the "name your group" first-run card (region-tier-design.md
   // §1d). Undefined on the legacy region_summary fallback (pre-group-tree
   // govt admins) — treat as already-confirmed there, nothing to prompt.
   name_confirmed?: boolean

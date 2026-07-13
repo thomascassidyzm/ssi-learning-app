@@ -1,7 +1,7 @@
 /**
  * useGovtAdminActions — the leader's own write surfaces
  * (region-tier-design.md §1d/§1e/§5c-revised):
- *   - rename their own group ("name your region")
+ *   - rename their own group ("name your group")
  *   - mint group-bound school_admin invite links + list their state
  *   - create a school directly in their own group (vacant admin seat)
  *
