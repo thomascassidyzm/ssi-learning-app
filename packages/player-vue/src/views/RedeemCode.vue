@@ -5,6 +5,14 @@ import { useInviteCode } from '../composables/useInviteCode'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useUserRole } from '../composables/useUserRole'
 
+// variant='landing' is a PRESENTATION-ONLY switch (region-tier-design.md
+// §1a/§1b, owner addendum 2026-07-13): the /group/:code landing route uses
+// the exact same redemption machinery below (validate → OTP → redeem) as the
+// bare /redeem/:code and /try/:code doors, just with a signup-page hero
+// instead of a centered card, so a leader's invite link looks like the
+// /schools1 / /tutors landing doors rather than a bare form.
+const props = withDefaults(defineProps<{ variant?: 'bare' | 'landing' }>(), { variant: 'bare' })
+
 const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth', null)
@@ -21,7 +29,24 @@ const isLoading = ref(false)
 const redeemLabel = ref('')
 const redirectUrl = ref('/')
 
-const code = computed(() => (route.params.code as string) || '')
+// /group supports both /group/:code and /group?code=XYZ.
+const code = computed(() => (route.params.code as string) || (route.query.code as string) || '')
+
+// Landing-page hero copy (variant='landing' only — today that's /group, the
+// govt_admin door). Falls back to a generic line for any other code type
+// landing might one day carry.
+const landingEyebrow = computed(() => 'SSi for groups')
+const landingHeading = computed(() => 'Bring SSi to your group')
+const landingSub = computed(() => {
+  const groupName = pendingCode.value?.groupName
+  if (groupName) return `You've been invited to lead ${groupName}'s SSi rollout.`
+  return "You've been invited to lead a group's SSi rollout — schools, academy chains, counties, whole countries."
+})
+const landingFacts = [
+  'Invite schools with one shareable link — no spreadsheets to maintain',
+  'Every school you add shows up on your dashboard automatically',
+  'See progress across your whole group, roll up or drill into one school',
+]
 const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
 const userEmail = computed(() => auth?.user?.value?.email || '')
 
@@ -112,7 +137,9 @@ const successSubtext = computed(() => {
 // --- Step 1: Validate on mount ---
 onMounted(async () => {
   if (!code.value) {
-    error.value = 'No code provided'
+    error.value = props.variant === 'landing'
+      ? "This link is missing its invite code — check the link you were sent, or ask for a new one."
+      : 'No code provided'
     step.value = 'invalid'
     return
   }
@@ -275,7 +302,16 @@ function goHome() {
 </script>
 
 <template>
-  <div class="redeem-page">
+  <div class="redeem-page" :class="{ 'is-landing': props.variant === 'landing' }">
+    <div v-if="props.variant === 'landing'" class="landing-hero">
+      <img class="landing-logo" src="/ssi-web-logo.svg" alt="SaySomethingin" />
+      <span class="landing-eyebrow">{{ landingEyebrow }}</span>
+      <h1 class="landing-heading">{{ landingHeading }}</h1>
+      <p class="landing-sub">{{ landingSub }}</p>
+      <ul v-if="step !== 'success'" class="landing-facts">
+        <li v-for="f in landingFacts" :key="f">{{ f }}</li>
+      </ul>
+    </div>
     <div class="redeem-card">
 
       <!-- Step 1: Validating -->
@@ -470,6 +506,80 @@ function goHome() {
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* --- Landing variant (/group) --- */
+
+.redeem-page.is-landing {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2.5rem;
+  padding: 4rem 1.5rem;
+  background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(194, 58, 58, 0.18) 0%, transparent 60%),
+    var(--bg-primary, #0a0a0f);
+}
+
+.landing-hero {
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  color: var(--text-primary, #e0e0e0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landing-logo {
+  height: 32px;
+  margin-bottom: 0.5rem;
+}
+
+.landing-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ssi-gold, #d4a853);
+}
+
+.landing-heading {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.landing-sub {
+  margin: 0;
+  color: var(--text-secondary, #aaa);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.landing-facts {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.landing-facts li {
+  position: relative;
+  padding-left: 1.5rem;
+  color: var(--text-secondary, #ccc);
+  font-size: 0.9375rem;
+}
+
+.landing-facts li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--ssi-gold, #d4a853);
+  font-weight: 700;
 }
 
 /* --- Typography --- */
