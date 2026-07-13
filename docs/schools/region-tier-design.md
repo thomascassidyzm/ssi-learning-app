@@ -234,7 +234,19 @@ in every jurisdiction we'll meet, and it costs one boolean.
 
 ---
 
-## 5. The three open forks — options + recommendation, your call
+## 5. The three open forks — RESOLVED (owner, 2026-07-13)
+
+**Owner's doctrine for this whole feature: flexibility > restrictions; ease of use first.**
+Self-serve single-entity school signup stays untouched. Applied to the forks:
+**5a — yes to adoption**, lightest possible consent (leader requests, school admin one-tap
+accepts — the tap stays because the data-floor consent must be the school's, but it is ONE
+tap). **5b — identical terms at launch**, group-level overrides ssi_admin-only (a deal is
+config, not code). **5c — leaders get the most effortless onboarding surface** (including
+bulk pre-labelled claim links when needed), while every school is still born with a real,
+OTP-verified admin — flexibility of experience, not ownerless data states. Direct
+pre-provisioning is revisited only if a signed deal actually demands it.
+
+Original analysis kept below for the record.
 
 ### 5a. Pre-existing groupless schools joining a group
 
