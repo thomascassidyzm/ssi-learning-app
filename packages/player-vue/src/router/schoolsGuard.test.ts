@@ -30,6 +30,17 @@ describe('/schools route guard', () => {
     expect(router.currentRoute.value.fullPath).toBe('/schools')
   })
 
+  it('lets an invite-born school_admin straight through to /schools — no second auth step in the way', async () => {
+    // redeem.ts's school_admin branch now redirects straight to /schools
+    // (2026-07-13, single-OTP fix) instead of the /schools1 onboarding
+    // continuation; this is the guard that continuation used to exist to
+    // dodge. RedeemCode.vue's optimistic post-redemption initialize() call
+    // is what populates the cache before this navigation fires.
+    useUserRole().initialize(null, 'school_admin')
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/schools')
+  })
+
   it('bounces an initialized user with no school role to /', async () => {
     useUserRole().initialize(null, null)
     await router.push('/schools')

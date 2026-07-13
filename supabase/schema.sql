@@ -4745,6 +4745,7 @@ CREATE TABLE public.schools (
     teacher_seats integer DEFAULT 1 NOT NULL,
     provider_subscription_id text,
     provider_customer_id text,
+    name_confirmed boolean DEFAULT true NOT NULL,
     CONSTRAINT schools_platform_status_check CHECK ((platform_status = ANY (ARRAY['trial'::text, 'active'::text, 'past_due'::text, 'expired'::text, 'cancelled'::text]))),
     CONSTRAINT schools_trial_kind_check CHECK (((trial_kind IS NULL) OR (trial_kind = ANY (ARRAY['premium_1mo'::text, 'free_1yr'::text]))))
 );
@@ -6578,7 +6579,8 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
     COALESCE(tc.teacher_count, (0)::bigint) AS teacher_count,
     COALESCE(cc.class_count, (0)::bigint) AS class_count,
     COALESCE(sc.student_count, (0)::bigint) AS student_count,
-    COALESCE(ph.total_practice_hours, (0)::numeric) AS total_practice_hours
+    COALESCE(ph.total_practice_hours, (0)::numeric) AS total_practice_hours,
+    s.name_confirmed
    FROM ((((public.schools s
      LEFT JOIN LATERAL ( SELECT count(*) AS teacher_count
            FROM public.user_tags ut
@@ -11171,6 +11173,13 @@ CREATE INDEX release_notes_published_released_at_idx ON public.release_notes USI
 --
 
 CREATE INDEX release_notes_released_at_idx ON public.release_notes USING btree (released_at DESC);
+
+
+--
+-- Name: schools_admin_user_id_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX schools_admin_user_id_key ON public.schools USING btree (admin_user_id) WHERE (admin_user_id IS NOT NULL);
 
 
 --

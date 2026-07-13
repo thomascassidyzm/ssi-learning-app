@@ -27,6 +27,7 @@ const {
   totalClasses,
   totalPracticeHours,
   fetchSchools,
+  confirmSchoolName,
   selectSchoolToView,
   clearViewingSchool,
 } = useSchoolData()
@@ -66,6 +67,32 @@ async function saveGroupName() {
   } else {
     groupNameError.value = 'Could not save — try again.'
   }
+}
+
+// ---------- School admin: "confirm your school's name" first-run card ----------
+// Invite-born admins land here with a name pre-filled from the inviting
+// leader's guess (schools.name_confirmed=false) — editable before it sticks.
+// Self-serve schools default name_confirmed=true and never see this card.
+const schoolNameDraft = ref('')
+const isSavingSchoolName = ref(false)
+const schoolNameError = ref<string | null>(null)
+const showNameSchoolCard = computed(() =>
+  isSchoolAdmin.value && currentSchool.value?.name_confirmed === false
+)
+
+watch(currentSchool, (school) => {
+  if (school && !schoolNameDraft.value) schoolNameDraft.value = school.school_name || ''
+}, { immediate: true })
+
+async function saveSchoolName() {
+  const name = schoolNameDraft.value.trim()
+  const schoolId = currentSchool.value?.id
+  if (!name || !schoolId) return
+  isSavingSchoolName.value = true
+  schoolNameError.value = null
+  const ok = await confirmSchoolName(schoolId, name)
+  isSavingSchoolName.value = false
+  if (!ok) schoolNameError.value = 'Could not save — try again.'
 }
 
 // ---------- Govt admin: mint school links + create school directly ----------
@@ -544,6 +571,31 @@ function handlePlayClass(cls: ClassInfo) {
           </button>
         </div>
         <p v-if="groupNameError" class="name-group-error">{{ groupNameError }}</p>
+      </div>
+
+      <!-- First-run: confirm your school's name (invite-born admins only —
+           the name came from the inviting leader's guess, not yours). -->
+      <div v-if="showNameSchoolCard" class="schools-card schools-card-pad name-group-card">
+        <h3 class="arsenal card-header-title">Confirm your school's name</h3>
+        <p class="schools-subtle">This is what your teachers and students will see.</p>
+        <div class="name-group-row">
+          <input
+            v-model="schoolNameDraft"
+            type="text"
+            class="field-input"
+            placeholder="e.g. Ysgol y Garnedd"
+            :disabled="isSavingSchoolName"
+            @keyup.enter="saveSchoolName"
+          />
+          <button
+            class="btn-play"
+            :disabled="isSavingSchoolName || !schoolNameDraft.trim()"
+            @click="saveSchoolName"
+          >
+            {{ isSavingSchoolName ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+        <p v-if="schoolNameError" class="name-group-error">{{ schoolNameError }}</p>
       </div>
 
       <!-- Add schools / Create school (design §1e, §5c revised) -->

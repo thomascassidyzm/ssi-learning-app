@@ -75,6 +75,39 @@ principle OfflineFirst:
     sync: "Background sync when online"
     fallback: "Full functionality offline after initial load"
 
+principle SingleAuthOnboarding:
+  statement: "One email+OTP verification per signup, never two"
+
+  why: |
+    A leader's school_admin invite link used to redeem (creating the school,
+    group-attached), then redirect the new admin through the self-serve
+    /schools1 onboarding continuation to trigger trial-clock provisioning —
+    forcing a SECOND email+OTP because that continuation has no session
+    awareness. Fixed 2026-07-13: the redemption itself sets the platform
+    trial clocks and redirects straight to the dashboard.
+
+  invite_born_admin_flow: |
+    /redeem/:code -> ONE email+OTP -> api/code/redeem.ts's school_admin
+    branch creates the school (group-attached), registers both join codes,
+    and calls provisionSchoolPlatformTrial (api/_utils/schoolPlatformTrial.ts,
+    shared with self-serve provision.ts) directly -> redirect straight to
+    /schools. No second onboarding journey.
+
+  self_serve_flow: |
+    /schools1 or /schools2 -> choose a course -> ONE email+OTP ->
+    POST /api/onboarding/provision (unchanged) -> /schools.
+    The two flows share the SAME trial-provisioning helper but never the
+    same route — self-serve picks a course before its trial starts;
+    invite-born admins trial with no course lock until they pick one
+    (trial_course_code null reads as "no restriction" — TeacherDashboard.vue).
+
+  first_run_naming: |
+    An invite-born school's name is pre-filled from the inviting leader's
+    guess (invite_codes.metadata.school_name) but unconfirmed
+    (schools.name_confirmed = false) until the admin saves it once via the
+    "Confirm your school's name" first-run card on DashboardView.vue — same
+    pattern as groups.name_confirmed's "name your group" card.
+
 # =============================================================================
 # USER ROLES
 # =============================================================================
