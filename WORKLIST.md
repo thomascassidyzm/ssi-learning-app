@@ -87,6 +87,8 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 
 - [ ] **First-boot experience (PARKED think-piece, 07-02):** staged loading narrative + instant first sound + generic welcome clip + deferred tips surface → `docs/first-boot-experience.md`. Key facts already true: default course IS zho_for_eng; a 2800ms first-timer cinematic already exists to hang messages on; first-cycle audio prewarm exists (check it covers first boot). The 6s case = once-per-device INF-PLAY build on a new browser.
 
+- [ ] **Capacity caps at redemption (logged 07-13, NOT actionable until a policy exists):** every join in the schools tier now flows through invite codes (`invite_codes.max_uses` already live — leader invites are one-shot), so abuse/commercial control is a mint-time number, not new machinery. Two shapes when a policy lands: per-code cap (`max_uses` at mint) vs per-container cap (schools-per-group / teachers-per-school / students-per-class, checked at redemption against the live count — the version that maps to contract terms & entitlements). Single choke point = `api/code/redeem.ts`; keep it that way (no side-door join flows). Tom decides the policy numbers; do not build speculatively.
+
 ## 🚧 In flight / don't collide
 
 - teacher↔class M2M stream — **merged to dev; migration APPLIED 06-13** (edge endpoints + `20260613` live). Branch `feat/class-teachers-edge` cleaned up — don't go looking for it on the remote. Coordinate via dev before touching the class/teacher data model.
