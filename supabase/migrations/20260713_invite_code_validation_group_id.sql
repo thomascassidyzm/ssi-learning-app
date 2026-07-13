@@ -6,6 +6,8 @@
 -- Read only via service-role (api/code/validate.ts, api/code/redeem.ts) —
 -- no grant change needed, security_invoker posture unchanged.
 
+-- CREATE OR REPLACE VIEW cannot reorder/insert columns, only append (same
+-- gotcha as the forgiving-codes migration) — grants_group_id goes last.
 CREATE OR REPLACE VIEW public.invite_code_validation WITH (security_invoker='on') AS
  SELECT id,
     code,
@@ -13,13 +15,13 @@ CREATE OR REPLACE VIEW public.invite_code_validation WITH (security_invoker='on'
     grants_region,
     grants_school_id,
     grants_class_id,
-    grants_group_id,
     metadata,
     max_uses,
     use_count,
     expires_at,
     is_active,
-    code_normalized
+    code_normalized,
+    grants_group_id
    FROM public.invite_codes;
 
 NOTIFY pgrst, 'reload schema';
