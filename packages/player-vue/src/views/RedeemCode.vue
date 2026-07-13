@@ -21,7 +21,7 @@ const { validateCode, redeemCode, pendingCode, clearPendingCode, validationError
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
 // --- State ---
-const step = ref<'validating' | 'invalid' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
+const step = ref<'validating' | 'invalid' | 'confirm' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
 const error = ref('')
 const email = ref('')
 const otpCode = ref('')
@@ -151,9 +151,12 @@ onMounted(async () => {
     step.value = 'invalid'
     return
   }
-  // Valid code — check auth state
+  // Valid code — check auth state. A session already present does NOT mean
+  // it's the RIGHT session (a govt_admin link opened in a browser still
+  // signed into a personal/learner account is the trap this guards against)
+  // — confirm identity before ever spending the one-shot code.
   if (isSignedIn.value) {
-    await doRedeem()
+    step.value = 'confirm'
   } else {
     step.value = 'auth'
   }
@@ -169,6 +172,20 @@ watch(isSignedIn, async (signedIn) => {
     await doRedeem()
   }
 })
+
+// --- Step 1b: Confirm identity / switch account ---
+async function useDifferentEmail() {
+  const client = supabase.value
+  isLoading.value = true
+  try {
+    await client?.auth.signOut()
+  } finally {
+    isLoading.value = false
+    email.value = ''
+    error.value = ''
+    step.value = 'auth'
+  }
+}
 
 // --- Step 2: Send OTP ---
 async function handleSendOtp() {
@@ -373,10 +390,17 @@ function goHome() {
         <h2 class="code-title">{{ displayTitle }}</h2>
         <p v-if="displayDetail" class="detail-text">{{ displayDetail }}</p>
 
-        <!-- Already signed in -->
-        <div v-if="isSignedIn" class="redeem-section">
-          <p class="signed-in-text">Signed in as <strong>{{ userEmail }}</strong></p>
-          <button class="btn btn--primary" @click="doRedeem">Redeem</button>
+        <!-- Confirm identity — a session already exists; make sure it's the
+             RIGHT one before spending the one-shot code (owner ruling
+             2026-07-13: never redeem silently under a pre-existing session). -->
+        <div v-if="step === 'confirm'" class="redeem-section">
+          <p class="signed-in-text">You're signed in as <strong>{{ userEmail }}</strong></p>
+          <button class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading" @click="doRedeem">
+            Continue as {{ userEmail }}
+          </button>
+          <button type="button" class="link-action" :disabled="isLoading" @click="useDifferentEmail">
+            Use a different email
+          </button>
         </div>
 
         <!-- Email input (step === 'auth') -->
@@ -944,5 +968,28 @@ function goHome() {
 .back-link svg {
   width: 18px;
   height: 18px;
+}
+
+/* --- Confirm identity --- */
+
+.link-action {
+  color: var(--ssi-gold, #d4a853);
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.875rem;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.link-action:hover:not(:disabled) {
+  color: var(--ssi-gold-light, #e0c080);
+}
+
+.link-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
