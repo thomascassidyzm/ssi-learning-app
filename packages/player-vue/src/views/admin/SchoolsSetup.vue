@@ -322,7 +322,6 @@ async function fetchRegions(): Promise<void> {
 async function createGovtAdmin(): Promise<void> {
   if (!newGovtName.value.trim()) { error.value = 'Name is required'; return }
   if (!newGovtEmail.value.trim()) { error.value = 'Email is required'; return }
-  if (!newGovtGroup.value) { error.value = 'Please select a group'; return }
   if (!newGovtOrg.value.trim()) { error.value = 'Organization name is required'; return }
 
   isCreatingGovt.value = true
@@ -348,7 +347,7 @@ async function createGovtAdmin(): Promise<void> {
       body: JSON.stringify({
         display_name: newGovtName.value.trim(),
         email: newGovtEmail.value.trim().toLowerCase(),
-        group_id: newGovtGroup.value,
+        group_id: newGovtGroup.value || undefined,
         organization_name: newGovtOrg.value.trim(),
       }),
     })
@@ -360,8 +359,10 @@ async function createGovtAdmin(): Promise<void> {
 
     govtAdminCode.value = data.invite_code || null
 
-    const groupName = groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group'
-    successMessage.value = `Govt Admin "${newGovtName.value.trim()}" created for ${groupName}`
+    const groupName = newGovtGroup.value
+      ? (groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group')
+      : 'a region they will name themselves'
+    successMessage.value = `Invite created for "${newGovtName.value.trim()}" — ${groupName}`
 
     newGovtName.value = ''
     newGovtEmail.value = ''
@@ -1085,9 +1086,9 @@ onMounted(() => {
             <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
           </div>
           <div class="field">
-            <label class="schools-kicker">Group <span class="required">*</span></label>
+            <label class="schools-kicker">Group <span class="optional">(optional)</span></label>
             <select v-model="newGovtGroup" class="frost-select">
-              <option value="">— Select group —</option>
+              <option value="">— Leader names their own region on first login —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
                 {{ g.name }}
               </option>
