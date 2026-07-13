@@ -18,7 +18,8 @@
     "e2e:android": "playwright test --project=android",
     "e2e:ui": "playwright test --ui",
     "e2e:pwa": "pnpm build && PWA_TEST=1 playwright test",
-    "e2e:prod": "PROD_URL=https://saysomethingin.app playwright test"
+    "e2e:prod": "PROD_URL=https://saysomethingin.app playwright test",
+    "e2e:region-tier": "playwright test e2e/region-tier --project=chromium"
   },
   "dependencies": {
     "@paddle/paddle-js": "^1.6.4",
