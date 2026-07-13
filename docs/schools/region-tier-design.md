@@ -238,13 +238,21 @@ in every jurisdiction we'll meet, and it costs one boolean.
 
 **Owner's doctrine for this whole feature: flexibility > restrictions; ease of use first.**
 Self-serve single-entity school signup stays untouched. Applied to the forks:
-**5a — yes to adoption**, lightest possible consent (leader requests, school admin one-tap
-accepts — the tap stays because the data-floor consent must be the school's, but it is ONE
-tap). **5b — identical terms at launch**, group-level overrides ssi_admin-only (a deal is
-config, not code). **5c — leaders get the most effortless onboarding surface** (including
-bulk pre-labelled claim links when needed), while every school is still born with a real,
-OTP-verified admin — flexibility of experience, not ownerless data states. Direct
-pre-provisioning is revisited only if a signed deal actually demands it.
+**5a — yes to adoption.** For *independently created* schools the one-tap accept stays —
+not as politeness but as **authority verification**: SSi cannot know from the outside
+whether a self-declared leader genuinely governs a school that predates them, and adoption
+grants visibility over children's learning data. When authority IS verified (a signed
+contract naming schools), ssi_admin bulk-attaches directly — no taps. The tap exists only
+for the unverified case. **5b — identical terms at launch**, group-level overrides
+ssi_admin-only (a deal is config, not code). **5c — REVISED (owner, 2026-07-13): leaders
+CAN create schools directly.** A school has two legitimate parents: someone at the school
+(public self-serve, unchanged) or the person responsible for it regionally. A
+leader-created school is **group-owned from birth** — not ownerless — born with both join
+codes; school staff claim their seats later via the existing admin join-code mechanic (no
+new state machine). The leader's identity and the school admin's identity stay fully
+separate: creating a school never makes the leader its admin. Trial clock starts at
+creation; group-level terms supersede where set. Bulk creation = the same action repeated.
+This moves a leader-callable create-school-in-my-group endpoint into slice 2's scope.
 
 Original analysis kept below for the record.
 
