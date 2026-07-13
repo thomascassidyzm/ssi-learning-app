@@ -1363,7 +1363,7 @@ async function handleSetTrial(action: 'expire' | 'restore') {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--schools-red-light);
+  background: var(--schools-red-deep);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
 }
 
