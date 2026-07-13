@@ -9,7 +9,6 @@ const router = useRouter()
 interface School {
   id: string
   school_name: string
-  region_code: string | null
   group_id: string | null
   teacher_join_code: string
   admin_join_code: string
@@ -86,7 +85,6 @@ const newGovtEmail = ref('')
 const newGovtGroup = ref('')
 const newGovtOrg = ref('')
 const isCreatingGovt = ref(false)
-const regions = ref<Array<{ code: string; name: string }>>([])
 const govtAdminCode = ref<string | null>(null)
 
 // Staff list
@@ -170,6 +168,12 @@ const groupedCourses = computed(() => {
   return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b))
 })
 
+// Group leader invites land on the branded /group/:code door (see router
+// index.ts "group-landing" route) — link-first doctrine, never a bare code.
+function groupInviteLink(code: string): string {
+  return `${window.location.origin}/group/${code}`
+}
+
 function getCurrentUserId(): string | null {
   if (user.value) return user.value.id
   if (learner.value) return learner.value.user_id
@@ -183,7 +187,7 @@ async function fetchSchools(): Promise<void> {
   try {
     const { data, error: fetchError } = await client
       .from('schools')
-      .select('id, school_name, region_code, group_id, teacher_join_code, admin_join_code, created_at')
+      .select('id, school_name, group_id, teacher_join_code, admin_join_code, created_at')
       .order('created_at', { ascending: false })
 
     if (fetchError) throw fetchError
@@ -306,19 +310,6 @@ async function createStaff(): Promise<void> {
   }
 }
 
-async function fetchRegions(): Promise<void> {
-  try {
-    const client = getClient()
-    const { data } = await client
-      .from('regions')
-      .select('code, name')
-      .order('name')
-    regions.value = data || []
-  } catch (err) {
-    console.error('[SetupView] fetch regions error:', err)
-  }
-}
-
 async function createGovtAdmin(): Promise<void> {
   if (!newGovtName.value.trim()) { error.value = 'Name is required'; return }
   if (!newGovtEmail.value.trim()) { error.value = 'Email is required'; return }
@@ -361,7 +352,7 @@ async function createGovtAdmin(): Promise<void> {
 
     const groupName = newGovtGroup.value
       ? (groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group')
-      : 'a region they will name themselves'
+      : 'a group they will name themselves'
     successMessage.value = `Invite created for "${newGovtName.value.trim()}" — ${groupName}`
 
     newGovtName.value = ''
@@ -833,7 +824,6 @@ onMounted(() => {
   fetchCourses()
   fetchGrants()
   fetchStaff()
-  fetchRegions()
 })
 </script>
 
@@ -1088,7 +1078,7 @@ onMounted(() => {
           <div class="field">
             <label class="schools-kicker">Group <span class="optional">(optional)</span></label>
             <select v-model="newGovtGroup" class="frost-select">
-              <option value="">— Leader names their own region on first login —</option>
+              <option value="">— Leader names their own group on first login —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
                 {{ g.name }}
               </option>
@@ -1100,15 +1090,15 @@ onMounted(() => {
           </div>
 
           <div v-if="govtAdminCode" class="field field-wide invite-result">
-            <span class="schools-kicker">Invite code</span>
+            <span class="schools-kicker">Invite link</span>
             <button
               type="button"
               class="code-chip is-large"
-              :class="{ 'is-copied': copiedCode === govtAdminCode }"
-              @click="copyCode(govtAdminCode!)"
+              :class="{ 'is-copied': copiedCode === groupInviteLink(govtAdminCode) }"
+              @click="copyCode(groupInviteLink(govtAdminCode!))"
             >
-              <span class="code-value frost-mono-nums">{{ govtAdminCode }}</span>
-              <svg v-if="copiedCode !== govtAdminCode" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <span class="code-value frost-mono-nums">{{ groupInviteLink(govtAdminCode) }}</span>
+              <svg v-if="copiedCode !== groupInviteLink(govtAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
@@ -1116,14 +1106,14 @@ onMounted(() => {
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </button>
-            <span class="invite-hint">Share this code — they enter it in Settings to gain access.</span>
+            <span class="invite-hint">Share this link — clicking it takes them straight to sign-in.</span>
           </div>
 
           <div class="field-actions">
             <button
               type="submit"
               class="btn-primary"
-              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtGroup || !newGovtOrg.trim()"
+              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtOrg.trim()"
             >
               <svg v-if="!isCreatingGovt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
