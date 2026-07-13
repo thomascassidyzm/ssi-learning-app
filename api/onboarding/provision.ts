@@ -29,6 +29,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -438,39 +439,6 @@ async function burnTrial(
  * Non-fatal: signup must not die on the invite ledger, but failures are logged
  * loudly because a missing row means "Invalid code" for every invited teacher.
  */
-async function ensureJoinCodesRegistered(
-  supabase: any,
-  schoolId: string,
-  createdBy: string,
-): Promise<void> {
-  const { data: school, error: readErr } = await supabase
-    .from('schools')
-    .select('teacher_join_code, admin_join_code')
-    .eq('id', schoolId)
-    .maybeSingle()
-  if (readErr || !school) {
-    console.error('[onboarding/provision] join-code read failed:', readErr?.message)
-    return
-  }
-  const rows = [
-    { code: school.teacher_join_code, code_type: 'teacher' },
-    { code: school.admin_join_code, code_type: 'school_admin_join' },
-  ]
-    .filter((r) => !!r.code)
-    .map((r) => ({ ...r, created_by: createdBy, grants_school_id: schoolId, is_active: true }))
-  if (!rows.length) return
-  const { error } = await supabase
-    .from('invite_codes')
-    .upsert(rows, { onConflict: 'code', ignoreDuplicates: true })
-  if (error) {
-    console.error(
-      '[onboarding/provision] join-code registration failed (invites will not redeem):',
-      error.code,
-      error.message,
-    )
-  }
-}
-
 async function provisionSchoolPlatformTrial(
   supabase: any,
   email: string,

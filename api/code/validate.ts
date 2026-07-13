@@ -50,7 +50,7 @@ export default async function handler(
     // 1. Try invite_code_validation first
     const { data: inviteRow } = await supabase
       .from('invite_code_validation')
-      .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, metadata, max_uses, use_count, expires_at, is_active')
+      .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, grants_group_id, metadata, max_uses, use_count, expires_at, is_active')
       .eq('code_normalized', stripped)
       .eq('is_active', true)
       .maybeSingle()
@@ -71,13 +71,30 @@ export default async function handler(
       const codeType: string = inviteRow.code_type
       const context: Record<string, string | undefined> = {}
 
-      if (codeType === 'govt_admin' && inviteRow.grants_region) {
+      if (codeType === 'govt_admin' && inviteRow.grants_group_id) {
+        // Prefer the group (real node — may be a leader-named region already,
+        // e.g. "Gwynedd Education Authority"); fall back to the legacy
+        // regions lookup only when no group is attached yet.
+        const { data: group } = await supabase
+          .from('groups')
+          .select('name')
+          .eq('id', inviteRow.grants_group_id)
+          .single()
+        context.groupName = group?.name
+      } else if (codeType === 'govt_admin' && inviteRow.grants_region) {
         const { data: region } = await supabase
           .from('regions')
           .select('name')
           .eq('code', inviteRow.grants_region)
           .single()
         context.groupName = region?.name
+      } else if (codeType === 'school_admin' && inviteRow.grants_group_id) {
+        const { data: group } = await supabase
+          .from('groups')
+          .select('name')
+          .eq('id', inviteRow.grants_group_id)
+          .single()
+        context.groupName = group?.name
       } else if (codeType === 'school_admin') {
         const regionCode = inviteRow.metadata?.region_code
         if (regionCode) {

@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 import { recordRoleChange } from '../_utils/auditRole'
+import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -123,7 +124,7 @@ async function redeemInviteCode(
   // Re-validate code (forgiving: match the normalized column)
   const { data: inviteRow, error: inviteError } = await supabase
     .from('invite_codes')
-    .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, metadata, max_uses, use_count, expires_at, is_active')
+    .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, grants_group_id, metadata, max_uses, use_count, expires_at, is_active')
     .eq('code_normalized', strippedCode)
     .eq('is_active', true)
     .single()
@@ -247,10 +248,36 @@ async function redeemInviteCode(
 
   // Create role-specific records
   if (codeType === 'govt_admin') {
+    // Honour grants_group_id when set (leader joins Tom's pre-built group node).
+    // When absent, this is a leader naming their own region — create the group
+    // HERE, atomically with the admin row, rather than via a leader-callable
+    // create-group endpoint: no new write endpoint, no orphan groups from
+    // abandoned first-runs, and the leader can never end up group-less.
+    let groupId = inviteRow.grants_group_id as string | null
+    if (!groupId) {
+      const { data: newGroup, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name: inviteRow.metadata?.organization_name || 'New region',
+          type: 'region',
+        })
+        .select('id')
+        .single()
+      if (groupError || !newGroup) {
+        console.error('[CodeRedeem] Failed to create group for govt_admin:', groupError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+      groupId = newGroup.id as string
+    }
+
     const { error: govtError } = await supabase
       .from('govt_admins')
       .insert({
         user_id: userId,
+        group_id: groupId,
+        // Written during the region_code/group_id consolidation window (design
+        // §2) so schoolScope.ts's fallback stays honest until it's retired.
         region_code: inviteRow.grants_region,
         organization_name: inviteRow.metadata?.organization_name || '',
         created_by: userId,
@@ -268,9 +295,13 @@ async function redeemInviteCode(
         admin_user_id: userId,
         school_name: inviteRow.metadata?.school_name || '',
         region_code: inviteRow.metadata?.region_code || null,
+        // Automatic group attachment at birth, no adoption step. NEVER trust a
+        // client-supplied group_id — this comes only from the invite row,
+        // which itself was stamped from the minting leader's own group.
+        group_id: inviteRow.grants_group_id || null,
         invite_code_id: inviteRow.id,
       })
-      .select('id, teacher_join_code')
+      .select('id, teacher_join_code, admin_join_code')
       .single()
 
     if (schoolError || !newSchool) {
@@ -279,21 +310,11 @@ async function redeemInviteCode(
       return
     }
 
-    const { error: teacherCodeError } = await supabase
-      .from('invite_codes')
-      .insert({
-        code: newSchool.teacher_join_code,
-        code_type: 'teacher',
-        grants_school_id: newSchool.id,
-        created_by: userId,
-        is_active: true,
-      })
-
-    if (teacherCodeError) {
-      console.error('[CodeRedeem] Failed to create teacher invite code:', teacherCodeError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
-    }
+    // Register BOTH the teacher and school-admin join codes (the pre-existing
+    // bug: this branch only ever registered the teacher one, silently leaving
+    // the admin join code unredeemable — same class of fix as provision.ts's
+    // ensureJoinCodesRegistered, now shared from there).
+    await ensureJoinCodesRegistered(supabase, newSchool.id as string, userId)
   } else if (codeType === 'school_admin_join') {
     const { error: tagError } = await supabase
       .from('user_tags')
@@ -341,8 +362,16 @@ async function redeemInviteCode(
     }
   }
 
+  // school_admin routes through the existing course-picking onboarding
+  // continuation (not straight to /schools) so POST /api/onboarding/provision
+  // runs: it finds the school just created above (by admin_user_id, idempotent)
+  // and sets the platform trial clocks + re-runs ensureJoinCodesRegistered —
+  // today an invite-created school skips provision entirely and never gets a
+  // trial clock at all. Group schools get the same terms as self-serve schools
+  // for free, with zero new billing code.
   const redirectTo = codeType === 'ssi_admin' ? '/admin'
-    : ['god', 'govt_admin', 'school_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
+    : codeType === 'school_admin' ? '/schools1'
+    : ['god', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
     : '/'
 
   console.log('[CodeRedeem] Redeemed invite code:', inviteRow.code, 'for user:', userId, 'role:', codeType)
