@@ -68,15 +68,29 @@ const canImpersonate = computed(() => isSsiAdmin.value)
 const canActAs = computed(() => isSsiAdmin.value)
 
 /**
- * Initialize from known role values (called after DB fetch)
+ * Initialize from known role values (called after DB fetch).
+ *
+ * Guards against the "partial payload" clobber: some callers only know ONE
+ * of the two roles (e.g. RedeemCode's optimistic post-redemption write knows
+ * the just-redeemed educational role but not the platform role) and pass
+ * null for the other, meaning "I don't know", not "this is genuinely
+ * cleared". Overwriting a known non-null role with that null silently
+ * downgrades e.g. an ssi_admin to nobody, and the bad value STICKS because
+ * it's persisted to localStorage below. A caller that HAS the real DB row
+ * (the only source of truth) always passes both fields together, so this
+ * guard never blocks a genuine demotion — only an incomplete write. Explicit
+ * clears (logout) go through clear(), not initialize().
  */
 function initialize(platform: string | null, educational: string | null): void {
-  platformRole.value = platform
-  educationalRole.value = educational
+  const nextPlatform = platform === null && platformRole.value !== null ? platformRole.value : platform
+  const nextEducational = educational === null && educationalRole.value !== null ? educationalRole.value : educational
+
+  platformRole.value = nextPlatform
+  educationalRole.value = nextEducational
   isInitialized.value = true
 
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ platformRole: platform, educationalRole: educational }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ platformRole: nextPlatform, educationalRole: nextEducational }))
   } catch {
     // localStorage unavailable
   }
