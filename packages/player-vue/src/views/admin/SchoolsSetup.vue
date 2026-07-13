@@ -1274,7 +1274,7 @@ onMounted(() => {
         </table>
       </div>
 
-      <div class="schools-card empty">
+      <div v-if="schools.length === 0" class="schools-card empty">
         <div class="empty-ghost">schools</div>
         <div class="empty-copy">
           <strong>No schools yet</strong>
@@ -1369,7 +1369,7 @@ onMounted(() => {
         </table>
       </div>
 
-      <div class="schools-card empty">
+      <div v-if="staffMembers.length === 0" class="schools-card empty">
         <div class="empty-ghost">staff</div>
         <div class="empty-copy">
           <strong>No staff yet</strong>
