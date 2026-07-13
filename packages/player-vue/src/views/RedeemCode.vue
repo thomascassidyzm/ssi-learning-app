@@ -276,6 +276,13 @@ async function doRedeem() {
       } else if (pendingCode.value?.codeType) {
         useUserRole().initialize(null, pendingCode.value.codeType)
       }
+      // Re-sync from the DB now the redemption write has committed — this
+      // is the authoritative write. The SIGNED_IN auth listener's own
+      // ensureLearnerExists() call started concurrently with the
+      // redemption and can resolve later with pre-redemption data,
+      // clobbering the optimistic role set above before the redirect
+      // below fires. See useAuth.refreshRole for the full race.
+      await auth?.refreshRole?.()
       step.value = 'success'
       redirectUrl.value = result.redirectTo || '/'
       setTimeout(() => {
