@@ -59,6 +59,12 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+  // For govt_admin callers minting school_admin codes, the group is SERVER-
+  // DERIVED from the caller's own govt_admins row — never from the client
+  // payload. This one rule is what makes every leader-minted link group-bound
+  // and cross-region minting impossible (region-tier-design.md §1e).
+  let derivedGrantsGroupId: string | null | undefined
+
   try {
     // Verify caller has permission for the code_type
     if (code_type === 'ssi_admin' || code_type === 'god') {
@@ -95,13 +101,14 @@ export default async function handler(
     } else if (code_type === 'school_admin') {
       const { data: govtAdmin } = await supabase
         .from('govt_admins')
-        .select('id')
+        .select('id, group_id')
         .eq('user_id', userId)
         .maybeSingle()
       if (!govtAdmin) {
         res.status(403).json({ error: 'Only government admins can create school_admin codes' })
         return
       }
+      derivedGrantsGroupId = (govtAdmin as any).group_id ?? null
     } else if (code_type === 'teacher') {
       if (!grants_school_id) {
         res.status(400).json({ error: 'grants_school_id required for teacher codes' })
@@ -163,7 +170,13 @@ export default async function handler(
       is_active: true,
     }
     if (grants_region !== undefined) insertData.grants_region = grants_region
-    if (grants_group_id !== undefined) insertData.grants_group_id = grants_group_id
+    if (code_type === 'school_admin') {
+      // Server-derived only — see derivedGrantsGroupId above. Ignore any
+      // client-supplied grants_group_id for this code_type.
+      insertData.grants_group_id = derivedGrantsGroupId ?? null
+    } else if (grants_group_id !== undefined) {
+      insertData.grants_group_id = grants_group_id
+    }
     if (grants_school_id !== undefined) insertData.grants_school_id = grants_school_id
     if (grants_class_id !== undefined) insertData.grants_class_id = grants_class_id
     if (metadata !== undefined) insertData.metadata = metadata

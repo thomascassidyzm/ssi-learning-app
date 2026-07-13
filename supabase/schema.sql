@@ -4434,6 +4434,24 @@ ALTER SEQUENCE public.audio_flags_id_seq OWNED BY public.audio_flags.id;
 
 
 --
+-- Name: audio_pass_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_pass_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    course_code text NOT NULL,
+    reason text NOT NULL,
+    requested_by text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    fulfilled_at timestamp with time zone,
+    fulfilled_by text
+);
+
+
+--
 -- Name: build_jobs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4710,7 +4728,7 @@ COMMENT ON COLUMN public.learners.is_internal IS 'Real human internal/QA/team ac
 
 CREATE TABLE public.schools (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    admin_user_id text NOT NULL,
+    admin_user_id text,
     school_name text NOT NULL,
     region_code text,
     teacher_join_code text NOT NULL,
@@ -6444,6 +6462,31 @@ COMMENT ON TABLE public.evolution_levels IS 'Reference table for evolution level
 
 
 --
+-- Name: family_members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.family_members (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    owner_learner_id uuid NOT NULL,
+    member_learner_id uuid,
+    invited_email text,
+    is_child_account boolean DEFAULT false NOT NULL,
+    status text DEFAULT 'invited'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    removed_at timestamp with time zone,
+    CONSTRAINT family_members_status_check CHECK ((status = ANY (ARRAY['invited'::text, 'active'::text, 'removed'::text])))
+);
+
+
+--
+-- Name: TABLE family_members; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.family_members IS 'SSi Family plan membership (FAMILY-PLAN-SPEC.md). The umbrella IS the payer''s subscriptions row (plan_name = ''SSi Family''); this table is the only new data surface. RLS ON, no policies — service-role-only, all access via /api/family/* endpoints (CLAUDE.md rule 7 posture + the "hierarchy authz = endpoints" doctrine). Removal is a stamp (removed_at + status=''removed''), never a delete.';
+
+
+--
 -- Name: feedback_aggregated; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -6503,7 +6546,8 @@ CREATE TABLE public.groups (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     path text,
-    is_demo boolean DEFAULT false NOT NULL
+    is_demo boolean DEFAULT false NOT NULL,
+    name_confirmed boolean DEFAULT false NOT NULL
 );
 
 
@@ -6564,11 +6608,12 @@ CREATE VIEW public.group_summary WITH (security_invoker='on') AS
     COALESCE(sum(ss.teacher_count), (0)::numeric) AS teacher_count,
     COALESCE(sum(ss.class_count), (0)::numeric) AS class_count,
     COALESCE(sum(ss.student_count), (0)::numeric) AS student_count,
-    COALESCE(sum(ss.total_practice_hours), (0)::numeric) AS total_practice_hours
+    COALESCE(sum(ss.total_practice_hours), (0)::numeric) AS total_practice_hours,
+    g.name_confirmed
    FROM ((public.groups g
      LEFT JOIN public.schools s ON ((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids))))
      LEFT JOIN public.school_summary ss ON ((ss.school_id = s.id)))
-  GROUP BY g.id, g.name, g.path;
+  GROUP BY g.id, g.name, g.path, g.name_confirmed;
 
 
 --
@@ -6632,7 +6677,8 @@ CREATE VIEW public.invite_code_validation WITH (security_invoker='on') AS
     use_count,
     expires_at,
     is_active,
-    code_normalized
+    code_normalized,
+    grants_group_id
    FROM public.invite_codes;
 
 
@@ -8344,6 +8390,14 @@ ALTER TABLE ONLY public.audio_flags
 
 
 --
+-- Name: audio_pass_requests audio_pass_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_pass_requests
+    ADD CONSTRAINT audio_pass_requests_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: build_jobs build_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8813,6 +8867,14 @@ ALTER TABLE ONLY public.entitlement_grants
 
 ALTER TABLE ONLY public.evolution_levels
     ADD CONSTRAINT evolution_levels_pkey PRIMARY KEY (level);
+
+
+--
+-- Name: family_members family_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_members
+    ADD CONSTRAINT family_members_pkey PRIMARY KEY (id);
 
 
 --
@@ -9541,6 +9603,41 @@ ALTER TABLE ONLY public.user_tags
 
 ALTER TABLE ONLY public.voices
     ADD CONSTRAINT voices_pkey PRIMARY KEY (voice_id);
+
+
+--
+-- Name: audio_pass_requests_one_pending_per_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX audio_pass_requests_one_pending_per_course ON public.audio_pass_requests USING btree (course_code) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: audio_pass_requests_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audio_pass_requests_status_idx ON public.audio_pass_requests USING btree (status, created_at);
+
+
+--
+-- Name: family_members_invite_dedupe; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX family_members_invite_dedupe ON public.family_members USING btree (owner_learner_id, invited_email) WHERE ((removed_at IS NULL) AND (invited_email IS NOT NULL));
+
+
+--
+-- Name: family_members_one_family; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX family_members_one_family ON public.family_members USING btree (member_learner_id) WHERE ((removed_at IS NULL) AND (member_learner_id IS NOT NULL));
+
+
+--
+-- Name: family_members_owner_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX family_members_owner_idx ON public.family_members USING btree (owner_learner_id);
 
 
 --
@@ -11672,6 +11769,22 @@ ALTER TABLE ONLY public.entitlement_grants
 
 
 --
+-- Name: family_members family_members_member_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_members
+    ADD CONSTRAINT family_members_member_learner_id_fkey FOREIGN KEY (member_learner_id) REFERENCES public.learners(id);
+
+
+--
+-- Name: family_members family_members_owner_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_members
+    ADD CONSTRAINT family_members_owner_learner_id_fkey FOREIGN KEY (owner_learner_id) REFERENCES public.learners(id);
+
+
+--
 -- Name: course_legos fk_course_legos_seed; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13067,6 +13180,12 @@ CREATE POLICY entitlement_codes_update_admin ON public.entitlement_codes FOR UPD
 --
 
 ALTER TABLE public.evolution_levels ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: family_members; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.family_members ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: gamification_config; Type: ROW SECURITY; Schema: public; Owner: -
@@ -14926,6 +15045,15 @@ GRANT ALL ON SEQUENCE public.audio_flags_id_seq TO service_role;
 
 
 --
+-- Name: TABLE audio_pass_requests; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_pass_requests TO anon;
+GRANT ALL ON TABLE public.audio_pass_requests TO authenticated;
+GRANT ALL ON TABLE public.audio_pass_requests TO service_role;
+
+
+--
 -- Name: TABLE build_jobs; Type: ACL; Schema: public; Owner: -
 --
 
@@ -15417,6 +15545,13 @@ GRANT ALL ON TABLE public.entitlement_grants TO service_role;
 
 GRANT ALL ON TABLE public.evolution_levels TO authenticated;
 GRANT ALL ON TABLE public.evolution_levels TO service_role;
+
+
+--
+-- Name: TABLE family_members; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.family_members TO service_role;
 
 
 --

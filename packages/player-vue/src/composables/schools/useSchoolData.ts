@@ -14,6 +14,10 @@ interface GroupSummary {
   group_name: string
   group_path?: string
   region_code?: string
+  // Drives the "name your region" first-run card (region-tier-design.md
+  // §1d). Undefined on the legacy region_summary fallback (pre-group-tree
+  // govt admins) — treat as already-confirmed there, nothing to prompt.
+  name_confirmed?: boolean
   school_count: number
   teacher_count: number
   student_count: number
@@ -171,6 +175,7 @@ export function useSchoolData() {
               group_id: groupData.group_id,
               group_name: groupData.group_name,
               group_path: groupData.group_path,
+              name_confirmed: groupData.name_confirmed,
               school_count: groupData.school_count,
               teacher_count: groupData.teacher_count,
               student_count: groupData.student_count,
