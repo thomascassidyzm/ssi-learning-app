@@ -323,11 +323,11 @@ async function redeemInviteCode(
     // select just avoids paying for a doomed insert on the common path.
     const { data: existing } = await supabase
       .from('schools')
-      .select('id, teacher_join_code, admin_join_code')
+      .select('id, teacher_join_code, admin_join_code, group_id')
       .eq('admin_user_id', userId)
       .maybeSingle()
 
-    let newSchool: { id: string; teacher_join_code?: string; admin_join_code?: string } | null =
+    let newSchool: { id: string; teacher_join_code?: string; admin_join_code?: string; group_id?: string | null } | null =
       existing as any
 
     if (!newSchool) {
@@ -343,7 +343,7 @@ async function redeemInviteCode(
           group_id: inviteRow.grants_group_id || null,
           invite_code_id: inviteRow.id,
         })
-        .select('id, teacher_join_code, admin_join_code')
+        .select('id, teacher_join_code, admin_join_code, group_id')
         .single()
 
       if (schoolError?.code === '23505') {
@@ -351,7 +351,7 @@ async function redeemInviteCode(
         // inserted first. Reuse the winner's row instead of erroring.
         const { data: raced } = await supabase
           .from('schools')
-          .select('id, teacher_join_code, admin_join_code')
+          .select('id, teacher_join_code, admin_join_code, group_id')
           .eq('admin_user_id', userId)
           .maybeSingle()
         if (!raced) {
@@ -366,6 +366,24 @@ async function redeemInviteCode(
         return
       } else {
         newSchool = inserted as any
+      }
+    } else if (inviteRow.grants_group_id && !newSchool.group_id) {
+      // Reusing a PRE-EXISTING school for this admin (e.g. an earlier
+      // ungrouped self-serve signup) that predates this group-stamped invite.
+      // Without this, the invite's group grant was silently dropped — the
+      // admin ended up with a working, ungrouped school the leader's group
+      // view could never see (the actual leak this branch used to have).
+      // Only fills in an UNSET group_id — never reassigns a school that's
+      // already attached to a (possibly different) group.
+      const { error: attachError } = await supabase
+        .from('schools')
+        .update({ group_id: inviteRow.grants_group_id })
+        .eq('id', newSchool.id)
+        .is('group_id', null)
+      if (attachError) {
+        console.error('[CodeRedeem] Failed to attach pre-existing school to invite group:', attachError)
+      } else {
+        newSchool = { ...newSchool, group_id: inviteRow.grants_group_id }
       }
     }
 

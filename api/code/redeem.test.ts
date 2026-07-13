@@ -271,6 +271,61 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(writes.schools[0].payload.group_id).toBe(null)
   })
 
+  it('school_admin branch: attaches group_id to a PRE-EXISTING ungrouped school for this admin instead of leaving it orphaned', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-5',
+            code: 'SCH-ATTACH',
+            code_type: 'school_admin',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-gwynedd',
+            metadata: { school_name: 'Gwynedd School 003' },
+            max_uses: 1,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-5' }, error: null })
+    // This admin already has a school row from before this invite (e.g. an
+    // earlier self-serve signup) — ungrouped.
+    responders.schools = (calls) => {
+      const isPreCheckSelect = calls.some(
+        (c) => c[0] === 'select' && /\bid\b/.test(String(c[1])) && String(c[1]).includes('teacher_join_code'),
+      )
+      const isUpdate = calls.some((c) => c[0] === 'update')
+      const isSelectJoinCodes = calls.some(
+        (c) => c[0] === 'select' && String(c[1]).includes('teacher_join_code') && !/\bid\b/.test(String(c[1])),
+      )
+      if (isPreCheckSelect) {
+        return { data: { id: 'school-preexisting', teacher_join_code: 'TEACH-5', admin_join_code: 'ADMIN-5', group_id: null }, error: null }
+      }
+      if (isUpdate) return { data: null, error: null }
+      if (isSelectJoinCodes) return { data: { teacher_join_code: 'TEACH-5', admin_join_code: 'ADMIN-5' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SCH-ATTACH', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    // No new school row created — the pre-existing one was reused.
+    expect(writes.schools.some((w) => w.op === 'insert')).toBe(false)
+    // The invite's group_id was backfilled onto the existing (previously ungrouped) row.
+    const update = writes.schools.find((w) => w.op === 'update')!
+    expect(update.payload).toEqual({ group_id: 'group-gwynedd' })
+  })
+
   it('school_admin branch: two concurrent redemptions for the same admin produce exactly ONE school (double-redeem race, WORKLIST 07-13)', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
