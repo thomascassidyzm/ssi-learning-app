@@ -120,21 +120,6 @@ export interface ScriptShapeConfig {
 export interface ListeningModeConfig {
   enabled: boolean
   offset: number              // rounds after last LEGO before seed graduates
-  l1ActiveSize: number        // sliding window size of recent graduated seeds
-  l1ReserveSize: number       // older graduated seeds beyond active (fixed window)
-  /** Sentences pulled per URN draw for RESERVE and RETIRED. Consumed
-   * by Listening MODE — L1 is no longer interleaved with main flow. */
-  l1UrnPullCount: number
-  /** Legacy / fallback flat playlist — used when layer1StagePlaylist is empty. */
-  layer1Playlist: ListeningSlotRole[]
-  /** Staged Layer 1 playlist — keys are stage numbers, values are the
-   * playlist for that stage. Per-seed fire counter advances each L1
-   * emission; stage = floor((fireCount-1)/layer1StageDuration)+1, capped
-   * at the highest key (eternal hold). Aran 2026-05-07 spec: seeds
-   * decay to a single 2× rep over time. */
-  layer1StagePlaylist: Record<string, ListeningSlotRole[]>
-  /** L1 fires spent in each transitional stage before promoting. */
-  layer1StageDuration: number
   /** @deprecated Moved to PodsConfig.podActivationRound (2026-05-17).
    *  Optional/read-only here for legacy rows whose `pods` config hasn't
    *  been re-saved yet. The dashboard backfills on next load.
@@ -219,17 +204,6 @@ export const DEFAULT_TURBO: ModeConfig = {
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
   offset: 90,
-  l1ActiveSize: 10,
-  l1ReserveSize: 50,
-  l1UrnPullCount: 10,
-  layer1Playlist: ['ps', 'ps2x', 'ps2x'],
-  layer1StagePlaylist: {
-    '1': ['ps', 'ps2x', 'ps2x'],
-    '2': ['ps2x', 'ps2x', 'ps2x'],
-    '3': ['ps2x', 'ps2x'],
-    '4': ['ps2x'],
-  },
-  layer1StageDuration: 3,
 }
 
 const DEFAULT_PODS: PodsConfig = {

@@ -1,6 +1,6 @@
 # APML Interface: Learning Player Specification
 # SSI Learning App v2.1.0
-# Version: 2.1.17 (2026-06-16)
+# Version: 2.1.19 (2026-07-14)
 # Status: Production-ready
 
 ## ============================================================================
@@ -625,19 +625,22 @@ COLD_START:
       instant, then setLoadingStage('ready').
 
   deferred_hydration: |
-    Belt + adaptation + listening hydration are moved OFF the critical path. The
-    three init calls — initializeBeltProgress() (belt remote merge + getMaxSeedNumber),
-    initializeAdaptationEngine() (mastery hydration), initializeListeningProgress()
-    (Layer-1 fire-counts) — each await a Supabase round-trip but NONE is required
-    before the first cycle plays. They are fired CONCURRENTLY via
-    void Promise.all([...]) and NOT awaited; the belt readout / pause tuning / L1
-    counts hydrate reactively a beat later. Every consumer is null-safe with a
-    default (adaptationEngine.value?.getPauseMultiplier() ?? 1.0, listeningProgress
-    .value?., belt computeds all `?. ?? <default>`). Only getEnrollment (resume
+    Belt + adaptation hydration are moved OFF the critical path. The two init
+    calls — initializeBeltProgress() (belt remote merge + getMaxSeedNumber),
+    initializeAdaptationEngine() (mastery hydration) — each await a Supabase
+    round-trip but NEITHER is required before the first cycle plays. They are
+    fired CONCURRENTLY via void Promise.all([...]) and NOT awaited; the belt
+    readout / pause tuning hydrate reactively a beat later. Every consumer is
+    null-safe with a default (adaptationEngine.value?.getPauseMultiplier() ??
+    1.0, belt computeds all `?. ?? <default>`). Only getEnrollment (resume
     position) is on the critical path. loadGlobalLegoTexts() + offline-play listener
     setup are likewise fire-and-forget. Lazy chunks (ListeningOverlay, Pronunciation
     Overlay, ProgressModal, SessionComplete) are import-prewarmed on requestIdleCallback
     AFTER ready. Network population is deferred to first play / Progress-screen open.
+    (2026-07-14: initializeListeningProgress() / useListeningProgress.ts /
+    LegoListeningStore deleted — dead since the 2026-05-19 L1 main-flow
+    removal; L1 listening now lives entirely in the runtime 30-cup wheel,
+    useLayer1Scheduler.ts, which needs no fire-count hydration.)
 
   telemetry:
     event: "cold_start (logEvent) — the ONLY event before tap_play, so cold starts
@@ -865,6 +868,15 @@ ACCESSIBILITY:
 ## ============================================================================
 
 VERSION_HISTORY:
+  v2.1.19:
+    date: "2026-07-14"
+    title: "SEED playback simplified to the t-k-t-t sandwich, all @1x (listening cups + drained-eternal speaking review) — founders' decision (Tom + Aran)"
+    changes:
+      - "Layer-1 listening cups (useLayer1Scheduler.ts): DEFAULT_SEED_PLAYLIST dropped its trailing @2x stretch rep — the four-slot sandwich is now target(v1)@1x -> known@1x -> target(v2)@1x -> target(v1)@1x, ALL at 1.0x. Layer1SlotRole/Layer1PlayRole lost the t1x2/t2x2/ps2x speed-doubling members entirely (deleted, not defaulted-away) — a stale admin-config row still carrying them now silently drops that slot rather than throwing. Pod (Layer 2) speaking-mode decay and Listening-mode pods (drill/immersion) are UNCHANGED — this only touches SEED playback."
+      - "SEEDS as full sentences in SPEAKING MODE once spaced-rep has drained (SEED_PHASE_START_OFFSET=144, reviewItemKind='seed' in generateLearningScript.ts): previously ran through the standard prompt/pause/voice1/voice2 production cycle (known -> silent pause -> target -> target). Now plays the SAME t-k-t-t @1x sandwich as the listening cups — a drained/eternal seed no longer needs an active-recall gap. Implemented as FOUR single-audio sub-cycles (emitSeedSandwich helper, shared by the main loop and the INF PLAY revival tail), mirroring the existing pod/listening single-audio-cycle trick rather than inventing a new phase machine. toSimpleRounds.ts and packages/core/src/script/playerTypes.ts (new Cycle.singleAudio flag) + SimplePlayer.ts's isSingleAudioCycle updated so these sub-cycles skip their empty phases silently instead of warning."
+      - "Deleted dead pre-cups Layer-1 machinery in generateLearningScript.ts: ListeningConfig.l1ActiveSize/l1ReserveSize/l1UrnPullCount/layer1Playlist/layer1StagePlaylist/layer1StageDuration, emitL1Cluster, seedL1FireCount, graduatedQueue + l1Active/Reserve/RetiredSeedsList, createUrnSampler/reserveUrn/retiredUrn, layer1StageFor/layer1PlaylistForFireCount, the initialL1FireCounts param. All confirmed unreachable since the 2026-05-19 L1 main-flow removal (emitL1Cluster was defined but never called). Mirrored in useAlgorithmConfig.ts's ListeningModeConfig/DEFAULT_LISTENING. Deleted useListeningProgress.ts + @ssi/core's LegoListeningStore.ts (existed solely to hydrate the now-gone fire-count param) and their LearningPlayer.vue wiring (initializeListeningProgress, the dead l1_cluster_start/listening-cycle telemetry block keyed on emitL1Cluster's old uuid patterns, l1ClusterSeedsBumped). learner_l1_state DB table left alone — no migration, just stopped reading/writing it."
+      - "Pod speaking-mode decay (usePodLapScheduler stage playlists) and Stage 0 / the fusion ladder are explicitly UNCHANGED — out of scope for this pass, per the founders' decision."
+
   v2.1.18:
     date: "2026-07-05"
     title: "Resume: reinstate narrow ceiling fallback — cursor null/unresolvable + populated ceiling no longer drops learners to round 1"

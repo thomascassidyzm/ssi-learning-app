@@ -33,6 +33,54 @@
 #   - Reserve overflow (older than active-10 + reserve-50) will eventually
 #     feed into Choice Pods (P1 music / P2 sport / P3 society) — TBD.
 #
+# UPDATE (2026-07-14, Tom + Aran): Layer-1 listening — both the runtime
+# 30-cup wheel (packages/player-vue/src/composables/useLayer1Scheduler.ts)
+# AND the drained/eternal SEED-PHASE production review in SPEAKING mode
+# (generateLearningScript.ts's emitSeedSandwich, offset >= SEED_PHASE_START
+# _OFFSET) — now play the SAME fixed pattern: target -> known -> target ->
+# target, ALL at 1.0x. The trailing @2x stretch rep is gone; a drained seed
+# doesn't need it. Canonical spec: docs/methodology/layer1-listening-cups.md.
+# The dead pre-cups decay/stage/urn-sampling machinery in
+# generateLearningScript.ts (ListeningConfig.layer1Playlist/
+# layer1StagePlaylist/l1ActiveSize/l1ReserveSize/l1UrnPullCount,
+# emitL1Cluster, learner_l1_state fire-count hydration) was deleted — it had
+# been unreachable since the 2026-05-19 L1 main-flow removal.
+#
+# UPDATE (2026-07-14, Tom + Aran): Layer-2 (Listening Pods) main-flow
+# delivery — Stage-0, the audio-drilled per-atom breakdown ladder that used
+# to prepend a sentence's first N views (explainer chunk-by-chunk → pairs →
+# intention), is RETIRED from the main-flow pod path. It is replaced by an
+# ALWAYS-VISIBLE visual: the whole dialogue TURN (one or more glued sentences)
+# stays on screen for the duration of the pod lap, each sentence lighting up
+# as it plays; under/within each sentence is a LEGO-tile breakdown — one tile
+# per atom_map entry, its known-language gloss shown beneath, in
+# target-sentence order ("the visuals betray the target language grammar").
+# This is the SAME LegoAssembly engine the main speaking cycle's intro/debut
+# tiles use (packages/player-vue/src/components/LegoAssembly.vue), reused
+# (not reimplemented) via a thin wrapper, PodTurnDisplay.vue. No
+# reveal-gating — unlike the 4-phase speaking cycle's VOICE_2 rule, pod
+# listening shows text the whole time (matches how Listening Mode's Dialogues
+# teleprompter already shows text unconditionally). Speaking-mode pods keep
+# their existing DECAY/reveal model in the main cycle — untouched, separate
+# concern. Every pod phrase remains a complete communicative unit with
+# independent meaning ("good morning, Sarah", never "good/morning/Sarah") —
+# audio carries prosodic shape, the visual now carries grammar. Content-side
+# segmentation enforcement (the rule + pod1) is built in the dashboard repo in
+# parallel; the app renders whatever segmentation it receives.
+#
+# Every sentence now enters straight at whole-sentence Stage 1 on its first
+# view (usePodLapScheduler.ts's nextLap — the Stage-0 prepend AND the
+# agent-authored fusion-rung sub-ladder for main-flow were both removed;
+# fusionDrill.ts's pairwise fusion ladder itself stays, still load-bearing for
+# Listening Mode's Dialogues > Drill mode via useListeningPods.ts, a fully
+# separate learner-opt-in surface untouched by this change). stage0Sequence.ts
+# stays for the admin-only Pod stage auditioner (/admin/pod-auditioner),
+# which still previews/tunes Stage-0 timing for content authoring; its
+# higher-level runtime-weaving functions (buildStage0Tier, composeSentenceArc,
+# loadStage0ClipMaps, stage0ViewFor) had zero other callers once removed from
+# the scheduler and were deleted outright (see @ssi/core/pods/index.ts header
+# for the fuller account).
+#
 # The body of this spec below is preserved for historical context.
 # =============================================================================
 

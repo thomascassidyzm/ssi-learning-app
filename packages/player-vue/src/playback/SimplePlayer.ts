@@ -820,7 +820,8 @@ export class SimplePlayer {
     // no audio — those gaps are by design, not missing data. Suppress
     // the warning for these cycle types so the console stays useful
     // for real audio gaps in speaking cycles.
-    const isSingleAudioCycle = currentCycle?.type === 'listening'
+    const isSingleAudioCycle = currentCycle?.singleAudio === true
+      || currentCycle?.type === 'listening'
       || currentCycle?.type === 'pod'
       || currentCycle?.type === 'listen_intro'
       || currentCycle?.type === 'listen_outro'

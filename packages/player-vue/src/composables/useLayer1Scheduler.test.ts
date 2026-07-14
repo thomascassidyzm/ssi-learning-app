@@ -231,8 +231,8 @@ describe('composeCupSeeds', () => {
 })
 
 // ----------------------------------------------------------------------------
-// buildSeedPlays — the per-seed comprehensible-input sandwich (Tom 2026-06-21)
-//   target @1× (v1) → known @1× → target @1× (v2) → target @2×
+// buildSeedPlays — the per-seed comprehensible-input sandwich (Tom + Aran,
+// 2026-07-14): target @1× (v1) → known @1× → target @1× (v2) → target @1× (v1)
 // ----------------------------------------------------------------------------
 describe('buildSeedPlays', () => {
   const full = {
@@ -244,10 +244,10 @@ describe('buildSeedPlays', () => {
     knownText: 'I want to learn',
   }
 
-  it('emits the 4-slot sandwich: target1×, known1×, target1×(v2), target2×', () => {
+  it('emits the 4-slot t·k·t·t sandwich, all @1×', () => {
     const plays = buildSeedPlays(full)
-    expect(plays.map((p) => p.role)).toEqual(['ps', 'trans', 'ps', 'ps2x'])
-    expect(plays.map((p) => p.playbackSpeed)).toEqual([1.0, 1.0, 1.0, 2.0])
+    expect(plays.map((p) => p.role)).toEqual(['ps', 'trans', 'ps', 'ps'])
+    expect(plays.map((p) => p.playbackSpeed)).toEqual([1.0, 1.0, 1.0, 1.0])
     expect(plays.map((p) => p.audioId)).toEqual(['t1', 'k', 't2', 't1'])
     expect(plays.every((p) => p.seedNumber === 7)).toBe(true)
   })
@@ -266,7 +266,7 @@ describe('buildSeedPlays', () => {
 
   it('drops (never silences) the trans slot when the seed has no known audio', () => {
     const plays = buildSeedPlays({ ...full, knownId: null })
-    expect(plays.map((p) => p.role)).toEqual(['ps', 'ps', 'ps2x'])
+    expect(plays.map((p) => p.role)).toEqual(['ps', 'ps', 'ps'])
     expect(plays.some((p) => p.role === 'trans')).toBe(false)
   })
 
