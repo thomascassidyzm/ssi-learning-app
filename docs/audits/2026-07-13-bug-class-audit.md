@@ -22,7 +22,7 @@ Three compounding bugs, all in the ssi_admin "view any school/group/learner" sur
 **1a. Stale scope leaks into the admin's own `/schools`.**
 `useSchoolContext.ts:51,107-111` — `currentUser` is a module-level singleton, overwritten by every `Admin*Container`'s `loadFromSchoolId`/`loadFromGroupId`/`loadFromLearnerId`, but never cleared on unmount; `loadFromAuth` (called by the admin's own `/schools`) explicitly no-ops once anything is populated.
 
-**1b. Shared dashboard components hardcode `/schools/...` self-paths.**
+**1b. Shared dashboard components hardcode `/schools/...` self-paths. — FIXED `df926fca` (wave 2)**
 `DashboardView.vue`, `TeacherDashboard.vue`, `StudentsView.vue`, `SchoolsView.vue` are all mounted both as the learner's own `/schools/*` AND as `admin-school-*`/`admin-group-*` read-only routes, but every internal nav link is a hardcoded `/schools/...` path with no `isAdminView`/`:id` awareness.
 
 **1c. `ClassDetail.vue` reads the wrong route param under admin nesting.**
@@ -34,25 +34,25 @@ Three compounding bugs, all in the ssi_admin "view any school/group/learner" sur
 
 **Why #1:** this is the only finding in the whole sweep that's a genuine cross-tenant security/data-integrity issue rather than a broken feature — an admin's own actions can land against the wrong school's data without any error surfacing.
 
-**Fix-pass note (2026-07-14, commit `47e740bc`):** 1a fixed two ways — (i) every `currentUser` load is now tagged with its source (`self`/`admin-view`/`demo`); `loadFromAuth`'s idempotent no-op now only fires against a matching self load, never a stale admin-view scope carrying the same admin's user_id (which is exactly what made presence-alone unsafe to check). (ii) `AdminSchoolsContainer`/`AdminGroupContainer`/`AdminUserProgress`/`AdminClassDetail` now deterministically `ctx.clear()` on unmount, so leaving a read-view can never leak scope into whatever mounts next. 1c fixed: `ClassDetail.vue` now prefers `route.params.classId` over `route.params.id`, since the nested `/admin/schools/:id/classes/:classId` route resolves `.id` to the parent SCHOOL id. **1b (hardcoded self-paths in DashboardView.vue/TeacherDashboard.vue/StudentsView.vue/SchoolsView.vue) was SKIPPED** — a live concurrent worker was already mid-fix on exactly this (a `useSchoolsNav` composable referenced from `DashboardView.vue` on `dev` HEAD at the time, not yet landed — confirmed via `pnpm typecheck` failing on that missing module before any of this session's edits). Duplicating it risked a merge collision per this session's explicit exclusion list. With 1a's fix landed, 1b's residual risk is now UX-only (a stale-linked click re-lands the admin correctly on their OWN scope instead of a leaked one) rather than a write-safety issue — worth confirming `useSchoolsNav` landed and covers all four files once the other worker's branch merges.
+**Fix-pass note (2026-07-14, commit `47e740bc`):** 1a fixed two ways — (i) every `currentUser` load is now tagged with its source (`self`/`admin-view`/`demo`); `loadFromAuth`'s idempotent no-op now only fires against a matching self load, never a stale admin-view scope carrying the same admin's user_id (which is exactly what made presence-alone unsafe to check). (ii) `AdminSchoolsContainer`/`AdminGroupContainer`/`AdminUserProgress`/`AdminClassDetail` now deterministically `ctx.clear()` on unmount, so leaving a read-view can never leak scope into whatever mounts next. 1c fixed: `ClassDetail.vue` now prefers `route.params.classId` over `route.params.id`, since the nested `/admin/schools/:id/classes/:classId` route resolves `.id` to the parent SCHOOL id. **1b (hardcoded self-paths in DashboardView.vue/TeacherDashboard.vue/StudentsView.vue/SchoolsView.vue) — FIXED wave 2 (`df926fca`)**: `useSchoolsNav` landed on `dev` (`9563bbd7`, stash recovery). `DashboardView.vue` had already adopted it for a few links but left several un-gated (quick-links panel, "Full schools list", drill-down class links, Play/Play-as-class write buttons) — those are now repointed/gated. `TeacherDashboard.vue`, `StudentsView.vue`, and `SchoolsView.vue` had never adopted the composable at all (including a `router.push({ name: 'class-detail' })` in `TeacherDashboard.vue` that resolved to the wrong route entirely under admin scope, and `SchoolsView.vue`'s school-row click that ejected an admin group-viewer into their own `/schools` instead of drilling into that school's read-view) — all now use `schoolsLink()`.
 
 ---
 
 ## Very high — will 403 on first touch, hits the pilot's first-run path directly
 
-### 2. [Class 1] `schools`/`groups` tables have no `authenticated` write grant — 7 live call sites still write to them directly
+### 2. [Class 1] `schools`/`groups` tables have no `authenticated` write grant — 7 live call sites still write to them directly — **FIXED (wave 1: 2b `18a553b3`; wave 2: 2a/2c/2d/2e/2f `449cafac`)**
 **File:** `supabase/schema.sql:15168,15586` — `authenticated` has `SELECT,REFERENCES,TRIGGER,MAINTAIN` only on both tables; only `service_role` has `GRANT ALL`.
 
 This is the exact same root cause as tonight's `SchoolsSetup.vue` group-dropdown 403 (fixed in commit `4007ac03`) — that fix repointed only one call site. Seven more remain raw:
 
 | # | File:line | Call | User-visible failure |
 |---|---|---|---|
-| 2a | `useSchoolData.ts:256` `confirmSchoolName` | `.from('schools').update({school_name, name_confirmed})` | **Shipped tonight in `676d6f1c` and DOA on arrival** — the invite-born admin's brand-new "confirm your school name" first-run card fails every time. Worth prioritizing since it's new and currently non-functional. |
+| 2a | `useSchoolData.ts:256` `confirmSchoolName` | `.from('schools').update({school_name, name_confirmed})` | **Shipped tonight in `676d6f1c` and DOA on arrival** — the invite-born admin's brand-new "confirm your school name" first-run card fails every time. Worth prioritizing since it's new and currently non-functional. — **FIXED `449cafac`**: `api/school/update-profile.ts` extended to accept `name_confirmed`; `confirmSchoolName` repointed at it. |
 | 2b | `SetupView.vue:125` `saveSchool` | `.from('schools').update(updates)` | Admin onboarding wizard step 1 ("name your school") 403s — **blocks the entire setup wizard** for any new school admin, reached via two separate entry paths (direct setup + teacher join-code flow) — **FIXED `18a553b3`**: new caller-scoped `api/school/update-profile.ts` (resolves the school from the session, mirrors `school/update-seats.ts`'s pattern), `saveSchool()` repointed at it. |
-| 2c | `SettingsView.vue:175` `saveSchoolProfile` | `.from('schools').update({school_name})` | School settings → rename school fails silently past the "Saving…" state |
-| 2d | `SchoolsSetup.vue:793` `deleteSchool` (admin panel) | `.from('schools').delete()` | ssi_admin "Delete school" button 403s, feature entirely broken |
-| 2e | `SchoolsSetup.vue:488` `createGroup` | `.from('groups').insert(insertData)` | ssi_admin "Create new group" (region/group hierarchy) 403s |
-| 2f | `useSchoolContext.ts` (teacher join-code re-redemption path) | same singleton-staleness root cause as #1a, triggered via `SchoolsContainer.vue:33-42`'s one-shot watcher | Stale school context surfaces on a second join-code redemption in the same session |
+| 2c | `SettingsView.vue:175` `saveSchoolProfile` | `.from('schools').update({school_name})` | School settings → rename school fails silently past the "Saving…" state — **FIXED `449cafac`**: repointed at `api/school/update-profile.ts`. |
+| 2d | `SchoolsSetup.vue:793` `deleteSchool` (admin panel) | `.from('schools').delete()` | ssi_admin "Delete school" button 403s, feature entirely broken — **FIXED `449cafac`**: `api/admin/update-school.ts` extended with a DELETE method (`verifyAdmin`-gated; classes/entitlement_grants cascade on FK), `deleteSchool()` repointed at it. |
+| 2e | `SchoolsSetup.vue:488` `createGroup` | `.from('groups').insert(insertData)` | ssi_admin "Create new group" (region/group hierarchy) 403s — **FIXED `449cafac`**: repointed at the existing `POST /api/groups` endpoint (already `verifyAdmin`-gated, just unused by this call site). |
+| 2f | `useSchoolContext.ts` (teacher join-code re-redemption path) | same singleton-staleness root cause as #1a, triggered via `SchoolsContainer.vue:33-42`'s one-shot watcher | Stale school context surfaces on a second join-code redemption in the same session — **FIXED `449cafac`**: `loadFromAuth`'s 1a dedup fix is deliberately idempotent for the same auth user, so a same-user re-redemption (`RedeemCode.vue`, SPA `router.push`, no page reload) never re-fetched. `RedeemCode.vue` now calls `useSchoolContext().clear()` on successful redemption, so the next `SchoolsContainer` mount refetches instead of serving pre-redemption data. |
 
 **Fix size:** needs-endpoint for 2a/2b/2c (self-service, no admin endpoint exists yet — `api/admin/update-school.ts` is `verifyAdmin`-gated for ssi_admin only and only touches `group_id`); small/needs-endpoint for 2d/2e (extend the admin-mediation pattern already used for `create-school.ts`/`update-school.ts`); small for 2f (same fix as #1a).
 
@@ -123,16 +123,16 @@ Both do `const { error } = await supabase.from('user_tags').update(...)` then `i
 - **Settings-screen redemption ignores server's `redirectTo`** — `SettingsScreen.vue:647-673` discards the role-specific destination `redeem.ts` computed. One-liner.
 - **SignInModal's post-auth redirect dropped by all 3 containers** — `PlayerContainer.vue`/`SchoolsContainer.vue`/`TeachContainer.vue` all ignore the `{ role, redirectTo }` payload from sign-in. Small, same fix × 3 sites.
 
-### 10. [Class 5] "False-Saved" cluster across admin/teacher write paths (9 sites) — **3/9 FIXED `a917dcb0`**, rest out of scope this pass
+### 10. [Class 5] "False-Saved" cluster across admin/teacher write paths (9 sites) — **9/9 FIXED** (3/9 wave 1 `a917dcb0`, remaining 6 wave 2 `b9699497`)
 Write fails but UI/response reports success (or the error is silently discarded) rather than surfacing failure:
-- `api/admin/set-trial.ts` — update error not checked before responding success — not in this pass's scope
-- `api/teacher/class-teachers.ts` — same pattern on teacher add/remove — not in this pass's scope
-- `api/groups/[id].ts` — delete-order bug (dependent rows may survive a "successful" delete) — not in this pass's scope
+- `api/admin/set-trial.ts` — update error not checked before responding success — **FIXED `b9699497`**: schools/teachers/user_entitlements update errors now checked and returned as a 500 with detail instead of always `success:true`.
+- `api/teacher/class-teachers.ts` — same pattern on teacher add/remove — **FIXED `b9699497`**: the `classes.teacher_user_id` lead-pointer writes (on add-with-setLead, and on remove's lead-handover) were fire-and-forget; both now check their error and 500 with detail.
+- `api/groups/[id].ts` — delete-order bug (dependent rows may survive a "successful" delete) — **FIXED `b9699497`**: the ungroup-schools step now checks its error and aborts (500) before deleting the group, instead of proceeding regardless and always reporting `deleted:true`.
 - `api/onboarding/profile.ts:67-72` + `Onboarding.vue` — two-layer: server discards the `schools.update` error (`institutionSaved` computed from row count but never surfaced on failure), client doesn't check either — **FIXED**: server now returns per-field `display_name_saved`/`institution_saved`/`institution_error`; client checks the response and surfaces a visible error (holding the redirect so it's actually seen), while still letting the user retry/continue since the field is optional.
 - `api/code/redeem.ts` — write error path not fully surfaced to caller — **FIXED**: this was `applyDashboardRole()` in the entitlement-code branch — it returned `void` and swallowed its own update error, so `redeem.ts` always reported `success:true` even when the dashboard-role grant failed. `applyDashboardRole` now returns a boolean; `redeem.ts` surfaces it as `dashboardRoleApplied` in the response.
-- `AdminUserDetail.vue:394,405` — `revokeEntitlement()`/`setTrial()` both return a discarded boolean — not in this pass's scope
-- `DashboardView.vue` — missing error destructure on a write — not in this pass's scope (file is being actively edited by a concurrent worker this session, see finding #1's note)
-- `SetupView.vue` — shadowed error variable swallows a real failure — not directly touched, but `saveSchool()` was rewritten wholesale for finding #2b/#5 (now checks `res.ok` on the new endpoint) — worth a follow-up check that no other shadowed-error spot remains in this file.
+- `AdminUserDetail.vue:394,405` — `revokeEntitlement()`/`setTrial()` both return a discarded boolean — **FIXED `b9699497`**: both composable functions (`useAdminUserDetail.ts`) now set the shared `error` ref on failure (already wired to the view's `banner-error`) instead of only `console.error`, and clear it at call start.
+- `DashboardView.vue` — missing error destructure on a write — **RE-CHECKED wave 2, no action needed**: with `useSchoolsNav` now landed and this file's writes re-read end to end, every write in this file (`confirmSchoolName`/`renameGroup`/`createSchoolInMyGroup`, all via composables) already checks its result and surfaces a visible error (`schoolNameError`/`groupNameError`); no raw unchecked write found in the view itself. The original flag was almost certainly about the direct `schools.update()` inside `confirmSchoolName` at audit time, since fixed in `#2a` (`449cafac`) by moving it server-side.
+- `SetupView.vue` — shadowed error variable swallows a real failure — **FIXED `b9699497`**: no shadowing was found (`useClassesData`'s `error` ref was never destructured here, so no collision), but the real bug the note flagged was real: `persistClasses()` set `allOk = false` on a failed class creation without ever writing a message to the wizard's own `error` ref, so step 4 silently stayed put with no visible feedback. Now destructures `useClassesData`'s `error` and surfaces it (or a fallback message) through the wizard's existing error banner.
 
 **Fix size:** small/one-liner each — no design ambiguity; mechanical "surface the error" fixes.
 
@@ -188,3 +188,35 @@ Scoped to: #1 (a/c fixed, b partially skipped — collision), #3, #4, #7 (partia
 - #2's remaining 5 write-grant call sites (2a, 2c, 2d, 2e, 2f) — outside this pass's assigned scope (only 2b was in scope).
 - #8 (`Onboarding.vue` session-awareness) — explicitly flagged as needing Tom's design direction, not touched.
 - #5/#6/#9/#12/#13/#14 — not in this pass's assigned scope.
+
+---
+
+## Fix-pass wave 2 (2026-07-14)
+
+Scoped to everything wave 1 left open EXCEPT #8 (still awaiting Tom's design
+direction — untouched): the remaining 6 false-Saved sites (#10), the remaining
+5 raw org-table writes (#2a/2c/2d/2e/2f), and finishing #1b's nav-link
+repointing now that `useSchoolsNav` landed (`9563bbd7`, stash recovery).
+Commits `df926fca` (#1b), `449cafac` (#2), `b9699497` (#10) — see the
+per-finding notes above for detail. `pnpm --filter player-vue typecheck`,
+`npm run typecheck:api`, `npm run test:api` (48/48), and
+`pnpm --filter player-vue test` (582/582, all 55 files) all green throughout
+— no pre-existing failures carried over from wave 1.
+
+**Findings closed this pass:** #1b, #2 (2a/2c/2d/2e/2f — 2b already closed
+wave 1), #10 (all 9/9 sites now fixed).
+
+**Not actioned this pass** (explicitly out of scope): #8 (`Onboarding.vue`
+session-awareness) — still a genuine design/scope call for Tom, left alone
+per the wave 2 brief. #5/#6/#9/#11 (remaining subset)/#12/#13/#14 — not
+assigned to this pass.
+
+**Genuinely new, not previously flagged:** `TeacherDashboard.vue`'s
+`handleGoToCreatedClass`/`openClass` pushed the NAMED route `class-detail`
+(`router.push({ name: 'class-detail', params: { id } })`), which resolves
+unconditionally to `/schools/classes/:id` — under an admin read-view this
+landed the admin on their OWN `/schools/classes/:id`, not the viewed
+school's `/admin/schools/:id/classes/:classId`, a stronger break than the
+hardcoded-string-path pattern #1b otherwise described (a wrong destination
+entirely, not just a same-shape self path). Fixed alongside #1b by switching
+to `schoolsLink()`-built paths.
