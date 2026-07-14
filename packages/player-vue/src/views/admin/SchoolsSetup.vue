@@ -66,6 +66,7 @@ const inheritedCourseCount = ref(0)
 // School form state
 const newSchoolName = ref('')
 const newSchoolGroup = ref('')
+const newSchoolAdminCode = ref<string | null>(null)
 
 // Group form
 const newGroupName = ref('')
@@ -174,6 +175,12 @@ function groupInviteLink(code: string): string {
   return `${window.location.origin}/group/${code}`
 }
 
+// School-admin join codes redeem via the generic /redeem/:code door — same
+// pattern as SchoolsView.vue's govt-admin "Onboard new school" invite link.
+function schoolAdminInviteLink(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
+
 function getCurrentUserId(): string | null {
   if (user.value) return user.value.id
   if (learner.value) return learner.value.user_id
@@ -208,6 +215,7 @@ async function createSchool(): Promise<void> {
   isCreatingSchool.value = true
   error.value = null
   successMessage.value = null
+  newSchoolAdminCode.value = null
 
   // schools + 2 invite_codes inserts moved to /api/admin/create-school
   // (block_anon_role_escalation REVOKEd invite_codes INSERT, so the
@@ -235,6 +243,7 @@ async function createSchool(): Promise<void> {
     }
 
     successMessage.value = `School "${data.school?.school_name || newSchoolName.value.trim()}" created`
+    newSchoolAdminCode.value = data.school?.admin_join_code || null
     newSchoolName.value = ''
     newSchoolGroup.value = ''
 
@@ -1170,6 +1179,26 @@ onMounted(() => {
                 {{ g.name }}
               </option>
             </select>
+          </div>
+
+          <div v-if="newSchoolAdminCode" class="field field-wide invite-result">
+            <span class="schools-kicker">Invite link</span>
+            <button
+              type="button"
+              class="code-chip is-large"
+              :class="{ 'is-copied': copiedCode === schoolAdminInviteLink(newSchoolAdminCode) }"
+              @click="copyCode(schoolAdminInviteLink(newSchoolAdminCode!))"
+            >
+              <span class="code-value frost-mono-nums">{{ schoolAdminInviteLink(newSchoolAdminCode) }}</span>
+              <svg v-if="copiedCode !== schoolAdminInviteLink(newSchoolAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+            <span class="invite-hint">Share this with the school admin — clicking it takes them straight to sign-in.</span>
           </div>
 
           <div class="field-actions">
