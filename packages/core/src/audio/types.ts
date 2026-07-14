@@ -5,6 +5,8 @@
  * Phase 2: Prosody - Future peak detection and gradient analysis
  */
 
+import type { EnvelopeMetadata } from './envelopeMetadata';
+
 // ============================================
 // PHASE 1: VOICE ACTIVITY DETECTION
 // ============================================
@@ -130,6 +132,15 @@ export interface SpeechTimingResult {
   peak_energy_db: number;
   /** Average energy level during monitoring (dB) */
   average_energy_db: number;
+
+  // ==========================================
+  // Stage 2: volume-envelope metadata (adaptation v2, WP-6)
+  // ==========================================
+
+  /** Derived envelope numbers only (duration/peakCount/peakToMeanRatio/meanPeakWidthMs/
+   *  sampleCount/weight) — undefined when no speech was captured. Raw samples
+   *  never reach this result; see `audio/envelopeMetadata.ts`. */
+  envelope?: EnvelopeMetadata;
 }
 
 /**

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "gridMs": 20,
+  "smoothingTaps": 3,
+  "smoothingWindowMs": 60,
+  "peakProminenceRatio": 0.25,
+  "peakMinSeparationMs": 120,
+  "minSampleCount": 10
+}

@@ -1,10 +1,11 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.3.0 (WP-0 + WP-1 + WP-2)
+# Version: 0.4.0 (WP-0 + WP-1 + WP-2 + WP-6 + WP-7a + WP-8)
 # Last updated: 2026-07-14
-# Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4 (design authority;
-#              packages/player-vue/public/docs/metrics-vision.html wins on conflict)
+# Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3
+#              (design authority; packages/player-vue/public/docs/metrics-vision.html
+#              wins on conflict)
 #
 # Core Insight: All evidence about the learner — today's behavioural taps and
 # skips, tomorrow's voice-envelope numbers — flows through ONE narrow typed
@@ -22,11 +23,26 @@
 #   beside every logEvent call site in LearningPlayer.vue; self-owned
 #   aggregator for now (WP-3 folds it into the same aggregator the latency
 #   producer feeds, once the rate policy is wired to the player)
-# - Producer #3 (envelope metadata): NOT YET WIRED (WP-6/8, stage 2)
+# - Client envelope extractor: LIVE (WP-6)
+#   packages/core/src/audio/envelopeMetadata.ts + VoiceActivityDetector.ts
+#   (SpeechTimingResult.envelope) — pure, tested against synthetic n-peak
+#   envelopes; raw samples never leave VoiceActivityDetector
+# - Model envelope schema + client batch fetch/cache: LIVE (WP-7a)
+#   supabase/migrations/20260714_course_audio_envelope.sql (GATED — for Tom
+#   to apply, not yet live) + packages/player-vue/src/composables/
+#   useEnvelopeMetadataCache.ts. Dashboard-repo pipeline job (WP-7b) is a
+#   separate brief in ssi-dashboard-v7-clean.
+# - Producer #3 (envelope metadata, WP-8): LIVE, UNWIRED
+#   packages/player-vue/src/composables/useEnvelopeEvidence.ts — pure delta
+#   math + EvidenceSink emission, fully tested; NOT YET called from the
+#   cycle-complete path (needs WP-3's aggregator registration point — see the
+#   TODO at the bottom of that file)
 # - Rate policy (RatePolicyEngine): LIVE (WP-2)
 #   packages/core/src/learning/ratePolicy.ts — pure, unwired to the player
 # - Player wiring (RoundPlan applied via shouldSkipCycle overrides): NOT YET BUILT (WP-3)
 # - Persistence (snapshot/hydrate wired to learner_lego_metrics): NOT YET BUILT (WP-4)
+# - Boundary sensing (WP-9, inter-peak gap analysis): NOT BUILT — out of scope
+#   for WP-6/7a/8; a separate, deliberately timeboxed work package
 
 module: evidence_stream
   purpose: >
@@ -308,3 +324,220 @@ module: rate_policy
                                                        #   traces replaying real struggling/steady/easing
                                                        #   syntheticSeries through the real assessLocalDifficulty
                                                        #   sensor (not a stub); config overrides honoured.
+
+module: envelope_extractor
+  purpose: >
+    Stage-2 client-side extractor (build spec §5.1, WP-6). Turns the VAD's
+    own timestamped RMS-dB samples — already collected every rAF frame,
+    previously discarded to peak/mean only — into five derived numbers, on
+    EXACTLY the algorithm/constants pinned for comparability with the
+    dashboard-repo's offline model-voice extractor (WP-7b). No second
+    AnalyserNode, no new audio path, no recording. Raw samples are consumed
+    and discarded inside VoiceActivityDetector; only EnvelopeMetadata ever
+    leaves it (the privacy invariant, build spec §6.6).
+
+  constants: >
+    packages/core/src/audio/envelope-extractor-v1.json — copied VERBATIM from
+    ssi-dashboard-v7-clean/services/shared/envelope-extractor-v1.json (both
+    repos read the same file rather than re-deriving numbers, so client and
+    pipeline can't drift): version 1, gridMs 20, smoothingTaps 3 (60ms window),
+    peakProminenceRatio 0.25, peakMinSeparationMs 120, minSampleCount 10.
+
+  data:
+    TimedEnergySample: { t: number, db: number }   # performance.now()-relative ms, VAD's getCurrentEnergy() dB
+    EnvelopeMetadata:
+      durationMs: number         # learner_duration_ms, carried through from the VAD's own speech timing
+      peakCount: number          # syllable-scale energy peaks
+      peakToMeanRatio: number    # max linear RMS / mean linear RMS over the speech region
+      meanPeakWidthMs: number    # mean full-width-at-half-prominence
+      sampleCount: number        # grid points after resampling — the capture-quality guard
+      weight: number             # 0 = discard the cycle (sampleCount < minSampleCount)
+
+  algorithm: >
+    1. Sort timestamped samples, resample onto the fixed 20ms grid via LINEAR
+       INTERPOLATION over {t,db} pairs (dB->linear en route) — the one
+       deliberate divergence from the server, which windows already-uniform
+       fixed-rate PCM; this is what makes the client robust to rAF's
+       display-locked, throttle-prone cadence (cadence-independence, tested
+       against both jittered timestamps and a sparser/throttled sample rate).
+    2. 3-tap (60ms) centered moving average — syllable-scale smoothing.
+    3. peakToMeanRatio = max/mean over the smoothed grid.
+    4. Peaks: scipy peak_prominences definition (extend outward from a local
+       maximum to the array boundary or a higher sample, prominence = height
+       - max(leftMin, rightMin)); accept prominence >= 25% of (max-mean);
+       greedy accept in descending-height order enforcing >= 120ms minimum
+       separation between accepted peaks.
+    5. Width per accepted peak = span (in ms) where the grid stays >=
+       (peak height - prominence/2); meanPeakWidthMs = mean across peaks.
+    6. sampleCount < minSampleCount (10, ~1/5 second) -> weight 0, all other
+       fields zeroed — the capture-quality gate.
+    Flat/silent captures (no dynamic range: max <= mean) short-circuit to zero
+    peaks rather than treating float noise as syllables.
+
+  api:
+    extractEnvelopeMetadata(samples: TimedEnergySample[], durationMs: number,
+                             constants?) -> EnvelopeMetadata:
+      >  Pure function. Never mutates or retains `samples` — verified by a
+         raw-array-containment test asserting the input array is unchanged
+         and the result object carries only the 6 scalar fields.
+
+  wired_at: >
+    packages/core/src/audio/VoiceActivityDetector.ts — continuousAnalyzeLoop
+    now also pushes {t: performance.now(), db: energy} onto a private
+    continuousEnergyTimeline (continuous mode ONLY; legacy analyzeLoop /
+    energySamples untouched). stopContinuousMonitoring filters the timeline
+    to the confirmed speech window [speechStartMs, speechEndMs], calls
+    extractEnvelopeMetadata once, attaches the result as
+    SpeechTimingResult.envelope, then immediately clears
+    continuousEnergyTimeline — the raw array never survives past this call.
+    envelope is left undefined when no speech was detected.
+
+  guarantees:
+    - pure: no Vue/Supabase coupling
+    - raw_array_containment: samples never returned, never retained past the
+      one stopContinuousMonitoring call that consumes them
+    - cadence_independent: peak count is stable under both timestamp jitter
+      and a coarser (throttled) sampling interval, for the same underlying
+      envelope shape
+    - server_comparable: same constants file, same grid/smoothing/prominence/
+      width algorithm as the dashboard-repo's offline extractor (WP-7b) —
+      verified by that repo's own golden-file test (same clip -> same
+      numbers within tolerance), not duplicated here
+
+  tests:
+    - packages/core/src/audio/envelopeMetadata.test.ts   # n-peak synthetic
+      #   fixtures (3-gaussian-bump -> peakCount 3); jittered-timestamp and
+      #   throttled-sample-rate cadence-independence; flat/silent -> 0 peaks;
+      #   close-peak merging under the 120ms separation floor; mumbled
+      #   (wide-sigma) vs crisp (narrow-sigma) -> wider meanPeakWidthMs;
+      #   sub-minSampleCount -> weight 0; empty-array and out-of-order-
+      #   timestamp edge cases; raw-array containment.
+    - packages/core/src/audio/VoiceActivityDetector.test.ts   # continuous-mode
+      #   envelope wiring: attaches EnvelopeMetadata when speech was detected
+      #   (manually-steppable rAF mock, no synchronous-recursion trap);
+      #   leaves envelope undefined when no speech was detected.
+
+module: model_envelope_cache
+  purpose: >
+    WP-7a: schema for the offline-precomputed model-voice envelope numbers
+    (build spec §5.2), plus the client's batch fetch/cache for them. The
+    pipeline job that populates the table (decode mastered mp3 -> PCM -> same
+    algorithm/constants -> upsert) lives in the dashboard repo as its own
+    brief (WP-7b) — out of scope here.
+
+  schema: >
+    supabase/migrations/20260714_course_audio_envelope.sql (GATED — for Tom
+    to apply, never ad-hoc, same rule as WP-4's persistence migration).
+    course_audio_envelope: audio_id uuid PK (references course_audio.id),
+    duration_ms, peak_count, peak_to_mean_ratio, mean_peak_width_ms,
+    extractor_version int default 1, created_at. RLS on; anon + authenticated
+    SELECT true (same posture as course_audio — read-only content data);
+    writes are service-role only (the pipeline job). Ends with
+    NOTIFY pgrst, 'reload schema'.
+
+  data:
+    ModelEnvelopeRow: { audioId, durationMs, peakCount, peakToMeanRatio, meanPeakWidthMs, extractorVersion }
+
+  api:
+    createEnvelopeMetadataCache(client: SupabaseClient) -> EnvelopeMetadataCache:
+      >  One in-memory cache per session — deliberately simpler than
+         listeningMetaCache's IndexedDB pattern, because stage 2 only ever
+         runs with a live microphone (no mic -> no envelope evidence at all,
+         so there is no offline case to serve).
+    EnvelopeMetadataCache.fetchBatch(audioIds: string[]) -> Promise<void>:
+      >  Chunks under the 150-id PostgREST in()-list cap (mirrors
+         listeningMetaCache). Confirmed-missing ids cache as null so a repeat
+         lookup this session doesn't re-fetch; a fetch failure leaves ids
+         uncached (undefined) so a later call retries — never poisons a
+         transient failure as a permanent null.
+    EnvelopeMetadataCache.get(audioId) -> ModelEnvelopeRow | null | undefined:
+      >  undefined = never fetched; null = fetched, confirmed no row yet.
+
+  guarantees:
+    - missing_row_no_op: a course with no envelope rows yet degrades to
+      "stage 2 produces nothing for those cycles", never an error
+    - no_stale_poisoning: fetch failures are retryable, confirmed absence is not
+
+  tests:
+    - packages/player-vue/src/composables/useEnvelopeMetadataCache.test.ts
+      # fetch + camelCase mapping; confirmed-missing -> null; never-fetched ->
+      # undefined; cache hit avoids re-fetch; fetch failure leaves undefined
+      # for retry; chunking a 320-id list into 150/150/20.
+
+module: envelope_delta_producer
+  purpose: >
+    Producer #3 on the evidence wire (build spec §5.3, WP-8). Per cycle with
+    both a learner envelope capture and a model envelope row present,
+    computes the learner-vs-model delta vector and emits one
+    MasteryEvidence(source:'envelope') — the same wire the WP-1 behavioural
+    producer feeds. Per-LEGO cross-phrase correlation (owner decision C, the
+    second-differential fitness function) falls out of the aggregator for
+    free: every phrase sharing a LEGO emits to the same unitId, so the merged
+    series IS the cross-phrase delta series, and the downstream B4 curvature
+    read on it IS the second differential — this producer's only job is one
+    faithful per-cycle delta, not the differencing itself.
+
+  delta_formula: >
+    d_dur   = |learner.durationMs - model.durationMs| / model.durationMs
+    d_peaks = |learner.peakCount - model.peakCount| / max(model.peakCount, 1)
+    d_shape = |log(learner.peakToMeanRatio / model.peakToMeanRatio)|
+            + |log(learner.meanPeakWidthMs / model.meanPeakWidthMs)|
+    value   = w_dur*d_dur + w_peaks*d_peaks + w_shape*d_shape
+    PROPOSED weights (config-tunable later, same as WP-1's mapping table):
+      duration 0.5, peaks 0.3, shape 0.2 — duration carries the most fluency
+      signal per the paper's 2.5x-length example. Producer confidence for
+      every emitted event: weight 0.8 (PROPOSED).
+    Zero-peak degenerate case (a silent/undetected side has peakToMeanRatio/
+    meanPeakWidthMs of 0): each log-ratio term guards to 0 rather than
+    +-Infinity/NaN when either operand isn't a positive finite number — the
+    spec doesn't address this directly; "no shape signal from this term"
+    beats letting one degenerate side swamp the whole delta.
+
+  no_op_conditions: >
+    - no learner envelope, or the capture-quality gate discarded it (weight 0)
+    - no model row yet for this audio id (course without envelope data; cache
+      miss, confirmed-null or not-yet-fetched both no-op identically)
+    - extractor_version mismatch between learner and model — the two sides
+      used different pinned constants, so the numbers aren't comparable;
+      skip rather than compare incomparable numbers
+
+  api:
+    computeEnvelopeDelta(learner: EnvelopeMetadata, model: ModelEnvelopeRow,
+                          weights?) -> { value, dDur, dPeaks, dShape }:
+      >  Pure delta math, independently testable against the exact formula.
+    recordEnvelopeEvidence(args: { sink, cache, legoId, audioId,
+                                   learnerEnvelope, cycleId?, occurredAtMs,
+                                   weights? }) -> MasteryEvidence | null:
+      >  Computes the delta (when both sides are usable) and calls
+         sink.record(); returns the emitted evidence or null on any no-op
+         condition above. Holds only the EvidenceSink interface, same as
+         WP-1's useBehaviouralEvidence — has no opinion on where the evidence
+         ends up.
+
+  wiring_status: >
+    NOT YET CALLED from the cycle-complete path. useAdaptationEngine.ts and
+    LearningPlayer.vue are a concurrent worker's files (WP-3: player wiring)
+    — this module is fully built and tested but deliberately left
+    unregistered, with a one-line TODO comment at the bottom of
+    useEnvelopeEvidence.ts marking the registration point WP-3 needs to wire
+    (call recordEnvelopeEvidence beside recordCycle, once WP-3 exposes the
+    shared aggregator as an EvidenceSink and calls
+    EnvelopeMetadataCache.fetchBatch with the round's target1 audio ids).
+
+  guarantees:
+    - pure_delta_math: computeEnvelopeDelta has no side effects, independently
+      testable against the exact §5.3 formula
+    - graceful_absence: every no-op condition (no capture, no model row,
+      version mismatch) returns null and never throws
+    - no_numeric_contamination: the zero-peak guard keeps a degenerate side
+      from producing Infinity/NaN in the emitted evidence value
+
+  tests:
+    - packages/player-vue/src/composables/useEnvelopeEvidence.test.ts
+      # computeEnvelopeDelta: zero delta on identical envelopes; the paper's
+      #   2.5x-duration example; d_peaks/d_shape formula checks; zero-peak
+      #   guard produces a finite, non-NaN value; custom weights honoured.
+      # recordEnvelopeEvidence: emits one correctly-shaped MasteryEvidence
+      #   when both sides are usable; no-ops on missing learner envelope,
+      #   weight-0 capture, confirmed-missing model row, not-yet-fetched
+      #   model row, and extractor_version mismatch — none of these throw.
