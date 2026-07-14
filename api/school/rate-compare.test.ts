@@ -208,8 +208,106 @@ describe('GET /api/school/rate-compare — school entity', () => {
     expect(res.body.insufficientData).toBe(false)
     expect(res.body.cohortSize).toBe(5) // 5 peer SCHOOLS, not 10 peer classes
     expect(res.body.entity.label).toBe('Coláiste Éinde')
-    expect(res.body.average.label).toBe('Global average')
+    expect(res.body.average.label).toBe('Global average · this course')
     expect(JSON.stringify(res.body)).not.toContain('peer-sch-0')
+  })
+})
+
+describe('GET /api/school/rate-compare — global_all_courses (offered alongside same-course cohorts, every level)', () => {
+  it('class-vs-global_all_courses pulls in peer classes from OTHER courses, unlike compare_to=global', async () => {
+    // A peer class on a DIFFERENT course than the entity's — same-course
+    // 'global' must never see it; 'global_all_courses' must.
+    DB.classes.push(
+      ...Array.from({ length: 5 }, (_, i) => ({
+        id: `other-course-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: 'sch-1', is_active: true,
+      })),
+    )
+    const now = new Date().toISOString()
+    rpcRows = [
+      sessRow('class-1', 30, now),
+      ...Array.from({ length: 5 }, (_, i) => sessRow(`other-course-${i}`, 10 + i, now)),
+    ]
+
+    const sameCourseReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global' })
+    const sameCourseRes = makeRes()
+    await handler(sameCourseReq, sameCourseRes)
+    // Only the 6 gle_for_eng cohort-* classes exist on this course besides class-1, none have session rows here -> insufficient.
+    expect(sameCourseRes.body.insufficientData).toBe(true)
+
+    const allCoursesReq = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
+    const allCoursesRes = makeRes()
+    await handler(allCoursesReq, allCoursesRes)
+    expect(allCoursesRes.statusCode).toBe(200)
+    expect(allCoursesRes.body.insufficientData).toBe(false)
+    expect(allCoursesRes.body.cohortSize).toBe(5) // the 5 other-course-* classes clear k-floor
+    expect(allCoursesRes.body.average.label).toBe('Global average · all courses')
+  })
+
+  it('holds the same K_FLOOR for the all-courses cohort as every other aggregate', async () => {
+    DB.classes.push(
+      ...Array.from({ length: 3 }, (_, i) => ({
+        id: `few-other-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: 'sch-1', is_active: true,
+      })),
+    )
+    const now = new Date().toISOString()
+    rpcRows = [sessRow('class-1', 30, now), ...Array.from({ length: 3 }, (_, i) => sessRow(`few-other-${i}`, 10 + i, now))]
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'global_all_courses' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.body.insufficientData).toBe(true) // only 3 active peers, below K_FLOOR=5
+    expect(res.body.kFloor).toBe(5)
+  })
+
+  it('school-vs-global_all_courses aggregates each peer school across ALL its courses, not just the selected one', async () => {
+    scope = { learnerId: 'l1', role: 'school_admin', classIds: DB.classes.map((c) => c.id), learnerIds: [], studentsByClass: {}, schoolIds: ['sch-1'], groupId: null }
+    DB.schools.push({ id: 'peer-sch-0', school_name: 'Peer 0', group_id: null })
+    DB.classes.push(
+      // this peer school's ONLY class is on a DIFFERENT course than gle_for_eng.
+      { id: 'peer-0-other-course', class_name: 'X', course_code: 'cym_for_eng', school_id: 'peer-sch-0', is_active: true },
+    )
+    // 4 more peer schools WITH the selected course, to reach K_FLOOR=5 total.
+    DB.schools.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-sch-${i + 1}`, school_name: `Peer ${i + 1}`, group_id: null })))
+    DB.classes.push(...Array.from({ length: 4 }, (_, i) => ({ id: `peer-${i + 1}-class`, class_name: 'X', course_code: 'gle_for_eng', school_id: `peer-sch-${i + 1}`, is_active: true })))
+    const now = new Date().toISOString()
+    rpcRows = [
+      sessRow('class-1', 30, now),
+      sessRow('peer-0-other-course', 12, now),
+      ...Array.from({ length: 4 }, (_, i) => sessRow(`peer-${i + 1}-class`, 10 + i, now)),
+    ]
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'school', entity_id: 'sch-1', compare_to: 'global_all_courses' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.insufficientData).toBe(false)
+    expect(res.body.cohortSize).toBe(5) // peer-sch-0 (off-course) counts here, unlike compare_to=global
+  })
+
+  it('group-vs-global_all_courses still excludes ancestor/descendant subtrees, using any-course peer classIds', async () => {
+    DB.groups = [
+      { id: 'grp-uk', name: 'UK', path: 'uk.', parent_id: null },
+      { id: 'grp-wales', name: 'Wales', path: 'uk.wales.', parent_id: 'grp-uk' },
+      ...Array.from({ length: 5 }, (_, i) => ({ id: `grp-far-${i}`, name: `Far ${i}`, path: `far${i}.`, parent_id: null })),
+    ]
+    DB.schools = [
+      { id: 'sch-1', school_name: 'Coláiste Éinde', group_id: 'grp-wales' },
+      ...Array.from({ length: 5 }, (_, i) => ({ id: `far-sch-${i}`, school_name: `Far School ${i}`, group_id: `grp-far-${i}` })),
+    ]
+    // Each far school's class is on a DIFFERENT course than gle_for_eng.
+    DB.classes.push(
+      ...Array.from({ length: 5 }, (_, i) => ({ id: `far-class-${i}`, class_name: 'X', course_code: 'cym_for_eng', school_id: `far-sch-${i}`, is_active: true })),
+    )
+    scope = { learnerId: 'l1', role: 'govt_admin', classIds: DB.classes.map((c) => c.id), learnerIds: [], studentsByClass: {}, schoolIds: ['sch-1'], groupId: 'grp-wales' }
+    const now = new Date().toISOString()
+    rpcRows = [
+      sessRow('class-1', 30, now), ...Array.from({ length: 6 }, (_, i) => sessRow(`cohort-${i}`, 15, now)),
+      ...Array.from({ length: 5 }, (_, i) => sessRow(`far-class-${i}`, 10 + i, now)),
+    ]
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'group', entity_id: 'grp-wales', compare_to: 'global_all_courses' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.cohortSize).toBe(5) // only the 5 unrelated "far" groups, picked up despite being off-course
+    expect(res.body.average.label).toBe('Global average · all courses')
   })
 })
 

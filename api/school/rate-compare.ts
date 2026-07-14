@@ -2,7 +2,7 @@
  * Real "Rate compare" data, course-first, full entity ladder —
  * GET /api/school/rate-compare
  *   ?course_code=<code>&entity_level=class|school|group&entity_id=<uuid>
- *   &compare_to=school|group|region|global&days=90
+ *   &compare_to=school|group|region|global|global_all_courses&days=90
  *
  * The class-as-learner coverage lane (docs/methodology/tutor-insights.md §2-3)
  * made real for schools roles: rate of progress (LEGOs/week) for an entity —
@@ -10,20 +10,31 @@
  * never another named entity (sovereignty, insight-engine.md §7).
  *
  * COURSE IS THE NORMALISING KEY (owner's ruling): the course is chosen FIRST
- * and every aggregate at every level is computed over that course only, so a
+ * and every SAME-COURSE aggregate is computed over that course only, so a
  * school or group average is never diluted across unrelated courses.
  *
- * ENTITY LADDER (each entity is really just "a set of classes on this
- * course" — a class is a set of one, a school is its classes, a group is its
- * subtree's classes — so one RPC + one aggregation primitive
- * (aggregateWindowPace/aggregateWeeklyTrend, api/_utils/rateCompare.ts)
- * serves every level):
- *   class  -> school avg | group avg | global avg
- *   school -> group avg  | global avg
- *   group  -> region avg (sibling groups sharing the same parent) | global avg
+ * ENTITY LADDER (each entity is really just "a set of classes" — a class is
+ * a set of one, a school is its classes, a group is its subtree's classes —
+ * so one RPC + one aggregation primitive (aggregateWindowPace/
+ * aggregateWeeklyTrend, api/_utils/rateCompare.ts) serves every level):
+ *   class  -> school avg | group avg | global avg (this course) | global avg (all courses)
+ *   school -> group avg  | global avg (this course) | global avg (all courses)
+ *   group  -> region avg (sibling groups sharing the same parent) | global avg (this course) | global avg (all courses)
  * "region" degrades honestly to insufficientData when the entity's group has
  * no parent group yet (region has no data-bearing definition beyond the
  * group itself) — never fabricated.
+ *
+ * "ALL COURSES" GLOBAL (owner's ruling, follow-up): relatedness determines
+ * the STRENGTH of a comparison, not its permission — a course-agnostic
+ * "every SSi learner, every course" average is offered ALONGSIDE the
+ * same-course cohorts at every level, never replacing them, always labelled
+ * distinctly ("this course" vs "all courses") so the weaker basis is visible
+ * at a glance. The ENTITY's own value stays anchored to the selected course
+ * (course-first still governs what's being measured); only the cohort widens
+ * — each peer class already carries its own course's ordinal system, so
+ * mixing courses in the average pool is the same "self-computed rate, then
+ * averaged" pattern already used for same-course cohorts, just over a wider
+ * pool. Same K_FLOOR applies.
  *
  * Auth required. `entity_id` MUST be inside the caller's resolveVisibleScope:
  *   class  -> scope.classIds
@@ -31,14 +42,16 @@
  *             school in their group subtree)
  *   group  -> scope.groupId (govt_admin's own group only)
  * The comparison COHORT is always resolved server-side from the entity's own
- * school/group/parent-group — never from client input — and only ever
- * returned as an aggregate: no other entity's identity, name, or row is ever
- * included in the response.
+ * school/group/parent-group (or, for the all-courses global, the whole
+ * ecosystem) — never from client input — and only ever returned as an
+ * aggregate: no other entity's identity, name, or row is ever included in
+ * the response.
  *
  * PRIVACY FLOOR: if the cohort (excluding the entity) has fewer than K_FLOOR
  * peer entities with any activity in the window, responds with
  * insufficientData instead of an average computed from too small a group —
- * held at EVERY aggregate level (classes, schools, AND groups).
+ * held at EVERY aggregate level (classes, schools, AND groups) and both
+ * global variants.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
@@ -63,18 +76,22 @@ const TREND_WEEKS = 8
 const MAX_COHORT_IDS = 2000 // safety cap; schools scale is nowhere near this yet
 
 type EntityLevel = 'class' | 'school' | 'group'
-type CompareTo = 'school' | 'group' | 'region' | 'global'
+type CompareTo = 'school' | 'group' | 'region' | 'global' | 'global_all_courses'
 
+// 'global_all_courses' is offered ALONGSIDE every level's same-course options
+// (owner's ruling — relatedness is strength, not permission), never in place
+// of them.
 const COMPARE_OPTIONS_BY_LEVEL: Record<EntityLevel, CompareTo[]> = {
-  class: ['school', 'group', 'global'],
-  school: ['group', 'global'],
-  group: ['region', 'global'],
+  class: ['school', 'group', 'global', 'global_all_courses'],
+  school: ['group', 'global', 'global_all_courses'],
+  group: ['region', 'global', 'global_all_courses'],
 }
 const COMPARE_LABEL: Record<CompareTo, string> = {
   school: 'School average',
   group: 'Group average',
   region: 'Regional average',
-  global: 'Global average',
+  global: 'Global average · this course',
+  global_all_courses: 'Global average · all courses',
 }
 
 interface EntityMeta {
@@ -92,35 +109,34 @@ interface CohortMember {
   classIds: string[]
 }
 
-/** All active class ids in a group's subtree (this group + every descendant), on one course. */
-async function subtreeClassIdsForGroupPath(svc: SupabaseClient, path: string, courseCode: string): Promise<string[]> {
+/**
+ * All active class ids in a group's subtree (this group + every descendant).
+ * `courseCode` null means the "all courses" ecosystem-wide pool — the ONLY
+ * caller allowed to omit it is the global_all_courses cohort resolution.
+ */
+async function subtreeClassIdsForGroupPath(svc: SupabaseClient, path: string, courseCode: string | null): Promise<string[]> {
   const { data: subtreeGroups } = await svc.from('groups').select('id').like('path', `${path}%`)
   const groupIds = (subtreeGroups ?? []).map((g: any) => g.id).filter(Boolean)
   if (groupIds.length === 0) return []
   const { data: schools } = await svc.from('schools').select('id').in('group_id', groupIds).limit(MAX_COHORT_IDS)
   const schoolIds = (schools ?? []).map((s: any) => s.id).filter(Boolean)
   if (schoolIds.length === 0) return []
-  const { data: classesRows } = await svc
-    .from('classes')
-    .select('id')
-    .in('school_id', schoolIds)
-    .eq('course_code', courseCode)
-    .eq('is_active', true)
-    .limit(MAX_COHORT_IDS)
+  let query = svc.from('classes').select('id').in('school_id', schoolIds).eq('is_active', true)
+  if (courseCode) query = query.eq('course_code', courseCode)
+  const { data: classesRows } = await query.limit(MAX_COHORT_IDS)
   return (classesRows ?? []).map((c: any) => c.id).filter(Boolean)
 }
 
-/** classes(course_code, active) for a set of schools, grouped by school_id — one round trip. */
-async function classIdsBySchool(svc: SupabaseClient, schoolIds: string[], courseCode: string): Promise<Map<string, string[]>> {
+/**
+ * classes(active) for a set of schools, grouped by school_id — one round
+ * trip. `courseCode` null = every course (the "all courses" cohort pool).
+ */
+async function classIdsBySchool(svc: SupabaseClient, schoolIds: string[], courseCode: string | null): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>()
   if (schoolIds.length === 0) return out
-  const { data } = await svc
-    .from('classes')
-    .select('id, school_id')
-    .in('school_id', schoolIds)
-    .eq('course_code', courseCode)
-    .eq('is_active', true)
-    .limit(MAX_COHORT_IDS)
+  let query = svc.from('classes').select('id, school_id').in('school_id', schoolIds).eq('is_active', true)
+  if (courseCode) query = query.eq('course_code', courseCode)
+  const { data } = await query.limit(MAX_COHORT_IDS)
   for (const c of data ?? []) {
     const sid = (c as any).school_id as string
     if (!sid) continue
@@ -192,10 +208,15 @@ async function resolveCohort(
       const ids = (await subtreeClassIdsForGroupPath(svc, path, courseCode)).filter((id) => id !== entity.id)
       return { members: ids.map((id) => ({ id, classIds: [id] })) }
     }
-    // 'global'
+    if (compareTo === 'global') {
+      const { data } = await svc
+        .from('classes').select('id').eq('course_code', courseCode).eq('is_active', true)
+        .neq('id', entity.id).limit(MAX_COHORT_IDS)
+      return { members: (data ?? []).map((c: any) => ({ id: c.id, classIds: [c.id] })) }
+    }
+    // 'global_all_courses' — every active class, any course, ecosystem-wide.
     const { data } = await svc
-      .from('classes').select('id').eq('course_code', courseCode).eq('is_active', true)
-      .neq('id', entity.id).limit(MAX_COHORT_IDS)
+      .from('classes').select('id').eq('is_active', true).neq('id', entity.id).limit(MAX_COHORT_IDS)
     return { members: (data ?? []).map((c: any) => ({ id: c.id, classIds: [c.id] })) }
   }
 
@@ -213,13 +234,24 @@ async function resolveCohort(
       const byCourse = await classIdsBySchool(svc, peerSchoolIds, courseCode)
       return { members: peerSchoolIds.map((id) => ({ id, classIds: byCourse.get(id) ?? [] })) }
     }
-    // 'global' — every school on this course, any group.
+    if (compareTo === 'global') {
+      // every school on this course, any group.
+      const { data } = await svc
+        .from('classes').select('school_id').eq('course_code', courseCode).eq('is_active', true)
+        .not('school_id', 'is', null).neq('school_id', entity.id).limit(MAX_COHORT_IDS)
+      const peerSchoolIds = [...new Set((data ?? []).map((c: any) => c.school_id).filter(Boolean))] as string[]
+      const byCourse = await classIdsBySchool(svc, peerSchoolIds, courseCode)
+      return { members: peerSchoolIds.map((id) => ({ id, classIds: byCourse.get(id) ?? [] })) }
+    }
+    // 'global_all_courses' — every school, any course, ecosystem-wide. Each
+    // peer school's own classIds are ALSO unfiltered by course (the whole
+    // point: this pool trades relatedness for reach).
     const { data } = await svc
-      .from('classes').select('school_id').eq('course_code', courseCode).eq('is_active', true)
+      .from('classes').select('school_id').eq('is_active', true)
       .not('school_id', 'is', null).neq('school_id', entity.id).limit(MAX_COHORT_IDS)
     const peerSchoolIds = [...new Set((data ?? []).map((c: any) => c.school_id).filter(Boolean))] as string[]
-    const byCourse = await classIdsBySchool(svc, peerSchoolIds, courseCode)
-    return { members: peerSchoolIds.map((id) => ({ id, classIds: byCourse.get(id) ?? [] })) }
+    const byAnyCourse = await classIdsBySchool(svc, peerSchoolIds, null)
+    return { members: peerSchoolIds.map((id) => ({ id, classIds: byAnyCourse.get(id) ?? [] })) }
   }
 
   // level === 'group'
@@ -235,15 +267,18 @@ async function resolveCohort(
     }
     return { members }
   }
-  // 'global' — every other group whose subtree doesn't overlap the entity's own (not an ancestor/descendant).
+  // 'global' / 'global_all_courses' — every other group whose subtree doesn't
+  // overlap the entity's own (not an ancestor/descendant); the all-courses
+  // variant just drops the course filter when pulling each peer's classIds.
   const { data: allGroups } = await svc.from('groups').select('id, path').limit(MAX_COHORT_IDS)
   const rows = (allGroups ?? []) as { id: string; path: string | null }[]
   const entityPath = entity.path as string
+  const peerCourseCode = compareTo === 'global' ? courseCode : null
   const members: CohortMember[] = []
   for (const g of rows) {
     if (!g.path || g.id === entity.id) continue
     if (entityPath.startsWith(g.path) || g.path.startsWith(entityPath)) continue // ancestor/descendant overlap
-    members.push({ id: g.id, classIds: await subtreeClassIdsForGroupPath(svc, g.path, courseCode) })
+    members.push({ id: g.id, classIds: await subtreeClassIdsForGroupPath(svc, g.path, peerCourseCode) })
   }
   return { members }
 }

@@ -232,19 +232,29 @@ const metricSelectOptions = computed(() => HERO_RATES.map((m) => ({ value: m.id,
 // LEVEL (owner's ruling): class -> school/group/global; school -> group/
 // global; group -> region/global. Every option is an aggregate-only average
 // (k-floor 5, held server-side at EVERY level, not just class).
+//
+// Every level ALSO offers a course-agnostic "all courses" global average
+// alongside its same-course options (owner's follow-up ruling, 2026-07-14):
+// relatedness is the STRENGTH of a comparison, not its permission — labelled
+// explicitly ("this course" vs "all courses") so the weaker basis is always
+// visible. It's listed LAST in each level (the most-related, same-course
+// cohort stays the default/preferred pick — averageId defaults to it below).
 const REAL_COMPARE_OPTIONS_BY_LEVEL: Record<RealEntityLevel, { value: string; label: string }[]> = {
   class: [
     { value: 'school', label: 'School average' },
     { value: 'group', label: 'Group average' },
-    { value: 'global', label: 'Global average' },
+    { value: 'global', label: 'Global average · this course' },
+    { value: 'global_all_courses', label: 'Global average · all courses' },
   ],
   school: [
     { value: 'group', label: 'Group average' },
-    { value: 'global', label: 'Global average' },
+    { value: 'global', label: 'Global average · this course' },
+    { value: 'global_all_courses', label: 'Global average · all courses' },
   ],
   group: [
     { value: 'region', label: 'Regional average' },
-    { value: 'global', label: 'Global average' },
+    { value: 'global', label: 'Global average · this course' },
+    { value: 'global_all_courses', label: 'Global average · all courses' },
   ],
 }
 const averageId = ref<string>(demoMode ? 'class avg' : 'school')
