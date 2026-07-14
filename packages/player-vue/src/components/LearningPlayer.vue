@@ -37,7 +37,8 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
 import { useBehaviouralEvidence } from '../composables/useBehaviouralEvidence'
-import { createEvidenceAggregator } from '@ssi/core'
+import { createEvidenceAggregator, type RoundPlan } from '@ssi/core'
+import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/adaptationOverrides'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
@@ -371,6 +372,7 @@ const {
   podsConfig,
   scriptShapeConfig,
   resumeConfig,
+  adaptationV2Config,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
@@ -3609,6 +3611,10 @@ const initializeAdaptationEngine = async () => {
     supabase: supabase.value ?? null,
     learnerId: learnerId.value ?? null,
     courseCode: courseCode.value,
+    aggregator: sharedEvidenceAggregator,
+    ratePolicyConfig: {
+      bounds: adaptationV2Config.value.bounds,
+    },
   })
   await engine.initialize()
   adaptationEngine.value = engine
@@ -4185,6 +4191,72 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro' || c.type === 'pod'
     )
   const nextRound = loadedRounds.value[completedRoundIndex + 1] as { cycles?: Array<{ type?: string }> } | undefined
+
+  // ============================================
+  // ADAPTATION V2 — rate-policy plan for the round about to start (WP-3,
+  // `docs/adaptation/adaptation-v2-build-spec.md` §4/§6).
+  //
+  // Kill switch: `enabled:false` skips this block entirely — no evidence
+  // read, no curvature computed, no adaptation_plan log line ("disables even
+  // shadow computation"). When enabled, the plan is ALWAYS computed and
+  // logged; it is only APPLIED (adaptOmitCycleIds populated, currentRoundPlan
+  // set, breather inserted) when `shadow:false`. Shadow mode therefore always
+  // leaves currentRoundPlan/adaptOmitCycleIds at their empty defaults, so
+  // shouldSkipCycle/getPauseDuration above transparently fall through to the
+  // pre-v2 behaviour — zero learner-visible change.
+  // ============================================
+  if (adaptationV2Config.value.enabled && adaptationEngine.value && nextRound) {
+    const nextRoundFull = nextRound as unknown as PlayerRound
+    // Seed number is the ordinal proxy — one new LEGO per round means round
+    // order tracks LEGO introduction order closely, and criticality only
+    // needs the FRACTION through the course right, not an exact count.
+    const roundLegoOrdinal = getSeedFromLegoId(nextRoundFull.legoId) ?? (completedRoundIndex + 2)
+    const courseLegoCount = beltProgress.value?.courseSeedCount?.value ?? roundLegoOrdinal
+    const { plan, difficulty } = adaptationEngine.value.planRound({
+      roundLegoId: nextRoundFull.legoId,
+      roundLegoOrdinal,
+      courseLegoCount,
+      manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || turboActive.value,
+    })
+    const applyingAdaptationV2 = !adaptationV2Config.value.shadow
+    logEvent('adaptation_plan', {
+      roundNumber: nextRoundFull.roundNumber,
+      legoId: nextRoundFull.legoId,
+      plan: {
+        buildCount: plan.buildCount,
+        consolidateCount: plan.consolidateCount,
+        spacedRepCap: plan.spacedRepCap,
+        insertBreather: plan.insertBreather,
+      },
+      difficultyStates: difficulty.map((d) => ({
+        unitId: d.unitId,
+        state: d.state,
+        accelerationZ: d.accelerationZ,
+        samples: d.samples,
+      })),
+      applied: applyingAdaptationV2,
+    })
+    if (applyingAdaptationV2) {
+      currentRoundPlan.value = plan
+      adaptOmitCycleIds.value = computeAdaptOmitCycleIds(nextRoundFull, plan)
+      if (plan.insertBreather) {
+        const breather = assembleBreatherRound(
+          loadedRounds.value as PlayerRound[],
+          completedRoundIndex,
+          nextRoundFull,
+          (legoId) => adaptationEngine.value!.getPauseMultiplier(legoId),
+        )
+        if (breather) simplePlayer.appendRounds([breather])
+      }
+    } else {
+      currentRoundPlan.value = null
+      adaptOmitCycleIds.value = new Set()
+    }
+  } else {
+    currentRoundPlan.value = null
+    adaptOmitCycleIds.value = new Set()
+  }
+
   // Pod cadence uses the INF-PLAY-aware helper (dev): main-loop defers to the
   // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
   const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
@@ -8189,9 +8261,12 @@ simplePlayer.setRuntimeOverrides({
     )
     // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
     // Applied last so mode floors/ceilings are still respected before
-    // mastery scaling.
+    // mastery scaling. currentRoundPlan is only ever non-null when adaptation
+    // v2 is enabled AND actually applying (not shadow) — see
+    // handleRoundBoundary — so this transparently falls back to the untouched
+    // v1 mastery ladder in shadow/disabled mode.
     const multiplier = cycle.legoId
-      ? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
+      ? currentRoundPlan.value?.pauseMultiplier(cycle.legoId) ?? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
       : 1.0
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
@@ -8209,6 +8284,13 @@ simplePlayer.setRuntimeOverrides({
     return target / baked
   },
   shouldSkipCycle: (cycle) => {
+    // Adaptation v2 (WP-3): cull cycles the RatePolicyEngine's RoundPlan
+    // says to skip this round (mirrors turboOmit exactly, computed live at
+    // the round boundary instead of at script-gen time — see
+    // handleRoundBoundary). Empty set in shadow/disabled mode, so this is a
+    // no-op unless the engine is enabled AND applying.
+    if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
+
     // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
     // alternate-fib spaced rep. Tagging happens at script generation;
     // this just gates on the live Turbo flag.
@@ -8556,11 +8638,24 @@ const adaptationConsent = ref(null)
 // applied in the getPauseDuration runtime override below.
 const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 
+// Adaptation v2 (WP-3): the ONE shared evidence aggregator. Both the latency
+// producer (useAdaptationEngine, below) and the behavioural producer
+// (useBehaviouralEvidence) feed this SAME instance so their evidence merges
+// into one per-LEGO series — passed into useAdaptationEngine's config in
+// initializeAdaptationEngine() below.
+const sharedEvidenceAggregator = createEvidenceAggregator()
+
 // Behavioural evidence producer (adaptation v2 WP-1) — maps the taps/skips
-// already logged below into the evidence stream. Self-owned aggregator for
-// now; WP-3 wires this into the same one useAdaptationEngine's latency
-// producer feeds, once the rate policy is ready to consume it.
-const behaviouralEvidence = useBehaviouralEvidence(createEvidenceAggregator())
+// already logged below into the shared evidence stream.
+const behaviouralEvidence = useBehaviouralEvidence(sharedEvidenceAggregator)
+
+// Adaptation v2 (WP-3): the latest computed RoundPlan, and the set of cycle
+// ids it says to skip this round — both non-null ONLY when the engine is
+// enabled AND actually applying (not shadow). shouldSkipCycle/getPauseDuration
+// below read these; in shadow/disabled mode they stay empty/null, so nothing
+// learner-visible changes (falls through to the untouched v1 pause ladder).
+const currentRoundPlan = shallowRef<RoundPlan | null>(null)
+const adaptOmitCycleIds = shallowRef<Set<string>>(new Set())
 
 // Per-seed Layer 1 fire-count persistence. Hydrates from learner_l1_state on
 // mount, feeds initialL1FireCounts into generateLearningScript so Stage 1→4

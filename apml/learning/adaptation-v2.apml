@@ -1,9 +1,9 @@
 # Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.4.0 (WP-0 + WP-1 + WP-2 + WP-6 + WP-7a + WP-8)
+# Version: 0.5.0 (WP-0 + WP-1 + WP-2 + WP-3 + WP-4(lite) + WP-5 + WP-6 + WP-7a + WP-8)
 # Last updated: 2026-07-14
-# Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3
+# Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§3/§4/§5.1/§5.2/§5.3/§6
 #              (design authority; packages/player-vue/public/docs/metrics-vision.html
 #              wins on conflict)
 #
@@ -17,12 +17,13 @@
 # Implementation Status (verified 2026-07-14):
 # - MasteryEvidence / EvidenceSink / EvidenceAggregator: LIVE (WP-0)
 #   packages/core/src/learning/evidence.ts
-# - Producer #1 (latency, via useAdaptationEngine.recordCycle): NOT YET WIRED (WP-3)
-# - Producer #2 (behavioural taps/skips): LIVE (WP-1, this spec)
+# - Producer #1 (latency, via useAdaptationEngine.recordCycle): LIVE (WP-3)
+#   emits alongside the untouched v1 MetricsTracker flow, into the ONE
+#   shared aggregator (see player_wiring module below)
+# - Producer #2 (behavioural taps/skips): LIVE (WP-1), now sharing the SAME
+#   aggregator as producer #1 (WP-3 folded it in — see player_wiring)
 #   packages/player-vue/src/composables/useBehaviouralEvidence.ts — hooked
-#   beside every logEvent call site in LearningPlayer.vue; self-owned
-#   aggregator for now (WP-3 folds it into the same aggregator the latency
-#   producer feeds, once the rate policy is wired to the player)
+#   beside every logEvent call site in LearningPlayer.vue
 # - Client envelope extractor: LIVE (WP-6)
 #   packages/core/src/audio/envelopeMetadata.ts + VoiceActivityDetector.ts
 #   (SpeechTimingResult.envelope) — pure, tested against synthetic n-peak
@@ -32,17 +33,26 @@
 #   to apply, not yet live) + packages/player-vue/src/composables/
 #   useEnvelopeMetadataCache.ts. Dashboard-repo pipeline job (WP-7b) is a
 #   separate brief in ssi-dashboard-v7-clean.
-# - Producer #3 (envelope metadata, WP-8): LIVE, UNWIRED
+# - Producer #3 (envelope metadata, WP-8): LIVE, STILL UNWIRED
 #   packages/player-vue/src/composables/useEnvelopeEvidence.ts — pure delta
-#   math + EvidenceSink emission, fully tested; NOT YET called from the
-#   cycle-complete path (needs WP-3's aggregator registration point — see the
-#   TODO at the bottom of that file)
-# - Rate policy (RatePolicyEngine): LIVE (WP-2)
-#   packages/core/src/learning/ratePolicy.ts — pure, unwired to the player
-# - Player wiring (RoundPlan applied via shouldSkipCycle overrides): NOT YET BUILT (WP-3)
-# - Persistence (snapshot/hydrate wired to learner_lego_metrics): NOT YET BUILT (WP-4)
+#   math + EvidenceSink emission, fully tested; the shared aggregator this
+#   module needs now exists (WP-3), but registering recordEnvelopeEvidence
+#   in the cycle-complete path is deliberately left for the stage-2 track
+#   (parallel, separately gated by stage2_enabled) — not part of WP-3's scope
+# - Rate policy (RatePolicyEngine): LIVE (WP-2), wired to the player (WP-3)
+#   packages/core/src/learning/ratePolicy.ts
+# - Player wiring (RoundPlan applied via shouldSkipCycle overrides +
+#   breather-round assembly): LIVE (WP-3, this spec's new player_wiring module)
+# - Persistence (snapshot/hydrate wired to learner_lego_metrics): LIVE (WP-4,
+#   lite scope) — evidence_series JSONB column, gated migration
+#   supabase/migrations/20260714_lego_metrics_evidence_series.sql
+# - Safety rails (kill switch, shadow-mode logging): LIVE (WP-5, folded into
+#   WP-3's player wiring) — algorithm_config.adaptation_v2, adaptation_plan
+#   shadow log event. The ?adaptdebug=1 dev overlay (§6.5(c)) is NOT built —
+#   not required for the shadow-mode deliverable, earn it when a human needs
+#   to eyeball live lever positions during soak.
 # - Boundary sensing (WP-9, inter-peak gap analysis): NOT BUILT — out of scope
-#   for WP-6/7a/8; a separate, deliberately timeboxed work package
+#   for WP-6/7a/8, a separate, deliberately timeboxed work package
 
 module: evidence_stream
   purpose: >
@@ -324,6 +334,135 @@ module: rate_policy
                                                        #   traces replaying real struggling/steady/easing
                                                        #   syntheticSeries through the real assessLocalDifficulty
                                                        #   sensor (not a stub); config overrides honoured.
+
+module: player_wiring
+  purpose: >
+    WP-3: wires the evidence stream (WP-0/1) and rate policy (WP-2) into the
+    live player, entirely through SimplePlayer's EXISTING runtime-overrides
+    surface (`shouldSkipCycle`, `getPauseDuration`) — no script regeneration,
+    same mechanism Turbo already proves out. SHADOW MODE IS THE DELIVERABLE:
+    the engine computes and logs a RoundPlan every round boundary, but the
+    kill switch / shadow flag (WP-5, folded in here) means nothing is
+    APPLIED until Tom flips `adaptation_v2.shadow` to false in the DB.
+
+  shared_aggregator: >
+    LearningPlayer.vue constructs ONE `sharedEvidenceAggregator` (module
+    scope) and passes it into BOTH `useAdaptationEngine({..., aggregator:
+    sharedEvidenceAggregator})` and `useBehaviouralEvidence(
+    sharedEvidenceAggregator)` — the two producers now merge into one
+    per-LEGO series, satisfying WP-0's acceptance test in the actual running
+    player (previously each composable held its own aggregator). Latency
+    evidence is emitted unconditionally inside `useAdaptationEngine.
+    recordCycle` (cheap, keeps the series warm for whenever v2 is enabled) —
+    the kill switch gates PLANNING/LOGGING/APPLICATION at the LearningPlayer
+    level, not evidence recording.
+
+  round_plan_computation: >
+    `useAdaptationEngine.planRound(input: PlanRoundInput) -> { plan,
+    difficulty }` wraps `EvidenceAggregator.readyUnits` +
+    `assessLocalDifficulty` (B4) per ready unit, then
+    `RatePolicyEngine.planRound`. Only the round's own (about-to-play) LEGO
+    has a known introduction ordinal — `unitOrdinals` for every other unit is
+    left absent, which the criticality guard treats as "never critical" (the
+    policy's documented safe default) rather than guessing. `roundLegoOrdinal`
+    is approximated as the LEGO's SEED NUMBER (via getSeedFromLegoId) since
+    one new LEGO per round means round order tracks introduction order
+    closely and criticality only needs the FRACTION through the course right,
+    not an exact count; `courseLegoCount` is approximated the same way via
+    `beltProgress.courseSeedCount`. Both approximations are PROPOSED — earn a
+    finer ordinal map only if shadow-log data shows mis-deferring.
+
+  application: >
+    `handleRoundBoundary` computes the plan for the round about to start
+    (`nextRound`) EVERY boundary the engine is enabled, logs it unconditionally,
+    then applies it ONLY when `shadow:false`:
+      - `computeAdaptOmitCycleIds(round, plan)` (packages/player-vue/src/
+        playback/adaptationOverrides.ts) mirrors the `turboOmit` cull exactly
+        — walks the round's cycles counting BUILD/USE/spaced_rep occurrences
+        in order, marking the (N+1)-th-and-later of each type past
+        buildCount/consolidateCount/spacedRepCap. This is a COMPLETE and
+        correct realisation for buildCount/spacedRepCap (their ceiling always
+        equals their scripted default in RatePolicyBounds — they can only
+        ever be trimmed). consolidateCount's ceiling exceeds its scripted
+        default; a RAISE there is realised via insertBreather instead (a cull
+        can only trim, never invent cycles).
+      - `assembleBreatherRound(loadedRounds, completedRoundIndex, nextRound,
+        getPauseMultiplier)` builds a no-new-LEGO round from USE cycles
+        already sitting in already-loaded rounds, whose LEGO reads
+        confident/mastered on the existing pause ladder (>= 0.85 ceiling on
+        `getPauseMultiplier`) — one per LEGO, oldest-loaded first, capped at
+        12 cycles. Inserted via `SimplePlayer.appendRounds` (an existing,
+        audited primitive — this is the SAME insertion path infinite-play
+        revival batches use) at a fractional `roundNumber` (anchor - 0.5) so
+        it sorts immediately before the next debut. Returns null (no
+        insertion) when nothing is mastered yet.
+      - `currentRoundPlan` (for the pause-multiplier nudge) and
+        `adaptOmitCycleIds` (for the cull) are set ONLY on the apply branch;
+        the shadow/disabled branch resets both to empty, so
+        `shouldSkipCycle`/`getPauseDuration` transparently fall through to
+        the pre-v2 behaviour with zero learner-visible change.
+
+  safety_rails: >
+    `algorithm_config.adaptation_v2` (useAlgorithmConfig.ts,
+    `AdaptationV2Config`): `{ enabled, shadow, stage2_enabled, bounds,
+    weights }`. Default (row absent, or fields missing) is `enabled:true,
+    shadow:true` — "compute and log every boundary, never apply" — satisfying
+    "ship with the DB flag absent -> shadow-only" via the SAME missing-row
+    fallback merge pattern every other algorithm_config key already uses.
+    `enabled:false` is the harder kill switch: `handleRoundBoundary` skips the
+    entire adaptation-v2 block — no evidence read, no curvature computed, no
+    adaptation_plan log line ("disables even shadow computation", verbatim).
+    `bounds` flows into `RatePolicyEngine` via `ratePolicyConfig.bounds` at
+    `useAdaptationEngine` construction, so Tom can tune floors/ceilings/steps
+    without a deploy.
+
+  shadow_log_shape: >
+    One `adaptation_plan` player_event per round boundary (when enabled):
+      { roundNumber, legoId,
+        plan: { buildCount, consolidateCount, spacedRepCap, insertBreather },
+        difficultyStates: [{ unitId, state, accelerationZ, samples }, ...],
+        applied: boolean }   # true only when shadow:false
+    `applied` lets a shadow-soak query separate "what the engine computed"
+    from "what it would have changed" without a second event type.
+
+  persistence: >
+    WP-4 (lite scope): `LegoMetricsStore.upsertEvidenceSeries` (new, isolated
+    upsert — same pattern as the existing `upsertSeries` B4 write) persists
+    `EvidenceAggregator.getSeries(legoId)` per dirty LEGO on every flush;
+    `initialize()` hydrates the aggregator from `learner_lego_metrics.
+    evidence_series` on mount, alongside (not replacing) the existing
+    `recent_latency_samples` hydrate. Gated migration (Tom applies):
+    supabase/migrations/20260714_lego_metrics_evidence_series.sql — additive,
+    same isolation reasoning as the 20260613 latency-series migration: a
+    missing column degrades this ONE upsert in isolation, never mastery or
+    the B4 series write.
+
+  guarantees:
+    - zero_learner_visible_change_in_shadow: currentRoundPlan/adaptOmitCycleIds
+      are empty/null on every path except enabled&&!shadow — existing test
+      suites (SimplePlayer, LearningPlayer-adjacent) pass unmodified
+    - kill_switch_is_a_hard_stop: enabled:false short-circuits before any
+      evidence read/curvature computation/log line, not just before applying
+    - no_script_regeneration: every lever is realised through SimplePlayer's
+      existing overrides surface (shouldSkipCycle, getPauseDuration) or its
+      existing appendRounds primitive — no Round/Cycle mutation of the
+      original generated script
+    - structural_bound_reuse: buildCount/spacedRepCap realisation is provably
+      complete because their ceiling equals their scripted default in
+      RatePolicyBounds (ratePolicy.ts) — cull-only can never under-realise them
+
+  tests:
+    - packages/player-vue/src/playback/adaptationOverrides.test.ts   # cull
+      #   matches scripted defaults (no-op); trims BUILD/USE/spaced_rep past
+      #   each cap; never touches other cycle types; breather returns null
+      #   pre-mastery; pulls one USE cycle per mastered LEGO; fractional
+      #   roundNumber sorts before the anchor; distinct legoId; caps at 12 +
+      #   dedupes; only considers rounds up to the given index (inclusive)
+    - packages/core/src/persistence/LegoMetricsStore.test.ts   # evidence_series
+      #   load/default-when-absent; upsertEvidenceSeries payload shape +
+      #   no-op-on-empty, isolated from mastery columns
+    - existing suites (packages/core, packages/player-vue) pass unmodified —
+      the shadow-mode zero-visible-change assertion
 
 module: envelope_extractor
   purpose: >

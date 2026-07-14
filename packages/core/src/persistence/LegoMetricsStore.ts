@@ -8,6 +8,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MasteryState } from '../learning/types';
+import type { EvidenceSeries } from '../learning/evidence';
 
 export interface LegoMetricsRow {
   learner_id: string;
@@ -26,13 +27,20 @@ export interface LegoMetricsRow {
    * the column is absent (pre-migration). Capped by the writer.
    */
   recent_latency_samples: number[];
+  /**
+   * The shared evidence-aggregator series for this unit (adaptation v2, WP-0/
+   * WP-4) — latency + behavioural (+ eventually envelope) merged. Undefined
+   * until any evidence lands, or when the `evidence_series` column is absent
+   * (pre-migration).
+   */
+  evidence_series?: EvidenceSeries;
   last_seen_at: Date;
   updated_at: Date;
 }
 
 export type LegoMetricsUpsert = Omit<
   LegoMetricsRow,
-  'updated_at' | 'mean_latency_ms' | 'recent_latency_samples'
+  'updated_at' | 'mean_latency_ms' | 'recent_latency_samples' | 'evidence_series'
 >;
 
 /**
@@ -46,6 +54,18 @@ export interface LegoSeriesUpsert {
   course_code: string;
   recent_latency_samples: number[];
   mean_latency_ms: number | null;
+}
+
+/**
+ * The adaptation-v2 evidence-aggregator snapshot write (WP-4) — kept
+ * SEPARATE again, same isolation reasoning as `LegoSeriesUpsert`: a missing
+ * `evidence_series` column (pre-migration) fails only this write.
+ */
+export interface LegoEvidenceSeriesUpsert {
+  learner_id: string;
+  lego_id: string;
+  course_code: string;
+  evidence_series: EvidenceSeries;
 }
 
 export interface LegoMetricsStoreConfig {
@@ -87,6 +107,9 @@ export class LegoMetricsStore {
       recent_latency_samples: Array.isArray(row.recent_latency_samples)
         ? (row.recent_latency_samples as number[])
         : [],
+      evidence_series: row.evidence_series && Array.isArray(row.evidence_series.values)
+        ? (row.evidence_series as EvidenceSeries)
+        : undefined,
       last_seen_at: new Date(row.last_seen_at),
       updated_at: new Date(row.updated_at),
     }));
@@ -140,6 +163,32 @@ export class LegoMetricsStore {
 
     if (error) {
       throw new Error(`Failed to upsert lego series: ${error.message}`);
+    }
+  }
+
+  /**
+   * Persist the per-(learner, lego) SHARED EVIDENCE AGGREGATOR series
+   * (adaptation v2, WP-4). Call AFTER `upsertMany` for the same legos, same
+   * reasoning as `upsertSeries` above. Isolated so a missing `evidence_series`
+   * column never regresses mastery or B4-series persistence.
+   */
+  async upsertEvidenceSeries(rows: LegoEvidenceSeriesUpsert[]): Promise<void> {
+    if (rows.length === 0) return;
+
+    const payload = rows.map((r) => ({
+      learner_id: r.learner_id,
+      lego_id: r.lego_id,
+      course_code: r.course_code,
+      evidence_series: r.evidence_series,
+    }));
+
+    const { error } = await this.client
+      .schema(this.schema)
+      .from('learner_lego_metrics')
+      .upsert(payload, { onConflict: 'learner_id,lego_id' });
+
+    if (error) {
+      throw new Error(`Failed to upsert lego evidence series: ${error.message}`);
     }
   }
 }
