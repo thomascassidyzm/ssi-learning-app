@@ -353,7 +353,7 @@ function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
           </div>
         </div>
 
@@ -390,7 +390,7 @@ function handlePlayClass(cls: ClassInfo) {
 
           <div class="panel-footer">
             <span class="join-code">{{ cls.student_join_code }}</span>
-            <button class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
+            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
           </div>
         </article>
 
@@ -511,17 +511,17 @@ function handlePlayClass(cls: ClassInfo) {
         <aside class="schools-card schools-card-pad attention-panel">
           <h3 class="arsenal attention-title">Quick links</h3>
           <div class="attention-list">
-            <router-link to="/schools/students" class="attention-row">
+            <router-link :to="schoolsLink('students')" class="attention-row">
               <div class="attention-tag">Students</div>
               <div class="attention-body">View and manage all student progress</div>
               <span class="attention-cta">Open →</span>
             </router-link>
-            <router-link to="/schools/teachers" class="attention-row">
+            <router-link :to="schoolsLink('teachers')" class="attention-row">
               <div class="attention-tag">Teachers</div>
               <div class="attention-body">Invite or manage teaching staff</div>
               <span class="attention-cta">Open →</span>
             </router-link>
-            <router-link to="/schools/analytics" class="attention-row">
+            <router-link :to="schoolsLink('analytics')" class="attention-row">
               <div class="attention-tag">Analytics</div>
               <div class="attention-body">Weekly activity and per-class breakdown</div>
               <span class="attention-cta">Open →</span>
@@ -544,7 +544,7 @@ function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
-          <router-link to="/schools/all" class="btn-ghost">Full schools list →</router-link>
+          <router-link :to="schoolsLink('schools-list')" class="btn-ghost">Full schools list →</router-link>
         </template>
       </Greeting>
 
@@ -723,7 +723,10 @@ function handlePlayClass(cls: ClassInfo) {
             <tbody>
               <tr v-for="cls in teacherClasses" :key="cls.id">
                 <td>
-                  <router-link :to="`/schools/classes/${cls.id}`" class="class-cell class-cell-link">
+                  <router-link
+                    :to="schoolsLink('class-detail', { classId: cls.id, schoolId: viewingSchool?.id })"
+                    class="class-cell class-cell-link"
+                  >
                     <BeltDot belt="white" :size="20" ring />
                     <div>
                       <div class="class-name">{{ cls.class_name }}</div>

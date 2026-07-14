@@ -5,12 +5,14 @@ import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
+import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
 const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
+const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser } = useSchoolContext()
 const { students: studentsData, fetchStudents } = useStudentsData()
 
@@ -122,7 +124,7 @@ function viewStudent(s: { learner_id: string; name?: string }) {
   // learner view for this student. (Live per-learner rate data is still the
   // deferred wiring — the view renders a seeded preview until then.)
   router.push({
-    name: 'analytics',
+    path: schoolsLink('analytics'),
     query: { scope: 'learner', learner: s.learner_id, name: s.name },
   }).catch(() => {})
 }
