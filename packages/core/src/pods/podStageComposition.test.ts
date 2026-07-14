@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildMainStage,
-  composeSentenceArc,
   type PodSentenceRow,
-  type PodPlayRole,
 } from './podStageComposition'
-import { DEFAULT_STAGE0, normSurface } from './stage0Sequence'
 
 const baseSentence = (over: Partial<PodSentenceRow> = {}): PodSentenceRow => ({
   global_order: 1,
@@ -41,47 +38,5 @@ describe('buildMainStage — whole-sentence stage composition', () => {
   it('drops a trans slot when the sentence has no known clip', () => {
     const plays = buildMainStage(baseSentence({ known_audio_id: null }), 2, 1, ['ps', 'trans', 'ps'])
     expect(plays.map((p) => p.playRole)).toEqual(['ps', 'ps'])
-  })
-})
-
-describe('composeSentenceArc — the Progression walk = main-flow by construction', () => {
-  const stagePlaylist: Record<number, PodPlayRole[]> = { 1: ['ps', 'explainer', 'ps'], 2: ['ps', 'trans', 'ps'] }
-  const glossMap = new Map([['L1', 'gloss1']])
-  // targetClipMap is keyed by NORMALISED surface (as loadStage0ClipMaps builds it
-  // — case-insensitive so a capitalised atom resolves a lowercase-rendered slice).
-  const targetClipMap = new Map([[normSurface('Nǐ hǎo'), 'atom1']])
-
-  it('prepends the Stage-0 ladder when the sentence resolves to atoms with a clip', () => {
-    const sentence = baseSentence({
-      atom_map: [{ lego_key: 'L1', kind: 'atom', gloss: 'hello', target_surface: 'Nǐ hǎo' }],
-    })
-    const arc = composeSentenceArc(sentence, 1, { stage0: DEFAULT_STAGE0, glossMap, targetClipMap, stagePlaylist })
-    const stage0Plays = arc.filter((p) => p.stage === 0)
-    expect(stage0Plays.length).toBeGreaterThan(0)
-    // Stage-0 comes FIRST, before any main stage.
-    const firstMainIdx = arc.findIndex((p) => p.stage > 0)
-    expect(arc.slice(0, firstMainIdx).every((p) => p.stage === 0)).toBe(true)
-  })
-
-  it('omits Stage-0 when the sentence has no atoms (matches main-flow gate)', () => {
-    const arc = composeSentenceArc(baseSentence(), 1, { stage0: DEFAULT_STAGE0, glossMap, targetClipMap, stagePlaylist })
-    expect(arc.some((p) => p.stage === 0)).toBe(false)
-    expect(arc.some((p) => p.stage === 1)).toBe(true)
-  })
-
-  it('each main-stage slice equals buildMainStage — the same builder the scheduler runs', () => {
-    const sentence = baseSentence({
-      atom_map: [{ lego_key: 'L1', kind: 'atom', gloss: 'hello', target_surface: 'Nǐ hǎo' }],
-    })
-    const arc = composeSentenceArc(sentence, 1, { stage0: DEFAULT_STAGE0, glossMap, targetClipMap, stagePlaylist })
-    for (const stage of [1, 2]) {
-      const slice = arc.filter((p) => p.stage === stage)
-      expect(slice).toEqual(buildMainStage(sentence, stage, 1, stagePlaylist[stage as 1 | 2] as any))
-    }
-  })
-
-  it('contributes nothing when the sentence has no target audio', () => {
-    const arc = composeSentenceArc(baseSentence({ target_audio_id: null }), 1, { stage0: DEFAULT_STAGE0, glossMap, targetClipMap, stagePlaylist })
-    expect(arc).toEqual([])
   })
 })

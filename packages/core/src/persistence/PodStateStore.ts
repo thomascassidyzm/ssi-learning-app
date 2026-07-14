@@ -13,7 +13,7 @@
  *
  * Keyed by the client-side per-sentence id convention:
  * `listening_pod_sentences.id` for a whole-turn row, `${id}:s${index}` for a
- * June-split per-sentence unit. Mirrors LegoListeningStore (learner_l1_state).
+ * June-split per-sentence unit.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

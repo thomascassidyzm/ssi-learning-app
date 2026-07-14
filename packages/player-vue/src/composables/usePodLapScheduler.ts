@@ -31,20 +31,10 @@
 import { ref, shallowRef, type Ref } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  resolveAtoms,
-  stage0ViewFor,
-  type Stage0Config,
   type AtomMapEntry,
   ROLE_SPEED,
   isTargetRole,
-  buildStage0Tier,
   buildMainStage,
-  loadStage0ClipMaps,
-  buildFusionGroups,
-  buildFusionRungPlays,
-  groupDepth,
-  normalizeForAudio,
-  type FusionGroup,
   type PodPlayRole,
   type PodPlay,
   type PodSentenceRow,
@@ -52,11 +42,6 @@ import {
 import { PodStateStore } from '@ssi/core'
 import { splitRowUnits } from './podSentenceSplit'
 import { getCachedListeningMeta } from './listeningMetaCache'
-
-/** Fusion mode for the main-flow unified ladder — pairwise per Aran's model
- *  (Tom 2026-07-05). The chained-overlap alternative stays a composer flag;
- *  flip here (or lift to algorithm_config) if the Lab audition prefers it. */
-const MAIN_FUSION_MODE = 'pairwise' as const
 
 // Re-export the moved symbols so existing importers (LearningPlayer,
 // ListeningOverlay, PodStageAuditioner, tests) keep their import paths.
@@ -188,13 +173,12 @@ interface RawPodRow {
   atom_map?: AtomMapEntry[] | null
   sentence_audio_ids?: string[] | null
   sentence_known_audio_ids?: string[] | null
-  atom_map_fine?: unknown[] | null
-  window_known_map?: unknown[] | null
-  takeg_audio_ids?: Array<string | null> | null
 }
 
-/** A flattened sentence + its (optional) fusion group for the unified ladder. */
-export type SchedulerPodRow = PodSentenceRow & { fusion_group?: FusionGroup | null }
+/** A flattened per-sentence pod row. Plain alias — kept as its own name so
+ *  call sites (podSentences ref, LearningPlayer's turn display) don't couple
+ *  directly to the core type name. */
+export type SchedulerPodRow = PodSentenceRow
 
 /** Strip everything but letters/numbers/combining-marks for a script-agnostic
  *  structural comparison (NOT a linguistic judgment — just whitespace/
@@ -207,13 +191,14 @@ const alnumOnly = (s: string): string => (s || '').toLowerCase().replace(/[^\p{L
 
 /**
  * Partition a turn's FLAT atom_map across its sentences, so each split sentence
- * gets only its OWN atoms for Stage-0. The atom_map is ordered and its atom
- * surfaces tile the turn's target text in order, so we walk the atoms
- * accumulating their surfaces and close a group when the accumulation exactly
- * covers the next sentence. Returns one atom group per sentence, or NULL if the
- * atoms don't cleanly align (then the caller drops Stage-0 for that turn's
- * splits — never a WRONG ladder). 'note' entries (no spoken surface) ride along
- * in the current group; only atom/passthrough surfaces are matched.
+ * gets only its OWN atoms for the per-sentence visual breakdown (LegoAssembly
+ * tiles). The atom_map is ordered and its atom surfaces tile the turn's target
+ * text in order, so we walk the atoms accumulating their surfaces and close a
+ * group when the accumulation exactly covers the next sentence. Returns one
+ * atom group per sentence, or NULL if the atoms don't cleanly align (then the
+ * caller drops the tiled breakdown for that turn's splits — never a WRONG
+ * one). 'note' entries (no spoken surface) ride along in the current group;
+ * only atom/passthrough surfaces are matched.
  */
 export function partitionAtomMap(
   atomMap: AtomMapEntry[] | null | undefined,
@@ -262,37 +247,6 @@ export function flattenPodRows(rawRows: RawPodRow[]): SchedulerPodRow[] {
     const turnId = String(rowIdx)
     const units = splitRowUnits(row)
 
-    // Unified-ladder fusion groups (agent-authored fine seams + Take G
-    // slices). The lap's items are ROWS, so groups must map 1:1 onto them —
-    // splitGlued emits a glued turn as per-row groups (the interjection row
-    // keeps its own take at depth 1; the continuation row slices the shared
-    // Take G). Anything that still doesn't map 1:1 (e.g. an unsplit
-    // multi-sentence turn) keeps the legacy path.
-    let groupByUnit: Array<FusionGroup | null> = units.map(() => null)
-    if (Array.isArray(row.atom_map_fine) && row.atom_map_fine.length > 0) {
-      const groups = buildFusionGroups(
-        {
-          turnTargetText: row.target_text || '',
-          fineMap: row.atom_map_fine as never,
-          windowKnownMap: (row.window_known_map as never) || null,
-          takegAudioIds: row.takeg_audio_ids || null,
-          rows: units.map((u) => ({
-            targetAudioId: u.targetAudioId,
-            knownAudioId: u.knownAudioId,
-            targetText: u.targetText,
-            knownText: u.knownText,
-          })),
-        },
-        { splitGlued: true },
-      )
-      if (
-        groups &&
-        groups.length === units.length &&
-        groups.every((g, gi) => g.rowFirst === gi && g.rowLast === gi)
-      ) {
-        groupByUnit = groups
-      }
-    }
     if (units.length === 1) {
       expanded.push({
         // Shared two-doors counter key — same convention the overlay uses.
@@ -306,7 +260,6 @@ export function flattenPodRows(rawRows: RawPodRow[]): SchedulerPodRow[] {
         glue_to_next: !!row.glue_to_next,
         atom_map: row.atom_map ?? null,
         speaker: row.speaker ?? null,
-        fusion_group: groupByUnit[0],
         _turnId: turnId,
         _origGlue: !!row.glue_to_next,
       })
@@ -326,7 +279,6 @@ export function flattenPodRows(rawRows: RawPodRow[]): SchedulerPodRow[] {
           glue_to_next: false, // set in the speaker-aware pass below
           atom_map: atomGroups ? atomGroups[k] : null,
           speaker: row.speaker ?? null,
-          fusion_group: groupByUnit[k],
           _turnId: turnId,
           _origGlue: !!row.glue_to_next,
         })
@@ -384,11 +336,6 @@ export interface UsePodLapSchedulerOptions {
    *  (every round). Stretches every stage proportionally because the
    *  pod-round ratchet only ticks on actual fires. */
   roundInterval?: Ref<number> | number
-  /** Stage-0 ladder config (algorithm_config['stage0']). When provided AND a
-   *  sentence has resolvable atoms, the sentence's first N views (N = number
-   *  of tiers) play the Stage-0 ladder before its existing Stages 1-9. Omit
-   *  (or empty tiers) → no Stage-0; behaviour identical to before. */
-  stage0?: Ref<Stage0Config | null | undefined> | Stage0Config | null
 }
 
 const isGuestLearner = (id: string | null | undefined): boolean => {
@@ -412,19 +359,6 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
   const podSentences = shallowRef<SchedulerPodRow[]>([])
   const introAudio = ref<BookendAudio | null>(null)
   const outroAudio = ref<BookendAudio | null>(null)
-
-  // Stage-0 course-wide lookups (built in init): lego_key → "means <gloss>"
-  // clip, and target_surface → "[atom] <target>" clip. Empty when the course
-  // has no Stage-0 data, which disables the prepend for every sentence.
-  let stage0MeansGloss = new Map<string, string>()
-  let stage0TargetClip = new Map<string, string>()
-
-  // Fine-known clips for the unified ladder's fusion rungs (agent-authored
-  // unit glosses / window translations), text-keyed by text_normalized.
-  // Loaded once per course when any sentence carries a fusion group.
-  let fineKnownByNorm = new Map<string, string>()
-  const lookupFineKnown = (text: string): string | null =>
-    fineKnownByNorm.get(normalizeForAudio(text)) || null
 
   /** Main-round at which pods START FIRING. NULL → use default 6. */
   const podActivationRound = ref<number>(DEFAULT_POD_ACTIVATION)
@@ -457,7 +391,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       const [podsResult, bookendsResult, enrollmentResult] = await Promise.all([
         supabase
           .from('listening_pod_sentences')
-          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids, atom_map_fine, window_known_map, takeg_audio_ids')
+          .select('id, global_order, speaker, target_text, known_text, target_audio_id, known_audio_id, explainer_audio_id, glue_to_next, atom_map, sentence_audio_ids, sentence_known_audio_ids')
           .eq('pod_id', `${courseCode}:pod-0`)
           .order('global_order', { ascending: true }),
         supabase
@@ -497,57 +431,11 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       // Flatten turn-rows into per-SENTENCE units: a silence-split turn plays
       // as target→known→target PER SENTENCE (not 3 target sentences then 3
       // known — too hard to follow, Tom 2026-06-16). Rows without a split pass
-      // through unchanged. Everything downstream (stages, Stage-0, gaps) then
-      // works per-sentence by construction.
+      // through unchanged. Everything downstream (stages, gaps) then works
+      // per-sentence by construction. atom_map rides along per sentence for
+      // the always-visible LEGO-tile breakdown (LearningPlayer renders it —
+      // no audio ladder is built from it any more, see podTurnDisplay).
       podSentences.value = flattenPodRows((podRowsData || []) as RawPodRow[])
-
-      // Stage-0 lookups — only when the ladder is enabled (config present) and
-      // at least one sentence carries an atom_map. Two small course-wide reads.
-      stage0MeansGloss = new Map()
-      stage0TargetClip = new Map()
-      const stage0Enabled = !!unwrap(options.stage0) && podSentences.value.some((s) => Array.isArray(s.atom_map) && s.atom_map.length > 0)
-      if (stage0Enabled) {
-        // Best-effort: offline (or a failed read) just skips the Stage-0
-        // prepend — the sentence's Stages 1-9 still play — rather than
-        // failing the whole init.
-        try {
-          const maps = await loadStage0ClipMaps(supabase, courseCode)
-          stage0MeansGloss = maps.glossMap
-          stage0TargetClip = maps.targetClipMap
-        } catch (err) {
-          console.warn('[podLapScheduler] Stage-0 clip-map load failed (ladder skipped):', err)
-        }
-      }
-
-      // Fine-known clips for fusion rungs — paged under PostgREST's row cap.
-      // Best-effort: a failed read just drops the known slot at fused rungs
-      // (t·t instead of t·k·t·t); the targets still play.
-      fineKnownByNorm = new Map()
-      if (podSentences.value.some((s) => s.fusion_group)) {
-        try {
-          const page = 1000
-          for (let from = 0; ; from += page) {
-            const { data: fineRows, error: fineErr } = await supabase
-              .from('course_audio')
-              .select('id, text_normalized')
-              .eq('course_code', courseCode)
-              .eq('role', 'pod_fine_known')
-              .range(from, from + page - 1)
-            if (fineErr) throw fineErr
-            for (const r of fineRows || []) fineKnownByNorm.set(r.text_normalized, r.id)
-            if (!fineRows || fineRows.length < page) break
-          }
-        } catch (err) {
-          // Offline fallback — the map persisted by the offline download.
-          const cached = await getCachedListeningMeta(courseCode)
-          if (cached && Object.keys(cached.fineKnowns).length > 0) {
-            fineKnownByNorm = new Map(Object.entries(cached.fineKnowns))
-            console.warn('[podLapScheduler] fine-known live load failed — using offline cache')
-          } else {
-            console.warn('[podLapScheduler] fine-known load failed (knowns drop at fused rungs):', err)
-          }
-        }
-      }
 
       const byRole = new Map<string, BookendAudio>()
       for (const row of bookendData || []) {
@@ -663,8 +551,7 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
     }
   }
 
-  // Stage-0 / main-stage composition now lives in ./podStageComposition
-  // (buildStage0Tier / buildMainStage), shared with the Progression audit walk.
+  // Main-stage composition lives in ./podStageComposition (buildMainStage).
 
   /**
    * Compose the lap that should play right now, based on the current ratchet
@@ -695,76 +582,27 @@ export function usePodLapScheduler(options: UsePodLapSchedulerOptions) {
       liveDurations ?? (livePlaylist ? undefined : DEFAULT_STAGE_DURATIONS)
     const totalStages = Object.keys(stagePlaylistMap).length
 
-    const s0cfg = unwrap(options.stage0) as Stage0Config | null | undefined
-    const stage0Tiers = s0cfg?.tiers?.length ?? 0
-
     const plays: PodPlay[] = []
     pendingExposures = []
     for (let i = 1; i <= activeCount; i++) {
       const sentence = podSentences.value[i - 1]
       if (!sentence.target_audio_id) continue
 
-      // ── Stage-0 prepend: a sentence with resolvable atoms spends its first
-      // N views (N = tier count) in the Stage-0 ladder, one tier per view,
-      // before its existing Stages 1-9. Sentences with no atoms are untouched.
-      const sentenceHasStage0 =
-        !!s0cfg &&
-        stage0Tiers > 0 &&
-        resolveAtoms(sentence.atom_map, stage0MeansGloss, stage0TargetClip).some((a) => a.targetClipId)
       // Effective view: the derived lap-ladder position, lifted by the shared
       // two-doors counter when Listening Drill has taken this sentence
       // further (exposures = views COMPLETED → serve view = exposures + 1).
       // Intake stays ratchet-driven (activeCount above) — drilling ahead
       // never pulls a sentence into laps early, it just enters wiser.
+      //
+      // No audio breakdown ladder prepends this any more (Stage-0 retired
+      // 2026-07-14, Tom + Aran — the breakdown is now the ALWAYS-VISIBLE
+      // LEGO-tile display podTurnDisplay builds from atom_map, not audio
+      // reps). Every sentence enters straight at Stage 1 on its first view.
       const derivedAlive = podRound - i + 1
       const stored = sentence.sentence_id ? podExposures.get(sentence.sentence_id) : undefined
       const alive = Math.max(derivedAlive, (stored ?? 0) + 1)
 
-      // ── UNIFIED LADDER (Tom 2026-07-03, sentence-capped 2026-07-05): where
-      // a sentence carries an agent-authored fusion group, its ladder is the
-      // fusion rungs (finest units → pairwise fusions, every chunk t·k·t·t at
-      // 1×, Take G ms-slices) and then the config speed cascade. The whole-
-      // sentence t·k·t·t ≡ Stage 1, so view depth = Stage 1's first view —
-      // the splice is seamless. Fusion REPLACES the Stage-0 explainer ladder
-      // for these sentences (no explainer stage, no 'means' formula). Drill
-      // reads the same counter, so its rungs and these are one scale.
-      if (sentence.fusion_group) {
-        const depth = groupDepth(sentence.fusion_group, MAIN_FUSION_MODE)
-        if (alive < depth) {
-          const rungPlays = buildFusionRungPlays(sentence, sentence.fusion_group, alive - 1, i, MAIN_FUSION_MODE, lookupFineKnown)
-          if (rungPlays.length > 0) {
-            plays.push(...rungPlays)
-            if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
-            continue
-          }
-          // No real clips for this rung (shouldn't happen) — fall through to
-          // the legacy path rather than serve silence.
-        } else {
-          const stageInfo = podStageFor(1, alive - depth + 1, stageDuration, totalStages, stageDurationsMap)
-          if (!stageInfo) continue
-          const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
-          if (!playlist) continue
-          plays.push(...buildMainStage(sentence, stageInfo.stage, i, playlist))
-          if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
-          continue
-        }
-      }
-
-      const view = stage0ViewFor(alive, sentenceHasStage0 ? stage0Tiers : 0)
-      if (view.phase === 'stage0') {
-        // s0cfg is guaranteed truthy here (sentenceHasStage0 requires it), but
-        // guard for the type-checker — fall through harmlessly if ever null.
-        if (s0cfg) {
-          plays.push(...buildStage0Tier(sentence, s0cfg.tiers[view.tierIndex].key, i, s0cfg, stage0MeansGloss, stage0TargetClip))
-          if (sentence.sentence_id) pendingExposures.push({ sentence_id: sentence.sentence_id, exposures: alive })
-        }
-        continue
-      }
-
-      // Main stages — entry shifts past the Stage-0 views so view N+1 = Stage 1.
-      // podStageFor(entry=1, current=alive−shift) ≡ the old (i+shift, podRound)
-      // call, but driven by the EFFECTIVE view instead of the derived one.
-      const stageInfo = podStageFor(1, alive - view.shift, stageDuration, totalStages, stageDurationsMap)
+      const stageInfo = podStageFor(1, alive, stageDuration, totalStages, stageDurationsMap)
       if (!stageInfo) continue
       const playlist = stagePlaylistMap[stageInfo.stage] || stagePlaylistMap[String(stageInfo.stage)]
       if (!playlist) continue

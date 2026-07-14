@@ -51,6 +51,11 @@ export interface Cycle {
    * consults the runtime override (which checks turboActive) to decide
    * whether to actually skip. */
   turboOmit?: boolean
+  /** True for cycles that carry AT MOST one audio track (listening / pod /
+   * bookend / drained-seed-sandwich sub-cycles) — the other 3-phase gaps are
+   * by design, not missing data. Lets SimplePlayer suppress its "no audio,
+   * skipping" warnings without switch-casing on `type` string values. */
+  singleAudio?: boolean
 }
 
 export interface Round {

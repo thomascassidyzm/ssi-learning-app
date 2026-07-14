@@ -28,13 +28,14 @@ import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../com
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
+import { computeTurnSpans, turnSpanForIndex } from '@ssi/core/pods'
+import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
-import { useListeningProgress, type UseListeningProgressReturn } from '../composables/useListeningProgress'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
@@ -366,7 +367,6 @@ const {
   normalConfig,
   listeningConfig,
   podsConfig,
-  stage0Config,
   scriptShapeConfig,
   resumeConfig,
   isLoaded: algorithmConfigLoaded
@@ -462,10 +462,6 @@ const runGenerateScript = (
     listening,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
-    // Persisted per-seed L1 fire counts — null on first session / pre-init
-    // → cold start, every seed at Stage 1. After hydration this compounds
-    // the Stage 1→4 progression across sessions.
-    listeningProgress.value?.getFireCounts() ?? null,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -1467,52 +1463,13 @@ simplePlayer.onPhaseChanged((phase) => {
     clearPreparingState()
   }
 
-  // ── Comprehensive audio + L1 cluster telemetry ──
+  // ── Comprehensive audio telemetry ──
   // SimplePlayer reuses one Audio element so at most one audio plays at
   // a time; logging on phase transitions captures every audio start
   // regardless of cache vs network. Batches via usePlayerLog (5s + 10-
   // event flush + pagehide beacon) — complete, not continuous.
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return
-
-  // L1 cluster boundary — fires once per cluster, on the prompt phase
-  // of an L1 listen_intro (cycle id `listen_intro_R{n}_*`). Layer 2 pod
-  // listen_intros are `listen_intro_pod_R{n}_*` and already have their
-  // own pod_lap_start event, so explicitly skip those.
-  if (phase === 'prompt' && cycle.type === 'listen_intro' && typeof cycle.id === 'string') {
-    if (cycle.id.startsWith('listen_intro_R') && !cycle.id.startsWith('listen_intro_pod_')) {
-      const m = cycle.id.match(/^listen_intro_R(\d+)_/)
-      const round = m ? parseInt(m[1], 10) : null
-      logEvent('l1_cluster_start', {
-        cycleId: cycle.id,
-        round,
-        legoId: cycle.legoId ?? null,
-      })
-      // Reset the cluster dedup set — bump fire_count once per distinct
-      // seed within this cluster (regardless of playlist length, which
-      // varies 1-3 cycles per seed by stage).
-      l1ClusterSeedsBumped = new Set<number>()
-    }
-  }
-
-  // L1 listening cycle — bump persisted fire_count for this cluster's seed.
-  // Pod (Layer 2) cycles have type='pod' so they're filtered out cleanly.
-  // Seed number is parsed from cycle.id (`listening_S0001_ps_N` → 1) because
-  // the script item's listeningSeedNumber custom field doesn't propagate
-  // through the ScriptItem → SimplePlayer.Cycle transformation.
-  if (
-    phase === 'prompt' &&
-    cycle.type === 'listening' &&
-    typeof cycle.id === 'string' &&
-    listeningProgress.value
-  ) {
-    const m = cycle.id.match(/^listening_S(\d+)_/)
-    const sNum = m ? parseInt(m[1], 10) : null
-    if (sNum !== null && l1ClusterSeedsBumped && !l1ClusterSeedsBumped.has(sNum)) {
-      l1ClusterSeedsBumped.add(sNum)
-      listeningProgress.value.recordClusterFire([sNum])
-    }
-  }
 
   // Audio play — log the URL + role for any phase that actually plays
   // a file. Skips silent phases (pause, or listening cycles with
@@ -3175,9 +3132,11 @@ const podScheduler = supabase?.value
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
-      // Stage-0 ladder (algorithm_config.stage0) — prepends 5 explainer views
-      // before Stages 1-9 for any sentence with atom data. Live-tunable.
-      stage0: computed(() => stage0Config.value),
+      // No Stage-0 ladder option any more (retired 2026-07-14) — every
+      // sentence goes straight to Stage 1. The per-atom breakdown a
+      // sentence used to get from AUDIO reps now comes from the
+      // always-visible LEGO-tile display (podTurnDisplay), driven by the
+      // same atom_map data but rendered visually, never played.
     })
   : null
 
@@ -3230,6 +3189,27 @@ const l1Scheduler = supabase?.value
   : null
 
 const playingPodLapAudio = ref(false)
+// The PodPlay currently sounding during a pod lap — set right before its
+// audio segment starts (playPodLap), cleared when the lap ends. Drives
+// PodTurnDisplay's "which sentence is lit" — the SAME object driving the
+// audio call, never a separate text lookup (2026-07-14 whole-turn display).
+const currentPodPlay = ref<PodPlay | null>(null)
+// Turn spans over the pod's flat sentence list, recomputed whenever the
+// scheduler's sentence list changes (course/learner switch). Pure structure,
+// independent of which sentences a given lap actually plays.
+const podTurnSpans = computed(() => (podScheduler ? computeTurnSpans(podScheduler.podSentences.value) : []))
+// The turn containing the currently-sounding sentence, sliced for display.
+// Null while nothing is lit yet (e.g. during the intro bookend).
+const currentPodTurn = computed(() => {
+  if (!podScheduler || !currentPodPlay.value) return null
+  const idx0 = currentPodPlay.value.sentenceIdx - 1 // PodPlay.sentenceIdx is 1-based
+  const span = turnSpanForIndex(podTurnSpans.value, idx0)
+  if (!span) return null
+  return {
+    sentences: podScheduler.podSentences.value.slice(span.start, span.end + 1),
+    activeIndex: idx0 - span.start,
+  }
+})
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
 // deliberate stop doesn't auto-advance into the next round mid-pod.
@@ -3633,21 +3613,6 @@ const initializeAdaptationEngine = async () => {
 }
 
 /**
- * Initialize per-seed L1 fire-count persistence so the Stage 1→4
- * playlist progression compounds across sessions.
- */
-const initializeListeningProgress = async () => {
-  if (!courseCode.value || listeningProgress.value) return
-  const progress = useListeningProgress({
-    supabase: supabase.value ?? null,
-    learnerId: learnerId.value ?? null,
-    courseCode: courseCode.value,
-  })
-  await progress.initialize()
-  listeningProgress.value = progress
-}
-
-/**
  * Initialize offline play composable
  */
 const initializeOfflinePlay = () => {
@@ -4037,6 +4002,9 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     for (let i = 0; i < lap.plays.length; i++) {
       const play = lap.plays[i] as PodPlay
       const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
+      // Drives PodTurnDisplay — set BEFORE the audio call so the visual and
+      // the sound always agree on which sentence is current.
+      currentPodPlay.value = play
       const segStart = Date.now()
       const cacheHit = audioCache.has(play.audioId)
       const result = await playPodSegment(
@@ -4089,6 +4057,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     return true
   } finally {
     playingPodLapAudio.value = false
+    currentPodPlay.value = null
     logEvent('pod_lap_end', {
       podRound: lap.podRound,
       cancelled: podLapCancelled.value,
@@ -4318,7 +4287,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
             const l1AsPodPlays: PodPlay[] = l1Cup.plays.map((p) => ({
               sentenceIdx: p.seedNumber,
               stage: 0,
-              playRole: p.role, // 'ps' | 'ps2x' | 'trans' — drives the gap matrix + known/target text
+              playRole: p.role, // 'ps' | 'trans' — drives the gap matrix + known/target text
               audioId: p.audioId,
               text: p.text,
               playbackSpeed: p.playbackSpeed,
@@ -4402,7 +4371,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
   // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
   // played as its comprehensible-input sandwich (target → known → target →
-  // target@2×; see buildSeedPlays). No ratchet: the lap is a pure function of
+  // target, all @1×; see buildSeedPlays). No ratchet: the lap is a pure function of
   // (catalogue, round, learner, cluster
   // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
@@ -4434,7 +4403,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         plays: l1Lap.plays.map((p): PodPlay => ({
           sentenceIdx: p.seedNumber,
           stage: 0,
-          playRole: p.role, // 'ps' | 'ps2x' | 'trans' — drives the gap matrix + known/target text
+          playRole: p.role, // 'ps' | 'trans' — drives the gap matrix + known/target text
           audioId: p.audioId,
           text: p.text,
           playbackSpeed: p.playbackSpeed,
@@ -8578,14 +8547,6 @@ const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 // actually plays (detected in onPhaseChanged below) — not when the script
 // emits one (the generator can plan future fires beyond the learner's
 // current position).
-const listeningProgress = shallowRef<UseListeningProgressReturn | null>(null)
-
-// Dedup set: seeds whose fire_count has already been bumped within the
-// currently-playing L1 cluster. Reset every listen_intro start so each
-// cluster contributes one bump per seed regardless of how many listening
-// cycles play for that seed (stage-1 plays 3, stage-4 plays 1, etc.).
-let l1ClusterSeedsBumped: Set<number> | null = null
-
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
 const timingAnalyzer = shallowRef(null)
@@ -10519,23 +10480,21 @@ onMounted(async () => {
     console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value, cachePlayOnline ? '(cache-play online: ON)' : '')
   }
 
-  // Cold-start critical path: these three init calls each await a Supabase
+  // Cold-start critical path: these init calls each await a Supabase
   // round-trip (belt remote merge + getMaxSeedNumber; adaptation mastery
-  // hydration; Layer-1 fire-count hydration). NONE is required before the
-  // first cycle can play — only getEnrollment (resume position, below) is.
-  // Every consumer is null-safe with a default: adaptationEngine.value?.
-  // getPauseMultiplier() ?? 1.0, listeningProgress.value?., and the belt
-  // computeds all `?. ?? <default>`. So we fire them concurrently and DON'T
-  // await — the first cycle plays immediately and the belt readout / pause
-  // tuning / L1 counts hydrate reactively a beat later. Previously these ran
-  // serially ahead of bootstrap, stacking ~4 RTTs onto every cold start.
+  // hydration). NEITHER is required before the first cycle can play — only
+  // getEnrollment (resume position, below) is. Every consumer is null-safe
+  // with a default: adaptationEngine.value?.getPauseMultiplier() ?? 1.0, and
+  // the belt computeds all `?. ?? <default>`. So we fire them concurrently
+  // and DON'T await — the first cycle plays immediately and the belt
+  // readout / pause tuning hydrate reactively a beat later. Previously these
+  // ran serially ahead of bootstrap, stacking RTTs onto every cold start.
   const COLD_T0 = (typeof performance !== 'undefined' ? performance.now() : 0)
   void Promise.all([
     initializeBeltProgress(),
     initializeAdaptationEngine(),
-    initializeListeningProgress(),
   ]).then(() => {
-    console.log('[ColdStart] background hydration (belt+adaptation+listening) ready in',
+    console.log('[ColdStart] background hydration (belt+adaptation) ready in',
       Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - COLD_T0), 'ms (off critical path)')
   }).catch((err) => {
     console.warn('[LearningPlayer] background hydration failed (non-fatal):', err)
@@ -12233,8 +12192,6 @@ onUnmounted(() => {
 
   // Flush any pending per-LEGO metrics, remove pagehide listener
   adaptationEngine.value?.dispose()
-  // Flush any pending L1 fire-count bumps
-  listeningProgress.value?.dispose()
   // Resume-audio listeners (registered top-level near extractAudioIdsFromCycle)
   if (typeof document !== 'undefined') {
     document.removeEventListener('visibilitychange', onSaveResumeVisibilityChange)
@@ -12814,6 +12771,19 @@ defineExpose({
       :show-romanization="showRomanization"
     />
 
+    <!-- Listening Pod moment (Layer 2, HISE-interleaved): the whole dialogue
+         turn currently in play, each sentence a LEGO-tile breakdown, the
+         sounding one lit. Always visible for the duration of the pod lap —
+         no VOICE_2 reveal-gating (that rule governs the SPEAKING cycle
+         above, not pod listening). Replaces Stage-0's audio breakdown
+         ladder (retired 2026-07-14, Tom + Aran). -->
+    <PodTurnDisplay
+      v-if="playingPodLapAudio && currentPodTurn"
+      :sentences="currentPodTurn.sentences"
+      :active-index="currentPodTurn.activeIndex"
+      :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+      :show-romanization="showRomanization"
+    />
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">
