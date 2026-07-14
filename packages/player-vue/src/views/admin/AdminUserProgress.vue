@@ -7,7 +7,7 @@
  * learner's course enrollments. Real admin's user_id is kept on the
  * context for any action that writes attribution.
  */
-import { inject, onMounted, provide, ref, watch } from 'vue'
+import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import StudentProgressView from '@/views/schools/StudentProgressView.vue'
@@ -49,6 +49,8 @@ async function loadContext(learnerId: string | string[]) {
 
 onMounted(() => loadContext(route.params.learnerId as string))
 watch(() => route.params.learnerId, (id) => { if (id) loadContext(id as string) })
+// Deterministic teardown — see finding #1a, 2026-07-13 audit.
+onUnmounted(() => ctx.clear())
 </script>
 
 <template>

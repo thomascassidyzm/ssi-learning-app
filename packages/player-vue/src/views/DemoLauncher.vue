@@ -101,7 +101,7 @@ async function startDemo(demo: typeof demos[0]) {
   // Set the school context directly to the demo persona. Schools composables
   // read ctx.currentUser to scope queries; for demo they also see
   // isDemoMode=true and short-circuit to the pre-populated data refs.
-  ctx.currentUser.value = user
+  ctx.currentUser.value = { ...user, _scopeSource: 'demo' }
 
   // Sync the demo persona's role into useUserRole so the /schools route
   // guard and SchoolsContainer's canAccessSchools see a school-scoped role.

@@ -5,7 +5,7 @@
  * Mirrors AdminSchoolsContainer but loads group context (govt_admin role)
  * so schools composables take the group-scope query branch.
  */
-import { inject, onMounted, provide, ref, watch } from 'vue'
+import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
@@ -49,6 +49,8 @@ async function loadContext(groupId: string | string[]) {
 
 onMounted(() => loadContext(route.params.id as string))
 watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
+// Deterministic teardown — see finding #1a, 2026-07-13 audit.
+onUnmounted(() => ctx.clear())
 </script>
 
 <template>
