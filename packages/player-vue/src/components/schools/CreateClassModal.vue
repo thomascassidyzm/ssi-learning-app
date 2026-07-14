@@ -186,7 +186,7 @@ const handleSubmit = () => {
                 <path d="M12 16v-4"/>
                 <path d="M12 8h.01"/>
               </svg>
-              <p>A unique join code will be generated automatically. Students can use this code to join your class.</p>
+              <p>A unique invite link will be generated automatically. Students click it to join your class.</p>
             </div>
           </form>
 

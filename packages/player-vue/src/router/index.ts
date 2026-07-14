@@ -495,9 +495,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/admin/AdminUserProgress.vue'),
     meta: { title: 'User Progress (Admin)' },
   },
-  // Shareable redeem link
+  // Shareable redeem link. :code? is optional — a bare /redeem visit (e.g. a
+  // teacher's whiteboard code, typed manually rather than clicked) drops into
+  // RedeemCode.vue's manual code-entry step instead of 404ing.
   {
-    path: '/redeem/:code',
+    path: '/redeem/:code?',
     name: 'redeem-code',
     component: () => import('@/views/RedeemCode.vue'),
     meta: { title: 'Redeem Code' },

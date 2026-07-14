@@ -22,13 +22,19 @@ const { validateCode, redeemCode, pendingCode, clearPendingCode, validationError
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
 // --- State ---
-const step = ref<'validating' | 'invalid' | 'confirm' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
+const step = ref<'validating' | 'enter-code' | 'invalid' | 'confirm' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
 const error = ref('')
 const email = ref('')
 const otpCode = ref('')
 const isLoading = ref(false)
 const redeemLabel = ref('')
 const redirectUrl = ref('/')
+
+// Manual code entry (bare /redeem, no :code in the URL) — the classroom
+// whiteboard case: a teacher reads a code aloud/writes it up rather than
+// sharing a link. Reuses the exact same validate → auth → redeem machinery
+// below; the only difference is where the code string comes from.
+const manualCode = ref('')
 
 // /group supports both /group/:code and /group?code=XYZ.
 const code = computed(() => (route.params.code as string) || (route.query.code as string) || '')
@@ -138,13 +144,22 @@ const successSubtext = computed(() => {
 // --- Step 1: Validate on mount ---
 onMounted(async () => {
   if (!code.value) {
-    error.value = props.variant === 'landing'
-      ? "This link is missing its invite code — check the link you were sent, or ask for a new one."
-      : 'No code provided'
-    step.value = 'invalid'
+    // Landing (/group) links always carry a code; a bare /group with none is
+    // genuinely broken. Bare /redeem with no code is the whiteboard case —
+    // offer manual entry instead of a dead end.
+    if (props.variant === 'landing') {
+      error.value = "This link is missing its invite code — check the link you were sent, or ask for a new one."
+      step.value = 'invalid'
+      return
+    }
+    step.value = 'enter-code'
     return
   }
-  const valid = await validateCode(code.value)
+  await validateAndProceed(code.value)
+})
+
+async function validateAndProceed(rawCode: string): Promise<void> {
+  const valid = await validateCode(rawCode)
   if (!valid) {
     // Surface the API's specific reason ('Code expired' / 'Code fully used' /
     // 'Invalid code') when available, rather than a generic catch-all.
@@ -161,7 +176,22 @@ onMounted(async () => {
   } else {
     step.value = 'auth'
   }
-})
+}
+
+// --- Step 1b (whiteboard path): manual code entry ---
+async function handleManualCodeSubmit() {
+  if (!manualCode.value.trim()) return
+  isLoading.value = true
+  error.value = ''
+  try {
+    // Push the code into the URL so it's shareable/refreshable and `code`
+    // resolves from the route like the click-a-link path does.
+    router.replace({ name: 'redeem-code', params: { code: manualCode.value.trim() } })
+    await validateAndProceed(manualCode.value.trim())
+  } finally {
+    isLoading.value = false
+  }
+}
 
 // Watch for auth state changes (e.g. after OTP verify propagates). This can
 // race handleVerifyOtp's own direct doRedeem() call below (Supabase's
@@ -367,6 +397,44 @@ function goHome() {
         <p class="status-text">Checking code...</p>
       </div>
 
+      <!-- Manual code entry (bare /redeem — the whiteboard case) -->
+      <form v-else-if="step === 'enter-code'" class="auth-form" @submit.prevent="handleManualCodeSubmit">
+        <h2 class="code-title">Enter your code</h2>
+        <p class="detail-text">Type the code your teacher or admin gave you.</p>
+
+        <Transition name="error-fade">
+          <div v-if="error" class="error-banner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            {{ error }}
+          </div>
+        </Transition>
+
+        <div class="input-group">
+          <label for="redeem-manual-code" class="input-label">Code</label>
+          <div class="input-wrapper">
+            <input
+              id="redeem-manual-code"
+              v-model="manualCode"
+              type="text"
+              placeholder="ABC-123"
+              autocapitalize="characters"
+              autocomplete="off"
+              autofocus
+              required
+            />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading || !manualCode.trim()">
+          <span v-if="!isLoading">Continue</span>
+          <span v-else class="btn-spinner"></span>
+        </button>
+      </form>
+
       <!-- Invalid code -->
       <div v-else-if="step === 'invalid'" class="redeem-section">
         <div class="icon-circle icon-circle--error">
@@ -378,6 +446,7 @@ function goHome() {
         </div>
         <h2>Invalid Code</h2>
         <p class="detail-text">{{ error }}</p>
+        <button v-if="props.variant !== 'landing'" class="btn btn--secondary" @click="step = 'enter-code'; error = ''">Try another code</button>
         <button class="btn btn--secondary" @click="goHome">Go to App</button>
       </div>
 
