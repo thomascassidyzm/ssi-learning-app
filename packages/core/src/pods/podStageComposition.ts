@@ -123,8 +123,7 @@ const _warnedTrailingKnownStages = new Set<number>()
  * per-stage logic the main-flow scheduler ran inline before extraction.
  *
  * Callers guarantee sentence.target_audio_id is non-null (a sentence with no
- * target audio contributes nothing — see composeSentenceArc / the scheduler's
- * per-sentence guard).
+ * target audio contributes nothing — see the scheduler's per-sentence guard).
  */
 export function buildMainStage(
   sentence: PodSentenceRow,
