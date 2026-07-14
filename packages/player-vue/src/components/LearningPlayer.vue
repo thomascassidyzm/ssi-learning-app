@@ -36,6 +36,8 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
+import { useBehaviouralEvidence } from '../composables/useBehaviouralEvidence'
+import { createEvidenceAggregator } from '@ssi/core'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
@@ -5502,7 +5504,7 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
   const toIdx = order[toPhase] ?? 0
   const direction = toIdx < fromIdx ? 'back' : toIdx > fromIdx ? 'forward' : 'replay'
   const cycle = simplePlayer.currentCycle.value
-  logEvent('phase_skip', {
+  const phaseSkipPayload = {
     fromPhase,
     toPhase,
     direction,
@@ -5518,7 +5520,9 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
     // slot is the cycle's index within the round.
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     slot: simplePlayer.cycleIndex.value ?? null,
-  })
+  }
+  logEvent('phase_skip', phaseSkipPayload)
+  behaviouralEvidence.onPlayerEvent('phase_skip', phaseSkipPayload, cycle)
 
   simplePlayer.skipToPhase(phase)
 }
@@ -6372,6 +6376,7 @@ const handlePause = () => {
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
   })
+  behaviouralEvidence.onPlayerEvent('tap_pause', { phase: currentPhase.value }, simplePlayer.currentCycle.value)
 
   // Stop introduction audio if playing
   if (isPlayingIntroduction.value) {
@@ -6407,6 +6412,7 @@ const handleResume = async () => {
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
   })
+  behaviouralEvidence.onPlayerEvent('tap_play', {}, simplePlayer.currentCycle.value)
 
   // Engage the iOS audio-session keepalive on every play tap. This is
   // the user-gesture moment — the silent loop's first play() hooks into
@@ -7303,7 +7309,7 @@ const prepareAndJump = async (
 }
 
 const handleSkip = async () => {
-  logEvent('tap_skip', {
+  const tapSkipPayload = {
     direction: 'forward',
     during: playingPodLapAudio.value ? 'pod_lap'
       : playingCommentaryAudio.value ? 'commentary'
@@ -7319,7 +7325,9 @@ const handleSkip = async () => {
     cycleType: simplePlayer.currentCycle.value?.type ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
     skipInProgress: isSkipInProgress.value,
-  })
+  }
+  logEvent('tap_skip', tapSkipPayload)
+  behaviouralEvidence.onPlayerEvent('tap_skip', tapSkipPayload, simplePlayer.currentCycle.value)
 
   // CRITICAL: Guard against concurrent skips - if already skipping, abort any playing intro and return
   if (isSkipInProgress.value) {
@@ -7404,7 +7412,7 @@ const handleRevisit = async () => {
   // Mirror handleSkip's tap_skip so the back/regress button is captured with the
   // same shape — forward vs back then reads as a single queryable signal
   // (skipping forward ≈ confidence; stepping back ≈ revisiting / struggle).
-  logEvent('tap_skip', {
+  const revisitPayload = {
     direction: 'back',
     during: 'cycle',
     roundIndex: simplePlayer.roundIndex.value,
@@ -7412,7 +7420,9 @@ const handleRevisit = async () => {
     cycleIndex: simplePlayer.cycleIndex.value,
     cycleType: simplePlayer.currentCycle.value?.type ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
-  })
+  }
+  logEvent('tap_skip', revisitPayload)
+  behaviouralEvidence.onPlayerEvent('tap_skip', revisitPayload, simplePlayer.currentCycle.value)
 
   haltAllPlayback()
   simplePlayer.stepCycle(-1)
@@ -7732,12 +7742,14 @@ const handleRoundForward = async () => {
   // Forward = "got this / too easy, move on" — the LEGO-scale confidence signal.
   // One emit covers the normal step, the infplay-advance and the course-end
   // paths below; mirror of belt_skip on the coarser axis.
-  logEvent('lego_skip', {
+  const legoSkipForwardPayload = {
     direction: 'forward',
     fromLegoId: simplePlayer.currentRound.value?.legoId ?? null,
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     slot: simplePlayer.cycleIndex.value ?? null,
-  })
+  }
+  logEvent('lego_skip', legoSkipForwardPayload)
+  behaviouralEvidence.onPlayerEvent('lego_skip', legoSkipForwardPayload, null)
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
@@ -7899,12 +7911,14 @@ const handleRoundBack = async () => {
   // LEGO-axis back nav — a revisit/re-hear gesture (restart the current LEGO, or
   // step to the previous one): the LEGO-scale uncertainty signal, mirror of the
   // forward emit. Covers the infplay step-back and main-loop paths below.
-  logEvent('lego_skip', {
+  const legoSkipBackPayload = {
     direction: 'back',
     fromLegoId: currentRound?.legoId ?? null,
     roundNumber: currentRound?.roundNumber ?? null,
     slot: simplePlayer.cycleIndex.value ?? null,
-  })
+  }
+  logEvent('lego_skip', legoSkipBackPayload)
+  behaviouralEvidence.onPlayerEvent('lego_skip', legoSkipBackPayload, null)
   // INF PLAY when either the enrollment mode says so OR the current round is
   // a revival round (no intro/debut/build). The mode flag covers a bootstrap
   // that loaded only infplay rounds; the round-shape check covers in-session
@@ -8043,6 +8057,7 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     targetSeed: belt.seedsRequired === 0 ? 1 : belt.seedsRequired,
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
   })
+  behaviouralEvidence.onPlayerEvent('belt_skip', {}, null)
   showProgressModal.value = false
   const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
 
@@ -8541,6 +8556,12 @@ const adaptationConsent = ref(null)
 // applied in the getPauseDuration runtime override below.
 const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 
+// Behavioural evidence producer (adaptation v2 WP-1) — maps the taps/skips
+// already logged below into the evidence stream. Self-owned aggregator for
+// now; WP-3 wires this into the same one useAdaptationEngine's latency
+// producer feeds, once the rate policy is ready to consume it.
+const behaviouralEvidence = useBehaviouralEvidence(createEvidenceAggregator())
+
 // Per-seed Layer 1 fire-count persistence. Hydrates from learner_l1_state on
 // mount, feeds initialL1FireCounts into generateLearningScript so Stage 1→4
 // progression compounds across sessions. Bumped each time an L1 cluster
@@ -8789,6 +8810,7 @@ const confirmTurbo = () => {
   turboPopupShownThisSession.value = true  // Don't show popup again this session
   turboActive.value = true
   logEvent('turbo_toggle', { enabled: true, firstTime: true })
+  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: true }, null)
 }
 
 // Close turbo popup without enabling
@@ -8802,6 +8824,7 @@ const toggleTurbo = () => {
   // Manual pace control — turbo on = "this is too easy" (confidence/boredom);
   // off = backing off. A no-mic behavioural signal.
   logEvent('turbo_toggle', { enabled: turboActive.value })
+  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: turboActive.value }, null)
 }
 
 // Offline mode: a deliberate, opt-in download of the upcoming course content
