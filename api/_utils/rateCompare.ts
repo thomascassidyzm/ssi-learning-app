@@ -37,6 +37,7 @@ export interface WindowPace {
   legosAdvanced: number
   hasData: boolean
   furthestLegoId: string | null // human label for the furthest position reached
+  furthestOrd: number // raw ordinal behind furthestLegoId — comparable across classes on the SAME course
 }
 
 /** Window-level pace for one class: legos advanced / weeks spanned, floored at 1 day. */
@@ -48,7 +49,7 @@ export function windowPaceForClass(
 ): WindowPace {
   const since = now.getTime() - days * MS_PER_DAY
   const own = rows.filter((r) => r.class_id === classId && new Date(r.started_at).getTime() >= since)
-  if (own.length === 0) return { pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null }
+  if (own.length === 0) return { pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null, furthestOrd: 0 }
 
   let furthestOrd = 0
   let furthestLegoId: string | null = null
@@ -73,7 +74,29 @@ export function windowPaceForClass(
 
   const legosAdvanced = Math.max(furthestOrd - (earliestOrd === Infinity ? furthestOrd : earliestOrd), 0)
   const weeks = Math.max((lastAt - firstAt) / MS_PER_WEEK, 1 / 7)
-  return { pace: round1(legosAdvanced / weeks), legosAdvanced, hasData: true, furthestLegoId }
+  return { pace: round1(legosAdvanced / weeks), legosAdvanced, hasData: true, furthestLegoId, furthestOrd }
+}
+
+/**
+ * Aggregate pace for an ENTITY that spans multiple classes (a school = its
+ * classes, a group = its subtree's classes) — mean of each member class's
+ * own window pace, over members that have data in the window. For a
+ * single-class set this is identical to windowPaceForClass (mean of one).
+ * Same primitive doubles as a COHORT member's value when the cohort being
+ * compared against is itself made of schools or groups, not bare classes.
+ */
+export function aggregateWindowPace(
+  rows: ScopedSessionRow[],
+  classIds: string[],
+  days: number,
+  now: Date,
+): WindowPace {
+  const active = classIds.map((id) => windowPaceForClass(rows, id, days, now)).filter((w) => w.hasData)
+  if (active.length === 0) return { pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null, furthestOrd: 0 }
+  const pace = round1(active.reduce((s, w) => s + w.pace, 0) / active.length)
+  const legosAdvanced = Math.round(active.reduce((s, w) => s + w.legosAdvanced, 0) / active.length)
+  const furthest = active.reduce((best, w) => (w.furthestOrd > best.furthestOrd ? w : best), active[0])
+  return { pace, legosAdvanced, hasData: true, furthestLegoId: furthest.furthestLegoId, furthestOrd: furthest.furthestOrd }
 }
 
 /** Cumulative furthest ordinal reached by `classId` at or before `cutoffMs`. */
@@ -104,6 +127,11 @@ export function weeklyTrendForClass(rows: ScopedSessionRow[], classId: string, w
   const trend: number[] = []
   for (let i = 1; i < cum.length; i++) trend.push(Math.max(cum[i] - cum[i - 1], 0))
   return trend
+}
+
+/** Same generalization as aggregateWindowPace, for the weekly trend line — mean-trend across member classes. */
+export function aggregateWeeklyTrend(rows: ScopedSessionRow[], classIds: string[], weeks: number, now: Date): number[] {
+  return meanTrend(classIds.map((id) => weeklyTrendForClass(rows, id, weeks, now)))
 }
 
 export interface DistributionStats {

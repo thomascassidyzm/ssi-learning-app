@@ -68,6 +68,9 @@ describe('resolveVisibleScope', () => {
     expect(scope.classIds.sort()).toEqual(['C1', 'C2'])
     expect(scope.learnerIds.sort()).toEqual(['L-s1', 'L-s2'])
     expect(scope.studentsByClass).toEqual({ C1: ['L-s1'], C2: ['L-s2'] })
+    // A teacher has no school/group-level entity to select — class only.
+    expect(scope.schoolIds).toEqual([])
+    expect(scope.groupId).toBeNull()
   })
 
   it('school_admin sees the whole school, resolved via the SCHOOL: tag', async () => {
@@ -95,6 +98,8 @@ describe('resolveVisibleScope', () => {
     expect(scope.role).toBe('school_admin')
     expect(scope.classIds.sort()).toEqual(['C1', 'C2', 'C3'])
     expect(scope.learnerIds.sort()).toEqual(['L-s1', 'L-s3'])
+    expect(scope.schoolIds).toEqual(['SCH1'])
+    expect(scope.groupId).toBeNull()
   })
 
   it('govt_admin sees the group-path subtree\'s schools', async () => {
@@ -122,6 +127,8 @@ describe('resolveVisibleScope', () => {
     expect(scope.role).toBe('govt_admin')
     expect(scope.classIds).toEqual(['C1'])
     expect(scope.learnerIds).toEqual(['L-s1'])
+    expect(scope.schoolIds.sort()).toEqual(['SCH1', 'SCH2'])
+    expect(scope.groupId).toBe('G-wales')
   })
 
   it('govt_admin falls back to region_code when there is no group', async () => {
@@ -144,12 +151,17 @@ describe('resolveVisibleScope', () => {
     const scope = await resolveVisibleScope(client, 'gov2-uid')
     expect(scope.classIds).toEqual(['C9'])
     expect(scope.learnerIds).toEqual(['L-s9'])
+    // Legacy region_code fallback has no group tree — no group-level entity.
+    expect(scope.schoolIds).toEqual(['SCH9'])
+    expect(scope.groupId).toBeNull()
   })
 
   it('returns an empty scope when the caller has no learner row', async () => {
     const client = makeClient(() => ({ data: null }))
     const scope = await resolveVisibleScope(client, 'nobody')
-    expect(scope).toEqual({ learnerId: null, role: null, classIds: [], learnerIds: [], studentsByClass: {} })
+    expect(scope).toEqual({
+      learnerId: null, role: null, classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null,
+    })
   })
 
   it('a plain student gets no scope (not teacher/school/gov facing)', async () => {

@@ -30,9 +30,15 @@ export interface CallerScope {
   learnerIds: string[]
   /** classId → its student learner ids (for per-class rollups) */
   studentsByClass: Record<string, string[]>
+  /** school ids in the caller's scope (school_admin: their own school; govt_admin: every school in their group subtree; teacher: []) */
+  schoolIds: string[]
+  /** the caller's own group id (govt_admin only; null otherwise) — the ONE group-level entity they may select */
+  groupId: string | null
 }
 
-const EMPTY: CallerScope = { learnerId: null, role: null, classIds: [], learnerIds: [], studentsByClass: {} }
+const EMPTY: CallerScope = {
+  learnerId: null, role: null, classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: [], groupId: null,
+}
 
 /** Chunk an array so a PostgREST .in() filter never blows the URL length cap. */
 export function chunk<T>(arr: T[], size = 150): T[][] {
@@ -82,20 +88,21 @@ async function schoolIdForAdmin(svc: SupabaseClient, authUid: string): Promise<s
   return (school as any)?.id ?? null
 }
 
-/** Schools a govt_admin governs: group-path subtree (preferred), else region_code. */
-async function schoolIdsForGovtAdmin(svc: SupabaseClient, authUid: string): Promise<string[]> {
+/** Schools + own group id a govt_admin governs: group-path subtree (preferred), else region_code. */
+async function scopeForGovtAdmin(svc: SupabaseClient, authUid: string): Promise<{ schoolIds: string[]; groupId: string | null }> {
   const { data: govt } = await svc
     .from('govt_admins')
     .select('region_code, group_id')
     .eq('user_id', authUid)
     .maybeSingle()
-  if (!govt) return []
+  if (!govt) return { schoolIds: [], groupId: null }
 
   if ((govt as any).group_id) {
+    const groupId = (govt as any).group_id as string
     const { data: group } = await svc
       .from('groups')
       .select('path')
-      .eq('id', (govt as any).group_id)
+      .eq('id', groupId)
       .maybeSingle()
     const path = (group as any)?.path as string | undefined
     if (path) {
@@ -103,22 +110,24 @@ async function schoolIdsForGovtAdmin(svc: SupabaseClient, authUid: string): Prom
       // client's govt-admin class query in useClassesData.
       const { data: subtree } = await svc.from('groups').select('id').like('path', `${path}%`)
       const groupIds = (subtree ?? []).map((g: any) => g.id).filter(Boolean)
-      if (groupIds.length === 0) return []
+      if (groupIds.length === 0) return { schoolIds: [], groupId }
       const schoolIds = new Set<string>()
       for (const batch of chunk(groupIds)) {
         const { data: schools } = await svc.from('schools').select('id').in('group_id', batch)
         for (const s of schools ?? []) if ((s as any).id) schoolIds.add((s as any).id)
       }
-      return [...schoolIds]
+      return { schoolIds: [...schoolIds], groupId }
     }
+    return { schoolIds: [], groupId }
   }
 
-  // Legacy fallback: region_code (govt admins created before the group tree).
+  // Legacy fallback: region_code (govt admins created before the group tree)
+  // — no group tree, so no group-level entity to select.
   if ((govt as any).region_code) {
     const { data: schools } = await svc.from('schools').select('id').eq('region_code', (govt as any).region_code)
-    return (schools ?? []).map((s: any) => s.id).filter(Boolean)
+    return { schoolIds: (schools ?? []).map((s: any) => s.id).filter(Boolean), groupId: null }
   }
-  return []
+  return { schoolIds: [], groupId: null }
 }
 
 /** Active class ids for a set of schools. */
@@ -197,13 +206,20 @@ export async function resolveVisibleScope(svc: SupabaseClient, authUid: string):
   const learnerId = (learner as any).id as string
 
   let classIds: string[] = []
+  let schoolIds: string[] = []
+  let groupId: string | null = null
   if (role === 'teacher') {
     classIds = await taughtClassIds(svc, authUid)
   } else if (role === 'school_admin') {
     const schoolId = await schoolIdForAdmin(svc, authUid)
-    if (schoolId) classIds = await classIdsForSchools(svc, [schoolId])
+    if (schoolId) {
+      schoolIds = [schoolId]
+      classIds = await classIdsForSchools(svc, [schoolId])
+    }
   } else if (role === 'govt_admin') {
-    const schoolIds = await schoolIdsForGovtAdmin(svc, authUid)
+    const govtScope = await scopeForGovtAdmin(svc, authUid)
+    schoolIds = govtScope.schoolIds
+    groupId = govtScope.groupId
     if (schoolIds.length) classIds = await classIdsForSchools(svc, schoolIds)
   } else {
     // ssi_admin / god / student / unknown: these endpoints are teacher/school/gov
@@ -211,10 +227,10 @@ export async function resolveVisibleScope(svc: SupabaseClient, authUid: string):
     return { ...EMPTY, learnerId, role }
   }
 
-  if (classIds.length === 0) return { learnerId, role, classIds: [], learnerIds: [], studentsByClass: {} }
+  if (classIds.length === 0) return { learnerId, role, classIds: [], learnerIds: [], studentsByClass: {}, schoolIds, groupId }
 
   const byClass = await studentsByClass(svc, classIds)
   const flat = new Set<string>()
   for (const ids of Object.values(byClass)) for (const id of ids) flat.add(id)
-  return { learnerId, role, classIds, learnerIds: [...flat], studentsByClass: byClass }
+  return { learnerId, role, classIds, learnerIds: [...flat], studentsByClass: byClass, schoolIds, groupId }
 }

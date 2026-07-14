@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   windowPaceForClass,
+  aggregateWindowPace,
   weeklyTrendForClass,
+  aggregateWeeklyTrend,
   distributionStats,
   deltaPct,
   meanTrend,
@@ -65,6 +67,58 @@ describe('windowPaceForClass', () => {
     ]
     const result = windowPaceForClass(rows, 'c1', 90, NOW)
     expect(result.legosAdvanced).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('aggregateWindowPace', () => {
+  it('for a single-class set, is identical to windowPaceForClass', () => {
+    const rows: ScopedSessionRow[] = [row({ start_ord: 1, end_ord: 12, end_lego_id: 'S2L12' })]
+    const single = windowPaceForClass(rows, 'c1', 90, NOW)
+    const agg = aggregateWindowPace(rows, ['c1'], 90, NOW)
+    expect(agg).toEqual(single)
+  })
+
+  it('averages pace across member classes that have data, ignoring members with none', () => {
+    const rows: ScopedSessionRow[] = [
+      row({ class_id: 'c1', start_ord: 1, end_ord: 4, end_lego_id: 'S1L04' }), // pace 21 (single-session floor)
+      row({ class_id: 'c2', start_ord: 1, end_ord: 8, end_lego_id: 'S2L08' }), // pace 49
+      // c3 has no rows at all — excluded from the mean, not treated as 0.
+    ]
+    const agg = aggregateWindowPace(rows, ['c1', 'c2', 'c3'], 90, NOW)
+    expect(agg.hasData).toBe(true)
+    expect(agg.pace).toBe(35) // mean(21, 49)
+  })
+
+  it('picks the highest-ordinal furthest lego across members (comparable — same course)', () => {
+    const rows: ScopedSessionRow[] = [
+      row({ class_id: 'c1', start_ord: 1, end_ord: 4, end_lego_id: 'S1L04' }),
+      row({ class_id: 'c2', start_ord: 1, end_ord: 30, end_lego_id: 'S5L30' }),
+    ]
+    const agg = aggregateWindowPace(rows, ['c1', 'c2'], 90, NOW)
+    expect(agg.furthestLegoId).toBe('S5L30')
+    expect(agg.furthestOrd).toBe(30)
+  })
+
+  it('degrades to hasData=false when no member has any data', () => {
+    const agg = aggregateWindowPace([], ['c1', 'c2'], 90, NOW)
+    expect(agg).toEqual({ pace: 0, legosAdvanced: 0, hasData: false, furthestLegoId: null, furthestOrd: 0 })
+  })
+})
+
+describe('aggregateWeeklyTrend', () => {
+  it('for a single-class set, is identical to weeklyTrendForClass', () => {
+    const rows: ScopedSessionRow[] = [row({ end_ord: 10, started_at: NOW.toISOString() })]
+    expect(aggregateWeeklyTrend(rows, ['c1'], 8, NOW)).toEqual(weeklyTrendForClass(rows, 'c1', 8, NOW))
+  })
+
+  it('mean-trends across member classes, ignoring members with no rows', () => {
+    const rows: ScopedSessionRow[] = [
+      row({ class_id: 'c1', end_ord: 10, started_at: NOW.toISOString() }),
+      row({ class_id: 'c2', end_ord: 20, started_at: NOW.toISOString() }),
+    ]
+    const trend = aggregateWeeklyTrend(rows, ['c1', 'c2', 'c3'], 8, NOW)
+    expect(trend).toHaveLength(8)
+    expect(trend.reduce((a, b) => a + b, 0)).toBe(15) // mean(10, 20) landing in the final week
   })
 })
 

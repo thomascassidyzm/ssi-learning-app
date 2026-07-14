@@ -46,6 +46,7 @@ import TopNav from '@/components/schools/shared/TopNav.vue'
 import { isInsightDemo } from './data/demo'
 import { useClassesData } from '@/composables/schools/useClassesData'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import {
   HERO_RATES,
@@ -89,35 +90,113 @@ const selectedDemoClass = computed<TeacherClass>(
 // TeacherDashboard/DashboardView use, so the picker never offers a class
 // outside the signed-in caller's scope. ─────────────────────────────────────
 const { classes: realClasses, fetchClasses } = useClassesData()
-const { currentUser } = useSchoolContext()
+const { currentUser, isGovtAdmin: isGovtAdminRole, isSchoolAdmin: isSchoolAdminRole } = useSchoolContext()
+const { schools: govtSchools, fetchSchools } = useSchoolData()
 if (!demoMode) fetchClasses()
+if (!demoMode && isGovtAdminRole.value) fetchSchools()
 
-interface RealClassOption { id: string; className: string; course: string }
+interface RealClassOption { id: string; className: string; course: string; schoolId: string }
 const realClassOptions = computed<RealClassOption[]>(() =>
-  realClasses.value.map((c) => ({ id: c.id, className: c.class_name, course: c.course_code })),
+  realClasses.value.map((c) => ({ id: c.id, className: c.class_name, course: c.course_code, schoolId: c.school_id })),
 )
+
+// ── Course — LEADS the board (owner's ruling, 2026-07-14): the course is
+// chosen FIRST and every entity/aggregate below is resolved within it only,
+// so a school/group average is never diluted across unrelated courses.
+// Only courses with a class in the caller's visible scope are offered.
+const realCourseOptions = computed<string[]>(() => [...new Set(realClassOptions.value.map((c) => c.course))].sort())
+const selectedCourse = ref<string>('')
+watch(realCourseOptions, (opts) => {
+  if (!demoMode && !selectedCourse.value && opts.length) selectedCourse.value = opts[0]
+}, { immediate: true })
+const courseSelectOptions = computed(() => realCourseOptions.value.map((c) => ({ value: c, label: c })))
+
+// ── Entity level — the full ladder (owner's ruling): teacher = class only;
+// school_admin = class or their whole school; govt_admin = class, a school
+// in their group, or their whole group. Demo path is unaffected (class only,
+// its own fixture population) — this ladder is real-data only.
+type RealEntityLevel = 'class' | 'school' | 'group'
+const availableRealEntityLevels = computed<{ value: RealEntityLevel; label: string }[]>(() => {
+  if (isGovtAdminRole.value) return [{ value: 'class', label: 'Class' }, { value: 'school', label: 'School' }, { value: 'group', label: 'Group' }]
+  if (isSchoolAdminRole.value) return [{ value: 'class', label: 'Class' }, { value: 'school', label: 'School' }]
+  return [{ value: 'class', label: 'Class' }]
+})
+const realEntityLevel = ref<RealEntityLevel>('class')
+watch(availableRealEntityLevels, (opts) => {
+  if (!demoMode && !opts.find((o) => o.value === realEntityLevel.value)) realEntityLevel.value = 'class'
+}, { immediate: true })
+
+const realClassOptionsForCourse = computed(() => realClassOptions.value.filter((c) => c.course === selectedCourse.value))
 const selectedRealClass = computed<RealClassOption | null>(
-  () => realClassOptions.value.find((c) => c.id === selectedClassKey.value) ?? realClassOptions.value[0] ?? null,
+  () => realClassOptionsForCourse.value.find((c) => c.id === selectedClassKey.value) ?? realClassOptionsForCourse.value[0] ?? null,
 )
 
 // One selected-class model spanning both paths (demo picks by fixture label,
 // real picks by class id) so the template only ever binds one v-model.
 const selectedClassKey = ref<string>(demoMode ? MY_CLASSES[0].label : '')
-watch(realClassOptions, (opts) => {
-  if (!demoMode && !selectedClassKey.value && opts.length) selectedClassKey.value = opts[0].id
+watch([realClassOptionsForCourse, realEntityLevel], ([opts, level]) => {
+  if (demoMode || level !== 'class') return
+  if (!opts.find((o) => o.id === selectedClassKey.value)) selectedClassKey.value = opts[0]?.id ?? ''
 }, { immediate: true })
 
 const classSelectOptions = computed(() =>
   demoMode
     ? MY_CLASSES.map((c) => ({ value: c.label, label: c.label }))
-    : realClassOptions.value.map((c) => ({ value: c.id, label: c.className })),
+    : realClassOptionsForCourse.value.map((c) => ({ value: c.id, label: c.className })),
 )
 
-// Header fields all derive from the SELECTED class, so switching class updates
-// the title AND the course label.
+// ── School picker — govt_admin only (school_admin has exactly one school,
+// shown as fixed text instead). Only schools that have a class on the
+// selected course, derived client-side from the classes already fetched. ──
+interface SchoolOption { id: string; school_name: string }
+const schoolOptionsForCourse = computed<SchoolOption[]>(() => {
+  if (!isGovtAdminRole.value) return []
+  const idsWithCourse = new Set(realClassOptionsForCourse.value.map((c) => c.schoolId))
+  return govtSchools.value.filter((s) => idsWithCourse.has(s.id)).map((s) => ({ id: s.id, school_name: s.school_name }))
+})
+const schoolSelectOptions = computed(() => schoolOptionsForCourse.value.map((s) => ({ value: s.id, label: s.school_name })))
+const selectedGovtSchoolId = ref<string>('')
+watch([schoolOptionsForCourse, realEntityLevel], ([opts, level]) => {
+  if (demoMode || level !== 'school' || !isGovtAdminRole.value) return
+  if (!opts.find((o) => o.id === selectedGovtSchoolId.value)) selectedGovtSchoolId.value = opts[0]?.id ?? ''
+}, { immediate: true })
+
+// ── The resolved real entity id + human label, one per level. ──
+const realEntityId = computed<string | null>(() => {
+  if (demoMode) return null
+  if (realEntityLevel.value === 'class') return selectedRealClass.value?.id ?? null
+  if (realEntityLevel.value === 'school') {
+    return isGovtAdminRole.value ? (selectedGovtSchoolId.value || null) : (currentUser.value?.school_id ?? null)
+  }
+  return currentUser.value?.group_id ?? null
+})
+const realEntityLabel = computed<string>(() => {
+  if (realEntityLevel.value === 'class') return selectedRealClass.value?.className || '—'
+  if (realEntityLevel.value === 'school') {
+    if (isGovtAdminRole.value) return schoolOptionsForCourse.value.find((s) => s.id === selectedGovtSchoolId.value)?.school_name || '—'
+    return currentUser.value?.school_name || 'Your school'
+  }
+  return currentUser.value?.organization_name || 'Your group'
+})
+const entityNoun = computed(() => (demoMode ? 'class' : realEntityLevel.value))
+
+// Header fields all derive from the SELECTED class/entity, so switching
+// updates the title AND the course label. Real path: COURSE_LABEL follows
+// the course-first picker directly (course leads; it no longer rides on
+// whichever class happens to be selected).
 const SCHOOL_NAME = computed(() => (demoMode ? selectedDemoClass.value.school : (currentUser.value?.school_name || 'Your school')))
 const CLASS_NAME = computed(() => (demoMode ? selectedDemoClass.value.className : (selectedRealClass.value?.className || '—')))
-const COURSE_LABEL = computed(() => (demoMode ? selectedDemoClass.value.course : (selectedRealClass.value?.course || '—')))
+const COURSE_LABEL = computed(() => (demoMode ? selectedDemoClass.value.course : (selectedCourse.value || '—')))
+
+// One header title spanning every level: demo (class/learner drill),
+// real class (school context + class), real school (whole school), real
+// group (whole group).
+const headerTitle = computed(() => {
+  if (demoMode) return `${SCHOOL_NAME.value} · ${scopeLabel.value}`
+  if (realEntityLevel.value === 'class') return `${SCHOOL_NAME.value} · ${CLASS_NAME.value} · whole class`
+  if (realEntityLevel.value === 'school') return `${realEntityLabel.value} · whole school`
+  return `${realEntityLabel.value} · whole group`
+})
 
 // ── Drill scope: the class itself, or a learner within it. Real per-learner
 // rate data doesn't exist yet (homework-sourced attention lane, tutor-
@@ -149,18 +228,45 @@ const currentMetric = computed(
 const metricSelectOptions = computed(() => HERO_RATES.map((m) => ({ value: m.id, label: `${m.label} (${m.unit} / ${m.per})` })))
 
 // ── Compare-to — demo keeps the full escalation ladder (class/year/school/…);
-// real is the three real cohorts the endpoint can actually compute: school /
-// group / global, each an aggregate-only average (k-floor 5 server-side).
-const REAL_COMPARE_OPTIONS = [
-  { value: 'school', label: 'School average' },
-  { value: 'group', label: 'Group average' },
-  { value: 'global', label: 'Global average' },
-]
+// real is the entity ladder the endpoint can actually compute, gated by
+// LEVEL (owner's ruling): class -> school/group/global; school -> group/
+// global; group -> region/global. Every option is an aggregate-only average
+// (k-floor 5, held server-side at EVERY level, not just class).
+//
+// Every level ALSO offers a course-agnostic "all courses" global average
+// alongside its same-course options (owner's follow-up ruling, 2026-07-14):
+// relatedness is the STRENGTH of a comparison, not its permission — labelled
+// explicitly ("this course" vs "all courses") so the weaker basis is always
+// visible. It's listed LAST in each level (the most-related, same-course
+// cohort stays the default/preferred pick — averageId defaults to it below).
+const REAL_COMPARE_OPTIONS_BY_LEVEL: Record<RealEntityLevel, { value: string; label: string }[]> = {
+  class: [
+    { value: 'school', label: 'School average' },
+    { value: 'group', label: 'Group average' },
+    { value: 'global', label: 'Global average · this course' },
+    { value: 'global_all_courses', label: 'Global average · all courses' },
+  ],
+  school: [
+    { value: 'group', label: 'Group average' },
+    { value: 'global', label: 'Global average · this course' },
+    { value: 'global_all_courses', label: 'Global average · all courses' },
+  ],
+  group: [
+    { value: 'region', label: 'Regional average' },
+    { value: 'global', label: 'Global average · this course' },
+    { value: 'global_all_courses', label: 'Global average · all courses' },
+  ],
+}
 const averageId = ref<string>(demoMode ? 'class avg' : 'school')
 const averageOptions = computed(() => listAverages(metricId.value)) // demo only
 const averageSelectOptions = computed(() =>
-  demoMode ? averageOptions.value.map((a) => ({ value: a, label: a })) : REAL_COMPARE_OPTIONS,
+  demoMode ? averageOptions.value.map((a) => ({ value: a, label: a })) : REAL_COMPARE_OPTIONS_BY_LEVEL[realEntityLevel.value],
 )
+watch(realEntityLevel, (level) => {
+  if (demoMode) return
+  const opts = REAL_COMPARE_OPTIONS_BY_LEVEL[level]
+  if (!opts.find((o) => o.value === averageId.value)) averageId.value = opts[0].value
+})
 
 // ── The class entity (demo path only — matched by label into the demo
 // population; the real path uses selectedRealClass.id directly). ───────────
@@ -205,10 +311,11 @@ const realFetchFailed = ref(false)
 
 async function fetchRealComparison(): Promise<void> {
   if (demoMode) return
-  const classId = selectedRealClass.value?.id
+  const course = selectedCourse.value
+  const entityId = realEntityId.value
   realData.value = null
   realInsufficientReason.value = null
-  if (!classId) return
+  if (!course || !entityId) return
   isLoadingReal.value = true
   realFetchFailed.value = false
   try {
@@ -216,7 +323,12 @@ async function fetchRealComparison(): Promise<void> {
     const { data: { session } } = await client.auth.getSession()
     const token = session?.access_token
     if (!token) return
-    const params = new URLSearchParams({ class_id: classId, compare_to: averageId.value })
+    const params = new URLSearchParams({
+      course_code: course,
+      entity_level: realEntityLevel.value,
+      entity_id: entityId,
+      compare_to: averageId.value,
+    })
     const res = await fetch(`/api/school/rate-compare?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -234,7 +346,7 @@ async function fetchRealComparison(): Promise<void> {
     isLoadingReal.value = false
   }
 }
-watch([selectedRealClass, averageId], () => { if (!demoMode) fetchRealComparison() }, { immediate: true })
+watch([selectedCourse, realEntityLevel, realEntityId, averageId], () => { if (!demoMode) fetchRealComparison() }, { immediate: true })
 
 // ── The resolved comparison ─────────────────────────────────────────────────
 // Demo: seeded synthetic data, unchanged. Real: the server response, only when
@@ -266,11 +378,11 @@ const scopeLabel = computed(() =>
     <!-- ── Calm, minimal teacher header (NOT the admin "Insight Engine") ── -->
     <header class="tiv-head">
       <div class="tiv-head-top">
-        <span class="tiv-kicker">Your class</span>
+        <span class="tiv-kicker">Your {{ entityNoun }}</span>
       </div>
-      <h1 class="tiv-title">{{ SCHOOL_NAME }} · {{ scopeLabel }}</h1>
+      <h1 class="tiv-title">{{ headerTitle }}</h1>
       <p class="tiv-sub">
-        How you're doing on <strong>{{ COURSE_LABEL }}</strong> — your class compared
+        How you're doing on <strong>{{ COURSE_LABEL }}</strong> — your {{ entityNoun }} compared
         with the average. Rate leads; position is just context.
       </p>
       <p v-if="requestedLearnerName" class="tiv-preview-note">
@@ -280,14 +392,57 @@ const scopeLabel = computed(() =>
       </p>
     </header>
 
-    <!-- ── Controls: your class, drill (class / learner), metric, compare-to ── -->
+    <!-- ── Controls: course, entity level, your class/school/group, drill,
+         metric, compare-to ── -->
     <div class="tiv-controls">
+      <!-- Course — LEADS the board (course-first, owner's ruling 2026-07-14):
+           every entity/aggregate below is resolved within this course only.
+           Real path only — demo keeps its own fixed fixture population. -->
+      <label v-if="!demoMode" class="tiv-field tiv-field-wide">
+        <span class="tiv-field-label">Course</span>
+        <FrostSelect v-model="selectedCourse" :options="courseSelectOptions" aria-label="Course" />
+      </label>
+
+      <!-- Entity level — only shown when the caller's role has more than one
+           to choose from (school_admin: class/school; govt_admin: class/
+           school/group). A teacher only ever sees their own classes. -->
+      <div v-if="!demoMode && availableRealEntityLevels.length > 1" class="tiv-field">
+        <span class="tiv-field-label">Level</span>
+        <div class="tiv-segs" role="group" aria-label="Level">
+          <button
+            v-for="opt in availableRealEntityLevels"
+            :key="opt.value"
+            type="button"
+            :class="['tiv-seg', { active: realEntityLevel === opt.value }]"
+            :aria-pressed="realEntityLevel === opt.value"
+            @click="realEntityLevel = opt.value"
+          >{{ opt.label }}</button>
+        </div>
+      </div>
+
       <!-- Your classes — only ever the caller's OWN set (demo fixture, or the
            real role-scoped classes: teacher's own / school's / group's) -->
-      <label class="tiv-field tiv-field-wide">
+      <label v-if="demoMode || realEntityLevel === 'class'" class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Your classes</span>
         <FrostSelect v-model="selectedClassKey" :options="classSelectOptions" aria-label="Your classes" />
       </label>
+
+      <!-- Your school — govt_admin picks WHICH school in their scope;
+           school_admin has exactly one, shown as fixed text. -->
+      <label v-if="!demoMode && realEntityLevel === 'school' && isGovtAdminRole" class="tiv-field tiv-field-wide">
+        <span class="tiv-field-label">Your schools</span>
+        <FrostSelect v-model="selectedGovtSchoolId" :options="schoolSelectOptions" aria-label="Your schools" />
+      </label>
+      <div v-else-if="!demoMode && realEntityLevel === 'school'" class="tiv-field tiv-field-wide">
+        <span class="tiv-field-label">Your school</span>
+        <p class="tiv-fixed-measure">{{ realEntityLabel }}</p>
+      </div>
+
+      <!-- Your group — govt_admin's own group, always fixed (they have one). -->
+      <div v-if="!demoMode && realEntityLevel === 'group'" class="tiv-field tiv-field-wide">
+        <span class="tiv-field-label">Your group</span>
+        <p class="tiv-fixed-measure">{{ realEntityLabel }}</p>
+      </div>
 
       <!-- Drill: the class, or a learner within it — demo-only (no real
            per-learner rate data yet; see tutor-insights.md §4). -->
@@ -343,13 +498,13 @@ const scopeLabel = computed(() =>
       <RateCompare :data="comparison" />
     </div>
     <div v-else-if="isLoadingReal" class="tiv-widget-card tiv-widget-status">
-      <p>Loading your class's rate…</p>
+      <p>Loading your {{ entityNoun }}'s rate…</p>
     </div>
     <div v-else-if="insufficientReason" class="tiv-widget-card tiv-widget-status">
       <p>{{ insufficientReason }}</p>
     </div>
     <div v-else-if="realFetchFailed" class="tiv-widget-card tiv-widget-status">
-      <p>Couldn't load your class's rate just now — try again shortly.</p>
+      <p>Couldn't load your {{ entityNoun }}'s rate just now — try again shortly.</p>
     </div>
     <div v-else class="tiv-widget-card tiv-widget-status">
       <p>No classes yet — once you have a class with sessions, its rate compares here.</p>
