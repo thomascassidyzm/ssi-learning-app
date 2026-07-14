@@ -78,6 +78,7 @@ export default defineConfig(({ mode }) => ({
           '**/_schools-mockups/**', // static HTML mockups
           '**/paddle-review/**',    // Paddle verification artifact
           '**/design/**',           // design-doc mockups
+          '**/board/**',            // one-off board reports, never an offline learner path
         ],
 
         // Workbox' default navigation handler returns the cached index.html
@@ -90,6 +91,7 @@ export default defineConfig(({ mode }) => ({
           /^\/terms$/,
           /^\/privacy$/,
           /^\/refunds$/,
+          /^\/board\//,
           /^\/api\//,
         ],
 
