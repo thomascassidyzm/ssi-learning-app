@@ -31,6 +31,13 @@ const classReport = ref<ClassReport | null>(null)
 const copySuccess = ref(false)
 const searchQuery = ref('')
 
+// Self-view route is `classes/:id`; the admin read-view nests this under
+// `/admin/schools/:id/classes/:classId`, so under that nesting Vue Router
+// merges BOTH params in and `route.params.id` resolves to the parent
+// SCHOOL id, not the class id. Prefer `classId` when present — see
+// finding #1c, 2026-07-13 audit.
+const classIdParam = computed(() => (route.params.classId as string) || (route.params.id as string))
+
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
 }
@@ -164,7 +171,7 @@ async function loadReport(classId: string) {
 }
 
 onMounted(() => {
-  const classId = route.params.id as string
+  const classId = classIdParam.value
   if (classId && selectedUser.value) {
     fetchClassDetail(classId)
     loadReport(classId)
@@ -175,7 +182,7 @@ onMounted(() => {
 })
 
 watch(selectedUser, (newUser) => {
-  const classId = route.params.id as string
+  const classId = classIdParam.value
   if (newUser && classId) {
     fetchClassDetail(classId)
     loadReport(classId)

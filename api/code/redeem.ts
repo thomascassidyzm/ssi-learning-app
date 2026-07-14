@@ -482,6 +482,20 @@ async function redeemInviteCode(
     }
   }
 
+  // Student redemption needs the class's course_code so the client can carry
+  // it through the redirect — without it, the redirect lands on App.vue's
+  // cold-boot default course logic instead of the class's actual course
+  // (finding #3, 2026-07-13 audit).
+  let studentCourseCode: string | null = null
+  if (codeType === 'student' && inviteRow.grants_class_id) {
+    const { data: cls } = await supabase
+      .from('classes')
+      .select('course_code')
+      .eq('id', inviteRow.grants_class_id)
+      .maybeSingle()
+    studentCourseCode = cls?.course_code ?? null
+  }
+
   // school_admin (invite-born — the ONLY way this code_type reaches redeem.ts;
   // self-serve signup never redeems a code, it goes straight from Onboarding.vue's
   // OTP step to POST /api/onboarding/provision) goes straight to /schools —
@@ -499,6 +513,7 @@ async function redeemInviteCode(
     codeKind: 'invite',
     role: codeType,
     redirectTo,
+    courseCode: studentCourseCode,
   })
 }
 
@@ -594,17 +609,21 @@ async function redeemEntitlementCode(
   }
 
   // If code grants dashboard access, apply platform_role + dashboard_courses.
-  await applyDashboardRole(supabase, learner.id as string, entitlementRow, {
+  const dashboardRoleApplied = await applyDashboardRole(supabase, learner.id as string, entitlementRow, {
     actorUserId: userId,
     source: 'entitlement-code',
     codeUsed: entitlementRow.code as string,
   })
+  if (!dashboardRoleApplied) {
+    console.error('[CodeRedeem] Entitlement granted but dashboard role update failed:', entitlementRow.code, 'for user:', userId)
+  }
 
   const redirectTo = entitlementRow.grants_platform_role ? '/' : '/'
 
   console.log('[CodeRedeem] Redeemed entitlement code:', entitlementRow.code, 'for user:', userId, 'label:', entitlementRow.label)
   res.status(200).json({
     success: true,
+    dashboardRoleApplied,
     codeKind: 'entitlement',
     label: entitlementRow.label,
     accessType: entitlementRow.access_type,

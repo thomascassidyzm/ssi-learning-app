@@ -103,7 +103,7 @@ export function useInviteCode() {
     }
   }
 
-  async function redeemCode(authToken: string): Promise<{ success: boolean; role?: string; redirectTo?: string; label?: string; codeKind?: string; error?: string }> {
+  async function redeemCode(authToken: string): Promise<{ success: boolean; role?: string; redirectTo?: string; label?: string; codeKind?: string; courseCode?: string | null; error?: string }> {
     // Single-flight: a redemption already in progress wins; concurrent callers
     // (see comment on inFlightRedeem above) get its result rather than firing
     // a second request. Checked+set synchronously (no await before it), so
@@ -136,6 +136,7 @@ export function useInviteCode() {
             role: data.role,
             label: data.label,
             redirectTo: data.redirectTo,
+            courseCode: data.courseCode,
           }
         } else {
           return { success: false, error: data.error || 'Failed to redeem code' }

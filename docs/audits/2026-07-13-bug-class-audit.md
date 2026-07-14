@@ -16,7 +16,7 @@ is the complete sweep.
 
 ## Critical
 
-### 1. [Class 4] Cross-tenant data exposure/write risk in admin act-as / read-only views
+### 1. [Class 4] Cross-tenant data exposure/write risk in admin act-as / read-only views — **FIXED `47e740bc`** (1a/1c); 1b partially skipped, see note
 Three compounding bugs, all in the ssi_admin "view any school/group/learner" surface:
 
 **1a. Stale scope leaks into the admin's own `/schools`.**
@@ -34,6 +34,8 @@ Three compounding bugs, all in the ssi_admin "view any school/group/learner" sur
 
 **Why #1:** this is the only finding in the whole sweep that's a genuine cross-tenant security/data-integrity issue rather than a broken feature — an admin's own actions can land against the wrong school's data without any error surfacing.
 
+**Fix-pass note (2026-07-14, commit `47e740bc`):** 1a fixed two ways — (i) every `currentUser` load is now tagged with its source (`self`/`admin-view`/`demo`); `loadFromAuth`'s idempotent no-op now only fires against a matching self load, never a stale admin-view scope carrying the same admin's user_id (which is exactly what made presence-alone unsafe to check). (ii) `AdminSchoolsContainer`/`AdminGroupContainer`/`AdminUserProgress`/`AdminClassDetail` now deterministically `ctx.clear()` on unmount, so leaving a read-view can never leak scope into whatever mounts next. 1c fixed: `ClassDetail.vue` now prefers `route.params.classId` over `route.params.id`, since the nested `/admin/schools/:id/classes/:classId` route resolves `.id` to the parent SCHOOL id. **1b (hardcoded self-paths in DashboardView.vue/TeacherDashboard.vue/StudentsView.vue/SchoolsView.vue) was SKIPPED** — a live concurrent worker was already mid-fix on exactly this (a `useSchoolsNav` composable referenced from `DashboardView.vue` on `dev` HEAD at the time, not yet landed — confirmed via `pnpm typecheck` failing on that missing module before any of this session's edits). Duplicating it risked a merge collision per this session's explicit exclusion list. With 1a's fix landed, 1b's residual risk is now UX-only (a stale-linked click re-lands the admin correctly on their OWN scope instead of a leaked one) rather than a write-safety issue — worth confirming `useSchoolsNav` landed and covers all four files once the other worker's branch merges.
+
 ---
 
 ## Very high — will 403 on first touch, hits the pilot's first-run path directly
@@ -46,7 +48,7 @@ This is the exact same root cause as tonight's `SchoolsSetup.vue` group-dropdown
 | # | File:line | Call | User-visible failure |
 |---|---|---|---|
 | 2a | `useSchoolData.ts:256` `confirmSchoolName` | `.from('schools').update({school_name, name_confirmed})` | **Shipped tonight in `676d6f1c` and DOA on arrival** — the invite-born admin's brand-new "confirm your school name" first-run card fails every time. Worth prioritizing since it's new and currently non-functional. |
-| 2b | `SetupView.vue:125` `saveSchool` | `.from('schools').update(updates)` | Admin onboarding wizard step 1 ("name your school") 403s — **blocks the entire setup wizard** for any new school admin, reached via two separate entry paths (direct setup + teacher join-code flow) |
+| 2b | `SetupView.vue:125` `saveSchool` | `.from('schools').update(updates)` | Admin onboarding wizard step 1 ("name your school") 403s — **blocks the entire setup wizard** for any new school admin, reached via two separate entry paths (direct setup + teacher join-code flow) — **FIXED `18a553b3`**: new caller-scoped `api/school/update-profile.ts` (resolves the school from the session, mirrors `school/update-seats.ts`'s pattern), `saveSchool()` repointed at it. |
 | 2c | `SettingsView.vue:175` `saveSchoolProfile` | `.from('schools').update({school_name})` | School settings → rename school fails silently past the "Saving…" state |
 | 2d | `SchoolsSetup.vue:793` `deleteSchool` (admin panel) | `.from('schools').delete()` | ssi_admin "Delete school" button 403s, feature entirely broken |
 | 2e | `SchoolsSetup.vue:488` `createGroup` | `.from('groups').insert(insertData)` | ssi_admin "Create new group" (region/group hierarchy) 403s |
@@ -58,7 +60,7 @@ This is the exact same root cause as tonight's `SchoolsSetup.vue` group-dropdown
 
 ## High — confirmed defects, real user-facing breakage
 
-### 3. [Class 4] Student class-invite redemption drops the class's `course_code` — two entry points, one root cause
+### 3. [Class 4] Student class-invite redemption drops the class's `course_code` — two entry points, one root cause — **FIXED `f146257b`**
 **Entry point A (join code):** `api/code/validate.ts:130-140` → `useInviteCode.ts:86-90` → `RedeemCode.vue:288-313` → `api/code/redeem.ts:476-478`. Server knows the class's `course_code` at validate time; it's stored client-side and never read again — not written to `localStorage['ssi-last-course']` (the pattern `DashboardView.vue:270`/`WithTeacher.vue:181` already use) and not passed as a redirect param. `redeem.ts`'s student redirect is a bare `'/'`.
 
 **Entry point B (admin-issued invite code):** same underlying gap in `validate.ts`/`redeem.ts` — `course_code`/`class_id` never carried through; the parallel `/with/:code` path does this correctly, proving the fix pattern already exists elsewhere in the codebase.
@@ -67,12 +69,16 @@ This is the exact same root cause as tonight's `SchoolsSetup.vue` group-dropdown
 
 **Fix size:** small — no new endpoint, one fix covers both entry points. Either return `course_code` in the redeem response and redirect with `?course=`, or write `localStorage['ssi-last-course']` before redirecting.
 
-### 4. [Class 5] Offline lease upsert failure is silently logged — trial abuse vector
+**Fix-pass note (2026-07-14, commit `f146257b`):** `redeem.ts`'s `codeType === 'student'` branch (shared by both entry points, as predicted) now looks up the redeemed class's `course_code` and returns it as `courseCode`; `RedeemCode.vue` writes it to `localStorage['ssi-last-course']` before the redirect, matching the existing pattern.
+
+### 4. [Class 5] Offline lease upsert failure is silently logged — trial abuse vector — **FIXED `a917dcb0`**
 **File:** `api/entitlement/offline-lease.ts:268` — `if (upErr) console.error('[offline-lease] upsert error (non-fatal):', upErr.message)`, no error surfaced or retried.
 
 **User-visible failure:** none to the user, but a device can silently re-mint a fresh 30-day trial repeatedly if the upsert that's supposed to record the one-shot lease keeps failing — defeats the anti-reset design.
 
 **Fix size:** small — alert/metric on repeated failure at minimum; ideally fail closed rather than silently granting.
+
+**Fix-pass note (2026-07-14, commit `a917dcb0`):** the upsert error now throws into the same catch block the read error above it already uses, which fails CLOSED — the stateless fallback only reports leases for already-entitled (paying) codes, so a failing upsert no longer reports a granted trial that was never persisted.
 
 ### 5. [Class 5] Remove-student / remove-teacher fail with zero user feedback
 **File:** `ClassDetail.vue:221-231` `handleRemoveStudent`, `TeachersView.vue:83-95` `handleRemoveTeacher`
@@ -94,12 +100,14 @@ Both do `const { error } = await supabase.from('user_tags').update(...)` then `i
 
 ## Medium — real but narrower blast radius
 
-### 7. [Class 2] Two dead CTAs on the student's own progress view
+### 7. [Class 2] Two dead CTAs on the student's own progress view — **PARTIALLY FIXED `85a03cc2`**
 **File:** `StudentProgressView.vue:288` (primary "▶ Keep going — LEGO N") and `:291` ("Pick a different LEGO") — both have no `@click` wired.
 
 **User-visible failure:** the main action on a learner-facing view does nothing when clicked.
 
 **Fix size:** one-liner each (wire to the existing navigation function used elsewhere on the page).
+
+**Fix-pass note (2026-07-14, commit `85a03cc2`):** no navigation function actually existed on this page to wire to (checked — the audit's fix-size guidance didn't hold for this file). "Keep going" wired to resume the learner's primary course (same `localStorage['ssi-last-course']` + navigate pattern as DashboardView.vue/ClassDetail.vue), gated off under admin read-view. "Pick a different LEGO" REMOVED rather than faked — no lego-level picker UI exists anywhere in the codebase to route it to; inventing one is a product/design decision (what does "pick a different LEGO" even show?), not a one-liner CTA fix. Flagging for Tom if this is wanted as a real feature.
 
 ### 8. [Class 4] `Onboarding.vue` has no session awareness — bounces already-authed users through email+OTP again
 **File:** `Onboarding.vue` (root cause), hit from two live call sites:
@@ -115,22 +123,22 @@ Both do `const { error } = await supabase.from('user_tags').update(...)` then `i
 - **Settings-screen redemption ignores server's `redirectTo`** — `SettingsScreen.vue:647-673` discards the role-specific destination `redeem.ts` computed. One-liner.
 - **SignInModal's post-auth redirect dropped by all 3 containers** — `PlayerContainer.vue`/`SchoolsContainer.vue`/`TeachContainer.vue` all ignore the `{ role, redirectTo }` payload from sign-in. Small, same fix × 3 sites.
 
-### 10. [Class 5] "False-Saved" cluster across admin/teacher write paths (9 sites)
+### 10. [Class 5] "False-Saved" cluster across admin/teacher write paths (9 sites) — **3/9 FIXED `a917dcb0`**, rest out of scope this pass
 Write fails but UI/response reports success (or the error is silently discarded) rather than surfacing failure:
-- `api/admin/set-trial.ts` — update error not checked before responding success
-- `api/teacher/class-teachers.ts` — same pattern on teacher add/remove
-- `api/groups/[id].ts` — delete-order bug (dependent rows may survive a "successful" delete)
-- `api/onboarding/profile.ts:67-72` + `Onboarding.vue` — two-layer: server discards the `schools.update` error (`institutionSaved` computed from row count but never surfaced on failure), client doesn't check either
-- `api/code/redeem.ts` — write error path not fully surfaced to caller
-- `AdminUserDetail.vue:394,405` — `revokeEntitlement()`/`setTrial()` (`useAdminUserDetail.ts:433,469`) both return a `boolean` success flag that the caller discards entirely; admin gets no feedback either way
-- `DashboardView.vue` — missing error destructure on a write
-- `SetupView.vue` — shadowed error variable swallows a real failure
+- `api/admin/set-trial.ts` — update error not checked before responding success — not in this pass's scope
+- `api/teacher/class-teachers.ts` — same pattern on teacher add/remove — not in this pass's scope
+- `api/groups/[id].ts` — delete-order bug (dependent rows may survive a "successful" delete) — not in this pass's scope
+- `api/onboarding/profile.ts:67-72` + `Onboarding.vue` — two-layer: server discards the `schools.update` error (`institutionSaved` computed from row count but never surfaced on failure), client doesn't check either — **FIXED**: server now returns per-field `display_name_saved`/`institution_saved`/`institution_error`; client checks the response and surfaces a visible error (holding the redirect so it's actually seen), while still letting the user retry/continue since the field is optional.
+- `api/code/redeem.ts` — write error path not fully surfaced to caller — **FIXED**: this was `applyDashboardRole()` in the entitlement-code branch — it returned `void` and swallowed its own update error, so `redeem.ts` always reported `success:true` even when the dashboard-role grant failed. `applyDashboardRole` now returns a boolean; `redeem.ts` surfaces it as `dashboardRoleApplied` in the response.
+- `AdminUserDetail.vue:394,405` — `revokeEntitlement()`/`setTrial()` both return a discarded boolean — not in this pass's scope
+- `DashboardView.vue` — missing error destructure on a write — not in this pass's scope (file is being actively edited by a concurrent worker this session, see finding #1's note)
+- `SetupView.vue` — shadowed error variable swallows a real failure — not directly touched, but `saveSchool()` was rewritten wholesale for finding #2b/#5 (now checks `res.ok` on the new endpoint) — worth a follow-up check that no other shadowed-error spot remains in this file.
 
 **Fix size:** small/one-liner each — no design ambiguity; mechanical "surface the error" fixes.
 
 ### 11. [Class 2] Six more dead/ungated UI spots
 - `SettingsView.vue:296` — "Cancel" in the school profile panel unwired; edits stay in the inputs with no discard.
-- `TeachersView.vue:195-201` — "Resend invite" unwired (currently unreachable since status is hardcoded `'active'`, but will misbehave silently once invite-status is wired up — latent).
+- `TeachersView.vue:195-201` — "Resend invite" unwired (currently unreachable since status is hardcoded `'active'`, but will misbehave silently once invite-status is wired up — latent). **FIXED `85a03cc2`**: removed — staff join via the shared `teacher_join_code`, not per-teacher invites, so there's no real "invited" state or resend concept backing this button; it was dead UI from a design that isn't how staff onboarding actually works here, not a feature to preserve.
 - `AdminUserDetail.vue:906-908` — "No player events recorded" renders unconditionally under the populated events table.
 - `SchoolsSetup.vue:1193` — schools table empty-state card renders ungated.
 - `SchoolsSetup.vue:1360` — staff table, same pattern.
@@ -167,3 +175,16 @@ Write fails but UI/response reports success (or the error is silently discarded)
 3. **#8 (`Onboarding.vue` session-awareness) is a genuine scope/design choice**, not a detail call — needs your direction before anyone touches it.
 4. **#2 (schools/groups write grants)** needs the admin-mediation pattern extended to 6 more call sites — mechanical once you say go, but touches auth-sensitive code so flagging explicitly rather than just doing it.
 5. **Unresolved dispatch-queue issue** (outside this audit's scope, flagging since it recurred across multiple worker reports): a stray worker (`e6a74103-...`) picked up an unrelated task from a different session and reportedly can't be stopped via the dispatch API — worth a look when you have a sec.
+
+---
+
+## Fix-pass wave 1 (2026-07-14)
+
+Scoped to: #1 (a/c fixed, b partially skipped — collision), #3, #4, #7 (partial — one CTA removed, not faked), #10 (3/9 sites), #11 (Resend-invite subset), #2b/#5 (self-serve school-name save). Commits `47e740bc`, `f146257b`, `85a03cc2`, `a917dcb0`, `18a553b3` — see the per-finding notes above for detail. `pnpm --filter player-vue typecheck`, `npm run typecheck:api`, and `npm run test:api` (40/40) all green throughout; `player-vue` typecheck carries one pre-existing, unrelated failure (missing `useSchoolsNav` module, from a concurrent worker's in-flight `DashboardView.vue` nav-gating fix — not introduced by this pass, confirmed via `git stash` against a clean `dev` HEAD before starting).
+
+**Skipped / not actioned this pass** (out of the five assigned findings' scope, or genuinely blocked):
+- #1b's `DashboardView.vue`/`TeacherDashboard.vue`/`StudentsView.vue`/`SchoolsView.vue` hardcoded self-paths — a concurrent worker was already mid-fix on this exact thing (confirmed live: `DashboardView.vue` on `dev` HEAD already imports a `useSchoolsNav` composable that doesn't exist on disk yet); `SchoolsView.vue` and `SchoolsContainer.vue`'s render-gating were also explicitly excluded from this pass by the dispatch brief for the same reason. Worth re-checking once that worker's branch lands that all four files end up covered.
+- #10's remaining 6 false-Saved sites (`set-trial.ts`, `class-teachers.ts`, `groups/[id].ts`, `AdminUserDetail.vue`'s two discarded booleans, any residual shadowed-error in `SetupView.vue`) — outside this pass's assigned scope (invite/onboarding paths + entitlement/try-link only).
+- #2's remaining 5 write-grant call sites (2a, 2c, 2d, 2e, 2f) — outside this pass's assigned scope (only 2b was in scope).
+- #8 (`Onboarding.vue` session-awareness) — explicitly flagged as needing Tom's design direction, not touched.
+- #5/#6/#9/#12/#13/#14 — not in this pass's assigned scope.

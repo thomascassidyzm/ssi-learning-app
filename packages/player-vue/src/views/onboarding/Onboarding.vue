@@ -469,11 +469,31 @@ async function continueIn() {
     const inst = institution.value.trim()
     if (dn || inst) {
       const token = await authToken()
-      await fetch('/api/onboarding/profile', {
+      const profileRes = await fetch('/api/onboarding/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ display_name: dn || undefined, institution: inst || undefined }),
       })
+      const profileData = await profileRes.json().catch(() => ({}))
+      // Was previously fire-and-forget — a failed write here (403/500, or a
+      // schools.update that silently affected 0 rows) proceeded straight to
+      // the dashboard with no signal at all (finding #10, 2026-07-13 audit).
+      // This field is optional/skippable, so don't block the flow — but do
+      // surface it loudly rather than pretend it saved.
+      if (!profileRes.ok) {
+        error.value = profileData?.error || "Some details didn't save — you can set them later."
+      } else if (inst && !profileData?.institution_saved) {
+        error.value = "Your school name didn't save — you can set it later in School settings."
+      } else if (dn && profileData?.display_name_saved === false) {
+        error.value = "Your name didn't save — you can set it later in your profile."
+      }
+      // Stop here so the message above is actually visible — a full-page
+      // navigation right after setting it would erase it unseen. The user
+      // can press Continue again to retry, or navigate on regardless.
+      if (error.value) {
+        busy.value = false
+        return
+      }
     }
     // Drop the stale role cache from BEFORE this signup. The /schools (and
     // /tutors/dashboard) router guard reads the role SYNCHRONOUSLY from the
