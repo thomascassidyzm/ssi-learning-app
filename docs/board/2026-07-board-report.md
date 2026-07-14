@@ -2,7 +2,9 @@
 
 The month's story is simple: the schools platform went from "works in a demo" to "survives contact with real users", the commercial model got settled, and we now have a live, sendable demo programme for the India partnership. Roughly 725 commits landed across the two codebases in 30 days — the learning app took about 500 of them, most in service of the schools tier. We also taught Chinese through Irish in Ireland, live, which is the community-language model doing exactly what it's for.
 
-## Schools platform — the big story
+## Progress
+
+### Schools platform — the big story
 
 The whole schools "region tier" is now built and hardened. The shape: a group leader (a council, a trust, a partner like IME) gets one link. Clicking it makes them the owner of their group. From there they mint one-link invites for schools; a school admin clicks, verifies their email once, and lands on a working dashboard — no forms, no second sign-in, no setup wizard standing in the way. Schools a leader creates show honestly as "awaiting admin" until someone claims them. Teachers press play and teach the whole class from one screen.
 
@@ -10,7 +12,7 @@ Then we did the unglamorous part. A live soak on 13 July surfaced real breakage,
 
 Separately, all course-content APIs now enforce entitlements server-side (promoted to production 7 July) — paywall decisions no longer live only in the browser.
 
-## Commercial model — settled
+### Commercial model — settled
 
 After a month of working the options, the model is decided and documented:
 
@@ -21,9 +23,7 @@ After a month of working the options, the model is decided and documented:
 - **Trial: 30 days, single language**, clock starts when the school picks its course; minority-language schools keep the 365-day free year. Expiry means read-only, never lockout.
 - **Regional price bands** so India and Wales aren't priced with the same number.
 
-What's open: the actual prices per band, and the Paddle per-seat build. Both are next.
-
-## Partnerships
+### Partnerships
 
 **India (IME).** Their due-diligence questionnaire — seven sections covering architecture, devices, offline, data handling, third parties and the course pipeline — was answered in full with evidence, 9 July. On top of that we built a complete seeded demo: an "IME Demo Programme" group with three Indian schools (two live with teachers, classes, 80 students and 164 hours of practice history on the English-for-Hindi-speakers course; one deliberately sitting in the "awaiting admin" state so they can see what an invited-but-unclaimed school looks like). The pitch is five clicks, and it ends by handing over a real one-shot invite link that makes their regional officer the actual owner of everything they just saw. Ready to send.
 
@@ -31,22 +31,30 @@ What's open: the actual prices per band, and the Paddle per-seat build. Both are
 
 **Wales.** The Gwynedd pilot is the named first real cohort for the schools tier — the hardening above was done with them in mind, and the 365-day Welsh school offer stands.
 
-## Analytics that are real
+### Analytics that are real
 
 Teachers, school admins and group leaders now see real comparative progress data, not seeded demo numbers: rate-of-progress for a class against the school average, a school against its group, a group against its region or the global cohort — normalised per course, with a privacy floor (no comparison shown unless at least five entities are in the pool) and an honest "not enough data yet" state instead of a fabricated one. The standing rule is now written down: customer-visible analytics are real or absent, never fake.
 
-## Platform and content production
+### Platform and content production
 
 Learner-side robustness got a solid month: full offline mode (download ahead, listening material included, fast bulk downloads), a "never-wedge" app update lifecycle so a broken update can't strand a learner, and a simpler, truthful position model so "where am I in the course" is one answer everywhere.
 
-On the production side (the Popty dashboard, ~215 commits): we ran an estate-wide audio census across all 74 live and beta courses, so gaps are now a known, costed list rather than a suspicion. The honest headline finding: five live courses (Korean, Japanese, Portuguese, Chinese, Spanish) are silently missing 36–59% of their practice-phrase audio deep in the course — the early lessons are ~99% complete so new learners are unaffected, but advanced learners hit thin rounds. The striking part is the price of fixing it: the entire estate's known audio defects come to roughly **$60 of text-to-speech spend**. The bottleneck is pipeline hours and a go decision, not money — and the passes are queued. New audio tooling ships with a phonology gate — every AI-rendered clip is transcription-checked so English-accented renders get caught and re-rolled automatically before a learner ever hears them (the Italian pass completed 163/163 groups, zero phonology failures). A "clone once, copy everywhere" pass stops us paying to re-render identical known-language audio across courses. And an edit-cascade now lets us fix a translation and safely rebuild just what depends on it — content maintenance at scale instead of course-by-course surgery. The new listening pedagogy (the gradual-fusion "pod ladder" developed with Aran) is now playing real audio on pilot courses.
+On the production side (the Popty dashboard, ~215 commits): we ran an estate-wide audio census across all 74 live and beta courses, so gaps are now a known, costed list rather than a suspicion (more on the finding under Problems, below). New audio tooling ships with a phonology gate — every AI-rendered clip is transcription-checked so English-accented renders get caught and re-rolled automatically before a learner ever hears them (the Italian pass completed 163/163 groups, zero phonology failures). A "clone once, copy everywhere" pass stops us paying to re-render identical known-language audio across courses. And an edit-cascade now lets us fix a translation and safely rebuild just what depends on it — content maintenance at scale instead of course-by-course surgery. The new listening pedagogy (the gradual-fusion "pod ladder" developed with Aran) is now playing real audio on pilot courses.
 
-## What's next
+## Problems
+
+- **The soak surfaced real breakage.** 13 July's live soak found genuine faults across five bug classes on every schools and admin surface — including a security-grade tenant-isolation leak (an SSi admin's view could carry into and write against the wrong school's data). All ~30 issues are fixed and the classes closed off, but the haul is itself evidence the platform was more fragile pre-soak than the demo-stage testing had shown. The standing lesson: staging soaks earn their keep, and the next tier shouldn't go to production without one.
+- **Five live courses are quietly thin on audio.** Korean, Japanese, Portuguese, Chinese and Spanish are silently missing 36–59% of their practice-phrase audio deep in the course (early lessons are ~99% complete, so new learners are unaffected, but advanced learners hit thin rounds). The fix is cheap — roughly **$60 of text-to-speech spend** for the entire estate's known audio defects — so the blocker is pipeline hours and a go decision, not money.
+- **Pricing bands are still unset.** The commercial model is settled in shape, but without actual per-band numbers the Paddle per-seat subscription build can't start — this is currently the gate on schools-tier revenue.
+- **The region tier hasn't been promoted to production yet.** It's live and hardened on dev/staging, but needs the normal staging soak before it's in front of Gwynedd and IME.
+
+## Plans
 
 1. **Prices, then Paddle.** Set the per-band teacher price; build the per-seat subscription flow. This is the gate on revenue from the schools tier.
 2. **Promote the region tier to production.** It's on dev/staging now; it rides the normal staging soak to production ahead of Gwynedd and IME onboarding.
 3. **Send the IME link** and support their regional officer's first real group.
-4. Known product gaps queued behind real use: class-wide skip/revisit for teachers, and the college question (16+ students with their own accounts and £5 subscriptions — possibly a revenue-share angle worth thinking through).
+4. **Greenlight the audio pass.** ~$60 of spend clears the known deep-course gaps across five live courses — awaiting the go decision.
+5. Known product gaps queued behind real use: class-wide skip/revisit for teachers, and the college question (16+ students with their own accounts and £5 subscriptions — possibly a revenue-share angle worth thinking through).
 
 ## The numbers that matter
 
