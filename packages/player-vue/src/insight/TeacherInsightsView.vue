@@ -21,9 +21,15 @@
 //     widget already carries.
 //
 // DEMO-FIRST: with ?demo it reads data/demoRates.ts (seeded, deterministic, NO
-// DB call) — the same short-circuit the admin boards use. Without ?demo there's
-// no teacher RPC yet, so it shows a quiet "preview with ?demo" note rather than
-// hitting an unbuilt resolver.
+// DB call) — the same short-circuit the admin boards use (isInsightDemo(), the
+// same gate CoverageBoard.vue uses). Without ?demo it fetches the CALLER'S OWN
+// real classes (useClassesData — already role-scoped for teacher/school_admin/
+// govt_admin) and real rate data from GET /api/school/rate-compare, which
+// resolves the caller's visible scope server-side (resolveVisibleScope) and
+// computes rate-of-progress from analytics_class_sessions_scoped. Only the
+// headline metric (rate of progress) and compare-to (school/group/global) are
+// real; the other 5 HERO_RATES and the learner-level drill stay demo-only
+// until their own resolvers exist (Principle 5 — earn it, don't fake it).
 //
 // Frostwell Courtyard idiom, premium + minimal. ONE green/blue colour scheme,
 // dressed in Apple-HIG "Liquid Glass": the regular-material glass lives only on
@@ -37,6 +43,10 @@ import { useRoute } from 'vue-router'
 import RateCompare from './components/RateCompare.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import TopNav from '@/components/schools/shared/TopNav.vue'
+import { isInsightDemo } from './data/demo'
+import { useClassesData } from '@/composables/schools/useClassesData'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { getSchoolsClient } from '@/composables/schools/client'
 import {
   HERO_RATES,
   getRateComparison,
@@ -52,12 +62,12 @@ import '@/styles/schools-tokens.css'
 // TopNav or impose its own full-viewport scroll. Standalone path is unchanged.
 const props = defineProps<{ embedded?: boolean }>()
 
-// ── The teacher's OWN classes ───────────────────────────────────────────────
-// A teacher usually teaches more than one class, so they pick among THEIR set —
-// never any class outside it. Every label here must exist verbatim in
-// CLASS_NAMES (demoRates.ts) so it resolves to a real population. The set spans
-// ≥2 courses so switching class also changes the course in the header.
-// (In the real path this set comes from the teacher's session, not hardcoded.)
+// isInsightDemo() reads ?demo off the URL — the same gate CoverageBoard.vue
+// uses. With it: the seeded demoRates.ts fixture (unchanged, for previewing
+// the widget with no login). Without it: real classes + real rate data.
+const demoMode = isInsightDemo()
+
+// ── DEMO fixture (unchanged) — a small hardcoded population for the preview ──
 interface TeacherClass {
   label: string      // exact CLASS_NAMES entry — `${school} · ${className}`
   school: string
@@ -69,20 +79,49 @@ const MY_CLASSES: TeacherClass[] = [
   { label: 'Gaelscoil Cholmcille · Rang a 6 — Sínis', school: 'Gaelscoil Cholmcille', className: 'Rang a 6 — Sínis', course: 'Chinese for Irish speakers' },
   { label: 'Coláiste Éinde · 1st Year Gaeilge',       school: 'Coláiste Éinde',       className: '1st Year Gaeilge', course: 'Irish for English speakers' },
 ]
+const selectedDemoClass = computed<TeacherClass>(
+  () => MY_CLASSES.find((c) => c.label === selectedClassKey.value) ?? MY_CLASSES[0],
+)
 
-// The selected class — defaults to the teacher's first class.
-const selectedClassLabel = ref<string>(MY_CLASSES[0].label)
-const selectedClass = computed<TeacherClass>(
-  () => MY_CLASSES.find((c) => c.label === selectedClassLabel.value) ?? MY_CLASSES[0],
+// ── REAL classes (non-demo): the caller's OWN, already role-scoped by
+// useClassesData (teacher -> class_teachers membership; school_admin -> their
+// school; govt_admin -> their group subtree) — the exact same fetch
+// TeacherDashboard/DashboardView use, so the picker never offers a class
+// outside the signed-in caller's scope. ─────────────────────────────────────
+const { classes: realClasses, fetchClasses } = useClassesData()
+const { currentUser } = useSchoolContext()
+if (!demoMode) fetchClasses()
+
+interface RealClassOption { id: string; className: string; course: string }
+const realClassOptions = computed<RealClassOption[]>(() =>
+  realClasses.value.map((c) => ({ id: c.id, className: c.class_name, course: c.course_code })),
+)
+const selectedRealClass = computed<RealClassOption | null>(
+  () => realClassOptions.value.find((c) => c.id === selectedClassKey.value) ?? realClassOptions.value[0] ?? null,
+)
+
+// One selected-class model spanning both paths (demo picks by fixture label,
+// real picks by class id) so the template only ever binds one v-model.
+const selectedClassKey = ref<string>(demoMode ? MY_CLASSES[0].label : '')
+watch(realClassOptions, (opts) => {
+  if (!demoMode && !selectedClassKey.value && opts.length) selectedClassKey.value = opts[0].id
+}, { immediate: true })
+
+const classSelectOptions = computed(() =>
+  demoMode
+    ? MY_CLASSES.map((c) => ({ value: c.label, label: c.label }))
+    : realClassOptions.value.map((c) => ({ value: c.id, label: c.className })),
 )
 
 // Header fields all derive from the SELECTED class, so switching class updates
 // the title AND the course label.
-const SCHOOL_NAME = computed(() => selectedClass.value.school)
-const CLASS_NAME = computed(() => selectedClass.value.className)
-const COURSE_LABEL = computed(() => selectedClass.value.course)
+const SCHOOL_NAME = computed(() => (demoMode ? selectedDemoClass.value.school : (currentUser.value?.school_name || 'Your school')))
+const CLASS_NAME = computed(() => (demoMode ? selectedDemoClass.value.className : (selectedRealClass.value?.className || '—')))
+const COURSE_LABEL = computed(() => (demoMode ? selectedDemoClass.value.course : (selectedRealClass.value?.course || '—')))
 
-// ── Drill scope: the class itself, or a learner within it ───────────────────
+// ── Drill scope: the class itself, or a learner within it. Real per-learner
+// rate data doesn't exist yet (homework-sourced attention lane, tutor-
+// insights.md §4 — a separate build), so the learner drill stays demo-only.
 type Scope = 'class' | 'learner'
 const scope = ref<Scope>('class')
 
@@ -97,64 +136,55 @@ const requestedLearnerName = computed(() => {
   const n = route.query.name
   return (Array.isArray(n) ? n[0] : n) || ''
 })
-if (route.query.scope === 'learner') scope.value = 'learner'
+if (demoMode && route.query.scope === 'learner') scope.value = 'learner'
 const entityLevel = computed<EntityLevel>(() => (scope.value === 'class' ? 'class' : 'learner'))
 
-// ── Metric + average selection (rate metrics; aggregate cohorts only) ────────
-const metricId = ref<string>('progressPace') // headline rate by default
-const averageId = ref<string>('class avg')   // most-local cohort by default
-
+// ── Metric selection — real path is fixed to the one real metric (rate of
+// progress); the other 5 HERO_RATES stay demo-only until their own resolvers
+// exist (Principle 5, metrics-architecture.md — earn the signal, don't fake it).
+const metricId = ref<string>('progressPace') // headline rate; the only real one
 const currentMetric = computed(
   () => HERO_RATES.find((m) => m.id === metricId.value) ?? HERO_RATES[0],
 )
-
-// Averages valid for the chosen metric — every option is an AGGREGATE cohort,
-// escalating class → year → school → region → country → global → all participants.
-const averageOptions = computed(() => listAverages(metricId.value))
-
-// FrostSelect option lists ({ value, label }). learnerOptions is already in that
-// shape; the others are mapped from their sources.
-const classSelectOptions = computed(() => MY_CLASSES.map((c) => ({ value: c.label, label: c.label })))
 const metricSelectOptions = computed(() => HERO_RATES.map((m) => ({ value: m.id, label: `${m.label} (${m.unit} / ${m.per})` })))
-const averageSelectOptions = computed(() => averageOptions.value.map((a) => ({ value: a, label: a })))
 
-// ── The class entity: the SELECTED one of the teacher's own classes, resolved
-// by NAME so it is the SAME class across every measure (listEntities is
-// value-sorted, so opts[0] is the top class for the metric, not necessarily
-// ours — match on label). The picker only ever offers MY_CLASSES, so we never
-// expose any class outside the teacher's set as a selectable entity.
-const classEntityId = computed<string>(() => {
-  const opts = listEntities(metricId.value, 'class')
-  return (opts.find((o) => o.label === selectedClass.value.label) ?? opts[0])?.value ?? ''
-})
-
-// ── The learner drill: learners WITHIN the class (the learner-level population).
-// This is the only other entity the teacher may select — a pupil they teach.
-const learnerOptions = computed(() => listEntities(metricId.value, 'learner'))
-const learnerEntityId = ref<string>('')
-
-// The active entity id for the current scope.
-const entityId = computed<string>(() =>
-  scope.value === 'class' ? classEntityId.value : learnerEntityId.value,
+// ── Compare-to — demo keeps the full escalation ladder (class/year/school/…);
+// real is the three real cohorts the endpoint can actually compute: school /
+// group / global, each an aggregate-only average (k-floor 5 server-side).
+const REAL_COMPARE_OPTIONS = [
+  { value: 'school', label: 'School average' },
+  { value: 'group', label: 'Group average' },
+  { value: 'global', label: 'Global average' },
+]
+const averageId = ref<string>(demoMode ? 'class avg' : 'school')
+const averageOptions = computed(() => listAverages(metricId.value)) // demo only
+const averageSelectOptions = computed(() =>
+  demoMode ? averageOptions.value.map((a) => ({ value: a, label: a })) : REAL_COMPARE_OPTIONS,
 )
 
-// ── Keep the selection coherent as the metric / scope changes ───────────────
-// Snap the average into the metric's valid (aggregate) set.
+// ── The class entity (demo path only — matched by label into the demo
+// population; the real path uses selectedRealClass.id directly). ───────────
+const classEntityId = computed<string>(() => {
+  const opts = listEntities(metricId.value, 'class')
+  return (opts.find((o) => o.label === selectedDemoClass.value.label) ?? opts[0])?.value ?? ''
+})
+
+// ── The learner drill (demo path only). ─────────────────────────────────────
+const learnerOptions = computed(() => listEntities(metricId.value, 'learner'))
+const learnerEntityId = ref<string>('')
+const entityId = computed<string>(() => (scope.value === 'class' ? classEntityId.value : learnerEntityId.value))
+
+// ── Keep the demo selection coherent as the metric / scope changes ─────────
 watch(metricId, () => {
+  if (!demoMode) return
   const avgs = listAverages(metricId.value)
   if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'class avg'
 })
-
-// Re-anchor the learner pick to the first learner whenever the metric/scope/
-// class makes the current pick invalid (e.g. switching into the learner drill,
-// or switching to another of the teacher's classes — the drill is always
-// learners WITHIN the selected class).
 watch(
-  [metricId, scope, selectedClassLabel],
+  [metricId, scope, selectedClassKey],
   ([, newScope], [, oldScope]) => {
-    if (scope.value !== 'learner') return
+    if (!demoMode || scope.value !== 'learner') return
     const opts = listEntities(metricId.value, 'learner')
-    // On a class change while drilled in, restart from the first learner.
     const classChanged = newScope === oldScope
     if (classChanged || !opts.find((o) => o.value === learnerEntityId.value)) {
       learnerEntityId.value = opts[0]?.value ?? ''
@@ -163,18 +193,60 @@ watch(
   { immediate: true },
 )
 
+// ── REAL fetch: GET /api/school/rate-compare, server-mediated (auth ->
+// resolveVisibleScope -> analytics_class_sessions_scoped). Never throws to
+// the template — insufficientData / network failure both degrade to an
+// honest empty state, never a fabricated number. Two separate result refs
+// (rather than one polymorphic union) so the template never has to narrow. ─
+const realData = ref<RateComparisonData | null>(null)
+const realInsufficientReason = ref<string | null>(null)
+const isLoadingReal = ref(false)
+const realFetchFailed = ref(false)
+
+async function fetchRealComparison(): Promise<void> {
+  if (demoMode) return
+  const classId = selectedRealClass.value?.id
+  realData.value = null
+  realInsufficientReason.value = null
+  if (!classId) return
+  isLoadingReal.value = true
+  realFetchFailed.value = false
+  try {
+    const client = getSchoolsClient()
+    const { data: { session } } = await client.auth.getSession()
+    const token = session?.access_token
+    if (!token) return
+    const params = new URLSearchParams({ class_id: classId, compare_to: averageId.value })
+    const res = await fetch(`/api/school/rate-compare?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) throw new Error(`rate-compare ${res.status}`)
+    const json = await res.json() as { insufficientData: boolean; reason?: string } & Partial<RateComparisonData>
+    if (json.insufficientData) {
+      realInsufficientReason.value = json.reason || 'Not enough data to compare fairly yet.'
+    } else {
+      realData.value = json as RateComparisonData
+    }
+  } catch (e) {
+    console.error('[TeacherInsightsView] rate-compare fetch failed:', e)
+    realFetchFailed.value = true
+  } finally {
+    isLoadingReal.value = false
+  }
+}
+watch([selectedRealClass, averageId], () => { if (!demoMode) fetchRealComparison() }, { immediate: true })
+
 // ── The resolved comparison ─────────────────────────────────────────────────
-// Seeded synthetic data renders BY DEFAULT — a live preview of what a teacher
-// sees once their class has real telemetry (no ?demo gate). The real teacher
-// data path swaps in here when wired.
-const comparison = computed<RateComparisonData>(() =>
-  getRateComparison(
-    metricId.value,
-    entityLevel.value,
-    entityId.value,
-    averageId.value,
-  ),
+// Demo: seeded synthetic data, unchanged. Real: the server response, only when
+// it cleared the k-floor — otherwise null, and the template shows the honest
+// insufficient-data / loading / error state instead of a widget.
+const comparison = computed<RateComparisonData | null>(() =>
+  demoMode
+    ? getRateComparison(metricId.value, entityLevel.value, entityId.value, averageId.value)
+    : realData.value,
 )
+
+const insufficientReason = computed<string | null>(() => (demoMode ? null : realInsufficientReason.value))
 
 // A friendly scope label for the header line.
 const scopeLabel = computed(() =>
@@ -210,14 +282,16 @@ const scopeLabel = computed(() =>
 
     <!-- ── Controls: your class, drill (class / learner), metric, compare-to ── -->
     <div class="tiv-controls">
-      <!-- Your classes — only ever the teacher's OWN set -->
+      <!-- Your classes — only ever the caller's OWN set (demo fixture, or the
+           real role-scoped classes: teacher's own / school's / group's) -->
       <label class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Your classes</span>
-        <FrostSelect v-model="selectedClassLabel" :options="classSelectOptions" aria-label="Your classes" />
+        <FrostSelect v-model="selectedClassKey" :options="classSelectOptions" aria-label="Your classes" />
       </label>
 
-      <!-- Drill: the class, or a learner within it -->
-      <div class="tiv-field">
+      <!-- Drill: the class, or a learner within it — demo-only (no real
+           per-learner rate data yet; see tutor-insights.md §4). -->
+      <div v-if="demoMode" class="tiv-field">
         <span class="tiv-field-label">View</span>
         <div class="tiv-segs" role="group" aria-label="View">
           <button
@@ -235,17 +309,22 @@ const scopeLabel = computed(() =>
         </div>
       </div>
 
-      <!-- Learner picker — only when drilled in; learners within THIS class -->
-      <label v-if="scope === 'learner'" class="tiv-field tiv-field-wide">
+      <!-- Learner picker — demo-only, only when drilled in -->
+      <label v-if="demoMode && scope === 'learner'" class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Learner in {{ CLASS_NAME }}</span>
         <FrostSelect v-model="learnerEntityId" :options="learnerOptions" :aria-label="`Learner in ${CLASS_NAME}`" />
       </label>
 
-      <!-- Metric -->
-      <label class="tiv-field tiv-field-wide">
+      <!-- Metric — demo can browse all 6 HERO_RATES; real is fixed to the one
+           real metric (rate of progress), shown as plain text instead. -->
+      <label v-if="demoMode" class="tiv-field tiv-field-wide">
         <span class="tiv-field-label">Measure</span>
         <FrostSelect v-model="metricId" :options="metricSelectOptions" aria-label="Measure" />
       </label>
+      <div v-else class="tiv-field tiv-field-wide">
+        <span class="tiv-field-label">Measure</span>
+        <p class="tiv-fixed-measure">{{ currentMetric.label }} ({{ currentMetric.unit }} / {{ currentMetric.per }})</p>
+      </div>
 
       <!-- Average (aggregate cohorts only — never another named entity) -->
       <label class="tiv-field">
@@ -257,9 +336,23 @@ const scopeLabel = computed(() =>
     <!-- ── One-line read of what this measure means ── -->
     <p class="tiv-metric-desc">{{ currentMetric.description }}</p>
 
-    <!-- ── The one widget — nothing else on this page ── -->
-    <div class="tiv-widget-card">
+    <!-- ── The one widget — nothing else on this page. Real path: an honest
+         loading / insufficient-data state stands in for a widget rather than
+         ever rendering a fabricated number. ── -->
+    <div v-if="comparison" class="tiv-widget-card">
       <RateCompare :data="comparison" />
+    </div>
+    <div v-else-if="isLoadingReal" class="tiv-widget-card tiv-widget-status">
+      <p>Loading your class's rate…</p>
+    </div>
+    <div v-else-if="insufficientReason" class="tiv-widget-card tiv-widget-status">
+      <p>{{ insufficientReason }}</p>
+    </div>
+    <div v-else-if="realFetchFailed" class="tiv-widget-card tiv-widget-status">
+      <p>Couldn't load your class's rate just now — try again shortly.</p>
+    </div>
+    <div v-else class="tiv-widget-card tiv-widget-status">
+      <p>No classes yet — once you have a class with sessions, its rate compares here.</p>
     </div>
   </div>
   </div>
@@ -512,6 +605,34 @@ const scopeLabel = computed(() =>
   box-shadow:
     0 1px 2px rgba(44, 38, 34, 0.05),
     0 14px 34px rgba(44, 38, 34, 0.08);
+}
+/* Honest empty/loading states standing in for the widget on the real path —
+ * never a fabricated number. */
+.tiv-widget-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  text-align: center;
+}
+.tiv-widget-status p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+  max-width: 42ch;
+  margin: 0;
+}
+/* Real-path fixed "Measure" readout — visually matches a FrostSelect pill
+ * without being one (there's nothing to choose yet). */
+.tiv-fixed-measure {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink-primary);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  padding: 9px 12px;
+  margin: 0;
 }
 
 /* ── Responsive ── */

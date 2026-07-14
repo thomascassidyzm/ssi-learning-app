@@ -212,11 +212,12 @@ TOPBAR_TAB:
 
 TEACHER_INSIGHTS_VIEW:
   source: "packages/player-vue/src/insight/TeacherInsightsView.vue"
-  purpose: "The TEACHER/TUTOR view — the calm, single-purpose opposite of the /admin/insights cockpit. Contains NOTHING but the entity-vs-average RateCompare widget, framed for a teacher looking at THEIR class. No course value / health / friction, no board tabs, no Insight Engine chrome."
-  reuse: "Reuses RateCompare.vue + demoRates.ts unchanged — does NOT fork the widget."
-  scope: "Entity is always THEIR class (a single fixed demo class), or — via a class/learner drill — a learner WITHIN that class. Never another class / school / course (no class picker, no level switch beyond class<->learner). Selectors: View (Whole class / A learner) · Measure (6 HERO_RATES) · Compare to (the metric's aggregate cohorts only)."
-  route: "{ path: '/teacher-insights', name: 'teacher-insights' } — TOP-LEVEL + UN-GATED so it opens with ?demo WITHOUT a teacher login (the global beforeEach guard only fires on /admin + /methodology). URL: /teacher-insights?demo"
-  demo_first: "?demo short-circuits to demoRates (ZERO database access); without ?demo a 'preview with ?demo' note (no teacher RPC wired yet)."
+  purpose: "The schools-wide Stats surface — the calm, single-purpose opposite of the /admin/insights cockpit. Contains NOTHING but the entity-vs-average RateCompare widget. Serves ALL THREE schools roles (teacher, school_admin, govt_admin/group-leader), not just teachers — the file/route names predate the real wiring and are kept for now."
+  reuse: "Reuses RateCompare.vue + RateTrend.vue unchanged — does NOT fork the widget. isInsightDemo() (../data/demo — the same ?demo gate CoverageBoard.vue uses) selects demo vs real."
+  demo_path: "?demo — UNCHANGED: MY_CLASSES fixture + demoRates.ts, ZERO database access, full 6-HERO_RATES metric picker + class/learner drill + the AVERAGE_ESCALATION ladder."
+  real_path: "REAL as of 2026-07-14 for the ONE flagship metric (rate of progress, LEGOs/week) at CLASS-entity granularity only. Classes come from useClassesData().fetchClasses() — already role-scoped (teacher: class_teachers membership; school_admin: their school; govt_admin: their group subtree) via the SAME fetch TeacherDashboard/DashboardView use, so the picker only ever offers classes in the caller's own scope. Data comes from GET /api/school/rate-compare (api/school/rate-compare.ts): resolveVisibleScope checks class_id is in-scope, then analytics_class_sessions_scoped (new RPC, service_role-only EXECUTE) returns raw session rows; api/_utils/rateCompare.ts derives window-pace, an 8-week trend, and the cohort distribution in TypeScript (mirrors coverage.ts's split). Compare-to is school / group / global average (never another named class) — the comparison cohort is resolved server-side from the entity's own school_id/group_id, never client input. K_FLOOR=5 (matches spec.ts Sovereignty.kFloor default): fewer than 5 active cohort classes -> insufficientData with an honest reason, no fabricated average. Deferred (not yet real): the other 5 HERO_RATES, the learner-level drill (needs the homework-sourced attention lane, tutor-insights.md §4), and a single school/group AGGREGATE entity (averaging across a school's classes that may span different courses isn't apples-to-apples; the roll-up instead lets any role pick any class in their scope, per tutor-insights.md §2's 'same query, higher GROUP BY' — the entity is always a class)."
+  entry_points: "/schools/analytics (embedded=true inside SchoolsContainer) — already live in TopNav's baseTabs for every schools role (teachers/school_admin via hasSchoolRole, plus govt_admin). No new route needed; this is the pre-existing 'Analytics' tab, now backed by real data. /teacher-insights (top-level, un-gated) stays the un-authed ?demo preview URL."
+  route: "{ path: '/teacher-insights', name: 'teacher-insights' } (standalone, ?demo preview) and { path: 'analytics', name: 'analytics' } under /schools (embedded, real for signed-in roles)."
 
 ## ============================================================================
 ## STATUS / NOT-YET
@@ -231,10 +232,14 @@ STATUS:
     - "RateCompare composite widget (RateCompare.vue + RateTrend.vue) — the reusable 'entity vs average' rate widget"
     - "6 boards (RatesBoard, CourseScoreboard, ContentFrictionBoard, HealthStrip, DifficultyTurnsBoard, CoverageBoard)"
     - "InsightsView host + /admin/insights route + AdminTopBar tab"
-    - "TeacherInsightsView (teacher-framed, single RateCompare widget, scope-locked to their class/learner) + /teacher-insights un-gated route (?demo)"
+    - "TeacherInsightsView (schools-wide, single RateCompare widget, scope-locked per role) + /teacher-insights un-gated route (?demo) + /schools/analytics (embedded, real)"
+    - "REAL rate-of-progress for schools (2026-07-14): analytics_class_sessions_scoped RPC (supabase/migrations/20260714_analytics_class_sessions_scoped.sql, applied+verified live, service_role-only EXECUTE) + api/school/rate-compare.ts (auth -> resolveVisibleScope -> RPC) + api/_utils/rateCompare.ts (window pace / weekly trend / distribution math, 16 unit tests)"
   verified:
     - "pnpm --filter player-vue typecheck — PASSES (0 errors)"
     - "pnpm --filter player-vue build — admin chunk builds (InsightsView, all boards, widgets, InsightWidget, resolvers code-split)"
+    - "pnpm --filter player-vue test — 586/586 green; vitest -c vitest.api.config.ts — 69/69 green (16 rateCompare + 5 rate-compare endpoint + 48 pre-existing); tsc --noEmit -p tsconfig.api.json clean"
+    - "analytics_class_sessions_scoped applied live + verified: correctly returns 0 rows for a demo-school class with 14 raw class_sessions rows (demo exclusion proven), grants confirmed service_role-only via information_schema.routine_privileges"
+    - "Playwright smoke: /teacher-insights?demo renders the widget with 0 console errors (unchanged); /teacher-insights (no demo, unauthenticated) renders the honest 'No classes yet' empty state with 0 console errors (no crash)"
   not_yet:
     - "Phase 4 — interrogate ('why?') wired to a live explain call (today it only emits)"
     - "drill re-fetch + spec swap in the host (boards log/emit drill payloads today)"
