@@ -19,17 +19,32 @@ vi.mock('../_utils/auth', () => ({
 
 let govtAdminRow: any
 let updateCalls: any[] = []
+let deleteCalls: any[] = []
+let ungroupSchoolsError: any = null
+let deleteGroupError: any = null
 
 function makeChainable(table: string) {
   const builder: any = {
     select: () => builder,
     update: (obj: unknown) => { updateCalls.push({ table, obj }); return builder },
+    delete: () => { deleteCalls.push({ table }); return builder },
     eq: () => builder,
     maybeSingle: () => {
       if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
       return Promise.resolve({ data: null, error: null })
     },
     single: () => Promise.resolve({ data: { id: 'group-1', name: 'Updated Name' }, error: null }),
+    // DELETE handler awaits `.eq()` directly with no terminal .single() —
+    // makes the builder itself thenable, resolving per-table for that path.
+    then: (resolve: any) => {
+      if (table === 'schools' && updateCalls.some(c => c.table === 'schools')) {
+        return resolve({ data: null, error: ungroupSchoolsError })
+      }
+      if (table === 'groups' && deleteCalls.some(c => c.table === 'groups')) {
+        return resolve({ data: null, error: deleteGroupError })
+      }
+      return resolve({ data: null, error: null })
+    },
   }
   return builder
 }
@@ -53,6 +68,9 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
 
 beforeEach(() => {
   updateCalls = []
+  deleteCalls = []
+  ungroupSchoolsError = null
+  deleteGroupError = null
   govtAdminRow = null
   verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
@@ -110,5 +128,45 @@ describe('PATCH /api/groups/:id', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(401)
+  })
+})
+
+describe('DELETE /api/groups/:id', () => {
+  it('rejects a non-admin caller', async () => {
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(deleteCalls.length).toBe(0)
+  })
+
+  it('ungroups schools then deletes the group', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0]).toMatchObject({ table: 'schools', obj: { group_id: null } })
+    expect(deleteCalls[0]).toMatchObject({ table: 'groups' })
+    expect(res.body.deleted).toBe(true)
+  })
+
+  it('surfaces an ungroup-schools failure and does NOT delete the group (dependent rows must not survive a "successful" delete)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    ungroupSchoolsError = { message: 'ungroup failed' }
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(500)
+    expect(deleteCalls.length).toBe(0)
+  })
+
+  it('surfaces a group-delete failure', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    deleteGroupError = { message: 'delete failed' }
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(500)
   })
 })

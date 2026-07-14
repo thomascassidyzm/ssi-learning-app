@@ -515,20 +515,26 @@ async function createGroup(): Promise<void> {
   successMessage.value = null
 
   try {
-    const client = getClient()
+    // groups.insert moved server-side (/api/groups POST) — the 2026-07-04
+    // grant-hygiene window revoked direct client writes on the org tables
+    // (see CLAUDE.md RLS section).
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+
     const insertData: Record<string, unknown> = {
       name: newGroupName.value.trim(),
       type: newGroupType.value,
     }
     if (newGroupParent.value) insertData.parent_id = newGroupParent.value
 
-    const { data, error: insertError } = await client
-      .from('groups')
-      .insert(insertData)
-      .select()
-      .single()
-
-    if (insertError) throw insertError
+    const resp = await fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(insertData),
+    })
+    const respData = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(respData.error || `HTTP ${resp.status}`)
+    const data = respData.group
 
     successMessage.value = `Group "${data.name}" created`
     newGroupName.value = ''
@@ -827,13 +833,18 @@ async function deleteSchool(school: School): Promise<void> {
   if (!confirm(`Delete school "${school.school_name}"? This cannot be undone.`)) return
 
   try {
-    const client = getClient()
-    const { error: deleteError } = await client
-      .from('schools')
-      .delete()
-      .eq('id', school.id)
+    // schools.delete moved server-side (/api/admin/update-school) — the
+    // 2026-07-04 grant-hygiene window revoked direct client writes on the
+    // org tables (see CLAUDE.md RLS section).
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
 
-    if (deleteError) throw deleteError
+    const resp = await fetch(`/api/admin/update-school?school_id=${encodeURIComponent(school.id)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
 
     successMessage.value = `School "${school.school_name}" deleted`
     await fetchSchools()

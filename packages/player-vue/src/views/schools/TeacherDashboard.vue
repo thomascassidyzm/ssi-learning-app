@@ -8,6 +8,7 @@ import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
+import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
 
@@ -17,6 +18,7 @@ type SortKey = 'name' | 'students' | 'hours' | 'journey'
 const router = useRouter()
 
 const isAdminView = inject<boolean>('isAdminView', false)
+const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
 const { classes: classesData, fetchClasses, createClass, getClassReport } = useClassesData()
 
@@ -256,7 +258,7 @@ function handleGoToCreatedClass() {
   if (createdClass.value) {
     isCreatedModalOpen.value = false
     sessionStorage.setItem('ssi-class-detail', JSON.stringify(createdClass.value))
-    router.push({ name: 'class-detail', params: { id: createdClass.value.id } })
+    router.push({ path: schoolsLink('class-detail', { classId: createdClass.value.id }) })
   }
 }
 
@@ -274,7 +276,7 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
     student_join_code: cls.join_code,
   }
   sessionStorage.setItem('ssi-class-detail', JSON.stringify(stored))
-  router.push({ name: 'class-detail', params: { id: cls.id } })
+  router.push({ path: schoolsLink('class-detail', { classId: cls.id }) })
 }
 
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
@@ -468,7 +470,7 @@ function exportCsv() {
               </button>
             </td>
             <td class="cell-action">
-              <button type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
+              <button v-if="!isAdminView" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
             </td>
           </tr>
         </tbody>

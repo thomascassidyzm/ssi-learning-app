@@ -435,8 +435,12 @@ export function useAdminUserDetail(client: SupabaseClient) {
     entitlementId: string,
     getAuthToken: () => Promise<string | null>
   ): Promise<boolean> {
+    error.value = null
     const token = await getAuthToken()
-    if (!token) return false
+    if (!token) {
+      error.value = 'Not signed in'
+      return false
+    }
 
     try {
       const resp = await fetch('/api/admin/revoke-entitlement', {
@@ -451,6 +455,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
         console.error('[AdminUserDetail] revoke error:', data.error)
+        error.value = data.error || 'Failed to revoke entitlement'
         return false
       }
 
@@ -459,6 +464,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
       return true
     } catch (err) {
       console.error('[AdminUserDetail] revoke error:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to revoke entitlement'
       return false
     }
   }
@@ -472,8 +478,12 @@ export function useAdminUserDetail(client: SupabaseClient) {
     action: 'expire' | 'restore',
     getAuthToken: () => Promise<string | null>
   ): Promise<boolean> {
+    error.value = null
     const token = await getAuthToken()
-    if (!token) return false
+    if (!token) {
+      error.value = 'Not signed in'
+      return false
+    }
 
     try {
       const resp = await fetch('/api/admin/set-trial', {
@@ -488,6 +498,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}))
         console.error('[AdminUserDetail] setTrial error:', data.error)
+        error.value = data.error || 'Failed to update trial state'
         return false
       }
 
@@ -496,6 +507,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
       return true
     } catch (err) {
       console.error('[AdminUserDetail] setTrial error:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to update trial state'
       return false
     }
   }

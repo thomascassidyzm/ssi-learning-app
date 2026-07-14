@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
+import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 
 const router = useRouter()
+const isAdminView = inject<boolean>('isAdminView', false)
+const { schoolsLink } = useSchoolsNav()
 const { currentUser } = useSchoolContext()
 const {
   schools,
@@ -86,6 +89,13 @@ function formatJoined(iso: string | null | undefined): string {
 }
 
 function handleSchoolClick(school: School) {
+  // Under an admin read-view, drill into THAT school's own admin read-view —
+  // never the self-viewing singleton + '/schools', which would eject the
+  // admin into their own scope (docs/audits/2026-07-13-bug-class-audit.md #1b).
+  if (isAdminView) {
+    router.push({ path: schoolsLink('schools-list', { schoolId: school.id }) })
+    return
+  }
   selectSchoolToView(school)
   router.push('/schools')
 }

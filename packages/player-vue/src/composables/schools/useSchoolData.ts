@@ -254,18 +254,30 @@ export function useSchoolData() {
     }
   }
 
-  // Confirm/rename a school's name — the invite-born admin's first-run card
-  // (same client-side-update pattern SettingsView.vue already uses for
-  // renaming; schools carries no RLS yet so this is a direct table write).
-  // Errors surface so the card can show "Could not save" rather than a
-  // false "Saved" (the ignored-RLS-denial class this codebase treats as a bug).
+  // Confirm/rename a school's name — the invite-born admin's first-run card.
+  // The `schools` table's authenticated UPDATE grant is revoked (see
+  // CLAUDE.md RLS section), so this is routed through the same caller-scoped
+  // server endpoint SetupView.vue's saveSchool() uses (finding #2a, 2026-07-13
+  // audit) rather than a direct client write. The endpoint always resolves
+  // the school from the caller's OWN session — the schoolId param is only
+  // used to gate the local currentSchool cache update, never sent to the server.
   async function confirmSchoolName(schoolId: string, name: string): Promise<boolean> {
-    const { error: updateError } = await client
-      .from('schools')
-      .update({ school_name: name, name_confirmed: true })
-      .eq('id', schoolId)
-    if (updateError) {
-      error.value = updateError.message
+    error.value = null
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) throw new Error('Not signed in')
+      const res = await fetch('/api/school/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ school_name: name, name_confirmed: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Request failed: ${res.status}`)
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to confirm school name'
       return false
     }
     if (currentSchool.value?.id === schoolId) {

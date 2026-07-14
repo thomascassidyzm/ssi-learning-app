@@ -1,5 +1,5 @@
 /**
- * Update the caller's own school profile (name / region) —
+ * Update the caller's own school profile (name / region / name_confirmed) —
  * POST /api/school/update-profile
  *
  * Repoints SetupView.vue's step-1 "your school" save off a direct client
@@ -44,6 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     typeof req.body?.school_name === 'string' ? req.body.school_name.trim().slice(0, 200) : ''
   const regionCode =
     typeof req.body?.region_code === 'string' ? req.body.region_code.trim().slice(0, 50) : ''
+  const nameConfirmed =
+    typeof req.body?.name_confirmed === 'boolean' ? req.body.name_confirmed : undefined
 
   if (!schoolName) {
     res.status(400).json({ error: 'school_name is required' })
@@ -81,12 +83,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const updates: Record<string, unknown> = { school_name: schoolName }
     if (regionCode) updates.region_code = regionCode
+    if (nameConfirmed !== undefined) updates.name_confirmed = nameConfirmed
 
     const { data: school, error: updateError } = await supabase
       .from('schools')
       .update(updates)
       .eq('id', schoolId)
-      .select('id, school_name, region_code')
+      .select('id, school_name, region_code, name_confirmed')
       .single()
 
     if (updateError || !school) {
