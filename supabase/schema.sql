@@ -463,6 +463,61 @@ $$;
 
 
 --
+-- Name: analytics_class_sessions_scoped(uuid[], integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer DEFAULT 90) RETURNS TABLE(class_id uuid, course_code text, start_lego_id text, end_lego_id text, start_ord integer, end_ord integer, duration_seconds integer, started_at timestamp with time zone)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  RETURN QUERY
+  WITH lego_order AS (
+    -- canonical position of every lego within its course (1-based) — same
+    -- ground truth analytics_class_coverage uses for "legos advanced".
+    SELECT
+      cl.course_code,
+      cl.lego_id,
+      ROW_NUMBER() OVER (
+        PARTITION BY cl.course_code
+        ORDER BY cl.seed_number, cl.lego_index
+      ) AS ord
+    FROM public.course_legos cl
+  ),
+  sess AS (
+    SELECT
+      s.class_id,
+      c.course_code,
+      s.start_lego_id,
+      s.end_lego_id,
+      s.duration_seconds,
+      s.started_at
+    FROM public.class_sessions s
+    JOIN public.classes c ON c.id = s.class_id
+    LEFT JOIN public.schools sc ON sc.id = c.school_id
+    WHERE s.class_id = ANY(p_class_ids)
+      AND s.started_at >= now() - make_interval(days => GREATEST(p_days, 1))
+      AND COALESCE(sc.is_demo, false) = false   -- drop demo schools; keep NULL-school (ACT)
+  )
+  SELECT
+    se.class_id,
+    se.course_code,
+    se.start_lego_id,
+    se.end_lego_id,
+    lo_s.ord::integer AS start_ord,   -- ROW_NUMBER() is bigint; cast to match RETURNS TABLE
+    lo_e.ord::integer AS end_ord,
+    se.duration_seconds,
+    se.started_at
+  FROM sess se
+  LEFT JOIN lego_order lo_s
+    ON lo_s.course_code = se.course_code AND lo_s.lego_id = se.start_lego_id
+  LEFT JOIN lego_order lo_e
+    ON lo_e.course_code = se.course_code AND lo_e.lego_id = se.end_lego_id;
+END;
+$$;
+
+
+--
 -- Name: analytics_course_comparison(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14176,6 +14231,14 @@ REVOKE ALL ON FUNCTION public.analytics_class_coverage(p_days integer) FROM PUBL
 GRANT ALL ON FUNCTION public.analytics_class_coverage(p_days integer) TO anon;
 GRANT ALL ON FUNCTION public.analytics_class_coverage(p_days integer) TO authenticated;
 GRANT ALL ON FUNCTION public.analytics_class_coverage(p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer) TO service_role;
 
 
 --
