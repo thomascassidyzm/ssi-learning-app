@@ -84,7 +84,7 @@ const routes: RouteRecordRaw[] = [
       // through to the live school experience as intended. (Guard on the PARENT
       // so it covers every child route, not just the bare dashboard.)
       if (canAccessAdmin.value && !hasSchoolRole.value) {
-        return next('/admin/schools')
+        return next('/admin/setup')
       }
       // A user with a KNOWN role but NO school role is not a school member.
       // Solo tutors have no `educational_role`, so they look identical to a
@@ -309,7 +309,7 @@ const routes: RouteRecordRaw[] = [
         // Default /admin landing — redirect to the Setup page (schools + groups
         // + staff + entitlements), not the Invite-Codes subpage.
         path: '',
-        redirect: '/admin/schools',
+        redirect: '/admin/setup',
       },
       {
         path: 'access',
@@ -380,10 +380,17 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Release Notes', description: 'Curate the What\'s New panel in Settings' },
       },
       {
-        path: 'schools',
-        name: 'admin-schools',
+        // Canonical path — the whole Setup console (schools + groups + staff +
+        // entitlements), not just schools. /admin/schools (below) redirects here
+        // for old links.
+        path: 'setup',
+        name: 'admin-setup',
         component: () => import('@/views/admin/SchoolsSetup.vue'),
-        meta: { title: 'Schools Setup' },
+        meta: { title: 'Setup' },
+      },
+      {
+        path: 'schools',
+        redirect: '/admin/setup',
       },
       {
         path: 'methodology',

@@ -23,6 +23,17 @@ const { mintSchoolLink, error: inviteError } = useGovtAdminActions()
 const searchQuery = ref('')
 type SortKey = 'hours' | 'students' | 'name'
 const sortKey = ref<SortKey>('hours')
+const isRefreshing = ref(false)
+
+async function handleRefresh() {
+  if (isRefreshing.value) return
+  isRefreshing.value = true
+  try {
+    await fetchSchools()
+  } finally {
+    isRefreshing.value = false
+  }
+}
 
 const filteredSchools = computed<School[]>(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -185,6 +196,17 @@ watch(currentUser, (u) => {
         <p class="hero-lede schools-subtle">{{ headerLede }}</p>
       </div>
       <div class="hero-actions">
+        <button
+          type="button"
+          class="btn-ghost btn-icon"
+          :disabled="isRefreshing"
+          :class="{ 'is-spinning': isRefreshing }"
+          title="Refresh"
+          aria-label="Refresh schools list"
+          @click="handleRefresh"
+        >
+          ⟳
+        </button>
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
           Export
         </button>
@@ -253,7 +275,12 @@ watch(currentUser, (u) => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="school in filteredSchools" :key="school.id">
+          <tr
+            v-for="school in filteredSchools"
+            :key="school.id"
+            class="school-row"
+            @click="handleSchoolClick(school)"
+          >
             <td>
               <div class="school-cell">
                 <div class="school-mark">{{ schoolInitial(school.school_name) }}</div>
@@ -273,9 +300,7 @@ watch(currentUser, (u) => {
               </span>
             </td>
             <td class="row-action">
-              <button type="button" class="row-link" @click="handleSchoolClick(school)">
-                Open →
-              </button>
+              <span class="row-link">Open →</span>
             </td>
           </tr>
           <tr v-if="!filteredSchools.length">
@@ -309,6 +334,9 @@ watch(currentUser, (u) => {
             {{ copiedInviteLink ? 'Copied!' : 'Copy' }}
           </button>
         </div>
+        <p v-if="mintedInviteCode" class="schools-subtle invite-modal-hint">
+          Share this with the school admin — clicking it takes them straight to sign-in.
+        </p>
         <div class="invite-modal-actions">
           <button type="button" class="btn-ghost" @click="closeInviteModal">
             {{ mintedInviteCode ? 'Done' : 'Cancel' }}
@@ -487,18 +515,40 @@ watch(currentUser, (u) => {
 }
 
 .row-link {
-  background: none;
-  border: none;
-  padding: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--schools-red);
   font-family: var(--font-body);
+}
+
+.school-row {
   cursor: pointer;
 }
 
-.row-link:hover {
+.school-row:hover {
+  background: #fafaf6;
+}
+
+.school-row:hover .row-link {
   color: var(--schools-red-deep);
+}
+
+.btn-icon {
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon.is-spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .empty-row {
@@ -584,6 +634,11 @@ watch(currentUser, (u) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+}
+
+.invite-modal-hint {
+  font-size: 12px;
+  margin: -4px 0 0;
 }
 
 .invite-modal-actions {
