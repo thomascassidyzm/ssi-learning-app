@@ -284,6 +284,76 @@ describe('VoiceActivityDetector', () => {
     });
   });
 
+  describe('continuous monitoring — envelope (adaptation v2 WP-6)', () => {
+    // Manually-steppable rAF mock: captures the latest callback instead of
+    // auto-invoking it (auto-invoking would recurse synchronously forever,
+    // since the loop re-schedules itself via requestAnimationFrame).
+    const stepRafMock = () => {
+      let pending: (() => void) | null = null;
+      const raf = vi.fn((cb: () => void) => {
+        pending = cb;
+        return 1;
+      });
+      const step = () => {
+        const cb = pending;
+        pending = null;
+        cb?.();
+      };
+      return { raf, step };
+    };
+
+    it('attaches EnvelopeMetadata to the result when speech was detected', async () => {
+      let t = 0;
+      vi.stubGlobal('performance', { now: vi.fn(() => t) });
+      const { raf, step } = stepRafMock();
+      vi.stubGlobal('requestAnimationFrame', raf);
+
+      // Loud enough to cross the -45dB threshold for a sustained stretch.
+      mockAnalyser.getByteFrequencyData.mockImplementation((arr: Uint8Array) => arr.fill(200));
+
+      const vad = new VoiceActivityDetector();
+      await vad.initialize();
+      vad.startContinuousMonitoring();
+      vad.markPhaseTransition('PROMPT_END', 100);
+      vad.markPhaseTransition('VOICE_1', 2000);
+
+      // Drive ~60 frames (min_frames_above=3 confirms speech quickly, then
+      // enough grid points accumulate past the quality gate).
+      for (let i = 0; i < 60; i++) {
+        t += 16.7;
+        step();
+      }
+
+      const result = vad.stopContinuousMonitoring(500);
+
+      expect(result.speech_detected).toBe(true);
+      expect(result.envelope).toBeDefined();
+      expect(result.envelope!.weight).toBe(1);
+      expect(result.envelope!.sampleCount).toBeGreaterThan(0);
+    });
+
+    it('leaves envelope undefined when no speech was detected', async () => {
+      let t = 0;
+      vi.stubGlobal('performance', { now: vi.fn(() => t) });
+      const { raf, step } = stepRafMock();
+      vi.stubGlobal('requestAnimationFrame', raf);
+
+      mockAnalyser.getByteFrequencyData.mockImplementation((arr: Uint8Array) => arr.fill(0));
+
+      const vad = new VoiceActivityDetector();
+      await vad.initialize();
+      vad.startContinuousMonitoring();
+      for (let i = 0; i < 10; i++) {
+        t += 16.7;
+        step();
+      }
+      const result = vad.stopContinuousMonitoring(500);
+
+      expect(result.speech_detected).toBe(false);
+      expect(result.envelope).toBeUndefined();
+    });
+  });
+
   describe('resume audio context', () => {
     it('should resume suspended audio context when starting monitoring', async () => {
       mockAudioContext.state = 'suspended';

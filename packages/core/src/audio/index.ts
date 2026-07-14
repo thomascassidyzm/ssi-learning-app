@@ -9,6 +9,13 @@
 export * from './types';
 export { VoiceActivityDetector, createVoiceActivityDetector } from './VoiceActivityDetector';
 export {
+  extractEnvelopeMetadata,
+  ENVELOPE_EXTRACTOR_CONSTANTS,
+  type EnvelopeMetadata,
+  type EnvelopeExtractorConstants,
+  type TimedEnergySample,
+} from './envelopeMetadata';
+export {
   SpeechTimingAnalyzer,
   createSpeechTimingAnalyzer,
   type SpeechTimingEvent,

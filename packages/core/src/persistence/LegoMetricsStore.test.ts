@@ -109,6 +109,77 @@ describe('LegoMetricsStore — B4 difficulty series', () => {
     expect(capture.payload).toBeUndefined();
   });
 
+  it('loadAll maps evidence_series (WP-4 aggregator snapshot) when present', async () => {
+    const { client } = mockClient([
+      {
+        learner_id: 'l1',
+        lego_id: 'S0001L01',
+        course_code: 'cym_for_eng',
+        mastery_state: 'consolidating',
+        consecutive_smooth: 2,
+        consecutive_fast: 1,
+        n_samples: 0,
+        mean_latency_ms: null,
+        recent_latency_samples: [],
+        evidence_series: { values: [0.4, 1.8], x: [10, 20] },
+        last_seen_at: '2026-07-14T00:00:00Z',
+        updated_at: '2026-07-14T00:00:00Z',
+      },
+    ]);
+    const store = new LegoMetricsStore({ client });
+    const rows = await store.loadAll('l1', 'cym_for_eng');
+    expect(rows[0].evidence_series).toEqual({ values: [0.4, 1.8], x: [10, 20] });
+  });
+
+  it('loadAll defaults evidence_series to undefined when the column is absent (pre-migration)', async () => {
+    const { client } = mockClient([
+      {
+        learner_id: 'l1',
+        lego_id: 'S0001L01',
+        course_code: 'cym_for_eng',
+        mastery_state: 'acquisition',
+        consecutive_smooth: 0,
+        consecutive_fast: 0,
+        n_samples: 0,
+        last_seen_at: '2026-07-14T00:00:00Z',
+        updated_at: '2026-07-14T00:00:00Z',
+      },
+    ]);
+    const store = new LegoMetricsStore({ client });
+    const rows = await store.loadAll('l1', 'cym_for_eng');
+    expect(rows[0].evidence_series).toBeUndefined();
+  });
+
+  it('upsertEvidenceSeries writes only the evidence_series column, keyed on (learner, lego)', async () => {
+    const { client, capture } = mockClient([]);
+    const store = new LegoMetricsStore({ client });
+    await store.upsertEvidenceSeries([
+      {
+        learner_id: 'l1',
+        lego_id: 'S0001L01',
+        course_code: 'cym_for_eng',
+        evidence_series: { values: [0.3, 1.2], x: [1, 2] },
+      },
+    ]);
+    expect(capture.opts).toEqual({ onConflict: 'learner_id,lego_id' });
+    expect(capture.payload).toEqual([
+      {
+        learner_id: 'l1',
+        lego_id: 'S0001L01',
+        course_code: 'cym_for_eng',
+        evidence_series: { values: [0.3, 1.2], x: [1, 2] },
+      },
+    ]);
+    expect(capture.payload![0]).not.toHaveProperty('mastery_state');
+  });
+
+  it('upsertEvidenceSeries no-ops on empty input', async () => {
+    const { client, capture } = mockClient([]);
+    const store = new LegoMetricsStore({ client });
+    await store.upsertEvidenceSeries([]);
+    expect(capture.payload).toBeUndefined();
+  });
+
   it('the persisted series is exactly the shape B4 reads — a rising series flags struggling', async () => {
     const { client } = mockClient([
       {
