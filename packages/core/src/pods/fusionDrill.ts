@@ -182,13 +182,35 @@ export function partitionUnits(turnText: string, units: FineUnit[]): number[][] 
   return groups.filter((g) => g.length > 0)
 }
 
+/** Number of whitespace-separated words in a unit's target surface. */
+const wordCount = (s: string | undefined): number =>
+  (s || '').trim().split(/\s+/).filter(Boolean).length
+
 /**
- * Glue rule (narrowed 2026-07-04): ONLY a turn-initial one-unit sentence — a
- * leading "Ciao!" interjection — glues onto the sentence that follows. A
- * mid-turn one-unit sentence is a real sentence with its own takes.
+ * A leading one-unit "sentence" only counts as a bare interjection ("Hej!",
+ * "Ciao!", "Naravno") when it's a single word. The 2026-07-14 independent-
+ * meaning segmentation rule made one-unit COMPLETE sentences the norm
+ * ("Zovem se Anna", "Janjetina je izvrsna") — those must NOT glue (hrv
+ * pod-0 gloss-fidelity audit, ssi-dashboard-v7-clean 2026-07-14: 61/142
+ * rows over-fired on this before the word-count gate). Falls back to
+ * "always glue" when no units are supplied, for callers that only have the
+ * bare group shape (structural tests).
  */
-export function glueLeadingInterjection(groups: number[][]): number[][] {
-  if (groups.length >= 2 && groups[0].length === 1) {
+const isBareInterjection = (unit: FineUnit | undefined): boolean => wordCount(unit?.target_surface) <= 1
+
+/**
+ * Glue rule (narrowed 2026-07-04, tightened 2026-07-14): ONLY a turn-initial
+ * one-unit sentence that is also a single WORD — a leading "Ciao!"
+ * interjection — glues onto the sentence that follows. A mid-turn one-unit
+ * sentence, or a leading one-unit sentence with more than one word, is a
+ * real sentence with its own takes.
+ */
+export function glueLeadingInterjection(groups: number[][], units?: FineUnit[]): number[][] {
+  if (
+    groups.length >= 2 &&
+    groups[0].length === 1 &&
+    (!units || isBareInterjection(units[groups[0][0]]))
+  ) {
     return [[...groups[0], ...groups[1]], ...groups.slice(2)]
   }
   return groups
@@ -221,7 +243,7 @@ export function buildFusionGroups(
   if (units.length === 0) return null
 
   const raw = partitionUnits(input.turnTargetText, units)
-  const glued = glueLeadingInterjection(raw)
+  const glued = glueLeadingInterjection(raw, units)
 
   // Row alignment: the June split gives one row per raw sentence. A single
   // unsplit row legitimately holds every group. Anything else → bail.

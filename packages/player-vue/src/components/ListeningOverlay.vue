@@ -645,6 +645,13 @@ const openScene = (scene) => {
     const speakerChanged = prevSpeakerKey === null || curKey !== prevSpeakerKey
     prevSpeakerKey = curKey
     chunks.forEach((s, idx) => {
+      // A fusion-glued continuation row's material already plays fused
+      // inside its anchor row's card (glueLeadingInterjection joined it
+      // there) — render it nowhere else, or it shows twice: once fused in
+      // the anchor's active card, once again as its own dimmed row below
+      // (hrv pod-0 gloss-fidelity audit, ssi-dashboard-v7-clean 2026-07-14).
+      // buildPlayQueue already skips its audio the same way.
+      if (s.fusionContinuation) return
       // A paragraph opens on the first chunk of a turn whose speaker differs
       // from the previous turn's — that's where the breath + chip belong.
       const paragraphStart = idx === 0 && speakerChanged
