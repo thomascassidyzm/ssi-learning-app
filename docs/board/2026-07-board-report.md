@@ -65,7 +65,6 @@ On the production side (the Popty dashboard, ~215 commits): we ran an estate-wid
 4. **Greenlight the audio passes.** ~$60 clears the known deep-course phrase gaps across five live courses; ~$2 re-renders the remaining 18 courses on old comma-era listening-pod audio to the Italian-proven standard. Both awaiting the go decision.
 5. Known product gaps queued behind real use: class-wide skip/revisit for teachers, and the college question (16+ students with their own accounts and £5 subscriptions — possibly a revenue-share angle worth thinking through).
 
-## The numbers that matter
+## The number that matters
 
-- **£42k/month subscribers + £30k/month government contract — the ~£30k subscriber target is already exceeded.** On top of that, the settled model prices the schools path as a further growth mechanism: every teaching seat is £15/month (band-adjusted), every school student £5/month — so a single 10-teacher, 300-student school is worth ~£1,650/month, and the group mechanism is how we sign ten of them with one link.
 - **74 live/beta courses**, now with a full audio census and the tooling to maintain them at fleet scale rather than one at a time.
