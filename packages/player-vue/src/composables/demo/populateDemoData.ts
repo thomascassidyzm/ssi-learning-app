@@ -78,6 +78,7 @@ const school1: School = {
   student_count: 20,
   total_practice_hours: 63,
   created_at: '2025-09-01T08:00:00.000Z',
+  health: 'excellent',
 }
 
 const school2: School = {
@@ -92,6 +93,7 @@ const school2: School = {
   student_count: 24,
   total_practice_hours: 82,
   created_at: '2025-09-01T08:00:00.000Z',
+  health: 'good',
 }
 
 const school3: School = {
@@ -106,6 +108,7 @@ const school3: School = {
   student_count: 16,
   total_practice_hours: 63,
   created_at: '2025-09-02T08:00:00.000Z',
+  health: 'needs-attention',
 }
 
 // ---------------------------------------------------------------------------

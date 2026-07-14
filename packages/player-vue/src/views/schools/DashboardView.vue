@@ -162,12 +162,17 @@ watch(currentUser, (user) => {
 // Govt admin drills into a school → load that school's classes (the classes
 // composable scopes to the viewed school via activeSchoolId). Without this the
 // detail view has no class data, since govt admins don't fetch classes at the
-// group level.
+// group level. `immediate: true` matters here: selectSchoolToView() sets
+// viewingSchool BEFORE the router.push that mounts this component, so a
+// plain (non-immediate) watch never fires on this navigation — it only
+// catches a LATER change while already mounted (e.g. clicking a different
+// school from within the drill-down). Without immediate, the classes table
+// stays empty until an unrelated re-render happens to touch viewingSchool.
 watch(viewingSchool, (school) => {
   if (school && isGovtAdmin.value) {
     fetchClasses().then(fetchReports)
   }
-})
+}, { immediate: true })
 
 onMounted(() => {
   if (currentUser.value) {
