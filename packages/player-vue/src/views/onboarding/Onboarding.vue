@@ -21,6 +21,7 @@ import '@/styles/schools-tokens.css'
 // track is set per route (/schools1 /schools2 /tutors) via router props.
 const props = defineProps<{ track: OnboardingTrack }>()
 const supabase = inject('supabase', ref(null)) as any
+const auth = inject<any>('auth', null)
 
 const cfg = computed(() => TRACKS[props.track])
 
@@ -58,6 +59,16 @@ const HERITAGE_LANGS = ['cym', 'gle'] // Welsh, Irish
 
 type Step = 'choose' | 'otp' | 'done'
 const step = ref<Step>('choose')
+
+// Session awareness (finding #8, 2026-07-13 audit): a session already on load
+// means this person already proved their email once — the 'choose' step's
+// email+OTP capture is for FRESH visitors only. An already-authenticated
+// visitor sees a "Continuing as X" greeting in its place (mirrors RedeemCode.vue's
+// identity-door confirm step, 32b1a1fb) and goes straight from language pick to
+// provisioning, no second OTP ever. "Not you?" signs out and drops into the
+// normal fresh-visitor flow, same escape RedeemCode.vue offers.
+const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
+const signedInEmail = computed(() => auth?.user?.value?.email || '')
 
 const liveCourses = ref<LiveCourse[]>([])
 // Pick the TARGET (taught) language FIRST — most schools/tutors teach English,
@@ -375,6 +386,35 @@ async function authToken(): Promise<string | null> {
   return data?.session?.access_token ?? null
 }
 
+// Already-signed-in shortcut: the language pick on 'choose' is still the
+// first real onboarding step, but there's a real session already — go
+// straight to provisioning under it, no OTP.
+async function continueSignedIn() {
+  if (!selectedCourse.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    await finishProvisioning()
+  } catch (e: any) {
+    error.value = e?.message || 'Something went wrong'
+  } finally {
+    busy.value = false
+  }
+}
+
+// "Not you?" escape from the signed-in greeting — sign out and drop into the
+// normal fresh-visitor email+OTP flow (mirrors RedeemCode.vue's useDifferentEmail).
+async function useDifferentEmail() {
+  busy.value = true
+  try {
+    await supabase.value?.auth.signOut()
+  } finally {
+    busy.value = false
+    email.value = ''
+    error.value = ''
+  }
+}
+
 // Back to the email step. Clear the typed code so six stale digits don't sit
 // pre-filled against a possibly different address (verify() re-checks the
 // address against verifiedEmail either way).
@@ -404,6 +444,31 @@ async function sendCode() {
   }
 }
 
+// Shared by both entry points into a verified session: the fresh-visitor OTP
+// flow (verify(), below) and the already-signed-in shortcut (continueSignedIn()
+// in the session-awareness block above) — both land here once there's a real
+// Supabase Auth session to provision against.
+async function finishProvisioning() {
+  const token = await authToken()
+  const res = await fetch('/api/onboarding/provision', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ track: props.track, course_code: selectedCourse.value }),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    error.value = data.error || 'We could not finish setting up your account'
+    requiresCheckout.value = !!data.requires_checkout
+    return
+  }
+  // Show the PLATFORM trial window (the school/tutor's free period: 365 or 30
+  // days) on the success screen — that's the one that decides when they pay.
+  trial.value = data.platform_trial || data.trial
+  isReturning.value = !!data.existing
+  redirectTo.value = data.redirect || '/'
+  step.value = 'done'
+}
+
 async function verify() {
   if (otp.value.trim().length < 6 || !supabase.value) return
   busy.value = true
@@ -428,24 +493,7 @@ async function verify() {
       verifiedEmail.value = addr
     }
     // Account is verified — confirm the account + activate the free trial.
-    const token = await authToken()
-    const res = await fetch('/api/onboarding/provision', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ track: props.track, course_code: selectedCourse.value }),
-    })
-    const data = await res.json()
-    if (!res.ok) {
-      error.value = data.error || 'We could not finish setting up your account'
-      requiresCheckout.value = !!data.requires_checkout
-      return
-    }
-    // Show the PLATFORM trial window (the school/tutor's free period: 365 or 30
-    // days) on the success screen — that's the one that decides when they pay.
-    trial.value = data.platform_trial || data.trial
-    isReturning.value = !!data.existing
-    redirectTo.value = data.redirect || '/'
-    step.value = 'done'
+    await finishProvisioning()
   } catch (e: any) {
     error.value = e?.message || 'Something went wrong'
   } finally {
@@ -783,7 +831,16 @@ async function continueIn() {
             No languages available for this signup yet.
           </p>
 
-          <div class="ob-field">
+          <!-- Already signed in: no email/OTP capture — greet and confirm
+               identity instead (mirrors RedeemCode.vue's confirm step). -->
+          <div v-if="isSignedIn" class="ob-field">
+            <p class="ob-sub">Continuing as <strong>{{ signedInEmail }}</strong></p>
+            <button type="button" class="ob-link" :disabled="busy" @click="useDifferentEmail">
+              Not you? Sign out
+            </button>
+          </div>
+
+          <div v-else class="ob-field">
             <label class="ob-label" for="ob-email">Your email</label>
             <input
               id="ob-email"
@@ -799,16 +856,29 @@ async function continueIn() {
           <div v-if="error" class="ob-error" role="alert">{{ error }}</div>
 
           <Button
+            v-if="isSignedIn"
             variant="primary"
             size="lg"
             block
             :loading="busy"
-            :disabled="!canSend"
-            @click="sendCode"
+            :disabled="!selectedCourse || busy"
+            @click="continueSignedIn"
           >
-            Send my code
+            Continue
           </Button>
-          <p class="ob-fine">We'll email you a 6-digit code to confirm your account.</p>
+          <template v-else>
+            <Button
+              variant="primary"
+              size="lg"
+              block
+              :loading="busy"
+              :disabled="!canSend"
+              @click="sendCode"
+            >
+              Send my code
+            </Button>
+            <p class="ob-fine">We'll email you a 6-digit code to confirm your account.</p>
+          </template>
         </section>
 
         <!-- STEP 2: OTP -->
