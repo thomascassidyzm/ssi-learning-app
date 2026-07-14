@@ -10,6 +10,7 @@ interface School {
   id: string
   school_name: string
   group_id: string | null
+  admin_user_id: string | null
   teacher_join_code: string
   admin_join_code: string
   created_at: string
@@ -187,6 +188,34 @@ function getCurrentUserId(): string | null {
   return null
 }
 
+// Schools claimed via the school_admin_join redemption path (leader-created
+// schools — api/code/redeem.ts's school_admin_join branch never sets
+// schools.admin_user_id, only this user_tags row) — same "claimed" signal
+// as school_summary.has_admin (20260714 migration), read separately here
+// since this view queries `schools` directly, not the summary view.
+const adminClaimedSchoolIds = ref<Set<string>>(new Set())
+
+function schoolHasAdmin(school: School): boolean {
+  return !!school.admin_user_id || adminClaimedSchoolIds.value.has(school.id)
+}
+
+async function fetchAdminClaimedSchoolIds(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data } = await client
+      .from('user_tags')
+      .select('tag_value')
+      .eq('tag_type', 'school')
+      .eq('role_in_context', 'admin')
+      .is('removed_at', null)
+    adminClaimedSchoolIds.value = new Set(
+      (data || []).map((t: { tag_value: string }) => t.tag_value.replace('SCHOOL:', ''))
+    )
+  } catch (err) {
+    console.error('[SetupView] fetch admin-claimed schools error:', err)
+  }
+}
+
 async function fetchSchools(): Promise<void> {
   const client = getClient()
   isLoadingSchools.value = true
@@ -194,11 +223,12 @@ async function fetchSchools(): Promise<void> {
   try {
     const { data, error: fetchError } = await client
       .from('schools')
-      .select('id, school_name, group_id, teacher_join_code, admin_join_code, created_at')
+      .select('id, school_name, group_id, admin_user_id, teacher_join_code, admin_join_code, created_at')
       .order('created_at', { ascending: false })
 
     if (fetchError) throw fetchError
     schools.value = data || []
+    await fetchAdminClaimedSchoolIds()
   } catch (err) {
     console.error('[SetupView] fetch schools error:', err)
   } finally {
@@ -1225,6 +1255,7 @@ onMounted(() => {
             <tr>
               <th>School</th>
               <th>Group</th>
+              <th>Status</th>
               <th>Entitlements</th>
               <th>Teacher code</th>
               <th>Admin code</th>
@@ -1246,6 +1277,10 @@ onMounted(() => {
                     {{ g.name }}
                   </option>
                 </select>
+              </td>
+              <td>
+                <span v-if="!schoolHasAdmin(school)" class="type-pill tone-red">Awaiting admin</span>
+                <span v-else class="type-pill tone-green">Claimed</span>
               </td>
               <td>
                 <span

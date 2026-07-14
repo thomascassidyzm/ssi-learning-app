@@ -10,9 +10,11 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
+import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
+const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const { density } = useSchoolsDensity()
 
@@ -41,7 +43,6 @@ const {
 const {
   links: schoolLinks,
   fetchSchoolLinks,
-  mintSchoolLink,
   createSchoolInMyGroup,
   renameGroup,
 } = useGovtAdminActions()
@@ -95,11 +96,13 @@ async function saveSchoolName() {
   if (!ok) schoolNameError.value = 'Could not save — try again.'
 }
 
-// ---------- Govt admin: mint school links + create school directly ----------
-const isMintingLink = ref(false)
+// ---------- Govt admin: create school directly (the only creation
+// primitive — region-tier-design.md §5c-revised 2026-07-13). The school row
+// is created immediately, group-attached, with both join codes registered
+// at birth — no separate "invite/onboard" concept any more. ----------
 const isCreatingSchool = ref(false)
 const newSchoolLabel = ref('')
-const mintedCode = ref<string | null>(null)
+const createdSchoolLinks = ref<{ admin_join_code: string; teacher_join_code: string } | null>(null)
 const copiedLinkId = ref<string | null>(null)
 
 function schoolInviteUrl(code: string): string {
@@ -116,25 +119,15 @@ async function copyLink(id: string, code: string) {
   }
 }
 
-async function handleMintLink() {
-  isMintingLink.value = true
-  mintedCode.value = null
-  const result = await mintSchoolLink(newSchoolLabel.value.trim())
-  isMintingLink.value = false
-  if (result) {
-    mintedCode.value = result.code
-    newSchoolLabel.value = ''
-    await fetchSchoolLinks()
-  }
-}
-
 async function handleCreateSchool() {
   const name = newSchoolLabel.value.trim()
   if (!name) return
   isCreatingSchool.value = true
+  createdSchoolLinks.value = null
   const result = await createSchoolInMyGroup(name)
   isCreatingSchool.value = false
   if (result) {
+    createdSchoolLinks.value = result.school
     newSchoolLabel.value = ''
     await Promise.all([fetchSchools(), fetchSchoolLinks()])
   }
@@ -304,7 +297,7 @@ function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
-          <router-link to="/schools/classes" class="btn-ghost">+ Create class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-ghost">+ Create class</router-link>
         </template>
       </Greeting>
 
@@ -341,7 +334,7 @@ function handlePlayClass(cls: ClassInfo) {
           :key="cls.id"
           :class="['teacher-compact-row', { last: i === teacherClasses.length - 1 }]"
         >
-          <router-link :to="`/schools/classes/${cls.id}`" class="class-link">
+          <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link">
             <BeltDot belt="white" :size="28" ring />
             <div class="class-link-text">
               <div class="class-name">{{ cls.class_name }}</div>
@@ -361,7 +354,7 @@ function handlePlayClass(cls: ClassInfo) {
 
         <div v-if="!teacherClasses.length" class="empty-state">
           <p>No classes yet.</p>
-          <router-link to="/schools/classes" class="btn-play">Create your first class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
         </div>
       </div>
 
@@ -374,7 +367,7 @@ function handlePlayClass(cls: ClassInfo) {
         >
           <div class="panel-head">
             <div class="course-eyebrow">{{ courseDisplayName(cls.course_code) }}</div>
-            <router-link :to="`/schools/classes/${cls.id}`" class="panel-title-link">
+            <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="panel-title-link">
               <h2 class="arsenal panel-title">{{ cls.class_name }}</h2>
             </router-link>
             <div class="panel-meta">
@@ -398,7 +391,7 @@ function handlePlayClass(cls: ClassInfo) {
 
         <div v-if="!teacherClasses.length" class="empty-state full">
           <p>No classes yet — create one to get your students playing.</p>
-          <router-link to="/schools/classes" class="btn-play">Create your first class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
         </div>
       </div>
     </template>
@@ -414,7 +407,7 @@ function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
-          <div class="action-row">
+          <div v-if="!isAdminView" class="action-row">
             <router-link to="/schools/teachers" class="btn-ghost">+ Invite teacher</router-link>
             <router-link to="/schools/settings" class="btn-play">School settings</router-link>
           </div>
@@ -423,9 +416,10 @@ function handlePlayClass(cls: ClassInfo) {
 
       <!-- First-run: the school is empty → offer the guided setup wizard.
            /schools/setup has no nav tab, so this banner is its entry point.
-           Gated on currentSchool so it can't flash while stats are loading. -->
+           Gated on currentSchool so it can't flash while stats are loading.
+           Setup is a write flow with no admin-view equivalent — hide it there. -->
       <router-link
-        v-if="currentSchool && !totalClasses && !totalStudents"
+        v-if="!isAdminView && currentSchool && !totalClasses && !totalStudents"
         to="/schools/setup"
         class="schools-card schools-card-pad setup-banner"
       >
@@ -467,11 +461,11 @@ function handlePlayClass(cls: ClassInfo) {
           <header class="card-header-row">
             <h3 class="arsenal card-header-title">Classes</h3>
             <router-link
-              v-if="teacherClasses.length"
+              v-if="!isAdminView && teacherClasses.length"
               to="/schools/classes?create=1"
               class="card-header-link"
             >+ Create class</router-link>
-            <router-link to="/schools/classes" class="card-header-link">View all →</router-link>
+            <router-link :to="schoolsLink('classes')" class="card-header-link">View all →</router-link>
           </header>
           <table class="ssi-table">
             <thead>
@@ -500,7 +494,7 @@ function handlePlayClass(cls: ClassInfo) {
               <tr v-if="!teacherClasses.length">
                 <td colspan="4" class="empty-row">
                   <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
-                  <router-link to="/schools/classes?create=1" class="btn-play empty-row-cta">
+                  <router-link v-if="!isAdminView" to="/schools/classes?create=1" class="btn-play empty-row-cta">
                     + Create your first class
                   </router-link>
                 </td>
@@ -608,19 +602,29 @@ function handlePlayClass(cls: ClassInfo) {
             v-model="newSchoolLabel"
             type="text"
             class="field-input field-input-flex"
-            placeholder="School name (optional label)"
+            placeholder="School name"
+            @keyup.enter="handleCreateSchool"
           />
-          <button class="btn-ghost" :disabled="isMintingLink" @click="handleMintLink">
-            {{ isMintingLink ? 'Creating…' : 'Invite a school' }}
-          </button>
           <button class="btn-play" :disabled="isCreatingSchool || !newSchoolLabel.trim()" @click="handleCreateSchool">
             {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
           </button>
         </div>
-        <p v-if="mintedCode" class="schools-subtle">
-          Link created: <code>{{ schoolInviteUrl(mintedCode) }}</code>
-        </p>
+        <div v-if="createdSchoolLinks" class="schools-subtle created-links">
+          <span>Admin: <code>{{ schoolInviteUrl(createdSchoolLinks.admin_join_code) }}</code>
+            <button class="btn-ghost" @click="copyLink('new-admin', createdSchoolLinks.admin_join_code)">
+              {{ copiedLinkId === 'new-admin' ? 'Copied!' : 'Copy' }}
+            </button>
+          </span>
+          <span>Teacher: <code>{{ schoolInviteUrl(createdSchoolLinks.teacher_join_code) }}</code>
+            <button class="btn-ghost" @click="copyLink('new-teacher', createdSchoolLinks.teacher_join_code)">
+              {{ copiedLinkId === 'new-teacher' ? 'Copied!' : 'Copy' }}
+            </button>
+          </span>
+        </div>
 
+        <!-- Outstanding links minted before the one-primitive change
+             (2026-07-14) — kept redeemable and visible here, but no new
+             ones can be minted from this surface any more. -->
         <table v-if="schoolLinks.length" class="ssi-table">
           <thead>
             <tr>
@@ -645,7 +649,6 @@ function handlePlayClass(cls: ClassInfo) {
             </tr>
           </tbody>
         </table>
-        <p v-else class="empty-row">No schools invited yet.</p>
       </div>
 
       <div v-if="!isViewingSchool" class="govt-schools-grid">
@@ -972,6 +975,19 @@ function handlePlayClass(cls: ClassInfo) {
   flex-wrap: wrap;
 }
 .name-group-error { color: var(--schools-danger, #c0392b); font-size: 13px; margin-top: 8px; }
+
+.created-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.created-links span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 .class-cell {
   display: flex;

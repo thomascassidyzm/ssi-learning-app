@@ -31,7 +31,7 @@ export interface School {
   school_name: string
   region_code: string | null
   group_id?: string | null
-  admin_user_id: string
+  admin_user_id: string | null
   teacher_join_code: string
   admin_join_code: string
   teacher_count: number
@@ -46,6 +46,13 @@ export interface School {
   // Dashboard extras — optional so existing constructors don't break.
   active_days_last_7?: number
   health?: SchoolHealth
+  // Claim state (school_summary.has_admin, 20260714 migration): true once
+  // EITHER admin_user_id is set (legacy school_admin invite path) OR an
+  // admin user_tags row exists (the school_admin_join redemption path new
+  // leader-created schools use — it never sets admin_user_id). Optional so
+  // existing constructors default to "claimed" (no false "awaiting" badge
+  // on data that predates this column).
+  has_admin?: boolean
 }
 
 // Bucket a school's recent engagement into one of four bands. A school
@@ -154,8 +161,8 @@ export function useSchoolData() {
             region_code: s.region_code,
             group_id: s.group_id,
             admin_user_id: s.admin_user_id,
-            teacher_join_code: '',
-            admin_join_code: '',
+            teacher_join_code: s.teacher_join_code || '',
+            admin_join_code: s.admin_join_code || '',
             teacher_count: s.teacher_count,
             class_count: s.class_count,
             student_count: s.student_count,
@@ -163,6 +170,7 @@ export function useSchoolData() {
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
+            has_admin: s.has_admin ?? !!s.admin_user_id,
           }
         })
 

@@ -91,6 +91,15 @@ describe('POST /api/govt/create-school', () => {
     expect(insertedSchool).toBeNull()
   })
 
+  it('ignores a client-supplied group_id and uses the caller\'s own group (cross-group escalation attempt)', async () => {
+    govtAdminRow = { group_id: 'leaders-own-group' }
+    const req = makeReq({ school_name: 'Sneaky School', group_id: 'someone-elses-group' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(insertedSchool).toMatchObject({ group_id: 'leaders-own-group' })
+  })
+
   it('rejects a govt_admin with no group_id yet (group not named/joined)', async () => {
     govtAdminRow = { group_id: null }
     const req = makeReq({ school_name: 'X' })

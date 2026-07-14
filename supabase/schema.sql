@@ -6580,8 +6580,12 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
     COALESCE(cc.class_count, (0)::bigint) AS class_count,
     COALESCE(sc.student_count, (0)::bigint) AS student_count,
     COALESCE(ph.total_practice_hours, (0)::numeric) AS total_practice_hours,
-    s.name_confirmed
-   FROM ((((public.schools s
+    s.name_confirmed,
+    s.teacher_join_code,
+    s.admin_join_code,
+    s.created_at,
+    ((s.admin_user_id IS NOT NULL) OR at.has_admin_tag) AS has_admin
+   FROM (((((public.schools s
      LEFT JOIN LATERAL ( SELECT count(*) AS teacher_count
            FROM public.user_tags ut
           WHERE ((ut.tag_type = 'school'::text) AND (ut.tag_value = ('SCHOOL:'::text || s.id)) AND (ut.role_in_context = 'teacher'::text) AND (ut.removed_at IS NULL))) tc ON (true))
@@ -6595,7 +6599,10 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
      LEFT JOIN LATERAL ( SELECT (COALESCE(sum(csp.total_practice_seconds), (0)::numeric) / (3600)::numeric) AS total_practice_hours
            FROM (public.class_student_progress csp
              JOIN public.classes c ON ((c.id = csp.class_id)))
-          WHERE (c.school_id = s.id)) ph ON (true));
+          WHERE (c.school_id = s.id)) ph ON (true))
+     LEFT JOIN LATERAL ( SELECT (EXISTS ( SELECT 1
+                   FROM public.user_tags ut2
+                  WHERE ((ut2.tag_type = 'school'::text) AND (ut2.tag_value = ('SCHOOL:'::text || s.id)) AND (ut2.role_in_context = 'admin'::text) AND (ut2.removed_at IS NULL)))) AS has_admin_tag) at ON (true));
 
 
 --
