@@ -178,7 +178,7 @@ watch(selectedUser, (newUser) => {
 
     <Transition name="fade">
       <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
-        Students join classes using the class join code. Open a class to share its code.
+        Students join classes using an invite link. Open a class to share it.
       </div>
     </Transition>
 
@@ -294,7 +294,7 @@ watch(selectedUser, (newUser) => {
     <div v-else class="empty-state schools-card schools-card-pad">
       <h3 class="arsenal empty-title">No students yet</h3>
       <p class="empty-text schools-subtle">
-        Once students join your classes with the class code, they'll appear here.
+        Once students join your classes via their invite link, they'll appear here.
       </p>
     </div>
   </main>
