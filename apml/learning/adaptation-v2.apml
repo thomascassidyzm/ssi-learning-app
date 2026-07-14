@@ -1,0 +1,103 @@
+# Adaptation Engine v2 — Evidence Stream Specification
+# SSi Learning App
+#
+# Version: 0.1.0 (WP-0 only)
+# Last updated: 2026-07-14
+# Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2 (design authority;
+#              packages/player-vue/public/docs/metrics-vision.html wins on conflict)
+#
+# Core Insight: All evidence about the learner — today's behavioural taps and
+# skips, tomorrow's voice-envelope numbers — flows through ONE narrow typed
+# wire. The scheduler (rate policy, workstream C2) never branches on which
+# producer emitted an observation; it only ever reads merged per-unit series.
+# That property — a second producer plugs in with zero scheduler changes — is
+# this module's acceptance test (see evidence.test.ts, "acceptance test" suite).
+#
+# Implementation Status (verified 2026-07-14):
+# - MasteryEvidence / EvidenceSink / EvidenceAggregator: LIVE (WP-0, this spec)
+#   packages/core/src/learning/evidence.ts
+# - Producer #1 (latency, via useAdaptationEngine.recordCycle): NOT YET WIRED (WP-1/3)
+# - Producer #2 (behavioural taps/skips): NOT YET WIRED (WP-1)
+# - Producer #3 (envelope metadata): NOT YET WIRED (WP-6/8, stage 2)
+# - Rate policy consumer (ratePolicy.ts): NOT YET BUILT (WP-2)
+# - Persistence (snapshot/hydrate wired to learner_lego_metrics): NOT YET BUILT (WP-4)
+
+module: evidence_stream
+  purpose: >
+    Define the one wire all mastery evidence travels on, and the per-unit
+    merge that turns however many producers into one time-ordered difficulty
+    series per unit — the exact shape computeLocalDifficulty/computeCurvature
+    already consume.
+
+  input_convention: >
+    Higher `value` = more difficulty/struggle — the same convention as
+    localDifficulty.ts's UnitSeries. Producers normalise into a common
+    ~[0..3] band (per-producer mapping lives in each producer's own spec,
+    e.g. the WP-1 behavioural mapping table) so series from different sources
+    mix sanely once merged for one unit.
+
+  data:
+    EvidenceSource: enum [ latency, behaviour, envelope ]
+    MasteryEvidence:
+      unitId: string            # LEGO id (canonical); boundary key later (boundary:{legoId}:{gapIndex})
+      unitKind: enum [ lego, boundary ]
+      source: EvidenceSource
+      value: number             # difficulty-bearing, higher = more struggle
+      weight: number             # producer confidence, [0..1]
+      cycleId: string?           # ties same-cycle evidence together for the collapse rule
+      occurredAtMs: number       # performance.now() epoch of the session — the series' time axis
+    EvidenceSeries:
+      values: number[]           # time-ordered, merged
+      x: number[]                # matching time axis (occurredAtMs of each collapsed sample)
+
+  api:
+    EvidenceSink.record(evidence: MasteryEvidence) -> void:
+      >  The only way any producer writes evidence. Implemented by
+         EvidenceAggregator; producers hold only this narrow interface, never
+         the concrete aggregator — that narrowness is what makes producers
+         interchangeable.
+    createEvidenceAggregator() -> EvidenceAggregator:
+      >  Construct a fresh, empty aggregator (one per learner session).
+    EvidenceAggregator.getSeries(unitId) -> EvidenceSeries:
+      >  Time-ordered merged difficulty series for one unit, ready to hand to
+         assessLocalDifficulty/computeCurvature.
+    EvidenceAggregator.readyUnits(minSamples) -> string[]:
+      >  Units with >= minSamples merged samples — the per-round policy sweep
+         set (workstream C2 / ratePolicy.ts, WP-2).
+    EvidenceAggregator.snapshot() -> Map<unitId, EvidenceSeries>:
+      >  Defensive-copy snapshot for persistence (WP-4: learner_lego_metrics
+         evidence_series column).
+    EvidenceAggregator.hydrate(data: Map<unitId, EvidenceSeries>) -> void:
+      >  Seed an aggregator from a prior snapshot (session resume). Hydrated
+         samples have no recoverable cycleId, so they never collapse with each
+         other or with new evidence — only fresh same-cycle observations do.
+
+  merge_rule: >
+    Evidence landing within the SAME cycle for the SAME unit (same cycleId)
+    collapses into one sample: value = Σ(vᵢ·wᵢ)/Σwᵢ, and the sample's x moves
+    to the latest occurredAtMs in that cycle. Evidence with no cycleId, or a
+    different cycleId than the unit's most recent sample, always appends as a
+    new sample in time order. This keeps one merged series per unit regardless
+    of how many producers fire in a given cycle — exactly what
+    computeLocalDifficulty wants, and exactly what lets a second producer plug
+    in without the aggregator or its consumers changing shape.
+
+  ring_buffer: >
+    Each unit's series is capped at EVIDENCE_SERIES_RING_CAP (20) collapsed
+    samples — the same cap as the existing recent_latency_samples column on
+    learner_lego_metrics. Oldest samples are dropped first (FIFO).
+
+  guarantees:
+    - producer_agnostic: the aggregator and its consumers never branch on `source`
+    - pure: no Vue/Supabase coupling; no app/storage side effects
+    - non_mutating_snapshot: mutating a snapshot's contents never affects the aggregator
+    - hydrate_is_seed_only: hydrated samples do not retroactively collapse with each other
+
+  tests:
+    - packages/core/src/learning/evidence.test.ts   # merge weighting (2-way and 3-way),
+                                                     #   ring cap + FIFO drop, per-cycle collapse,
+                                                     #   no-cycleId no-collapse, multi-unit isolation,
+                                                     #   readyUnits threshold, snapshot/hydrate round-trip,
+                                                     #   defensive-copy snapshot, and the acceptance test:
+                                                     #   two distinct `source`s merge into one series the
+                                                     #   scheduler reads uniformly with zero branching.
