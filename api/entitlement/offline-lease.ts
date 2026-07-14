@@ -265,7 +265,14 @@ export default async function handler(
         const { error: upErr } = await supabase
           .from('offline_leases')
           .upsert(upserts, { onConflict: 'learner_id,course_code' })
-        if (upErr) console.error('[offline-lease] upsert error (non-fatal):', upErr.message)
+        // Was "non-fatal" (logged and swallowed) — but the lease this upsert
+        // records is what makes a free trial one-shot; if it silently keeps
+        // failing, a device can re-mint a fresh 30-day trial every call
+        // (finding #4, 2026-07-13 audit). Throw into the same fallback path
+        // the read error above uses: it fails CLOSED (no per-course trial
+        // grant reported) rather than reporting a lease that was never
+        // actually persisted.
+        if (upErr) throw upErr
       }
     } catch (tableErr: any) {
       // Table absent (pre-migration) or read failed → stateless fallback: return

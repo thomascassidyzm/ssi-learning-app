@@ -58,23 +58,49 @@ export default async function handler(
       return
     }
 
+    let displayNameSaved = true
     if (displayName) {
-      await supabase.from('learners').update({ display_name: displayName }).eq('id', learner.id)
+      const { error: learnerErr } = await supabase
+        .from('learners')
+        .update({ display_name: displayName })
+        .eq('id', learner.id)
+      if (learnerErr) {
+        console.error('[onboarding/profile] learners.display_name update failed:', learnerErr)
+        displayNameSaved = false
+      }
       // Mirror to the teacher profile if they have one (it's the public name).
-      await supabase.from('teachers').update({ display_name: displayName }).eq('learner_id', learner.id)
+      // No teacher row is the common case (student/most tracks) — not an error.
+      const { error: teacherErr } = await supabase
+        .from('teachers')
+        .update({ display_name: displayName })
+        .eq('learner_id', learner.id)
+      if (teacherErr) {
+        console.error('[onboarding/profile] teachers.display_name update failed:', teacherErr)
+      }
     }
 
     let institutionSaved = false
+    let institutionError: string | undefined
     if (institution) {
-      const { data: updatedSchools } = await supabase
+      const { data: updatedSchools, error: schoolErr } = await supabase
         .from('schools')
         .update({ school_name: institution })
         .eq('admin_user_id', auth.userId)
         .select('id')
+      if (schoolErr) {
+        console.error('[onboarding/profile] schools.school_name update failed:', schoolErr)
+        institutionError = schoolErr.message
+      }
       institutionSaved = !!(updatedSchools && updatedSchools.length)
     }
 
-    res.status(200).json({ ok: true, updated: true, institution_saved: institutionSaved })
+    res.status(200).json({
+      ok: true,
+      updated: true,
+      display_name_saved: displayNameSaved,
+      institution_saved: institutionSaved,
+      institution_error: institutionError,
+    })
   } catch (error: any) {
     console.error('[onboarding/profile] Error:', error)
     res.status(500).json({ error: error?.message || 'Internal server error' })

@@ -609,17 +609,21 @@ async function redeemEntitlementCode(
   }
 
   // If code grants dashboard access, apply platform_role + dashboard_courses.
-  await applyDashboardRole(supabase, learner.id as string, entitlementRow, {
+  const dashboardRoleApplied = await applyDashboardRole(supabase, learner.id as string, entitlementRow, {
     actorUserId: userId,
     source: 'entitlement-code',
     codeUsed: entitlementRow.code as string,
   })
+  if (!dashboardRoleApplied) {
+    console.error('[CodeRedeem] Entitlement granted but dashboard role update failed:', entitlementRow.code, 'for user:', userId)
+  }
 
   const redirectTo = entitlementRow.grants_platform_role ? '/' : '/'
 
   console.log('[CodeRedeem] Redeemed entitlement code:', entitlementRow.code, 'for user:', userId, 'label:', entitlementRow.label)
   res.status(200).json({
     success: true,
+    dashboardRoleApplied,
     codeKind: 'entitlement',
     label: entitlementRow.label,
     accessType: entitlementRow.access_type,
