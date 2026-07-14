@@ -109,7 +109,7 @@ Both do `const { error } = await supabase.from('user_tags').update(...)` then `i
 
 **Fix-pass note (2026-07-14, commit `85a03cc2`):** no navigation function actually existed on this page to wire to (checked — the audit's fix-size guidance didn't hold for this file). "Keep going" wired to resume the learner's primary course (same `localStorage['ssi-last-course']` + navigate pattern as DashboardView.vue/ClassDetail.vue), gated off under admin read-view. "Pick a different LEGO" REMOVED rather than faked — no lego-level picker UI exists anywhere in the codebase to route it to; inventing one is a product/design decision (what does "pick a different LEGO" even show?), not a one-liner CTA fix. Flagging for Tom if this is wanted as a real feature.
 
-### 8. [Class 4] `Onboarding.vue` has no session awareness — bounces already-authed users through email+OTP again
+### 8. [Class 4] `Onboarding.vue` has no session awareness — bounces already-authed users through email+OTP again — **FIXED `eb64295a`**
 **File:** `Onboarding.vue` (root cause), hit from two live call sites:
 - `SchoolsContainer.vue:449` — "set up a new school" link forces an already-verified user through a second email+OTP (same shape as the redeem→`/schools1` bug fixed in `676d6f1c`, but that fix only routed around this call site, not the component).
 - `TeachDashboard.vue:225-227` — a signed-in tutor with a missing `teachers` row gets bounced to `/tutors` email-entry instead of a recovery path.
@@ -117,6 +117,8 @@ Both do `const { error } = await supabase.from('user_tags').update(...)` then `i
 **User-visible failure:** re-authentication friction for users who are already signed in; the tutor case looks like a broken account rather than a missing-row recovery.
 
 **Fix size:** needs-design — flagged, not decided: make `Onboarding.vue` itself session-aware (fixes both call sites and any future ones) vs. point-patch each site again. Genuine scope choice for Tom, not a detail call.
+
+**Fix-pass note (2026-07-14, commit `eb64295a`):** fixed properly at the root (`Onboarding.vue` itself), not point-patched — closes both call sites above plus any future ones automatically, since they both route through this one component (`TeachDashboard.vue`'s `/tutors` bounce lands back on the same door). On mount, an existing Supabase Auth session now replaces the `choose` step's email field with a "Continuing as {email}" greeting + "not you? sign out" escape (mirrors `RedeemCode.vue`'s identity-door confirm step, `32b1a1fb`); its language picker is unchanged (still the first real onboarding step) and its Continue button provisions directly under the live session via a shared `finishProvisioning()` — no OTP round-trip. Signing out flips back to the normal fresh-visitor flow. Fresh (signed-out) visitors are unaffected — same email+OTP+provision path as before. Covered by a new `Onboarding.test.ts` (3 tests: fresh visitor sees email capture, signed-in visitor sees the greeting and no OTP step, sign-out escape returns to email capture).
 
 ### 9. [Class 4] Three more small handoff drops in student class-join
 - **Join-instructions URL doesn't exist** — `ClassDetail.vue:409` points at `saysomethingin.com/join`; no such route (working equivalent is `/with/:code`). One-liner.
@@ -220,3 +222,19 @@ school's `/admin/schools/:id/classes/:classId`, a stronger break than the
 hardcoded-string-path pattern #1b otherwise described (a wrong destination
 entirely, not just a same-shape self path). Fixed alongside #1b by switching
 to `schoolsLink()`-built paths.
+
+---
+
+## Fix-pass wave 3 (2026-07-14)
+
+Scoped to #8 only (`Onboarding.vue` session-awareness), per the owner's
+direction: fix properly (session-aware at the component root), not another
+point-patch. Commit `eb64295a` — see the finding's fix-pass note above for
+detail. `pnpm --filter player-vue typecheck`, `npm run typecheck:api`,
+`npm run test:api` (88/88), and `pnpm --filter player-vue test` (589/589,
+all 58 files, incl. 3 new tests in `Onboarding.test.ts`) all green.
+
+**Findings closed this pass:** #8.
+
+**Not actioned this pass:** #5/#6/#9/#11 (remaining subset)/#12/#13/#14 —
+not assigned to this pass.
