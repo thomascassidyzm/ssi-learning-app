@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient } from '@/composables/schools/client'
 import { getLanguageName } from '@/composables/useI18n'
@@ -19,6 +20,8 @@ interface CourseProgress {
 
 const { currentUser } = useSchoolContext()
 const client = getSchoolsClient()
+const router = useRouter()
+const isAdminView = inject<boolean>('isAdminView', false)
 
 const courses = ref<CourseProgress[]>([])
 const recentSessions = ref<Array<{ started_at: string; duration_seconds: number | null }>>([])
@@ -152,6 +155,18 @@ const primaryCourseName = computed(() =>
 const legosRetired = computed(() => primaryCourse.value?.legos_retired || 0)
 const nextLegoNumber = computed(() => legosRetired.value + 1)
 
+// Resumes the learner's primary course — same pattern as
+// DashboardView.vue/ClassDetail.vue's play launchers: stamp the course into
+// localStorage, App.vue's cold-boot logic picks it up and resumes at the
+// learner's own furthest progress. Self-view only (finding #7,
+// 2026-07-13 audit) — an admin viewing another learner's progress must
+// never launch a live play session as them.
+function handleKeepGoing(): void {
+  if (isAdminView || !primaryCourse.value) return
+  localStorage.setItem('ssi-last-course', primaryCourse.value.course_id)
+  router.push('/')
+}
+
 const dateLine = computed(() =>
   new Date()
     .toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -284,11 +299,10 @@ const journeyTotal = computed(() => {
           </h1>
           <p class="page-sub schools-subtle">{{ subtitle }}</p>
 
-          <div class="cta-row">
-            <button type="button" class="btn-play">
+          <div v-if="!isAdminView" class="cta-row">
+            <button type="button" class="btn-play" @click="handleKeepGoing">
               ▶ Keep going — LEGO {{ nextLegoNumber }}
             </button>
-            <button type="button" class="btn-ghost">Pick a different LEGO</button>
           </div>
 
           <div v-if="initials" class="identity-strip">
