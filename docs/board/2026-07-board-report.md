@@ -67,5 +67,5 @@ On the production side (the Popty dashboard, ~215 commits): we ran an estate-wid
 
 ## The numbers that matter
 
-- **Target remains ~£30k/month subscribers + ~£30k/month government contract.** The settled model prices the schools path toward that: every teaching seat is £15/month (band-adjusted), every school student £5/month — so a single 10-teacher, 300-student school is worth ~£1,650/month, and the group mechanism is how we sign ten of them with one link.
+- **£42k/month subscribers + £30k/month government contract — the ~£30k subscriber target is already exceeded.** On top of that, the settled model prices the schools path as a further growth mechanism: every teaching seat is £15/month (band-adjusted), every school student £5/month — so a single 10-teacher, 300-student school is worth ~£1,650/month, and the group mechanism is how we sign ten of them with one link.
 - **74 live/beta courses**, now with a full audio census and the tooling to maintain them at fleet scale rather than one at a time.
