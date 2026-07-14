@@ -1,9 +1,9 @@
-# Adaptation Engine v2 — Evidence Stream Specification
+# Adaptation Engine v2 — Evidence Stream & Rate Policy Specification
 # SSi Learning App
 #
-# Version: 0.1.0 (WP-0 only)
+# Version: 0.2.0 (WP-0 + WP-2)
 # Last updated: 2026-07-14
-# Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2 (design authority;
+# Grounded in: docs/adaptation/adaptation-v2-build-spec.md §2/§4 (design authority;
 #              packages/player-vue/public/docs/metrics-vision.html wins on conflict)
 #
 # Core Insight: All evidence about the learner — today's behavioural taps and
@@ -14,12 +14,14 @@
 # this module's acceptance test (see evidence.test.ts, "acceptance test" suite).
 #
 # Implementation Status (verified 2026-07-14):
-# - MasteryEvidence / EvidenceSink / EvidenceAggregator: LIVE (WP-0, this spec)
+# - MasteryEvidence / EvidenceSink / EvidenceAggregator: LIVE (WP-0)
 #   packages/core/src/learning/evidence.ts
 # - Producer #1 (latency, via useAdaptationEngine.recordCycle): NOT YET WIRED (WP-1/3)
 # - Producer #2 (behavioural taps/skips): NOT YET WIRED (WP-1)
 # - Producer #3 (envelope metadata): NOT YET WIRED (WP-6/8, stage 2)
-# - Rate policy consumer (ratePolicy.ts): NOT YET BUILT (WP-2)
+# - Rate policy (RatePolicyEngine): LIVE (WP-2, this spec)
+#   packages/core/src/learning/ratePolicy.ts — pure, unwired to the player
+# - Player wiring (RoundPlan applied via shouldSkipCycle overrides): NOT YET BUILT (WP-3)
 # - Persistence (snapshot/hydrate wired to learner_lego_metrics): NOT YET BUILT (WP-4)
 
 module: evidence_stream
@@ -101,3 +103,123 @@ module: evidence_stream
                                                      #   defensive-copy snapshot, and the acceptance test:
                                                      #   two distinct `source`s merge into one series the
                                                      #   scheduler reads uniformly with zero branching.
+
+module: rate_policy
+  purpose: >
+    Decide, at each round boundary, how to spend the session's finite
+    practice budget across CONSOLIDATE / DEFER / DRILL (build spec §4; the
+    paper §03). The single consumer of EvidenceAggregator series (via B4's
+    assessLocalDifficulty) and introduction-order criticality. Pure — decides
+    only; WP-3 (player wiring, not yet built) is the only thing that ever
+    applies a RoundPlan.
+
+  binding_pedagogy: >
+    Owner decision, do not invert: default lean is consolidate + defer; drill
+    is reserved for the structurally critical few, where criticality =
+    introduction order (earliest `criticalFrontloadFraction` of the course's
+    LEGO ordinals), NEVER corpus frequency. Enforced STRUCTURALLY, not just by
+    default numbers: a critical unit's confirmed struggle has no code path to
+    the round-level buildCount/consolidateCount/spacedRepCap decision at all —
+    it can only nudge that unit's own pause multiplier. Separately, no
+    struggle signal of any kind has a code path that RAISES buildCount or
+    spacedRepCap above their scripted defaults — the only way those levers
+    rise back up is quiet-round decay toward the default, never a struggle
+    event. "Drill" therefore always means "hold at scripted + pause + the
+    existing N-1 spaced-rep 3x multiplier" — no new drilling machinery exists
+    or is built.
+
+  data:
+    LeverBounds: { floor: number, ceiling: number, scripted: number, step: number }
+    RatePolicyBounds:
+      buildCount: LeverBounds        # PROPOSED floor 3 / ceiling 7 / scripted 7 / step 1
+      consolidateCount: LeverBounds  # PROPOSED floor 1 / ceiling 4 / scripted 2 / step 1
+      spacedRepCap: LeverBounds      # PROPOSED floor 6 / ceiling 12 / scripted 12 / step 1
+      pauseMultiplier: LeverBounds   # PROPOSED floor 0.7 / ceiling 1.4 / step 0.05
+      breatherMinRoundGap: number    # PROPOSED 3 ("at most 1 breather per 3 rounds")
+    RatePolicyConfig:
+      bounds: RatePolicyBounds
+      criticalFrontloadFraction: number    # PROPOSED 0.15
+      hysteresisReads: number              # PROPOSED 2 consecutive confirming reads
+      decayRounds: number                  # PROPOSED 5 quiet rounds to fully decay a one-step nudge
+      manualOverrideDeadZoneMultiplier: number  # PROPOSED 2 — widens hysteresisReads while the learner
+                                                 #   has exercised belt_skip/turbo_toggle this session
+    RoundBoundaryInput:
+      roundLegoId: string                  # the round about to play's own LEGO
+      roundLegoOrdinal: number             # its introduction ordinal (criticality guard)
+      courseLegoCount: number              # criticality-fraction denominator
+      difficulty: LocalDifficulty[]        # this boundary's B4 reads, one per ready unit
+      unitOrdinals: Record<string, number> # introduction ordinal per unit id
+      manualOverrideActive: boolean
+      basePauseMultiplier: (legoId) => number   # the existing MasteryStateMachine ladder value,
+                                                 #   BEFORE this policy's curvature nudge
+    RoundPlan:
+      buildCount: number
+      consolidateCount: number
+      spacedRepCap: number
+      insertBreather: boolean              # insert a no-new-LEGO breather before the NEXT debut
+      pauseMultiplier: (legoId) => number  # ladder base + curvature nudge, clamped
+
+  api:
+    createRatePolicyEngine(config?) -> RatePolicyEngine:
+      >  Construct one engine per learner session (mirrors createEvidenceAggregator /
+         MasteryStateMachine — the stateful-engine-over-pure-primitives pattern).
+    RatePolicyEngine.planRound(input: RoundBoundaryInput) -> RoundPlan:
+      >  The only mutating entry point. Advances internal hysteresis/decay state
+         by exactly one round boundary and returns the plan for the round about
+         to play. Never applies anything — WP-3's job.
+
+  budget_logic: >
+    Per confirmed-struggling unit (build spec §4.3), in priority order:
+      1. CRITICALITY GUARD — critical unit (ordinal <= ceil(courseLegoCount *
+         criticalFrontloadFraction)): round-level levers untouched; only its
+         own pause multiplier nudges up. "Never defer" (paper §04).
+      2. OWN-LEGO STRUGGLE — the round's own (new) LEGO is the non-critical
+         struggling unit: buildCount HOLDS at scripted (new material is never
+         starved of its own practice); consolidateCount rises one step; a
+         breather is scheduled before the NEXT debut (slows the wholesale
+         rate between rounds, never guts the current debut).
+      3. DEFER (default) — some OTHER non-critical unit is struggling:
+         buildCount and spacedRepCap each trim one step toward floor;
+         consolidateCount rises one step — the freed budget spent on
+         strengths (paper §03's "consolidate" move).
+    Quiet rounds (no confirming signal) decay every off-default lever back
+    toward its scripted value, `step / decayRounds` per round — "the engine's
+    resting state is do nothing" (§4.5).
+
+  hysteresis_and_bounds: >
+    A lever moves only after `hysteresisReads` (default 2) CONSECUTIVE
+    confirming round-boundary reads for the same unit (a steady/warming_up
+    read in between resets the count) — never more than one step per
+    boundary. `manualOverrideActive` multiplies the requirement by
+    `manualOverrideDeadZoneMultiplier` (default 2x) for the rest of the
+    session, per the paper's Principle 1 (the learner's own manual dial
+    outranks the engine). Every output is clamped to RatePolicyBounds —
+    enforced twice (offset-level and final-value-level) so bounds cannot be
+    exceeded by any input sequence, tested adversarially.
+
+  guarantees:
+    - pure: no Vue/Supabase/player coupling; consumes LocalDifficulty reads only
+    - structural_lean: no code path exists from "critical unit struggling" to a
+      round-level lever move, and no code path exists that raises buildCount/
+      spacedRepCap above scripted default on any struggle signal — see
+      binding_pedagogy above
+    - bounded: every lever clamped to its floor/ceiling on every read, under
+      adversarial sustained-struggle input
+    - one_step_per_boundary: no lever moves more than its configured `step`
+      per `planRound` call
+    - invisible: levers decay fully to scripted defaults after `decayRounds`
+      of quiet, so a killed/disabled session leaves no residual state a
+      learner could feel on re-enable
+
+  tests:
+    - packages/core/src/learning/ratePolicy.test.ts   # bounds unbreakable under 200-round adversarial
+                                                       #   struggle; criticality guard (critical unit never
+                                                       #   deferred, contrasted against a non-critical unit
+                                                       #   past the cutoff); the consolidate/defer lean
+                                                       #   (own-LEGO-holds vs other-unit-defers, breather
+                                                       #   cadence, "no struggle ever raises a lever" proof);
+                                                       #   2-read hysteresis + manual-override doubling;
+                                                       #   decay-to-default over quiet rounds; golden scenario
+                                                       #   traces replaying real struggling/steady/easing
+                                                       #   syntheticSeries through the real assessLocalDifficulty
+                                                       #   sensor (not a stub); config overrides honoured.

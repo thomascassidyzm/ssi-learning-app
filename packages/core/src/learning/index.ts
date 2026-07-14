@@ -7,6 +7,7 @@ export * from './MasteryStateMachine';
 export * from './curvature';
 export * from './localDifficulty';
 export * from './evidence';
+export * from './ratePolicy';
 export * from './syntheticSeries';
 export * from './competenceBand';
 export * from './PhraseSelector';
