@@ -65,11 +65,17 @@ export default async function handler(
     const learnerId = learner?.id ?? null
 
     // School the user administers.
-    const { data: schools } = await supabase
+    const { data: schools, error: schoolsError } = await supabase
       .from('schools')
       .update({ platform_status: status, platform_expires_at: when })
       .eq('admin_user_id', user_id)
       .select('id')
+
+    if (schoolsError) {
+      console.error('[SetTrial] schools update failed:', schoolsError)
+      res.status(500).json({ error: 'Failed to update school trial state', detail: schoolsError.message })
+      return
+    }
 
     let teachers: unknown[] | null = null
     let entitlements: unknown[] | null = null
@@ -79,6 +85,11 @@ export default async function handler(
         .update({ platform_status: status, platform_expires_at: when })
         .eq('learner_id', learnerId)
         .select('id')
+      if (t.error) {
+        console.error('[SetTrial] teachers update failed:', t.error)
+        res.status(500).json({ error: 'Failed to update teacher trial state', detail: t.error.message })
+        return
+      }
       teachers = t.data
 
       // Self-granted course play-trials only (not code/email-grant backed).
@@ -89,6 +100,11 @@ export default async function handler(
         .is('email_access_grant_id', null)
         .not('expires_at', 'is', null)
         .select('id')
+      if (e.error) {
+        console.error('[SetTrial] user_entitlements update failed:', e.error)
+        res.status(500).json({ error: 'Failed to update entitlement trial state', detail: e.error.message })
+        return
+      }
       entitlements = e.data
     }
 

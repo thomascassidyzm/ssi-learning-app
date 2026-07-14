@@ -28,7 +28,7 @@ const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
-const { classes, fetchClasses, createClass } = useClassesData()
+const { classes, fetchClasses, createClass, error: classesError } = useClassesData()
 const { courseGrants, fetchCourseAccess } = useCourseAccess()
 const { teachers, fetchTeachers } = useTeachersData()
 
@@ -238,6 +238,10 @@ async function persistClasses(): Promise<boolean> {
       draft.joinCode = created.student_join_code
     } else {
       allOk = false
+      // useClassesData's createClass sets its OWN error ref on failure —
+      // surface it here rather than silently staying on the step with no
+      // visible feedback (finding #10, 2026-07-13 audit).
+      error.value = classesError.value || `Failed to create class "${draft.class_name}"`
     }
   }
   return allOk

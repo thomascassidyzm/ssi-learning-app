@@ -95,11 +95,19 @@ export default async function handler(
       return
     }
     try {
-      // Ungroup schools first
-      await supabase
+      // Ungroup schools first — must succeed before the group is deleted, or
+      // schools are left pointing at a group_id that no longer exists while
+      // the delete itself still reports success.
+      const { error: ungroupError } = await supabase
         .from('schools')
         .update({ group_id: null })
         .eq('group_id', groupId)
+
+      if (ungroupError) {
+        console.error('[Groups] Ungroup schools failed:', ungroupError)
+        res.status(500).json({ error: 'Failed to ungroup schools', detail: ungroupError.message })
+        return
+      }
 
       // Delete group
       const { error } = await supabase
