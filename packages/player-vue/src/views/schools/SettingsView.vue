@@ -167,15 +167,23 @@ async function saveSchoolProfile() {
   if (!school) return
   profileSaveStatus.value = 'saving'
   try {
-    const { getSchoolsClient } = await import('@/composables/schools/client')
-    const client = getSchoolsClient()
-    // Supabase .update() returns { error } rather than throwing, so an ignored
-    // error (e.g. an RLS denial) previously still showed "Saved". Surface it.
-    const { error: updateError } = await client
-      .from('schools')
-      .update({ school_name: schoolNameEdit.value })
-      .eq('id', school.id)
-    if (updateError) throw updateError
+    // The `schools` table's authenticated UPDATE grant is revoked (see
+    // CLAUDE.md RLS section) — routed through the same caller-scoped server
+    // endpoint SetupView.vue's saveSchool() uses (finding #2c, 2026-07-13
+    // audit) rather than a direct client write.
+    if (!supabase?.value) throw new Error('Not signed in')
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) throw new Error('Not signed in')
+    const res = await fetch('/api/school/update-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ school_name: schoolNameEdit.value }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || `Request failed: ${res.status}`)
+    }
     profileSaveStatus.value = 'saved'
     setTimeout(() => { profileSaveStatus.value = 'idle' }, 2000)
     await fetchSchools()

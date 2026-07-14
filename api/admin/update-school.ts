@@ -1,14 +1,17 @@
 /**
- * Update School API - PATCH /api/admin/update-school
+ * Update / Delete School API - PATCH | DELETE /api/admin/update-school
  *
- * Repoints SchoolsSetup.vue::updateSchoolGroup off a direct client
- * `schools.update()` — the 2026-07-04 grant-hygiene window left the org
- * tables' authenticated UPDATE grant revoked live (see CLAUDE.md RLS
- * section), so the client PATCH was 403ing. Org-table writes go through
- * server-mediated endpoints under verifyAdmin — see create-school.ts.
+ * Repoints SchoolsSetup.vue::updateSchoolGroup and ::deleteSchool off direct
+ * client `schools.update()`/`schools.delete()` — the 2026-07-04 grant-hygiene
+ * window left the org tables' authenticated UPDATE/DELETE grants revoked live
+ * (see CLAUDE.md RLS section), so both client calls were 403ing. Org-table
+ * writes go through server-mediated endpoints under verifyAdmin — see
+ * create-school.ts.
  *
- * Only sets/clears schools.group_id today (the one field SchoolsSetup.vue
- * needs). Validates the target group exists when non-null.
+ * PATCH only sets/clears schools.group_id today (the one field
+ * SchoolsSetup.vue needs). Validates the target group exists when non-null.
+ * DELETE removes the school row — classes and entitlement_grants cascade
+ * (ON DELETE CASCADE on their school_id FK, see supabase/schema.sql).
  *
  * Requires ssi_admin / god caller — enforced by verifyAdmin().
  */
@@ -29,7 +32,7 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  if (req.method !== 'PATCH') {
+  if (req.method !== 'PATCH' && req.method !== 'DELETE') {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
@@ -37,6 +40,40 @@ export default async function handler(
   const adminResult = await verifyAdmin(req)
   if ('error' in adminResult) {
     res.status(adminResult.status).json({ error: adminResult.error })
+    return
+  }
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    res.status(500).json({ error: 'Server configuration error' })
+    return
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  if (req.method === 'DELETE') {
+    const schoolId = ((req.query.school_id as string) || (req.body as UpdateSchoolBody)?.school_id || '').trim()
+    if (!schoolId) {
+      res.status(400).json({ error: 'school_id is required' })
+      return
+    }
+    try {
+      const { error: deleteError } = await supabase
+        .from('schools')
+        .delete()
+        .eq('id', schoolId)
+
+      if (deleteError) {
+        console.error('[UpdateSchool] schools delete failed:', deleteError)
+        res.status(500).json({ error: 'Failed to delete school', detail: deleteError.message })
+        return
+      }
+
+      console.log('[UpdateSchool] deleted', schoolId, 'by', adminResult.userId)
+      res.status(200).json({ success: true })
+    } catch (err) {
+      console.error('[UpdateSchool] Error:', err)
+      res.status(500).json({ error: 'Internal server error' })
+    }
     return
   }
 
@@ -48,13 +85,6 @@ export default async function handler(
     res.status(400).json({ error: 'school_id is required' })
     return
   }
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    res.status(500).json({ error: 'Server configuration error' })
-    return
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   try {
     if (groupId) {

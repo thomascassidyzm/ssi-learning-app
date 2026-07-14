@@ -17,12 +17,21 @@ vi.mock('../_utils/auth', () => ({
 
 let groupRow: any
 let updateCalls: any[] = []
+let deleteCalls: any[] = []
+let deleteError: any = null
 
 function makeChainable(table: string) {
   const builder: any = {
     select: () => builder,
     update: (obj: unknown) => { updateCalls.push({ table, obj }); return builder },
-    eq: () => builder,
+    delete: () => { deleteCalls.push({ table }); return builder },
+    eq: () => {
+      // .delete().eq(...) resolves the promise chain directly (no .single()).
+      if (deleteCalls.length && deleteCalls[deleteCalls.length - 1].table === table) {
+        return Promise.resolve({ error: deleteError })
+      }
+      return builder
+    },
     maybeSingle: () => {
       if (table === 'groups') return Promise.resolve({ data: groupRow, error: null })
       return Promise.resolve({ data: null, error: null })
@@ -51,6 +60,10 @@ function makeReq(body: unknown): VercelRequest {
   return { method: 'PATCH', body, headers: { authorization: 'Bearer tok' } } as any
 }
 
+function makeDeleteReq(schoolId: string): VercelRequest {
+  return { method: 'DELETE', query: { school_id: schoolId }, body: {}, headers: { authorization: 'Bearer tok' } } as any
+}
+
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
   const res: any = {}
   res.status = vi.fn((code: number) => { res.statusCode = code; return res })
@@ -60,6 +73,8 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
 
 beforeEach(async () => {
   updateCalls = []
+  deleteCalls = []
+  deleteError = null
   groupRow = { id: 'group-1' }
   verifyAdminResult = { userId: 'admin-1' }
   handler = (await import('./update-school')).default
@@ -108,5 +123,41 @@ describe('PATCH /api/admin/update-school', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(400)
     expect(updateCalls.length).toBe(0)
+  })
+})
+
+describe('DELETE /api/admin/update-school', () => {
+  it('rejects a non-admin caller', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    const req = makeDeleteReq('school-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(deleteCalls.length).toBe(0)
+  })
+
+  it('requires school_id', async () => {
+    const req = makeDeleteReq('')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(deleteCalls.length).toBe(0)
+  })
+
+  it('deletes the school', async () => {
+    const req = makeDeleteReq('school-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(deleteCalls[0]).toMatchObject({ table: 'schools' })
+    expect(res.body.success).toBe(true)
+  })
+
+  it('surfaces a delete error', async () => {
+    deleteError = { message: 'delete failed' }
+    const req = makeDeleteReq('school-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(500)
   })
 })

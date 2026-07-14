@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useInviteCode } from '../composables/useInviteCode'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useUserRole } from '../composables/useUserRole'
+import { useSchoolContext } from '../composables/schools/useSchoolContext'
 
 // variant='landing' is a PRESENTATION-ONLY switch (region-tier-design.md
 // §1a/§1b, owner addendum 2026-07-13): the /group/:code landing route uses
@@ -314,6 +315,14 @@ async function doRedeem() {
       if (result.courseCode) {
         localStorage.setItem('ssi-last-course', result.courseCode)
       }
+      // useSchoolContext.loadFromAuth is idempotent for an already-loaded
+      // 'self' scope of the SAME auth user (deliberately, to avoid
+      // redundant refetches) — but a redemption just changed THIS user's
+      // school/class assignment server-side. Clear the singleton so
+      // SchoolsContainer's mount-time loadFromAuth actually refetches
+      // instead of serving stale pre-redemption data (finding #2f,
+      // 2026-07-13 audit).
+      useSchoolContext().clear()
       step.value = 'success'
       redirectUrl.value = result.redirectTo || '/'
       setTimeout(() => {

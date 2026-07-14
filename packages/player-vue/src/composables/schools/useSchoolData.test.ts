@@ -28,7 +28,10 @@ function createMockClient(responses: Record<string, any>) {
     from: vi.fn((table: string) => {
       currentTable = table
       return new Proxy({}, handler)
-    })
+    }),
+    auth: {
+      getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })),
+    },
   } as any
 }
 
@@ -189,16 +192,23 @@ describe('useSchoolData', () => {
         data: { school_id: 's1', school_name: 'Ysgol y Garnedd', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
         error: null,
       },
-      schools: { data: null, error: null },
     }, 'school_admin')
 
     await sd.fetchSchools()
     expect(sd.currentSchool.value?.name_confirmed).toBe(false)
 
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ school: {} }) }))
+    vi.stubGlobal('fetch', fetchMock)
+
     const ok = await sd.confirmSchoolName('s1', 'Ysgol y Garnedd (Bangor)')
     expect(ok).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith('/api/school/update-profile', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ school_name: 'Ysgol y Garnedd (Bangor)', name_confirmed: true }),
+    }))
     expect(sd.currentSchool.value?.school_name).toBe('Ysgol y Garnedd (Bangor)')
     expect(sd.currentSchool.value?.name_confirmed).toBe(true)
+    vi.unstubAllGlobals()
   })
 
   it('confirmSchoolName surfaces the error and does not touch currentSchool on failure', async () => {
@@ -207,13 +217,14 @@ describe('useSchoolData', () => {
         data: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
         error: null,
       },
-      schools: { data: null, error: { message: 'update failed' } },
     }, 'school_admin')
 
     await sd.fetchSchools()
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: 'update failed' }) })))
     const ok = await sd.confirmSchoolName('s1', 'New Name')
     expect(ok).toBe(false)
     expect(sd.error.value).toBeTruthy()
+    vi.unstubAllGlobals()
     expect(sd.currentSchool.value?.school_name).toBe('My School')
   })
 
