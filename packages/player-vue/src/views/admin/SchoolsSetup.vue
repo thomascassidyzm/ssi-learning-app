@@ -1019,7 +1019,7 @@ onMounted(() => {
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
               <span v-else class="spinner"></span>
-              {{ isCreatingGovt ? 'Creating…' : 'Send invite' }}
+              {{ isCreatingGovt ? 'Creating…' : 'Create invite' }}
             </button>
           </div>
         </form>
