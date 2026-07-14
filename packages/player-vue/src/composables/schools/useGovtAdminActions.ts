@@ -95,7 +95,9 @@ export function useGovtAdminActions() {
     }
   }
 
-  async function createSchoolInMyGroup(schoolName: string): Promise<{ school: { id: string; school_name: string } } | null> {
+  async function createSchoolInMyGroup(schoolName: string): Promise<{
+    school: { id: string; school_name: string; admin_join_code: string; teacher_join_code: string }
+  } | null> {
     error.value = null
     try {
       const headers = await authHeaders()

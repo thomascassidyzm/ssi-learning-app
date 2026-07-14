@@ -18,7 +18,7 @@ const {
   fetchSchools,
   selectSchoolToView,
 } = useSchoolData()
-const { mintSchoolLink, error: inviteError } = useGovtAdminActions()
+const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
 
 const searchQuery = ref('')
 type SortKey = 'hours' | 'students' | 'name'
@@ -56,10 +56,14 @@ const headerEyebrow = computed(() => {
   )
 })
 
+const awaitingCount = computed(() => schools.value.filter((s) => !s.has_admin).length)
+
 const headerLede = computed(() => {
   const n = schools.value.length
   if (!n) return 'No schools registered in this programme yet.'
-  return `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'} active.`
+  const base = `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'}.`
+  if (!awaitingCount.value) return base
+  return `${base} ${awaitingCount.value} awaiting admin.`
 })
 
 const hoursThisWeek = computed(() => Math.round(totalPracticeHours.value))
@@ -86,41 +90,47 @@ function handleSchoolClick(school: School) {
   router.push('/schools')
 }
 
-// ---------- Onboard new school (region-tier-design.md §1e) ----------
-const showInviteModal = ref(false)
-const inviteSchoolName = ref('')
-const isMintingInvite = ref(false)
-const mintedInviteCode = ref<string | null>(null)
-const copiedInviteLink = ref(false)
+// ---------- Add school (one primitive — school creation, region-tier-design.md
+// §5c-revised 2026-07-13): the school row is created IMMEDIATELY, group-
+// attached, with both join codes registered at birth. There is no separate
+// "onboard" concept any more — the row itself is the source of the admin
+// and teacher share links, shown here and forever after on the row. ----------
+const showAddModal = ref(false)
+const newSchoolName = ref('')
+const isCreatingSchool = ref(false)
+const createdSchool = ref<{ id: string; school_name: string; admin_join_code: string; teacher_join_code: string } | null>(null)
+const copiedCode = ref<string | null>(null)
 
-function inviteUrl(code: string): string {
+function redeemUrl(code: string): string {
   return `${window.location.origin}/redeem/${code}`
 }
 
-function openInviteModal() {
-  inviteSchoolName.value = ''
-  mintedInviteCode.value = null
-  copiedInviteLink.value = false
-  showInviteModal.value = true
+function openAddModal() {
+  newSchoolName.value = ''
+  createdSchool.value = null
+  copiedCode.value = null
+  createError.value = null
+  showAddModal.value = true
 }
 
-function closeInviteModal() {
-  showInviteModal.value = false
+async function closeAddModal() {
+  showAddModal.value = false
+  if (createdSchool.value) await fetchSchools()
 }
 
-async function handleMintInvite() {
-  isMintingInvite.value = true
-  const result = await mintSchoolLink(inviteSchoolName.value.trim())
-  isMintingInvite.value = false
-  if (result) mintedInviteCode.value = result.code
+async function handleCreateSchool() {
+  if (!newSchoolName.value.trim()) return
+  isCreatingSchool.value = true
+  const result = await createSchoolInMyGroup(newSchoolName.value.trim())
+  isCreatingSchool.value = false
+  if (result) createdSchool.value = result.school
 }
 
-async function copyInviteLink() {
-  if (!mintedInviteCode.value) return
+async function copyCode(code: string) {
   try {
-    await navigator.clipboard.writeText(inviteUrl(mintedInviteCode.value))
-    copiedInviteLink.value = true
-    setTimeout(() => { copiedInviteLink.value = false }, 2000)
+    await navigator.clipboard.writeText(redeemUrl(code))
+    copiedCode.value = code
+    setTimeout(() => { if (copiedCode.value === code) copiedCode.value = null }, 2000)
   } catch {
     /* ignore */
   }
@@ -210,7 +220,7 @@ watch(currentUser, (u) => {
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
           Export
         </button>
-        <button type="button" class="btn-play" @click="openInviteModal">+ Onboard new school</button>
+        <button type="button" class="btn-play" @click="openAddModal">+ Add school</button>
       </div>
     </div>
 
@@ -270,7 +280,8 @@ watch(currentUser, (u) => {
             <th>Classes</th>
             <th>Hours</th>
             <th>Joined</th>
-            <th>Health</th>
+            <th>Status</th>
+            <th>Links</th>
             <th aria-label="actions"></th>
           </tr>
         </thead>
@@ -294,17 +305,40 @@ watch(currentUser, (u) => {
             <td>{{ Math.round(school.total_practice_hours) }}h</td>
             <td class="schools-subtle">{{ formatJoined(school.created_at) }}</td>
             <td>
-              <span class="health-cell">
+              <span v-if="!school.has_admin" class="awaiting-pill">Awaiting admin</span>
+              <span v-else class="health-cell">
                 <HealthDot :health="school.health" />
                 <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
               </span>
+            </td>
+            <td class="links-cell" @click.stop>
+              <button
+                type="button"
+                class="link-chip"
+                :class="{ 'is-copied': copiedCode === school.admin_join_code }"
+                :disabled="!school.admin_join_code"
+                :title="school.admin_join_code ? 'Copy admin link' : 'No admin code yet'"
+                @click="copyCode(school.admin_join_code)"
+              >
+                {{ copiedCode === school.admin_join_code ? 'Copied!' : 'Admin' }}
+              </button>
+              <button
+                type="button"
+                class="link-chip"
+                :class="{ 'is-copied': copiedCode === school.teacher_join_code }"
+                :disabled="!school.teacher_join_code"
+                :title="school.teacher_join_code ? 'Copy teacher link' : 'No teacher code yet'"
+                @click="copyCode(school.teacher_join_code)"
+              >
+                {{ copiedCode === school.teacher_join_code ? 'Copied!' : 'Teacher' }}
+              </button>
             </td>
             <td class="row-action">
               <span class="row-link">Open →</span>
             </td>
           </tr>
           <tr v-if="!filteredSchools.length">
-            <td colspan="9" class="empty-row schools-subtle">
+            <td colspan="10" class="empty-row schools-subtle">
               <template v-if="searchQuery">No schools match "{{ searchQuery }}".</template>
               <template v-else>No schools to show.</template>
             </td>
@@ -313,42 +347,54 @@ watch(currentUser, (u) => {
       </table>
     </div>
 
-    <div v-if="showInviteModal" class="invite-modal-backdrop" @click.self="closeInviteModal">
+    <div v-if="showAddModal" class="invite-modal-backdrop" @click.self="closeAddModal">
       <div class="schools-card invite-modal">
-        <h3 class="arsenal invite-modal-title">Onboard new school</h3>
+        <h3 class="arsenal invite-modal-title">Add school</h3>
         <p class="schools-subtle invite-modal-lede">
-          Create a shareable link that lets a school admin claim their own school in your programme.
+          Creates the school in your programme immediately, with an admin link and a teacher link ready to share.
         </p>
         <input
-          v-model="inviteSchoolName"
+          v-if="!createdSchool"
+          v-model="newSchoolName"
           type="text"
           class="invite-modal-input"
-          placeholder="School name (optional label)"
-          :disabled="isMintingInvite"
-          @keyup.enter="handleMintInvite"
+          placeholder="School name"
+          :disabled="isCreatingSchool"
+          @keyup.enter="handleCreateSchool"
         />
-        <p v-if="inviteError" class="invite-modal-error">{{ inviteError }}</p>
-        <div v-if="mintedInviteCode" class="invite-modal-link-row">
-          <code class="invite-modal-link">{{ inviteUrl(mintedInviteCode) }}</code>
-          <button type="button" class="btn-ghost" @click="copyInviteLink">
-            {{ copiedInviteLink ? 'Copied!' : 'Copy' }}
-          </button>
-        </div>
-        <p v-if="mintedInviteCode" class="schools-subtle invite-modal-hint">
-          Share this with the school admin — clicking it takes them straight to sign-in.
-        </p>
+        <p v-if="createError" class="invite-modal-error">{{ createError }}</p>
+        <template v-if="createdSchool">
+          <div class="invite-modal-link-row">
+            <span class="invite-modal-link-label">Admin</span>
+            <code class="invite-modal-link">{{ redeemUrl(createdSchool.admin_join_code) }}</code>
+            <button type="button" class="btn-ghost" @click="copyCode(createdSchool.admin_join_code)">
+              {{ copiedCode === createdSchool.admin_join_code ? 'Copied!' : 'Copy' }}
+            </button>
+          </div>
+          <div class="invite-modal-link-row">
+            <span class="invite-modal-link-label">Teacher</span>
+            <code class="invite-modal-link">{{ redeemUrl(createdSchool.teacher_join_code) }}</code>
+            <button type="button" class="btn-ghost" @click="copyCode(createdSchool.teacher_join_code)">
+              {{ copiedCode === createdSchool.teacher_join_code ? 'Copied!' : 'Copy' }}
+            </button>
+          </div>
+          <p class="schools-subtle invite-modal-hint">
+            Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also
+            live on the school's row any time you need them again.
+          </p>
+        </template>
         <div class="invite-modal-actions">
-          <button type="button" class="btn-ghost" @click="closeInviteModal">
-            {{ mintedInviteCode ? 'Done' : 'Cancel' }}
+          <button type="button" class="btn-ghost" @click="closeAddModal">
+            {{ createdSchool ? 'Done' : 'Cancel' }}
           </button>
           <button
-            v-if="!mintedInviteCode"
+            v-if="!createdSchool"
             type="button"
             class="btn-play"
-            :disabled="isMintingInvite"
-            @click="handleMintInvite"
+            :disabled="isCreatingSchool || !newSchoolName.trim()"
+            @click="handleCreateSchool"
           >
-            {{ isMintingInvite ? 'Creating…' : 'Create link' }}
+            {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
           </button>
         </div>
       </div>
@@ -510,6 +556,51 @@ watch(currentUser, (u) => {
   font-size: 12.5px;
 }
 
+.awaiting-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--schools-red-deep, var(--schools-red));
+  background: rgba(194, 58, 58, 0.1);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.links-cell {
+  display: flex;
+  gap: 6px;
+  cursor: default;
+}
+
+.link-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--schools-border);
+  background: #fafaf6;
+  color: var(--schools-fg-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.link-chip:hover:not(:disabled) {
+  border-color: var(--schools-red);
+  color: var(--schools-red);
+}
+
+.link-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.link-chip.is-copied {
+  color: #1a7f37;
+  border-color: #1a7f37;
+}
+
 .row-action {
   text-align: right;
 }
@@ -625,6 +716,15 @@ watch(currentUser, (u) => {
   border: 1px solid var(--schools-border);
   border-radius: 6px;
   padding: 8px 10px;
+}
+
+.invite-modal-link-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--schools-fg-2);
+  flex: none;
 }
 
 .invite-modal-link {
