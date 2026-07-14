@@ -37,6 +37,8 @@ import { useOfflinePlay } from '../composables/useOfflinePlay'
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
 import { useBehaviouralEvidence } from '../composables/useBehaviouralEvidence'
+import { recordEnvelopeEvidence } from '../composables/useEnvelopeEvidence'
+import { createEnvelopeMetadataCache, type EnvelopeMetadataCache } from '../composables/useEnvelopeMetadataCache'
 import { createEvidenceAggregator, type RoundPlan } from '@ssi/core'
 import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/adaptationOverrides'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -1549,6 +1551,41 @@ simplePlayer.onCycleCompleted((cycle) => {
       latency,
       cycle.target.text.length
     )
+  }
+
+  // Envelope evidence (adaptation v2 WP-8, stitched here per WP-3): only
+  // when stage 2 is on, the model cache exists (live Supabase client), the
+  // VAD captured a usable envelope this cycle, and we can resolve the
+  // cycle's target1 audio id. Async (a batch fetch may be needed) and
+  // fire-and-forget, same pattern as `learningSession.recordCycleComplete`
+  // below — never blocks the next cycle.
+  if (
+    adaptationV2Config.value.stage2_enabled &&
+    envelopeMetadataCache.value &&
+    cycle.legoId &&
+    lastTimingResult.value?.envelope
+  ) {
+    const voice1Match = cycle.target?.voice1Url?.match(/\/api\/audio\/([^?/]+)/)
+    const audioId = voice1Match ? voice1Match[1] : null
+    if (audioId) {
+      const legoId = cycle.legoId
+      const cycleId = cycle.id
+      const learnerEnvelope = lastTimingResult.value.envelope
+      const occurredAtMs = performance.now()
+      envelopeMetadataCache.value.fetchBatch([audioId]).then(() => {
+        recordEnvelopeEvidence({
+          sink: sharedEvidenceAggregator,
+          cache: envelopeMetadataCache.value!,
+          legoId,
+          audioId,
+          learnerEnvelope,
+          cycleId,
+          occurredAtMs,
+        })
+      }).catch(err => {
+        console.warn('[LearningPlayer] Envelope evidence fetch failed (stage-2 no-op this cycle):', err)
+      })
+    }
   }
 
   resonatingNodes.value = []
@@ -3618,6 +3655,13 @@ const initializeAdaptationEngine = async () => {
   })
   await engine.initialize()
   adaptationEngine.value = engine
+
+  // Envelope evidence (WP-8/stitched WP-3): needs a live Supabase client to
+  // fetch model rows — guests / offline never get one, so envelope evidence
+  // simply doesn't fire for them (latency + behavioural evidence still do).
+  if (supabase.value && !envelopeMetadataCache.value) {
+    envelopeMetadataCache.value = createEnvelopeMetadataCache(supabase.value)
+  }
 }
 
 /**
@@ -8648,6 +8692,13 @@ const sharedEvidenceAggregator = createEvidenceAggregator()
 // Behavioural evidence producer (adaptation v2 WP-1) — maps the taps/skips
 // already logged below into the shared evidence stream.
 const behaviouralEvidence = useBehaviouralEvidence(sharedEvidenceAggregator)
+
+// Envelope evidence producer (adaptation v2 WP-8, stitched WP-3): the model
+// envelope cache (WP-7a) is created once Supabase is available (see
+// initializeAdaptationEngine below) and read from in onCycleCompleted. Stays
+// null under `stage2_enabled:false` (default) or for guests without a
+// client — recordEnvelopeEvidence call site below no-ops in that case.
+const envelopeMetadataCache = shallowRef<EnvelopeMetadataCache | null>(null)
 
 // Adaptation v2 (WP-3): the latest computed RoundPlan, and the set of cycle
 // ids it says to skip this round — both non-null ONLY when the engine is
