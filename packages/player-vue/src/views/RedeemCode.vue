@@ -306,6 +306,14 @@ async function doRedeem() {
       // clobbering the optimistic role set above before the redirect
       // below fires. See useAuth.refreshRole for the full race.
       await auth?.refreshRole?.()
+      // Student class-invite redemption: carry the class's course through
+      // the redirect (same pattern as DashboardView.vue/WithTeacher.vue),
+      // otherwise the redirect below lands on App.vue's cold-boot default
+      // course instead of the class's actual course (finding #3, 2026-07-13
+      // audit).
+      if (result.courseCode) {
+        localStorage.setItem('ssi-last-course', result.courseCode)
+      }
       step.value = 'success'
       redirectUrl.value = result.redirectTo || '/'
       setTimeout(() => {
