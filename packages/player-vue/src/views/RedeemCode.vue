@@ -19,6 +19,17 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth', null)
 const supabase = inject<any>('supabase', ref(null))
+// App.vue's own course-switch machinery (used by CourseSelector picks): the
+// ONLY path that both re-resolves activeCourse/courseDataProvider on an SPA
+// navigation (App.vue's own boot-time fetchEnrolledCourses runs once, before
+// this page's redemption completes, so a plain localStorage write is never
+// re-read) AND persists to learners.preferences for cross-device/next-sign-in
+// default. Plain localStorage-only writes here were the root cause of a
+// student's class course getting silently dropped after redemption
+// (2026-07-15 owner finding: student landed in the catalogue default course
+// instead of their class's).
+const handleCourseSelect = inject<((course: any) => Promise<void>) | null>('handleCourseSelect', null)
+const enrolledCourses = inject<{ value: any[] } | null>('enrolledCourses', null)
 const { validateCode, redeemCode, possessionRedeem, pendingCode, clearPendingCode, validationError } = useInviteCode()
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
@@ -363,6 +374,28 @@ async function handleVerifyOtp() {
   }
 }
 
+/** Force the app onto the class's course right now — not just next boot.
+ *  App.vue's fetchEnrolledCourses resolves activeCourse ONCE at mount, which
+ *  happens before this page's redemption completes; a localStorage write
+ *  alone is never re-read on the SPA `router.push` redirect below, so the
+ *  class course silently loses to whatever App.vue picked at cold boot
+ *  (2026-07-15 finding). Mirrors the CourseSelector pick path exactly. */
+async function switchActiveCourseTo(courseCode: string): Promise<void> {
+  if (!handleCourseSelect) return
+  let courseRow = enrolledCourses?.value?.find((c: any) => c.course_code === courseCode) || null
+  if (!courseRow && supabase.value) {
+    const { data } = await supabase.value
+      .from('courses')
+      .select('*')
+      .eq('course_code', courseCode)
+      .maybeSingle()
+    courseRow = data || null
+  }
+  if (courseRow) {
+    await handleCourseSelect(courseRow)
+  }
+}
+
 function backToDetails() {
   error.value = ''
   otpCode.value = ''
@@ -429,13 +462,14 @@ async function doRedeem() {
       // clobbering the optimistic role set above before the redirect
       // below fires. See useAuth.refreshRole for the full race.
       await auth?.refreshRole?.()
-      // Student class-invite redemption: carry the class's course through
-      // the redirect (same pattern as DashboardView.vue/WithTeacher.vue),
-      // otherwise the redirect below lands on App.vue's cold-boot default
-      // course instead of the class's actual course (finding #3, 2026-07-13
-      // audit).
+      // Student class-invite redemption: force the app onto the class's
+      // course right now (not just "next boot") — the localStorage-only
+      // write (finding #3, 2026-07-13 audit) was necessary but not
+      // sufficient, since App.vue only reads it once at initial mount,
+      // before this redemption completes (2026-07-15 finding: a student who
+      // joined a Welsh class landed in the catalogue default course anyway).
       if (result.courseCode) {
-        localStorage.setItem('ssi-last-course', result.courseCode)
+        await switchActiveCourseTo(result.courseCode)
       }
       // useSchoolContext.loadFromAuth is idempotent for an already-loaded
       // 'self' scope of the SAME auth user (deliberately, to avoid

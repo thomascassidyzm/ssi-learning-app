@@ -531,4 +531,111 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(writes.groups.filter((w) => w.op === 'insert')).toHaveLength(2)
     expect(writes.groups.filter((w) => w.op === 'delete')).toHaveLength(1)
   })
+
+  it('student branch: tags into the class, enrols in course_enrollments, and returns the class course_code (2026-07-15 landing fix)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-1',
+            code: 'STU-123',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: 'class-welsh-1',
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-student-1' }, error: null }
+      return { data: null, error: null }
+    }
+    responders.classes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { course_code: 'cym_for_eng' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-123', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.role).toBe('student')
+    // The class's course_code comes back so the client can land the student
+    // straight on it — the redirect target itself (finding #3, 2026-07-13).
+    expect(res._json.courseCode).toBe('cym_for_eng')
+    // Tagged onto the class roster.
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'class',
+      tag_value: 'CLASS:class-welsh-1',
+      role_in_context: 'student',
+    })
+    // Actually enrolled in the class's course — not just tagged (2026-07-15
+    // finding: a class-invite student had a CLASS: tag but no
+    // course_enrollments row, so "landed in the right course" wasn't the same
+    // as "enrolled and ready to play").
+    expect(writes.course_enrollments).toHaveLength(1)
+    expect(writes.course_enrollments[0].op).toBe('upsert')
+    expect(writes.course_enrollments[0].payload).toEqual({
+      learner_id: 'learner-student-1',
+      course_id: 'cym_for_eng',
+    })
+  })
+
+  it('student branch: a failed course_enrollments write does not fail the redemption', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-2',
+            code: 'STU-456',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: 'class-welsh-2',
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-student-2' }, error: null }
+      return { data: null, error: null }
+    }
+    responders.classes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { course_code: 'zho_for_eng' }, error: null }
+      return { data: null, error: null }
+    }
+    responders.course_enrollments = () => ({ data: null, error: { code: '23503', message: 'boom' } })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-456', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.courseCode).toBe('zho_for_eng')
+  })
 })

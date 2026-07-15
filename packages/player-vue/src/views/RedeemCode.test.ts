@@ -25,7 +25,7 @@ function mockFetchByUrl(handlers: Record<string, unknown>) {
   })
 }
 
-function mountRedeemCode(fetchHandlers: Record<string, unknown>, authOverrides: any = {}) {
+function mountRedeemCode(fetchHandlers: Record<string, unknown>, authOverrides: any = {}, extraProvide: any = {}) {
   const supabase = ref({
     auth: {
       getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'sess-tok' } } }),
@@ -34,6 +34,11 @@ function mountRedeemCode(fetchHandlers: Record<string, unknown>, authOverrides: 
       signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
       verifyOtp: vi.fn().mockResolvedValue({ error: null }),
     },
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    })),
   })
   const auth = {
     isAuthenticated: ref(false),
@@ -43,7 +48,7 @@ function mountRedeemCode(fetchHandlers: Record<string, unknown>, authOverrides: 
   }
   vi.stubGlobal('fetch', mockFetchByUrl(fetchHandlers))
   const wrapper = mount(RedeemCode, {
-    global: { provide: { supabase, auth } },
+    global: { provide: { supabase, auth, ...extraProvide } },
   })
   return { wrapper, supabase, auth }
 }
@@ -136,5 +141,85 @@ describe('RedeemCode.vue — possession-based onboarding', () => {
     expect(wrapper.find('#redeem-details-email').exists()).toBe(false)
     expect(wrapper.find('#redeem-email').exists()).toBe(true)
     expect(supabase.value.auth.signInWithOtp).not.toHaveBeenCalled()
+  })
+})
+
+describe('RedeemCode.vue — class-course landing (2026-07-15 finding)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // Regression for: a student who joined a class via the invite link landed
+  // in the catalogue default course instead of their class's — App.vue's
+  // activeCourse is resolved ONCE at boot, before this page's redemption
+  // completes, so a bare localStorage write (the old fix) was never re-read.
+  // The fix routes through App.vue's own handleCourseSelect, the same
+  // machinery CourseSelector uses for an explicit switch.
+  it('a student class-invite redemption switches the app onto the class course via handleCourseSelect', async () => {
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const enrolledCourses = ref([
+      { course_code: 'zho_for_eng', display_name: 'Chinese' },
+      { course_code: 'cym_for_eng', display_name: 'Welsh' },
+    ])
+    const { wrapper } = mountRedeemCode(
+      {
+        '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-3', codeType: 'student', context: { className: 'Welsh 101' } },
+        '/api/auth/possession-redeem': { success: true, session: { access_token: 'at-1', refresh_token: 'rt-1' } },
+        '/api/code/redeem': { success: true, role: 'student', redirectTo: '/', courseCode: 'cym_for_eng', label: 'Student Invite' },
+      },
+      {},
+      { handleCourseSelect, enrolledCourses }
+    )
+    await flushAsync()
+
+    await wrapper.find('#redeem-details-email').setValue('student@school.example')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushAsync()
+    await flushAsync()
+
+    expect(handleCourseSelect).toHaveBeenCalledTimes(1)
+    expect(handleCourseSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ course_code: 'cym_for_eng', display_name: 'Welsh' })
+    )
+  })
+
+  it('falls back to fetching the course row from Supabase when the catalogue has not loaded yet', async () => {
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const enrolledCourses = ref([]) // catalogue not loaded yet at redemption time
+    const maybeSingle = vi.fn().mockResolvedValue({ data: { course_code: 'cym_for_eng', display_name: 'Welsh' }, error: null })
+    const supabaseOverride = ref({
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'sess-tok' } } }),
+        setSession: vi.fn().mockResolvedValue({ error: null }),
+        signOut: vi.fn().mockResolvedValue({}),
+        signInWithOtp: vi.fn().mockResolvedValue({ error: null }),
+        verifyOtp: vi.fn().mockResolvedValue({ error: null }),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        maybeSingle,
+      })),
+    })
+    const auth = { isAuthenticated: ref(false), user: ref(null), refreshRole: vi.fn().mockResolvedValue(undefined) }
+    vi.stubGlobal('fetch', mockFetchByUrl({
+      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-4', codeType: 'student', context: { className: 'Welsh 101' } },
+      '/api/auth/possession-redeem': { success: true, session: { access_token: 'at-1', refresh_token: 'rt-1' } },
+      '/api/code/redeem': { success: true, role: 'student', redirectTo: '/', courseCode: 'cym_for_eng', label: 'Student Invite' },
+    }))
+    const wrapper = mount(RedeemCode, {
+      global: { provide: { supabase: supabaseOverride, auth, handleCourseSelect, enrolledCourses } },
+    })
+    await flushAsync()
+
+    await wrapper.find('#redeem-details-email').setValue('student@school.example')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushAsync()
+    await flushAsync()
+
+    expect(maybeSingle).toHaveBeenCalled()
+    expect(handleCourseSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ course_code: 'cym_for_eng' })
+    )
   })
 })
