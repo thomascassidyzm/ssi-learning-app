@@ -85,7 +85,7 @@ function isAlreadyRegisteredError(error: any): boolean {
 
 async function logAttempt(
   supabase: ReturnType<typeof createClient>,
-  fields: { inviteCodeId?: string | null; email?: string | null; ipHash: string; outcome: string; authUserId?: string | null }
+  fields: { inviteCodeId?: string | null; email?: string | null; ipHash: string; outcome: string; authUserId?: string | null; errorDetail?: string | null }
 ): Promise<void> {
   try {
     const { error } = await supabase.from('possession_mint_attempts').insert({
@@ -94,6 +94,7 @@ async function logAttempt(
       ip_hash: fields.ipHash,
       outcome: fields.outcome,
       auth_user_id: fields.authUserId ?? null,
+      error_detail: fields.errorDetail ?? null,
     })
     if (error) console.warn('[PossessionRedeem] Failed to log attempt:', error.message)
   } catch (err) {
@@ -216,7 +217,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return
       }
       console.error('[PossessionRedeem] createUser failed:', createError)
-      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'error' })
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'error', errorDetail: createError?.message ?? 'createUser returned no user' })
       res.status(500).json({ success: false, error: 'Could not create account. Please try again.' })
       return
     }
@@ -234,16 +235,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (linkError || !hashedToken) {
       console.error('[PossessionRedeem] generateLink failed:', linkError)
       await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
-      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'error', authUserId: newUserId })
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'error', authUserId: newUserId, errorDetail: linkError?.message ?? 'generateLink returned no hashed_token' })
       res.status(500).json({ success: false, error: 'Could not set up your account. Please try again.' })
       return
     }
 
     // Anon-key client (not admin) mints the session — GoTrue validates the
-    // token_hash regardless of which client presents it.
+    // token_hash regardless of which client presents it. GoTrue rejects the
+    // call if `email` is passed alongside `token_hash` ("Only the token_hash
+    // and type should be provided") — token_hash verification is meant to be
+    // self-contained; confirmed live 2026-07-15 (repro against production
+    // Supabase reproduced the exact mint_failed audit outcome, fixed by
+    // dropping `email` here).
     const anonClient = createClient(supabaseUrl, supabaseAnonKey)
     const { data: verifyData, error: verifyError } = await anonClient.auth.verifyOtp({
-      email: normalizedEmail,
       token_hash: hashedToken,
       type: 'magiclink',
     })
@@ -251,7 +256,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (verifyError || !verifyData?.session) {
       console.error('[PossessionRedeem] verifyOtp (session mint) failed:', verifyError)
       await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
-      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'mint_failed', authUserId: newUserId })
+      await logAttempt(supabase, {
+        inviteCodeId: inviteRow.id as string,
+        email: normalizedEmail,
+        ipHash,
+        outcome: 'mint_failed',
+        authUserId: newUserId,
+        errorDetail: verifyError?.message ?? 'verifyOtp returned no session',
+      })
       res.status(500).json({ success: false, error: 'Could not sign you in. Please try again.' })
       return
     }
@@ -267,7 +279,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     })
   } catch (error: any) {
     console.error('[PossessionRedeem] Error:', error)
-    await logAttempt(supabase, { email: normalizedEmail, ipHash, outcome: 'error' })
+    await logAttempt(supabase, { email: normalizedEmail, ipHash, outcome: 'error', errorDetail: error?.message ?? String(error) })
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 }
