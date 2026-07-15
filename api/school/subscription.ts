@@ -26,6 +26,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { isPlatformActive } from '../_utils/platformStatus'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -45,24 +46,6 @@ function isMissingPlatformSchema(err: { code?: string; message?: string } | null
   return /column .* does not exist|relation .* does not exist|could not find the .* column|schema cache/i.test(
     err.message || '',
   )
-}
-
-/**
- * The platform gate, applied identically client + server:
- *   active = status === 'active'
- *         || status == null                       (legacy / pre-migration)
- *         || (status === 'trial' && (expires_at == null || expires_at > now))
- * NULL / absent status fails OPEN (true) — legacy rows and pre-migration DBs.
- * A 'trial' with NO expiry also fails OPEN: that is the bare schools.platform_status
- * DEFAULT 'trial' (migration 20260616) before provision.ts stamps a real window,
- * a pre-lever-3 school, or a row orphaned by an email-burn 409. Only an ELAPSED
- * trial (non-null expiry in the past) or an explicit expired/past_due/cancelled locks.
- */
-function isPlatformActive(status: string | null | undefined, expiresAt: string | null | undefined): boolean {
-  if (status == null) return true // legacy / pre-migration → fail open
-  if (status === 'active') return true
-  if (status === 'trial') return !expiresAt || new Date(expiresAt).getTime() > Date.now()
-  return false // past_due | expired | cancelled
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

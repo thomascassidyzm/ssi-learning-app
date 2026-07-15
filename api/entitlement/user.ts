@@ -7,6 +7,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { resolveClassCourseCoverage } from '../_utils/classCoverage'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -83,6 +84,28 @@ export default async function handler(
     } catch (cascadeErr) {
       // Non-fatal — cascade is additive, don't block user entitlements
       console.error('[EntitlementUser] Cascade error (non-fatal):', cascadeErr)
+    }
+
+    // Class-coverage entitlement (docs/schools/group-commercial-model.md,
+    // "Student entitlement — FINAL model", 2026-07-15): a class-affiliated
+    // student gets their class's course in full for as long as that class's
+    // school has live platform coverage (trial or paid) — derived fresh on
+    // every check, no student-level state to expire or wipe.
+    try {
+      const classCourses = await resolveClassCourseCoverage(supabase, userId)
+      if (classCourses.length > 0) {
+        active.push({
+          id: 'class-coverage',
+          access_type: 'courses',
+          granted_courses: classCourses,
+          expires_at: null,
+          redeemed_at: null,
+          entitlement_code_id: null,
+        })
+      }
+    } catch (classCoverageErr) {
+      // Non-fatal — additive, don't block user entitlements
+      console.error('[EntitlementUser] Class-coverage error (non-fatal):', classCoverageErr)
     }
 
     res.status(200).json({ entitlements: active })
