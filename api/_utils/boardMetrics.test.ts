@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { BOARD_METRICS, getBoardMetric, resolveBoardMetric, resolveAllBoardMetrics } from './boardMetrics'
 
 // Minimal chainable Supabase mock — enough surface for each resolver's
-// query shape (select/eq/gte/range, plus the head-count form).
-function makeSvc(tables: Record<string, any>) {
+// query shape (select/eq/gte/range, plus the head-count form and .rpc()).
+function makeSvc(tables: Record<string, any>, rpc: Record<string, any> = {}) {
   return {
+    rpc(fn: string) {
+      return Promise.resolve({ data: rpc[fn] ?? [], error: null })
+    },
     from(table: string) {
       const rows = tables[table] ?? []
       const builder: any = {
@@ -63,29 +66,29 @@ describe('boardMetrics registry', () => {
 })
 
 describe('learners.active_30d', () => {
-  it('counts distinct non-demo learners with a session in the window', async () => {
+  it('counts distinct non-test learners with a session in the window', async () => {
     const now = Date.now()
     const recent = new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString()
     const stale = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString()
-    const svc = makeSvc({
-      learners: [
-        { id: 'demo-1', is_demo: true },
-      ],
-      sessions: [
-        { learner_id: 'l1', started_at: recent },
-        { learner_id: 'l1', started_at: recent }, // same learner twice — deduped
-        { learner_id: 'l2', started_at: recent },
-        { learner_id: 'demo-1', started_at: recent }, // demo learner — excluded
-        { learner_id: 'l3', started_at: stale }, // outside window — excluded
-      ],
-    })
+    const svc = makeSvc(
+      {
+        sessions: [
+          { learner_id: 'l1', started_at: recent },
+          { learner_id: 'l1', started_at: recent }, // same learner twice — deduped
+          { learner_id: 'l2', started_at: recent },
+          { learner_id: 'demo-1', started_at: recent }, // test learner — excluded
+          { learner_id: 'l3', started_at: stale }, // outside window — excluded
+        ],
+      },
+      { test_learner_ids: [{ learner_id: 'demo-1' }] },
+    )
     const result = await resolveBoardMetric(svc, 'learners.active_30d')
     expect(result?.value).toBe(2)
     expect(result?.asOf).toBeTruthy()
   })
 
   it('returns zero with no sessions', async () => {
-    const svc = makeSvc({ learners: [], sessions: [] })
+    const svc = makeSvc({ sessions: [] })
     const result = await resolveBoardMetric(svc, 'learners.active_30d')
     expect(result?.value).toBe(0)
   })
@@ -112,12 +115,12 @@ describe('minutes.total_30d', () => {
 })
 
 describe('schools.total', () => {
-  it('counts only non-demo schools', async () => {
+  it('counts only non-test schools', async () => {
     const svc = makeSvc({
       schools: [
-        { id: 's1', is_demo: false },
-        { id: 's2', is_demo: false },
-        { id: 's3', is_demo: true },
+        { id: 's1', is_test: false },
+        { id: 's2', is_test: false },
+        { id: 's3', is_test: true },
       ],
     })
     const result = await resolveBoardMetric(svc, 'schools.total')
@@ -136,10 +139,9 @@ describe('resolveBoardMetric', () => {
 describe('resolveAllBoardMetrics', () => {
   it('resolves all three metrics with slug/label/method/value/asOf', async () => {
     const svc = makeSvc({
-      learners: [],
       sessions: [],
       daily_contributions: [],
-      schools: [{ id: 's1', is_demo: false }],
+      schools: [{ id: 's1', is_test: false }],
     })
     const results = await resolveAllBoardMetrics(svc)
     expect(results).toHaveLength(3)

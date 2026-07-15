@@ -202,7 +202,7 @@ async function registerJoinCodes(q, schoolId, createdBy) {
   // ---- group + govt_admin leader persona ----
   console.log(`\n— GROUP: ${GROUP_NAME} —`)
   const groupId = uuid()
-  await q(`insert into public.groups (id, name, type, is_demo) values ($1,$2,'programme',true)`, [groupId, GROUP_NAME])
+  await q(`insert into public.groups (id, name, type, is_demo, is_test) values ($1,$2,'programme',true,true)`, [groupId, GROUP_NAME])
 
   const leaderEmail = emailFor('leader')
   const leaderUid = await ensureAuthUser(leaderEmail)
@@ -232,9 +232,9 @@ async function registerJoinCodes(q, schoolId, createdBy) {
       // §5c REVISED + api/govt/create-school.ts pattern) — admin_user_id NULL,
       // trial clock set now since there is no later provision() hop for this school.
       await q(`insert into public.schools
-               (id, school_name, admin_user_id, teacher_join_code, admin_join_code, group_id, is_demo,
+               (id, school_name, admin_user_id, teacher_join_code, admin_join_code, group_id, is_demo, is_test,
                 platform_status, trial_kind, platform_expires_at)
-               values ($1,$2,NULL,$3,$4,$5,true,'trial','free_1yr',$6)`,
+               values ($1,$2,NULL,$3,$4,$5,true,true,'trial','free_1yr',$6)`,
         [schoolId, sch.name, `${codePrefix}-T`, `${codePrefix}-A`, groupId, new Date(now + 365 * DAY).toISOString()])
       await registerJoinCodes(q, schoolId, ssiAdminUid)
       totals.schools[sch.key] = { teachers: 0, classes: 0, students: 0, sessions: 0, classSessions: 0 }
@@ -257,9 +257,9 @@ async function registerJoinCodes(q, schoolId, createdBy) {
       await q(`update public.learners set display_name=$1, educational_role='teacher', is_demo=true where user_id=$2`, [staff.teachers[i], teacherUids[i]])
 
     await q(`insert into public.schools
-             (id, school_name, admin_user_id, teacher_join_code, admin_join_code, group_id, is_demo,
+             (id, school_name, admin_user_id, teacher_join_code, admin_join_code, group_id, is_demo, is_test,
               platform_status, trial_kind, trial_course_code, platform_expires_at)
-             values ($1,$2,$3,$4,$5,$6,true,'trial','free_1yr',$7,$8)`,
+             values ($1,$2,$3,$4,$5,$6,true,true,'trial','free_1yr',$7,$8)`,
       [schoolId, sch.name, adminUid, `${codePrefix}-T`, `${codePrefix}-A`, groupId, COURSE_CODE, new Date(now + 365 * DAY).toISOString()])
     await registerJoinCodes(q, schoolId, adminUid)
 

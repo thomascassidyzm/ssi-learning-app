@@ -4,9 +4,13 @@
  * One place every board number comes from: slug, label, one-line method
  * (shown on hover so a board number is never unexplained), and a resolver
  * that runs a live query against the service-role Supabase client. All
- * global aggregates exclude is_demo rows (learners/schools), the standing
- * rule from the 2026-06-10 demo-data-separation migration — otherwise the
- * IME/Ireland demo estate would inflate real business numbers.
+ * global aggregates exclude test/demo rows via the FLAG, never a name
+ * heuristic: schools.total uses schools.is_test (superset of is_demo — see
+ * 20260715_schools_groups_is_test_flag.sql); the learner metrics use
+ * test_learner_ids() (20260715_test_learner_exclusion.sql), a superset of
+ * is_demo covering staff/QA (is_internal), owner plus-address test accounts,
+ * and real signups tied to an is_test school/class. Otherwise the demo/test
+ * estate inflates real business numbers.
  *
  * Server-side only (Vercel functions) — never called from the browser, per
  * the resolveVisibleScope division of labour.
@@ -38,12 +42,13 @@ const SESSIONS_PAGE_SIZE = 1000
 const SESSIONS_MAX_PAGES = 25
 
 async function countActiveLearners(svc: SupabaseClient, sinceIso: string): Promise<number> {
-  const { data: demoRows, error: demoError } = await svc
-    .from('learners')
-    .select('id')
-    .eq('is_demo', true)
-  if (demoError) throw demoError
-  const demoIds = new Set((demoRows ?? []).map(r => r.id as string))
+  // test_learner_ids() is the canonical test/internal/demo learner set (see
+  // 20260715_test_learner_exclusion.sql) — a superset of is_demo alone, which
+  // undercounted by missing staff/QA accounts, owner plus-address test
+  // signups, and real signups tied to is_test schools/classes.
+  const { data: testRows, error: testError } = await svc.rpc('test_learner_ids')
+  if (testError) throw testError
+  const testIds = new Set((testRows ?? []).map((r: { learner_id: string }) => r.learner_id))
 
   const activeIds = new Set<string>()
   for (let page = 0; page < SESSIONS_MAX_PAGES; page++) {
@@ -58,7 +63,7 @@ async function countActiveLearners(svc: SupabaseClient, sinceIso: string): Promi
     if (!data || data.length === 0) break
     for (const row of data) {
       const learnerId = row.learner_id as string
-      if (!demoIds.has(learnerId)) activeIds.add(learnerId)
+      if (!testIds.has(learnerId)) activeIds.add(learnerId)
     }
     if (data.length < SESSIONS_PAGE_SIZE) break
   }
@@ -69,7 +74,7 @@ export const BOARD_METRICS: BoardMetric[] = [
   {
     slug: 'learners.active_30d',
     label: 'Active learners (30d)',
-    method: 'Distinct learners with a session in the last 30 days, excluding demo learners.',
+    method: 'Distinct learners with a session in the last 30 days, excluding demo/internal/test learners (test_learner_ids()).',
     async resolve(svc) {
       const asOf = new Date().toISOString()
       const since = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
@@ -80,7 +85,7 @@ export const BOARD_METRICS: BoardMetric[] = [
   {
     slug: 'minutes.total_30d',
     label: 'Practice minutes (30d)',
-    method: 'Sum of daily_contributions.minutes_practiced over the last 30 days (demo sessions already excluded at write time by the update_daily_contributions trigger).',
+    method: 'Sum of daily_contributions.minutes_practiced over the last 30 days (demo/internal/test sessions already excluded at write time by the update_daily_contributions trigger via test_learner_ids()).',
     async resolve(svc) {
       const asOf = new Date().toISOString()
       const sinceDate = new Date(Date.now() - THIRTY_DAYS_MS).toISOString().slice(0, 10)
@@ -96,13 +101,13 @@ export const BOARD_METRICS: BoardMetric[] = [
   {
     slug: 'schools.total',
     label: 'Schools on platform',
-    method: 'Count of schools rows, excluding demo schools.',
+    method: 'Count of schools rows, excluding is_test schools (soak-test/E2E/owner-test — a superset of is_demo; every school in the DB is currently is_test, so this reads 0 until a real pilot school lands).',
     async resolve(svc) {
       const asOf = new Date().toISOString()
       const { count, error } = await svc
         .from('schools')
         .select('id', { count: 'exact', head: true })
-        .eq('is_demo', false)
+        .eq('is_test', false)
       if (error) throw error
       return { value: count ?? 0, asOf }
     },
