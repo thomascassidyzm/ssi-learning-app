@@ -20,6 +20,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, chunk } from '../_utils/schoolScope'
+import { filterActiveScope } from '../_utils/schoolCoverageGate'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -52,7 +53,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .map(s => s.trim())
       .filter(Boolean)
     const inScope = new Set(scope.classIds)
-    const classIds = requested.length ? requested.filter(id => inScope.has(id)) : scope.classIds
+    const requestedClassIds = requested.length ? requested.filter(id => inScope.has(id)) : scope.classIds
+
+    // Coverage gate: a school whose platform trial/subscription has lapsed
+    // goes dark for its own teacher/school_admin view (client-side, this is
+    // SchoolsContainer's platformActive gate) — enforce the same rule here
+    // for direct API callers. Group rollups are exempt (see schoolCoverageGate.ts).
+    const { classIds: coveredClassIds, blocked } = await filterActiveScope(svc, { ...scope, classIds: requestedClassIds })
+    if (blocked) {
+      res.status(403).json({ error: 'coverage_expired', message: 'This school’s platform coverage has expired.' })
+      return
+    }
+    const classIds = coveredClassIds
 
     if (classIds.length === 0) {
       res.setHeader('Cache-Control', 'no-store')

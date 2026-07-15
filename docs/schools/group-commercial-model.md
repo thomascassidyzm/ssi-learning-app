@@ -38,15 +38,28 @@ window at redemption before commit (the resolution of the earlier think-piece's 
 #1). 365-day no-lock stays for minority-language schools. Expiry → **read-only**
 (dashboards stay visible, play stops) — never lockout.
 
-**Trial clock is per teacher seat, not per school (owner ruling, 2026-07-15).** The 30-day
-clock attaches to the individual teacher, starting at *that teacher's* first course pick —
-consistent with "the unit is the teacher, not the school" above. One school can therefore
-have several teachers on independent, staggered trial clocks; this is intended behaviour
-(bottom-up adoption — a school doesn't need a single synchronised start). Serial-trial abuse
-via fake teacher rotation (spinning up throwaway teacher accounts to keep re-triggering
-fresh 30-day clocks) is accepted as self-limiting pre-Paddle: the teacher roster is visible
-to the school admin and staff are finite, so the abuse doesn't scale quietly. No guard is
-built for it by policy — revisit only if real abuse shows up post-Paddle, not preemptively.
+~~**Trial clock is per teacher seat, not per school (owner ruling, 2026-07-15 morning).** The
+30-day clock attaches to the individual teacher, starting at *that teacher's* first course
+pick — consistent with "the unit is the teacher, not the school" above. One school can
+therefore have several teachers on independent, staggered trial clocks; this is intended
+behaviour (bottom-up adoption — a school doesn't need a single synchronised start). Serial-
+trial abuse via fake teacher rotation (spinning up throwaway teacher accounts to keep
+re-triggering fresh 30-day clocks) is accepted as self-limiting pre-Paddle: the teacher
+roster is visible to the school admin and staff are finite, so the abuse doesn't scale
+quietly. No guard is built for it by policy — revisit only if real abuse shows up
+post-Paddle, not preemptively.~~
+
+**SUPERSEDED 2026-07-15 (owner ruling): trial clock is SCHOOL-LEVEL, one clock per school —
+not per teacher seat.** `schools.platform_status`/`platform_expires_at` is the one trial/paid
+clock a school carries; every teacher and class at that school shares it. This is consistent
+with (and was already the FACTUAL implementation, not just the eventual target) the
+class-coverage cascade landed the same day (`api/_utils/classCoverage.ts`,
+"Implementation (landed 2026-07-15)" below) and the coverage gate on the schools
+rollup/analytics endpoints (`api/_utils/schoolCoverageGate.ts`) — both key off the school row,
+never a per-teacher-seat row. The per-teacher-seat clock idea above was a same-day morning
+ruling superseded by this one before any per-seat trial column was ever built; no migration
+or backfill is needed. A `teachers` row's own `platform_status` (the separate private-tutor
+product, §"Implementation" below) is unrelated and keeps its own independent clock.
 
 **Regional bands:** price band set once per school/group by an SSi human at creation time;
 Paddle carries the per-region price lists. Three bands as the object model; band values are
@@ -119,15 +132,31 @@ On lapse, the class-coverage grant simply stops being added on the next check (n
 invalidate, nothing to revoke) — the student falls through to the existing free/community and
 universal-Yellow-belt-preview rules, per (3) above.
 
-**Scoped out — follow-up, not built this pass:** server-side enforcement of (4) at the API
-layer. Today, live-affiliation visibility is enforced **client-side** (`SchoolsContainer`'s
-`showExpired`/`platformActive` gate already blocks the whole dashboard, all student-data views
-included, the instant a school's coverage lapses) but the schools rollup/analytics endpoints
-behind `resolveVisibleScope` (`api/_utils/schoolScope.ts`) do not themselves check
-`platform_status` — they'd still serve student data to a direct API call from an expired
-school's own admin/teacher session. This is a genuine separate build (touches every rollup
-endpoint, needs its own fail-open care) rather than a one-line addition riding along with the
-entitlement work above — logged here rather than half-built.
+**Server-side enforcement of (4), landed 2026-07-15** (`api/_utils/schoolCoverageGate.ts`):
+live-affiliation visibility was enforced **client-side only** (`SchoolsContainer`'s
+`showExpired`/`platformActive` gate blocks the whole dashboard, all student-data views
+included, the instant a school's coverage lapses), but the schools rollup/analytics endpoints
+behind `resolveVisibleScope` (`api/_utils/schoolScope.ts`) didn't themselves check
+`platform_status` — a direct API call from an expired school's own admin/teacher session still
+got student data. Closed by applying the same `isPlatformActive` predicate server-side in
+every endpoint that resolves a caller's own school/class-anchored scope:
+- `api/school/class-practice-7d.ts`, `api/school/daily-activity.ts` — filter the caller's
+  classIds to schools with live coverage (`filterActiveScope`); 403 `coverage_expired` only
+  when the caller's WHOLE resolved scope has lapsed (a teacher spanning >1 school only loses
+  the expired school's classes, not their entire view).
+- `api/school/rate-compare.ts` — 403 `coverage_expired` when the requested `entity_id`'s own
+  school (`entity_level='class'` or `'school'`) has lapsed (`isEntityCoverageExpired`).
+
+**Group-level rollups are deliberately exempt (owner ruling, PROPOSED — flagging since it's
+the one contentious call in this pass):** an expired school does NOT drop out of its group's
+aggregates. A group's rollup is the group leader's own-program view, already privacy-floored
+(K_FLOOR) — losing one school's numbers mid-trial-lapse would make the group's own trend data
+noisier for a fact the group leader has no lever over, whereas a school/class-scoped
+drill-down is exactly the surface the expired school's own admin/teacher would otherwise use
+to keep seeing their students. So `filterActiveScope` passes a govt_admin's scope through
+unfiltered, and `rate-compare.ts`'s `entity_level='group'` is never gated (`ownSchoolId` is
+null at that level). Revisit if this reads wrong once a real school lapses inside a live
+group.
 
 ---
 
