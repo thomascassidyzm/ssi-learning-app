@@ -512,6 +512,44 @@ export function useAdminUserDetail(client: SupabaseClient) {
     }
   }
 
+  // Admin rescue tool: mint a one-time sign-in link for the target user
+  // (school email gateways sometimes eat OTP mail). Returns the link URL,
+  // or null on failure (caller shows `error`).
+  async function createSigninLink(
+    learnerId: string,
+    getAuthToken: () => Promise<string | null>
+  ): Promise<{ actionLink: string; email: string } | null> {
+    error.value = null
+    const token = await getAuthToken()
+    if (!token) {
+      error.value = 'Not signed in'
+      return null
+    }
+
+    try {
+      const resp = await fetch('/api/admin/create-signin-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ learner_id: learnerId }),
+      })
+
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        error.value = data.error || 'Failed to create sign-in link'
+        return null
+      }
+
+      return { actionLink: data.action_link, email: data.email }
+    } catch (err) {
+      console.error('[AdminUserDetail] createSigninLink error:', err)
+      error.value = err instanceof Error ? err.message : 'Failed to create sign-in link'
+      return null
+    }
+  }
+
   function getCourseProgress(courseId: string): CourseProgress {
     return courseProgress.value.get(courseId) || {
       course_id: courseId,
@@ -543,6 +581,7 @@ export function useAdminUserDetail(client: SupabaseClient) {
     grantEntitlement,
     revokeEntitlement,
     setTrial,
+    createSigninLink,
     getCourseProgress,
   }
 }
