@@ -73,8 +73,8 @@ async function countActiveLearners(svc: SupabaseClient, sinceIso: string): Promi
 export const BOARD_METRICS: BoardMetric[] = [
   {
     slug: 'learners.active_30d',
-    label: 'Active learners (30d)',
-    method: 'Distinct learners with a session in the last 30 days, excluding demo/internal/test learners (test_learner_ids()).',
+    label: 'Real learners active (30d)',
+    method: 'Distinct real learners with a session in the last 30 days. Excludes school pilots (any learner attached to a school/class is test data today — see is_test) and internal/admin test accounts (is_demo, is_internal, thomas.cassidy+ plus-address). A real school (is_test=false) would count its learners.',
     async resolve(svc) {
       const asOf = new Date().toISOString()
       const since = new Date(Date.now() - THIRTY_DAYS_MS).toISOString()
@@ -84,8 +84,8 @@ export const BOARD_METRICS: BoardMetric[] = [
   },
   {
     slug: 'minutes.total_30d',
-    label: 'Practice minutes (30d)',
-    method: 'Sum of daily_contributions.minutes_practiced over the last 30 days (demo/internal/test sessions already excluded at write time by the update_daily_contributions trigger via test_learner_ids()).',
+    label: 'Real practice minutes (30d)',
+    method: 'Sum of daily_contributions.minutes_practiced over the last 30 days. Excludes school pilots and internal/admin test accounts (same real-learner definition as learners.active_30d, applied at write time by the update_daily_contributions trigger via test_learner_ids()).',
     async resolve(svc) {
       const asOf = new Date().toISOString()
       const sinceDate = new Date(Date.now() - THIRTY_DAYS_MS).toISOString().slice(0, 10)
