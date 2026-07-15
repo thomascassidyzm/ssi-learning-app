@@ -6,6 +6,7 @@ import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import Badge from '@/components/schools/shared/Badge.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 const { getClient, getAuthToken } = useAdminClient()
 const route = useRoute()
@@ -27,6 +28,7 @@ const {
   grantEntitlement,
   revokeEntitlement,
   setTrial,
+  createSigninLink,
   getCourseProgress,
 } = useAdminUserDetail(getClient())
 
@@ -405,6 +407,18 @@ async function handleSetTrial(action: 'expire' | 'restore') {
   await setTrial(profile.value.id, profile.value.user_id, action, getAuthToken)
   trialBusy.value = false
 }
+
+// ─── Sign-in link rescue (admin-only) ──────────────────────────────
+// Mints a real, single-use magic-link out-of-band for a user whose school
+// email gateway swallows OTP mail. See docs/schools/email-deliverability-plan.md.
+const signinLinkBusy = ref(false)
+const signinLink = ref<{ actionLink: string; email: string } | null>(null)
+async function handleCreateSigninLink() {
+  if (!profile.value) return
+  signinLinkBusy.value = true
+  signinLink.value = await createSigninLink(profile.value.id, getAuthToken)
+  signinLinkBusy.value = false
+}
 </script>
 
 <template>
@@ -527,6 +541,25 @@ async function handleSetTrial(action: 'expire' | 'restore') {
                 v-if="roleUpdateStatus === 'error'"
                 class="role-status role-error"
               >Failed</span>
+            </div>
+
+            <!-- Sign-in link rescue — for users whose OTP email never arrives -->
+            <div class="signin-link-block">
+              <button class="btn-ghost" :disabled="signinLinkBusy" @click="handleCreateSigninLink">
+                {{ signinLinkBusy ? 'Creating…' : 'Create sign-in link' }}
+              </button>
+              <div v-if="signinLink" class="signin-link-result">
+                <InviteLinkField
+                  :url="signinLink.actionLink"
+                  :label="`Sign-in link for ${signinLink.email}`"
+                  copy-label="Copy sign-in link"
+                />
+                <p class="signin-link-caveat">
+                  ⚠ Single-use, expires in about an hour, and whoever clicks it becomes
+                  <strong>{{ profile.display_name || 'this user' }}</strong>. Share it directly
+                  with them and promptly — don't post it anywhere public.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1269,6 +1302,31 @@ async function handleSetTrial(action: 'expire' | 'restore') {
 .role-error {
   color: rgb(var(--tone-red));
   background: rgba(var(--tone-red), 0.14);
+}
+
+/* ---------- Sign-in link rescue ---------- */
+.signin-link-block {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(44, 38, 34, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.signin-link-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.signin-link-caveat {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--schools-fg-3);
+  line-height: 1.5;
 }
 
 /* ---------- Section ---------- */
