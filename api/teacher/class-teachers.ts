@@ -166,7 +166,14 @@ export default async function handler(
       // (existing && !removed_at) → already an active teacher; idempotent no-op.
 
       if (setLead) {
-        await supabase.from('classes').update({ teacher_user_id: targetUserId }).eq('id', cls.id)
+        const { error: leadErr } = await supabase
+          .from('classes')
+          .update({ teacher_user_id: targetUserId })
+          .eq('id', cls.id)
+        if (leadErr) {
+          res.status(500).json({ error: 'Failed to set class lead teacher', detail: leadErr.message })
+          return
+        }
       }
 
       res.status(200).json({
@@ -207,7 +214,14 @@ export default async function handler(
         .neq('user_id', targetUserId)
         .limit(1)
       lead = others && others.length > 0 ? others[0].user_id : null
-      await supabase.from('classes').update({ teacher_user_id: lead }).eq('id', cls.id)
+      const { error: leadErr } = await supabase
+        .from('classes')
+        .update({ teacher_user_id: lead })
+        .eq('id', cls.id)
+      if (leadErr) {
+        res.status(500).json({ error: 'Failed to hand over class lead teacher', detail: leadErr.message })
+        return
+      }
     }
 
     res.status(200).json({ ok: true, action: 'remove', class_id: cls.id, target_user_id: targetUserId, lead })

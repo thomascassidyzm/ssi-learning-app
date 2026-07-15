@@ -45,6 +45,11 @@ export interface SchoolUser {
   // Absent/undefined (legacy row or pre-migration DB) ⇒ treated as ACTIVE.
   platform_status?: string | null
   platform_expires_at?: string | null
+  // Internal — which loader populated this context. loadFromAuth uses this
+  // (not mere presence) to decide whether it's safe to no-op: a stale
+  // admin-view/persona scope must never be mistaken for "self already
+  // loaded". See loadFromAuth.
+  _scopeSource?: 'self' | 'admin-view' | 'demo'
 }
 
 // Module-level shared state so every caller sees the same context.
@@ -101,13 +106,21 @@ const platformPastDue = computed((): boolean => currentUser.value?.platform_stat
 export function useSchoolContext() {
   /**
    * Populate context from the real authenticated learner. Called by
-   * SchoolsContainer on mount. Idempotent: no-op if currentUser is
-   * already set (e.g. demo or admin-view already primed it).
+   * SchoolsContainer on mount. Idempotent ONLY against a matching self
+   * load or demo data — an admin-view/persona scope left over from a
+   * read-only detour (AdminSchoolsContainer/AdminGroupContainer/
+   * AdminUserProgress/AdminClassDetail all clear on unmount, but this is
+   * the defense-in-depth backstop: presence alone is never enough,
+   * because "the admin's own user_id" is also what admin-view scopes
+   * carry — see loadFromSchoolId's docstring) — see finding #1a,
+   * 2026-07-13 audit.
    */
   async function loadFromAuth(authUserId: string, client?: SupabaseClient): Promise<void> {
-    if (currentUser.value) return
+    const existing = currentUser.value
+    if (existing?._scopeSource === 'demo') return
+    if (existing && existing._scopeSource !== 'admin-view' && existing.user_id === authUserId) return
     const user = await resolveUser(authUserId, client ?? getSchoolsClient())
-    if (user) currentUser.value = user
+    if (user) currentUser.value = { ...user, _scopeSource: 'self' }
   }
 
   /**
@@ -283,7 +296,7 @@ export function useSchoolContext() {
    */
   async function loadAsPersona(personaUserId: string, client?: SupabaseClient): Promise<void> {
     const user = await resolveUser(personaUserId, client ?? getSchoolsClient())
-    if (user) currentUser.value = user
+    if (user) currentUser.value = { ...user, _scopeSource: 'admin-view' }
   }
 
   /**
@@ -320,6 +333,7 @@ export function useSchoolContext() {
       school_name: school?.school_name,
       region_code: school?.region_code ?? undefined,
       group_id: school?.group_id ?? undefined,
+      _scopeSource: 'admin-view',
     }
   }
 
@@ -357,6 +371,7 @@ export function useSchoolContext() {
       group_id: groupId,
       group_path: group?.path ?? undefined,
       organization_name: group?.name ?? undefined,
+      _scopeSource: 'admin-view',
     }
   }
 
@@ -389,6 +404,7 @@ export function useSchoolContext() {
       display_name: learner.display_name,
       educational_role: learner.educational_role,
       platform_role: realLearner.platform_role as 'ssi_admin' | null,
+      _scopeSource: 'admin-view',
     }
   }
 

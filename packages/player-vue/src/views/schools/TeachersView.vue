@@ -193,14 +193,7 @@ watch(selectedUser, (newUser) => {
             </td>
             <td class="cell-action">
               <button
-                v-if="t.status === 'invited'"
-                type="button"
-                class="btn-ghost btn-small"
-              >
-                Resend invite
-              </button>
-              <button
-                v-else-if="!isAdminView"
+                v-if="!isAdminView"
                 type="button"
                 class="btn-ghost btn-small remove-btn"
                 @click="handleRemoveTeacher(t.user_id, t.name)"

@@ -12,6 +12,7 @@
 
 import { ref, computed, type Ref } from 'vue'
 import { type Stage0Config, DEFAULT_STAGE0 } from '@ssi/core/pods'
+import { type RatePolicyBounds, DEFAULT_RATE_POLICY_BOUNDS } from '@ssi/core'
 
 // Type definitions for algorithm configs
 export interface ModeConfig {
@@ -120,21 +121,6 @@ export interface ScriptShapeConfig {
 export interface ListeningModeConfig {
   enabled: boolean
   offset: number              // rounds after last LEGO before seed graduates
-  l1ActiveSize: number        // sliding window size of recent graduated seeds
-  l1ReserveSize: number       // older graduated seeds beyond active (fixed window)
-  /** Sentences pulled per URN draw for RESERVE and RETIRED. Consumed
-   * by Listening MODE — L1 is no longer interleaved with main flow. */
-  l1UrnPullCount: number
-  /** Legacy / fallback flat playlist — used when layer1StagePlaylist is empty. */
-  layer1Playlist: ListeningSlotRole[]
-  /** Staged Layer 1 playlist — keys are stage numbers, values are the
-   * playlist for that stage. Per-seed fire counter advances each L1
-   * emission; stage = floor((fireCount-1)/layer1StageDuration)+1, capped
-   * at the highest key (eternal hold). Aran 2026-05-07 spec: seeds
-   * decay to a single 2× rep over time. */
-  layer1StagePlaylist: Record<string, ListeningSlotRole[]>
-  /** L1 fires spent in each transitional stage before promoting. */
-  layer1StageDuration: number
   /** @deprecated Moved to PodsConfig.podActivationRound (2026-05-17).
    *  Optional/read-only here for legacy rows whose `pods` config hasn't
    *  been re-saved yet. The dashboard backfills on next load.
@@ -152,7 +138,8 @@ export interface AlgorithmConfigs {
   script_shape: ScriptShapeConfig
   resume: ResumeConfig
   stage0: Stage0Config
-  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config
+  adaptation_v2: AdaptationV2Config
+  [key: string]: ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | AdaptationV2Config
 }
 
 // Default fallbacks (used if DB fetch fails)
@@ -219,17 +206,6 @@ export const DEFAULT_TURBO: ModeConfig = {
 const DEFAULT_LISTENING: ListeningModeConfig = {
   enabled: true,
   offset: 90,
-  l1ActiveSize: 10,
-  l1ReserveSize: 50,
-  l1UrnPullCount: 10,
-  layer1Playlist: ['ps', 'ps2x', 'ps2x'],
-  layer1StagePlaylist: {
-    '1': ['ps', 'ps2x', 'ps2x'],
-    '2': ['ps2x', 'ps2x', 'ps2x'],
-    '3': ['ps2x', 'ps2x'],
-    '4': ['ps2x'],
-  },
-  layer1StageDuration: 3,
 }
 
 const DEFAULT_PODS: PodsConfig = {
@@ -281,6 +257,40 @@ const DEFAULT_RESUME: ResumeConfig = {
   beltRegressionDays: 60,
 }
 
+/**
+ * Adaptation v2 safety rails (`docs/adaptation/adaptation-v2-build-spec.md`
+ * §6, WP-5). Two independent gates:
+ *   - `enabled`: the kill switch. false ⇒ the whole v2 pipeline (evidence →
+ *     curvature → RatePolicyEngine → shadow log) never even computes for a
+ *     round boundary — not just "computes but doesn't apply". The v1 pause
+ *     ladder keeps running untouched regardless.
+ *   - `shadow`: when `enabled` is true, gates APPLICATION only. true ⇒ the
+ *     engine computes a RoundPlan and logs it (`adaptation_plan` event) every
+ *     round boundary, but never touches playback. false ⇒ the plan is
+ *     actually applied via SimplePlayer's overrides surface.
+ * Shipping default is `enabled:true, shadow:true` — "compute and log, never
+ * apply" — which is exactly what "ship with the DB flag absent" needs to mean
+ * (executive summary point 9). Flipping `enabled:false` later is the harder
+ * kill switch for if the shadow logs themselves look wrong.
+ */
+export interface AdaptationV2Config {
+  enabled: boolean
+  shadow: boolean
+  /** Stage 2 (envelope metadata, WP-6..9) — separately gated, off until that track ships. */
+  stage2_enabled: boolean
+  bounds: RatePolicyBounds
+  /** Stage-2 delta-producer weights (§5.3) — unused until WP-8 lands; carried here so the shape is stable. */
+  weights: { duration: number; peaks: number; shape: number }
+}
+
+const DEFAULT_ADAPTATION_V2: AdaptationV2Config = {
+  enabled: true,
+  shadow: true,
+  stage2_enabled: false,
+  bounds: DEFAULT_RATE_POLICY_BOUNDS,
+  weights: { duration: 0.5, peaks: 0.3, shape: 0.2 },
+}
+
 // Singleton cache - shared across all component instances
 let configCache: AlgorithmConfigs | null = null
 let cacheTimestamp: number = 0
@@ -295,6 +305,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     script_shape: DEFAULT_SCRIPT_SHAPE,
     resume: DEFAULT_RESUME,
     stage0: DEFAULT_STAGE0,
+    adaptation_v2: DEFAULT_ADAPTATION_V2,
   })
   const isLoaded = ref(false)
   const loadError = ref<string | null>(null)
@@ -345,6 +356,12 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
           script_shape: { ...DEFAULT_SCRIPT_SHAPE, ...(loaded.script_shape || {}) },
           resume: { ...DEFAULT_RESUME, ...(loaded.resume || {}) },
           stage0: { ...DEFAULT_STAGE0, ...(loaded.stage0 || {}) },
+          adaptation_v2: {
+            ...DEFAULT_ADAPTATION_V2,
+            ...(loaded.adaptation_v2 || {}),
+            bounds: { ...DEFAULT_ADAPTATION_V2.bounds, ...(loaded.adaptation_v2?.bounds || {}) },
+            weights: { ...DEFAULT_ADAPTATION_V2.weights, ...(loaded.adaptation_v2?.weights || {}) },
+          },
         }
 
         // Update cache
@@ -370,9 +387,10 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
   const scriptShapeConfig = computed(() => configs.value.script_shape as ScriptShapeConfig)
   const resumeConfig = computed(() => configs.value.resume as ResumeConfig)
   const stage0Config = computed(() => configs.value.stage0 as Stage0Config)
+  const adaptationV2Config = computed(() => configs.value.adaptation_v2 as AdaptationV2Config)
 
   // Get any config by key
-  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | null => {
+  const getConfig = (key: string): ModeConfig | ListeningModeConfig | PodsConfig | ScriptShapeConfig | ResumeConfig | Stage0Config | AdaptationV2Config | null => {
     return configs.value[key] || null
   }
 
@@ -400,6 +418,7 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     scriptShapeConfig,
     resumeConfig,
     stage0Config,
+    adaptationV2Config,
     getConfig,
     calculatePause,
     invalidateCache,
@@ -410,5 +429,6 @@ export function useAlgorithmConfig(supabase: Ref<any> | null) {
     DEFAULT_PODS,
     DEFAULT_SCRIPT_SHAPE,
     DEFAULT_RESUME,
+    DEFAULT_ADAPTATION_V2,
   }
 }

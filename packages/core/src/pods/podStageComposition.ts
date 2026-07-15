@@ -1,35 +1,31 @@
 /**
  * podStageComposition.ts — the SINGLE source of truth for how one pod sentence
- * is turned into ordered plays, per stage.
+ * is turned into ordered plays, per whole-sentence stage.
  *
- * Both the live main-flow scheduler (usePodLapScheduler) and the admin
- * "Progression" audit walk (ListeningOverlay) compose pod audio from this
- * module, so the preview can NEVER drift from what the learner actually hears:
- *
- *   • usePodLapScheduler picks WHICH stage a sentence is in this lap (round /
- *     ratchet logic) and calls buildStage0Tier / buildMainStage for that one
- *     stage.
- *   • The Progression walk calls composeSentenceArc, which concatenates EVERY
- *     stage (Stage-0 ladder + Stages 1..N) for one line — the same per-stage
- *     builders, just flattened so the whole acquisition arc is heard in one
- *     pass instead of spread across rounds.
+ * The live main-flow scheduler (usePodLapScheduler) picks WHICH stage a
+ * sentence is in this lap (round / ratchet logic) and calls buildMainStage
+ * for that one stage — the same builder ListeningOverlay's "Progression"
+ * audit walk uses, so the preview can never drift from what the learner
+ * actually hears.
  *
  * Extracted from usePodLapScheduler (2026-06-24) — was an inline closure there,
  * with a worse parallel reimplementation living in ListeningOverlay. The
  * extraction is behaviour-preserving for main-flow (guarded by
  * usePodLapScheduler.test.ts asserting nextLap output is unchanged).
+ *
+ * Stage-0 retirement (2026-07-14, Tom + Aran): this module used to also carry
+ * buildStage0Tier / composeSentenceArc / loadStage0ClipMaps — the functions
+ * that wove the Stage-0 AUDIO breakdown ladder into a sentence's plays. All
+ * three had zero runtime callers once usePodLapScheduler's Stage-0 prepend
+ * was removed (composeSentenceArc was never actually called by the
+ * Progression walk despite the old header claiming so — verified by grep
+ * before deleting) and were deleted outright. stage0Sequence.ts's lower-level
+ * sequencing (tierSequence/buildLadder) stays — the admin-only Pod stage
+ * auditioner (/admin/pod-auditioner) still calls it directly to preview/tune
+ * Stage-0 timing for content authoring.
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js'
-import {
-  tierSequence,
-  resolveAtoms,
-  clipsFromRow,
-  foldEventsToPlays,
-  normSurface,
-  type Stage0Config,
-  type AtomMapEntry,
-} from './stage0Sequence'
+import type { AtomMapEntry } from './stage0Sequence'
 
 /**
  * Audio role for one slot inside a pod-lap playlist.
@@ -75,8 +71,10 @@ export interface PodSentenceRow {
   explainer_audio_id: string | null
   /** True iff this row's natural utterance continues into the next row. */
   glue_to_next: boolean
-  /** Ordered atom breakdown (Stage-0). Null/absent → the sentence has no
-   *  Stage-0 views and behaves exactly as before. */
+  /** Ordered atom breakdown, in target-sentence order. Drives the
+   *  always-visible LEGO-tile display (player-vue's PodTurnDisplay.vue) —
+   *  never played as audio. Null/absent → the sentence renders as one plain
+   *  tile (no per-atom breakdown). */
   atom_map?: AtomMapEntry[] | null
   /** Speaker label (used to compute speaker-aware gaps). Optional. */
   speaker?: string | null
@@ -118,43 +116,6 @@ export interface PodPlay {
 const _warnedTrailingKnownStages = new Set<number>()
 
 /**
- * Stage-0: build the PodPlays for ONE tier of one sentence. Resolves the
- * sentence's atoms, runs the pure sequencer, and folds the inter-clip gaps
- * into each play's gapAfterMs. The tier's LAST play omits gapAfterMs, so the
- * normal between-phrases gap carries through to the next sentence.
- */
-export function buildStage0Tier(
-  sentence: PodSentenceRow,
-  tierKey: string,
-  sentenceIdx: number,
-  cfg: Stage0Config,
-  glossMap: Map<string, string>,
-  targetClipMap: Map<string, string>,
-): PodPlay[] {
-  const tier = cfg.tiers.find((t) => t.key === tierKey)
-  if (!tier) return []
-  const atoms = resolveAtoms(sentence.atom_map, glossMap, targetClipMap)
-  const events = tierSequence(tier, atoms, clipsFromRow(sentence), cfg)
-  return foldEventsToPlays(events).map((tp): PodPlay => {
-    const meaningRole = tp.role === 'translation' || tp.role === 'meaning' || tp.role === 'meansGloss'
-    return {
-      sentenceIdx,
-      stage: 0,
-      tier: tierKey,
-      // playRole is cosmetic for Stage-0 (real speed + gap come from the
-      // fields below); kept to a known PodPlayRole so downstream role
-      // switches never hit an unexpected value.
-      playRole: meaningRole ? 'trans' : 'ps',
-      audioId: tp.audioId,
-      text: tp.label,
-      playbackSpeed: tp.speed || 1,
-      glueToNextChunk: false,
-      ...(tp.gapAfterMs != null ? { gapAfterMs: tp.gapAfterMs } : {}),
-    }
-  })
-}
-
-/**
  * Stages 1..N: build the PodPlays for ONE whole-sentence stage. Carries the
  * Phase-0 explainer→translation fallback, the trans-drop when a sentence has no
  * known clip, the end-on-target invariant (never strand the learner on the
@@ -162,8 +123,7 @@ export function buildStage0Tier(
  * per-stage logic the main-flow scheduler ran inline before extraction.
  *
  * Callers guarantee sentence.target_audio_id is non-null (a sentence with no
- * target audio contributes nothing — see composeSentenceArc / the scheduler's
- * per-sentence guard).
+ * target audio contributes nothing — see the scheduler's per-sentence guard).
  */
 export function buildMainStage(
   sentence: PodSentenceRow,
@@ -237,78 +197,3 @@ export function buildMainStage(
   return sentencePlays
 }
 
-/**
- * Compose ONE sentence's WHOLE acquisition arc — every Stage-0 tier (when the
- * sentence has resolvable atoms) followed by every Stage 1..N — in order. This
- * is what the admin "Progression" walk plays: the full vertical for a single
- * line, flattening the round-spreading the main-flow scheduler applies.
- *
- * By construction it matches main-flow delivery: the Stage-0 gate (atoms with a
- * target clip) and the per-stage builders are the SAME ones the scheduler uses
- * per lap. A sentence with no target audio contributes nothing.
- */
-export function composeSentenceArc(
-  sentence: PodSentenceRow,
-  sentenceIdx: number,
-  opts: {
-    stage0?: Stage0Config | null
-    glossMap: Map<string, string>
-    targetClipMap: Map<string, string>
-    stagePlaylist: Record<string | number, PodPlayRole[]>
-  },
-): PodPlay[] {
-  const plays: PodPlay[] = []
-  if (!sentence.target_audio_id) return plays
-
-  // STAGE 0 — the per-atom breakdown ladder, when the sentence resolves to at
-  // least one atom with a target clip (the same gate the scheduler applies).
-  const s0 = opts.stage0
-  if (s0?.tiers?.length) {
-    const atoms = resolveAtoms(sentence.atom_map, opts.glossMap, opts.targetClipMap)
-    if (atoms.some((a) => a.targetClipId)) {
-      for (const tier of s0.tiers) {
-        plays.push(...buildStage0Tier(sentence, tier.key, sentenceIdx, s0, opts.glossMap, opts.targetClipMap))
-      }
-    }
-  }
-
-  // STAGES 1..N — the whole-sentence behaviours, in ascending stage order.
-  const stages = Object.keys(opts.stagePlaylist)
-    .map(Number)
-    .filter((n) => !Number.isNaN(n))
-    .sort((a, b) => a - b)
-  for (const stage of stages) {
-    const playlist = opts.stagePlaylist[stage] ?? opts.stagePlaylist[String(stage)]
-    if (playlist) plays.push(...buildMainStage(sentence, stage, sentenceIdx, playlist))
-  }
-  return plays
-}
-
-/**
- * Load the two course-wide Stage-0 lookup maps:
- *   - glossMap: lego_key → pod_legos.explainer_audio_id ("means <gloss>")
- *   - targetClipMap: target_surface → course_audio "[atom] <target>" id
- * Shared by the scheduler (init) and the Progression walk so both resolve atoms
- * identically.
- */
-export async function loadStage0ClipMaps(
-  supabase: SupabaseClient,
-  courseCode: string,
-): Promise<{ glossMap: Map<string, string>; targetClipMap: Map<string, string> }> {
-  const glossMap = new Map<string, string>()
-  const targetClipMap = new Map<string, string>()
-  const [legoRes, atomRes] = await Promise.all([
-    supabase.from('pod_legos').select('lego_key, explainer_audio_id').eq('course_code', courseCode),
-    supabase.from('course_audio').select('id, text').eq('course_code', courseCode).eq('role', 'pod_explainer').like('text', '[atom] %'),
-  ])
-  for (const l of (legoRes.data || []) as Array<{ lego_key: string; explainer_audio_id: string | null }>) {
-    if (l.explainer_audio_id) glossMap.set(l.lego_key, l.explainer_audio_id)
-  }
-  for (const a of (atomRes.data || []) as Array<{ id: string; text: string }>) {
-    // Key by NORMALISED surface (case-insensitive, accent-preserving) so a
-    // capitalised atom resolves a lowercase-rendered slice and vice-versa.
-    const surface = normSurface(a.text.slice('[atom] '.length))
-    if (!targetClipMap.has(surface)) targetClipMap.set(surface, a.id)
-  }
-  return { glossMap, targetClipMap }
-}

@@ -28,13 +28,19 @@ import { fetchAndCacheListeningMeta, collectListeningMetaAudioIds } from '../com
 import { LOOKAHEAD_CHUNK_SEEDS, LOOKAHEAD_TRIGGER_ROUNDS } from '../composables/useEagerScriptPreload'
 import { useMetaCommentary } from '../composables/useMetaCommentary'
 import { usePodLapScheduler, type PodLap, type PodPlay } from '../composables/usePodLapScheduler'
+import { computeTurnSpans, turnSpanForIndex } from '@ssi/core/pods'
+import PodTurnDisplay from './PodTurnDisplay.vue'
 import { useLayer1Scheduler, type Layer1Config } from '../composables/useLayer1Scheduler'
 import { useSharedBeltProgress, getSeedFromLegoId, getBeltIndexForSeed, BELTS, type BeltProgressSyncConfig } from '../composables/useBeltProgress'
 import { useOfflinePlay } from '../composables/useOfflinePlay'
 // SimplePlayer - clean playback engine
 import { useSimplePlayer } from '../composables/useSimplePlayer'
 import { useAdaptationEngine, type UseAdaptationEngineReturn } from '../composables/useAdaptationEngine'
-import { useListeningProgress, type UseListeningProgressReturn } from '../composables/useListeningProgress'
+import { useBehaviouralEvidence } from '../composables/useBehaviouralEvidence'
+import { recordEnvelopeEvidence } from '../composables/useEnvelopeEvidence'
+import { createEnvelopeMetadataCache, type EnvelopeMetadataCache } from '../composables/useEnvelopeMetadataCache'
+import { createEvidenceAggregator, type RoundPlan } from '@ssi/core'
+import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/adaptationOverrides'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
@@ -366,9 +372,9 @@ const {
   normalConfig,
   listeningConfig,
   podsConfig,
-  stage0Config,
   scriptShapeConfig,
   resumeConfig,
+  adaptationV2Config,
   isLoaded: algorithmConfigLoaded
 } = useAlgorithmConfig(supabase)
 
@@ -462,10 +468,6 @@ const runGenerateScript = (
     listening,
     scriptShapeConfig.value,
     { fibKeep: tc.fibKeep, buildKeep: tc.buildKeep, useKeep: tc.useKeep },
-    // Persisted per-seed L1 fire counts — null on first session / pre-init
-    // → cold start, every seed at Stage 1. After hydration this compounds
-    // the Stage 1→4 progression across sessions.
-    listeningProgress.value?.getFireCounts() ?? null,
     // Pod-lap firing cadence from the pods config — keeps the generator's
     // L1-outro merge decision in sync with the runtime scheduler.
     podsConfig.value.roundInterval ?? 1,
@@ -1467,52 +1469,13 @@ simplePlayer.onPhaseChanged((phase) => {
     clearPreparingState()
   }
 
-  // ── Comprehensive audio + L1 cluster telemetry ──
+  // ── Comprehensive audio telemetry ──
   // SimplePlayer reuses one Audio element so at most one audio plays at
   // a time; logging on phase transitions captures every audio start
   // regardless of cache vs network. Batches via usePlayerLog (5s + 10-
   // event flush + pagehide beacon) — complete, not continuous.
   const cycle = simplePlayer.currentCycle.value
   if (!cycle) return
-
-  // L1 cluster boundary — fires once per cluster, on the prompt phase
-  // of an L1 listen_intro (cycle id `listen_intro_R{n}_*`). Layer 2 pod
-  // listen_intros are `listen_intro_pod_R{n}_*` and already have their
-  // own pod_lap_start event, so explicitly skip those.
-  if (phase === 'prompt' && cycle.type === 'listen_intro' && typeof cycle.id === 'string') {
-    if (cycle.id.startsWith('listen_intro_R') && !cycle.id.startsWith('listen_intro_pod_')) {
-      const m = cycle.id.match(/^listen_intro_R(\d+)_/)
-      const round = m ? parseInt(m[1], 10) : null
-      logEvent('l1_cluster_start', {
-        cycleId: cycle.id,
-        round,
-        legoId: cycle.legoId ?? null,
-      })
-      // Reset the cluster dedup set — bump fire_count once per distinct
-      // seed within this cluster (regardless of playlist length, which
-      // varies 1-3 cycles per seed by stage).
-      l1ClusterSeedsBumped = new Set<number>()
-    }
-  }
-
-  // L1 listening cycle — bump persisted fire_count for this cluster's seed.
-  // Pod (Layer 2) cycles have type='pod' so they're filtered out cleanly.
-  // Seed number is parsed from cycle.id (`listening_S0001_ps_N` → 1) because
-  // the script item's listeningSeedNumber custom field doesn't propagate
-  // through the ScriptItem → SimplePlayer.Cycle transformation.
-  if (
-    phase === 'prompt' &&
-    cycle.type === 'listening' &&
-    typeof cycle.id === 'string' &&
-    listeningProgress.value
-  ) {
-    const m = cycle.id.match(/^listening_S(\d+)_/)
-    const sNum = m ? parseInt(m[1], 10) : null
-    if (sNum !== null && l1ClusterSeedsBumped && !l1ClusterSeedsBumped.has(sNum)) {
-      l1ClusterSeedsBumped.add(sNum)
-      listeningProgress.value.recordClusterFire([sNum])
-    }
-  }
 
   // Audio play — log the URL + role for any phase that actually plays
   // a file. Skips silent phases (pause, or listening cycles with
@@ -1588,6 +1551,41 @@ simplePlayer.onCycleCompleted((cycle) => {
       latency,
       cycle.target.text.length
     )
+  }
+
+  // Envelope evidence (adaptation v2 WP-8, stitched here per WP-3): only
+  // when stage 2 is on, the model cache exists (live Supabase client), the
+  // VAD captured a usable envelope this cycle, and we can resolve the
+  // cycle's target1 audio id. Async (a batch fetch may be needed) and
+  // fire-and-forget, same pattern as `learningSession.recordCycleComplete`
+  // below — never blocks the next cycle.
+  if (
+    adaptationV2Config.value.stage2_enabled &&
+    envelopeMetadataCache.value &&
+    cycle.legoId &&
+    lastTimingResult.value?.envelope
+  ) {
+    const voice1Match = cycle.target?.voice1Url?.match(/\/api\/audio\/([^?/]+)/)
+    const audioId = voice1Match ? voice1Match[1] : null
+    if (audioId) {
+      const legoId = cycle.legoId
+      const cycleId = cycle.id
+      const learnerEnvelope = lastTimingResult.value.envelope
+      const occurredAtMs = performance.now()
+      envelopeMetadataCache.value.fetchBatch([audioId]).then(() => {
+        recordEnvelopeEvidence({
+          sink: sharedEvidenceAggregator,
+          cache: envelopeMetadataCache.value!,
+          legoId,
+          audioId,
+          learnerEnvelope,
+          cycleId,
+          occurredAtMs,
+        })
+      }).catch(err => {
+        console.warn('[LearningPlayer] Envelope evidence fetch failed (stage-2 no-op this cycle):', err)
+      })
+    }
   }
 
   resonatingNodes.value = []
@@ -3175,9 +3173,11 @@ const podScheduler = supabase?.value
       // Pod-lap cadence — lives alongside the stage playlist + gap matrix
       // on the pods config (semantically all "how pods behave" lives here).
       roundInterval: computed(() => podsConfig.value.roundInterval ?? 1),
-      // Stage-0 ladder (algorithm_config.stage0) — prepends 5 explainer views
-      // before Stages 1-9 for any sentence with atom data. Live-tunable.
-      stage0: computed(() => stage0Config.value),
+      // No Stage-0 ladder option any more (retired 2026-07-14) — every
+      // sentence goes straight to Stage 1. The per-atom breakdown a
+      // sentence used to get from AUDIO reps now comes from the
+      // always-visible LEGO-tile display (podTurnDisplay), driven by the
+      // same atom_map data but rendered visually, never played.
     })
   : null
 
@@ -3230,6 +3230,27 @@ const l1Scheduler = supabase?.value
   : null
 
 const playingPodLapAudio = ref(false)
+// The PodPlay currently sounding during a pod lap — set right before its
+// audio segment starts (playPodLap), cleared when the lap ends. Drives
+// PodTurnDisplay's "which sentence is lit" — the SAME object driving the
+// audio call, never a separate text lookup (2026-07-14 whole-turn display).
+const currentPodPlay = ref<PodPlay | null>(null)
+// Turn spans over the pod's flat sentence list, recomputed whenever the
+// scheduler's sentence list changes (course/learner switch). Pure structure,
+// independent of which sentences a given lap actually plays.
+const podTurnSpans = computed(() => (podScheduler ? computeTurnSpans(podScheduler.podSentences.value) : []))
+// The turn containing the currently-sounding sentence, sliced for display.
+// Null while nothing is lit yet (e.g. during the intro bookend).
+const currentPodTurn = computed(() => {
+  if (!podScheduler || !currentPodPlay.value) return null
+  const idx0 = currentPodPlay.value.sentenceIdx - 1 // PodPlay.sentenceIdx is 1-based
+  const span = turnSpanForIndex(podTurnSpans.value, idx0)
+  if (!span) return null
+  return {
+    sentences: podScheduler.podSentences.value.slice(span.start, span.end + 1),
+    activeIndex: idx0 - span.start,
+  }
+})
 // Set true when the learner presses stop *during* a pod lap or commentary.
 // handleRoundBoundary checks this before calling simplePlayer.resume() so a
 // deliberate stop doesn't auto-advance into the next round mid-pod.
@@ -3627,24 +3648,20 @@ const initializeAdaptationEngine = async () => {
     supabase: supabase.value ?? null,
     learnerId: learnerId.value ?? null,
     courseCode: courseCode.value,
+    aggregator: sharedEvidenceAggregator,
+    ratePolicyConfig: {
+      bounds: adaptationV2Config.value.bounds,
+    },
   })
   await engine.initialize()
   adaptationEngine.value = engine
-}
 
-/**
- * Initialize per-seed L1 fire-count persistence so the Stage 1→4
- * playlist progression compounds across sessions.
- */
-const initializeListeningProgress = async () => {
-  if (!courseCode.value || listeningProgress.value) return
-  const progress = useListeningProgress({
-    supabase: supabase.value ?? null,
-    learnerId: learnerId.value ?? null,
-    courseCode: courseCode.value,
-  })
-  await progress.initialize()
-  listeningProgress.value = progress
+  // Envelope evidence (WP-8/stitched WP-3): needs a live Supabase client to
+  // fetch model rows — guests / offline never get one, so envelope evidence
+  // simply doesn't fire for them (latency + behavioural evidence still do).
+  if (supabase.value && !envelopeMetadataCache.value) {
+    envelopeMetadataCache.value = createEnvelopeMetadataCache(supabase.value)
+  }
 }
 
 /**
@@ -4037,6 +4054,9 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     for (let i = 0; i < lap.plays.length; i++) {
       const play = lap.plays[i] as PodPlay
       const next = (i + 1 < lap.plays.length) ? (lap.plays[i + 1] as PodPlay) : null
+      // Drives PodTurnDisplay — set BEFORE the audio call so the visual and
+      // the sound always agree on which sentence is current.
+      currentPodPlay.value = play
       const segStart = Date.now()
       const cacheHit = audioCache.has(play.audioId)
       const result = await playPodSegment(
@@ -4089,6 +4109,7 @@ const playPodLap = async (lap: PodLap, omitIntro: boolean = false): Promise<bool
     return true
   } finally {
     playingPodLapAudio.value = false
+    currentPodPlay.value = null
     logEvent('pod_lap_end', {
       podRound: lap.podRound,
       cancelled: podLapCancelled.value,
@@ -4214,6 +4235,72 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
       c.type === 'listen_intro' || c.type === 'listening' || c.type === 'listen_outro' || c.type === 'pod'
     )
   const nextRound = loadedRounds.value[completedRoundIndex + 1] as { cycles?: Array<{ type?: string }> } | undefined
+
+  // ============================================
+  // ADAPTATION V2 — rate-policy plan for the round about to start (WP-3,
+  // `docs/adaptation/adaptation-v2-build-spec.md` §4/§6).
+  //
+  // Kill switch: `enabled:false` skips this block entirely — no evidence
+  // read, no curvature computed, no adaptation_plan log line ("disables even
+  // shadow computation"). When enabled, the plan is ALWAYS computed and
+  // logged; it is only APPLIED (adaptOmitCycleIds populated, currentRoundPlan
+  // set, breather inserted) when `shadow:false`. Shadow mode therefore always
+  // leaves currentRoundPlan/adaptOmitCycleIds at their empty defaults, so
+  // shouldSkipCycle/getPauseDuration above transparently fall through to the
+  // pre-v2 behaviour — zero learner-visible change.
+  // ============================================
+  if (adaptationV2Config.value.enabled && adaptationEngine.value && nextRound) {
+    const nextRoundFull = nextRound as unknown as PlayerRound
+    // Seed number is the ordinal proxy — one new LEGO per round means round
+    // order tracks LEGO introduction order closely, and criticality only
+    // needs the FRACTION through the course right, not an exact count.
+    const roundLegoOrdinal = getSeedFromLegoId(nextRoundFull.legoId) ?? (completedRoundIndex + 2)
+    const courseLegoCount = beltProgress.value?.courseSeedCount?.value ?? roundLegoOrdinal
+    const { plan, difficulty } = adaptationEngine.value.planRound({
+      roundLegoId: nextRoundFull.legoId,
+      roundLegoOrdinal,
+      courseLegoCount,
+      manualOverrideActive: behaviouralEvidence.isManualOverrideActive() || turboActive.value,
+    })
+    const applyingAdaptationV2 = !adaptationV2Config.value.shadow
+    logEvent('adaptation_plan', {
+      roundNumber: nextRoundFull.roundNumber,
+      legoId: nextRoundFull.legoId,
+      plan: {
+        buildCount: plan.buildCount,
+        consolidateCount: plan.consolidateCount,
+        spacedRepCap: plan.spacedRepCap,
+        insertBreather: plan.insertBreather,
+      },
+      difficultyStates: difficulty.map((d) => ({
+        unitId: d.unitId,
+        state: d.state,
+        accelerationZ: d.accelerationZ,
+        samples: d.samples,
+      })),
+      applied: applyingAdaptationV2,
+    })
+    if (applyingAdaptationV2) {
+      currentRoundPlan.value = plan
+      adaptOmitCycleIds.value = computeAdaptOmitCycleIds(nextRoundFull, plan)
+      if (plan.insertBreather) {
+        const breather = assembleBreatherRound(
+          loadedRounds.value as PlayerRound[],
+          completedRoundIndex,
+          nextRoundFull,
+          (legoId) => adaptationEngine.value!.getPauseMultiplier(legoId),
+        )
+        if (breather) simplePlayer.appendRounds([breather])
+      }
+    } else {
+      currentRoundPlan.value = null
+      adaptOmitCycleIds.value = new Set()
+    }
+  } else {
+    currentRoundPlan.value = null
+    adaptOmitCycleIds.value = new Set()
+  }
+
   // Pod cadence uses the INF-PLAY-aware helper (dev): main-loop defers to the
   // scheduler's activation+interval math, INF PLAY counts the revival ordinal.
   const podFiresThisBoundary = podCadenceFiresAtRound(completedRoundIndex)
@@ -4318,7 +4405,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
             const l1AsPodPlays: PodPlay[] = l1Cup.plays.map((p) => ({
               sentenceIdx: p.seedNumber,
               stage: 0,
-              playRole: p.role, // 'ps' | 'ps2x' | 'trans' — drives the gap matrix + known/target text
+              playRole: p.role, // 'ps' | 'trans' — drives the gap matrix + known/target text
               audioId: p.audioId,
               text: p.text,
               playbackSpeed: p.playbackSpeed,
@@ -4402,7 +4489,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
   // Fires EVERY clean non-pod boundary once ≥1 seed/cup is available. Pours one
   // cup of the 30-slot wheel: an authored cluster + recent loose seeds, each
   // played as its comprehensible-input sandwich (target → known → target →
-  // target@2×; see buildSeedPlays). No ratchet: the lap is a pure function of
+  // target, all @1×; see buildSeedPlays). No ratchet: the lap is a pure function of
   // (catalogue, round, learner, cluster
   // templates), so it's resume-safe with nothing to persist. l1FiresThisBoundary
   // already gated it on a clean, pod-free boundary; an empty cup no-ops via nextLap.
@@ -4434,7 +4521,7 @@ const handleRoundBoundary = async (completedRoundIndex, completedLegoId, complet
         plays: l1Lap.plays.map((p): PodPlay => ({
           sentenceIdx: p.seedNumber,
           stage: 0,
-          playRole: p.role, // 'ps' | 'ps2x' | 'trans' — drives the gap matrix + known/target text
+          playRole: p.role, // 'ps' | 'trans' — drives the gap matrix + known/target text
           audioId: p.audioId,
           text: p.text,
           playbackSpeed: p.playbackSpeed,
@@ -5533,7 +5620,7 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
   const toIdx = order[toPhase] ?? 0
   const direction = toIdx < fromIdx ? 'back' : toIdx > fromIdx ? 'forward' : 'replay'
   const cycle = simplePlayer.currentCycle.value
-  logEvent('phase_skip', {
+  const phaseSkipPayload = {
     fromPhase,
     toPhase,
     direction,
@@ -5549,7 +5636,9 @@ function jumpToCyclePhase(phase: 'prompt' | 'voice1' | 'voice2') {
     // slot is the cycle's index within the round.
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     slot: simplePlayer.cycleIndex.value ?? null,
-  })
+  }
+  logEvent('phase_skip', phaseSkipPayload)
+  behaviouralEvidence.onPlayerEvent('phase_skip', phaseSkipPayload, cycle)
 
   simplePlayer.skipToPhase(phase)
 }
@@ -6403,6 +6492,7 @@ const handlePause = () => {
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
   })
+  behaviouralEvidence.onPlayerEvent('tap_pause', { phase: currentPhase.value }, simplePlayer.currentCycle.value)
 
   // Stop introduction audio if playing
   if (isPlayingIntroduction.value) {
@@ -6438,6 +6528,7 @@ const handleResume = async () => {
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
   })
+  behaviouralEvidence.onPlayerEvent('tap_play', {}, simplePlayer.currentCycle.value)
 
   // Engage the iOS audio-session keepalive on every play tap. This is
   // the user-gesture moment — the silent loop's first play() hooks into
@@ -7334,7 +7425,7 @@ const prepareAndJump = async (
 }
 
 const handleSkip = async () => {
-  logEvent('tap_skip', {
+  const tapSkipPayload = {
     direction: 'forward',
     during: playingPodLapAudio.value ? 'pod_lap'
       : playingCommentaryAudio.value ? 'commentary'
@@ -7350,7 +7441,9 @@ const handleSkip = async () => {
     cycleType: simplePlayer.currentCycle.value?.type ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
     skipInProgress: isSkipInProgress.value,
-  })
+  }
+  logEvent('tap_skip', tapSkipPayload)
+  behaviouralEvidence.onPlayerEvent('tap_skip', tapSkipPayload, simplePlayer.currentCycle.value)
 
   // CRITICAL: Guard against concurrent skips - if already skipping, abort any playing intro and return
   if (isSkipInProgress.value) {
@@ -7435,7 +7528,7 @@ const handleRevisit = async () => {
   // Mirror handleSkip's tap_skip so the back/regress button is captured with the
   // same shape — forward vs back then reads as a single queryable signal
   // (skipping forward ≈ confidence; stepping back ≈ revisiting / struggle).
-  logEvent('tap_skip', {
+  const revisitPayload = {
     direction: 'back',
     during: 'cycle',
     roundIndex: simplePlayer.roundIndex.value,
@@ -7443,7 +7536,9 @@ const handleRevisit = async () => {
     cycleIndex: simplePlayer.cycleIndex.value,
     cycleType: simplePlayer.currentCycle.value?.type ?? null,
     legoId: simplePlayer.currentRound.value?.legoId ?? null,
-  })
+  }
+  logEvent('tap_skip', revisitPayload)
+  behaviouralEvidence.onPlayerEvent('tap_skip', revisitPayload, simplePlayer.currentCycle.value)
 
   haltAllPlayback()
   simplePlayer.stepCycle(-1)
@@ -7763,12 +7858,14 @@ const handleRoundForward = async () => {
   // Forward = "got this / too easy, move on" — the LEGO-scale confidence signal.
   // One emit covers the normal step, the infplay-advance and the course-end
   // paths below; mirror of belt_skip on the coarser axis.
-  logEvent('lego_skip', {
+  const legoSkipForwardPayload = {
     direction: 'forward',
     fromLegoId: simplePlayer.currentRound.value?.legoId ?? null,
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
     slot: simplePlayer.cycleIndex.value ?? null,
-  })
+  }
+  logEvent('lego_skip', legoSkipForwardPayload)
+  behaviouralEvidence.onPlayerEvent('lego_skip', legoSkipForwardPayload, null)
   cancelInFlightLap()
   const currentRound = simplePlayer.currentRound.value
   const fromIdx = simplePlayer.roundIndex.value
@@ -7930,12 +8027,14 @@ const handleRoundBack = async () => {
   // LEGO-axis back nav — a revisit/re-hear gesture (restart the current LEGO, or
   // step to the previous one): the LEGO-scale uncertainty signal, mirror of the
   // forward emit. Covers the infplay step-back and main-loop paths below.
-  logEvent('lego_skip', {
+  const legoSkipBackPayload = {
     direction: 'back',
     fromLegoId: currentRound?.legoId ?? null,
     roundNumber: currentRound?.roundNumber ?? null,
     slot: simplePlayer.cycleIndex.value ?? null,
-  })
+  }
+  logEvent('lego_skip', legoSkipBackPayload)
+  behaviouralEvidence.onPlayerEvent('lego_skip', legoSkipBackPayload, null)
   // INF PLAY when either the enrollment mode says so OR the current round is
   // a revival round (no intro/debut/build). The mode flag covers a bootstrap
   // that loaded only infplay rounds; the round-shape check covers in-session
@@ -8074,6 +8173,7 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     targetSeed: belt.seedsRequired === 0 ? 1 : belt.seedsRequired,
     roundNumber: simplePlayer.currentRound.value?.roundNumber ?? null,
   })
+  behaviouralEvidence.onPlayerEvent('belt_skip', {}, null)
   showProgressModal.value = false
   const targetSeed = belt.seedsRequired === 0 ? 1 : belt.seedsRequired
 
@@ -8205,9 +8305,12 @@ simplePlayer.setRuntimeOverrides({
     )
     // Per-LEGO adaptive multiplier (1.0 if engine not ready or legoId missing).
     // Applied last so mode floors/ceilings are still respected before
-    // mastery scaling.
+    // mastery scaling. currentRoundPlan is only ever non-null when adaptation
+    // v2 is enabled AND actually applying (not shadow) — see
+    // handleRoundBoundary — so this transparently falls back to the untouched
+    // v1 mastery ladder in shadow/disabled mode.
     const multiplier = cycle.legoId
-      ? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
+      ? currentRoundPlan.value?.pauseMultiplier(cycle.legoId) ?? adaptationEngine.value?.getPauseMultiplier(cycle.legoId) ?? 1.0
       : 1.0
     return Math.max(cfg.min_pause_ms, Math.min(cfg.max_pause_ms, base * multiplier))
   },
@@ -8225,6 +8328,13 @@ simplePlayer.setRuntimeOverrides({
     return target / baked
   },
   shouldSkipCycle: (cycle) => {
+    // Adaptation v2 (WP-3): cull cycles the RatePolicyEngine's RoundPlan
+    // says to skip this round (mirrors turboOmit exactly, computed live at
+    // the round boundary instead of at script-gen time — see
+    // handleRoundBoundary). Empty set in shadow/disabled mode, so this is a
+    // no-op unless the engine is enabled AND applying.
+    if (adaptOmitCycleIds.value.size > 0 && adaptOmitCycleIds.value.has(cycle.id)) return true
+
     // Cull tagged cycles when Turbo is on: 4th–7th BUILD, 2nd USE,
     // alternate-fib spaced rep. Tagging happens at script generation;
     // this just gates on the live Turbo flag.
@@ -8572,20 +8682,38 @@ const adaptationConsent = ref(null)
 // applied in the getPauseDuration runtime override below.
 const adaptationEngine = shallowRef<UseAdaptationEngineReturn | null>(null)
 
+// Adaptation v2 (WP-3): the ONE shared evidence aggregator. Both the latency
+// producer (useAdaptationEngine, below) and the behavioural producer
+// (useBehaviouralEvidence) feed this SAME instance so their evidence merges
+// into one per-LEGO series — passed into useAdaptationEngine's config in
+// initializeAdaptationEngine() below.
+const sharedEvidenceAggregator = createEvidenceAggregator()
+
+// Behavioural evidence producer (adaptation v2 WP-1) — maps the taps/skips
+// already logged below into the shared evidence stream.
+const behaviouralEvidence = useBehaviouralEvidence(sharedEvidenceAggregator)
+
+// Envelope evidence producer (adaptation v2 WP-8, stitched WP-3): the model
+// envelope cache (WP-7a) is created once Supabase is available (see
+// initializeAdaptationEngine below) and read from in onCycleCompleted. Stays
+// null under `stage2_enabled:false` (default) or for guests without a
+// client — recordEnvelopeEvidence call site below no-ops in that case.
+const envelopeMetadataCache = shallowRef<EnvelopeMetadataCache | null>(null)
+
+// Adaptation v2 (WP-3): the latest computed RoundPlan, and the set of cycle
+// ids it says to skip this round — both non-null ONLY when the engine is
+// enabled AND actually applying (not shadow). shouldSkipCycle/getPauseDuration
+// below read these; in shadow/disabled mode they stay empty/null, so nothing
+// learner-visible changes (falls through to the untouched v1 pause ladder).
+const currentRoundPlan = shallowRef<RoundPlan | null>(null)
+const adaptOmitCycleIds = shallowRef<Set<string>>(new Set())
+
 // Per-seed Layer 1 fire-count persistence. Hydrates from learner_l1_state on
 // mount, feeds initialL1FireCounts into generateLearningScript so Stage 1→4
 // progression compounds across sessions. Bumped each time an L1 cluster
 // actually plays (detected in onPhaseChanged below) — not when the script
 // emits one (the generator can plan future fires beyond the learner's
 // current position).
-const listeningProgress = shallowRef<UseListeningProgressReturn | null>(null)
-
-// Dedup set: seeds whose fire_count has already been bumped within the
-// currently-playing L1 cluster. Reset every listen_intro start so each
-// cluster contributes one bump per seed regardless of how many listening
-// cycles play for that seed (stage-1 plays 3, stage-4 plays 1, etc.).
-let l1ClusterSeedsBumped: Set<number> | null = null
-
 // Voice Activity Detection (VAD) and Speech Timing state
 const vadInstance = shallowRef(null)
 const timingAnalyzer = shallowRef(null)
@@ -8828,6 +8956,7 @@ const confirmTurbo = () => {
   turboPopupShownThisSession.value = true  // Don't show popup again this session
   turboActive.value = true
   logEvent('turbo_toggle', { enabled: true, firstTime: true })
+  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: true }, null)
 }
 
 // Close turbo popup without enabling
@@ -8841,6 +8970,7 @@ const toggleTurbo = () => {
   // Manual pace control — turbo on = "this is too easy" (confidence/boredom);
   // off = backing off. A no-mic behavioural signal.
   logEvent('turbo_toggle', { enabled: turboActive.value })
+  behaviouralEvidence.onPlayerEvent('turbo_toggle', { enabled: turboActive.value }, null)
 }
 
 // Offline mode: a deliberate, opt-in download of the upcoming course content
@@ -10519,23 +10649,21 @@ onMounted(async () => {
     console.log('[LearningPlayer] AudioCache-backed audio source initialized for course:', courseCode.value, cachePlayOnline ? '(cache-play online: ON)' : '')
   }
 
-  // Cold-start critical path: these three init calls each await a Supabase
+  // Cold-start critical path: these init calls each await a Supabase
   // round-trip (belt remote merge + getMaxSeedNumber; adaptation mastery
-  // hydration; Layer-1 fire-count hydration). NONE is required before the
-  // first cycle can play — only getEnrollment (resume position, below) is.
-  // Every consumer is null-safe with a default: adaptationEngine.value?.
-  // getPauseMultiplier() ?? 1.0, listeningProgress.value?., and the belt
-  // computeds all `?. ?? <default>`. So we fire them concurrently and DON'T
-  // await — the first cycle plays immediately and the belt readout / pause
-  // tuning / L1 counts hydrate reactively a beat later. Previously these ran
-  // serially ahead of bootstrap, stacking ~4 RTTs onto every cold start.
+  // hydration). NEITHER is required before the first cycle can play — only
+  // getEnrollment (resume position, below) is. Every consumer is null-safe
+  // with a default: adaptationEngine.value?.getPauseMultiplier() ?? 1.0, and
+  // the belt computeds all `?. ?? <default>`. So we fire them concurrently
+  // and DON'T await — the first cycle plays immediately and the belt
+  // readout / pause tuning hydrate reactively a beat later. Previously these
+  // ran serially ahead of bootstrap, stacking RTTs onto every cold start.
   const COLD_T0 = (typeof performance !== 'undefined' ? performance.now() : 0)
   void Promise.all([
     initializeBeltProgress(),
     initializeAdaptationEngine(),
-    initializeListeningProgress(),
   ]).then(() => {
-    console.log('[ColdStart] background hydration (belt+adaptation+listening) ready in',
+    console.log('[ColdStart] background hydration (belt+adaptation) ready in',
       Math.round((typeof performance !== 'undefined' ? performance.now() : 0) - COLD_T0), 'ms (off critical path)')
   }).catch((err) => {
     console.warn('[LearningPlayer] background hydration failed (non-fatal):', err)
@@ -12233,8 +12361,6 @@ onUnmounted(() => {
 
   // Flush any pending per-LEGO metrics, remove pagehide listener
   adaptationEngine.value?.dispose()
-  // Flush any pending L1 fire-count bumps
-  listeningProgress.value?.dispose()
   // Resume-audio listeners (registered top-level near extractAudioIdsFromCycle)
   if (typeof document !== 'undefined') {
     document.removeEventListener('visibilitychange', onSaveResumeVisibilityChange)
@@ -12814,6 +12940,19 @@ defineExpose({
       :show-romanization="showRomanization"
     />
 
+    <!-- Listening Pod moment (Layer 2, HISE-interleaved): the whole dialogue
+         turn currently in play, each sentence a LEGO-tile breakdown, the
+         sounding one lit. Always visible for the duration of the pod lap —
+         no VOICE_2 reveal-gating (that rule governs the SPEAKING cycle
+         above, not pod listening). Replaces Stage-0's audio breakdown
+         ladder (retired 2026-07-14, Tom + Aran). -->
+    <PodTurnDisplay
+      v-if="playingPodLapAudio && currentPodTurn"
+      :sentences="currentPodTurn.sentences"
+      :active-index="currentPodTurn.activeIndex"
+      :target-lang="props.course?.target_lang || courseCode?.split('_')[0]"
+      :show-romanization="showRomanization"
+    />
 
     <!-- Hero-Centric Text Labels - Floating above/below the hero node -->
     <div ref="heroTextPaneRef" class="hero-text-pane" :class="[currentPhase, { 'is-intro': isIntroPhase }]">

@@ -56,15 +56,19 @@ export function computeEntitlementExpiry(spec: GrantSpec): string | null {
  * If the grant carries dashboard (Popty) access, apply platform_role and
  * (optionally) dashboard_courses to the learner. Non-fatal: failures are logged
  * but never thrown, so a transient role-update blip can't undo a granted
- * entitlement.
+ * entitlement. Returns whether the role update actually applied — callers
+ * that report redemption success to the user should surface a `false` here
+ * rather than silently claiming the dashboard grant took (finding #10,
+ * 2026-07-13 audit); returns true when there's nothing to apply (no
+ * grants_platform_role on the spec).
  */
 export async function applyDashboardRole(
   supabase: ServiceClient,
   learnerId: string,
   spec: GrantSpec,
   audit?: GrantAuditCtx,
-): Promise<void> {
-  if (!spec.grants_platform_role) return
+): Promise<boolean> {
+  if (!spec.grants_platform_role) return true
 
   // Capture the prior role for the audit (best-effort).
   let oldRole: string | null = null
@@ -85,7 +89,7 @@ export async function applyDashboardRole(
     .eq('id', learnerId)
   if (error) {
     console.error('[entitlementGrant] Failed to update platform_role:', error)
-    return
+    return false
   }
   console.log(
     '[entitlementGrant] Granted dashboard access:',
@@ -103,4 +107,5 @@ export async function applyDashboardRole(
     codeUsed: audit?.codeUsed ?? null,
     detail: spec.grants_dashboard_courses ? { dashboard_courses: spec.grants_dashboard_courses } : null,
   })
+  return true
 }

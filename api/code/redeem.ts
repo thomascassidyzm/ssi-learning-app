@@ -11,6 +11,8 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 import { recordRoleChange } from '../_utils/auditRole'
+import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
+import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -123,7 +125,7 @@ async function redeemInviteCode(
   // Re-validate code (forgiving: match the normalized column)
   const { data: inviteRow, error: inviteError } = await supabase
     .from('invite_codes')
-    .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, metadata, max_uses, use_count, expires_at, is_active')
+    .select('id, code, code_type, grants_region, grants_school_id, grants_class_id, grants_group_id, metadata, max_uses, use_count, expires_at, is_active')
     .eq('code_normalized', strippedCode)
     .eq('is_active', true)
     .single()
@@ -247,52 +249,191 @@ async function redeemInviteCode(
 
   // Create role-specific records
   if (codeType === 'govt_admin') {
+    // Honour grants_group_id when set (leader joins Tom's pre-built group node).
+    // When absent, this is a leader naming their own region — create the group
+    // HERE, atomically with the admin row, rather than via a leader-callable
+    // create-group endpoint: no new write endpoint, no orphan groups from
+    // abandoned first-runs, and the leader can never end up group-less.
+    let groupId = inviteRow.grants_group_id as string | null
+    if (!groupId) {
+      // Idempotent re-redemption / lost-the-race check: if this admin already
+      // has a govt_admins row (this code redeemed concurrently, or retried),
+      // reuse its group rather than minting a second "New region" group.
+      const { data: existingGovt } = await supabase
+        .from('govt_admins')
+        .select('group_id')
+        .eq('user_id', userId)
+        .maybeSingle()
+      groupId = (existingGovt as any)?.group_id ?? null
+    }
+    // Tracks whether THIS request minted the group below, so we can clean up
+    // an orphan if we then lose the govt_admins race (no unique key on
+    // groups — the govt_admins unique key is the real backstop, this just
+    // avoids leaving a stray empty "New region" group behind).
+    let createdGroupThisRequest = false
+    if (!groupId) {
+      const { data: newGroup, error: groupError } = await supabase
+        .from('groups')
+        .insert({
+          name: inviteRow.metadata?.organization_name || 'New region',
+          type: 'region',
+        })
+        .select('id')
+        .single()
+      if (groupError || !newGroup) {
+        console.error('[CodeRedeem] Failed to create group for govt_admin:', groupError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+      groupId = newGroup.id as string
+      createdGroupThisRequest = true
+    }
+
     const { error: govtError } = await supabase
       .from('govt_admins')
       .insert({
         user_id: userId,
+        group_id: groupId,
+        // Written during the region_code/group_id consolidation window (design
+        // §2) so schoolScope.ts's fallback stays honest until it's retired.
         region_code: inviteRow.grants_region,
         organization_name: inviteRow.metadata?.organization_name || '',
         created_by: userId,
         invite_code_id: inviteRow.id,
       })
-    if (govtError) {
+    // 23505 = unique_violation on govt_admins_user_id_key (2026-07-13 migration):
+    // a concurrent redemption for this same admin won the race and already
+    // created the row — idempotent no-op, not an error, since the winner's
+    // row grants the same role this request was asking for.
+    if (govtError && govtError.code !== '23505') {
       console.error('[CodeRedeem] Failed to create govt_admin record:', govtError)
       res.status(500).json({ error: 'Internal server error' })
       return
     }
+    if (govtError?.code === '23505' && createdGroupThisRequest) {
+      // Lost the race after already minting a group for it — delete the
+      // orphan (best-effort; a leftover empty group is cosmetic, not worth
+      // failing the response over).
+      await supabase.from('groups').delete().eq('id', groupId)
+    }
   } else if (codeType === 'school_admin') {
-    const { data: newSchool, error: schoolError } = await supabase
+    // Idempotent select-then-insert: reuse an existing school for this admin
+    // (re-redemption, or a concurrent request that already won). The real
+    // backstop against the double-redeem race is the unique index on
+    // admin_user_id (2026-07-13 migration) caught as 23505 below — this
+    // select just avoids paying for a doomed insert on the common path.
+    const { data: existing } = await supabase
       .from('schools')
-      .insert({
-        admin_user_id: userId,
-        school_name: inviteRow.metadata?.school_name || '',
-        region_code: inviteRow.metadata?.region_code || null,
-        invite_code_id: inviteRow.id,
-      })
-      .select('id, teacher_join_code')
-      .single()
+      .select('id, teacher_join_code, admin_join_code, group_id')
+      .eq('admin_user_id', userId)
+      .maybeSingle()
 
-    if (schoolError || !newSchool) {
-      console.error('[CodeRedeem] Failed to create school:', schoolError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
+    let newSchool: { id: string; teacher_join_code?: string; admin_join_code?: string; group_id?: string | null } | null =
+      existing as any
+    // True only when THIS request's own insert won — group_id was just written
+    // from inviteRow above, so the reattach check below is redundant (and the
+    // mocked insert response in tests may not echo it back). False for the
+    // precheck-existing and 23505-race-reread cases, where reattachment is
+    // exactly the point.
+    let freshlyInserted = false
+
+    if (!newSchool) {
+      const { data: inserted, error: schoolError } = await supabase
+        .from('schools')
+        .insert({
+          admin_user_id: userId,
+          school_name: inviteRow.metadata?.school_name || '',
+          region_code: inviteRow.metadata?.region_code || null,
+          // Automatic group attachment at birth, no adoption step. NEVER trust a
+          // client-supplied group_id — this comes only from the invite row,
+          // which itself was stamped from the minting leader's own group.
+          group_id: inviteRow.grants_group_id || null,
+          invite_code_id: inviteRow.id,
+          // The invite label pre-fills the name, but it's the LEADER's guess,
+          // not the admin's own choice — unconfirmed until DashboardView's
+          // rename card (same pattern as groups.name_confirmed, region-tier
+          // -design.md §1d) is saved once by this school's own admin.
+          name_confirmed: false,
+        })
+        .select('id, teacher_join_code, admin_join_code, group_id')
+        .single()
+
+      if (schoolError?.code === '23505') {
+        // Lost the race: another concurrent request for this admin inserted
+        // first — either another redemption of THIS invite (already carries
+        // the same group_id, nothing to do) or an unrelated ungrouped insert
+        // (e.g. a self-serve /schools1 provision that raced ahead of this
+        // redemption — the exact leak that slipped through group_id
+        // reattachment below only running for the precheck-existing branch).
+        // Reuse the winner's row instead of erroring.
+        const { data: raced } = await supabase
+          .from('schools')
+          .select('id, teacher_join_code, admin_join_code, group_id')
+          .eq('admin_user_id', userId)
+          .maybeSingle()
+        if (!raced) {
+          console.error('[CodeRedeem] school unique-violation but no row found on re-read')
+          res.status(500).json({ error: 'Internal server error' })
+          return
+        }
+        newSchool = raced as any
+      } else if (schoolError || !inserted) {
+        console.error('[CodeRedeem] Failed to create school:', schoolError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      } else {
+        newSchool = inserted as any
+        freshlyInserted = true
+      }
     }
 
-    const { error: teacherCodeError } = await supabase
-      .from('invite_codes')
-      .insert({
-        code: newSchool.teacher_join_code,
-        code_type: 'teacher',
-        grants_school_id: newSchool.id,
-        created_by: userId,
-        is_active: true,
-      })
+    if (!freshlyInserted && inviteRow.grants_group_id && newSchool && !newSchool.group_id) {
+      // Reusing a PRE-EXISTING school for this admin that predates this
+      // group-stamped invite — whether found at the precheck (e.g. an
+      // earlier ungrouped self-serve signup) or via the 23505 race re-read
+      // above (e.g. a concurrent self-serve provision won the insert race).
+      // Without this, the invite's group grant was silently dropped — the
+      // admin ended up with a working, ungrouped school the leader's group
+      // view could never see (the actual leak this branch used to have).
+      // Only fills in an UNSET group_id — never reassigns a school that's
+      // already attached to a (possibly different) group.
+      const { error: attachError } = await supabase
+        .from('schools')
+        .update({ group_id: inviteRow.grants_group_id })
+        .eq('id', newSchool.id)
+        .is('group_id', null)
+      if (attachError) {
+        console.error('[CodeRedeem] Failed to attach pre-existing school to invite group:', attachError)
+      } else {
+        newSchool = { ...newSchool, group_id: inviteRow.grants_group_id }
+      }
+    }
 
-    if (teacherCodeError) {
-      console.error('[CodeRedeem] Failed to create teacher invite code:', teacherCodeError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
+    // Register BOTH the teacher and school-admin join codes (the pre-existing
+    // bug: this branch only ever registered the teacher one, silently leaving
+    // the admin join code unredeemable — same class of fix as provision.ts's
+    // ensureJoinCodesRegistered, now shared from there).
+    await ensureJoinCodesRegistered(supabase, newSchool!.id as string, userId)
+
+    // Set the platform trial clocks HERE, at redemption, instead of routing
+    // the admin through the /schools1 onboarding continuation to trigger
+    // POST /api/onboarding/provision (the old design, region-tier-design.md
+    // §1f) — that continuation forced a SECOND email+OTP because Onboarding.vue
+    // always starts at its 'choose' step with no session check, discarding the
+    // one just established here. No course is chosen yet at invite redemption
+    // (the invite only carries a school_name label, never a course_code), so
+    // this grants the same generous no-course-lock 1-year window self-serve
+    // gives minority-language schools — TeacherDashboard.vue's
+    // schoolAvailableCourses already reads a null trial_course_code as "no
+    // restriction", so the admin can freely try any course until they commit
+    // to one. Best-effort: a failure here must not fail the redemption itself,
+    // same fail-open posture as every other platform-trial write.
+    try {
+      const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+      const email = (authUser?.user?.email || '').trim().toLowerCase()
+      await provisionSchoolPlatformTrial(supabase, email, newSchool!.id as string, null, true)
+    } catch (trialError) {
+      console.error('[CodeRedeem] Platform-trial provisioning failed (non-fatal):', trialError)
     }
   } else if (codeType === 'school_admin_join') {
     const { error: tagError } = await supabase
@@ -341,8 +482,29 @@ async function redeemInviteCode(
     }
   }
 
+  // Student redemption needs the class's course_code so the client can carry
+  // it through the redirect — without it, the redirect lands on App.vue's
+  // cold-boot default course logic instead of the class's actual course
+  // (finding #3, 2026-07-13 audit).
+  let studentCourseCode: string | null = null
+  if (codeType === 'student' && inviteRow.grants_class_id) {
+    const { data: cls } = await supabase
+      .from('classes')
+      .select('course_code')
+      .eq('id', inviteRow.grants_class_id)
+      .maybeSingle()
+    studentCourseCode = cls?.course_code ?? null
+  }
+
+  // school_admin (invite-born — the ONLY way this code_type reaches redeem.ts;
+  // self-serve signup never redeems a code, it goes straight from Onboarding.vue's
+  // OTP step to POST /api/onboarding/provision) goes straight to /schools —
+  // its trial clocks are already set above at redemption, and NO second
+  // onboarding journey (the /schools1 continuation, which used to force a
+  // second email+OTP) runs for it. Self-serve's own /schools1 course-picking
+  // journey is untouched — this redirect only fires from redeem.ts.
   const redirectTo = codeType === 'ssi_admin' ? '/admin'
-    : ['god', 'govt_admin', 'school_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
+    : ['school_admin', 'god', 'govt_admin', 'school_admin_join', 'teacher'].includes(codeType) ? '/schools'
     : '/'
 
   console.log('[CodeRedeem] Redeemed invite code:', inviteRow.code, 'for user:', userId, 'role:', codeType)
@@ -351,6 +513,7 @@ async function redeemInviteCode(
     codeKind: 'invite',
     role: codeType,
     redirectTo,
+    courseCode: studentCourseCode,
   })
 }
 
@@ -446,17 +609,21 @@ async function redeemEntitlementCode(
   }
 
   // If code grants dashboard access, apply platform_role + dashboard_courses.
-  await applyDashboardRole(supabase, learner.id as string, entitlementRow, {
+  const dashboardRoleApplied = await applyDashboardRole(supabase, learner.id as string, entitlementRow, {
     actorUserId: userId,
     source: 'entitlement-code',
     codeUsed: entitlementRow.code as string,
   })
+  if (!dashboardRoleApplied) {
+    console.error('[CodeRedeem] Entitlement granted but dashboard role update failed:', entitlementRow.code, 'for user:', userId)
+  }
 
   const redirectTo = entitlementRow.grants_platform_role ? '/' : '/'
 
   console.log('[CodeRedeem] Redeemed entitlement code:', entitlementRow.code, 'for user:', userId, 'label:', entitlementRow.label)
   res.status(200).json({
     success: true,
+    dashboardRoleApplied,
     codeKind: 'entitlement',
     label: entitlementRow.label,
     accessType: entitlementRow.access_type,

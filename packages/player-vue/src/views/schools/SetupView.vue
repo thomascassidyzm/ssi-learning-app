@@ -22,14 +22,13 @@ import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo } from '@/composables/schools/useClassesData'
 import { useCourseAccess, type CourseGrant } from '@/composables/schools/useCourseAccess'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
-import { getSchoolsClient } from '@/composables/schools/client'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
-const { classes, fetchClasses, createClass } = useClassesData()
+const { classes, fetchClasses, createClass, error: classesError } = useClassesData()
 const { courseGrants, fetchCourseAccess } = useCourseAccess()
 const { teachers, fetchTeachers } = useTeachersData()
 
@@ -114,18 +113,24 @@ async function saveSchool(): Promise<boolean> {
   isSavingSchool.value = true
   error.value = null
   try {
-    const client = getSchoolsClient()
-    const updates: Record<string, unknown> = {
-      school_name: schoolName.value.trim(),
-    }
-    if (schoolRegion.value.trim()) {
-      updates.region_code = schoolRegion.value.trim()
-    }
-    const { error: updateError } = await client
-      .from('schools')
-      .update(updates)
-      .eq('id', school.id)
-    if (updateError) throw updateError
+    // The org tables' authenticated UPDATE grant is revoked (see CLAUDE.md
+    // RLS section) — a direct client `schools.update()` 403s here, which
+    // blocked step 1 of the entire self-serve setup wizard (finding #2b/#5,
+    // 2026-07-13 audit). Routed through a caller-scoped server endpoint.
+    if (!supabase.value) throw new Error('Not signed in')
+    const { data: { session } } = await supabase.value.auth.getSession()
+    const token = session?.access_token
+    if (!token) throw new Error('Not signed in')
+    const res = await fetch('/api/school/update-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        school_name: schoolName.value.trim(),
+        region_code: schoolRegion.value.trim() || undefined,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.error || 'Failed to save school')
     await fetchSchools()
     return true
   } catch (err) {
@@ -233,6 +238,10 @@ async function persistClasses(): Promise<boolean> {
       draft.joinCode = created.student_join_code
     } else {
       allOk = false
+      // useClassesData's createClass sets its OWN error ref on failure —
+      // surface it here rather than silently staying on the step with no
+      // visible feedback (finding #10, 2026-07-13 audit).
+      error.value = classesError.value || `Failed to create class "${draft.class_name}"`
     }
   }
   return allOk

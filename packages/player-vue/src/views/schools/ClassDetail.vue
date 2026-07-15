@@ -29,7 +29,16 @@ const backToSchool = computed(() => isGovtAdmin.value && !!viewingSchool.value)
 
 const classReport = ref<ClassReport | null>(null)
 const copySuccess = ref(false)
+const codeCopySuccess = ref(false)
+const showCode = ref(false)
 const searchQuery = ref('')
+
+// Self-view route is `classes/:id`; the admin read-view nests this under
+// `/admin/schools/:id/classes/:classId`, so under that nesting Vue Router
+// merges BOTH params in and `route.params.id` resolves to the parent
+// SCHOOL id, not the class id. Prefer `classId` when present — see
+// finding #1c, 2026-07-13 audit.
+const classIdParam = computed(() => (route.params.classId as string) || (route.params.id as string))
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -164,7 +173,7 @@ async function loadReport(classId: string) {
 }
 
 onMounted(() => {
-  const classId = route.params.id as string
+  const classId = classIdParam.value
   if (classId && selectedUser.value) {
     fetchClassDetail(classId)
     loadReport(classId)
@@ -175,7 +184,7 @@ onMounted(() => {
 })
 
 watch(selectedUser, (newUser) => {
-  const classId = route.params.id as string
+  const classId = classIdParam.value
   if (newUser && classId) {
     fetchClassDetail(classId)
     loadReport(classId)
@@ -208,11 +217,28 @@ function handlePlay() {
   router.push({ path: '/schools/play', query: { class: classData.value.id } })
 }
 
+// Same /redeem/:code door as every other invite in the app (group leader,
+// school admin, teacher — SchoolsSetup.vue's schoolAdminInviteLink). The
+// underlying invite_codes row is unchanged (code_type: 'student',
+// max_uses: null) — many students redeem the same link, it's just delivered
+// as a link instead of a bare code now.
+const classJoinLink = computed(() => `${window.location.origin}/redeem/${classData.value.join_code}`)
+
+async function copyJoinLink() {
+  try {
+    await navigator.clipboard.writeText(classJoinLink.value)
+    copySuccess.value = true
+    setTimeout(() => { copySuccess.value = false }, 2000)
+  } catch {
+    /* ignore */
+  }
+}
+
 async function copyJoinCode() {
   try {
     await navigator.clipboard.writeText(classData.value.join_code)
-    copySuccess.value = true
-    setTimeout(() => { copySuccess.value = false }, 2000)
+    codeCopySuccess.value = true
+    setTimeout(() => { codeCopySuccess.value = false }, 2000)
   } catch {
     /* ignore */
   }
@@ -403,19 +429,42 @@ async function renameClass() {
         </div>
 
         <div class="schools-card schools-card-pad rail-card join-card">
-          <div class="schools-kicker join-kicker">Join code</div>
-          <div class="join-code">{{ classData.join_code }}</div>
+          <div class="schools-kicker join-kicker">Invite students</div>
           <p class="join-help">
-            Students enter this code at <strong>saysomethingin.com/join</strong> to be added to the class.
+            Share this link — students click it, sign up, and land straight in the class.
           </p>
           <button
             type="button"
             class="btn-ghost btn-small join-copy"
             :class="{ copied: copySuccess }"
-            @click="copyJoinCode"
+            @click="copyJoinLink"
           >
-            {{ copySuccess ? 'Copied' : 'Copy code' }}
+            {{ copySuccess ? 'Copied' : 'Copy invite link' }}
           </button>
+
+          <button
+            v-if="!showCode"
+            type="button"
+            class="btn-text join-show-code"
+            @click="showCode = true"
+          >
+            Show code instead
+          </button>
+          <template v-else>
+            <div class="join-code">{{ classData.join_code }}</div>
+            <p class="join-help join-help-small">
+              For writing on a whiteboard — students enter it at
+              <strong>saysomethingin.com/redeem</strong>.
+            </p>
+            <button
+              type="button"
+              class="btn-ghost btn-small join-copy"
+              :class="{ copied: codeCopySuccess }"
+              @click="copyJoinCode"
+            >
+              {{ codeCopySuccess ? 'Copied' : 'Copy code' }}
+            </button>
+          </template>
         </div>
       </aside>
     </div>
@@ -682,6 +731,22 @@ async function renameClass() {
   background: var(--schools-success);
   border-color: var(--schools-success);
   color: #fff;
+}
+
+.join-show-code {
+  align-self: flex-start;
+  margin-top: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: #7a5418;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.join-help-small {
+  margin-top: 8px;
 }
 
 @media (max-width: 960px) {

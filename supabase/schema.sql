@@ -463,6 +463,61 @@ $$;
 
 
 --
+-- Name: analytics_class_sessions_scoped(uuid[], integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer DEFAULT 90) RETURNS TABLE(class_id uuid, course_code text, start_lego_id text, end_lego_id text, start_ord integer, end_ord integer, duration_seconds integer, started_at timestamp with time zone)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  RETURN QUERY
+  WITH lego_order AS (
+    -- canonical position of every lego within its course (1-based) — same
+    -- ground truth analytics_class_coverage uses for "legos advanced".
+    SELECT
+      cl.course_code,
+      cl.lego_id,
+      ROW_NUMBER() OVER (
+        PARTITION BY cl.course_code
+        ORDER BY cl.seed_number, cl.lego_index
+      ) AS ord
+    FROM public.course_legos cl
+  ),
+  sess AS (
+    SELECT
+      s.class_id,
+      c.course_code,
+      s.start_lego_id,
+      s.end_lego_id,
+      s.duration_seconds,
+      s.started_at
+    FROM public.class_sessions s
+    JOIN public.classes c ON c.id = s.class_id
+    LEFT JOIN public.schools sc ON sc.id = c.school_id
+    WHERE s.class_id = ANY(p_class_ids)
+      AND s.started_at >= now() - make_interval(days => GREATEST(p_days, 1))
+      AND COALESCE(sc.is_demo, false) = false   -- drop demo schools; keep NULL-school (ACT)
+  )
+  SELECT
+    se.class_id,
+    se.course_code,
+    se.start_lego_id,
+    se.end_lego_id,
+    lo_s.ord::integer AS start_ord,   -- ROW_NUMBER() is bigint; cast to match RETURNS TABLE
+    lo_e.ord::integer AS end_ord,
+    se.duration_seconds,
+    se.started_at
+  FROM sess se
+  LEFT JOIN lego_order lo_s
+    ON lo_s.course_code = se.course_code AND lo_s.lego_id = se.start_lego_id
+  LEFT JOIN lego_order lo_e
+    ON lo_e.course_code = se.course_code AND lo_e.lego_id = se.end_lego_id;
+END;
+$$;
+
+
+--
 -- Name: analytics_course_comparison(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4434,6 +4489,24 @@ ALTER SEQUENCE public.audio_flags_id_seq OWNED BY public.audio_flags.id;
 
 
 --
+-- Name: audio_pass_requests; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.audio_pass_requests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    course_code text NOT NULL,
+    reason text NOT NULL,
+    requested_by text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    fulfilled_at timestamp with time zone,
+    fulfilled_by text
+);
+
+
+--
 -- Name: build_jobs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4710,7 +4783,7 @@ COMMENT ON COLUMN public.learners.is_internal IS 'Real human internal/QA/team ac
 
 CREATE TABLE public.schools (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    admin_user_id text NOT NULL,
+    admin_user_id text,
     school_name text NOT NULL,
     region_code text,
     teacher_join_code text NOT NULL,
@@ -4727,6 +4800,7 @@ CREATE TABLE public.schools (
     teacher_seats integer DEFAULT 1 NOT NULL,
     provider_subscription_id text,
     provider_customer_id text,
+    name_confirmed boolean DEFAULT true NOT NULL,
     CONSTRAINT schools_platform_status_check CHECK ((platform_status = ANY (ARRAY['trial'::text, 'active'::text, 'past_due'::text, 'expired'::text, 'cancelled'::text]))),
     CONSTRAINT schools_trial_kind_check CHECK (((trial_kind IS NULL) OR (trial_kind = ANY (ARRAY['premium_1mo'::text, 'free_1yr'::text]))))
 );
@@ -6444,6 +6518,31 @@ COMMENT ON TABLE public.evolution_levels IS 'Reference table for evolution level
 
 
 --
+-- Name: family_members; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.family_members (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    owner_learner_id uuid NOT NULL,
+    member_learner_id uuid,
+    invited_email text,
+    is_child_account boolean DEFAULT false NOT NULL,
+    status text DEFAULT 'invited'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    removed_at timestamp with time zone,
+    CONSTRAINT family_members_status_check CHECK ((status = ANY (ARRAY['invited'::text, 'active'::text, 'removed'::text])))
+);
+
+
+--
+-- Name: TABLE family_members; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.family_members IS 'SSi Family plan membership (FAMILY-PLAN-SPEC.md). The umbrella IS the payer''s subscriptions row (plan_name = ''SSi Family''); this table is the only new data surface. RLS ON, no policies — service-role-only, all access via /api/family/* endpoints (CLAUDE.md rule 7 posture + the "hierarchy authz = endpoints" doctrine). Removal is a stamp (removed_at + status=''removed''), never a delete.';
+
+
+--
 -- Name: feedback_aggregated; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -6503,7 +6602,8 @@ CREATE TABLE public.groups (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     path text,
-    is_demo boolean DEFAULT false NOT NULL
+    is_demo boolean DEFAULT false NOT NULL,
+    name_confirmed boolean DEFAULT false NOT NULL
 );
 
 
@@ -6534,8 +6634,13 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
     COALESCE(tc.teacher_count, (0)::bigint) AS teacher_count,
     COALESCE(cc.class_count, (0)::bigint) AS class_count,
     COALESCE(sc.student_count, (0)::bigint) AS student_count,
-    COALESCE(ph.total_practice_hours, (0)::numeric) AS total_practice_hours
-   FROM ((((public.schools s
+    COALESCE(ph.total_practice_hours, (0)::numeric) AS total_practice_hours,
+    s.name_confirmed,
+    s.teacher_join_code,
+    s.admin_join_code,
+    s.created_at,
+    ((s.admin_user_id IS NOT NULL) OR at.has_admin_tag) AS has_admin
+   FROM (((((public.schools s
      LEFT JOIN LATERAL ( SELECT count(*) AS teacher_count
            FROM public.user_tags ut
           WHERE ((ut.tag_type = 'school'::text) AND (ut.tag_value = ('SCHOOL:'::text || s.id)) AND (ut.role_in_context = 'teacher'::text) AND (ut.removed_at IS NULL))) tc ON (true))
@@ -6549,7 +6654,10 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
      LEFT JOIN LATERAL ( SELECT (COALESCE(sum(csp.total_practice_seconds), (0)::numeric) / (3600)::numeric) AS total_practice_hours
            FROM (public.class_student_progress csp
              JOIN public.classes c ON ((c.id = csp.class_id)))
-          WHERE (c.school_id = s.id)) ph ON (true));
+          WHERE (c.school_id = s.id)) ph ON (true))
+     LEFT JOIN LATERAL ( SELECT (EXISTS ( SELECT 1
+                   FROM public.user_tags ut2
+                  WHERE ((ut2.tag_type = 'school'::text) AND (ut2.tag_value = ('SCHOOL:'::text || s.id)) AND (ut2.role_in_context = 'admin'::text) AND (ut2.removed_at IS NULL)))) AS has_admin_tag) at ON (true));
 
 
 --
@@ -6564,11 +6672,12 @@ CREATE VIEW public.group_summary WITH (security_invoker='on') AS
     COALESCE(sum(ss.teacher_count), (0)::numeric) AS teacher_count,
     COALESCE(sum(ss.class_count), (0)::numeric) AS class_count,
     COALESCE(sum(ss.student_count), (0)::numeric) AS student_count,
-    COALESCE(sum(ss.total_practice_hours), (0)::numeric) AS total_practice_hours
+    COALESCE(sum(ss.total_practice_hours), (0)::numeric) AS total_practice_hours,
+    g.name_confirmed
    FROM ((public.groups g
      LEFT JOIN public.schools s ON ((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids))))
      LEFT JOIN public.school_summary ss ON ((ss.school_id = s.id)))
-  GROUP BY g.id, g.name, g.path;
+  GROUP BY g.id, g.name, g.path, g.name_confirmed;
 
 
 --
@@ -6632,7 +6741,8 @@ CREATE VIEW public.invite_code_validation WITH (security_invoker='on') AS
     use_count,
     expires_at,
     is_active,
-    code_normalized
+    code_normalized,
+    grants_group_id
    FROM public.invite_codes;
 
 
@@ -8344,6 +8454,14 @@ ALTER TABLE ONLY public.audio_flags
 
 
 --
+-- Name: audio_pass_requests audio_pass_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.audio_pass_requests
+    ADD CONSTRAINT audio_pass_requests_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: build_jobs build_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8813,6 +8931,14 @@ ALTER TABLE ONLY public.entitlement_grants
 
 ALTER TABLE ONLY public.evolution_levels
     ADD CONSTRAINT evolution_levels_pkey PRIMARY KEY (level);
+
+
+--
+-- Name: family_members family_members_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_members
+    ADD CONSTRAINT family_members_pkey PRIMARY KEY (id);
 
 
 --
@@ -9541,6 +9667,41 @@ ALTER TABLE ONLY public.user_tags
 
 ALTER TABLE ONLY public.voices
     ADD CONSTRAINT voices_pkey PRIMARY KEY (voice_id);
+
+
+--
+-- Name: audio_pass_requests_one_pending_per_course; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX audio_pass_requests_one_pending_per_course ON public.audio_pass_requests USING btree (course_code) WHERE (status = 'pending'::text);
+
+
+--
+-- Name: audio_pass_requests_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX audio_pass_requests_status_idx ON public.audio_pass_requests USING btree (status, created_at);
+
+
+--
+-- Name: family_members_invite_dedupe; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX family_members_invite_dedupe ON public.family_members USING btree (owner_learner_id, invited_email) WHERE ((removed_at IS NULL) AND (invited_email IS NOT NULL));
+
+
+--
+-- Name: family_members_one_family; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX family_members_one_family ON public.family_members USING btree (member_learner_id) WHERE ((removed_at IS NULL) AND (member_learner_id IS NOT NULL));
+
+
+--
+-- Name: family_members_owner_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX family_members_owner_idx ON public.family_members USING btree (owner_learner_id);
 
 
 --
@@ -11077,6 +11238,13 @@ CREATE INDEX release_notes_released_at_idx ON public.release_notes USING btree (
 
 
 --
+-- Name: schools_admin_user_id_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX schools_admin_user_id_key ON public.schools USING btree (admin_user_id) WHERE (admin_user_id IS NOT NULL);
+
+
+--
 -- Name: uq_user_entitlements_learner_grant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11669,6 +11837,22 @@ ALTER TABLE ONLY public.entitlement_grants
 
 ALTER TABLE ONLY public.entitlement_grants
     ADD CONSTRAINT entitlement_grants_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id) ON DELETE CASCADE;
+
+
+--
+-- Name: family_members family_members_member_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_members
+    ADD CONSTRAINT family_members_member_learner_id_fkey FOREIGN KEY (member_learner_id) REFERENCES public.learners(id);
+
+
+--
+-- Name: family_members family_members_owner_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.family_members
+    ADD CONSTRAINT family_members_owner_learner_id_fkey FOREIGN KEY (owner_learner_id) REFERENCES public.learners(id);
 
 
 --
@@ -13069,6 +13253,12 @@ CREATE POLICY entitlement_codes_update_admin ON public.entitlement_codes FOR UPD
 ALTER TABLE public.evolution_levels ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: family_members; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.family_members ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: gamification_config; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -14044,6 +14234,14 @@ GRANT ALL ON FUNCTION public.analytics_class_coverage(p_days integer) TO service
 
 
 --
+-- Name: FUNCTION analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.analytics_class_sessions_scoped(p_class_ids uuid[], p_days integer) TO service_role;
+
+
+--
 -- Name: FUNCTION analytics_course_comparison(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -14926,6 +15124,15 @@ GRANT ALL ON SEQUENCE public.audio_flags_id_seq TO service_role;
 
 
 --
+-- Name: TABLE audio_pass_requests; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.audio_pass_requests TO anon;
+GRANT ALL ON TABLE public.audio_pass_requests TO authenticated;
+GRANT ALL ON TABLE public.audio_pass_requests TO service_role;
+
+
+--
 -- Name: TABLE build_jobs; Type: ACL; Schema: public; Owner: -
 --
 
@@ -15417,6 +15624,13 @@ GRANT ALL ON TABLE public.entitlement_grants TO service_role;
 
 GRANT ALL ON TABLE public.evolution_levels TO authenticated;
 GRANT ALL ON TABLE public.evolution_levels TO service_role;
+
+
+--
+-- Name: TABLE family_members; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.family_members TO service_role;
 
 
 --

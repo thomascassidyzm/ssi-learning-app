@@ -6,7 +6,7 @@
  * school_admin scope, then renders the existing ClassDetail view. The
  * view reads the :id from its own route and queries class detail.
  */
-import { inject, onMounted, provide, ref, watch } from 'vue'
+import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import ClassDetail from '@/views/schools/ClassDetail.vue'
@@ -59,6 +59,8 @@ async function loadContext(classId: string | string[]) {
 
 onMounted(() => loadContext(route.params.id as string))
 watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
+// Deterministic teardown — see finding #1a, 2026-07-13 audit.
+onUnmounted(() => ctx.clear())
 </script>
 
 <template>

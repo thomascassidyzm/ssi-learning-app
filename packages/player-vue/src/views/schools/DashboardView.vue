@@ -9,9 +9,12 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
+import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
+import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
 
 const router = useRouter()
+const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const { density } = useSchoolsDensity()
 
@@ -26,6 +29,7 @@ const {
   totalClasses,
   totalPracticeHours,
   fetchSchools,
+  confirmSchoolName,
   selectSchoolToView,
   clearViewingSchool,
 } = useSchoolData()
@@ -35,6 +39,99 @@ const {
   fetchClasses,
   getClassReport,
 } = useClassesData()
+
+const {
+  links: schoolLinks,
+  fetchSchoolLinks,
+  createSchoolInMyGroup,
+  renameGroup,
+} = useGovtAdminActions()
+
+// ---------- Govt admin: "name your group" first-run card ----------
+const groupNameDraft = ref('')
+const isSavingGroupName = ref(false)
+const groupNameError = ref<string | null>(null)
+const showNameGroupCard = computed(() =>
+  isGovtAdmin.value && !isViewingSchool.value && groupSummary.value?.name_confirmed === false
+)
+
+async function saveGroupName() {
+  const name = groupNameDraft.value.trim()
+  const groupId = groupSummary.value?.group_id
+  if (!name || !groupId) return
+  isSavingGroupName.value = true
+  groupNameError.value = null
+  const ok = await renameGroup(groupId, name)
+  isSavingGroupName.value = false
+  if (ok) {
+    await fetchSchools()
+  } else {
+    groupNameError.value = 'Could not save — try again.'
+  }
+}
+
+// ---------- School admin: "confirm your school's name" first-run card ----------
+// Invite-born admins land here with a name pre-filled from the inviting
+// leader's guess (schools.name_confirmed=false) — editable before it sticks.
+// Self-serve schools default name_confirmed=true and never see this card.
+const schoolNameDraft = ref('')
+const isSavingSchoolName = ref(false)
+const schoolNameError = ref<string | null>(null)
+const showNameSchoolCard = computed(() =>
+  isSchoolAdmin.value && currentSchool.value?.name_confirmed === false
+)
+
+watch(currentSchool, (school) => {
+  if (school && !schoolNameDraft.value) schoolNameDraft.value = school.school_name || ''
+}, { immediate: true })
+
+async function saveSchoolName() {
+  const name = schoolNameDraft.value.trim()
+  const schoolId = currentSchool.value?.id
+  if (!name || !schoolId) return
+  isSavingSchoolName.value = true
+  schoolNameError.value = null
+  const ok = await confirmSchoolName(schoolId, name)
+  isSavingSchoolName.value = false
+  if (!ok) schoolNameError.value = 'Could not save — try again.'
+}
+
+// ---------- Govt admin: create school directly (the only creation
+// primitive — region-tier-design.md §5c-revised 2026-07-13). The school row
+// is created immediately, group-attached, with both join codes registered
+// at birth — no separate "invite/onboard" concept any more. ----------
+const isCreatingSchool = ref(false)
+const newSchoolLabel = ref('')
+const createdSchoolLinks = ref<{ admin_join_code: string; teacher_join_code: string } | null>(null)
+const copiedLinkId = ref<string | null>(null)
+
+function schoolInviteUrl(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
+
+async function copyLink(id: string, code: string) {
+  try {
+    await navigator.clipboard.writeText(schoolInviteUrl(code))
+    copiedLinkId.value = id
+    setTimeout(() => { if (copiedLinkId.value === id) copiedLinkId.value = null }, 2000)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function handleCreateSchool() {
+  const name = newSchoolLabel.value.trim()
+  if (!name) return
+  isCreatingSchool.value = true
+  createdSchoolLinks.value = null
+  const result = await createSchoolInMyGroup(name)
+  isCreatingSchool.value = false
+  if (result) {
+    createdSchoolLinks.value = result.school
+    newSchoolLabel.value = ''
+    await Promise.all([fetchSchools(), fetchSchoolLinks()])
+  }
+}
 
 // Per-class benchmark reports, fetched lazily.
 const classReports = reactive(new Map<string, ClassReport>())
@@ -57,17 +154,25 @@ watch(currentUser, (user) => {
   if (isTeacher.value || isSchoolAdmin.value) {
     fetchClasses().then(fetchReports)
   }
+  if (isGovtAdmin.value) {
+    fetchSchoolLinks()
+  }
 }, { immediate: true })
 
 // Govt admin drills into a school → load that school's classes (the classes
 // composable scopes to the viewed school via activeSchoolId). Without this the
 // detail view has no class data, since govt admins don't fetch classes at the
-// group level.
+// group level. `immediate: true` matters here: selectSchoolToView() sets
+// viewingSchool BEFORE the router.push that mounts this component, so a
+// plain (non-immediate) watch never fires on this navigation — it only
+// catches a LATER change while already mounted (e.g. clicking a different
+// school from within the drill-down). Without immediate, the classes table
+// stays empty until an unrelated re-render happens to touch viewingSchool.
 watch(viewingSchool, (school) => {
   if (school && isGovtAdmin.value) {
     fetchClasses().then(fetchReports)
   }
-})
+}, { immediate: true })
 
 onMounted(() => {
   if (currentUser.value) {
@@ -197,7 +302,7 @@ function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
-          <router-link to="/schools/classes" class="btn-ghost">+ Create class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-ghost">+ Create class</router-link>
         </template>
       </Greeting>
 
@@ -234,7 +339,7 @@ function handlePlayClass(cls: ClassInfo) {
           :key="cls.id"
           :class="['teacher-compact-row', { last: i === teacherClasses.length - 1 }]"
         >
-          <router-link :to="`/schools/classes/${cls.id}`" class="class-link">
+          <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="class-link">
             <BeltDot belt="white" :size="28" ring />
             <div class="class-link-text">
               <div class="class-name">{{ cls.class_name }}</div>
@@ -248,13 +353,13 @@ function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
           </div>
         </div>
 
         <div v-if="!teacherClasses.length" class="empty-state">
           <p>No classes yet.</p>
-          <router-link to="/schools/classes" class="btn-play">Create your first class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
         </div>
       </div>
 
@@ -267,7 +372,7 @@ function handlePlayClass(cls: ClassInfo) {
         >
           <div class="panel-head">
             <div class="course-eyebrow">{{ courseDisplayName(cls.course_code) }}</div>
-            <router-link :to="`/schools/classes/${cls.id}`" class="panel-title-link">
+            <router-link :to="schoolsLink('class-detail', { classId: cls.id })" class="panel-title-link">
               <h2 class="arsenal panel-title">{{ cls.class_name }}</h2>
             </router-link>
             <div class="panel-meta">
@@ -285,13 +390,13 @@ function handlePlayClass(cls: ClassInfo) {
 
           <div class="panel-footer">
             <span class="join-code">{{ cls.student_join_code }}</span>
-            <button class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
+            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
           </div>
         </article>
 
         <div v-if="!teacherClasses.length" class="empty-state full">
           <p>No classes yet — create one to get your students playing.</p>
-          <router-link to="/schools/classes" class="btn-play">Create your first class</router-link>
+          <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
         </div>
       </div>
     </template>
@@ -307,7 +412,7 @@ function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
-          <div class="action-row">
+          <div v-if="!isAdminView" class="action-row">
             <router-link to="/schools/teachers" class="btn-ghost">+ Invite teacher</router-link>
             <router-link to="/schools/settings" class="btn-play">School settings</router-link>
           </div>
@@ -316,9 +421,10 @@ function handlePlayClass(cls: ClassInfo) {
 
       <!-- First-run: the school is empty → offer the guided setup wizard.
            /schools/setup has no nav tab, so this banner is its entry point.
-           Gated on currentSchool so it can't flash while stats are loading. -->
+           Gated on currentSchool so it can't flash while stats are loading.
+           Setup is a write flow with no admin-view equivalent — hide it there. -->
       <router-link
-        v-if="currentSchool && !totalClasses && !totalStudents"
+        v-if="!isAdminView && currentSchool && !totalClasses && !totalStudents"
         to="/schools/setup"
         class="schools-card schools-card-pad setup-banner"
       >
@@ -360,11 +466,11 @@ function handlePlayClass(cls: ClassInfo) {
           <header class="card-header-row">
             <h3 class="arsenal card-header-title">Classes</h3>
             <router-link
-              v-if="teacherClasses.length"
+              v-if="!isAdminView && teacherClasses.length"
               to="/schools/classes?create=1"
               class="card-header-link"
             >+ Create class</router-link>
-            <router-link to="/schools/classes" class="card-header-link">View all →</router-link>
+            <router-link :to="schoolsLink('classes')" class="card-header-link">View all →</router-link>
           </header>
           <table class="ssi-table">
             <thead>
@@ -393,7 +499,7 @@ function handlePlayClass(cls: ClassInfo) {
               <tr v-if="!teacherClasses.length">
                 <td colspan="4" class="empty-row">
                   <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
-                  <router-link to="/schools/classes?create=1" class="btn-play empty-row-cta">
+                  <router-link v-if="!isAdminView" to="/schools/classes?create=1" class="btn-play empty-row-cta">
                     + Create your first class
                   </router-link>
                 </td>
@@ -405,17 +511,17 @@ function handlePlayClass(cls: ClassInfo) {
         <aside class="schools-card schools-card-pad attention-panel">
           <h3 class="arsenal attention-title">Quick links</h3>
           <div class="attention-list">
-            <router-link to="/schools/students" class="attention-row">
+            <router-link :to="schoolsLink('students')" class="attention-row">
               <div class="attention-tag">Students</div>
               <div class="attention-body">View and manage all student progress</div>
               <span class="attention-cta">Open →</span>
             </router-link>
-            <router-link to="/schools/teachers" class="attention-row">
+            <router-link :to="schoolsLink('teachers')" class="attention-row">
               <div class="attention-tag">Teachers</div>
               <div class="attention-body">Invite or manage teaching staff</div>
               <span class="attention-cta">Open →</span>
             </router-link>
-            <router-link to="/schools/analytics" class="attention-row">
+            <router-link :to="schoolsLink('analytics')" class="attention-row">
               <div class="attention-tag">Analytics</div>
               <div class="attention-body">Weekly activity and per-class breakdown</div>
               <span class="attention-cta">Open →</span>
@@ -438,9 +544,117 @@ function handlePlayClass(cls: ClassInfo) {
         :dense="density === 'compact'"
       >
         <template #action>
-          <router-link to="/schools/all" class="btn-ghost">Full schools list →</router-link>
+          <router-link :to="schoolsLink('schools-list')" class="btn-ghost">Full schools list →</router-link>
         </template>
       </Greeting>
+
+      <!-- First-run: name your group (design §1d) -->
+      <div v-if="showNameGroupCard" class="schools-card schools-card-pad name-group-card">
+        <h3 class="arsenal card-header-title">Name your group</h3>
+        <p class="schools-subtle">This is what schools will see when they join.</p>
+        <div class="name-group-row">
+          <input
+            v-model="groupNameDraft"
+            type="text"
+            class="field-input"
+            placeholder="e.g. Gwynedd Education Authority"
+            :disabled="isSavingGroupName"
+            @keyup.enter="saveGroupName"
+          />
+          <button
+            class="btn-play"
+            :disabled="isSavingGroupName || !groupNameDraft.trim()"
+            @click="saveGroupName"
+          >
+            {{ isSavingGroupName ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+        <p v-if="groupNameError" class="name-group-error">{{ groupNameError }}</p>
+      </div>
+
+      <!-- First-run: confirm your school's name (invite-born admins only —
+           the name came from the inviting leader's guess, not yours). -->
+      <div v-if="showNameSchoolCard" class="schools-card schools-card-pad name-group-card">
+        <h3 class="arsenal card-header-title">Confirm your school's name</h3>
+        <p class="schools-subtle">This is what your teachers and students will see.</p>
+        <div class="name-group-row">
+          <input
+            v-model="schoolNameDraft"
+            type="text"
+            class="field-input"
+            placeholder="e.g. Ysgol y Garnedd"
+            :disabled="isSavingSchoolName"
+            @keyup.enter="saveSchoolName"
+          />
+          <button
+            class="btn-play"
+            :disabled="isSavingSchoolName || !schoolNameDraft.trim()"
+            @click="saveSchoolName"
+          >
+            {{ isSavingSchoolName ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+        <p v-if="schoolNameError" class="name-group-error">{{ schoolNameError }}</p>
+      </div>
+
+      <!-- Add schools / Create school (design §1e, §5c revised) -->
+      <div v-if="!isViewingSchool" class="schools-card schools-card-pad add-schools-card">
+        <header class="card-header-row">
+          <h3 class="arsenal card-header-title">Schools in your group</h3>
+        </header>
+        <div class="add-schools-row">
+          <input
+            v-model="newSchoolLabel"
+            type="text"
+            class="field-input field-input-flex"
+            placeholder="School name"
+            @keyup.enter="handleCreateSchool"
+          />
+          <button class="btn-play" :disabled="isCreatingSchool || !newSchoolLabel.trim()" @click="handleCreateSchool">
+            {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
+          </button>
+        </div>
+        <div v-if="createdSchoolLinks" class="schools-subtle created-links">
+          <span>Admin: <code>{{ schoolInviteUrl(createdSchoolLinks.admin_join_code) }}</code>
+            <button class="btn-ghost" @click="copyLink('new-admin', createdSchoolLinks.admin_join_code)">
+              {{ copiedLinkId === 'new-admin' ? 'Copied!' : 'Copy' }}
+            </button>
+          </span>
+          <span>Teacher: <code>{{ schoolInviteUrl(createdSchoolLinks.teacher_join_code) }}</code>
+            <button class="btn-ghost" @click="copyLink('new-teacher', createdSchoolLinks.teacher_join_code)">
+              {{ copiedLinkId === 'new-teacher' ? 'Copied!' : 'Copy' }}
+            </button>
+          </span>
+        </div>
+
+        <!-- Outstanding links minted before the one-primitive change
+             (2026-07-14) — kept redeemable and visible here, but no new
+             ones can be minted from this surface any more. -->
+        <table v-if="schoolLinks.length" class="ssi-table">
+          <thead>
+            <tr>
+              <th>Link</th>
+              <th>State</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="link in schoolLinks" :key="link.id">
+              <td>{{ link.label || link.code }}</td>
+              <td class="schools-subtle">
+                <span v-if="link.redeemed">Redeemed — {{ link.school?.school_name }}</span>
+                <span v-else-if="!link.is_active">Deactivated</span>
+                <span v-else>Pending</span>
+              </td>
+              <td>
+                <button v-if="!link.redeemed" class="btn-ghost" @click="copyLink(link.id, link.code)">
+                  {{ copiedLinkId === link.id ? 'Copied!' : 'Copy link' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div v-if="!isViewingSchool" class="govt-schools-grid">
         <button
@@ -509,7 +723,10 @@ function handlePlayClass(cls: ClassInfo) {
             <tbody>
               <tr v-for="cls in teacherClasses" :key="cls.id">
                 <td>
-                  <router-link :to="`/schools/classes/${cls.id}`" class="class-cell class-cell-link">
+                  <router-link
+                    :to="schoolsLink('class-detail', { classId: cls.id, schoolId: viewingSchool?.id })"
+                    class="class-cell class-cell-link"
+                  >
                     <BeltDot belt="white" :size="20" ring />
                     <div>
                       <div class="class-name">{{ cls.class_name }}</div>
@@ -756,6 +973,29 @@ function handlePlayClass(cls: ClassInfo) {
   text-decoration: none;
 }
 .card-header-link:hover { color: var(--schools-fg); }
+
+.name-group-card, .add-schools-card { margin-bottom: 20px; }
+.name-group-row, .add-schools-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.name-group-error { color: var(--schools-danger, #c0392b); font-size: 13px; margin-top: 8px; }
+
+.created-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.created-links span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 .class-cell {
   display: flex;

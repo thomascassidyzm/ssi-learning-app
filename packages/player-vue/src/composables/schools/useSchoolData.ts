@@ -14,6 +14,10 @@ interface GroupSummary {
   group_name: string
   group_path?: string
   region_code?: string
+  // Drives the "name your group" first-run card (region-tier-design.md
+  // §1d). Undefined on the legacy region_summary fallback (pre-group-tree
+  // govt admins) — treat as already-confirmed there, nothing to prompt.
+  name_confirmed?: boolean
   school_count: number
   teacher_count: number
   student_count: number
@@ -27,7 +31,7 @@ export interface School {
   school_name: string
   region_code: string | null
   group_id?: string | null
-  admin_user_id: string
+  admin_user_id: string | null
   teacher_join_code: string
   admin_join_code: string
   teacher_count: number
@@ -35,9 +39,20 @@ export interface School {
   student_count: number
   total_practice_hours: number
   created_at: string
+  // Drives the "confirm your school's name" first-run card (invite-born
+  // admins only — see schools.name_confirmed migration). Optional so
+  // existing constructors don't break; undefined reads as already-confirmed.
+  name_confirmed?: boolean
   // Dashboard extras — optional so existing constructors don't break.
   active_days_last_7?: number
   health?: SchoolHealth
+  // Claim state (school_summary.has_admin, 20260714 migration): true once
+  // EITHER admin_user_id is set (legacy school_admin invite path) OR an
+  // admin user_tags row exists (the school_admin_join redemption path new
+  // leader-created schools use — it never sets admin_user_id). Optional so
+  // existing constructors default to "claimed" (no false "awaiting" badge
+  // on data that predates this column).
+  has_admin?: boolean
 }
 
 // Bucket a school's recent engagement into one of four bands. A school
@@ -146,8 +161,8 @@ export function useSchoolData() {
             region_code: s.region_code,
             group_id: s.group_id,
             admin_user_id: s.admin_user_id,
-            teacher_join_code: '',
-            admin_join_code: '',
+            teacher_join_code: s.teacher_join_code || '',
+            admin_join_code: s.admin_join_code || '',
             teacher_count: s.teacher_count,
             class_count: s.class_count,
             student_count: s.student_count,
@@ -155,6 +170,7 @@ export function useSchoolData() {
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
+            has_admin: s.has_admin ?? !!s.admin_user_id,
           }
         })
 
@@ -171,6 +187,7 @@ export function useSchoolData() {
               group_id: groupData.group_id,
               group_name: groupData.group_name,
               group_path: groupData.group_path,
+              name_confirmed: groupData.name_confirmed,
               school_count: groupData.school_count,
               teacher_count: groupData.teacher_count,
               student_count: groupData.student_count,
@@ -222,6 +239,7 @@ export function useSchoolData() {
             student_count: data.student_count,
             total_practice_hours: data.total_practice_hours,
             created_at: data.created_at,
+            name_confirmed: data.name_confirmed,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(data.student_count || 0, activeDays),
           }
@@ -234,6 +252,38 @@ export function useSchoolData() {
     } finally {
       isLoading.value = false
     }
+  }
+
+  // Confirm/rename a school's name — the invite-born admin's first-run card.
+  // The `schools` table's authenticated UPDATE grant is revoked (see
+  // CLAUDE.md RLS section), so this is routed through the same caller-scoped
+  // server endpoint SetupView.vue's saveSchool() uses (finding #2a, 2026-07-13
+  // audit) rather than a direct client write. The endpoint always resolves
+  // the school from the caller's OWN session — the schoolId param is only
+  // used to gate the local currentSchool cache update, never sent to the server.
+  async function confirmSchoolName(schoolId: string, name: string): Promise<boolean> {
+    error.value = null
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) throw new Error('Not signed in')
+      const res = await fetch('/api/school/update-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ school_name: name, name_confirmed: true }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `Request failed: ${res.status}`)
+      }
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to confirm school name'
+      return false
+    }
+    if (currentSchool.value?.id === schoolId) {
+      currentSchool.value = { ...currentSchool.value, school_name: name, name_confirmed: true }
+    }
+    return true
   }
 
   // Drill-down: select a school to view (for govt admin)
@@ -294,6 +344,7 @@ export function useSchoolData() {
 
     // Actions
     fetchSchools,
+    confirmSchoolName,
     selectSchoolToView,
     clearViewingSchool,
   }

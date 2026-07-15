@@ -1,6 +1,18 @@
 /**
  * stage0Sequence.ts — pure (no Vue) composer for the Stage-0 pod-explainer ladder.
  *
+ * RETIRED FROM THE RUNTIME (2026-07-14, Tom + Aran): the AUDIO breakdown this
+ * module composes no longer plays in the main-flow pod path — the per-atom
+ * breakdown a sentence used to get from repeated audio reps is now an
+ * ALWAYS-VISIBLE LEGO-tile display built straight from atom_map (player-vue's
+ * PodTurnDisplay.vue, reusing LegoAssembly), never played. This module stays
+ * because the admin-only Pod stage auditioner (/admin/pod-auditioner) still
+ * calls tierSequence/foldEventsToPlays directly to preview/tune Stage-0 timing
+ * for content authoring — nothing about that tool changed. The runtime-weaving
+ * layer that used to sit on top of this (stage0ViewFor, and
+ * podStageComposition's buildStage0Tier/composeSentenceArc/loadStage0ClipMaps)
+ * had zero other callers once removed from usePodLapScheduler and was deleted.
+ *
  * This is the app-side port of the tuner's `stageSequence()` (Popty
  * public/stage0-tuner.html, the "whole-part-whole-v1" model, Tom 2026-06-15).
  * Given a sentence's RESOLVED atoms (each already mapped to its DB clip ids) +
@@ -392,18 +404,3 @@ export function foldEventsToPlays(events: Stage0Event[]): TimedPlay[] {
   return out
 }
 
-/**
- * Map a sentence's view count (1-based "alive") to where it sits in the
- * prepended ladder: its first `tierCount` views are Stage-0 tiers (one per
- * view), and everything after maps to the existing stages with the entry
- * shifted by `tierCount` (so view tierCount+1 == Stage 1).
- */
-export function stage0ViewFor(
-  alive: number,
-  tierCount: number,
-): { phase: 'stage0'; tierIndex: number } | { phase: 'main'; shift: number } {
-  if (tierCount > 0 && alive >= 1 && alive <= tierCount) {
-    return { phase: 'stage0', tierIndex: alive - 1 }
-  }
-  return { phase: 'main', shift: Math.max(0, tierCount) }
-}

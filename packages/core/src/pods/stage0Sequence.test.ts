@@ -4,7 +4,6 @@ import {
   buildLadder,
   sequenceDurationMs,
   foldEventsToPlays,
-  stage0ViewFor,
   DEFAULT_STAGE0,
   type Stage0Config,
   type Stage0Tier,
@@ -215,22 +214,5 @@ describe('foldEventsToPlays', () => {
     const plays = foldEventsToPlays(events)
     expect(plays[0].gapAfterMs).toBe(150)
     expect(plays[1].gapAfterMs).toBeUndefined()
-  })
-})
-
-describe('stage0ViewFor — the prepend mapping', () => {
-  it('first 5 views are Stage-0 tiers 0..4 (one per view)', () => {
-    expect(stage0ViewFor(1, 5)).toEqual({ phase: 'stage0', tierIndex: 0 })
-    expect(stage0ViewFor(5, 5)).toEqual({ phase: 'stage0', tierIndex: 4 })
-  })
-
-  it('view 6 enters main stages with entry shifted by the tier count', () => {
-    expect(stage0ViewFor(6, 5)).toEqual({ phase: 'main', shift: 5 })
-    expect(stage0ViewFor(20, 5)).toEqual({ phase: 'main', shift: 5 })
-  })
-
-  it('tierCount 0 (Stage-0 disabled) → always main, no shift', () => {
-    expect(stage0ViewFor(1, 0)).toEqual({ phase: 'main', shift: 0 })
-    expect(stage0ViewFor(9, 0)).toEqual({ phase: 'main', shift: 0 })
   })
 })

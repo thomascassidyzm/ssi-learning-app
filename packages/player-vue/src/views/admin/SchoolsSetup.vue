@@ -9,8 +9,8 @@ const router = useRouter()
 interface School {
   id: string
   school_name: string
-  region_code: string | null
   group_id: string | null
+  admin_user_id: string | null
   teacher_join_code: string
   admin_join_code: string
   created_at: string
@@ -67,6 +67,7 @@ const inheritedCourseCount = ref(0)
 // School form state
 const newSchoolName = ref('')
 const newSchoolGroup = ref('')
+const newSchoolAdminCode = ref<string | null>(null)
 
 // Group form
 const newGroupName = ref('')
@@ -86,7 +87,6 @@ const newGovtEmail = ref('')
 const newGovtGroup = ref('')
 const newGovtOrg = ref('')
 const isCreatingGovt = ref(false)
-const regions = ref<Array<{ code: string; name: string }>>([])
 const govtAdminCode = ref<string | null>(null)
 
 // Staff list
@@ -170,10 +170,50 @@ const groupedCourses = computed(() => {
   return Object.entries(buckets).sort(([a], [b]) => a.localeCompare(b))
 })
 
+// Group leader invites land on the branded /group/:code door (see router
+// index.ts "group-landing" route) — link-first doctrine, never a bare code.
+function groupInviteLink(code: string): string {
+  return `${window.location.origin}/group/${code}`
+}
+
+// School-admin join codes redeem via the generic /redeem/:code door — same
+// pattern as SchoolsView.vue's govt-admin "Onboard new school" invite link.
+function schoolAdminInviteLink(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
+
 function getCurrentUserId(): string | null {
   if (user.value) return user.value.id
   if (learner.value) return learner.value.user_id
   return null
+}
+
+// Schools claimed via the school_admin_join redemption path (leader-created
+// schools — api/code/redeem.ts's school_admin_join branch never sets
+// schools.admin_user_id, only this user_tags row) — same "claimed" signal
+// as school_summary.has_admin (20260714 migration), read separately here
+// since this view queries `schools` directly, not the summary view.
+const adminClaimedSchoolIds = ref<Set<string>>(new Set())
+
+function schoolHasAdmin(school: School): boolean {
+  return !!school.admin_user_id || adminClaimedSchoolIds.value.has(school.id)
+}
+
+async function fetchAdminClaimedSchoolIds(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data } = await client
+      .from('user_tags')
+      .select('tag_value')
+      .eq('tag_type', 'school')
+      .eq('role_in_context', 'admin')
+      .is('removed_at', null)
+    adminClaimedSchoolIds.value = new Set(
+      (data || []).map((t: { tag_value: string }) => t.tag_value.replace('SCHOOL:', ''))
+    )
+  } catch (err) {
+    console.error('[SetupView] fetch admin-claimed schools error:', err)
+  }
 }
 
 async function fetchSchools(): Promise<void> {
@@ -183,11 +223,12 @@ async function fetchSchools(): Promise<void> {
   try {
     const { data, error: fetchError } = await client
       .from('schools')
-      .select('id, school_name, region_code, group_id, teacher_join_code, admin_join_code, created_at')
+      .select('id, school_name, group_id, admin_user_id, teacher_join_code, admin_join_code, created_at')
       .order('created_at', { ascending: false })
 
     if (fetchError) throw fetchError
     schools.value = data || []
+    await fetchAdminClaimedSchoolIds()
   } catch (err) {
     console.error('[SetupView] fetch schools error:', err)
   } finally {
@@ -204,6 +245,7 @@ async function createSchool(): Promise<void> {
   isCreatingSchool.value = true
   error.value = null
   successMessage.value = null
+  newSchoolAdminCode.value = null
 
   // schools + 2 invite_codes inserts moved to /api/admin/create-school
   // (block_anon_role_escalation REVOKEd invite_codes INSERT, so the
@@ -231,6 +273,7 @@ async function createSchool(): Promise<void> {
     }
 
     successMessage.value = `School "${data.school?.school_name || newSchoolName.value.trim()}" created`
+    newSchoolAdminCode.value = data.school?.admin_join_code || null
     newSchoolName.value = ''
     newSchoolGroup.value = ''
 
@@ -306,23 +349,8 @@ async function createStaff(): Promise<void> {
   }
 }
 
-async function fetchRegions(): Promise<void> {
-  try {
-    const client = getClient()
-    const { data } = await client
-      .from('regions')
-      .select('code, name')
-      .order('name')
-    regions.value = data || []
-  } catch (err) {
-    console.error('[SetupView] fetch regions error:', err)
-  }
-}
-
 async function createGovtAdmin(): Promise<void> {
   if (!newGovtName.value.trim()) { error.value = 'Name is required'; return }
-  if (!newGovtEmail.value.trim()) { error.value = 'Email is required'; return }
-  if (!newGovtGroup.value) { error.value = 'Please select a group'; return }
   if (!newGovtOrg.value.trim()) { error.value = 'Organization name is required'; return }
 
   isCreatingGovt.value = true
@@ -347,8 +375,8 @@ async function createGovtAdmin(): Promise<void> {
       },
       body: JSON.stringify({
         display_name: newGovtName.value.trim(),
-        email: newGovtEmail.value.trim().toLowerCase(),
-        group_id: newGovtGroup.value,
+        email: newGovtEmail.value.trim().toLowerCase() || undefined,
+        group_id: newGovtGroup.value || undefined,
         organization_name: newGovtOrg.value.trim(),
       }),
     })
@@ -360,8 +388,10 @@ async function createGovtAdmin(): Promise<void> {
 
     govtAdminCode.value = data.invite_code || null
 
-    const groupName = groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group'
-    successMessage.value = `Govt Admin "${newGovtName.value.trim()}" created for ${groupName}`
+    const groupName = newGovtGroup.value
+      ? (groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group')
+      : 'a group they will name themselves'
+    successMessage.value = `Invite created for "${newGovtName.value.trim()}" — ${groupName}`
 
     newGovtName.value = ''
     newGovtEmail.value = ''
@@ -485,20 +515,26 @@ async function createGroup(): Promise<void> {
   successMessage.value = null
 
   try {
-    const client = getClient()
+    // groups.insert moved server-side (/api/groups POST) — the 2026-07-04
+    // grant-hygiene window revoked direct client writes on the org tables
+    // (see CLAUDE.md RLS section).
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+
     const insertData: Record<string, unknown> = {
       name: newGroupName.value.trim(),
       type: newGroupType.value,
     }
     if (newGroupParent.value) insertData.parent_id = newGroupParent.value
 
-    const { data, error: insertError } = await client
-      .from('groups')
-      .insert(insertData)
-      .select()
-      .single()
-
-    if (insertError) throw insertError
+    const resp = await fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(insertData),
+    })
+    const respData = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(respData.error || `HTTP ${resp.status}`)
+    const data = respData.group
 
     successMessage.value = `Group "${data.name}" created`
     newGroupName.value = ''
@@ -570,14 +606,30 @@ async function updateSchoolGroup(school: School, groupId: string): Promise<void>
   const previousGroupId = school.group_id
   const previousGroupName = previousGroupId ? getGroupName(previousGroupId) : null
 
+  // schools.update moved server-side (/api/admin/update-school) — the
+  // 2026-07-04 grant-hygiene window revoked direct client writes on the
+  // org tables (see CLAUDE.md RLS section).
   try {
-    const client = getClient()
-    const { error: updateError } = await client
-      .from('schools')
-      .update({ group_id: groupId || null })
-      .eq('id', school.id)
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
 
-    if (updateError) throw updateError
+    const resp = await fetch('/api/admin/update-school', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        school_id: school.id,
+        group_id: groupId || null,
+      }),
+    })
+
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) {
+      throw new Error(data.error || `HTTP ${resp.status}`)
+    }
+
     school.group_id = groupId || null
 
     if (groupId && previousGroupName) {
@@ -781,13 +833,18 @@ async function deleteSchool(school: School): Promise<void> {
   if (!confirm(`Delete school "${school.school_name}"? This cannot be undone.`)) return
 
   try {
-    const client = getClient()
-    const { error: deleteError } = await client
-      .from('schools')
-      .delete()
-      .eq('id', school.id)
+    // schools.delete moved server-side (/api/admin/update-school) — the
+    // 2026-07-04 grant-hygiene window revoked direct client writes on the
+    // org tables (see CLAUDE.md RLS section).
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
 
-    if (deleteError) throw deleteError
+    const resp = await fetch(`/api/admin/update-school?school_id=${encodeURIComponent(school.id)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
 
     successMessage.value = `School "${school.school_name}" deleted`
     await fetchSchools()
@@ -832,7 +889,6 @@ onMounted(() => {
   fetchCourses()
   fetchGrants()
   fetchStaff()
-  fetchRegions()
 })
 </script>
 
@@ -903,12 +959,78 @@ onMounted(() => {
 
     <!-- ───── GROUPS TAB ───── -->
     <template v-if="activeTab === 'groups'">
-      <!-- Create group form panel -->
+      <!-- Add a group (hero action — invite its leader) -->
       <div class="schools-card form-panel">
         <div class="panel-head">
-          <span class="schools-kicker">Create group</span>
-          <span class="panel-hint">A bucket for schools that share entitlements.</span>
+          <span class="schools-kicker">Add a group</span>
+          <span class="panel-hint">Invite a group leader — they name their group and manage their own schools.</span>
         </div>
+        <form class="form-grid" @submit.prevent="createGovtAdmin">
+          <div class="field">
+            <label class="schools-kicker">Name <span class="required">*</span></label>
+            <input v-model="newGovtName" type="text" class="frost-input" placeholder="e.g. Gwilym Thomas" />
+          </div>
+          <div class="field">
+            <label class="schools-kicker">Email <span class="optional">(optional — for your records; the invite works for whoever opens the link)</span></label>
+            <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
+          </div>
+          <div class="field">
+            <label class="schools-kicker">Group <span class="optional">(optional)</span></label>
+            <select v-model="newGovtGroup" class="frost-select">
+              <option value="">— Leader names their own group on first login —</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">
+                {{ g.name }}
+              </option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="schools-kicker">Organisation <span class="required">*</span></label>
+            <input v-model="newGovtOrg" type="text" class="frost-input" placeholder="e.g. Welsh Government Language Office" />
+          </div>
+
+          <div v-if="govtAdminCode" class="field field-wide invite-result">
+            <span class="schools-kicker">Invite link</span>
+            <button
+              type="button"
+              class="code-chip is-large"
+              :class="{ 'is-copied': copiedCode === groupInviteLink(govtAdminCode) }"
+              @click="copyCode(groupInviteLink(govtAdminCode!))"
+            >
+              <span class="code-value frost-mono-nums">{{ groupInviteLink(govtAdminCode) }}</span>
+              <svg v-if="copiedCode !== groupInviteLink(govtAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+            <span class="invite-hint">Share this link — clicking it takes them straight to sign-in.</span>
+          </div>
+
+          <div class="field-actions">
+            <button
+              type="submit"
+              class="btn-primary"
+              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtOrg.trim()"
+            >
+              <svg v-if="!isCreatingGovt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span v-else class="spinner"></span>
+              {{ isCreatingGovt ? 'Creating…' : 'Create invite' }}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Create an empty group (advanced) — pre-build a bucket without inviting a leader yet -->
+      <details class="schools-card form-panel advanced-panel">
+        <summary class="panel-head panel-head--summary">
+          <span class="schools-kicker">Create an empty group (advanced)</span>
+          <span class="panel-hint">Pre-build a group or hierarchy without inviting a leader yet — e.g. for a signed contract.</span>
+        </summary>
         <form class="form-grid" @submit.prevent="createGroup">
           <div class="field field-wide">
             <label class="schools-kicker">Group name <span class="required">*</span></label>
@@ -957,7 +1079,7 @@ onMounted(() => {
             </button>
           </div>
         </form>
-      </div>
+      </details>
 
       <!-- Groups tree panel -->
       <div class="schools-card tree-panel">
@@ -1061,7 +1183,7 @@ onMounted(() => {
       </div>
 
       <!-- Empty state for groups -->
-      <div class="schools-card empty">
+      <div v-if="rootGroups.length === 0" class="schools-card empty">
         <div class="empty-ghost">groups</div>
         <div class="empty-copy">
           <strong>No groups yet</strong>
@@ -1069,71 +1191,6 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Add Govt Admin -->
-      <div class="schools-card form-panel">
-        <div class="panel-head">
-          <span class="schools-kicker">Add govt admin</span>
-          <span class="panel-hint">Invite someone to oversee all schools within a group.</span>
-        </div>
-        <form class="form-grid" @submit.prevent="createGovtAdmin">
-          <div class="field">
-            <label class="schools-kicker">Name <span class="required">*</span></label>
-            <input v-model="newGovtName" type="text" class="frost-input" placeholder="e.g. Gwilym Thomas" />
-          </div>
-          <div class="field">
-            <label class="schools-kicker">Email <span class="required">*</span></label>
-            <input v-model="newGovtEmail" type="email" class="frost-input" placeholder="e.g. gwilym@gov.wales" />
-          </div>
-          <div class="field">
-            <label class="schools-kicker">Group <span class="required">*</span></label>
-            <select v-model="newGovtGroup" class="frost-select">
-              <option value="">— Select group —</option>
-              <option v-for="g in groups" :key="g.id" :value="g.id">
-                {{ g.name }}
-              </option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="schools-kicker">Organisation <span class="required">*</span></label>
-            <input v-model="newGovtOrg" type="text" class="frost-input" placeholder="e.g. Welsh Government Language Office" />
-          </div>
-
-          <div v-if="govtAdminCode" class="field field-wide invite-result">
-            <span class="schools-kicker">Invite code</span>
-            <button
-              type="button"
-              class="code-chip is-large"
-              :class="{ 'is-copied': copiedCode === govtAdminCode }"
-              @click="copyCode(govtAdminCode!)"
-            >
-              <span class="code-value frost-mono-nums">{{ govtAdminCode }}</span>
-              <svg v-if="copiedCode !== govtAdminCode" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </button>
-            <span class="invite-hint">Share this code — they enter it in Settings to gain access.</span>
-          </div>
-
-          <div class="field-actions">
-            <button
-              type="submit"
-              class="btn-primary"
-              :disabled="isCreatingGovt || !newGovtName.trim() || !newGovtEmail.trim() || !newGovtGroup || !newGovtOrg.trim()"
-            >
-              <svg v-if="!isCreatingGovt" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              <span v-else class="spinner"></span>
-              {{ isCreatingGovt ? 'Creating…' : 'Create govt admin' }}
-            </button>
-          </div>
-        </form>
-      </div>
     </template>
 
     <!-- ───── SCHOOLS TAB ───── -->
@@ -1165,6 +1222,26 @@ onMounted(() => {
             </select>
           </div>
 
+          <div v-if="newSchoolAdminCode" class="field field-wide invite-result">
+            <span class="schools-kicker">Invite link</span>
+            <button
+              type="button"
+              class="code-chip is-large"
+              :class="{ 'is-copied': copiedCode === schoolAdminInviteLink(newSchoolAdminCode) }"
+              @click="copyCode(schoolAdminInviteLink(newSchoolAdminCode!))"
+            >
+              <span class="code-value frost-mono-nums">{{ schoolAdminInviteLink(newSchoolAdminCode) }}</span>
+              <svg v-if="copiedCode !== schoolAdminInviteLink(newSchoolAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+            <span class="invite-hint">Share this with the school admin — clicking it takes them straight to sign-in.</span>
+          </div>
+
           <div class="field-actions">
             <button
               type="submit"
@@ -1189,6 +1266,7 @@ onMounted(() => {
             <tr>
               <th>School</th>
               <th>Group</th>
+              <th>Status</th>
               <th>Entitlements</th>
               <th>Teacher code</th>
               <th>Admin code</th>
@@ -1210,6 +1288,10 @@ onMounted(() => {
                     {{ g.name }}
                   </option>
                 </select>
+              </td>
+              <td>
+                <span v-if="!schoolHasAdmin(school)" class="type-pill tone-red">Awaiting admin</span>
+                <span v-else class="type-pill tone-green">Claimed</span>
               </td>
               <td>
                 <span
@@ -1283,7 +1365,7 @@ onMounted(() => {
         </table>
       </div>
 
-      <div class="schools-card empty">
+      <div v-if="schools.length === 0" class="schools-card empty">
         <div class="empty-ghost">schools</div>
         <div class="empty-copy">
           <strong>No schools yet</strong>
@@ -1378,7 +1460,7 @@ onMounted(() => {
         </table>
       </div>
 
-      <div class="schools-card empty">
+      <div v-if="staffMembers.length === 0" class="schools-card empty">
         <div class="empty-ghost">staff</div>
         <div class="empty-copy">
           <strong>No staff yet</strong>
@@ -1617,6 +1699,31 @@ onMounted(() => {
   color: var(--schools-fg-3);
 }
 
+/* Advanced panel (collapsed create-empty-group form) */
+.advanced-panel {
+  opacity: 0.85;
+}
+
+.panel-head--summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.panel-head--summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel-head--summary::before {
+  content: '▸';
+  color: var(--schools-fg-3);
+  margin-right: var(--space-2);
+  transition: transform var(--transition-fast);
+}
+
+.advanced-panel[open] .panel-head--summary::before {
+  transform: rotate(90deg);
+}
+
 /* Form grid (frost) */
 .form-grid {
   padding: var(--space-5) var(--space-6) var(--space-6);
@@ -1725,7 +1832,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--schools-red-light);
+  background: var(--schools-red-deep);
   box-shadow: 0 2px 6px rgba(44, 38, 34, 0.10), 0 8px 22px rgba(194, 58, 58, 0.28);
 }
 

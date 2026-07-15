@@ -19,8 +19,8 @@ const route = useRoute()
 const tabs: AdminTab[] = [
   {
     label: 'Setup',
-    to: '/admin/schools',
-    match: (p) => p === '/admin' || p.startsWith('/admin/schools'),
+    to: '/admin/setup',
+    match: (p) => p === '/admin' || p.startsWith('/admin/setup') || p.startsWith('/admin/schools'),
   },
   {
     label: 'Access',
@@ -71,7 +71,7 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
         <span>Back to App</span>
       </router-link>
 
-      <router-link to="/admin/schools" class="brand">
+      <router-link to="/admin/setup" class="brand">
         <span class="brand-mark">S</span>
         <span class="brand-text">SSi Admin</span>
       </router-link>

@@ -12,7 +12,7 @@
  * itself via the router guard, so if we're here, access is already
  * verified.
  */
-import { inject, onMounted, provide, ref, watch } from 'vue'
+import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
@@ -58,6 +58,10 @@ async function loadContext(schoolId: string | string[]) {
 
 onMounted(() => loadContext(route.params.id as string))
 watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
+// Deterministic teardown: leaving this read-view must never let its scope
+// leak into whatever mounts next (e.g. the admin's own /schools) — see
+// finding #1a, 2026-07-13 audit.
+onUnmounted(() => ctx.clear())
 </script>
 
 <template>

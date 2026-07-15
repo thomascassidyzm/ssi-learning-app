@@ -58,6 +58,8 @@ export interface AuthActions {
   updatePassword: (newPassword: string) => Promise<{ error?: string }>
   /** Get the current Supabase session access token */
   getToken: () => Promise<string | null>
+  /** Re-sync learner/role from the DB (post-redemption authoritative write) */
+  refreshRole: () => Promise<void>
 }
 
 /**
@@ -524,6 +526,23 @@ export function useAuth(): AuthState & AuthActions {
     guestId.value = getOrCreateGuestId()
   }
 
+  /**
+   * Force a fresh learner/role re-sync from the DB.
+   *
+   * Used right after an action that changes the learner's role server-side
+   * (e.g. redeeming an invite code) to guarantee the role cache reflects the
+   * change. Without this, the SIGNED_IN listener's own ensureLearnerExists()
+   * call — fired concurrently with the redemption — can read the
+   * pre-redemption row and then resolve LATER (it does an extra
+   * verified_emails round trip), clobbering the redemption's optimistic
+   * role write before the caller navigates. Awaiting this after redemption
+   * makes the redemption's own re-fetch the final, authoritative write.
+   */
+  async function refreshRole(): Promise<void> {
+    if (!supabaseUser.value) return
+    learner.value = await ensureLearnerExists()
+  }
+
   function incrementSessionCount(): void {
     completedSessionsCount.value++
     localStorage.setItem(GUEST_SESSIONS_KEY, String(completedSessionsCount.value))
@@ -622,5 +641,6 @@ export function useAuth(): AuthState & AuthActions {
     migrateGuestProgress,
     initialize,
     updatePassword,
+    refreshRole,
   }
 }

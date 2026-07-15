@@ -139,6 +139,10 @@ export function toSimpleRounds(
         // Pod plays carry exactly one of {knownAudioId (translation play),
         // target1Id (target play at slow/fast/2× via playbackSpeed)}.
         if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
+      } else if (i.type === 'spaced_rep' && i.reviewItemKind === 'seed') {
+        // Drained SEED-PHASE review sub-cycles (the t→k→t→t sandwich) carry
+        // exactly one of {knownAudioId, target1Id}, same shape as pod plays.
+        if (!i.knownAudioId && !i.target1Id) { skippedNoAudio++; continue }
       } else if (i.type !== 'intro') {
         if (!i.knownAudioId || !i.target1Id || !i.target2Id) { skippedNoAudio++; continue }
       }
@@ -161,6 +165,7 @@ export function toSimpleRounds(
 
       const isBookend = i.type === 'listen_intro' || i.type === 'listen_outro'
       const isPod = i.type === 'pod'
+      const isSeedSandwich = i.type === 'spaced_rep' && i.reviewItemKind === 'seed'
 
       cycles.push({
         id: i.uuid,
@@ -189,9 +194,14 @@ export function toSimpleRounds(
         // spaced rep. SimplePlayer's shouldSkipCycle override (gated on
         // turboActive) decides whether to actually skip at play time.
         ...(i.turboOmit ? { turboOmit: true } : {}),
-        // Intro/listening/component_intro/bookends/pods: no pause.
-        // Other cycles: dynamic pause based on target audio lengths.
-        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod)
+        // At-most-one-audio-track cycles: lets SimplePlayer suppress its
+        // "no audio, skipping" warnings for the phases left empty by design.
+        ...((isBookend || isPod || i.type === 'listening' || isSeedSandwich) ? { singleAudio: true } : {}),
+        // Intro/listening/component_intro/bookends/pods/drained-seed-sandwich:
+        // no pause — each sub-cycle carries at most one audio track, chained
+        // straight through on 'ended' (no production-recall gap). Other
+        // cycles: dynamic pause based on target audio lengths.
+        pauseDuration: (i.type === 'intro' || i.type === 'listening' || i.type === 'component_intro' || isBookend || isPod || isSeedSandwich)
           ? 0
           : computePauseDuration(i.target1DurationMs ?? 0, i.target2DurationMs ?? 0, DEFAULT_NORMAL, speed),
         // Intro/component_intro: linger after voice2 so learner can read

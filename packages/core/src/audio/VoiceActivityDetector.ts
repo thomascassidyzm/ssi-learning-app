@@ -27,6 +27,7 @@ import type {
 } from './types';
 import { DEFAULT_VAD_CONFIG } from '../config/defaults';
 import { DEFAULT_CONTINUOUS_VAD_CONFIG, createEmptySpeechTimingResult } from './types';
+import { extractEnvelopeMetadata, type TimedEnergySample } from './envelopeMetadata';
 
 export class VoiceActivityDetector {
   private config: VADConfig;
@@ -57,6 +58,12 @@ export class VoiceActivityDetector {
   private lastSpeechEndAbsolute: number | null = null;     // Absolute time of last speech end
   private speechEndDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private confirmedSpeechEnd: number | null = null;        // Confirmed end (after debounce)
+
+  // Timestamped energy samples for continuous mode ONLY (adaptation v2 WP-6).
+  // rAF cadence is display-locked/throttle-prone, so envelope extraction needs
+  // timestamps, not just values. Never leaves this class — stopContinuousMonitoring
+  // consumes it into EnvelopeMetadata (5 numbers) and discards it immediately.
+  private continuousEnergyTimeline: TimedEnergySample[] = [];
 
   constructor(config: Partial<VADConfig> = {}) {
     this.config = { ...DEFAULT_VAD_CONFIG, ...config };
@@ -364,6 +371,7 @@ export class VoiceActivityDetector {
     this.firstSpeechStartAbsolute = null;
     this.lastSpeechEndAbsolute = null;
     this.confirmedSpeechEnd = null;
+    this.continuousEnergyTimeline = [];
     if (this.speechEndDebounceTimer) {
       clearTimeout(this.speechEndDebounceTimer);
       this.speechEndDebounceTimer = null;
@@ -476,6 +484,18 @@ export class VoiceActivityDetector {
     // Calculate energy stats
     const averageEnergy = this.calculateAverageEnergy();
 
+    // Volume-envelope metadata (adaptation v2 WP-6, §5.1): only within the
+    // confirmed speech window, and only the derived numbers — the timeline
+    // is consumed and discarded right here, never exposed on the result.
+    let envelope;
+    if (speechStartMs !== null && speechEndMs !== null && learnerDurationMs !== null) {
+      const speechWindow = this.continuousEnergyTimeline.filter(
+        (s) => s.t - this.continuousStartTime >= speechStartMs && s.t - this.continuousStartTime <= speechEndMs
+      );
+      envelope = extractEnvelopeMetadata(speechWindow, learnerDurationMs);
+    }
+    this.continuousEnergyTimeline = [];
+
     return {
       prompt_start_ms: 0,
       prompt_end_ms: promptEndMs,
@@ -490,6 +510,7 @@ export class VoiceActivityDetector {
       speech_detected: speechStartMs !== null,
       peak_energy_db: this.peakEnergy === -Infinity ? -100 : this.peakEnergy,
       average_energy_db: averageEnergy,
+      envelope,
     };
   }
 
@@ -505,6 +526,7 @@ export class VoiceActivityDetector {
 
     // Record energy sample
     this.energySamples.push(energy);
+    this.continuousEnergyTimeline.push({ t: now, db: energy });
 
     // Track peak
     if (energy > this.peakEnergy) {

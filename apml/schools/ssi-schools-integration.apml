@@ -4,7 +4,7 @@
 metadata:
   title: "SSi Schools Integration"
   version: "1.0.0"
-  date: "2026-01-12"
+  date: "2026-07-14"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -74,6 +74,79 @@ principle OfflineFirst:
     caching: "IndexedDB for course data and audio"
     sync: "Background sync when online"
     fallback: "Full functionality offline after initial load"
+
+principle SingleAuthOnboarding:
+  statement: "One email+OTP verification per signup, never two"
+
+  why: |
+    A leader's school_admin invite link used to redeem (creating the school,
+    group-attached), then redirect the new admin through the self-serve
+    /schools1 onboarding continuation to trigger trial-clock provisioning —
+    forcing a SECOND email+OTP because that continuation has no session
+    awareness. Fixed 2026-07-13: the redemption itself sets the platform
+    trial clocks and redirects straight to the dashboard.
+
+  invite_born_admin_flow: |
+    /redeem/:code -> ONE email+OTP -> api/code/redeem.ts's school_admin
+    branch creates the school (group-attached), registers both join codes,
+    and calls provisionSchoolPlatformTrial (api/_utils/schoolPlatformTrial.ts,
+    shared with self-serve provision.ts) directly -> redirect straight to
+    /schools. No second onboarding journey.
+
+  self_serve_flow: |
+    /schools1 or /schools2 -> choose a course -> ONE email+OTP ->
+    POST /api/onboarding/provision (unchanged) -> /schools.
+    The two flows share the SAME trial-provisioning helper but never the
+    same route — self-serve picks a course before its trial starts;
+    invite-born admins trial with no course lock until they pick one
+    (trial_course_code null reads as "no restriction" — TeacherDashboard.vue).
+
+  first_run_naming: |
+    An invite-born school's name is pre-filled from the inviting leader's
+    guess (invite_codes.metadata.school_name) but unconfirmed
+    (schools.name_confirmed = false) until the admin saves it once via the
+    "Confirm your school's name" first-run card on DashboardView.vue — same
+    pattern as groups.name_confirmed's "name your group" card.
+
+principle SchoolCreationOnePrimitive:
+  statement: |
+    School creation is a SINGLE primitive: a leader (govt_admin) or ssi_admin
+    creates the school row directly. "Onboard/invite a school" (mint a
+    school_admin invite code that gives birth to the school only at
+    redemption) is RETIRED as a leader-facing concept as of 2026-07-14 — it
+    was a slower path to the same outcome.
+
+  leader_flow: |
+    POST /api/govt/create-school (govt_admin, own group only — group_id is
+    SERVER-DERIVED from the caller's own govt_admins row, never client-
+    supplied) creates the school GROUP-OWNED FROM BIRTH with admin_user_id
+    NULL (a vacant admin seat, not the leader's own identity) and BOTH join
+    codes registered immediately via ensureJoinCodesRegistered. The leader's
+    school table (SchoolsView.vue "+ Add school", also DashboardView.vue's
+    "Schools in your group" card) shows the admin and teacher /redeem/:code
+    links on the row forever — nothing to lose, nothing pending.
+
+  ssi_admin_flow: |
+    POST /api/admin/create-school (unchanged) — same row shape, same join-
+    code-at-birth behaviour, ssi_admin can target any group.
+
+  claim_signal: |
+    "Awaiting admin" vs "Claimed" is NOT schools.admin_user_id alone — a
+    vacant-seat school's admin_join_code redeems via api/code/redeem.ts's
+    school_admin_join branch, which only inserts a user_tags row
+    (role_in_context='admin'); it never sets admin_user_id (that column is
+    only ever written by the legacy school_admin invite-code branch this
+    principle retires). The honest signal, computed as
+    school_summary.has_admin (20260714 migration) and mirrored client-side
+    in SchoolsSetup.vue: admin_user_id IS NOT NULL OR a live admin user_tags
+    row exists for the school.
+
+  retired_but_not_broken: |
+    The invite/mint code path (api/invite/create.ts code_type='school_admin',
+    api/code/redeem.ts's school_admin branch) still redeems correctly — any
+    already-minted outstanding links from before 2026-07-14 keep working
+    (DashboardView.vue still lists them, read-only). No new leader surface
+    mints new ones.
 
 # =============================================================================
 # USER ROLES

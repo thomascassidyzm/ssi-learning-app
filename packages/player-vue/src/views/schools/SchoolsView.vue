@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
+import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
+import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 
 const router = useRouter()
+const isAdminView = inject<boolean>('isAdminView', false)
+const { schoolsLink } = useSchoolsNav()
 const { currentUser } = useSchoolContext()
 const {
   schools,
@@ -17,10 +21,22 @@ const {
   fetchSchools,
   selectSchoolToView,
 } = useSchoolData()
+const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
 
 const searchQuery = ref('')
 type SortKey = 'hours' | 'students' | 'name'
 const sortKey = ref<SortKey>('hours')
+const isRefreshing = ref(false)
+
+async function handleRefresh() {
+  if (isRefreshing.value) return
+  isRefreshing.value = true
+  try {
+    await fetchSchools()
+  } finally {
+    isRefreshing.value = false
+  }
+}
 
 const filteredSchools = computed<School[]>(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -43,10 +59,14 @@ const headerEyebrow = computed(() => {
   )
 })
 
+const awaitingCount = computed(() => schools.value.filter((s) => !s.has_admin).length)
+
 const headerLede = computed(() => {
   const n = schools.value.length
   if (!n) return 'No schools registered in this programme yet.'
-  return `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'} active.`
+  const base = `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'}.`
+  if (!awaitingCount.value) return base
+  return `${base} ${awaitingCount.value} awaiting admin.`
 })
 
 const hoursThisWeek = computed(() => Math.round(totalPracticeHours.value))
@@ -69,12 +89,117 @@ function formatJoined(iso: string | null | undefined): string {
 }
 
 function handleSchoolClick(school: School) {
+  // Under an admin read-view, drill into THAT school's own admin read-view —
+  // never the self-viewing singleton + '/schools', which would eject the
+  // admin into their own scope (docs/audits/2026-07-13-bug-class-audit.md #1b).
+  if (isAdminView) {
+    router.push({ path: schoolsLink('schools-list', { schoolId: school.id }) })
+    return
+  }
   selectSchoolToView(school)
   router.push('/schools')
 }
 
+// ---------- Add school (one primitive — school creation, region-tier-design.md
+// §5c-revised 2026-07-13): the school row is created IMMEDIATELY, group-
+// attached, with both join codes registered at birth. There is no separate
+// "onboard" concept any more — the row itself is the source of the admin
+// and teacher share links, shown here and forever after on the row. ----------
+const showAddModal = ref(false)
+const newSchoolName = ref('')
+const isCreatingSchool = ref(false)
+const createdSchool = ref<{ id: string; school_name: string; admin_join_code: string; teacher_join_code: string } | null>(null)
+const copiedCode = ref<string | null>(null)
+
+function redeemUrl(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
+
+function openAddModal() {
+  newSchoolName.value = ''
+  createdSchool.value = null
+  copiedCode.value = null
+  createError.value = null
+  showAddModal.value = true
+}
+
+async function closeAddModal() {
+  showAddModal.value = false
+  if (createdSchool.value) await fetchSchools()
+}
+
+async function handleCreateSchool() {
+  if (!newSchoolName.value.trim()) return
+  isCreatingSchool.value = true
+  const result = await createSchoolInMyGroup(newSchoolName.value.trim())
+  isCreatingSchool.value = false
+  if (result) createdSchool.value = result.school
+}
+
+async function copyCode(code: string) {
+  try {
+    await navigator.clipboard.writeText(redeemUrl(code))
+    copiedCode.value = code
+    setTimeout(() => { if (copiedCode.value === code) copiedCode.value = null }, 2000)
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---------- CSV export ----------
+function csvCell(value: string | number): string {
+  const s = String(value)
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+function handleExport() {
+  const header = ['School', 'City', 'Students', 'Teachers', 'Classes', 'Hours', 'Joined', 'Health']
+  const rows = filteredSchools.value.map((s) => [
+    s.school_name,
+    '—',
+    s.student_count,
+    s.teacher_count,
+    s.class_count,
+    Math.round(s.total_practice_hours),
+    formatJoined(s.created_at),
+    s.health?.replace('-', ' ') || '',
+  ])
+  const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'schools.csv'
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+// ---------- Refetch on visibility/focus (schools created via redemption in
+// another tab shouldn't need a manual refresh) ----------
+let refetchTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleRefetch() {
+  if (!currentUser.value) return
+  if (refetchTimer) clearTimeout(refetchTimer)
+  refetchTimer = setTimeout(() => {
+    refetchTimer = null
+    fetchSchools()
+  }, 400)
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') scheduleRefetch()
+}
+
 onMounted(() => {
   if (currentUser.value) fetchSchools()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('focus', scheduleRefetch)
+})
+
+onBeforeUnmount(() => {
+  if (refetchTimer) clearTimeout(refetchTimer)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('focus', scheduleRefetch)
 })
 
 watch(currentUser, (u) => {
@@ -91,8 +216,21 @@ watch(currentUser, (u) => {
         <p class="hero-lede schools-subtle">{{ headerLede }}</p>
       </div>
       <div class="hero-actions">
-        <button type="button" class="btn-ghost">Export</button>
-        <button type="button" class="btn-play">+ Onboard new school</button>
+        <button
+          type="button"
+          class="btn-ghost btn-icon"
+          :disabled="isRefreshing"
+          :class="{ 'is-spinning': isRefreshing }"
+          title="Refresh"
+          aria-label="Refresh schools list"
+          @click="handleRefresh"
+        >
+          ⟳
+        </button>
+        <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
+          Export
+        </button>
+        <button type="button" class="btn-play" @click="openAddModal">+ Add school</button>
       </div>
     </div>
 
@@ -152,12 +290,18 @@ watch(currentUser, (u) => {
             <th>Classes</th>
             <th>Hours</th>
             <th>Joined</th>
-            <th>Health</th>
+            <th>Status</th>
+            <th>Links</th>
             <th aria-label="actions"></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="school in filteredSchools" :key="school.id">
+          <tr
+            v-for="school in filteredSchools"
+            :key="school.id"
+            class="school-row"
+            @click="handleSchoolClick(school)"
+          >
             <td>
               <div class="school-cell">
                 <div class="school-mark">{{ schoolInitial(school.school_name) }}</div>
@@ -171,25 +315,99 @@ watch(currentUser, (u) => {
             <td>{{ Math.round(school.total_practice_hours) }}h</td>
             <td class="schools-subtle">{{ formatJoined(school.created_at) }}</td>
             <td>
-              <span class="health-cell">
+              <span v-if="!school.has_admin" class="awaiting-pill">Awaiting admin</span>
+              <span v-else class="health-cell">
                 <HealthDot :health="school.health" />
                 <span class="schools-subtle">{{ school.health.replace('-', ' ') }}</span>
               </span>
             </td>
-            <td class="row-action">
-              <button type="button" class="row-link" @click="handleSchoolClick(school)">
-                Open →
+            <td class="links-cell" @click.stop>
+              <button
+                type="button"
+                class="link-chip"
+                :class="{ 'is-copied': copiedCode === school.admin_join_code }"
+                :disabled="!school.admin_join_code"
+                :title="school.admin_join_code ? 'Copy admin link' : 'No admin code yet'"
+                @click="copyCode(school.admin_join_code)"
+              >
+                {{ copiedCode === school.admin_join_code ? 'Copied!' : 'Admin' }}
               </button>
+              <button
+                type="button"
+                class="link-chip"
+                :class="{ 'is-copied': copiedCode === school.teacher_join_code }"
+                :disabled="!school.teacher_join_code"
+                :title="school.teacher_join_code ? 'Copy teacher link' : 'No teacher code yet'"
+                @click="copyCode(school.teacher_join_code)"
+              >
+                {{ copiedCode === school.teacher_join_code ? 'Copied!' : 'Teacher' }}
+              </button>
+            </td>
+            <td class="row-action">
+              <span class="row-link">Open →</span>
             </td>
           </tr>
           <tr v-if="!filteredSchools.length">
-            <td colspan="9" class="empty-row schools-subtle">
+            <td colspan="10" class="empty-row schools-subtle">
               <template v-if="searchQuery">No schools match "{{ searchQuery }}".</template>
               <template v-else>No schools to show.</template>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="showAddModal" class="invite-modal-backdrop" @click.self="closeAddModal">
+      <div class="schools-card invite-modal">
+        <h3 class="arsenal invite-modal-title">Add school</h3>
+        <p class="schools-subtle invite-modal-lede">
+          Creates the school in your programme immediately, with an admin link and a teacher link ready to share.
+        </p>
+        <input
+          v-if="!createdSchool"
+          v-model="newSchoolName"
+          type="text"
+          class="invite-modal-input"
+          placeholder="School name"
+          :disabled="isCreatingSchool"
+          @keyup.enter="handleCreateSchool"
+        />
+        <p v-if="createError" class="invite-modal-error">{{ createError }}</p>
+        <template v-if="createdSchool">
+          <div class="invite-modal-link-row">
+            <span class="invite-modal-link-label">Admin</span>
+            <code class="invite-modal-link">{{ redeemUrl(createdSchool.admin_join_code) }}</code>
+            <button type="button" class="btn-ghost" @click="copyCode(createdSchool.admin_join_code)">
+              {{ copiedCode === createdSchool.admin_join_code ? 'Copied!' : 'Copy' }}
+            </button>
+          </div>
+          <div class="invite-modal-link-row">
+            <span class="invite-modal-link-label">Teacher</span>
+            <code class="invite-modal-link">{{ redeemUrl(createdSchool.teacher_join_code) }}</code>
+            <button type="button" class="btn-ghost" @click="copyCode(createdSchool.teacher_join_code)">
+              {{ copiedCode === createdSchool.teacher_join_code ? 'Copied!' : 'Copy' }}
+            </button>
+          </div>
+          <p class="schools-subtle invite-modal-hint">
+            Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also
+            live on the school's row any time you need them again.
+          </p>
+        </template>
+        <div class="invite-modal-actions">
+          <button type="button" class="btn-ghost" @click="closeAddModal">
+            {{ createdSchool ? 'Done' : 'Cancel' }}
+          </button>
+          <button
+            v-if="!createdSchool"
+            type="button"
+            class="btn-play"
+            :disabled="isCreatingSchool || !newSchoolName.trim()"
+            @click="handleCreateSchool"
+          >
+            {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
+          </button>
+        </div>
+      </div>
     </div>
   </main>
 </template>
@@ -348,23 +566,90 @@ watch(currentUser, (u) => {
   font-size: 12.5px;
 }
 
+.awaiting-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--schools-red-deep, var(--schools-red));
+  background: rgba(194, 58, 58, 0.1);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.links-cell {
+  display: flex;
+  gap: 6px;
+  cursor: default;
+}
+
+.link-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--schools-border);
+  background: #fafaf6;
+  color: var(--schools-fg-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.link-chip:hover:not(:disabled) {
+  border-color: var(--schools-red);
+  color: var(--schools-red);
+}
+
+.link-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.link-chip.is-copied {
+  color: #1a7f37;
+  border-color: #1a7f37;
+}
+
 .row-action {
   text-align: right;
 }
 
 .row-link {
-  background: none;
-  border: none;
-  padding: 0;
   font-size: 12px;
   font-weight: 600;
   color: var(--schools-red);
   font-family: var(--font-body);
+}
+
+.school-row {
   cursor: pointer;
 }
 
-.row-link:hover {
+.school-row:hover {
+  background: #fafaf6;
+}
+
+.school-row:hover .row-link {
   color: var(--schools-red-deep);
+}
+
+.btn-icon {
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon.is-spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .empty-row {
@@ -377,6 +662,100 @@ watch(currentUser, (u) => {
   .kpi-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+.invite-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 16, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.invite-modal {
+  width: 100%;
+  max-width: 420px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.invite-modal-title {
+  font-size: 20px;
+  margin: 0;
+}
+
+.invite-modal-lede {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.invite-modal-input {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  background: #fafaf6;
+  font-family: var(--font-body);
+  color: var(--schools-fg);
+  width: 100%;
+}
+
+.invite-modal-input:focus {
+  outline: none;
+  border-color: var(--schools-red);
+  background: #fff;
+}
+
+.invite-modal-error {
+  font-size: 12px;
+  color: var(--schools-red);
+  margin: 0;
+}
+
+.invite-modal-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fafaf6;
+  border: 1px solid var(--schools-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.invite-modal-link-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--schools-fg-2);
+  flex: none;
+}
+
+.invite-modal-link {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.invite-modal-hint {
+  font-size: 12px;
+  margin: -4px 0 0;
+}
+
+.invite-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 @media (max-width: 960px) {

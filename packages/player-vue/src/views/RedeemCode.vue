@@ -4,6 +4,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { useInviteCode } from '../composables/useInviteCode'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useUserRole } from '../composables/useUserRole'
+import { useSchoolContext } from '../composables/schools/useSchoolContext'
+
+// variant='landing' is a PRESENTATION-ONLY switch (region-tier-design.md
+// §1a/§1b, owner addendum 2026-07-13): the /group/:code landing route uses
+// the exact same redemption machinery below (validate → OTP → redeem) as the
+// bare /redeem/:code and /try/:code doors, just with a signup-page hero
+// instead of a centered card, so a leader's invite link looks like the
+// /schools1 / /tutors landing doors rather than a bare form.
+const props = withDefaults(defineProps<{ variant?: 'bare' | 'landing' }>(), { variant: 'bare' })
 
 const route = useRoute()
 const router = useRouter()
@@ -13,7 +22,7 @@ const { validateCode, redeemCode, pendingCode, clearPendingCode, validationError
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
 // --- State ---
-const step = ref<'validating' | 'invalid' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
+const step = ref<'validating' | 'enter-code' | 'invalid' | 'confirm' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
 const error = ref('')
 const email = ref('')
 const otpCode = ref('')
@@ -21,7 +30,30 @@ const isLoading = ref(false)
 const redeemLabel = ref('')
 const redirectUrl = ref('/')
 
-const code = computed(() => (route.params.code as string) || '')
+// Manual code entry (bare /redeem, no :code in the URL) — the classroom
+// whiteboard case: a teacher reads a code aloud/writes it up rather than
+// sharing a link. Reuses the exact same validate → auth → redeem machinery
+// below; the only difference is where the code string comes from.
+const manualCode = ref('')
+
+// /group supports both /group/:code and /group?code=XYZ.
+const code = computed(() => (route.params.code as string) || (route.query.code as string) || '')
+
+// Landing-page hero copy (variant='landing' only — today that's /group, the
+// govt_admin door). Falls back to a generic line for any other code type
+// landing might one day carry.
+const landingEyebrow = computed(() => 'SSi for groups')
+const landingHeading = computed(() => 'Bring SSi to your group')
+const landingSub = computed(() => {
+  const groupName = pendingCode.value?.groupName
+  if (groupName) return `You've been invited to lead ${groupName}'s SSi rollout.`
+  return "You've been invited to lead a group's SSi rollout — schools, academy chains, counties, whole countries."
+})
+const landingFacts = [
+  'Invite schools with one shareable link — no spreadsheets to maintain',
+  'Every school you add shows up on your dashboard automatically',
+  'See progress across your whole group, roll up or drill into one school',
+]
 const isSignedIn = computed(() => auth?.isAuthenticated?.value ?? false)
 const userEmail = computed(() => auth?.user?.value?.email || '')
 
@@ -112,11 +144,22 @@ const successSubtext = computed(() => {
 // --- Step 1: Validate on mount ---
 onMounted(async () => {
   if (!code.value) {
-    error.value = 'No code provided'
-    step.value = 'invalid'
+    // Landing (/group) links always carry a code; a bare /group with none is
+    // genuinely broken. Bare /redeem with no code is the whiteboard case —
+    // offer manual entry instead of a dead end.
+    if (props.variant === 'landing') {
+      error.value = "This link is missing its invite code — check the link you were sent, or ask for a new one."
+      step.value = 'invalid'
+      return
+    }
+    step.value = 'enter-code'
     return
   }
-  const valid = await validateCode(code.value)
+  await validateAndProceed(code.value)
+})
+
+async function validateAndProceed(rawCode: string): Promise<void> {
+  const valid = await validateCode(rawCode)
   if (!valid) {
     // Surface the API's specific reason ('Code expired' / 'Code fully used' /
     // 'Invalid code') when available, rather than a generic catch-all.
@@ -124,20 +167,56 @@ onMounted(async () => {
     step.value = 'invalid'
     return
   }
-  // Valid code — check auth state
+  // Valid code — check auth state. A session already present does NOT mean
+  // it's the RIGHT session (a govt_admin link opened in a browser still
+  // signed into a personal/learner account is the trap this guards against)
+  // — confirm identity before ever spending the one-shot code.
   if (isSignedIn.value) {
-    await doRedeem()
+    step.value = 'confirm'
   } else {
     step.value = 'auth'
   }
-})
+}
 
-// Watch for auth state changes (e.g. after OTP verify propagates)
+// --- Step 1b (whiteboard path): manual code entry ---
+async function handleManualCodeSubmit() {
+  if (!manualCode.value.trim()) return
+  isLoading.value = true
+  error.value = ''
+  try {
+    // Push the code into the URL so it's shareable/refreshable and `code`
+    // resolves from the route like the click-a-link path does.
+    router.replace({ name: 'redeem-code', params: { code: manualCode.value.trim() } })
+    await validateAndProceed(manualCode.value.trim())
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// Watch for auth state changes (e.g. after OTP verify propagates). This can
+// race handleVerifyOtp's own direct doRedeem() call below (Supabase's
+// onAuthStateChange can fire before verifyOtp()'s own promise resolves) —
+// useInviteCode's redeemCode() single-flights, so whichever call gets here
+// first wins and the other just gets its result back, no double POST.
 watch(isSignedIn, async (signedIn) => {
   if (signedIn && step.value === 'otp') {
     await doRedeem()
   }
 })
+
+// --- Step 1b: Confirm identity / switch account ---
+async function useDifferentEmail() {
+  const client = supabase.value
+  isLoading.value = true
+  try {
+    await client?.auth.signOut()
+  } finally {
+    isLoading.value = false
+    email.value = ''
+    error.value = ''
+    step.value = 'auth'
+  }
+}
 
 // --- Step 2: Send OTP ---
 async function handleSendOtp() {
@@ -187,8 +266,10 @@ async function handleVerifyOtp() {
       error.value = verifyError.message || 'Invalid code. Please try again.'
       return
     }
-    // Auth state will update via onAuthStateChange — doRedeem called from watcher
-    // But also try directly in case watcher doesn't fire fast enough
+    // Auth state will update via onAuthStateChange — doRedeem called from watcher.
+    // But also try directly in case watcher doesn't fire fast enough (both are
+    // intentional; the single-flight guard in useInviteCode.redeemCode() is
+    // what keeps this from double-redeeming).
     await doRedeem()
   } catch (err: any) {
     error.value = err.message || 'Verification failed. Please try again.'
@@ -249,6 +330,29 @@ async function doRedeem() {
       } else if (pendingCode.value?.codeType) {
         useUserRole().initialize(null, pendingCode.value.codeType)
       }
+      // Re-sync from the DB now the redemption write has committed — this
+      // is the authoritative write. The SIGNED_IN auth listener's own
+      // ensureLearnerExists() call started concurrently with the
+      // redemption and can resolve later with pre-redemption data,
+      // clobbering the optimistic role set above before the redirect
+      // below fires. See useAuth.refreshRole for the full race.
+      await auth?.refreshRole?.()
+      // Student class-invite redemption: carry the class's course through
+      // the redirect (same pattern as DashboardView.vue/WithTeacher.vue),
+      // otherwise the redirect below lands on App.vue's cold-boot default
+      // course instead of the class's actual course (finding #3, 2026-07-13
+      // audit).
+      if (result.courseCode) {
+        localStorage.setItem('ssi-last-course', result.courseCode)
+      }
+      // useSchoolContext.loadFromAuth is idempotent for an already-loaded
+      // 'self' scope of the SAME auth user (deliberately, to avoid
+      // redundant refetches) — but a redemption just changed THIS user's
+      // school/class assignment server-side. Clear the singleton so
+      // SchoolsContainer's mount-time loadFromAuth actually refetches
+      // instead of serving stale pre-redemption data (finding #2f,
+      // 2026-07-13 audit).
+      useSchoolContext().clear()
       step.value = 'success'
       redirectUrl.value = result.redirectTo || '/'
       setTimeout(() => {
@@ -275,7 +379,16 @@ function goHome() {
 </script>
 
 <template>
-  <div class="redeem-page">
+  <div class="redeem-page" :class="{ 'is-landing': props.variant === 'landing' }">
+    <div v-if="props.variant === 'landing'" class="landing-hero">
+      <img class="landing-logo" src="/ssi-web-logo.svg" alt="SaySomethingin" />
+      <span class="landing-eyebrow">{{ landingEyebrow }}</span>
+      <h1 class="landing-heading">{{ landingHeading }}</h1>
+      <p class="landing-sub">{{ landingSub }}</p>
+      <ul v-if="step !== 'success'" class="landing-facts">
+        <li v-for="f in landingFacts" :key="f">{{ f }}</li>
+      </ul>
+    </div>
     <div class="redeem-card">
 
       <!-- Step 1: Validating -->
@@ -283,6 +396,44 @@ function goHome() {
         <div class="spinner"></div>
         <p class="status-text">Checking code...</p>
       </div>
+
+      <!-- Manual code entry (bare /redeem — the whiteboard case) -->
+      <form v-else-if="step === 'enter-code'" class="auth-form" @submit.prevent="handleManualCodeSubmit">
+        <h2 class="code-title">Enter your code</h2>
+        <p class="detail-text">Type the code your teacher or admin gave you.</p>
+
+        <Transition name="error-fade">
+          <div v-if="error" class="error-banner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            {{ error }}
+          </div>
+        </Transition>
+
+        <div class="input-group">
+          <label for="redeem-manual-code" class="input-label">Code</label>
+          <div class="input-wrapper">
+            <input
+              id="redeem-manual-code"
+              v-model="manualCode"
+              type="text"
+              placeholder="ABC-123"
+              autocapitalize="characters"
+              autocomplete="off"
+              autofocus
+              required
+            />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading || !manualCode.trim()">
+          <span v-if="!isLoading">Continue</span>
+          <span v-else class="btn-spinner"></span>
+        </button>
+      </form>
 
       <!-- Invalid code -->
       <div v-else-if="step === 'invalid'" class="redeem-section">
@@ -295,6 +446,7 @@ function goHome() {
         </div>
         <h2>Invalid Code</h2>
         <p class="detail-text">{{ error }}</p>
+        <button v-if="props.variant !== 'landing'" class="btn btn--secondary" @click="step = 'enter-code'; error = ''">Try another code</button>
         <button class="btn btn--secondary" @click="goHome">Go to App</button>
       </div>
 
@@ -324,10 +476,17 @@ function goHome() {
         <h2 class="code-title">{{ displayTitle }}</h2>
         <p v-if="displayDetail" class="detail-text">{{ displayDetail }}</p>
 
-        <!-- Already signed in -->
-        <div v-if="isSignedIn" class="redeem-section">
-          <p class="signed-in-text">Signed in as <strong>{{ userEmail }}</strong></p>
-          <button class="btn btn--primary" @click="doRedeem">Redeem</button>
+        <!-- Confirm identity — a session already exists; make sure it's the
+             RIGHT one before spending the one-shot code (owner ruling
+             2026-07-13: never redeem silently under a pre-existing session). -->
+        <div v-if="step === 'confirm'" class="redeem-section">
+          <p class="signed-in-text">You're signed in as <strong>{{ userEmail }}</strong></p>
+          <button class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading" @click="doRedeem">
+            Continue as {{ userEmail }}
+          </button>
+          <button type="button" class="link-action" :disabled="isLoading" @click="useDifferentEmail">
+            Use a different email
+          </button>
         </div>
 
         <!-- Email input (step === 'auth') -->
@@ -470,6 +629,80 @@ function goHome() {
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* --- Landing variant (/group) --- */
+
+.redeem-page.is-landing {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2.5rem;
+  padding: 4rem 1.5rem;
+  background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(194, 58, 58, 0.18) 0%, transparent 60%),
+    var(--bg-primary, #0a0a0f);
+}
+
+.landing-hero {
+  max-width: 560px;
+  width: 100%;
+  text-align: center;
+  color: var(--text-primary, #e0e0e0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.landing-logo {
+  height: 32px;
+  margin-bottom: 0.5rem;
+}
+
+.landing-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ssi-gold, #d4a853);
+}
+
+.landing-heading {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.landing-sub {
+  margin: 0;
+  color: var(--text-secondary, #aaa);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+}
+
+.landing-facts {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.landing-facts li {
+  position: relative;
+  padding-left: 1.5rem;
+  color: var(--text-secondary, #ccc);
+  font-size: 0.9375rem;
+}
+
+.landing-facts li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: var(--ssi-gold, #d4a853);
+  font-weight: 700;
 }
 
 /* --- Typography --- */
@@ -821,5 +1054,28 @@ function goHome() {
 .back-link svg {
   width: 18px;
   height: 18px;
+}
+
+/* --- Confirm identity --- */
+
+.link-action {
+  color: var(--ssi-gold, #d4a853);
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.875rem;
+  padding: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.link-action:hover:not(:disabled) {
+  color: var(--ssi-gold-light, #e0c080);
+}
+
+.link-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

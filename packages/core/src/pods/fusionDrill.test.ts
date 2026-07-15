@@ -69,11 +69,24 @@ describe('partitionUnits + glue', () => {
     expect(partitionUnits('我想说中文。你呢？', units)).toEqual([[0], [1]])
   })
 
-  it('glues ONLY a turn-initial one-unit sentence forward', () => {
+  it('glues ONLY a turn-initial one-unit sentence forward (no units — structural shape only)', () => {
     expect(glueLeadingInterjection([[0], [1, 2], [3]])).toEqual([[0, 1, 2], [3]])
     // mid-turn one-unit sentence is a real sentence — untouched
     expect(glueLeadingInterjection([[0, 1], [2], [3, 4]])).toEqual([[0, 1], [2], [3, 4]])
     expect(glueLeadingInterjection([[0]])).toEqual([[0]])
+  })
+
+  it('with units: a single-word leading unit (a bare interjection) still glues', () => {
+    const units = [u('Hej!', 'hey'), u('Žao mi je', 'sorry'), u('ali sad ne mogu razgovarati', "but I can't talk right now")]
+    expect(glueLeadingInterjection([[0], [1, 2]], units)).toEqual([[0, 1, 2]])
+  })
+
+  it('with units: a multi-word leading one-unit sentence does NOT glue (independent-meaning segmentation)', () => {
+    // "Zovem se Anna" ("My name is Anna") — a complete sentence that happens
+    // to be one atom_map_fine unit under the 2026-07-14 segmentation rule,
+    // not a bare interjection. Must stand on its own.
+    const units = [u('Zovem se Anna', 'my name is Anna'), u('Drago mi je', 'nice to meet you')]
+    expect(glueLeadingInterjection([[0], [1]], units)).toEqual([[0], [1]])
   })
 })
 
@@ -139,6 +152,30 @@ describe('buildFusionGroups', () => {
     expect(groups[1].wholeTargetClipId).toBe('sent-1')
     expect(groups[1].sliceable).toBe(false)
     expect(groups[1].flatStart).toBe(2)
+  })
+
+  it('a complete one-unit leading sentence does NOT glue onto the next (2026-07-14 fix)', () => {
+    // Real shape: hrv "Zovem se Anna. Drago mi je." — "Zovem se Anna" is one
+    // atom_map_fine unit under independent-meaning segmentation but a
+    // complete sentence, not a bare interjection like "Naravno"/"Hej!".
+    const input: FusionTurnInput = {
+      turnTargetText: 'Zovem se Anna. Drago mi je.',
+      fineMap: [u('Zovem se Anna', 'my name is Anna', 0, 900), u('Drago mi je', 'nice to meet you', 1000, 1800)],
+      windowKnownMap: [],
+      takegAudioIds: ['takeg-0', 'takeg-1'],
+      rows: [
+        { targetAudioId: 'sent-0', knownAudioId: 'k-0', targetText: 'Zovem se Anna.', knownText: 'My name is Anna.' },
+        { targetAudioId: 'sent-1', knownAudioId: 'k-1', targetText: 'Drago mi je.', knownText: 'Nice to meet you.' },
+      ],
+    }
+    const groups = buildFusionGroups(input)!
+    expect(groups).toHaveLength(2)
+    expect(groups[0].rowFirst).toBe(0)
+    expect(groups[0].rowLast).toBe(0)
+    expect(groups[0].targetText).toBe('Zovem se Anna.')
+    expect(groups[1].rowFirst).toBe(1)
+    expect(groups[1].rowLast).toBe(1)
+    expect(groups[1].targetText).toBe('Drago mi je.')
   })
 
   it('bails (null) on row-count mismatch — honest fallback, never guess', () => {
