@@ -1,5 +1,8 @@
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
+import { getSchoolsClient } from '@/composables/schools/client'
+import { isDemoMode } from '@/composables/demo/demoMode'
+import LanguageFlag from './shared/LanguageFlag.vue'
 
 const props = defineProps({
   isOpen: {
@@ -34,26 +37,83 @@ const emit = defineEmits(['close', 'create'])
 const className = ref('')
 const courseCode = ref('')
 
-// Available courses
-const courses = [
-  { code: 'cym_for_eng_north', name: 'Welsh (Northern)', flag: '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F' },
-  { code: 'cym_for_eng_south', name: 'Welsh (Southern)', flag: '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC77\uDB40\uDC6C\uDB40\uDC73\uDB40\uDC7F' },
-  { code: 'spa_for_eng', name: 'Spanish (European)', flag: '\uD83C\uDDEA\uD83C\uDDF8' },
-  { code: 'spa_for_eng_latam', name: 'Spanish (Latin American)', flag: '\uD83C\uDDEA\uD83C\uDDF8' },
-  { code: 'nld_for_eng', name: 'Dutch', flag: '\uD83C\uDDF3\uD83C\uDDF1' },
-  { code: 'cor_for_eng', name: 'Cornish', flag: '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F' },
-  { code: 'glv_for_eng', name: 'Manx', flag: '\uD83C\uDDEE\uD83C\uDDF2' }
+// Full live+beta course catalogue, fetched from the same `courses` table the
+// learner app's CourseSelector queries \u2014 a class can teach ANY of the ~74
+// catalogue courses, not a hardcoded shortlist (docs/schools/group-commercial-model.md).
+const catalogueCourses = ref([])
+const isLoadingCatalogue = ref(false)
+const catalogueError = ref('')
+
+// Small fallback list for demo mode / offline, so the picker still works
+// without a live Supabase catalogue query.
+const DEMO_COURSES = [
+  { code: 'cym_for_eng_north', name: 'Welsh (Northern)' },
+  { code: 'cym_for_eng_south', name: 'Welsh (Southern)' },
+  { code: 'spa_for_eng', name: 'Spanish (European)' },
+  { code: 'spa_for_eng_latam', name: 'Spanish (Latin American)' },
+  { code: 'nld_for_eng', name: 'Dutch' },
+  { code: 'cor_for_eng', name: 'Cornish' },
+  { code: 'glv_for_eng', name: 'Manx' }
 ]
 
-// The selectable list: a parent-supplied override (trial lock) or the default.
+async function fetchCatalogue() {
+  if (isDemoMode.value) {
+    catalogueCourses.value = DEMO_COURSES
+    return
+  }
+  if (catalogueCourses.value.length || isLoadingCatalogue.value) return
+  isLoadingCatalogue.value = true
+  catalogueError.value = ''
+  try {
+    const client = getSchoolsClient()
+    const { data, error } = await client
+      .from('courses')
+      .select('course_code, display_name')
+      .in('new_app_status', ['live', 'beta'])
+      .order('display_name')
+    if (error) throw error
+    catalogueCourses.value = (data || []).map((c) => ({ code: c.course_code, name: c.display_name || c.course_code }))
+  } catch (err) {
+    console.error('[CreateClassModal] Failed to load course catalogue:', err)
+    catalogueError.value = 'Could not load the course catalogue.'
+    catalogueCourses.value = DEMO_COURSES
+  } finally {
+    isLoadingCatalogue.value = false
+  }
+}
+
+onMounted(fetchCatalogue)
+watch(() => props.isOpen, (newVal) => {
+  if (newVal) fetchCatalogue()
+})
+
+// The selectable list: a parent-supplied override (trial lock) or the full catalogue.
 const courseList = computed(() =>
-  (props.availableCourses && props.availableCourses.length) ? props.availableCourses : courses
+  (props.availableCourses && props.availableCourses.length) ? props.availableCourses : catalogueCourses.value
 )
 const courseLocked = computed(() => courseList.value.length === 1)
+
+// Type-ahead filter over the catalogue \u2014 needed once the list is ~74 items.
+const courseSearch = ref('')
+const isCourseListOpen = ref(false)
+const filteredCourses = computed(() => {
+  const q = courseSearch.value.trim().toLowerCase()
+  if (!q) return courseList.value
+  return courseList.value.filter((c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q))
+})
+const selectedCourse = computed(() => courseList.value.find((c) => c.code === courseCode.value) || null)
+
+function selectCourse(course) {
+  courseCode.value = course.code
+  courseSearch.value = ''
+  isCourseListOpen.value = false
+}
 
 // Reset form when modal opens/closes. On open, preselect the only option when
 // the list is locked to a single course (the trial language).
 watch(() => props.isOpen, (newVal) => {
+  courseSearch.value = ''
+  isCourseListOpen.value = false
   if (newVal) {
     className.value = ''
     courseCode.value = courseLocked.value ? courseList.value[0].code : ''
@@ -159,24 +219,47 @@ const handleSubmit = () => {
               <label class="form-label" for="courseCode">Course / Language</label>
               <!-- Trial: locked to the one signed-up language. -->
               <template v-if="courseLocked">
-                <p class="form-locked">{{ courseList[0].flag }} {{ courseList[0].name }}</p>
+                <p class="form-locked"><LanguageFlag :code="courseList[0].code" :size="18" /> {{ courseList[0].name }}</p>
                 <p v-if="lockedNote" class="form-hint">{{ lockedNote }}</p>
               </template>
-              <div v-else class="select-wrapper">
-                <select
+              <!-- Full catalogue (~74 courses): searchable type-ahead, not a plain <select>. -->
+              <div v-else class="course-picker">
+                <button
+                  v-if="selectedCourse && !isCourseListOpen"
                   id="courseCode"
-                  v-model="courseCode"
-                  class="form-select"
-                  required
+                  type="button"
+                  class="course-picker-selected"
+                  @click="isCourseListOpen = true"
                 >
-                  <option value="" disabled>Select a course...</option>
-                  <option v-for="course in courseList" :key="course.code" :value="course.code">
-                    {{ course.flag }} {{ course.name }}
-                  </option>
-                </select>
-                <svg class="select-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
+                  <LanguageFlag :code="selectedCourse.code" :size="18" />
+                  <span>{{ selectedCourse.name }}</span>
+                  <span class="course-picker-change">Change</span>
+                </button>
+                <input
+                  v-else
+                  id="courseCode"
+                  v-model="courseSearch"
+                  type="text"
+                  class="form-input"
+                  :placeholder="isLoadingCatalogue ? 'Loading courses…' : 'Search courses…'"
+                  autocomplete="off"
+                  :disabled="isLoadingCatalogue"
+                  required
+                  @focus="isCourseListOpen = true"
+                  @blur="isCourseListOpen = false"
+                />
+                <ul v-if="isCourseListOpen" class="course-picker-list">
+                  <li v-for="course in filteredCourses" :key="course.code">
+                    <button type="button" class="course-picker-option" @mousedown.prevent="selectCourse(course)">
+                      <LanguageFlag :code="course.code" :size="18" />
+                      <span>{{ course.name }}</span>
+                    </button>
+                  </li>
+                  <li v-if="filteredCourses.length === 0" class="course-picker-empty">
+                    No courses match "{{ courseSearch }}"
+                  </li>
+                </ul>
+                <p v-if="catalogueError" class="form-hint">{{ catalogueError }}</p>
               </div>
             </div>
 
@@ -362,6 +445,83 @@ const handleSubmit = () => {
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
   font-weight: 600;
   color: var(--text-primary, #fff);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.course-picker {
+  position: relative;
+}
+
+.course-picker-selected {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  color: var(--text-primary, #ffffff);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  min-height: 48px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.course-picker-selected span:first-of-type {
+  flex: 1;
+}
+
+.course-picker-change {
+  font-size: 0.75rem;
+  color: var(--text-muted, #707070);
+  font-weight: 500;
+}
+
+.course-picker-list {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--bg-card, #242424);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.course-picker-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-primary, #ffffff);
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.course-picker-option:hover {
+  background: var(--bg-secondary, #1a1a1a);
+}
+
+.course-picker-empty {
+  padding: 10px 12px;
+  color: var(--text-muted, #707070);
+  font-size: 0.8125rem;
 }
 
 .info-box {

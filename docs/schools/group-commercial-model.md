@@ -33,6 +33,16 @@ window at redemption before commit (the resolution of the earlier think-piece's 
 #1). 365-day no-lock stays for minority-language schools. Expiry → **read-only**
 (dashboards stay visible, play stops) — never lockout.
 
+**Trial clock is per teacher seat, not per school (owner ruling, 2026-07-15).** The 30-day
+clock attaches to the individual teacher, starting at *that teacher's* first course pick —
+consistent with "the unit is the teacher, not the school" above. One school can therefore
+have several teachers on independent, staggered trial clocks; this is intended behaviour
+(bottom-up adoption — a school doesn't need a single synchronised start). Serial-trial abuse
+via fake teacher rotation (spinning up throwaway teacher accounts to keep re-triggering
+fresh 30-day clocks) is accepted as self-limiting pre-Paddle: the teacher roster is visible
+to the school admin and staff are finite, so the abuse doesn't scale quietly. No guard is
+built for it by policy — revisit only if real abuse shows up post-Paddle, not preemptively.
+
 **Regional bands:** price band set once per school/group by an SSi human at creation time;
 Paddle carries the per-region price lists. Three bands as the object model; band values are
 open numbers.
