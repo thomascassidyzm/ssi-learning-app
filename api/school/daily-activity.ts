@@ -18,6 +18,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope, chunk } from '../_utils/schoolScope'
+import { filterActiveScope } from '../_utils/schoolCoverageGate'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -49,12 +50,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    // Coverage gate: same rule class-practice-7d applies — a school whose
+    // platform coverage has lapsed goes dark for its own teacher/school_admin
+    // view. Group rollups are exempt (see schoolCoverageGate.ts).
+    const { classIds: coveredClassIds, blocked } = await filterActiveScope(svc, scope)
+    if (blocked) {
+      res.status(403).json({ error: 'coverage_expired', message: 'This school’s platform coverage has expired.' })
+      return
+    }
+    const coveredSet = new Set(coveredClassIds)
+    const learnerIds = [...new Set(
+      Object.entries(scope.studentsByClass)
+        .filter(([classId]) => coveredSet.has(classId))
+        .flatMap(([, ids]) => ids),
+    )]
+    if (learnerIds.length === 0) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(200).json({ activity: [], days })
+      return
+    }
+
     const since = new Date()
     since.setUTCDate(since.getUTCDate() - (days - 1))
     const sinceDay = since.toISOString().split('T')[0]
 
     const byDay = new Map<string, { seconds: number; cycles: number; students: Set<string> }>()
-    for (const batch of chunk(scope.learnerIds)) {
+    for (const batch of chunk(learnerIds)) {
       const { data, error } = await svc
         .from('learner_speaking_opportunities')
         .select('learner_id, day, play_seconds, opportunities')

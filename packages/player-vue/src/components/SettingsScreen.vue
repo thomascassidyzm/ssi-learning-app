@@ -737,6 +737,28 @@ const addEmailSuccess = ref(false)
 const verifiedEmails = computed(() => auth?.learner?.value?.verified_emails || [])
 const primaryEmail = computed(() => auth?.user?.value?.email || '')
 
+// Possession-based onboarding (docs/schools/email-deliverability-plan.md,
+// Option A): an account created via api/auth/possession-redeem.ts never
+// proved its typed email is receive-capable. verified_emails can't record
+// that on its own (ensureLearnerExists in useAuth.ts unconditionally
+// back-fills the session's own email into verified_emails on load), so this
+// reads the durable, separately-tracked flag api/email/verify.ts sets only
+// on a genuine completed OTP round-trip for the account's OWN email.
+const isEmailUnverified = computed(() => {
+  const metadata = auth?.user?.value?.user_metadata
+  return metadata?.onboarded_via === 'possession' && metadata?.email_confirmed_manually !== true
+})
+
+function handleVerifyPrimaryEmail() {
+  addEmailError.value = ''
+  addEmailSuccess.value = false
+  addEmailStep.value = 'email'
+  addEmailInput.value = primaryEmail.value
+  addEmailOtp.value = ''
+  showAddEmailForm.value = true
+  handleSendAddEmailOtp()
+}
+
 const handleSendAddEmailOtp = async () => {
   addEmailError.value = ''
   const email = addEmailInput.value.trim().toLowerCase()
@@ -1681,6 +1703,24 @@ const confirmReset = async () => {
           </div>
 
           <div class="divider"></div>
+
+          <!-- Unverified primary email (possession-onboarded accounts only) —
+               a background nicety, never a gate: the account already works
+               fully without this. -->
+          <div v-if="isEmailUnverified" class="setting-row">
+            <div class="setting-info">
+              <span class="setting-label">
+                {{ primaryEmail }}
+                <span class="unverified-badge">unverified</span>
+              </span>
+              <span class="setting-desc">We haven't confirmed you can receive mail at this address yet</span>
+            </div>
+            <button class="inline-save-btn" :disabled="isSendingOtp" @click="handleVerifyPrimaryEmail">
+              {{ isSendingOtp ? 'Sending...' : 'Verify now' }}
+            </button>
+          </div>
+
+          <div v-if="isEmailUnverified" class="divider"></div>
 
           <!-- Linked Emails -->
           <div class="setting-row clickable" @click="showAddEmailForm = !showAddEmailForm; addEmailError = ''; addEmailSuccess = false; addEmailStep = 'email'; addEmailInput = ''; addEmailOtp = ''">
@@ -2744,6 +2784,17 @@ const confirmReset = async () => {
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.unverified-badge {
+  font-size: 0.6875rem;
+  color: #d4a853;
+  background: rgba(212, 168, 83, 0.12);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 0.5rem;
 }
 
 .tool-icon {

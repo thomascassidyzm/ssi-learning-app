@@ -9,7 +9,7 @@
  *
  * Persistence wiring:
  *   1. School         — UPDATE schools.school_name / region_code (live)
- *   2. Add staff      — share the teacher/admin join code (live codes); bulk
+ *   2. Add staff      — share the teacher/admin invite link (live codes); bulk
  *                       email-invite endpoint TBD (not wired)
  *   3. Choose courses — local selection that filters Step 4's course list;
  *                       does NOT grant access (grants are managed elsewhere)
@@ -23,6 +23,7 @@ import { useClassesData, type ClassInfo } from '@/composables/schools/useClasses
 import { useCourseAccess, type CourseGrant } from '@/composables/schools/useCourseAccess'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getLanguageName } from '@/composables/useI18n'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
@@ -75,7 +76,7 @@ interface Step {
 
 const STEPS: Step[] = [
   { n: 1, title: 'Your school', desc: 'Name and region.' },
-  { n: 2, title: 'Add staff', desc: 'Share your teacher join code.' },
+  { n: 2, title: 'Add staff', desc: 'Share your teacher invite link.' },
   { n: 3, title: 'Choose courses', desc: 'Pick which languages to use for classes.' },
   { n: 4, title: 'Create classes', desc: 'Set up your first classes.' },
 ]
@@ -142,7 +143,7 @@ async function saveSchool(): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------
-// Step 2 — Add staff (share the join code; bulk email-invite TBD)
+// Step 2 — Add staff (share the teacher invite link; bulk email-invite TBD)
 // ---------------------------------------------------------------
 const teacherJoinCode = computed(() => {
   const school = activeSchool.value || currentSchool.value
@@ -153,6 +154,11 @@ const adminJoinCode = computed(() => {
   const school = activeSchool.value || currentSchool.value
   return school?.admin_join_code || ''
 })
+
+// Same /redeem/:code door as every other invite in the app.
+function inviteUrl(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
 
 // Step 2 is always "valid" — staff invites are optional.
 
@@ -401,22 +407,17 @@ onMounted(() => {
         <section v-else-if="step === 2" class="step-section">
           <h2 class="arsenal step-title">Add your teachers</h2>
           <p class="step-lede">
-            Share your join code with your teachers — they enter it at
-            <strong>/schools</strong> to join. Anyone can teach: the app does the
-            teaching, so a teacher doesn't need to speak the language.
+            Share this invite link however you reach your staff — Teams, WhatsApp,
+            in person. Clicking it signs them straight in. Anyone can teach: the
+            app does the teaching, so a teacher doesn't need to speak the language.
           </p>
 
           <div v-if="teacherJoinCode" class="join-code-callout">
-            <div class="schools-kicker">Teacher join code</div>
-            <div class="join-code-row">
-              <code class="join-code">{{ teacherJoinCode }}</code>
-              <span v-if="adminJoinCode" class="join-code-admin">
-                Admin code <code class="join-code-inline">{{ adminJoinCode }}</code>
-              </span>
-            </div>
+            <InviteLinkField label="Teacher invite link" :url="inviteUrl(teacherJoinCode)" />
+            <InviteLinkField v-if="adminJoinCode" label="Admin invite link" :url="inviteUrl(adminJoinCode)" />
           </div>
           <div v-else class="empty-state">
-            Your join codes will appear here once your school is saved.
+            Your invite links will appear here once your school is saved.
           </div>
 
           <div v-if="teachers.length > 0" class="existing-staff">
@@ -824,39 +825,14 @@ onMounted(() => {
 /* Step 2 — invites */
 
 .join-code-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   padding: 12px 14px;
   background: var(--schools-bg);
   border: 1px solid var(--schools-border);
   border-radius: 8px;
   margin-bottom: 16px;
-}
-
-.join-code-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-
-.join-code {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--schools-fg);
-  letter-spacing: 0.05em;
-}
-
-.join-code-admin {
-  font-size: 12px;
-  color: var(--schools-fg-3);
-}
-
-.join-code-inline {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  color: var(--schools-fg-2);
-  font-weight: 600;
-  letter-spacing: 0.05em;
 }
 
 .invite-list {

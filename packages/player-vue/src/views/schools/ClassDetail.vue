@@ -10,6 +10,7 @@ import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
 
@@ -28,7 +29,6 @@ const { viewingSchool } = useSchoolData()
 const backToSchool = computed(() => isGovtAdmin.value && !!viewingSchool.value)
 
 const classReport = ref<ClassReport | null>(null)
-const copySuccess = ref(false)
 const codeCopySuccess = ref(false)
 const showCode = ref(false)
 const searchQuery = ref('')
@@ -223,16 +223,6 @@ function handlePlay() {
 // max_uses: null) — many students redeem the same link, it's just delivered
 // as a link instead of a bare code now.
 const classJoinLink = computed(() => `${window.location.origin}/redeem/${classData.value.join_code}`)
-
-async function copyJoinLink() {
-  try {
-    await navigator.clipboard.writeText(classJoinLink.value)
-    copySuccess.value = true
-    setTimeout(() => { copySuccess.value = false }, 2000)
-  } catch {
-    /* ignore */
-  }
-}
 
 async function copyJoinCode() {
   try {
@@ -433,14 +423,7 @@ async function renameClass() {
           <p class="join-help">
             Share this link — students click it, sign up, and land straight in the class.
           </p>
-          <button
-            type="button"
-            class="btn-ghost btn-small join-copy"
-            :class="{ copied: copySuccess }"
-            @click="copyJoinLink"
-          >
-            {{ copySuccess ? 'Copied' : 'Copy invite link' }}
-          </button>
+          <InviteLinkField :url="classJoinLink" />
 
           <button
             v-if="!showCode"

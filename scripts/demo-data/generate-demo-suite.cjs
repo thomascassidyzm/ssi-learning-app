@@ -249,11 +249,11 @@ async function deleteDemoAuthUsers(){
     let groupId=null
     if(sc.group){
       groupId=uuid()
-      await q(`insert into public.groups (id, name, is_demo) values ($1,$2,true)`,[groupId,sc.group.name])
+      await q(`insert into public.groups (id, name, is_demo, is_test) values ($1,$2,true,true)`,[groupId,sc.group.name])
     }
     const schoolId=uuid()
-    await q(`insert into public.schools (id, school_name, admin_user_id, region_code, teacher_join_code, admin_join_code, group_id, is_demo)
-             values ($1,$2,$3,$4,$5,$6,$7,true)`,
+    await q(`insert into public.schools (id, school_name, admin_user_id, region_code, teacher_join_code, admin_join_code, group_id, is_demo, is_test)
+             values ($1,$2,$3,$4,$5,$6,$7,true,true)`,
       [schoolId, sc.school.name, adminUid, sc.school.region, `DEMO-${sc.key.toUpperCase().slice(0,2)}-T`, `DEMO-${sc.key.toUpperCase().slice(0,2)}-A`, groupId])
     await q(`insert into public.user_tags (user_id, tag_type, tag_value, role_in_context, added_by) values ($1,'school',$2,'admin','demo-suite')`,
       [adminUid,`SCHOOL:${schoolId}`])

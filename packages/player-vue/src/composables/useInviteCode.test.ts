@@ -63,3 +63,53 @@ describe('useInviteCode — redeemCode single-flight', () => {
     expect(redeemCalls).toHaveLength(1)
   })
 })
+
+describe('useInviteCode — possessionRedeem', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it('posts the pending code + typed email and returns the minted session', async () => {
+    const { validateCode, possessionRedeem } = useInviteCode()
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      json: async () => ({ valid: true, codeKind: 'invite', inviteCodeId: 'inv-3', codeType: 'teacher', context: {} }),
+    } as any)
+    await validateCode('TEACH-2')
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      json: async () => ({ success: true, session: { access_token: 'at', refresh_token: 'rt' } }),
+    } as any)
+
+    const result = await possessionRedeem('teacher@school.example', 'Ms Jones')
+
+    expect(fetchSpy).toHaveBeenCalledWith('/api/auth/possession-redeem', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ code: 'TEACH-2', email: 'teacher@school.example', displayName: 'Ms Jones' }),
+    }))
+    expect(result).toEqual({ success: true, session: { access_token: 'at', refresh_token: 'rt' } })
+  })
+
+  it('surfaces reason: already_registered so the caller can fall back to sign-in', async () => {
+    const { validateCode, possessionRedeem } = useInviteCode()
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      json: async () => ({ valid: true, codeKind: 'invite', inviteCodeId: 'inv-4', codeType: 'teacher', context: {} }),
+    } as any)
+    await validateCode('TEACH-3')
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      json: async () => ({ success: false, reason: 'already_registered', error: 'An account already exists for this email. Please sign in instead.' }),
+    } as any)
+
+    const result = await possessionRedeem('existing@school.example')
+    expect(result.success).toBe(false)
+    expect(result.reason).toBe('already_registered')
+  })
+
+  it('refuses to call without a pending code', async () => {
+    const { possessionRedeem, clearPendingCode } = useInviteCode()
+    clearPendingCode() // module-level singleton — earlier tests may have left a pending code set
+    const result = await possessionRedeem('a@school.example')
+    expect(result).toEqual({ success: false, error: 'No pending invite code' })
+  })
+})

@@ -20,6 +20,11 @@ vi.mock('../_utils/auth', () => ({
 let scope: any
 vi.mock('../_utils/schoolScope', () => ({
   resolveVisibleScope: vi.fn(async () => scope),
+  chunk: (arr: any[], size = 150) => {
+    const out: any[][] = []
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+    return out
+  },
 }))
 
 let DB: { classes: any[]; schools: any[]; groups: any[] }
@@ -163,6 +168,16 @@ describe('GET /api/school/rate-compare — class entity', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(404)
   })
+
+  it('403s coverage_expired for a class whose school\'s trial has lapsed', async () => {
+    DB.schools[0].platform_status = 'trial'
+    ;(DB.schools[0] as any).platform_expires_at = new Date(Date.now() - 1000).toISOString()
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'class', entity_id: 'class-1', compare_to: 'school' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(res.body.error).toBe('coverage_expired')
+  })
 })
 
 describe('GET /api/school/rate-compare — school entity', () => {
@@ -183,6 +198,15 @@ describe('GET /api/school/rate-compare — school entity', () => {
     await handler(req, res)
     expect(res.body.insufficientData).toBe(true)
     expect(res.body.reason).toMatch(/not part of a group/i)
+  })
+
+  it('403s coverage_expired for a school-level drill-down once that school\'s coverage lapses', async () => {
+    DB.schools[0].platform_status = 'expired'
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'school', entity_id: 'sch-1', compare_to: 'global' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(res.body.error).toBe('coverage_expired')
   })
 
   it('computes school-vs-global averaging each PEER SCHOOL (not each class) into one cohort value', async () => {
@@ -323,6 +347,14 @@ describe('GET /api/school/rate-compare — group entity', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)
+  })
+
+  it('is NEVER coverage-gated even when the group\'s own school has lapsed (group rollups exempt, owner ruling)', async () => {
+    DB.schools[0].platform_status = 'expired'
+    const req = makeReq({ course_code: 'gle_for_eng', entity_level: 'group', entity_id: 'grp-wales', compare_to: 'region' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).not.toBe(403)
   })
 
   it('honestly degrades compare_to=region when the group has no parent group yet', async () => {

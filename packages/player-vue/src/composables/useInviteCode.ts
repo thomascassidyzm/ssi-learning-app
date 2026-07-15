@@ -151,6 +151,40 @@ export function useInviteCode() {
     return inFlightRedeem
   }
 
+  /**
+   * Possession-based onboarding (docs/schools/email-deliverability-plan.md,
+   * Option A) — no OTP round-trip. Creates the account + mints a session
+   * server-side from possession of the (already-validated) pending invite
+   * code alone. Caller still owns calling supabase.auth.setSession(...) with
+   * the returned tokens and then redeemCode() exactly as the OTP path does.
+   */
+  async function possessionRedeem(
+    email: string,
+    displayName?: string
+  ): Promise<{ success: boolean; session?: { access_token: string; refresh_token: string }; reason?: string; error?: string }> {
+    if (!pendingCode.value || pendingCode.value.codeKind !== 'invite') {
+      return { success: false, error: 'No pending invite code' }
+    }
+    try {
+      const res = await fetch('/api/auth/possession-redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: pendingCode.value.code,
+          email,
+          displayName,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        return { success: true, session: data.session }
+      }
+      return { success: false, reason: data.reason, error: data.error || 'Failed to set up your account' }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to set up your account' }
+    }
+  }
+
   function clearPendingCode() {
     pendingCode.value = null
     validationError.value = null
@@ -164,6 +198,7 @@ export function useInviteCode() {
     isRedeeming: readonly(isRedeeming),
     validateCode,
     redeemCode,
+    possessionRedeem,
     clearPendingCode,
   }
 }

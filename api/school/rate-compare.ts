@@ -58,6 +58,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { resolveVisibleScope } from '../_utils/schoolScope'
+import { isEntityCoverageExpired } from '../_utils/schoolCoverageGate'
 import {
   aggregateWindowPace,
   aggregateWeeklyTrend,
@@ -339,6 +340,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(404).json({ error: 'Entity not found for that course' })
       return
     }
+
+    // Coverage gate: a class/school drill-down for an expired school goes
+    // dark, same rule as the client-side platformActive gate. entity.ownSchoolId
+    // is null at entity_level='group' — group rollups are exempt (owner's
+    // ruling, schoolCoverageGate.ts).
+    if (await isEntityCoverageExpired(svc, entity.ownSchoolId)) {
+      res.status(403).json({ error: 'coverage_expired', message: 'This school’s platform coverage has expired.' })
+      return
+    }
+
     if (entity.classIds.length === 0) {
       respondInsufficientData(res, 'No classes running this course yet.')
       return

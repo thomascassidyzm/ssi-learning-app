@@ -195,9 +195,14 @@ async function redeemInviteCode(
     .maybeSingle()
 
   if (!existingLearner) {
-    // Get email from auth.users for display_name
+    // Get email from auth.users for display_name. A possession-onboarded
+    // user (api/auth/possession-redeem.ts) typed a name at redemption time
+    // and carries it in user_metadata — prefer that over the email prefix.
     const { data: authUser } = await supabase.auth.admin.getUserById(userId)
-    const displayName = authUser?.user?.email?.split('@')[0] || 'User'
+    const metadataName = (authUser?.user?.user_metadata as Record<string, unknown> | undefined)?.display_name
+    const displayName = (typeof metadataName === 'string' && metadataName.trim())
+      || authUser?.user?.email?.split('@')[0]
+      || 'User'
     const { error: insertError } = await supabase
       .from('learners')
       .insert({
@@ -494,6 +499,32 @@ async function redeemInviteCode(
       .eq('id', inviteRow.grants_class_id)
       .maybeSingle()
     studentCourseCode = cls?.course_code ?? null
+
+    // Enrol the student in the class's course (idempotent — mirrors
+    // WithTeacher.vue's linkLearnerToClass, the /with/:code join path). Without
+    // this, a class-invite student had a CLASS: tag but no course_enrollments
+    // row at all — "landed in the right course" isn't the same as "enrolled and
+    // ready to play" (2026-07-15 owner finding). Best-effort: a failure here
+    // must not fail the redemption itself (the tag + course landing already
+    // succeeded), same fail-open posture as the platform-trial writes above.
+    if (studentCourseCode) {
+      const { data: learnerRow } = await supabase
+        .from('learners')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (learnerRow?.id) {
+        const { error: enrollError } = await supabase
+          .from('course_enrollments')
+          .upsert(
+            { learner_id: learnerRow.id, course_id: studentCourseCode },
+            { onConflict: 'learner_id,course_id', ignoreDuplicates: true }
+          )
+        if (enrollError) {
+          console.error('[CodeRedeem] Failed to enrol student in class course (non-fatal):', enrollError)
+        }
+      }
+    }
   }
 
   // school_admin (invite-born — the ONLY way this code_type reaches redeem.ts;
