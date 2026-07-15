@@ -46,6 +46,11 @@ installConsoleDedup()
 const route = useRoute()
 const showAppEscape = computed(() => !route.matched.some((r) => r.meta?.hideAppEscape))
 
+// RedeemCode.vue (mounted at /redeem and /group) owns the pendingCode it
+// creates and drives its own inline auth/details UI — the global sign-in
+// modal must stay closed while either is active (see onMounted below).
+const isRedeemFlowRoute = computed(() => route.name === 'redeem-code' || route.name === 'group-landing')
+
 // RECOVERY MODE: If ?reset=1 in URL, clear everything and reload
 // This helps users stuck in broken states
 if (window.location.search.includes('reset=1')) {
@@ -614,8 +619,15 @@ onMounted(async () => {
               } catch (e) {
                 console.warn('[App] Auto-redeem failed:', e)
               }
-            } else {
-              // Not signed in — open auth modal
+            } else if (!isRedeemFlowRoute.value) {
+              // Not signed in — open auth modal. Skip while /redeem or /group
+              // is itself mounted: RedeemCode.vue owns this pendingCode and is
+              // already showing its own auth/details step inline — opening the
+              // global modal here races the page's own flow and, once the
+              // possession-redeem path signs the user in and clears
+              // pendingCode, was left stuck open (isOpen is a module
+              // singleton nothing else closes) over the freshly-loaded
+              // dashboard after redirect.
               useAuthModal().open()
             }
           }
@@ -626,7 +638,8 @@ onMounted(async () => {
 
       // If there's a pending code from sessionStorage (e.g. from /redeem/:code flow)
       // and user isn't signed in, open auth modal so they can complete sign-up + redeem
-      if (!auth.learner.value && inviteCode.pendingCode.value) {
+      // — unless /redeem or /group is itself currently mounted (see above).
+      if (!auth.learner.value && inviteCode.pendingCode.value && !isRedeemFlowRoute.value) {
         useAuthModal().open()
       }
 

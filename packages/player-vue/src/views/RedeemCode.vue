@@ -5,6 +5,7 @@ import { useInviteCode } from '../composables/useInviteCode'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useUserRole } from '../composables/useUserRole'
 import { useSchoolContext } from '../composables/schools/useSchoolContext'
+import { useAuthModal } from '../composables/useAuthModal'
 
 // variant='landing' is a PRESENTATION-ONLY switch (region-tier-design.md
 // §1a/§1b, owner addendum 2026-07-13): the /group/:code landing route uses
@@ -165,6 +166,11 @@ const successSubtext = computed(() => {
 
 // --- Step 1: Validate on mount ---
 onMounted(async () => {
+  // This page owns the whole invite-code flow inline (auth/details/OTP steps
+  // below) — close the global sign-in modal if App.vue's boot-time pendingCode
+  // check raced ahead of this mount and opened it (see App.vue onMounted),
+  // so it never sits stranded over this page or the post-redemption redirect.
+  useAuthModal().close()
   if (!code.value) {
     // Landing (/group) links always carry a code; a bare /group with none is
     // genuinely broken. Bare /redeem with no code is the whiteboard case —

@@ -14,6 +14,7 @@ vi.mock('vue-router', () => ({
 }))
 
 import RedeemCode from './RedeemCode.vue'
+import { useAuthModal } from '../composables/useAuthModal'
 
 function mockFetchByUrl(handlers: Record<string, unknown>) {
   return vi.fn(async (url: string, opts?: any) => {
@@ -112,6 +113,18 @@ describe('RedeemCode.vue — possession-based onboarding', () => {
     await wrapper.find('button.btn--primary').trigger('click')
     await flushAsync()
     expect(supabase.value.auth.signInWithOtp).toHaveBeenCalledWith({ email: 'existing@school.example' })
+  })
+
+  it('closes the global sign-in modal on mount (regression: App.vue boot-time pendingCode check can race ahead and open it, stranding it open over the post-redemption dashboard)', async () => {
+    useAuthModal().open()
+    expect(useAuthModal().isOpen.value).toBe(true)
+
+    mountRedeemCode({
+      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-1', codeType: 'teacher', context: {} },
+    })
+    await flushAsync()
+
+    expect(useAuthModal().isOpen.value).toBe(false)
   })
 
   it('a non-possession-eligible code (tester) keeps the OTP-only flow', async () => {
