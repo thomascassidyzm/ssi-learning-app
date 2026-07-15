@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData, type School } from '@/composables/schools/useSchoolData'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
@@ -374,20 +375,8 @@ watch(currentUser, (u) => {
         />
         <p v-if="createError" class="invite-modal-error">{{ createError }}</p>
         <template v-if="createdSchool">
-          <div class="invite-modal-link-row">
-            <span class="invite-modal-link-label">Admin</span>
-            <code class="invite-modal-link">{{ redeemUrl(createdSchool.admin_join_code) }}</code>
-            <button type="button" class="btn-ghost" @click="copyCode(createdSchool.admin_join_code)">
-              {{ copiedCode === createdSchool.admin_join_code ? 'Copied!' : 'Copy' }}
-            </button>
-          </div>
-          <div class="invite-modal-link-row">
-            <span class="invite-modal-link-label">Teacher</span>
-            <code class="invite-modal-link">{{ redeemUrl(createdSchool.teacher_join_code) }}</code>
-            <button type="button" class="btn-ghost" @click="copyCode(createdSchool.teacher_join_code)">
-              {{ copiedCode === createdSchool.teacher_join_code ? 'Copied!' : 'Copy' }}
-            </button>
-          </div>
+          <InviteLinkField label="Admin" :url="redeemUrl(createdSchool.admin_join_code)" />
+          <InviteLinkField label="Teacher" :url="redeemUrl(createdSchool.teacher_join_code)" />
           <p class="schools-subtle invite-modal-hint">
             Send the school admin the Admin link — clicking it takes them straight to sign-in. These links also
             live on the school's row any time you need them again.
@@ -716,34 +705,6 @@ watch(currentUser, (u) => {
   font-size: 12px;
   color: var(--schools-red);
   margin: 0;
-}
-
-.invite-modal-link-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #fafaf6;
-  border: 1px solid var(--schools-border);
-  border-radius: 6px;
-  padding: 8px 10px;
-}
-
-.invite-modal-link-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--schools-fg-2);
-  flex: none;
-}
-
-.invite-modal-link {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
 }
 
 .invite-modal-hint {
