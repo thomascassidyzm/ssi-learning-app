@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, inject } from 'vue'
+import { ref, computed, watch, inject, onUnmounted } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import AuthModal from './AuthModal.vue'
 import { useAuthModal } from '@/composables/useAuthModal'
@@ -25,6 +25,14 @@ const error = ref('')
 
 // Invite code input
 const codeInput = ref('')
+
+// School email gateways (Microsoft quarantine, most often) silently swallow
+// a lot of OTP mail with nothing bounced and nothing a teacher can whitelist.
+// Reveal the "it's not just slow" fallback after a wait, or immediately on
+// resend (that click already IS the signal something's wrong).
+const showDeliveryHint = ref(false)
+let deliveryHintTimer: ReturnType<typeof setTimeout> | null = null
+onUnmounted(() => { if (deliveryHintTimer) clearTimeout(deliveryHintTimer) })
 
 // Reset form when modal opens/closes
 watch(isOpen, (open) => {
@@ -149,6 +157,9 @@ const handleSendCode = async () => {
     }
 
     step.value = 'verify'
+    showDeliveryHint.value = false
+    if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
+    deliveryHintTimer = setTimeout(() => { showDeliveryHint.value = true }, 20000)
   } catch (err: any) {
     console.error('OTP error:', err)
     error.value = err.message || 'Unable to send code. Please try again.'
@@ -259,6 +270,7 @@ const resendCode = async () => {
   const client = supabaseClient?.value
   if (!client) return
 
+  showDeliveryHint.value = true
   try {
     const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
     if (otpError) {
@@ -490,6 +502,17 @@ const handleClose = () => {
         Didn't receive the code?
         <button type="button" @click="resendCode">Resend</button>
       </p>
+
+      <Transition name="error">
+        <div v-if="showDeliveryHint" class="delivery-hint">
+          <p>
+            Still nothing? School email filters often block these codes outright.
+            Try entering a personal email address instead — you can add your school
+            email later — or ask whoever sent your invite to re-share the link.
+            Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+          </p>
+        </div>
+      </Transition>
 
       <button type="button" class="back-btn" @click="step = 'email'; error = ''; verificationCode = ''">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -773,6 +796,26 @@ const handleClose = () => {
 
 .resend-code button:hover {
   color: var(--ssi-gold-light);
+}
+
+.delivery-hint {
+  padding: 0.75rem 1rem;
+  background: rgba(212, 168, 83, 0.08);
+  border: 1px solid rgba(212, 168, 83, 0.25);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.delivery-hint p {
+  margin: 0;
+  color: var(--text-secondary, #aaa);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.delivery-hint a {
+  color: var(--ssi-gold);
+  font-weight: 600;
 }
 
 /* Back button */

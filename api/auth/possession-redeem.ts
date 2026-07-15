@@ -1,0 +1,273 @@
+/**
+ * Possession-based invite onboarding — POST /api/auth/possession-redeem
+ *
+ * docs/schools/email-deliverability-plan.md, Option A: school mail gateways
+ * (Microsoft/Exchange Online education tenants, confirmed by header analysis
+ * 2026-07-15) silently quarantine our OTP mail — a teacher can never receive
+ * the code, so the OTP-gated redemption path is structurally dead for them.
+ *
+ * The invite LINK is already the real authorization boundary (nothing today
+ * checks the typed OTP email against who the invite was meant for — see the
+ * plan doc §Option A "Security delta"), so this endpoint establishes the
+ * session directly from possession of a valid, non-exhausted invite code:
+ *   1. validate the code (same checks as /api/code/validate, invite-only)
+ *   2. auth.admin.createUser({ email, email_confirm: false }) — no email sent
+ *   3. auth.admin.generateLink({ type: 'magiclink', email }) — no email sent
+ *   4. an anon-key client calls auth.verifyOtp({ token_hash, type: 'magiclink' })
+ *      server-side, minting a real session without ever emailing anyone
+ * The browser then calls supabase.auth.setSession(...) with the returned
+ * tokens and proceeds to POST /api/code/redeem exactly as the OTP path does
+ * today — this endpoint only ever creates the ACCOUNT + SESSION, never
+ * touches invite_codes.use_count or any role/grant logic.
+ *
+ * Security rails:
+ *   - invite-code TYPES only (teacher/school_admin/school_admin_join/
+ *     govt_admin/student) — ssi_admin/tester/god codes can't use this path.
+ *   - an email that already has an account is NEVER minted a session here —
+ *     that would be account takeover (anyone holding a leaked invite link
+ *     could otherwise log in as any known email). It falls back to
+ *     reason: 'already_registered' so the client offers sign-in-instead.
+ *   - per-code and per-IP rate limiting (possession_mint_attempts), checked
+ *     before the expensive admin API calls.
+ *   - every attempt (blocked or not) is audit-logged; IP is stored hashed,
+ *     never raw (same convention as api/try-link/validate.ts).
+ */
+
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'crypto'
+
+const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+const supabaseAnonKey = (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim()
+
+if (!supabaseUrl) {
+  throw new Error('Missing SUPABASE_URL environment variable')
+}
+
+// Only these invite types may onboard without ever proving mailbox receipt —
+// the population the OTP gateway wall actually blocks. ssi_admin/tester/god
+// codes (grant platform-level trust) stay OTP-only, deliberately.
+const POSSESSION_ELIGIBLE_CODE_TYPES = new Set([
+  'teacher',
+  'school_admin',
+  'school_admin_join',
+  'govt_admin',
+  'student',
+])
+
+const RATE_WINDOW_MS = 15 * 60 * 1000
+const PER_CODE_LIMIT = 20
+const PER_IP_LIMIT = 10
+
+function hashIp(ip: string): string {
+  return createHash('sha256').update(ip).digest('hex').slice(0, 16)
+}
+
+function getClientIp(req: VercelRequest): string {
+  return (
+    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    (req.headers['x-real-ip'] as string) ||
+    'unknown'
+  )
+}
+
+function isEmailValid(email: unknown): email is string {
+  return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function isAlreadyRegisteredError(error: any): boolean {
+  if (!error) return false
+  if (error.code === 'email_exists') return true
+  const msg = String(error.message || '').toLowerCase()
+  return msg.includes('already been registered') || msg.includes('already registered') || msg.includes('already exists')
+}
+
+async function logAttempt(
+  supabase: ReturnType<typeof createClient>,
+  fields: { inviteCodeId?: string | null; email?: string | null; ipHash: string; outcome: string; authUserId?: string | null }
+): Promise<void> {
+  try {
+    const { error } = await supabase.from('possession_mint_attempts').insert({
+      invite_code_id: fields.inviteCodeId ?? null,
+      email: fields.email ?? null,
+      ip_hash: fields.ipHash,
+      outcome: fields.outcome,
+      auth_user_id: fields.authUserId ?? null,
+    })
+    if (error) console.warn('[PossessionRedeem] Failed to log attempt:', error.message)
+  } catch (err) {
+    console.warn('[PossessionRedeem] Failed to log attempt:', err)
+  }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  if (!supabaseServiceKey || !supabaseAnonKey) {
+    res.status(500).json({ error: 'Server configuration error' })
+    return
+  }
+
+  const { code, email, displayName } = req.body || {}
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ success: false, error: 'Missing code' })
+    return
+  }
+  if (!isEmailValid(email)) {
+    res.status(400).json({ success: false, error: 'Please enter a valid email address' })
+    return
+  }
+  const normalizedEmail = email.trim().toLowerCase()
+  const cleanDisplayName = typeof displayName === 'string' ? displayName.trim().slice(0, 100) : ''
+
+  const strippedCode = String(code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!strippedCode) {
+    res.status(200).json({ success: false, error: 'Invalid code' })
+    return
+  }
+
+  const ipHash = hashIp(getClientIp(req))
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+  try {
+    // Per-IP rate limit first — cheapest check, blocks code-guessing sweeps
+    // before we even touch invite_codes.
+    const { count: ipCount } = await supabase
+      .from('possession_mint_attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip_hash', ipHash)
+      .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
+
+    if ((ipCount ?? 0) >= PER_IP_LIMIT) {
+      await logAttempt(supabase, { email: normalizedEmail, ipHash, outcome: 'rate_limited_ip' })
+      res.status(429).json({ success: false, error: 'Too many attempts. Please try again later.' })
+      return
+    }
+
+    // Same validation as /api/code/validate (forgiving match against the
+    // service-role-only *_code_validation view).
+    const { data: inviteRow } = await supabase
+      .from('invite_code_validation')
+      .select('id, code, code_type, max_uses, use_count, expires_at, is_active')
+      .eq('code_normalized', strippedCode)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (!inviteRow) {
+      await logAttempt(supabase, { email: normalizedEmail, ipHash, outcome: 'invalid_code' })
+      res.status(200).json({ success: false, error: 'Invalid code' })
+      return
+    }
+
+    if (inviteRow.expires_at && new Date(inviteRow.expires_at as string) <= new Date()) {
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'expired' })
+      res.status(200).json({ success: false, error: 'Code expired' })
+      return
+    }
+    if (inviteRow.max_uses !== null && (inviteRow.use_count as number) >= (inviteRow.max_uses as number)) {
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'exhausted' })
+      res.status(200).json({ success: false, error: 'Code fully used' })
+      return
+    }
+    if (!POSSESSION_ELIGIBLE_CODE_TYPES.has(inviteRow.code_type as string)) {
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'unsupported_code_type' })
+      res.status(200).json({ success: false, error: 'This invite needs to be redeemed by email sign-in' })
+      return
+    }
+
+    // Per-code rate limit — bounds abuse of a single leaked/guessed valid code.
+    const { count: codeCount } = await supabase
+      .from('possession_mint_attempts')
+      .select('id', { count: 'exact', head: true })
+      .eq('invite_code_id', inviteRow.id as string)
+      .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
+
+    if ((codeCount ?? 0) >= PER_CODE_LIMIT) {
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'rate_limited_code' })
+      res.status(429).json({ success: false, error: 'Too many attempts on this code. Please try again later.' })
+      return
+    }
+
+    // Create the account with no email sent. email_confirm:false — Supabase's
+    // own verifyOtp call below will still mark the email confirmed at the
+    // auth layer (that's inherent to how magic-link verification works), so
+    // app-level "unverified" tracking deliberately does NOT read
+    // email_confirmed_at — it reads user_metadata.onboarded_via (set once
+    // here, untouched by anything else) instead. See SettingsScreen.vue.
+    const { data: created, error: createError } = await supabase.auth.admin.createUser({
+      email: normalizedEmail,
+      email_confirm: false,
+      user_metadata: {
+        onboarded_via: 'possession',
+        ...(cleanDisplayName ? { display_name: cleanDisplayName } : {}),
+      },
+    })
+
+    if (createError || !created?.user) {
+      if (isAlreadyRegisteredError(createError)) {
+        await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'already_registered' })
+        // Never mint a session for a pre-existing email through this
+        // unauthenticated path — that would be account takeover.
+        res.status(409).json({ success: false, reason: 'already_registered', error: 'An account already exists for this email. Please sign in instead.' })
+        return
+      }
+      console.error('[PossessionRedeem] createUser failed:', createError)
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'error' })
+      res.status(500).json({ success: false, error: 'Could not create account. Please try again.' })
+      return
+    }
+
+    const newUserId = created.user.id
+
+    // Mint a link, then immediately redeem it server-side — no email sent at
+    // any point; this is the "no OTP round-trip" step.
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: 'magiclink',
+      email: normalizedEmail,
+    })
+    const hashedToken = (linkData as any)?.properties?.hashed_token
+
+    if (linkError || !hashedToken) {
+      console.error('[PossessionRedeem] generateLink failed:', linkError)
+      await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'error', authUserId: newUserId })
+      res.status(500).json({ success: false, error: 'Could not set up your account. Please try again.' })
+      return
+    }
+
+    // Anon-key client (not admin) mints the session — GoTrue validates the
+    // token_hash regardless of which client presents it.
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey)
+    const { data: verifyData, error: verifyError } = await anonClient.auth.verifyOtp({
+      email: normalizedEmail,
+      token_hash: hashedToken,
+      type: 'magiclink',
+    })
+
+    if (verifyError || !verifyData?.session) {
+      console.error('[PossessionRedeem] verifyOtp (session mint) failed:', verifyError)
+      await supabase.auth.admin.deleteUser(newUserId).catch(() => {})
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'mint_failed', authUserId: newUserId })
+      res.status(500).json({ success: false, error: 'Could not sign you in. Please try again.' })
+      return
+    }
+
+    await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'minted', authUserId: newUserId })
+
+    res.status(200).json({
+      success: true,
+      session: {
+        access_token: verifyData.session.access_token,
+        refresh_token: verifyData.session.refresh_token,
+      },
+    })
+  } catch (error: any) {
+    console.error('[PossessionRedeem] Error:', error)
+    await logAttempt(supabase, { email: normalizedEmail, ipHash, outcome: 'error' })
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+}

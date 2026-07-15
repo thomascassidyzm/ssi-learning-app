@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInviteCode } from '../composables/useInviteCode'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -18,17 +18,34 @@ const route = useRoute()
 const router = useRouter()
 const auth = inject<any>('auth', null)
 const supabase = inject<any>('supabase', ref(null))
-const { validateCode, redeemCode, pendingCode, clearPendingCode, validationError } = useInviteCode()
+const { validateCode, redeemCode, possessionRedeem, pendingCode, clearPendingCode, validationError } = useInviteCode()
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
+// Possession-based onboarding (docs/schools/email-deliverability-plan.md,
+// Option A): these invite types skip the OTP round-trip entirely by default
+// — the invite link itself is already the trust boundary. Mirrors the
+// server-side allowlist in api/auth/possession-redeem.ts; ssi_admin/tester/
+// entitlement codes stay OTP-only there regardless of what the client sends,
+// so this is purely a client-side "which default screen to show" choice.
+const POSSESSION_ELIGIBLE_CODE_TYPES = new Set(['teacher', 'school_admin', 'school_admin_join', 'govt_admin', 'student'])
+
 // --- State ---
-const step = ref<'validating' | 'enter-code' | 'invalid' | 'confirm' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
+const step = ref<'validating' | 'enter-code' | 'invalid' | 'confirm' | 'details' | 'already-registered' | 'auth' | 'otp' | 'redeeming' | 'success'>('validating')
 const error = ref('')
 const email = ref('')
+const displayName = ref('')
 const otpCode = ref('')
 const isLoading = ref(false)
 const redeemLabel = ref('')
 const redirectUrl = ref('/')
+
+// School email gateways (Microsoft quarantine, most often) silently swallow
+// a lot of OTP mail with nothing bounced and nothing a teacher can whitelist.
+// Reveal the "it's not just slow" fallback after a wait, or immediately on
+// resend (that click already IS the signal something's wrong).
+const showDeliveryHint = ref(false)
+let deliveryHintTimer: ReturnType<typeof setTimeout> | null = null
+onUnmounted(() => { if (deliveryHintTimer) clearTimeout(deliveryHintTimer) })
 
 // Manual code entry (bare /redeem, no :code in the URL) — the classroom
 // whiteboard case: a teacher reads a code aloud/writes it up rather than
@@ -93,6 +110,11 @@ const displayDetail = computed(() => {
 const isEmailValid = computed(() => {
   if (!email.value) return false
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)
+})
+
+const isPossessionEligible = computed(() => {
+  const pc = pendingCode.value
+  return !!(pc?.codeKind === 'invite' && pc.codeType && POSSESSION_ELIGIBLE_CODE_TYPES.has(pc.codeType))
 })
 
 // --- Role-specific copy ---
@@ -173,9 +195,12 @@ async function validateAndProceed(rawCode: string): Promise<void> {
   // — confirm identity before ever spending the one-shot code.
   if (isSignedIn.value) {
     step.value = 'confirm'
-  } else {
-    step.value = 'auth'
+    return
   }
+  // Default to the no-email-wait possession path for eligible invite types;
+  // everything else (entitlement codes, ssi_admin/tester invites) keeps the
+  // existing OTP-gated flow.
+  step.value = isPossessionEligible.value ? 'details' : 'auth'
 }
 
 // --- Step 1b (whiteboard path): manual code entry ---
@@ -218,6 +243,57 @@ async function useDifferentEmail() {
   }
 }
 
+// --- Step 1c (default path): possession-based onboarding, no OTP wait ---
+async function handlePossessionSubmit() {
+  if (!isEmailValid.value) return
+  const client = supabase.value
+  if (!client) {
+    error.value = 'App not ready. Please try again.'
+    return
+  }
+
+  isLoading.value = true
+  error.value = ''
+
+  try {
+    const result = await possessionRedeem(email.value, displayName.value.trim())
+    if (result.success && result.session) {
+      const { error: setSessionError } = await client.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      })
+      if (setSessionError) {
+        error.value = setSessionError.message || 'Could not sign you in. Please try again.'
+        return
+      }
+      await doRedeem()
+      return
+    }
+    if (result.reason === 'already_registered') {
+      step.value = 'already-registered'
+      return
+    }
+    error.value = result.error || 'Something went wrong. Please try again.'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// "prefer to verify by email code now" — secondary path off the details
+// screen, and off invalid states doPossessionSubmit can hit (rate-limited etc).
+function switchToEmailCode() {
+  error.value = ''
+  step.value = 'auth'
+}
+
+// Already-registered fallback (security rail: possession never signs in as
+// a pre-existing account) — send that account a real sign-in code instead.
+async function handleSignInInstead() {
+  step.value = 'auth'
+  error.value = ''
+  await handleSendOtp()
+}
+
 // --- Step 2: Send OTP ---
 async function handleSendOtp() {
   if (!isEmailValid.value) return
@@ -237,6 +313,9 @@ async function handleSendOtp() {
       return
     }
     step.value = 'otp'
+    showDeliveryHint.value = false
+    if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
+    deliveryHintTimer = setTimeout(() => { showDeliveryHint.value = true }, 20000)
   } catch (err: any) {
     error.value = err.message || 'Unable to send code. Please try again.'
   } finally {
@@ -278,11 +357,18 @@ async function handleVerifyOtp() {
   }
 }
 
+function backToDetails() {
+  error.value = ''
+  otpCode.value = ''
+  step.value = 'details'
+}
+
 // --- Step 2c: Resend OTP ---
 async function handleResendOtp() {
   const client = supabase.value
   if (!client) return
 
+  showDeliveryHint.value = true
   try {
     const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
     if (otpError) {
@@ -489,7 +575,87 @@ function goHome() {
           </button>
         </div>
 
-        <!-- Email input (step === 'auth') -->
+        <!-- Details (step === 'details') — the default door for possession-
+             eligible invites: no OTP wait, session is established from the
+             invite link itself. -->
+        <form v-else-if="step === 'details'" class="auth-form" @submit.prevent="handlePossessionSubmit">
+          <p class="instruction-text">{{ authInstructionText }}</p>
+
+          <Transition name="error-fade">
+            <div v-if="error" class="error-banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {{ error }}
+            </div>
+          </Transition>
+
+          <div class="input-group">
+            <label for="redeem-name" class="input-label">Your name</label>
+            <div class="input-wrapper">
+              <input
+                id="redeem-name"
+                v-model="displayName"
+                type="text"
+                placeholder="Optional"
+                autocomplete="name"
+              />
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label for="redeem-details-email" class="input-label">Email</label>
+            <div class="input-wrapper" :class="{ invalid: email && !isEmailValid }">
+              <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="M22 6l-10 7L2 6"/>
+              </svg>
+              <input
+                id="redeem-details-email"
+                v-model="email"
+                type="email"
+                placeholder="you@example.com"
+                autocomplete="email"
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            class="btn btn--primary"
+            :class="{ loading: isLoading }"
+            :disabled="!isEmailValid || isLoading"
+          >
+            <span v-if="!isLoading">Continue</span>
+            <span v-else class="btn-spinner"></span>
+          </button>
+
+          <p class="resend-text">
+            Prefer to verify with an emailed code first?
+            <button type="button" :disabled="isLoading" @click="switchToEmailCode">Use email code instead</button>
+          </p>
+        </form>
+
+        <!-- Already registered (step === 'already-registered') — security
+             rail: possession onboarding never signs in as a pre-existing
+             account, so this hands off to a real sign-in code instead. -->
+        <div v-else-if="step === 'already-registered'" class="redeem-section">
+          <p class="detail-text">An account already exists for <strong>{{ email }}</strong>.</p>
+          <button class="btn btn--primary" :class="{ loading: isLoading }" :disabled="isLoading" @click="handleSignInInstead">
+            Sign in instead
+          </button>
+          <button type="button" class="link-action" :disabled="isLoading" @click="step = 'details'; error = ''">
+            Use a different email
+          </button>
+        </div>
+
+        <!-- Email input (step === 'auth') — the OTP-gated path: secondary for
+             possession-eligible invites (chosen from the details screen), the
+             default for code types that stay OTP-only (entitlement/ssi_admin/
+             tester). -->
         <form v-else-if="step === 'auth'" class="auth-form" @submit.prevent="handleSendOtp">
           <p class="instruction-text">{{ authInstructionText }}</p>
 
@@ -589,6 +755,23 @@ function goHome() {
             Didn't get the code?
             <button type="button" @click="handleResendOtp">Resend</button>
           </p>
+
+          <Transition name="error-fade">
+            <div v-if="showDeliveryHint" class="delivery-hint">
+              <p v-if="isPossessionEligible">
+                Still nothing? School email filters often block these codes outright.
+                <button type="button" class="delivery-hint-link" @click="backToDetails">Go back and skip the email code</button>
+                — you won't need to wait for anything. Still stuck? Email
+                <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+              </p>
+              <p v-else>
+                Still nothing? School email filters often block these codes outright.
+                Try entering a personal email address instead — you can add your school
+                email later — or ask whoever sent your invite to re-share the link.
+                Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+              </p>
+            </div>
+          </Transition>
 
           <button type="button" class="back-link" @click="step = 'auth'; error = ''; otpCode = ''">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -763,6 +946,38 @@ function goHome() {
   color: var(--text-muted, #666);
   font-size: 0.8125rem;
   margin: 0.25rem 0 0;
+}
+
+.delivery-hint {
+  padding: 0.75rem 1rem;
+  background: rgba(212, 168, 83, 0.08);
+  border: 1px solid rgba(212, 168, 83, 0.25);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.delivery-hint p {
+  margin: 0;
+  color: var(--text-secondary, #aaa);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.delivery-hint a {
+  color: var(--ssi-gold, #d4a853);
+  font-weight: 600;
+}
+
+.delivery-hint-link {
+  color: var(--ssi-gold, #d4a853);
+  font-weight: 600;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: inherit;
+  text-decoration: underline;
 }
 
 .btn--continue {

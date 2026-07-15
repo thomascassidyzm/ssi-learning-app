@@ -410,6 +410,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/AdminStatsView.vue'),
         meta: { title: 'Stats', description: 'Insight Engine boards — lifecycle, rates, content, ops' },
       },
+      {
+        path: 'board',
+        name: 'admin-board',
+        component: () => import('@/views/admin/BoardReportView.vue'),
+        meta: { title: 'Board', description: 'Living board report — live business state + authored reports' },
+      },
     ],
   },
   // Admin read-views — view a specific school's dashboard as ssi_admin
@@ -522,6 +528,14 @@ const routes: RouteRecordRaw[] = [
     name: 'try-link',
     component: () => import('@/views/TryLinkGateway.vue'),
     meta: { title: 'Try SaySomethingin' },
+  },
+  // Frozen board-report snapshot (no auth — capability-by-unguessability,
+  // living-board-report-spec.md §5). Renders only the stored payload.
+  {
+    path: '/board/:code',
+    name: 'board-snapshot',
+    component: () => import('@/views/BoardSnapshotView.vue'),
+    meta: { title: 'Board Report' },
   },
   // Demo launcher (no auth required)
   {

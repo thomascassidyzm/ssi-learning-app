@@ -5,6 +5,8 @@
  * Used by both invite codes and entitlement codes.
  */
 
+import { randomBytes } from 'crypto'
+
 // Consonants only, excluding I and O (confusable with 1 and 0)
 const CODE_CONSONANTS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
 
@@ -18,4 +20,17 @@ export function generateCode(): string {
     digits += Math.floor(Math.random() * 10).toString()
   }
   return `${letters}-${digits}`
+}
+
+/**
+ * 128-bit random, URL-safe share code (board_snapshots.share_code) — the
+ * try-link capability-by-unguessability model: not sequential, not derived
+ * from any label, unguessable by construction.
+ */
+export function generateShareCode(): string {
+  return randomBytes(16)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
 }
