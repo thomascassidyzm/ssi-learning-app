@@ -195,9 +195,14 @@ async function redeemInviteCode(
     .maybeSingle()
 
   if (!existingLearner) {
-    // Get email from auth.users for display_name
+    // Get email from auth.users for display_name. A possession-onboarded
+    // user (api/auth/possession-redeem.ts) typed a name at redemption time
+    // and carries it in user_metadata — prefer that over the email prefix.
     const { data: authUser } = await supabase.auth.admin.getUserById(userId)
-    const displayName = authUser?.user?.email?.split('@')[0] || 'User'
+    const metadataName = (authUser?.user?.user_metadata as Record<string, unknown> | undefined)?.display_name
+    const displayName = (typeof metadataName === 'string' && metadataName.trim())
+      || authUser?.user?.email?.split('@')[0]
+      || 'User'
     const { error: insertError } = await supabase
       .from('learners')
       .insert({

@@ -91,6 +91,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Possession-onboarded accounts (api/auth/possession-redeem.ts) carry
+    // user_metadata.onboarded_via='possession' and start with no proof their
+    // typed email is receive-capable. verified_emails can't record that proof
+    // on its own — useAuth.ts's ensureLearnerExists() unconditionally
+    // back-fills the session's own email into verified_emails on every load
+    // (it treats "has a valid session as this email" as sufficient), which
+    // would silently launder an unproven possession email into "verified"
+    // the moment the browser next loads, regardless of whether this endpoint
+    // ever ran. A completed OTP round-trip through THIS endpoint, for the
+    // account's OWN primary email, is the one signal that only happens on
+    // genuine mailbox receipt — recorded as a durable flag nothing else
+    // touches, so SettingsScreen.vue's "unverified" badge can rely on it.
+    const { data: authUser } = await admin.auth.admin.getUserById(userId)
+    if (authUser?.user?.email?.toLowerCase().trim() === normalizedEmail) {
+      await admin.auth.admin.updateUserById(userId, {
+        user_metadata: { ...(authUser.user.user_metadata || {}), email_confirmed_manually: true },
+      })
+    }
+
     return res.status(200).json({ success: true, email: normalizedEmail })
   } catch (err: any) {
     console.error('[email/verify] Error:', err)
