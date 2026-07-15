@@ -16,6 +16,9 @@ on its own cycle from then on.
 **Students are always paid, no trial**, at the existing school-linked £5 price. Students
 carry the marginal infra cost (audio streaming) — which is exactly why teacher pricing can
 be a simple flat platform fee: the cost driver and the revenue line are the same object.
+*(Superseded by the 2026-07-15 student entitlement ruling below — the £5 is the independent
+personal all-courses door, not a mandatory school-linked charge; school-linked students get
+their class course free, derived from their school's coverage.)*
 
 **Groups aggregate payers; they are never a pricing tier.** A group paying is one Paddle
 subscription with an adjustable quantity covering its schools' teachers; a school can
@@ -52,6 +55,70 @@ columns that already exist on `schools` (`platform_status`, `trial_course_code`,
 `platform_expires_at`). Enforcement stays at the choke points that already exist:
 course-pick for the trial lock, the player paywall at Orange belt for Big-10, and a
 teacher-seat active check.
+
+## Student entitlement — derived, never personal (owner ruling, 2026-07-15)
+
+**Students have no personal trials, ever.** A student's content entitlement is three stacked
+sources, none of which is a student-level clock or student-level state:
+
+1. **Free courses** — everyone, always.
+2. **Universal preview** — up to end of Yellow belt, on every course (matches the existing
+   `PREMIUM_PREVIEW_MAX_SEED` wall in `checkCourseAccess`).
+3. **The class course, in full** — DERIVED live from class membership, for exactly as long as
+   the class's school has active coverage. **School coverage for a class = that class's
+   teacher seat being in trial or paid** (the per-teacher-seat trial clock ruling recorded
+   the same day, §0 above: `teachers.platform_status` / `platform_expires_at`, or
+   `schools.platform_status` for the school-track). When coverage lapses, the student falls
+   back to (1)+(2) with progress retained **read-only** — the no-lock principle already
+   established for trial expiry, never a wipe.
+
+The **personal paid account (~£5)** is unaffected and stays the independent all-courses door —
+a student (or anyone) can subscribe directly regardless of any school relationship.
+
+**Why school-level, not student-level:** the thing that's actually trialling is the school's
+*machinery* — dashboards, insights, play-as-class — which only schools consume. A student
+never sees or touches that machinery; their access should simply track "is my class's teacher
+seat covered right now", recomputed on every check, never provisioned or burned as a
+per-student event.
+
+### Implementation status vs the ruling (2026-07-15 audit — gap logged, not built)
+
+Traced the full path: `LearningPlayer` → `useEntitlement.checkCourseAccess` →
+`@ssi/core`'s `checkCourseAccess` (`packages/core/src/pricing/access.ts`) → inputs are
+`platformRole`, personal `subscription` (Paddle), and `userEntitlements` (from
+`GET /api/entitlement/user`, backed by `user_entitlements` — personal entitlement-code
+redemptions — plus a `get_cascade_courses` DB cascade over `entitlement_grants` at
+group/school/class level).
+
+**The divergence is large — none of the ruling's three sources is actually wired this way today:**
+
+- `checkCourseAccess` has **no input at all** for "is this student's class's school covered
+  (teacher seat trial/paid)". The three inputs it does take (role, personal subscription,
+  personal/cascaded entitlements) are all upstream of and unrelated to
+  `schools.platform_status` / `teachers.platform_status`.
+- The existing `entitlement_grants` → `get_cascade_courses` cascade (`api/entitlement/user.ts`,
+  `supabase/schema.sql`) *is* a per-class/school/group grant mechanism, but it's **manually
+  admin-provisioned** (`api/entitlement/grant.ts`, an ssi_admin-only write) with its own
+  `is_active`/`expires_at` — entirely decoupled from the teacher-seat trial/paid clocks. In
+  practice: a student in a school whose teacher is mid-trial gets **no full-course access at
+  all** today unless an admin has separately hand-run a grant for that class/school/group.
+  This is the actual live-test symptom's sibling bug — the ticket surfaced the *landing* half;
+  this is the *entitlement* half, and it's currently unimplemented, not just misconfigured.
+- The `user_entitlements` personal-code path (`api/code/redeem.ts`'s `redeemEntitlementCode`)
+  remains fully capable of granting a student a personal entitlement — nothing currently
+  blocks an entitlement code from being handed to or redeemed by a student account. The ruling
+  says this should never happen for students; today it's merely a convention, not enforced.
+
+**Scoped follow-up (not built this pass — flagged per BSC: this is a real design+build, not a
+one-line fix riding along with the landing bug):** derive course access for a class-tagged
+student directly from `classes.school_id/teacher_user_id` → `teachers.platform_status`/
+`schools.platform_status`, either as a new input into `checkCourseAccess` or a server-computed
+addition to the `GET /api/entitlement/user` cascade (replacing or supplementing
+`get_cascade_courses`), with read-only-not-wipe on lapse. Until that lands, the honest state is:
+class-course access for students is inconsistent with the ruling — it's either wide open (no
+gate at all if the class's course previews-only-through-Yellow like every premium course
+already does for anyone) or requires an admin's manual `entitlement_grants` row, never the
+"just works because the teacher's seat is covered" experience the ruling describes.
 
 ## Open numbers (for the owner)
 
