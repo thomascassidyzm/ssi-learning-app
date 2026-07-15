@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, inject, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useInviteCode } from '../composables/useInviteCode'
 import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
@@ -29,6 +29,14 @@ const otpCode = ref('')
 const isLoading = ref(false)
 const redeemLabel = ref('')
 const redirectUrl = ref('/')
+
+// School email gateways (Microsoft quarantine, most often) silently swallow
+// a lot of OTP mail with nothing bounced and nothing a teacher can whitelist.
+// Reveal the "it's not just slow" fallback after a wait, or immediately on
+// resend (that click already IS the signal something's wrong).
+const showDeliveryHint = ref(false)
+let deliveryHintTimer: ReturnType<typeof setTimeout> | null = null
+onUnmounted(() => { if (deliveryHintTimer) clearTimeout(deliveryHintTimer) })
 
 // Manual code entry (bare /redeem, no :code in the URL) — the classroom
 // whiteboard case: a teacher reads a code aloud/writes it up rather than
@@ -237,6 +245,9 @@ async function handleSendOtp() {
       return
     }
     step.value = 'otp'
+    showDeliveryHint.value = false
+    if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
+    deliveryHintTimer = setTimeout(() => { showDeliveryHint.value = true }, 20000)
   } catch (err: any) {
     error.value = err.message || 'Unable to send code. Please try again.'
   } finally {
@@ -283,6 +294,7 @@ async function handleResendOtp() {
   const client = supabase.value
   if (!client) return
 
+  showDeliveryHint.value = true
   try {
     const { error: otpError } = await client.auth.signInWithOtp({ email: email.value })
     if (otpError) {
@@ -590,6 +602,17 @@ function goHome() {
             <button type="button" @click="handleResendOtp">Resend</button>
           </p>
 
+          <Transition name="error-fade">
+            <div v-if="showDeliveryHint" class="delivery-hint">
+              <p>
+                Still nothing? School email filters often block these codes outright.
+                Try entering a personal email address instead — you can add your school
+                email later — or ask whoever sent your invite to re-share the link.
+                Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+              </p>
+            </div>
+          </Transition>
+
           <button type="button" class="back-link" @click="step = 'auth'; error = ''; otpCode = ''">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -763,6 +786,26 @@ function goHome() {
   color: var(--text-muted, #666);
   font-size: 0.8125rem;
   margin: 0.25rem 0 0;
+}
+
+.delivery-hint {
+  padding: 0.75rem 1rem;
+  background: rgba(212, 168, 83, 0.08);
+  border: 1px solid rgba(212, 168, 83, 0.25);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.delivery-hint p {
+  margin: 0;
+  color: var(--text-secondary, #aaa);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.delivery-hint a {
+  color: var(--ssi-gold, #d4a853);
+  font-weight: 600;
 }
 
 .btn--continue {

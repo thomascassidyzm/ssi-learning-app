@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, inject, onMounted, watch } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AtmosphereBackdrop from '@/components/schools/shared/AtmosphereBackdrop.vue'
 import FrostCard from '@/components/schools/shared/FrostCard.vue'
@@ -278,6 +278,15 @@ watch(otp, (v) => {
 })
 const busy = ref(false)
 const error = ref('')
+
+// School email gateways (Microsoft quarantine, most often) silently swallow
+// a lot of OTP mail with nothing bounced and nothing a teacher can whitelist.
+// Reveal the "it's not just slow" fallback after a wait, or immediately on
+// resend (that click already IS the signal something's wrong).
+const showDeliveryHint = ref(false)
+let deliveryHintTimer: ReturnType<typeof setTimeout> | null = null
+onUnmounted(() => { if (deliveryHintTimer) clearTimeout(deliveryHintTimer) })
+
 const otpVerified = ref(false)
 // The exact address whose OTP verified. otpVerified alone is not enough: after
 // a verify-then-provision-failure the user can click "Change email" and type a
@@ -427,6 +436,7 @@ function changeEmail() {
 
 async function sendCode() {
   if (!canSend.value || !supabase.value) return
+  const isResend = step.value === 'otp'
   busy.value = true
   error.value = ''
   requiresCheckout.value = false
@@ -437,6 +447,13 @@ async function sendCode() {
       return
     }
     step.value = 'otp'
+    if (deliveryHintTimer) clearTimeout(deliveryHintTimer)
+    if (isResend) {
+      showDeliveryHint.value = true
+    } else {
+      showDeliveryHint.value = false
+      deliveryHintTimer = setTimeout(() => { showDeliveryHint.value = true }, 20000)
+    }
   } catch (e: any) {
     error.value = e?.message || 'Could not send your code'
   } finally {
@@ -957,6 +974,17 @@ async function continueIn() {
             <span class="ob-link-sep" aria-hidden="true">·</span>
             <button type="button" class="ob-link" :disabled="busy" @click="sendCode">Resend code</button>
           </div>
+
+          <Transition name="fade">
+            <div v-if="showDeliveryHint" class="ob-delivery-hint">
+              <p>
+                Still nothing? School email filters often block these codes outright.
+                Try entering a personal email address instead — you can add your school
+                email later — or ask whoever sent your invite to re-share the link.
+                Still stuck? Email <a href="mailto:admin@saysomethingin.com">admin@saysomethingin.com</a>.
+              </p>
+            </div>
+          </Transition>
         </section>
 
         <!-- STEP 3: confirmed + optional profile -->
@@ -1978,6 +2006,34 @@ async function continueIn() {
   transition: color 0.15s ease;
 }
 .ob-link:hover { color: var(--ssi-red, #c23a3a); }
+
+.ob-delivery-hint {
+  margin-top: var(--space-3, 0.75rem);
+  padding: 0.75rem 1rem;
+  background: rgba(212, 168, 83, 0.08);
+  border: 1px solid rgba(212, 168, 83, 0.25);
+  border-radius: 12px;
+  text-align: left;
+}
+.ob-delivery-hint p {
+  margin: 0;
+  color: var(--text-muted, #8a8078);
+  font-size: var(--text-xs, 0.75rem);
+  line-height: 1.5;
+}
+.ob-delivery-hint a {
+  color: var(--ssi-red, #c23a3a);
+  font-weight: 600;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
 .ob-link:disabled { opacity: 0.5; cursor: default; }
 .ob-link:focus-visible {
   outline: none;
