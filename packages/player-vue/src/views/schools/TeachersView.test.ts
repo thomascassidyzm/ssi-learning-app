@@ -77,6 +77,22 @@ describe('TeachersView logic', () => {
     expect(engagementRate(100, 2)).toBe(100) // capped
   })
 
+  // --- teacherJoinLink (link-primary invite, mirrors ClassDetail's classJoinLink) ---
+
+  function teacherJoinLink(origin: string, teacherJoinCode: string): string {
+    if (teacherJoinCode === 'N/A') return ''
+    return `${origin}/redeem/${teacherJoinCode}`
+  }
+
+  it('builds a /redeem/:code invite link from the teacher join code', () => {
+    expect(teacherJoinLink('https://staging.saysomethingin.app', 'BMH-903'))
+      .toBe('https://staging.saysomethingin.app/redeem/BMH-903')
+  })
+
+  it('is empty when there is no teacher join code yet', () => {
+    expect(teacherJoinLink('https://staging.saysomethingin.app', 'N/A')).toBe('')
+  })
+
   // --- getInitials ---
 
   function getInitials(name: string): string {

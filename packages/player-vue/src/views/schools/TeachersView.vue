@@ -15,6 +15,12 @@ const { currentSchool, fetchSchools } = useSchoolData()
 const searchQuery = ref('')
 
 const teacherJoinCode = computed(() => currentSchool.value?.teacher_join_code || 'N/A')
+// Same /redeem/:code door as every other invite in the app (group leader,
+// school admin, class join — see ClassDetail.vue's classJoinLink).
+const teacherJoinLink = computed(() => {
+  if (teacherJoinCode.value === 'N/A') return ''
+  return `${window.location.origin}/redeem/${teacherJoinCode.value}`
+})
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -57,12 +63,25 @@ const subtitle = computed(() => {
 })
 
 const copyState = ref(false)
+async function copyJoinLink() {
+  if (!teacherJoinLink.value) return
+  try {
+    await navigator.clipboard.writeText(teacherJoinLink.value)
+    copyState.value = true
+    setTimeout(() => { copyState.value = false }, 2000)
+  } catch {
+    /* ignore */
+  }
+}
+
+const codeCopyState = ref(false)
+const showCode = ref(false)
 async function copyJoinCode() {
   if (teacherJoinCode.value === 'N/A') return
   try {
     await navigator.clipboard.writeText(teacherJoinCode.value)
-    copyState.value = true
-    setTimeout(() => { copyState.value = false }, 2000)
+    codeCopyState.value = true
+    setTimeout(() => { codeCopyState.value = false }, 2000)
   } catch {
     /* ignore */
   }
@@ -146,12 +165,12 @@ watch(selectedUser, (newUser) => {
 
     <Transition name="fade">
       <div v-if="showImportHint" class="invite-hint schools-card schools-card-pad">
-        Bulk CSV import is coming soon. For now, share the teacher join code below — teachers complete a one-time sign-in to land in your school.
+        Bulk CSV import is coming soon. For now, share the teacher invite link below — teachers click it, sign in once, and land in your school.
       </div>
     </Transition>
     <Transition name="fade">
       <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
-        Teachers join via the school join code. Copy it below and share it with the teacher's school email.
+        Copy the teacher invite link below and share it however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
       </div>
     </Transition>
 
@@ -214,16 +233,16 @@ watch(selectedUser, (newUser) => {
     <div v-else class="empty-state schools-card schools-card-pad">
       <h3 class="arsenal empty-title">No teachers yet</h3>
       <p class="empty-text schools-subtle">
-        Share the join code below to invite teachers to your school.
+        Share the invite link below to add teachers to your school.
       </p>
     </div>
 
-    <!-- Tip cards + join code panel -->
+    <!-- Tip cards + join link panel -->
     <div class="tip-grid">
       <div class="schools-card schools-card-pad tip-card">
-        <div class="schools-kicker">Tip &mdash; invite codes</div>
+        <div class="schools-kicker">Tip &mdash; invite links</div>
         <p class="tip-body">
-          Anyone with your school's join code appears here as a teacher once they sign in — so share it only with your staff. You can remove a teacher from their row at any time.
+          Anyone who clicks your teacher invite link appears here as a teacher once they sign in — so share it only with your staff. You can remove a teacher from their row at any time.
         </p>
       </div>
       <div class="schools-card schools-card-pad tip-card">
@@ -233,20 +252,44 @@ watch(selectedUser, (newUser) => {
         </p>
       </div>
       <div class="schools-card schools-card-pad join-card">
-        <div class="schools-kicker join-kicker">Teacher join code</div>
-        <div class="join-code">{{ teacherJoinCode }}</div>
+        <div class="schools-kicker join-kicker">Invite teachers</div>
         <p class="join-body">
-          Send this code to teachers' school addresses. They'll sign in once and appear in this list.
+          Share this link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
         </p>
         <button
           type="button"
           class="btn-ghost btn-small join-copy"
           :class="{ copied: copyState }"
-          :disabled="teacherJoinCode === 'N/A'"
-          @click="copyJoinCode"
+          :disabled="!teacherJoinLink"
+          @click="copyJoinLink"
         >
-          {{ copyState ? 'Copied' : 'Copy code' }}
+          {{ copyState ? 'Copied' : 'Copy invite link' }}
         </button>
+
+        <button
+          v-if="!showCode"
+          type="button"
+          class="btn-text join-show-code"
+          @click="showCode = true"
+        >
+          Show code instead
+        </button>
+        <template v-else>
+          <div class="join-code">{{ teacherJoinCode }}</div>
+          <p class="join-body join-body-small">
+            For writing on a whiteboard — teachers enter it at
+            <strong>saysomethingin.com/redeem</strong>.
+          </p>
+          <button
+            type="button"
+            class="btn-ghost btn-small join-copy"
+            :class="{ copied: codeCopyState }"
+            :disabled="teacherJoinCode === 'N/A'"
+            @click="copyJoinCode"
+          >
+            {{ codeCopyState ? 'Copied' : 'Copy code' }}
+          </button>
+        </template>
       </div>
     </div>
   </main>
@@ -450,6 +493,22 @@ watch(selectedUser, (newUser) => {
 .join-copy:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.join-show-code {
+  align-self: flex-start;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  color: #7a5418;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.join-body-small {
+  margin-top: 4px;
 }
 
 @media (max-width: 1100px) {
