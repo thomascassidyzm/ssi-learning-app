@@ -23,6 +23,7 @@ import { useClassesData, type ClassInfo } from '@/composables/schools/useClasses
 import { useCourseAccess, type CourseGrant } from '@/composables/schools/useCourseAccess'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getLanguageName } from '@/composables/useI18n'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
@@ -157,18 +158,6 @@ const adminJoinCode = computed(() => {
 // Same /redeem/:code door as every other invite in the app.
 function inviteUrl(code: string): string {
   return `${window.location.origin}/redeem/${code}`
-}
-
-const copiedStaffCode = ref<string | null>(null)
-async function copyStaffLink(code: string) {
-  if (!code) return
-  try {
-    await navigator.clipboard.writeText(inviteUrl(code))
-    copiedStaffCode.value = code
-    setTimeout(() => { if (copiedStaffCode.value === code) copiedStaffCode.value = null }, 2000)
-  } catch {
-    /* ignore */
-  }
 }
 
 // Step 2 is always "valid" — staff invites are optional.
@@ -424,28 +413,8 @@ onMounted(() => {
           </p>
 
           <div v-if="teacherJoinCode" class="join-code-callout">
-            <div class="schools-kicker">Teacher invite link</div>
-            <div class="join-code-row">
-              <code class="join-code">{{ inviteUrl(teacherJoinCode) }}</code>
-              <button
-                type="button"
-                class="btn-ghost btn-small"
-                @click="copyStaffLink(teacherJoinCode)"
-              >
-                {{ copiedStaffCode === teacherJoinCode ? 'Copied!' : 'Copy' }}
-              </button>
-            </div>
-            <div v-if="adminJoinCode" class="join-code-row">
-              <span class="join-code-admin">Admin</span>
-              <code class="join-code-inline">{{ inviteUrl(adminJoinCode) }}</code>
-              <button
-                type="button"
-                class="btn-ghost btn-small"
-                @click="copyStaffLink(adminJoinCode)"
-              >
-                {{ copiedStaffCode === adminJoinCode ? 'Copied!' : 'Copy' }}
-              </button>
-            </div>
+            <InviteLinkField label="Teacher invite link" :url="inviteUrl(teacherJoinCode)" />
+            <InviteLinkField v-if="adminJoinCode" label="Admin invite link" :url="inviteUrl(adminJoinCode)" />
           </div>
           <div v-else class="empty-state">
             Your invite links will appear here once your school is saved.
@@ -856,41 +825,14 @@ onMounted(() => {
 /* Step 2 — invites */
 
 .join-code-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   padding: 12px 14px;
   background: var(--schools-bg);
   border: 1px solid var(--schools-border);
   border-radius: 8px;
   margin-bottom: 16px;
-}
-
-.join-code-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 6px;
-}
-
-.join-code {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--schools-fg);
-  letter-spacing: 0.02em;
-  word-break: break-all;
-}
-
-.join-code-admin {
-  font-size: 12px;
-  color: var(--schools-fg-3);
-}
-
-.join-code-inline {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  color: var(--schools-fg-2);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  word-break: break-all;
 }
 
 .invite-list {

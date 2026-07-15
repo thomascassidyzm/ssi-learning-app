@@ -5,6 +5,7 @@ import Greeting from '@/components/schools/shared/Greeting.vue'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo, type ClassReport } from '@/composables/schools/useClassesData'
@@ -614,17 +615,9 @@ function handlePlayClass(cls: ClassInfo) {
             {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
           </button>
         </div>
-        <div v-if="createdSchoolLinks" class="schools-subtle created-links">
-          <span>Admin: <code>{{ schoolInviteUrl(createdSchoolLinks.admin_join_code) }}</code>
-            <button class="btn-ghost" @click="copyLink('new-admin', createdSchoolLinks.admin_join_code)">
-              {{ copiedLinkId === 'new-admin' ? 'Copied!' : 'Copy' }}
-            </button>
-          </span>
-          <span>Teacher: <code>{{ schoolInviteUrl(createdSchoolLinks.teacher_join_code) }}</code>
-            <button class="btn-ghost" @click="copyLink('new-teacher', createdSchoolLinks.teacher_join_code)">
-              {{ copiedLinkId === 'new-teacher' ? 'Copied!' : 'Copy' }}
-            </button>
-          </span>
+        <div v-if="createdSchoolLinks" class="created-links">
+          <InviteLinkField label="Admin" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)" />
+          <InviteLinkField label="Teacher" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" />
         </div>
 
         <!-- Outstanding links minted before the one-primitive change
@@ -987,14 +980,8 @@ function handlePlayClass(cls: ClassInfo) {
 .created-links {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   margin-top: 10px;
-}
-.created-links span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .class-cell {

@@ -4,6 +4,7 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 type TeacherStatus = 'active' | 'invited'
 
@@ -61,18 +62,6 @@ const subtitle = computed(() => {
   }
   return parts.join(' · ')
 })
-
-const copyState = ref(false)
-async function copyJoinLink() {
-  if (!teacherJoinLink.value) return
-  try {
-    await navigator.clipboard.writeText(teacherJoinLink.value)
-    copyState.value = true
-    setTimeout(() => { copyState.value = false }, 2000)
-  } catch {
-    /* ignore */
-  }
-}
 
 const codeCopyState = ref(false)
 const showCode = ref(false)
@@ -256,15 +245,7 @@ watch(selectedUser, (newUser) => {
         <p class="join-body">
           Share this link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
         </p>
-        <button
-          type="button"
-          class="btn-ghost btn-small join-copy"
-          :class="{ copied: copyState }"
-          :disabled="!teacherJoinLink"
-          @click="copyJoinLink"
-        >
-          {{ copyState ? 'Copied' : 'Copy invite link' }}
-        </button>
+        <InviteLinkField :url="teacherJoinLink" />
 
         <button
           v-if="!showCode"
