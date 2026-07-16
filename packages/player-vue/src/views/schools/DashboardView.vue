@@ -13,11 +13,13 @@ import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const { density } = useSchoolsDensity()
+const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 const {
   schools,
@@ -261,22 +263,11 @@ function benchFor(report: ClassReport | undefined) {
 }
 
 // ---------- Actions ----------
-function handlePlayClass(cls: ClassInfo) {
-  // Launch the player inside the schools surface so the SchoolsTopBar stays
-  // above it (teacher keeps classroom context while running a session).
-  // The /schools/play route renders PlayerContainer as a child of
-  // SchoolsContainer.
-  localStorage.setItem('ssi-last-course', cls.course_code)
-  localStorage.setItem('ssi-active-class', JSON.stringify({
-    id: cls.id,
-    name: cls.class_name,
-    course_code: cls.course_code,
-    current_seed: cls.current_seed,
-    last_lego_id: cls.last_lego_id,
-    teacherUserId: currentUser.value?.user_id,
-    timestamp: new Date().toISOString(),
-  }))
-  router.push({ path: '/schools/play', query: { class: cls.id } })
+async function handlePlayClass(cls: ClassInfo) {
+  // One shared launch path (usePlayAsClass.launchClassSession): permission
+  // check, consistent ssi-active-class payload, course switch, and the
+  // /schools/play navigation all live there.
+  await launchClassSession(cls)
 }
 </script>
 
@@ -354,7 +345,7 @@ function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
           </div>
         </div>
 
@@ -391,7 +382,7 @@ function handlePlayClass(cls: ClassInfo) {
 
           <div class="panel-footer">
             <span class="join-code">{{ cls.student_join_code }}</span>
-            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
+            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
           </div>
         </article>
 
@@ -480,6 +471,11 @@ function handlePlayClass(cls: ClassInfo) {
                 <th>Course</th>
                 <th>Students</th>
                 <th>Avg practice</th>
+                <!-- Play-as-class is a school-STAFF capability (owner ruling
+                     2026-07-16) — the admin lane gets the same action the
+                     teacher lane's cards carry. Header stays empty; the cell
+                     renders the button when permitted. -->
+                <th v-if="canPlayAsClass"></th>
               </tr>
             </thead>
             <tbody>
@@ -496,9 +492,12 @@ function handlePlayClass(cls: ClassInfo) {
                 <td class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</td>
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
+                <td v-if="canPlayAsClass" class="row-cta">
+                  <button class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+                </td>
               </tr>
               <tr v-if="!teacherClasses.length">
-                <td colspan="4" class="empty-row">
+                <td :colspan="canPlayAsClass ? 5 : 4" class="empty-row">
                   <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
                   <router-link v-if="!isAdminView" to="/schools/classes?create=1" class="btn-play empty-row-cta">
                     + Create your first class

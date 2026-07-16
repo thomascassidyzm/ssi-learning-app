@@ -31,6 +31,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial } from '../_utils/schoolPlatformTrial'
+import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -222,14 +223,24 @@ export default async function handler(
         if (tErr || !created) throw new Error(`teacher create failed: ${tErr?.message}`)
         teacherId = created.id
         // A first class gives them a share link straight away. Non-fatal.
-        const { error: clsErr } = await supabase.from('classes').insert({
-          teacher_user_id: auth.userId,
-          class_name: 'My class',
-          course_code,
-          school_id: null,
-          is_active: true,
-        })
+        const { data: firstClass, error: clsErr } = await supabase
+          .from('classes')
+          .insert({
+            teacher_user_id: auth.userId,
+            class_name: 'My class',
+            course_code,
+            school_id: null,
+            is_active: true,
+          })
+          .select('id')
+          .single()
         if (clsErr) console.warn('[onboarding/provision] first class failed (non-fatal):', clsErr.message)
+        else if (firstClass) {
+          const learnerResult = await ensureClassLearnerEntity(supabase, firstClass.id)
+          if ('error' in learnerResult) {
+            console.warn('[onboarding/provision] class learner entity failed (non-fatal):', learnerResult.error)
+          }
+        }
       }
 
       // PLATFORM TRIAL (tutor = 1 month always). Email-burn first, then set the

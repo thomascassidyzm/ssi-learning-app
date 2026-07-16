@@ -60,6 +60,13 @@ export interface AuthActions {
   getToken: () => Promise<string | null>
   /** Re-sync learner/role from the DB (post-redemption authoritative write) */
   refreshRole: () => Promise<void>
+  /**
+   * Mirror a learner id into the ssi-user-id cookie /api/player-events reads
+   * for attribution. Exposed for play-as-class (owner ruling 2026-07-16):
+   * LearningPlayer.vue flips this to the class's own learner id for the
+   * duration of a class-mode session, then restores it on exit.
+   */
+  syncAudioUserCookie: (learnerId: string | null) => void
 }
 
 /**
@@ -642,5 +649,12 @@ export function useAuth(): AuthState & AuthActions {
     initialize,
     updatePassword,
     refreshRole,
+    // Exposed for play-as-class (owner ruling 2026-07-16): while a class-mode
+    // session is active, /api/player-events must attribute telemetry to the
+    // CLASS's learner id, not the driving staff member's own — this is the
+    // one function that actually sets the ssi-user-id cookie the endpoint
+    // reads. LearningPlayer.vue flips it to the class's id on enter and
+    // restores it to the staff member's own on exit.
+    syncAudioUserCookie,
   }
 }

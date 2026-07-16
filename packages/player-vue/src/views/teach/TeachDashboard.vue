@@ -6,9 +6,11 @@ import Button from '@/components/schools/shared/Button.vue'
 import { getPaddle, paddleConfig } from '@/lib/paddle'
 import { TEACHER_COURSES, labelForCourse } from '@/lib/teacherCourses'
 import { courseLabel, isFreeTier, type LiveCourse } from '@/lib/onboardingTracks'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 const router = useRouter()
 const supabase = inject('supabase', ref(null)) as any
+const { switchActiveCourseTo } = usePlayAsClass()
 
 interface Teacher {
   id: string
@@ -27,6 +29,7 @@ interface TeacherClass {
   course_code: string
   student_join_code: string
   current_seed: number
+  class_learner_id: string | null
   is_active: boolean
   created_at: string
 }
@@ -188,15 +191,19 @@ function shareUrlFor(cls: TeacherClass): string {
 // Launch the player inside the teach surface so the teach nav stays above it
 // (mirrors the schools ClassDetail "Play as class" → /schools/play). The player
 // reads ssi-active-class + ?class to switch to the class's course.
-function playAsClass(cls: TeacherClass) {
+async function playAsClass(cls: TeacherClass) {
   localStorage.setItem('ssi-last-course', cls.course_code)
   localStorage.setItem('ssi-active-class', JSON.stringify({
     id: cls.id,
     name: cls.class_name,
     course_code: cls.course_code,
     current_seed: cls.current_seed,
+    class_learner_id: cls.class_learner_id,
     timestamp: new Date().toISOString(),
   }))
+  // Force the app onto the class's course now — don't rely on PlayerContainer's
+  // onMounted to win its race against App.vue's async course-catalogue fetch.
+  await switchActiveCourseTo(cls.course_code)
   router.push({ path: '/tutors/dashboard/play', query: { class: cls.id } })
 }
 

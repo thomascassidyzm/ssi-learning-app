@@ -13,6 +13,7 @@ import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
@@ -23,6 +24,7 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
 const { viewingSchool } = useSchoolData()
+const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 // When a govt admin drilled group → school → class, "back" should return to
 // the school dashboard, not the (empty for them) classes list.
@@ -77,6 +79,7 @@ const classData = computed(() => {
       student_count: classDetail.value.students.length,
       current_seed: classDetail.value.current_seed || 1,
       join_code: classDetail.value.student_join_code || 'N/A',
+      class_learner_id: classDetail.value.class_learner_id || null,
     }
   }
   const stored = sessionStorage.getItem('ssi-class-detail')
@@ -90,10 +93,11 @@ const classData = computed(() => {
         student_count: parsed.student_count || 0,
         current_seed: parsed.current_seed || 1,
         join_code: parsed.student_join_code || '',
+        class_learner_id: parsed.class_learner_id || null,
       }
     } catch { /* fall through */ }
   }
-  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, join_code: '' }
+  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, join_code: '', class_learner_id: null }
 })
 
 const courseLabel = computed(() => {
@@ -191,6 +195,17 @@ watch(selectedUser, (newUser) => {
   }
 })
 
+// Vue Router reuses this component instance across two `class-detail` routes
+// that only differ by :id/:classId (e.g. an admin paging through several
+// classes in the same school) — onMounted does NOT fire again, so without
+// this the previous class's data stays on screen under the new URL.
+watch(classIdParam, (classId, previousClassId) => {
+  if (classId && classId !== previousClassId && selectedUser.value) {
+    fetchClassDetail(classId)
+    loadReport(classId)
+  }
+})
+
 function handleBack() {
   // Govt drill-down returns to the school dashboard (viewingSchool stays set),
   // everyone else to the classes list.
@@ -201,20 +216,13 @@ function handleBack() {
   }
 }
 
-function handlePlay() {
-  // Launch the player inside the schools surface so the SchoolsTopBar stays
-  // above it (teacher keeps classroom context while running a session).
-  // The /schools/play route renders PlayerContainer as a child of
-  // SchoolsContainer.
-  localStorage.setItem('ssi-last-course', classData.value.course_code)
-  localStorage.setItem('ssi-active-class', JSON.stringify({
-    id: classData.value.id,
-    name: classData.value.class_name,
-    course_code: classData.value.course_code,
-    current_seed: classData.value.current_seed,
-    timestamp: new Date().toISOString(),
-  }))
-  router.push({ path: '/schools/play', query: { class: classData.value.id } })
+// classData falls back to an EMPTY shell ({ id: '', course_code: '' }) while
+// the detail fetch is in flight — the button stays disabled until the class
+// is genuinely launchable, and launchClassSession refuses regardless.
+const canLaunch = computed(() => !!classData.value.id && !!classData.value.course_code)
+
+async function handlePlay() {
+  await launchClassSession(classData.value)
 }
 
 // Same /redeem/:code door as every other invite in the app (group leader,
@@ -303,7 +311,7 @@ async function renameClass() {
       </div>
 
       <div class="page-head-actions">
-        <button v-if="!isAdminView" type="button" class="btn-play btn-play-lg" @click="handlePlay">
+        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" :disabled="!canLaunch" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
           Play as class
         </button>

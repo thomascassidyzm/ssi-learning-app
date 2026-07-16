@@ -7,11 +7,18 @@ type NavTab = { label: string; to: string; routeName?: string }
 
 const route = useRoute()
 const router = useRouter()
-const { currentUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
+const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
 
 const auth = inject<any>('auth', null)
 
 const tabs = computed<NavTab[]>(() => {
+  // Until the school context resolves (ctx.loadFromAuth is async), the role
+  // is unknown — render NO tabs rather than the teacher fallback set. The
+  // wrong-role flash was real and measurable: for the first ~0.5s after a
+  // cold boot a school_admin saw the teacher tabs (no Classes/Teachers/
+  // Settings), so an early click landed on a tab set that then changed
+  // under the pointer.
+  if (!currentUser.value) return []
   if (isGovtAdmin.value) {
     return [
       { label: 'Schools',   to: '/schools/all',       routeName: 'schools-list' },
@@ -78,6 +85,11 @@ async function signOut() {
   } catch (err) {
     console.error('[SchoolsTopBar] sign-out failed', err)
   }
+  // auth.signOut() clears the role cache + entitlements but not this
+  // school-context singleton — without this, hasSchoolContext stays true on
+  // the stale ex-user's data, so SchoolsContainer's showLogin/showDashboard
+  // gates never agree on a state until a hard reload wipes it clean.
+  clearSchoolContext()
   router.push('/schools')
 }
 
@@ -150,6 +162,18 @@ if (typeof document !== 'undefined') {
 
     <div class="right">
       <span v-if="schoolLabel" class="school-label">{{ schoolLabel }}</span>
+
+      <router-link
+        to="/schools/play"
+        class="learn-btn"
+        title="Learn — your own practice"
+        aria-label="Learn — your own practice"
+      >
+        <svg class="learn-btn__icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M2.5 1.2 10 6 2.5 10.8Z" fill="currentColor" />
+        </svg>
+        <span class="learn-btn__label">Learn</span>
+      </router-link>
 
       <div class="user-menu">
         <button type="button" class="user-trigger" @click="toggleMenu">
@@ -236,6 +260,28 @@ if (typeof document !== 'undefined') {
 .school-label {
   font-size: 12.5px;
   color: var(--schools-fg-2);
+}
+
+.learn-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #fff;
+  background: var(--schools-red);
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 120ms ease-out;
+}
+.learn-btn:hover { background: var(--schools-red-deep); }
+.learn-btn__icon { flex: none; }
+
+@media (max-width: 480px) {
+  .learn-btn__label { display: none; }
+  .learn-btn { padding: 8px; }
 }
 
 .user-menu { position: relative; }

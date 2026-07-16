@@ -76,6 +76,15 @@ const viewingSchool = ref<School | null>(null) // For govt admin drill-down
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
+// Generation guard: multiple callers (DashboardView's immediate watcher +
+// its own onMounted, SchoolsView's onMounted/visibility-refetch, etc.) can
+// each kick off an overlapping fetchSchools() call. Without this, an OLDER
+// request that happens to resolve AFTER a NEWER one (out-of-order network
+// timing) would silently clobber fresh state with stale state — the exact
+// "stale on tab return" symptom class. Only the LATEST call's result is
+// ever allowed to write to the shared refs.
+let fetchGeneration = 0
+
 export function useSchoolData() {
   const client = getSchoolsClient()
   const { currentUser: selectedUser, isGovtAdmin, isSchoolAdmin, isTeacher } = useSchoolContext()
@@ -108,6 +117,7 @@ export function useSchoolData() {
     if (isDemoMode.value) return  // Data pre-populated by populateDemoData
     if (!selectedUser.value) return
 
+    const myGeneration = ++fetchGeneration
     isLoading.value = true
     error.value = null
 
@@ -151,6 +161,10 @@ export function useSchoolData() {
 
         const ids = schoolData.map(s => s.id || s.school_id).filter(Boolean)
         const activeDaysMap = await fetchSchoolActiveDays(ids)
+
+        // A newer fetchSchools() call has started since this one began —
+        // discard this result rather than overwrite fresher state.
+        if (myGeneration !== fetchGeneration) return
 
         schools.value = schoolData.map(s => {
           const id = s.id || s.school_id
@@ -226,6 +240,8 @@ export function useSchoolData() {
           const activeDaysMap = await fetchSchoolActiveDays([schoolId])
           const activeDays = activeDaysMap.get(schoolId) ?? 0
 
+          if (myGeneration !== fetchGeneration) return
+
           currentSchool.value = {
             id: schoolId,
             school_name: data.school_name,
@@ -247,10 +263,11 @@ export function useSchoolData() {
         }
       }
     } catch (err) {
+      if (myGeneration !== fetchGeneration) return
       error.value = err instanceof Error ? err.message : 'Failed to fetch school data'
       console.error('School data fetch error:', err)
     } finally {
-      isLoading.value = false
+      if (myGeneration === fetchGeneration) isLoading.value = false
     }
   }
 

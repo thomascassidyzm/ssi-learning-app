@@ -126,6 +126,48 @@ function getChildGroups(parentId: string): Group[] {
   return groups.value.filter(g => g.parent_id === parentId)
 }
 
+// Instant client-side filters — small in-memory lists, no server round-trip
+const groupsSearch = ref('')
+const schoolsSearch = ref('')
+const staffSearch = ref('')
+
+function groupMatches(g: Group): boolean {
+  const q = groupsSearch.value.trim().toLowerCase()
+  if (!q) return true
+  return g.name.toLowerCase().includes(q)
+}
+function groupOrDescendantMatches(g: Group): boolean {
+  return groupMatches(g) || getChildGroups(g.id).some(groupOrDescendantMatches)
+}
+const filteredRootGroups = computed(() => rootGroups.value.filter(groupOrDescendantMatches))
+function filteredChildGroups(parentId: string): Group[] {
+  return getChildGroups(parentId).filter(groupOrDescendantMatches)
+}
+function filteredGrandchildGroups(parentId: string): Group[] {
+  return getChildGroups(parentId).filter(groupMatches)
+}
+
+const filteredSchools = computed(() => {
+  const q = schoolsSearch.value.trim().toLowerCase()
+  if (!q) return schools.value
+  return schools.value.filter(s =>
+    s.school_name.toLowerCase().includes(q) ||
+    (s.group_id && getGroupName(s.group_id).toLowerCase().includes(q)) ||
+    s.teacher_join_code.toLowerCase().includes(q) ||
+    s.admin_join_code.toLowerCase().includes(q)
+  )
+})
+
+const filteredStaffMembers = computed(() => {
+  const q = staffSearch.value.trim().toLowerCase()
+  if (!q) return staffMembers.value
+  return staffMembers.value.filter(s =>
+    s.display_name.toLowerCase().includes(q) ||
+    (s.email && s.email.toLowerCase().includes(q)) ||
+    (s.school_name && s.school_name.toLowerCase().includes(q))
+  )
+})
+
 function getGroupName(id: string): string {
   return groups.value.find(g => g.id === id)?.name || id
 }
@@ -897,7 +939,9 @@ onMounted(() => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
+        <span class="schools-kicker">Schools admin</span>
         <h1 class="arsenal">Setup</h1>
+        <p class="subtitle">Groups, schools, and staff — create, invite, and manage the org structure.</p>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value frost-mono-nums">{{ schools.length }}</span>
@@ -1082,13 +1126,20 @@ onMounted(() => {
       </details>
 
       <!-- Groups tree panel -->
+      <div class="filter-bar">
+        <svg class="filter-bar-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input v-model="groupsSearch" class="filter-bar-input" type="text" placeholder="Search groups…" />
+      </div>
       <div class="schools-card tree-panel">
         <div class="panel-head">
           <span class="schools-kicker">All groups</span>
           <span class="panel-hint">Click a name to rename — hover for actions.</span>
         </div>
         <div class="groups-tree">
-          <template v-for="group in rootGroups" :key="group.id">
+          <template v-for="group in filteredRootGroups" :key="group.id">
             <div class="group-row group-row--root">
               <template v-if="editingGroupId === group.id">
                 <input
@@ -1119,7 +1170,7 @@ onMounted(() => {
                 </button>
               </div>
             </div>
-            <div v-for="child in getChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
+            <div v-for="child in filteredChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
               <template v-if="editingGroupId === child.id">
                 <input
                   class="group-rename-input"
@@ -1149,8 +1200,8 @@ onMounted(() => {
                 </button>
               </div>
             </div>
-            <template v-for="child in getChildGroups(group.id)" :key="`gc-${child.id}`">
-              <div v-for="grandchild in getChildGroups(child.id)" :key="grandchild.id" class="group-row group-row--grandchild">
+            <template v-for="child in filteredChildGroups(group.id)" :key="`gc-${child.id}`">
+              <div v-for="grandchild in filteredGrandchildGroups(child.id)" :key="grandchild.id" class="group-row group-row--grandchild">
                 <template v-if="editingGroupId === grandchild.id">
                   <input
                     class="group-rename-input"
@@ -1188,6 +1239,13 @@ onMounted(() => {
         <div class="empty-copy">
           <strong>No groups yet</strong>
           <p>Create one above to organise schools that share entitlements.</p>
+        </div>
+      </div>
+      <div v-else-if="filteredRootGroups.length === 0" class="schools-card empty">
+        <div class="empty-ghost">—</div>
+        <div class="empty-copy">
+          <strong>No groups match "{{ groupsSearch }}"</strong>
+          <p>Try a different search.</p>
         </div>
       </div>
 
@@ -1260,6 +1318,13 @@ onMounted(() => {
       </div>
 
       <!-- Schools list panel -->
+      <div class="filter-bar">
+        <svg class="filter-bar-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input v-model="schoolsSearch" class="filter-bar-input" type="text" placeholder="Search schools…" />
+      </div>
       <div class="schools-card list-panel">
         <table class="list-table">
           <thead>
@@ -1275,7 +1340,7 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="school in schools" :key="school.id">
+            <tr v-for="school in filteredSchools" :key="school.id">
               <td class="cell-name">{{ school.school_name }}</td>
               <td>
                 <select
@@ -1290,8 +1355,8 @@ onMounted(() => {
                 </select>
               </td>
               <td>
-                <span v-if="!schoolHasAdmin(school)" class="type-pill tone-red">Awaiting admin</span>
-                <span v-else class="type-pill tone-green">Claimed</span>
+                <span v-if="!schoolHasAdmin(school)" class="status-pill tone-red"><span class="status-dot"></span>Awaiting admin</span>
+                <span v-else class="status-pill tone-green"><span class="status-dot"></span>Claimed</span>
               </td>
               <td>
                 <span
@@ -1372,6 +1437,13 @@ onMounted(() => {
           <p>Add one above — they'll appear here with their join codes.</p>
         </div>
       </div>
+      <div v-else-if="filteredSchools.length === 0" class="schools-card empty">
+        <div class="empty-ghost">—</div>
+        <div class="empty-copy">
+          <strong>No schools match "{{ schoolsSearch }}"</strong>
+          <p>Try a different search.</p>
+        </div>
+      </div>
     </template>
 
     <!-- ───── STAFF TAB ───── -->
@@ -1432,6 +1504,13 @@ onMounted(() => {
       </div>
 
       <!-- Staff list panel -->
+      <div class="filter-bar">
+        <svg class="filter-bar-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input v-model="staffSearch" class="filter-bar-input" type="text" placeholder="Search staff…" />
+      </div>
       <div class="schools-card list-panel">
         <table class="list-table">
           <thead>
@@ -1443,14 +1522,15 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="staff in staffMembers" :key="staff.user_id">
+            <tr v-for="staff in filteredStaffMembers" :key="staff.user_id">
               <td class="cell-name">{{ staff.display_name }}</td>
               <td class="cell-muted">{{ staff.email || '—' }}</td>
               <td>
                 <span
-                  class="type-pill"
+                  class="status-pill"
                   :class="staff.role_in_context === 'admin' ? 'tone-red' : 'tone-green'"
                 >
+                  <span class="status-dot"></span>
                   {{ staff.role_in_context === 'admin' ? 'Admin' : 'Teacher' }}
                 </span>
               </td>
@@ -1465,6 +1545,13 @@ onMounted(() => {
         <div class="empty-copy">
           <strong>No staff yet</strong>
           <p>Add teachers and school admins above — they'll show up here once invited.</p>
+        </div>
+      </div>
+      <div v-else-if="filteredStaffMembers.length === 0" class="schools-card empty">
+        <div class="empty-ghost">—</div>
+        <div class="empty-copy">
+          <strong>No staff match "{{ staffSearch }}"</strong>
+          <p>Try a different search.</p>
         </div>
       </div>
     </template>
@@ -1582,38 +1669,50 @@ onMounted(() => {
   gap: var(--space-6);
 }
 
-/* Page header — canon §5.1 */
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-6);
+/* Page header — Stats/Methodology tokens, verbatim */
+.page-header { margin-bottom: 22px; }
+
+.title-block .schools-kicker {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--schools-red, #DB1E17);
 }
 
 .title-block h1 {
   font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 400;
+  line-height: 1.04;
   letter-spacing: -0.015em;
-  color: var(--schools-fg);
-  margin: 0 0 var(--space-2);
+  color: var(--ink-primary, #2C2622);
+  margin: 8px 0 10px;
+}
+
+.subtitle {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-secondary, #5b534c);
+  max-width: 64ch;
+  margin: 0 0 14px;
 }
 
 .metrics {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--schools-fg-3);
+  color: var(--ink-muted, #8A8078);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--schools-fg);
+  color: var(--ink-primary, #2C2622);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
 
-.metric-sep { color: var(--schools-fg-3); }
+.metric-sep { color: var(--ink-muted, #8A8078); }
 
 /* Banners */
 .banner {
@@ -1628,7 +1727,7 @@ onMounted(() => {
 .banner-success {
   background: rgba(var(--tone-green), 0.10);
   border: 1px solid rgba(var(--tone-green), 0.28);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
 }
 
 .banner-error {
@@ -1908,7 +2007,7 @@ onMounted(() => {
 .code-chip.is-copied {
   background: rgba(var(--tone-green), 0.16);
   border-color: rgba(var(--tone-green), 0.45);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
 }
 
 .code-chip.is-large {
@@ -2003,7 +2102,7 @@ onMounted(() => {
   align-items: baseline;
   gap: 6px;
   font-size: var(--text-xs);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
   font-weight: var(--font-medium);
 }
 
@@ -2018,42 +2117,6 @@ onMounted(() => {
   font-weight: var(--font-normal);
 }
 
-/* Type pills (role badges + group type) */
-.type-pill {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-medium);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border: 1px solid transparent;
-}
-
-.type-pill.tone-blue {
-  background: rgba(var(--tone-blue), 0.14);
-  border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue));
-}
-
-.type-pill.tone-gold {
-  background: rgba(var(--tone-gold), 0.18);
-  border-color: rgba(var(--tone-gold), 0.42);
-  color: rgb(var(--tone-gold));
-}
-
-.type-pill.tone-green {
-  background: rgba(var(--tone-green), 0.14);
-  border-color: rgba(var(--tone-green), 0.36);
-  color: rgb(var(--tone-green));
-}
-
-.type-pill.tone-red {
-  background: rgba(var(--tone-red), 0.12);
-  border-color: rgba(var(--tone-red), 0.32);
-  color: rgb(var(--tone-red));
-}
 
 /* Hover-reveal row actions — canon §5.3 */
 .cell-actions {
@@ -2166,7 +2229,7 @@ onMounted(() => {
 
 .group-courses {
   font-size: var(--text-xs);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
   font-weight: var(--font-medium);
 }
 
@@ -2186,7 +2249,7 @@ onMounted(() => {
   background: rgba(var(--tone-blue), 0.08);
   border: 1px solid rgba(var(--tone-blue), 0.28);
   border-radius: var(--radius-md);
-  color: rgb(var(--tone-blue));
+  color: rgb(var(--tone-blue-ink));
   font-size: var(--text-xs);
 }
 
@@ -2279,7 +2342,7 @@ onMounted(() => {
 .course-chip.is-selected {
   background: rgba(var(--tone-gold), 0.18);
   border-color: rgba(var(--tone-gold), 0.45);
-  color: rgb(var(--tone-gold));
+  color: rgb(var(--tone-gold-ink));
   font-weight: var(--font-medium);
 }
 

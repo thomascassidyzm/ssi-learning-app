@@ -21,6 +21,7 @@ const {
   totalPracticeHours,
   fetchSchools,
   selectSchoolToView,
+  error: fetchError,
 } = useSchoolData()
 const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
 
@@ -233,6 +234,14 @@ watch(currentUser, (u) => {
         </button>
         <button type="button" class="btn-play" @click="openAddModal">+ Add school</button>
       </div>
+    </div>
+
+    <!-- A failed refresh must never look like "up to date" — a silently
+         swallowed fetch error was exactly how a stale claim/count could sit
+         on screen indefinitely with no visible sign anything was wrong. -->
+    <div v-if="fetchError" class="schools-card fetch-error-banner">
+      <span>Couldn't refresh this list — showing the last data loaded. {{ fetchError }}</span>
+      <button type="button" class="btn-ghost" :disabled="isRefreshing" @click="handleRefresh">Retry</button>
     </div>
 
     <div class="kpi-grid">
@@ -705,6 +714,18 @@ watch(currentUser, (u) => {
   font-size: 12px;
   color: var(--schools-red);
   margin: 0;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
 }
 
 .invite-modal-hint {

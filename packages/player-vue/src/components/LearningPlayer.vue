@@ -45,6 +45,7 @@ import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/ada
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
+import { useClassAwareProgressStore, type ClassContextForProgress } from '../composables/schools/useClassProgressStore'
 import type { ListeningConfig as ListeningConfigType } from '../providers/generateLearningScript'
 // New simple script generation - direct database queries
 import { generateLearningScript as generateSimpleScript, DEFAULT_LISTENING_CONFIG } from '../providers/generateLearningScript'
@@ -546,10 +547,10 @@ const instantPlayback = useInstantPlayback(courseCode, {
     // working exactly as it did before this ruling).
     const ENROLLMENT_FETCH_TIMEOUT_MS = 2000
     const TIMEOUT = Symbol('enrollment-fetch-timeout')
-    let enrollment: Awaited<ReturnType<typeof progressStore.value.getEnrollment>> | null = null
+    let enrollment: Awaited<ReturnType<typeof activeProgressStore.value.getEnrollment>> | null = null
     try {
       const result = await Promise.race([
-        progressStore.value.getEnrollment(learnerId.value, courseCode.value),
+        activeProgressStore.value.getEnrollment(learnerId.value, courseCode.value),
         new Promise<typeof TIMEOUT>((resolve) => setTimeout(() => resolve(TIMEOUT), ENROLLMENT_FETCH_TIMEOUT_MS)),
       ])
       if (result === TIMEOUT) return localSnapshot?.legoId ?? null
@@ -680,13 +681,54 @@ const isQaMode = computed(() => {
   return params.get('qa_mode') === 'true'
 })
 
-// Get learner ID from auth (or fallback to 'demo-learner' for dev)
-const learnerId = computed(() => auth?.learnerId?.value || 'demo-learner')
+// Get learner ID from auth (or fallback to 'demo-learner' for dev).
+// Play-as-class (owner ruling 2026-07-16): a class is a first-class learner
+// citizen with its OWN learner id — while props.classContext is active, every
+// downstream read/write in this component (belt progress, cursor, telemetry)
+// keys off the CLASS's learner id, not the driving staff member's own. Falls
+// back to the staff member's id only in the brief window before a class has
+// its learner entity minted (see ensureClassLearnerEntity).
+const staffLearnerId = computed(() => auth?.learnerId?.value || 'demo-learner')
+const learnerId = computed(() => props.classContext?.class_learner_id || staffLearnerId.value)
+
+// Every course_enrollments/lego_progress write for the class's learner id
+// MUST go through the server-mediated /api/school/class-progress endpoint —
+// RLS is own-row only (current_learner_id() resolves to the STAFF's row, not
+// the class's), so a direct browser write targeting another learner's row is
+// rejected by design. Outside class mode this is a transparent passthrough
+// to the real (RLS-bound) progressStore.
+const activeProgressStore = useClassAwareProgressStore(
+  progressStore as unknown as Ref<any>,
+  computed(() => props.classContext as ClassContextForProgress | null),
+  supabase as unknown as Ref<any>,
+)
 
 // Helper to check if learner is a guest (no persistence for guests)
 const isGuestLearner = computed(() => {
   const id = learnerId.value
   return !id || id === 'demo-learner' || id.startsWith('guest-')
+})
+
+// /api/player-events attributes every event via the ssi-user-id cookie (set
+// by useAuth's own watch on the STAFF's learner.id) — flip it to the class's
+// learner id for the duration of a play-as-class session, and restore it to
+// the staff member's own on the way out, so audio_play/telemetry attribution
+// follows learnerId exactly like every DB write above already does.
+watch(
+  () => props.classContext?.class_learner_id ?? null,
+  (classLearnerId, prevClassLearnerId) => {
+    if (classLearnerId === prevClassLearnerId) return
+    const syncCookie = (auth as any)?.syncAudioUserCookie
+    if (typeof syncCookie !== 'function') return
+    syncCookie(classLearnerId || staffLearnerId.value)
+  },
+  { immediate: true },
+)
+onUnmounted(() => {
+  const syncCookie = (auth as any)?.syncAudioUserCookie
+  if (props.classContext && typeof syncCookie === 'function') {
+    syncCookie(staffLearnerId.value)
+  }
 })
 
 // Developer settings (can be toggled in Settings > Developer)
@@ -770,7 +812,7 @@ const endClassSessionTracking = async () => {
 const setRemoteCursor = async (legoId: string, roundIndex: number) => {
   if (isGuestLearner.value || !progressStore?.value || !legoId) return
   try {
-    await progressStore.value.setEnrollmentCursor(
+    await activeProgressStore.value.setEnrollmentCursor(
       learnerId.value,
       courseCode.value,
       legoId,
@@ -840,7 +882,7 @@ const persistLivePositionToDb = (cycleOverride?: number, touchPracticedAt = true
   // they persist position without claiming practice — a boot-time
   // last_practiced_at stamp defeated the resume gap rule (Aran 2026-06-11).
   const cyc = cycleOverride ?? Math.max(0, simplePlayer.cycleIndex.value)
-  progressStore.value.setLivePosition(
+  activeProgressStore.value.setLivePosition(
     learnerId.value, courseCode.value, round.legoId, idx, cyc,
     { touchPracticedAt },
   ).catch(err => console.warn('[LearningPlayer] Failed to persist live position:', err))
@@ -885,11 +927,11 @@ const saveRoundProgress = async (legoId, roundIndex, round?: any) => {
     // path got you there. This is also what pins the frozen cursor at the
     // ceiling (setMode writes last_completed_lego_id = finalLego).
     const finalLego = await getCourseFinalLego(courseCode.value)
-    await progressStore.value.setMode(
+    await activeProgressStore.value.setMode(
       learnerId.value, courseCode.value, 'infplay',
       finalLego ?? undefined,
     )
-    await progressStore.value.bumpInfplayRound(
+    await activeProgressStore.value.bumpInfplayRound(
       learnerId.value, courseCode.value,
     )
     // Local mirror: keep currentMode + counter in sync so the UI
@@ -922,7 +964,7 @@ const loadSavedProgress = async () => {
   try {
     const TIMEOUT = Symbol('enrollment-fetch-timeout')
     const enrollment = await Promise.race([
-      progressStore.value.getEnrollment(learnerId.value, courseCode.value),
+      activeProgressStore.value.getEnrollment(learnerId.value, courseCode.value),
       new Promise<typeof TIMEOUT>((resolve) => setTimeout(() => resolve(TIMEOUT), ENROLLMENT_FETCH_TIMEOUT_MS)),
     ]).then((result) => (result === TIMEOUT ? null : result))
     if (enrollment && enrollment.last_completed_round_index !== null) {
@@ -1138,7 +1180,7 @@ const flushCursor = () => {
   const p = pendingCursor
   pendingCursor = null
   if (!p || !progressStore?.value) return
-  void progressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
+  void activeProgressStore.value.updateCurrentCycle(p.learnerId, p.courseId, p.idx).catch(err => {
     console.warn('[LearningPlayer] Failed to persist current cycle:', err)
   })
 }
@@ -1159,7 +1201,12 @@ const cancelPendingCursor = () => {
 // which build a user is actually on (incl. a stale SW-cached one). Mirrors the
 // __BUILD_NUMBER__ pattern used in App.vue / SettingsScreen.vue.
 const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
-const playerLog = usePlayerLog({ courseCode, learnerId, clientVersion: BUILD_VERSION })
+// Play-as-class audit trail: in class mode learnerId above IS the class's own
+// id (attributed via the ssi-user-id cookie flip below), so stamp the driving
+// staff member's AUTH UID (not their learner PK — same field class_sessions
+// uses for teacher_user_id) on every event too — see usePlayerLog's actorUserId.
+const playerLogActorUserId = computed(() => (props.classContext ? ((auth as any)?.userId?.value ?? null) : null))
+const playerLog = usePlayerLog({ courseCode, learnerId, actorUserId: playerLogActorUserId, clientVersion: BUILD_VERSION })
 const logEvent = playerLog.event
 // Expose audio_failed banner state at top level so the template can
 // use it directly (refs nested inside a plain object aren't auto-unwrapped).
@@ -1828,11 +1875,19 @@ simplePlayer.onSessionComplete(async () => {
 // Ratchet trigger guarantees the ceiling never regresses, so skipping
 // BACK to an earlier round just updates the cursor (correct for resume
 // position) without lowering the high-water.
+//
+// Play-as-class (owner ruling 2026-07-16): the class IS a first-class
+// learner now, so this ratchet applies to it exactly like a human learner —
+// the class genuinely progresses through the course between lessons, and
+// "resume where the class left off" needs a real ceiling. learnerId already
+// resolves to the class's own learner id in class mode, and
+// activeProgressStore routes the write through the server-mediated
+// class-progress endpoint — no more blanket skip.
 watch(
   () => simplePlayer.currentRound.value?.legoId,
   (newLegoId, prevLegoId) => {
     if (!newLegoId || newLegoId === prevLegoId) return
-    if (isGuestLearner.value || props.classContext) return
+    if (isGuestLearner.value) return
     const round = simplePlayer.currentRound.value
     const roundIndex = simplePlayer.roundIndex.value
     if (!round || roundIndex == null) return
@@ -3125,7 +3180,11 @@ const scriptItemToPlayableItem = async (scriptItem) => {
 
 // Initialize learning session composable
 const learningSession = useLearningSession({
-  progressStore: progressStore,
+  // Class-aware wrapper — see activeProgressStore above. recordCycleComplete/
+  // endSession call getLegoProgressById/saveLegoProgress/updateLegoProgress/
+  // updateEnrollmentActivity through this option; in class mode they need the
+  // same server-mediated routing as every other progress write.
+  progressStore: activeProgressStore as unknown as Ref<ProgressStore | null>,
   sessionStore: sessionStore,
   // Direct supabase ref for the speaking-opportunities RPC — bypasses
   // sessionStore which has had chronic null-at-runtime issues.
@@ -7626,7 +7685,7 @@ const enterInfPlay = async () => {
       if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
         try {
           const finalLego = await getCourseFinalLego(courseCode.value)
-          await progressStore.value.setMode(
+          await activeProgressStore.value.setMode(
             learnerId.value,
             courseCode.value,
             'infplay',
@@ -8196,7 +8255,7 @@ const handleSkipToBelt = async (belt: { name: string; seedsRequired: number }) =
     const inInfplay = currentMode.value === 'infplay'
     if (inInfplay && !isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
       currentMode.value = 'main'
-      void progressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
+      void activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'main').catch((modeErr) => {
         console.warn('[LearningPlayer] setMode(main) on belt-pill infplay exit failed:', modeErr)
       })
     }
@@ -9703,7 +9762,7 @@ const enterInfPlayFromCache = async (): Promise<boolean> => {
   if (!isGuestLearner.value && progressStore?.value && learnerId.value && courseCode.value) {
     try {
       const finalLego = await getCourseFinalLego(courseCode.value)
-      await progressStore.value.setMode(learnerId.value, courseCode.value, 'infplay', finalLego ?? undefined)
+      await activeProgressStore.value.setMode(learnerId.value, courseCode.value, 'infplay', finalLego ?? undefined)
       currentMode.value = 'infplay'
       if (infplayRoundIndex.value === 0) infplayRoundIndex.value = 1
     } catch (err) {
@@ -10787,7 +10846,7 @@ onMounted(async () => {
             const MODE_PRECHECK_TIMEOUT_MS = 2000
             const TIMEOUT = Symbol('mode-precheck-timeout')
             const result = await Promise.race([
-              progressStore.value.getEnrollment(learnerId.value, courseCode.value),
+              activeProgressStore.value.getEnrollment(learnerId.value, courseCode.value),
               new Promise<typeof TIMEOUT>((resolve) => setTimeout(() => resolve(TIMEOUT), MODE_PRECHECK_TIMEOUT_MS)),
             ])
             if (result === TIMEOUT) throw new Error('enrollment mode pre-check timed out')
@@ -11710,7 +11769,7 @@ onMounted(async () => {
                           resumeLegoId = priorRound.legoId
                           resumeCycle = 0
                           if (!isGuestLearner.value && progressStore?.value) {
-                            progressStore.value.setEnrollmentCursor(
+                            activeProgressStore.value.setEnrollmentCursor(
                               learnerId.value, courseCode.value,
                               priorRound.legoId, beltStartRoundIdx - 1,
                             ).catch((err: unknown) => {

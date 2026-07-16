@@ -23,11 +23,10 @@ import { useUserRole } from './composables/useUserRole'
 import { installConsoleDedup } from './utils/consoleDedup'
 // Async-load the 4 always-mounted overlay components — none of them
 // render anything visible until some internal condition triggers
-// (PWA update available, install prompt eligible, demo route, admin
-// flag), so they don't belong on the first-paint critical path.
+// (PWA update available, install prompt eligible, admin flag), so
+// they don't belong on the first-paint critical path.
 const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
-const DemoOverlay = defineAsyncComponent(() => import('./components/demo/DemoOverlay.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
 const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
 import { setSchoolsClient } from './composables/schools/client'
@@ -651,25 +650,6 @@ onMounted(async () => {
   } else {
     // Running in demo mode (database not configured or disabled)
   }
-
-  // Listen for demo course selection (bypasses normal enrolled course lookup)
-  window.addEventListener('demo:selectCourse', (e) => {
-    const detail = e.detail
-    if (detail?.course_code) {
-      console.log('[App] Demo course switch:', detail.course_code)
-      // Callers (dev tools / test scripts) may pass a bare { course_code }
-      // stub. Derive target_lang/known_lang from the 'X_for_Y' convention
-      // when missing so PlayerRestingState's useI18n lookups don't throw
-      // on an undefined langCode.
-      const [derivedTarget, derivedKnown] = detail.course_code.split('_for_')
-      handleCourseSelect({
-        target_lang: derivedTarget,
-        known_lang: derivedKnown,
-        ...detail,
-      })
-    }
-  })
-
 })
 </script>
 
@@ -679,7 +659,6 @@ onMounted(async () => {
     <AppEscape v-if="showAppEscape" />
     <PwaUpdatePrompt />
     <InstallBanner />
-    <DemoOverlay />
     <TesterFeedback />
     <ActingAsBanner />
     <CheckoutOverlay />

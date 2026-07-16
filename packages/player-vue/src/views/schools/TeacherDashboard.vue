@@ -11,6 +11,7 @@ import { useClassesData, type ClassReport } from '@/composables/schools/useClass
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 type SortKey = 'name' | 'students' | 'hours' | 'journey'
@@ -21,6 +22,7 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
 const { classes: classesData, fetchClasses, createClass, getClassReport } = useClassesData()
+const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
@@ -267,30 +269,23 @@ function closeCreatedModal() {
   createdClass.value = null
 }
 
-function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string }) {
+function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
   const stored = {
     id: cls.id,
     class_name: cls.class_name,
     course_code: cls.course_code,
     current_seed: cls.current_seed,
     student_join_code: cls.join_code,
+    class_learner_id: cls.class_learner_id ?? null,
   }
   sessionStorage.setItem('ssi-class-detail', JSON.stringify(stored))
   router.push({ path: schoolsLink('class-detail', { classId: cls.id }) })
 }
 
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
-// DashboardView): launch the player inside the schools shell for this class.
-function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string }) {
-  localStorage.setItem('ssi-last-course', cls.course_code)
-  localStorage.setItem('ssi-active-class', JSON.stringify({
-    id: cls.id,
-    name: cls.class_name,
-    course_code: cls.course_code,
-    current_seed: cls.current_seed,
-    timestamp: new Date().toISOString(),
-  }))
-  router.push({ path: '/schools/play', query: { class: cls.id } })
+// DashboardView): one shared launch path in usePlayAsClass.launchClassSession.
+async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
+  await launchClassSession(cls)
 }
 
 // Per-class share link + one-click copy (mirrors the tutor dashboard so the
@@ -470,7 +465,7 @@ function exportCsv() {
               </button>
             </td>
             <td class="cell-action">
-              <button v-if="!isAdminView" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
+              <button v-if="canPlayAsClass" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
             </td>
           </tr>
         </tbody>

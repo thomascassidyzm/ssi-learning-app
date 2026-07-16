@@ -34,6 +34,15 @@ interface PlayerLogOptions {
    *  learner_id column and user_id is null for guests, so without this a
    *  guest's runs are untrackable across sessions. */
   learnerId?: Ref<string | null | undefined> | string | null
+  /**
+   * Play-as-class audit trail (owner ruling 2026-07-16): while a class-mode
+   * session is active, `learnerId` above resolves to the CLASS's own learner
+   * id (the DB row every event attributes to, via the ssi-user-id cookie) —
+   * this carries the DRIVING STAFF MEMBER's auth uid alongside it in every
+   * event's payload, so "which teacher was actually at the keyboard" is
+   * never lost even though the telemetry itself belongs to the class.
+   */
+  actorUserId?: Ref<string | null | undefined> | string | null
   /** Bundle hash / git sha to stamp for triage. */
   clientVersion?: string
   /** Override flush interval (ms). */
@@ -78,6 +87,14 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     return null
   }
 
+  const resolveActorUserId = (): string | null => {
+    const v = options.actorUserId
+    if (!v) return null
+    if (typeof v === 'string') return v
+    if (typeof v === 'object' && 'value' in v) return (v.value as string) ?? null
+    return null
+  }
+
   /**
    * Log a player event. Type is a short snake_case label; payload is
    * arbitrary structured context. Stamped with course + session +
@@ -88,9 +105,15 @@ export function usePlayerLog(options: PlayerLogOptions = {}) {
     if (buffer.length >= MAX_BUFFER) return // drop, never grow unbounded
 
     const learnerId = resolveLearnerId()
+    const actorUserId = resolveActorUserId()
+    const extra = {
+      ...(learnerId ? { learnerId } : {}),
+      ...(actorUserId ? { actor_user_id: actorUserId } : {}),
+    }
+    const hasExtra = Object.keys(extra).length > 0
     buffer.push({
       event_type: type,
-      payload: learnerId ? { ...(payload ?? {}), learnerId } : (payload ?? null),
+      payload: hasExtra ? { ...(payload ?? {}), ...extra } : (payload ?? null),
       course_code: resolveCourseCode(),
       session_id: sessionId,
       occurred_at: new Date().toISOString(),

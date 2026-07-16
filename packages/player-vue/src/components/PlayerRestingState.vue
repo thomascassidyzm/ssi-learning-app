@@ -22,7 +22,16 @@ const courseName = computed(() => {
   if (!props.course) return '…'
   // Always use the target language name in the known language (via locale)
   // e.g., for eus_for_spa: "Euskera" (Basque in Spanish), not "Basque" or "Euskara"
-  return getLanguageName(props.course.target_lang)
+  // A course object can arrive without target_lang (a class whose course_code
+  // the catalogue can't resolve) — fall back to its display name, then the
+  // code prefix, rather than rendering a blank title.
+  return (
+    getLanguageName(props.course.target_lang) ||
+    props.course.learner_display_name ||
+    props.course.display_name ||
+    getLanguageName(String(props.course.course_code || '').split('_')[0]) ||
+    '…'
+  )
 })
 
 const courseSubtitle = computed(() => {

@@ -193,7 +193,11 @@ const ISO3_TO_LOCALE: Record<string, string> = {
  *
  * Falls back to locale JSON files, then to the raw code.
  */
-export const getLanguageName = (langCode: string, overrideLangCode?: string): string => {
+export const getLanguageName = (langCode: string | null | undefined, overrideLangCode?: string): string => {
+  // A display helper must never throw: a course row with no target_lang
+  // (e.g. a class pointing at a course code the catalogue can't resolve)
+  // crashed the whole player render through this line (2026-07-16).
+  if (!langCode) return ''
   // Try Intl.DisplayNames first (browser-native, always up to date)
   // Use explicit mapping if available, otherwise try the raw code (works for many ISO 639-3 codes)
   const bcp47 = ISO3_TO_BCP47[langCode] || langCode

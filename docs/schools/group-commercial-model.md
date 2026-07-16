@@ -232,6 +232,103 @@ already does for anyone) or requires an admin's manual `entitlement_grants` row,
 
 </details>
 
+## Play-as-class permission model (owner ruling, 2026-07-16)
+
+**Play-as-class is a school-STAFF capability, not a teacher-only one.** Any staff
+member of a class's school — teachers AND school admins — may play any class in
+their school as-class. Cover/substitute and shared-class situations are normal;
+multiple teachers per class are already supported (the `class_teachers`
+membership relationship, lead + co-taught, scoped in `useClassesData.fetchClasses`
+via `myTaughtClassIds`).
+
+**Group leaders (`govt_admin`) are excluded by default.** Their product is
+visibility into their group's schools, not classroom delivery — the group-leader
+rollup views (`DashboardView`'s govt_admin template) never show a play button,
+by design. A group leader covering a class in practice gets added as school
+staff (teacher or school_admin) for that school, rather than being granted
+play-as-class through the govt_admin role itself.
+
+**Implementation:** `useSchoolContext().isSchoolStaff` = `isTeacher ||
+isSchoolAdmin` (mutually exclusive with `isGovtAdmin`/`isStudent`/unaffiliated
+by construction, since `educational_role` is a single value). `usePlayAsClass()`
+combines this with the separate `isAdminView` flag (the ssi_admin **read-only**
+god-view under `/admin/schools/:id` etc. — a different axis entirely, unrelated
+to group leaders) into `canPlayAsClass`, which gates both the button's
+visibility and the handler itself in `ClassDetail.vue`, `DashboardView.vue`, and
+`TeacherDashboard.vue`. Permission matrix verified in
+`usePlayAsClass.test.ts`: allowed for teacher / school_admin; excluded for
+govt_admin, student, unaffiliated (no role), and the ssi_admin god-view.
+
+**Gap found and closed 2026-07-16:** before this pass, `ClassDetail.vue`'s Play
+as class button was gated only on `!isAdminView` (the ssi_admin god-view flag),
+with no role check at all — a govt_admin drilling into a class via the normal
+`/schools/classes/:id` route (not the `/admin/...` god-view) could see and click
+it, contradicting this ruling. `DashboardView`'s own class-list templates
+already correctly excluded a play button from the govt_admin's rollup view, but
+that protection didn't extend to what you reach by clicking through to a
+class's detail page.
+
+**Attribution model (shipped 2026-07-16 — owner ruling: class as first-class
+learner):** the attribution gap above is closed. A CLASS now has its own
+learner identity — a `learners` row (`is_class_entity = true`, synthetic
+`user_id = 'class-learner:<classId>'`, never signed in) linked from
+`classes.class_learner_id`, enrolled in its own course via `course_enrollments`
+exactly like a human learner. Play-as-class plays AS THAT ENTITY: while
+`props.classContext` is active, `LearningPlayer.vue`'s `learnerId` resolves to
+the class's own learner id, and every progress write that entity model implies
+follows it — the live cursor (`setLivePosition`/`updateCurrentCycle`), the
+position ratchet/ceiling (`setEnrollmentCursor`/`setMode`/`bumpInfplayRound` —
+no longer skipped), practice minutes (`updateEnrollmentActivity`), and
+per-lego spaced-repetition state (`lego_progress` via
+`getLegoProgressById`/`saveLegoProgress`/`updateLegoProgress`). The class
+genuinely progresses through the course between lessons now — a substitute
+teacher resumes exactly where the last lesson left off, on the CLASS's own
+ceiling, not the covering teacher's.
+
+The staff member's own personal account gets nothing from a class-mode
+session — no cursor, no ratchet, no lego_progress. `class_sessions` keeps
+attributing session start/end to `teacher_user_id` (the staff auth uid)
+exactly as before; `player_events` telemetry now attributes to the class's
+learner id (via a cookie flip on class-mode enter/exit) with the driving
+staff member's auth uid additionally logged as `actor_user_id` in every
+event's payload, so "which teacher was at the keyboard" is never lost even
+though the telemetry itself belongs to the class.
+
+**Why this needed server mediation, not just a learnerId swap:**
+`course_enrollments`/`lego_progress` have RLS enabled, own-row only
+(`current_learner_id()` = the CALLER's own learner row) — a staff member's
+auth uid never resolves to the class's learner id, so a direct browser write
+targeting the class's row is rejected by RLS, by design. Per standing RLS
+doctrine, the fix is a server-mediated endpoint with its own authz check
+(`/api/school/class-progress`, gated on `resolveVisibleScope` + teacher/
+school_admin role), never a "clever" hierarchy-aware write policy. The one
+read-side RLS change made is narrow and additive: `can_view_learner_data()`
+gained one OR clause so a class's own teacher/school_admin can read the
+class's course_enrollments row for belt/progress display — write
+authorization is completely unaffected (writes were never RLS-granted; they
+route through the endpoint above).
+
+**Known residual scope (not built in this pass, flagged deliberately):**
+- `sessions`/`SessionStore` (checkpointSession/endSession, the legacy
+  items_practiced tracking) and RPC-based counters
+  (`bump_speaking_opportunities`, spike_events, response_metrics,
+  learner_lego_pairings/points, pod-activation state) still write directly
+  via the raw Supabase client keyed on `learnerId` — in class mode these
+  silently no-op under RLS (all already warn-and-continue on write failure,
+  never throw). None of these currently have a consumer that reads a CLASS's
+  own row, so the gap is inert today, but it would need the same
+  server-mediated treatment if a future feature reads the class's own session
+  history, speaking-opportunities count, or spike/response telemetry.
+- **daily_contributions (community minutes rollup) — open question, not
+  decided:** class entities were added to `test_learner_ids()` (the one
+  canonical "exclude from real-learner counting" set already used everywhere)
+  so they don't inflate admin Users-page/board headcounts. A side effect:
+  this ALSO excludes a class's own practice minutes from the
+  `daily_contributions` community rollup, since that trigger reads
+  `test_learner_ids()` too. Whether a class's practice SHOULD count toward
+  the public community-minutes number is a genuine open call — left excluded
+  by default (the cautious direction) rather than silently decided either way.
+
 ## Open numbers (for the owner)
 
 - `y` — price per teacher, per band.

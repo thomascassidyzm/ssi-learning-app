@@ -2,9 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useActAs } from '@/composables/useActAs'
-import { fetchDemoPersonas, roleLabel } from '@/composables/schools/actAsPersonas'
-import type { ActAsPersona } from '@/composables/useUserRole'
 
 type Mode = 'invite' | 'direct'
 
@@ -69,9 +66,8 @@ type Row =
   | { kind: 'invite'; row: InviteCode; createdAt: string }
   | { kind: 'direct'; row: EntitlementCode; createdAt: string }
 
-const { isSsiAdmin, isGovtAdmin, canActAs } = useUserRole()
+const { isSsiAdmin, isGovtAdmin } = useUserRole()
 const { getClient, getAuthToken } = useAdminClient()
-const { actAs } = useActAs()
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const groups = ref<Group[]>([])
@@ -535,16 +531,6 @@ function inviteOrgLabel(c: InviteCode): string {
   return c.metadata?.organization_name || '—'
 }
 
-const demoPersonas = ref<ActAsPersona[]>([])
-async function loadDemoPersonas() {
-  if (!canActAs.value) return
-  try {
-    demoPersonas.value = await fetchDemoPersonas(getClient())
-  } catch {
-    demoPersonas.value = []
-  }
-}
-
 function formatGrantAccess(g: EmailAccessGrant): string {
   const access = g.access_type === 'full'
     ? 'Full'
@@ -556,7 +542,6 @@ function formatGrantAccess(g: EmailAccessGrant): string {
 onMounted(() => {
   fetchAll()
   fetchAllowlist()
-  loadDemoPersonas()
 })
 </script>
 
@@ -565,7 +550,9 @@ onMounted(() => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
+        <span class="schools-kicker">Access</span>
         <h1 class="arsenal">Access Codes</h1>
+        <p class="subtitle">Invite codes, entitlement grants, and email allowlist — how schools, admins, and testers get in.</p>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value mono-nums">{{ totalCount }}</span>
@@ -602,29 +589,6 @@ onMounted(() => {
         <span>{{ error }}</span>
       </div>
     </Transition>
-
-    <!-- Act as — step into a demo persona to experience the live schools app -->
-    <div v-if="canActAs && demoPersonas.length" class="schools-card act-as-panel">
-      <div class="panel-head">
-        <span class="schools-kicker">View the app as</span>
-      </div>
-      <p class="act-as-hint">
-        Open the live schools dashboard as a demo persona. You stay signed in as
-        yourself — nothing links your account to them. Exit any time from the banner.
-      </p>
-      <div class="act-as-buttons">
-        <button
-          v-for="p in demoPersonas"
-          :key="p.key"
-          type="button"
-          class="act-as-btn"
-          @click="actAs(p)"
-        >
-          <span class="act-as-role">{{ roleLabel(p.role) }}</span>
-          <span class="act-as-name">{{ p.name }}</span>
-        </button>
-      </div>
-    </div>
 
     <!-- Create form — schools card panel -->
     <div class="schools-card create-panel">
@@ -913,7 +877,7 @@ onMounted(() => {
               <td class="cell-muted">{{ formatGrantAccess(g) }}</td>
               <td class="cell-muted">{{ g.label || '—' }}</td>
               <td>
-                <span class="status-pill" :class="g.redeemed_at ? 'is-active' : 'is-disabled'">
+                <span class="status-pill" :class="g.redeemed_at ? 'tone-green' : 'tone-muted'">
                   <span class="status-dot"></span>
                   {{ g.redeemed_at ? 'Claimed' : 'Pending' }}
                 </span>
@@ -996,7 +960,7 @@ onMounted(() => {
             <td>
               <button
                 class="status-pill"
-                :class="r.row.is_active ? 'is-active' : 'is-disabled'"
+                :class="r.row.is_active ? 'tone-green' : 'tone-muted'"
                 @click="toggleActive(r)"
               >
                 <span class="status-dot"></span>
@@ -1054,39 +1018,51 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* Page header */
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-6);
+/* Page header — Stats/Methodology tokens, verbatim */
+.page-header { margin-bottom: 22px; }
+
+.title-block .schools-kicker {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--schools-red, #DB1E17);
 }
 
 .title-block h1 {
   font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 400;
+  line-height: 1.04;
   letter-spacing: -0.015em;
-  color: var(--schools-fg);
-  margin: 0 0 var(--space-2);
+  color: var(--ink-primary, #2C2622);
+  margin: 8px 0 10px;
+}
+
+.subtitle {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-secondary, #5b534c);
+  max-width: 64ch;
+  margin: 0 0 14px;
 }
 
 .metrics {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--schools-fg-3);
+  color: var(--ink-muted, #8A8078);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--schools-fg);
+  color: var(--ink-primary, #2C2622);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
 
-.metric-sep { color: var(--schools-fg-3); }
-.metric-active .metric-value { color: rgb(var(--tone-green)); }
+.metric-sep { color: var(--ink-muted, #8A8078); }
+.metric-active .metric-value { color: rgb(var(--tone-green-ink)); }
 
 /* Banners */
 .banner {
@@ -1101,56 +1077,13 @@ onMounted(() => {
 .banner-success {
   background: rgba(var(--tone-green), 0.10);
   border: 1px solid rgba(var(--tone-green), 0.28);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
 }
 
 .banner-error {
   background: rgba(var(--tone-red), 0.08);
   border: 1px solid rgba(var(--tone-red), 0.28);
   color: rgb(var(--tone-red));
-}
-
-/* Act-as panel */
-.act-as-panel {
-  padding: var(--space-4) var(--space-6) var(--space-6);
-}
-.act-as-hint {
-  margin: var(--space-3) 0 var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--schools-fg-2, #6b6258);
-  max-width: 60ch;
-}
-.act-as-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-.act-as-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: var(--space-3) var(--space-4);
-  min-width: 160px;
-  font: inherit;
-  text-align: left;
-  background: rgba(44, 38, 34, 0.04);
-  border: 1px solid rgba(44, 38, 34, 0.10);
-  border-radius: var(--radius-md, 10px);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.act-as-btn:hover {
-  background: rgba(44, 38, 34, 0.07);
-  border-color: rgba(44, 38, 34, 0.18);
-}
-.act-as-role {
-  font-weight: 600;
-  font-size: var(--text-sm);
-}
-.act-as-name {
-  font-size: var(--text-xs);
-  color: var(--schools-fg-2, #6b6258);
 }
 
 /* Create panel */
@@ -1292,7 +1225,7 @@ onMounted(() => {
   padding: 4px 10px;
   background: rgba(var(--tone-blue), 0.12);
   border: 1px solid rgba(var(--tone-blue), 0.30);
-  color: rgb(var(--tone-blue));
+  color: rgb(var(--tone-blue-ink));
   border-radius: var(--radius-full);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -1353,7 +1286,7 @@ onMounted(() => {
   place-items: center;
   border-radius: 4px;
   border: 1px solid rgba(44, 38, 34, 0.20);
-  color: rgb(var(--tone-blue));
+  color: rgb(var(--tone-blue-ink));
 }
 
 .course-option.is-selected .course-option-check {
@@ -1474,7 +1407,7 @@ onMounted(() => {
 
 .allowlist-count {
   font-size: var(--text-xs);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
   font-weight: var(--font-medium);
 }
 
@@ -1513,7 +1446,7 @@ onMounted(() => {
   color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
-  background: rgba(255, 255, 255, 0.35);
+  background: #fafafa;
 }
 
 .codes-table thead th:last-child { width: 56px; }
@@ -1579,7 +1512,7 @@ onMounted(() => {
 .code-chip.is-copied {
   background: rgba(var(--tone-green), 0.16);
   border-color: rgba(var(--tone-green), 0.45);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
 }
 
 .code-value {
@@ -1603,13 +1536,13 @@ onMounted(() => {
 .kind-pill.kind-invite {
   background: rgba(var(--tone-gold), 0.16);
   border-color: rgba(var(--tone-gold), 0.40);
-  color: rgb(var(--tone-gold));
+  color: rgb(var(--tone-gold-ink));
 }
 
 .kind-pill.kind-direct {
   background: rgba(var(--tone-blue), 0.12);
   border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue));
+  color: rgb(var(--tone-blue-ink));
 }
 
 /* Type/role pill */
@@ -1628,19 +1561,19 @@ onMounted(() => {
 .type-pill.tone-blue {
   background: rgba(var(--tone-blue), 0.14);
   border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue));
+  color: rgb(var(--tone-blue-ink));
 }
 
 .type-pill.tone-gold {
   background: rgba(var(--tone-gold), 0.18);
   border-color: rgba(var(--tone-gold), 0.42);
-  color: rgb(var(--tone-gold));
+  color: rgb(var(--tone-gold-ink));
 }
 
 .type-pill.tone-green {
   background: rgba(var(--tone-green), 0.14);
   border-color: rgba(var(--tone-green), 0.36);
-  color: rgb(var(--tone-green));
+  color: rgb(var(--tone-green-ink));
 }
 
 .type-pill.tone-red {
@@ -1649,49 +1582,15 @@ onMounted(() => {
   color: rgb(var(--tone-red));
 }
 
-/* Status pill */
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  font: inherit;
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.status-pill.is-active {
-  color: rgb(var(--tone-green));
-  background: rgba(var(--tone-green), 0.10);
-  border-color: rgba(var(--tone-green), 0.30);
-}
-
-.status-pill.is-active:hover {
-  background: rgba(var(--tone-green), 0.18);
-}
-
-.status-pill.is-disabled {
-  color: var(--schools-fg-3);
-  background: rgba(44, 38, 34, 0.04);
-  border-color: rgba(44, 38, 34, 0.10);
-}
-
-.status-pill.is-disabled:hover {
-  color: rgb(var(--tone-green));
-  background: rgba(var(--tone-green), 0.08);
-  border-color: rgba(var(--tone-green), 0.25);
+/* Status pill — base look (fill/border/ink) comes from the shared
+   .status-pill / tone-* classes in schools-design.css. Toggle-button
+   interaction only lives here. */
+.status-pill { cursor: pointer; }
+.status-pill.tone-green:hover { background: rgba(var(--tone-green), 0.24); }
+.status-pill.tone-muted:hover {
+  color: rgb(var(--tone-green-ink));
+  background: rgba(var(--tone-green), 0.14);
+  border-color: rgba(var(--tone-green-ink), 0.28);
 }
 
 /* Hover-reveal action */
