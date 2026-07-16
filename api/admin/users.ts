@@ -294,9 +294,14 @@ export default async function handler(
       learnerIdsMatchingEmail = Array.from(new Set((emailMatches || []).map(r => r.learner_id)))
     }
 
+    // Class entities (owner ruling 2026-07-16: a class is a first-class
+    // learner, own uuid, own course_enrollments row) are neither a human user
+    // nor test data — they'd just confuse this list, so exclude them here the
+    // same way board metrics do via test_learner_ids().
     let query = supabase
       .from('learners')
       .select('id, user_id, display_name, created_at, educational_role, platform_role', { count: 'exact' })
+      .eq('is_class_entity', false)
       .order('created_at', { ascending: false })
 
     if (search) {
@@ -317,8 +322,8 @@ export default async function handler(
     // round-trip wave instead of two.
     const [{ data: learners, count, error: lErr }, { count: totalUsers }, { count: newThisWeek }] = await Promise.all([
       query,
-      supabase.from('learners').select('id', { count: 'exact', head: true }),
-      supabase.from('learners').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+      supabase.from('learners').select('id', { count: 'exact', head: true }).eq('is_class_entity', false),
+      supabase.from('learners').select('id', { count: 'exact', head: true }).eq('is_class_entity', false).gte('created_at', weekAgo.toISOString()),
     ])
     if (lErr) throw lErr
 

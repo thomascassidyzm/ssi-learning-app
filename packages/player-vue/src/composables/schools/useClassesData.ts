@@ -25,6 +25,10 @@ export interface ClassInfo {
   student_join_code: string
   current_seed: number
   last_lego_id: string | null
+  // The class's own learner identity (owner ruling 2026-07-16: a class is a
+  // first-class learner citizen). Null only for the brief window between
+  // class creation and create-class-learner's follow-up call succeeding.
+  class_learner_id: string | null
   is_active: boolean
   student_count: number
   avg_seeds_completed: number
@@ -139,7 +143,7 @@ export function useClassesData() {
     try {
       let query = client.from('classes').select(`
         id, class_name, course_code, school_id, teacher_user_id,
-        student_join_code, current_seed, last_lego_id, is_active, created_at
+        student_join_code, current_seed, last_lego_id, class_learner_id, is_active, created_at
       `)
 
       // Track scope for the RLS tripwire (rlsGuard.ts). Teachers are scoped by
@@ -289,6 +293,7 @@ export function useClassesData() {
             student_join_code: c.student_join_code,
             current_seed: c.current_seed,
             last_lego_id: c.last_lego_id || null,
+            class_learner_id: c.class_learner_id || null,
             is_active: c.is_active,
             student_count: stats.count,
             avg_seeds_completed: stats.count > 0 ? Math.round(stats.totalSeeds / stats.count) : 0,
@@ -416,6 +421,7 @@ export function useClassesData() {
         student_join_code: classData.student_join_code,
         current_seed: classData.current_seed,
         last_lego_id: classData.last_lego_id || null,
+        class_learner_id: classData.class_learner_id || null,
         is_active: classData.is_active,
         student_count: students.length,
         avg_seeds_completed: students.length > 0 ? Math.round(totalSeeds / students.length) : 0,
@@ -452,6 +458,7 @@ export function useClassesData() {
       teacher_user_id: currentClass.value.teacher_user_id,
       student_join_code: currentClass.value.student_join_code,
       current_seed: currentClass.value.current_seed,
+      class_learner_id: currentClass.value.class_learner_id,
       is_active: currentClass.value.is_active,
       created_at: currentClass.value.created_at,
       belt_distribution: currentClass.value.belt_distribution,
@@ -691,6 +698,33 @@ export function useClassesData() {
         }
       }
 
+      // Mint the class's own learner entity (owner ruling 2026-07-16: a class
+      // is a first-class learner citizen, enrolled in its own course). Must be
+      // server-mediated — learners has RLS enabled and a class entity's
+      // synthetic user_id can never satisfy learners_insert_self. Non-fatal:
+      // play-as-class re-attempts this lazily if it's still missing.
+      let classLearnerId: string | null = null
+      try {
+        const { data: { session } } = await client.auth.getSession()
+        const token = session?.access_token
+        if (token) {
+          const resp = await fetch('/api/teacher/create-class-learner', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ class_id: newClass.id }),
+          })
+          if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}))
+            console.error('[ClassesData] Failed to create class learner entity:', data.error || resp.status)
+          } else {
+            const data = await resp.json()
+            classLearnerId = data.class_learner_id || null
+          }
+        }
+      } catch (learnerErr) {
+        console.error('[ClassesData] create-class-learner fetch error:', learnerErr)
+      }
+
       // Seed the creator's teacher↔class relationship (lead) via the service-role
       // route — the live RLS forbids a client teacher-tag insert. Makes the
       // relationship the source of truth so the new class appears under
@@ -706,6 +740,7 @@ export function useClassesData() {
         student_join_code: newClass.student_join_code,
         current_seed: newClass.current_seed,
         last_lego_id: null,
+        class_learner_id: classLearnerId,
         is_active: newClass.is_active,
         student_count: 0,
         avg_seeds_completed: 0,

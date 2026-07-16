@@ -17,12 +17,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const CLASS_SELECT =
-  'id, class_name, course_code, student_join_code, current_seed, is_active, created_at'
+  'id, class_name, course_code, student_join_code, current_seed, class_learner_id, is_active, created_at'
 
 /**
  * Server-side tutor platform gate for class-mutating calls. Open when the
@@ -187,6 +188,16 @@ export default async function handler(
       console.error('[TeacherClasses] Insert failed:', insertError)
       res.status(500).json({ error: insertError?.message || 'Failed to create class' })
       return
+    }
+
+    // Mint the class's own learner entity (owner ruling 2026-07-16). `created`
+    // was already fetched before this write, so patch its class_learner_id in
+    // memory rather than re-querying.
+    const learnerResult = await ensureClassLearnerEntity(supabase, created.id)
+    if ('error' in learnerResult) {
+      console.error('[TeacherClasses] class learner entity failed (non-fatal):', learnerResult.error)
+    } else {
+      created.class_learner_id = learnerResult.learnerId
     }
 
     console.log(

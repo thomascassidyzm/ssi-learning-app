@@ -269,13 +269,14 @@ function closeCreatedModal() {
   createdClass.value = null
 }
 
-function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string }) {
+function openClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
   const stored = {
     id: cls.id,
     class_name: cls.class_name,
     course_code: cls.course_code,
     current_seed: cls.current_seed,
     student_join_code: cls.join_code,
+    class_learner_id: cls.class_learner_id ?? null,
   }
   sessionStorage.setItem('ssi-class-detail', JSON.stringify(stored))
   router.push({ path: schoolsLink('class-detail', { classId: cls.id }) })
@@ -283,7 +284,7 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
 
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
 // DashboardView): launch the player inside the schools shell for this class.
-async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string }) {
+async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
   if (!canPlayAsClass.value) return
   localStorage.setItem('ssi-last-course', cls.course_code)
   localStorage.setItem('ssi-active-class', JSON.stringify({
@@ -291,6 +292,7 @@ async function handlePlayClass(cls: { id: string; class_name: string; course_cod
     name: cls.class_name,
     course_code: cls.course_code,
     current_seed: cls.current_seed,
+    class_learner_id: cls.class_learner_id ?? null,
     timestamp: new Date().toISOString(),
   }))
   // Force the app onto the class's course now — don't rely on PlayerContainer's
