@@ -157,7 +157,7 @@ if (typeof document !== 'undefined') {
       <span v-if="schoolLabel" class="school-label">{{ schoolLabel }}</span>
 
       <router-link
-        to="/"
+        to="/schools/play"
         class="learn-btn"
         title="Learn — your own practice"
         aria-label="Learn — your own practice"
