@@ -33,6 +33,7 @@ import { setSchoolsClient } from './composables/schools/client'
 import { useActAs } from './composables/useActAs'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
+import { lastDashboard } from './router/index'
 
 // Suppress consecutive identical console errors/warnings after 3 repeats
 installConsoleDedup()
@@ -44,6 +45,18 @@ installConsoleDedup()
 // Critical in the installed PWA, which has no browser back button.
 const route = useRoute()
 const showAppEscape = computed(() => !route.matched.some((r) => r.meta?.hideAppEscape))
+
+// The immersive player (meta.hideAppEscape) opts OUT of the above for regular
+// learners — but a schools/tutor staff member who followed their dashboard's
+// "Learn" button in for self-practice still needs a way back to the shell,
+// especially in the installed PWA (no browser back button). `lastDashboard()`
+// is only ever set by the /schools and /tutors/dashboard route guards, so a
+// plain learner (who never visited either) always reads null here and sees
+// nothing new.
+const playerEscapeDashboard = computed(() => (route.path === '/' ? lastDashboard() : null))
+const playerEscapeTarget = computed(() =>
+  playerEscapeDashboard.value === 'teach' ? '/tutors/dashboard' : '/schools',
+)
 
 // RedeemCode.vue (mounted at /redeem and /group) owns the pendingCode it
 // creates and drives its own inline auth/details UI — the global sign-in
@@ -657,6 +670,7 @@ onMounted(async () => {
   <div class="app-root">
     <router-view />
     <AppEscape v-if="showAppEscape" />
+    <AppEscape v-else-if="playerEscapeDashboard" :to="playerEscapeTarget" />
     <PwaUpdatePrompt />
     <InstallBanner />
     <TesterFeedback />
