@@ -18,6 +18,12 @@
  *     and need no teardown.
  * POST { action: 'extend', id, days? }
  *   — pushes expires_at out (default +30 days).
+ * POST { action: 'purge', id }
+ *   — one-way hard delete: removes every row this tool created (schools,
+ *     classes, learners incl. class-entity, progress/session data, invite
+ *     codes) and hard-deletes staff auth accounts. Requires the org to
+ *     already be 'expired' — expire first, purge once you're sure. See
+ *     api/_utils/demoSchoolTeardown.ts.
  *
  * Admin-gated (verifyAdmin), rate-limited on create, audit-logged to
  * player_events on every create/expire (who, when, prospect name) — same
@@ -28,6 +34,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
 import { provisionDemoOrg, type OrgShape } from '../_utils/demoSchoolGen'
+import { purgeDemoOrg } from '../_utils/demoSchoolTeardown'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -245,5 +252,32 @@ export default async function handler(
     return
   }
 
-  res.status(400).json({ error: "action must be 'create', 'expire', or 'extend'" })
+  if (action === 'purge') {
+    const { id } = req.body || {}
+    if (!id || typeof id !== 'string') {
+      res.status(400).json({ error: 'id is required' })
+      return
+    }
+    try {
+      const result = await purgeDemoOrg(supabase, id)
+
+      try {
+        await supabase.from('player_events').insert({
+          occurred_at: new Date().toISOString(),
+          event_type: 'admin_demo_school_purged',
+          payload: { actor_user_id: admin.userId, prospect_name: result.prospectName, demo_org_id: id, ...result },
+        })
+      } catch (auditErr) {
+        console.warn('[DemoSchools] audit insert threw:', auditErr)
+      }
+
+      res.status(200).json({ success: true, ...result })
+    } catch (error: any) {
+      console.error('[DemoSchools] Purge error:', error)
+      res.status(500).json({ error: error?.message || 'Failed to purge demo org' })
+    }
+    return
+  }
+
+  res.status(400).json({ error: "action must be 'create', 'expire', 'extend', or 'purge'" })
 }
