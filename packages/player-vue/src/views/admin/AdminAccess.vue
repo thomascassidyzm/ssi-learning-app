@@ -875,7 +875,7 @@ onMounted(() => {
               <td class="cell-muted">{{ formatGrantAccess(g) }}</td>
               <td class="cell-muted">{{ g.label || '—' }}</td>
               <td>
-                <span class="status-pill" :class="g.redeemed_at ? 'tone-green' : 'tone-muted'">
+                <span class="status-pill" :class="g.redeemed_at ? 'is-active' : 'is-disabled'">
                   <span class="status-dot"></span>
                   {{ g.redeemed_at ? 'Claimed' : 'Pending' }}
                 </span>
@@ -958,7 +958,7 @@ onMounted(() => {
             <td>
               <button
                 class="status-pill"
-                :class="r.row.is_active ? 'tone-green' : 'tone-muted'"
+                :class="r.row.is_active ? 'is-active' : 'is-disabled'"
                 @click="toggleActive(r)"
               >
                 <span class="status-dot"></span>
@@ -1048,7 +1048,7 @@ onMounted(() => {
 }
 
 .metric-sep { color: var(--schools-fg-3); }
-.metric-active .metric-value { color: rgb(var(--tone-green-ink)); }
+.metric-active .metric-value { color: rgb(var(--tone-green)); }
 
 /* Banners */
 .banner {
@@ -1063,7 +1063,7 @@ onMounted(() => {
 .banner-success {
   background: rgba(var(--tone-green), 0.10);
   border: 1px solid rgba(var(--tone-green), 0.28);
-  color: rgb(var(--tone-green-ink));
+  color: rgb(var(--tone-green));
 }
 
 .banner-error {
@@ -1211,7 +1211,7 @@ onMounted(() => {
   padding: 4px 10px;
   background: rgba(var(--tone-blue), 0.12);
   border: 1px solid rgba(var(--tone-blue), 0.30);
-  color: rgb(var(--tone-blue-ink));
+  color: rgb(var(--tone-blue));
   border-radius: var(--radius-full);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -1272,7 +1272,7 @@ onMounted(() => {
   place-items: center;
   border-radius: 4px;
   border: 1px solid rgba(44, 38, 34, 0.20);
-  color: rgb(var(--tone-blue-ink));
+  color: rgb(var(--tone-blue));
 }
 
 .course-option.is-selected .course-option-check {
@@ -1393,7 +1393,7 @@ onMounted(() => {
 
 .allowlist-count {
   font-size: var(--text-xs);
-  color: rgb(var(--tone-green-ink));
+  color: rgb(var(--tone-green));
   font-weight: var(--font-medium);
 }
 
@@ -1432,7 +1432,7 @@ onMounted(() => {
   color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
-  background: #fafafa;
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .codes-table thead th:last-child { width: 56px; }
@@ -1498,7 +1498,7 @@ onMounted(() => {
 .code-chip.is-copied {
   background: rgba(var(--tone-green), 0.16);
   border-color: rgba(var(--tone-green), 0.45);
-  color: rgb(var(--tone-green-ink));
+  color: rgb(var(--tone-green));
 }
 
 .code-value {
@@ -1522,13 +1522,13 @@ onMounted(() => {
 .kind-pill.kind-invite {
   background: rgba(var(--tone-gold), 0.16);
   border-color: rgba(var(--tone-gold), 0.40);
-  color: rgb(var(--tone-gold-ink));
+  color: rgb(var(--tone-gold));
 }
 
 .kind-pill.kind-direct {
   background: rgba(var(--tone-blue), 0.12);
   border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue-ink));
+  color: rgb(var(--tone-blue));
 }
 
 /* Type/role pill */
@@ -1547,19 +1547,19 @@ onMounted(() => {
 .type-pill.tone-blue {
   background: rgba(var(--tone-blue), 0.14);
   border-color: rgba(var(--tone-blue), 0.32);
-  color: rgb(var(--tone-blue-ink));
+  color: rgb(var(--tone-blue));
 }
 
 .type-pill.tone-gold {
   background: rgba(var(--tone-gold), 0.18);
   border-color: rgba(var(--tone-gold), 0.42);
-  color: rgb(var(--tone-gold-ink));
+  color: rgb(var(--tone-gold));
 }
 
 .type-pill.tone-green {
   background: rgba(var(--tone-green), 0.14);
   border-color: rgba(var(--tone-green), 0.36);
-  color: rgb(var(--tone-green-ink));
+  color: rgb(var(--tone-green));
 }
 
 .type-pill.tone-red {
@@ -1568,15 +1568,49 @@ onMounted(() => {
   color: rgb(var(--tone-red));
 }
 
-/* Status pill — base look (fill/border/ink) comes from the shared
-   .status-pill / tone-* classes in schools-design.css. Toggle-button
-   interaction only lives here. */
-.status-pill { cursor: pointer; }
-.status-pill.tone-green:hover { background: rgba(var(--tone-green), 0.24); }
-.status-pill.tone-muted:hover {
-  color: rgb(var(--tone-green-ink));
-  background: rgba(var(--tone-green), 0.14);
-  border-color: rgba(var(--tone-green-ink), 0.28);
+/* Status pill */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-pill.is-active {
+  color: rgb(var(--tone-green));
+  background: rgba(var(--tone-green), 0.10);
+  border-color: rgba(var(--tone-green), 0.30);
+}
+
+.status-pill.is-active:hover {
+  background: rgba(var(--tone-green), 0.18);
+}
+
+.status-pill.is-disabled {
+  color: var(--schools-fg-3);
+  background: rgba(44, 38, 34, 0.04);
+  border-color: rgba(44, 38, 34, 0.10);
+}
+
+.status-pill.is-disabled:hover {
+  color: rgb(var(--tone-green));
+  background: rgba(var(--tone-green), 0.08);
+  border-color: rgba(var(--tone-green), 0.25);
 }
 
 /* Hover-reveal action */
