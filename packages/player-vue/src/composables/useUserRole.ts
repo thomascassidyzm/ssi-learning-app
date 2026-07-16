@@ -108,6 +108,14 @@ function initialize(platform: string | null, educational: string | null): void {
   }
 }
 
+// Dev-only e2e hook, same rationale/erasure as useSchoolContext.ts's
+// __setSchoolsE2EUser: lets a Playwright spec set the role cache directly
+// (mirrors `role.initialize(...)` in the *.test.ts unit tests) without a
+// real Supabase session.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as any).__setSchoolsE2ERole = initialize
+}
+
 /**
  * Restore from localStorage cache (instant, no DB round-trip).
  * Used by the router guard on page reload.

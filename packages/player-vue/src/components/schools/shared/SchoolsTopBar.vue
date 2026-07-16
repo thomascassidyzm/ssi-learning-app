@@ -265,6 +265,7 @@ if (typeof document !== 'undefined') {
 .learn-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 7px 14px;
   font-size: 13px;
@@ -274,27 +275,34 @@ if (typeof document !== 'undefined') {
   background: var(--schools-red);
   border-radius: 999px;
   white-space: nowrap;
+  flex: none;
   transition: background 120ms ease-out;
 }
 .learn-btn:hover { background: var(--schools-red-deep); }
 .learn-btn__icon { flex: none; }
 
+/* Icon-only below 480px — still a real >=44px tap target, not just padding
+   trimmed down to the icon's own 12px (the old rule shrank this to ~28px,
+   under the accessibility floor). */
 @media (max-width: 480px) {
   .learn-btn__label { display: none; }
-  .learn-btn { padding: 8px; }
+  .learn-btn { width: 44px; height: 44px; padding: 0; }
 }
 
-.user-menu { position: relative; }
+.user-menu { position: relative; flex: none; }
 .user-trigger {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   padding: 5px 8px 5px 5px;
+  min-height: 44px;
   border: 1px solid var(--schools-border);
   background: #fff;
   border-radius: 30px;
   cursor: pointer;
   font-family: var(--font-body);
+  flex: none;
+  box-sizing: border-box;
 }
 .user-trigger:hover { border-color: var(--schools-border-strong); }
 
@@ -362,13 +370,15 @@ if (typeof document !== 'undefined') {
 }
 .menu-item:hover { background: #fafaf6; }
 
-/* Hamburger toggle — hidden on desktop, shown below the breakpoint. */
+/* Hamburger toggle — hidden on desktop, shown below the breakpoint. 44px is
+   the accessibility tap-target floor; the previous 38px also had no
+   flex-shrink guard, so at phone widths it shrank well below that. */
 .nav-toggle {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   margin-left: -6px;
   border: 1px solid var(--schools-border);
@@ -376,6 +386,7 @@ if (typeof document !== 'undefined') {
   border-radius: 8px;
   color: var(--schools-fg);
   cursor: pointer;
+  flex: none;
 }
 .nav-toggle:hover { border-color: var(--schools-border-strong); background: #f6f5f1; }
 
@@ -414,5 +425,23 @@ if (typeof document !== 'undefined') {
   .nav-toggle { display: inline-flex; }
   .school-label { display: none; }
   .schools-topbar { padding: 0 16px; position: relative; }
+  /* Only the hamburger + brand remain in .left once the tab bar is gone —
+     the desktop 32px gap (sized for a row of tabs) left far too little
+     width for .right on a phone, which is what let items overlap. */
+  .left { gap: 10px; }
+}
+
+/* Phone widths (320-430px measured in the audit). Shrinks the wordmark and
+   drops the user-menu's name/role text so every element keeps its natural,
+   un-shrunk size and nothing overlaps — verified against 320/375/430px
+   bounding boxes. */
+@media (max-width: 430px) {
+  .schools-topbar { padding: 0 10px; gap: 8px; }
+  .right { gap: 8px; }
+  .brand-tail { display: none; }
+  .brand-logo { height: 22px; }
+  .identity { display: none; }
+  .user-trigger { gap: 0; padding: 5px; }
+  .caret { margin-right: 0; }
 }
 </style>

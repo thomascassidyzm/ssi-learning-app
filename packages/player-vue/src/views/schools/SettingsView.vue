@@ -14,8 +14,17 @@ const SECTIONS: { id: SectionId; label: string }[] = [
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const supabase = inject<import('vue').Ref<any>>('supabase', ref(null))
-const { currentUser } = useSchoolContext()
+const { currentUser, isSchoolAdmin } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
+
+// School profile edits + Billing are admin-only (renaming the school and
+// changing paid seats are school_admin actions server-side — see
+// api/school/update-profile.ts / update-seats.ts). A plain teacher gets the
+// profile section read-only and the Billing tab hidden entirely, matching
+// how other admin-only controls hide (not disable) for teachers elsewhere
+// (e.g. TeachersView's invite/remove buttons).
+const canEditSchool = computed(() => isSchoolAdmin.value && !isAdminView)
+const visibleSections = computed(() => SECTIONS.filter((s) => s.id !== 'billing' || isSchoolAdmin.value))
 
 const activeSection = ref<SectionId>('profile')
 
@@ -256,7 +265,7 @@ function toggleDataItem(id: string) {
     <div class="settings-layout">
       <aside class="schools-card section-nav">
         <button
-          v-for="s in SECTIONS"
+          v-for="s in visibleSections"
           :key="s.id"
           type="button"
           class="section-link"
@@ -272,7 +281,7 @@ function toggleDataItem(id: string) {
           <h2 class="arsenal panel-title">School profile</h2>
           <label class="field">
             <span class="field-label">School name</span>
-            <input v-model="schoolNameEdit" class="field-input" type="text" />
+            <input v-model="schoolNameEdit" class="field-input" type="text" :readonly="!canEditSchool" />
           </label>
           <label class="field">
             <span class="field-label">Type</span>
@@ -282,22 +291,23 @@ function toggleDataItem(id: string) {
           <div class="field-row">
             <label class="field">
               <span class="field-label">City</span>
-              <input v-model="city" class="field-input" type="text" placeholder="—" />
+              <input v-model="city" class="field-input" type="text" placeholder="—" :readonly="!canEditSchool" />
             </label>
             <label class="field">
               <span class="field-label">Region</span>
-              <input v-model="region" class="field-input" type="text" placeholder="—" />
+              <input v-model="region" class="field-input" type="text" placeholder="—" :readonly="!canEditSchool" />
             </label>
           </div>
           <label class="field">
             <span class="field-label">Contact email</span>
-            <input v-model="schoolEmailEdit" class="field-input" type="email" />
+            <input v-model="schoolEmailEdit" class="field-input" type="email" :readonly="!canEditSchool" />
           </label>
           <label class="field">
             <span class="field-label">About</span>
-            <textarea v-model="about" rows="3" class="field-input field-textarea" placeholder="A short description of your school." />
+            <textarea v-model="about" rows="3" class="field-input field-textarea" placeholder="A short description of your school." :readonly="!canEditSchool" />
           </label>
-          <div v-if="!isAdminView" class="panel-actions">
+          <p v-if="!canEditSchool" class="field-hint">Only a school admin can edit the school profile.</p>
+          <div v-if="canEditSchool" class="panel-actions">
             <button type="button" class="btn-play" :disabled="profileSaveStatus === 'saving'" @click="saveSchoolProfile">
               {{ profileSaveStatus === 'saving' ? 'Saving…' : profileSaveStatus === 'saved' ? 'Saved' : 'Save changes' }}
             </button>

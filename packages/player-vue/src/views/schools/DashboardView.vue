@@ -39,6 +39,7 @@ const {
 
 const {
   classes: teacherClasses,
+  isLoading: classesLoading,
   fetchClasses,
   getClassReport,
 } = useClassesData()
@@ -349,7 +350,10 @@ async function handlePlayClass(cls: ClassInfo) {
           </div>
         </div>
 
-        <div v-if="!teacherClasses.length" class="empty-state">
+        <div v-if="classesLoading && !teacherClasses.length" class="empty-state">
+          <p class="schools-subtle">Loading your classes…</p>
+        </div>
+        <div v-else-if="!teacherClasses.length" class="empty-state">
           <p>No classes yet.</p>
           <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
         </div>
@@ -386,7 +390,10 @@ async function handlePlayClass(cls: ClassInfo) {
           </div>
         </article>
 
-        <div v-if="!teacherClasses.length" class="empty-state full">
+        <div v-if="classesLoading && !teacherClasses.length" class="empty-state full">
+          <p class="schools-subtle">Loading your classes…</p>
+        </div>
+        <div v-else-if="!teacherClasses.length" class="empty-state full">
           <p>No classes yet — create one to get your students playing.</p>
           <router-link v-if="!isAdminView" to="/schools/classes" class="btn-play">Create your first class</router-link>
         </div>
@@ -496,7 +503,12 @@ async function handlePlayClass(cls: ClassInfo) {
                   <button class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
                 </td>
               </tr>
-              <tr v-if="!teacherClasses.length">
+              <tr v-if="classesLoading && !teacherClasses.length">
+                <td :colspan="canPlayAsClass ? 5 : 4" class="empty-row">
+                  <p class="empty-row-text schools-subtle">Loading your classes…</p>
+                </td>
+              </tr>
+              <tr v-else-if="!teacherClasses.length">
                 <td :colspan="canPlayAsClass ? 5 : 4" class="empty-row">
                   <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
                   <router-link v-if="!isAdminView" to="/schools/classes?create=1" class="btn-play empty-row-cta">
@@ -730,7 +742,10 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
               </tr>
-              <tr v-if="!teacherClasses.length">
+              <tr v-if="classesLoading && !teacherClasses.length">
+                <td colspan="4" class="empty-row schools-subtle">Loading classes…</td>
+              </tr>
+              <tr v-else-if="!teacherClasses.length">
                 <td colspan="4" class="empty-row">No classes in this school yet.</td>
               </tr>
             </tbody>

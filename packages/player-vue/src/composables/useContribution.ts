@@ -46,7 +46,23 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
     if (!client.value) return
     isLoading.value = true
 
-    const targetLang = courseId.split('_for_')[0]
+    // courseId.split('_for_')[0] is NOT always the target language — course
+    // codes for regional variants (spa_mx_for_eng, fra_ca_for_eng,
+    // por_br_for_eng) carry a qualifier before '_for_' that isn't a real
+    // language code, so the naive split produced 'spa_mx' and getLanguageName
+    // fell through to the raw uppercased string ("SPA_MX") in the contribution
+    // modal, plus every community query below silently matched zero rows.
+    // The course's own target_lang column is the source of truth.
+    let targetLang = courseId.split('_for_')[0]
+    try {
+      const { data: courseRow } = await client.value
+        .from('courses')
+        .select('target_lang')
+        .eq('course_code', courseId)
+        .maybeSingle()
+      if (courseRow?.target_lang) targetLang = courseRow.target_lang
+    } catch { /* fall back to the split-derived guess below */ }
+
     const today = new Date().toISOString().split('T')[0]
     const days7Ago = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0]
     const days30Ago = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]

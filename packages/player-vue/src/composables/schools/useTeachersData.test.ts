@@ -174,6 +174,53 @@ describe('useTeachersData', () => {
     expect(td.error.value).toBeTruthy()
   })
 
+  // --- removeTeacher: server-mediated (api/school/remove-staff.ts), replacing
+  //     the direct client user_tags.update() that silently no-opped under
+  //     own-row RLS (2026-07-16 teacher-loop audit finding). ---
+
+  describe('removeTeacher', () => {
+    function setupWithAuth() {
+      const client = createMockClient({})
+      ;(client as any).auth = { getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })) }
+      return client
+    }
+
+    it('posts to /api/school/remove-staff with a bearer token and returns ok on success', async () => {
+      const client = setupWithAuth()
+      const { setSchoolsClient } = await import('./client')
+      setSchoolsClient(client)
+      const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }) }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const { useTeachersData } = await import('./useTeachersData')
+      const td = useTeachersData()
+      const result = await td.removeTeacher('teacher-x')
+
+      expect(result).toEqual({ ok: true, error: null })
+      expect(fetchMock).toHaveBeenCalledWith('/api/school/remove-staff', expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer tok' }),
+        body: JSON.stringify({ target_user_id: 'teacher-x' }),
+      }))
+      vi.unstubAllGlobals()
+    })
+
+    it('surfaces the server error on a rejected (non-admin) removal — never a false success', async () => {
+      const client = setupWithAuth()
+      const { setSchoolsClient } = await import('./client')
+      setSchoolsClient(client)
+      const fetchMock = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({ error: 'Only a school admin can remove staff' }) }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const { useTeachersData } = await import('./useTeachersData')
+      const td = useTeachersData()
+      const result = await td.removeTeacher('teacher-x')
+
+      expect(result).toEqual({ ok: false, error: 'Only a school admin can remove staff' })
+      vi.unstubAllGlobals()
+    })
+  })
+
   it('fetches with explicit schoolId parameter', async () => {
     const td = await setup({
       user_tags: { data: [{ user_id: 'ut1', added_at: '2025-01-01' }], error: null },
