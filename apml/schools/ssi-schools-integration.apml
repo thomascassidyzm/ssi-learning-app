@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.0"
+  version: "1.0.1"
   date: "2026-07-16"
   author: "Tom Cassidy"
   status: "draft"
@@ -147,6 +147,70 @@ principle SchoolCreationOnePrimitive:
     already-minted outstanding links from before 2026-07-14 keep working
     (DashboardView.vue still lists them, read-only). No new leader surface
     mints new ones.
+
+principle StaffHomeIsDashboard:
+  statement: |
+    Owner ruling 2026-07-16: any school-staff role (teacher, school_admin,
+    govt_admin — useUserRole's hasSchoolRole) landing on the bare root route
+    "/" belongs on "/schools" instead, reaching the player only via the
+    dashboard's own Learn button (the schools-framed "/schools/play" route,
+    SchoolsTopBar always above the player). Learners/students keep landing in
+    the bare player at "/" — this principle is staff-only.
+
+  gap_closed: |
+    A minted sign-in link (api/admin/create-signin-link.ts) redirects
+    Supabase's magic-link verification to the bare app origin (no path — a
+    path-specific redirectTo risks falling outside the Supabase project's
+    allow-listed Redirect URLs). With no staff-aware routing on "/", a staff
+    member landed on the bare, un-framed player with the dashboard reachable
+    only via a buried Settings entry (SettingsScreen.vue's "hasSchoolRole"
+    row). Closed generically (covers every entry point that lands on "/",
+    not just this one API) with two redirects that target the same fast/slow
+    cases the existing "/schools" guard already splits on:
+      - router/index.ts's "/" route gained a beforeEnter mirroring the
+        "/schools" guard: if the role cache is already initialized (restored
+        from localStorage) and hasSchoolRole, redirect to "/schools"
+        immediately — the fast path for a browser that's seen this user
+        before.
+      - App.vue redirects reactively right after auth.initialize() resolves
+        (the point where a FRESH browser — no local role cache yet, e.g. a
+        first-ever click on a minted link — first learns the role from the
+        DB): if still sitting on "/" and hasSchoolRole, router.replace
+        ("/schools").
+
+principle GroupRollupServerMediated:
+  statement: |
+    group_summary / school_summary / class_activity_stats are
+    security_invoker='on' views that LATERAL-join user_tags to count
+    teachers/students and sum practice hours. user_tags' RLS SELECT policy
+    grants only a row's own user, an ssi_admin, a SCHOOL's own admin (their
+    own school), or a CLASS's own teacher (their own class) — by design,
+    per the RLS doctrine in CLAUDE.md (RLS answers "is this my row?" only;
+    hierarchy authz belongs in a server-mediated endpoint, never a "clever"
+    policy). There is deliberately no govt_admin/group-leader branch.
+
+  bug_closed: |
+    useSchoolData.ts's govt_admin (group leader) path used to query
+    group_summary/school_summary directly as the leader's OWN authenticated
+    client session. Every user_tags subquery inside those views therefore
+    saw zero rows under RLS — teacher_count/student_count/total_practice_hours
+    all silently zeroed, while school_count/class_count (read straight off
+    schools/classes, which never touch user_tags) stayed correct. Root-caused
+    2026-07-16 against the IME Demo Programme group: group_summary/
+    school_summary read with the SERVICE ROLE showed fully correct live
+    numbers (5 teachers, 80 students, 256.6h) — confirming the data was never
+    broken, only the client's own-session read of it.
+
+  fix: |
+    New GET /api/school/group-summary (mirrors class-practice-7d.ts's
+    established pattern): verifyAuthToken + resolveVisibleScope (the same
+    scope primitive teacher/school reads already use) resolve the caller's
+    own group subtree server-side, then the SERVICE ROLE reads
+    group_summary/school_summary/class_activity_stats for exactly that
+    scope — authorization is enforced in the endpoint, RLS never needs a
+    govt_admin clause. useSchoolData.ts's group_id path now calls this
+    endpoint instead of querying the views directly; the legacy
+    region_code-only fallback (no live govt_admin uses it) is untouched.
 
 # =============================================================================
 # USER ROLES

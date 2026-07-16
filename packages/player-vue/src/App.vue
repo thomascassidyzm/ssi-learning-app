@@ -1,6 +1,6 @@
 <script setup>
 import { ref, provide, onMounted, defineAsyncComponent, watch, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { createClient } from '@supabase/supabase-js'
 import { createProgressStore, createSessionStore } from '@ssi/core'
 import { createCourseDataProvider } from './providers/CourseDataProvider'
@@ -43,6 +43,7 @@ installConsoleDedup()
 // top-level pages like onboarding, /with/:code, /teacher-insights) gets it.
 // Critical in the installed PWA, which has no browser back button.
 const route = useRoute()
+const router = useRouter()
 const showAppEscape = computed(() => !route.matched.some((r) => r.meta?.hideAppEscape))
 
 // RedeemCode.vue (mounted at /redeem and /group) owns the pendingCode it
@@ -535,6 +536,16 @@ onMounted(async () => {
       // Initialize auth with Supabase client (for learner management)
       if (auth) {
         await auth.initialize(supabaseClient.value)
+      }
+
+      // Staff home is the dashboard, not the bare player (owner ruling 2026-07-16).
+      // The router's own '/' guard (router/index.ts) covers a role already cached
+      // in this browser; this covers the FIRST visit in a fresh browser — e.g. a
+      // minted sign-in link — where auth.initialize() above is what first learns
+      // the role from the DB, only completing after the router already resolved
+      // '/' with no cache to go on. Redirect once, only off the bare root.
+      if (route.path === '/' && useUserRole().hasSchoolRole.value) {
+        router.replace('/schools')
       }
 
       // Initialize entitlements + subscription (now that supabase + auth are

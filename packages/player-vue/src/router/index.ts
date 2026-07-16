@@ -61,6 +61,21 @@ const routes: RouteRecordRaw[] = [
       title: 'Learn',
       hideAppEscape: true, // immersive player — its own flow, no shell escape
     },
+    // Staff home is the dashboard, not the bare player (owner ruling 2026-07-16):
+    // any school-staff role (teacher/school_admin/govt_admin) landing on root —
+    // a minted sign-in link, a stale bookmark, a bare-domain magic-link redirect —
+    // belongs on /schools, reaching the player only via its own Learn button (the
+    // schools-framed /schools/play route). This is the fast path for a role
+    // already cached in this browser; App.vue's post-auth-init check (a fresh
+    // browser, no cache yet) covers the same redirect once the role loads from DB.
+    beforeEnter: (_to, _from, next) => {
+      const { hasSchoolRole, isInitialized, restoreFromCache } = useUserRole()
+      restoreFromCache()
+      if (isInitialized.value && hasSchoolRole.value) {
+        return next('/schools')
+      }
+      next()
+    },
   },
   // Schools dashboard routes
   {

@@ -196,6 +196,12 @@ export async function provisionDemoOrg(
         type: orgShape === 'government_region' ? 'region' : 'group',
         is_demo: true,
         is_test: true,
+        // A demo org's name is chosen deliberately by the admin minting it,
+        // never a leader's placeholder guess — so it starts already
+        // "confirmed" (mirrors schools.name_confirmed's own true default).
+        // Left false, the group leader persona hits the "Name your group"
+        // first-run card on an org that already has a real name.
+        name_confirmed: true,
       })
       .select('id')
       .single()

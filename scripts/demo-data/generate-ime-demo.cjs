@@ -202,7 +202,11 @@ async function registerJoinCodes(q, schoolId, createdBy) {
   // ---- group + govt_admin leader persona ----
   console.log(`\n— GROUP: ${GROUP_NAME} —`)
   const groupId = uuid()
-  await q(`insert into public.groups (id, name, type, is_demo, is_test) values ($1,$2,'programme',true,true)`, [groupId, GROUP_NAME])
+  // name_confirmed=true: the group's name is deliberately chosen here, never
+  // a leader's placeholder guess — the schema default (false) would leave
+  // the group leader persona hitting the "Name your group" first-run card
+  // on an org that already has a real name.
+  await q(`insert into public.groups (id, name, type, is_demo, is_test, name_confirmed) values ($1,$2,'programme',true,true,true)`, [groupId, GROUP_NAME])
 
   const leaderEmail = emailFor('leader')
   const leaderUid = await ensureAuthUser(leaderEmail)

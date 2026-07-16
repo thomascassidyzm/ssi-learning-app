@@ -73,7 +73,7 @@ describe('useSchoolData', () => {
     return useSchoolData()
   }
 
-  it('fetches all schools for govt_admin', async () => {
+  it('fetches all schools for govt_admin (legacy region_code, no group_id)', async () => {
     const sd = await setup({
       school_summary: {
         data: [
@@ -91,6 +91,53 @@ describe('useSchoolData', () => {
     await sd.fetchSchools()
     expect(sd.schools.value).toHaveLength(2)
     expect(sd.groupSummary.value?.student_count).toBe(80)
+  })
+
+  it('fetches group + schools for govt_admin (group_id path) via the server-mediated endpoint, not a direct view read', async () => {
+    const { setSchoolsClient } = await import('./client')
+    setSchoolsClient(createMockClient({}))
+    const { useSchoolContext } = await import('./useSchoolContext')
+    const ctx = useSchoolContext()
+    ctx.currentUser.value = ({
+      user_id: 'u1', learner_id: 'l1', display_name: 'Gov',
+      educational_role: 'govt_admin', platform_role: null,
+      group_id: 'g1', group_path: 'ime-demo-programme',
+    })
+    const { useSchoolData } = await import('./useSchoolData')
+    const sd = useSchoolData()
+
+    // Root cause of the "group dashboard shows zeros" bug: group_summary /
+    // school_summary are RLS-invoker views that LATERAL-join user_tags, which
+    // has no govt_admin SELECT branch — a direct client read as the group
+    // leader's own session silently zeroed every teacher/student/hours count.
+    // The fix reads via a server-mediated endpoint instead of the client
+    // Supabase table/view reads used by the other roles above.
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        group: {
+          group_id: 'g1', group_name: 'IME Demo Programme', group_path: 'ime-demo-programme',
+          name_confirmed: true, school_count: 3, teacher_count: 5, student_count: 80, total_practice_hours: 256.6,
+        },
+        schools: [
+          { school_id: 's1', school_name: 'Sunrise', admin_user_id: 'u1', teacher_count: 3, class_count: 3, student_count: 42, total_practice_hours: 129.9, created_at: '2025-01-01', active_days_last_7: 5, has_admin: true },
+          { school_id: 's2', school_name: 'Green Valley', admin_user_id: null, teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', active_days_last_7: 0, has_admin: false },
+        ],
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sd.fetchSchools()
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/school/group-summary', expect.objectContaining({
+      headers: { Authorization: 'Bearer tok' },
+    }))
+    expect(sd.schools.value).toHaveLength(2)
+    expect(sd.schools.value[0].student_count).toBe(42)
+    expect(sd.groupSummary.value?.student_count).toBe(80)
+    expect(sd.groupSummary.value?.teacher_count).toBe(5)
+    expect(sd.groupSummary.value?.total_practice_hours).toBeCloseTo(256.6)
+    vi.unstubAllGlobals()
   })
 
   it('fetches single school for school_admin', async () => {
