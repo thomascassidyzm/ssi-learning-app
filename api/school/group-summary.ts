@@ -20,12 +20,20 @@
  * same primitive class-practice-7d.ts/daily-activity.ts already use) with
  * the SERVICE ROLE, then read the views under that role — authorization is
  * enforced HERE (govt_admin's own group subtree only), not by RLS.
+ *
+ * Admin passthrough: an ssi_admin viewing /admin/groups/:id is NOT a
+ * govt_admin — resolveVisibleScope resolves THEIR OWN role, which 403'd here
+ * with "Not a group leader" (no ssi_admin branch existed). Fixed by accepting
+ * an explicit `?groupId=` (the group being READ, never the caller's own
+ * scope) once verifyAdmin confirms the caller is ssi_admin/god — full
+ * visibility into that group's subtree, same shape a real govt_admin gets
+ * for their own group.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAuthToken } from '../_utils/auth'
-import { resolveVisibleScope, chunk } from '../_utils/schoolScope'
+import { verifyAuthToken, verifyAdmin } from '../_utils/auth'
+import { resolveVisibleScope, schoolsForGroupSubtree, chunk } from '../_utils/schoolScope'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -47,18 +55,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const svc = createClient(supabaseUrl, supabaseServiceKey)
+  const requestedGroupId = typeof req.query.groupId === 'string' ? req.query.groupId : null
 
   try {
+    let groupId: string
+    let schoolIds: string[]
+
     const scope = await resolveVisibleScope(svc, auth.userId)
-    if (scope.role !== 'govt_admin' || !scope.groupId) {
+    if (scope.role === 'govt_admin' && scope.groupId) {
+      // A real group leader always sees their OWN group subtree — a
+      // client-supplied groupId is never trusted for this branch.
+      groupId = scope.groupId
+      schoolIds = scope.schoolIds
+    } else if (requestedGroupId) {
+      const adminResult = await verifyAdmin(req)
+      if ('error' in adminResult) {
+        res.status(403).json({ error: 'Not a group leader' })
+        return
+      }
+      groupId = requestedGroupId
+      schoolIds = await schoolsForGroupSubtree(svc, groupId)
+    } else {
       res.status(403).json({ error: 'Not a group leader' })
       return
     }
 
     const [{ data: group, error: groupErr }, { data: schoolRows, error: schoolErr }] = await Promise.all([
-      svc.from('group_summary').select('*').eq('group_id', scope.groupId).maybeSingle(),
-      scope.schoolIds.length
-        ? svc.from('school_summary').select('*').in('school_id', scope.schoolIds).order('school_name')
+      svc.from('group_summary').select('*').eq('group_id', groupId).maybeSingle(),
+      schoolIds.length
+        ? svc.from('school_summary').select('*').in('school_id', schoolIds).order('school_name')
         : Promise.resolve({ data: [], error: null } as any),
     ])
     if (groupErr) throw groupErr
@@ -67,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // Best-class active_days_last_7 per school (health dots) — same view,
     // same user_tags dependency, same fix.
     const activeDaysBySchool = new Map<string, number>()
-    for (const batch of chunk(scope.schoolIds)) {
+    for (const batch of chunk(schoolIds)) {
       const { data } = await svc
         .from('class_activity_stats')
         .select('school_id, active_days_last_7')
