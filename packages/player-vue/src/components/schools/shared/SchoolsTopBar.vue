@@ -12,6 +12,13 @@ const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = u
 const auth = inject<any>('auth', null)
 
 const tabs = computed<NavTab[]>(() => {
+  // Until the school context resolves (ctx.loadFromAuth is async), the role
+  // is unknown — render NO tabs rather than the teacher fallback set. The
+  // wrong-role flash was real and measurable: for the first ~0.5s after a
+  // cold boot a school_admin saw the teacher tabs (no Classes/Teachers/
+  // Settings), so an early click landed on a tab set that then changed
+  // under the pointer.
+  if (!currentUser.value) return []
   if (isGovtAdmin.value) {
     return [
       { label: 'Schools',   to: '/schools/all',       routeName: 'schools-list' },

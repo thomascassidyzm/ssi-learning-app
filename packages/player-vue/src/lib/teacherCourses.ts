@@ -21,11 +21,14 @@ export const TEACHER_COURSES: TeacherCourse[] = [
   { code: 'eng_for_hin', label: 'English — for Hindi speakers' },
   { code: 'eng_for_tam', label: 'English — for Tamil speakers' },
   { code: 'eng_for_ara', label: 'English — for Arabic speakers' },
-  // Celtic languages
-  { code: 'cym_for_eng_north', label: 'Welsh (Northern)' },
-  { code: 'cym_for_eng_south', label: 'Welsh (Southern)' },
+  // Celtic languages. Codes MUST exist in the `courses` table — the old
+  // entries here (cym_for_eng_north/south, glv_for_eng) matched no course
+  // row, so every class created with them was born broken: play-as-class
+  // couldn't switch the player onto the course (verified against the live
+  // catalogue, 2026-07-16).
+  { code: 'cym_n_for_eng', label: 'Welsh (Northern)' },
+  { code: 'cym_s_for_eng', label: 'Welsh (Southern)' },
   { code: 'cor_for_eng', label: 'Cornish' },
-  { code: 'glv_for_eng', label: 'Manx' },
   // Others for English speakers
   { code: 'spa_for_eng', label: 'Spanish' },
   { code: 'fra_for_eng', label: 'French' },

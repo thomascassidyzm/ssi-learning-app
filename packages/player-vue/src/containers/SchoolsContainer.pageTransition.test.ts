@@ -2,33 +2,41 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 
-// White-page-of-death regression (2026-07-16): a govt admin client-side
-// navigating Analytics -> Schools got a blank page below the top bar until
-// a hard reload. Root cause, confirmed by instrumenting Vue's own
-// BaseTransition internals: <transition mode="out-in"> defers mounting the
-// incoming route component until a leave-completion callback
-// (afterLeave -> instance.update()) fires. Leaving TeacherInsightsView
-// (the /schools/analytics route) that callback never ran — the CSS leave
-// itself completed (the @after-leave DOM event fired) but the internal
-// "now reveal the next page" hook was never invoked, so router-view stayed
-// on an empty placeholder forever. A plain crossfade (no mode) has no such
-// dependency: enter and leave just run in parallel, so there is nothing to
-// get stuck waiting on.
+// Schools routed-page swap: two real-browser bug classes came from animating
+// it, so the invariant is now NO transition at all (2026-07-16):
 //
-// This can't be caught with a real behavioural mount test: jsdom/happy-dom
-// report a zero-length CSS transition duration, so Vue's transition
-// resolves on the next animation frame regardless of `mode` — the race that
-// broke this in a real browser doesn't reproduce under a fake DOM. Guard
-// the fix at the source level instead: mode="out-in" must never come back
-// on the schools shell's routed-page transition.
-describe('SchoolsContainer page transition', () => {
-  it('does not use mode="out-in" on the routed-page transition', () => {
-    const source = readFileSync(
-      join(process.cwd(), 'src/containers/SchoolsContainer.vue'),
-      'utf-8',
-    )
-    const transitionBlockMatch = source.match(/<transition\b[^>]*>[\s\S]*?<component :is="Component" \/>/)
-    expect(transitionBlockMatch, 'expected to find the router-view <transition> wrapping <component :is="Component">').toBeTruthy()
-    expect(transitionBlockMatch![0]).not.toMatch(/mode="out-in"/)
+//  1. <transition mode="out-in"> deferred mounting the incoming page behind
+//     a leave-completion callback (BaseTransition's afterLeave ->
+//     instance.update()) that reliably never fired leaving
+//     /schools/analytics — blank page until hard reload.
+//  2. The plain crossfade that replaced it kept BOTH pages in normal flow at
+//     once, so the incoming page rendered stacked BELOW the leaving one
+//     (measured at y≈500-870px in an 800px viewport, i.e. partly off-screen)
+//     for the fade duration, then snapped to the top when the old page
+//     unmounted — the "part-loaded at the bottom, then jumps" report.
+//
+// Neither reproduces under jsdom/happy-dom (zero-length CSS transitions make
+// every mode resolve on the next frame), so the invariant is guarded at
+// source level; the behavioural proof lives in the real-browser nav
+// stress-run (repro/ harness, 2026-07-16).
+describe('SchoolsContainer routed-page swap', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'src/containers/SchoolsContainer.vue'),
+    'utf-8',
+  )
+
+  it('renders the routed component with NO <transition> wrapper (instant swap)', () => {
+    const routerViewBlock = source.match(/<router-view v-slot="\{ Component \}">[\s\S]*?<\/router-view>/)
+    expect(routerViewBlock, 'expected the v-slot router-view block').toBeTruthy()
+    expect(routerViewBlock![0]).not.toMatch(/<transition\b/i)
+    // And no Transition import sneaking back in via script.
+    expect(source).not.toMatch(/<transition\b[^>]*>\s*<component :is="Component"/i)
+  })
+
+  it('resets the schools scroll container to top on route change (render in place)', () => {
+    // The surface scrolls inside .schools-container, not the window, so the
+    // router's global scrollBehavior cannot do this — the container must.
+    expect(source).toMatch(/containerEl\.value\.scrollTop = 0/)
+    expect(source).toMatch(/ref="containerEl"/)
   })
 })
