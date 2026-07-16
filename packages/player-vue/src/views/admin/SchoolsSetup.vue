@@ -1372,9 +1372,9 @@ onMounted(() => {
               <td>
                 <button
                   class="code-chip"
-                  :class="{ 'is-copied': copiedCode === school.teacher_join_code }"
-                  :title="copiedCode === school.teacher_join_code ? 'Copied!' : 'Click to copy'"
-                  @click="copyCode(school.teacher_join_code)"
+                  :class="{ 'is-copied': copiedCode === schoolAdminInviteLink(school.teacher_join_code) }"
+                  :title="copiedCode === schoolAdminInviteLink(school.teacher_join_code) ? 'Copied!' : 'Click to copy'"
+                  @click="copyCode(schoolAdminInviteLink(school.teacher_join_code))"
                 >
                   <span class="code-value frost-mono-nums">{{ school.teacher_join_code }}</span>
                   <svg v-if="copiedCode !== school.teacher_join_code" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1389,9 +1389,9 @@ onMounted(() => {
               <td>
                 <button
                   class="code-chip"
-                  :class="{ 'is-copied': copiedCode === school.admin_join_code }"
-                  :title="copiedCode === school.admin_join_code ? 'Copied!' : 'Click to copy'"
-                  @click="copyCode(school.admin_join_code)"
+                  :class="{ 'is-copied': copiedCode === schoolAdminInviteLink(school.admin_join_code) }"
+                  :title="copiedCode === schoolAdminInviteLink(school.admin_join_code) ? 'Copied!' : 'Click to copy'"
+                  @click="copyCode(schoolAdminInviteLink(school.admin_join_code))"
                 >
                   <span class="code-value frost-mono-nums">{{ school.admin_join_code }}</span>
                   <svg v-if="copiedCode !== school.admin_join_code" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
