@@ -63,6 +63,14 @@ const isSchoolAdmin = computed(() => currentRole.value === 'school_admin')
 const isTeacher = computed(() => currentRole.value === 'teacher')
 const isStudent = computed(() => currentRole.value === 'student')
 
+// Play-as-class is a school-STAFF capability (teachers + school admins), not a
+// teacher-only one — cover/substitute and shared-class situations are normal.
+// Group leaders (govt_admin) are excluded by default: their product is
+// visibility into their group's schools, not classroom delivery (owner
+// ruling, 2026-07-16). A group leader covering a class gets added as school
+// staff instead of being granted this through the govt_admin role.
+const isSchoolStaff = computed(() => isTeacher.value || isSchoolAdmin.value)
+
 /**
  * The platform-subscription gate (lever-3). FAIL-OPEN by design:
  *   active = status === 'active'
@@ -419,6 +427,7 @@ export function useSchoolContext() {
     isSchoolAdmin,
     isTeacher,
     isStudent,
+    isSchoolStaff,
     platformActive,
     platformPastDue,
     loadFromAuth,
