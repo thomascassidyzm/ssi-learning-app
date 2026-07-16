@@ -318,6 +318,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
       },
       {
+        path: 'demo-schools',
+        name: 'admin-demo-schools',
+        component: () => import('@/views/admin/AdminDemoSchools.vue'),
+        meta: { title: 'Demo Schools', description: 'Self-serve sales showcase orgs for prospects' },
+      },
+      {
         path: 'invites',
         redirect: '/admin/access',
       },

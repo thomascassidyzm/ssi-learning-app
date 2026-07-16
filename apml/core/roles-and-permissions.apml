@@ -4,8 +4,8 @@
 
 metadata:
   title: "SSi Roles and Permissions"
-  version: "1.2.1"
-  date: "2026-05-28"
+  version: "1.2.2"
+  date: "2026-07-16"
   author: "Tom Cassidy & Claude"
   status: "specification"
   extends: "apml/schools/ssi-schools-integration.apml"
@@ -688,6 +688,72 @@ interface AdminActAs:
     admin selects a school; class rows link to /schools/classes/:id so the
     admin drills group → school → class → per-student activity (the full
     transitive_visibility chain). ClassDetail back-nav returns to the school.
+
+# =============================================================================
+# ADMIN DEMO SCHOOLS ("Create demo school")
+# =============================================================================
+
+interface AdminDemoSchools:
+  name: "Self-serve demo school generator"
+  location: "player-vue /admin/demo-schools"
+  status: "implemented"
+
+  purpose: |
+    Lets Nick (Head of Partnerships), or any ssi_admin, provision a full
+    showcase org for a sales prospect without engineering help: real Supabase
+    auth accounts (not client demo mode — the founder's ruling, "creating an
+    actual account for them is much better than a demo"), real schools/
+    groups/classes rows, and realistic seeded learner activity, so every
+    schools-dashboard tab looks alive the moment it's created.
+
+  generalises: |
+    scripts/demo-data/generate-ime-demo.cjs (the one-off IME demo-group
+    script) into a parameterised, HTTP-callable engine
+    (api/_utils/demoSchoolGen.ts) covering three org shapes: single_school,
+    group (multi-academy trust style), government_region.
+
+  org_shapes:
+    single_school: "One schools row; the prospect name IS the school name."
+    group: "One groups row (type='group') + govt_admin leader persona + N schools."
+    government_region: "Same shape as group, type='region' — label-only difference."
+
+  isolation: |
+    Every row carries is_demo=true (learners, matches every other demo
+    surface) and is_test=true (schools, groups — the same flag board_metrics
+    and test_learner_ids() already exclude on). A dedicated demo_orgs table
+    (service-role-only RLS posture) tracks each generation run — is_test
+    alone can't distinguish "a sales demo this tool created" from other test/
+    soak data, since every school row in the DB is currently is_test.
+
+  reused_primitives: |
+    ensureClassLearnerEntity (owner ruling 2026-07-16 — every class-creation
+    path must call it), ensureJoinCodesRegistered
+    (api/_utils/schoolJoinCodes.ts — same helper api/onboarding/provision.ts
+    and api/admin/create-school.ts use), api/admin/create-signin-link.ts
+    (magic-link minting, called per staff row from the result card).
+    teacher_join_code / admin_join_code / student_join_code are DB-trigger-
+    generated, never hand-rolled.
+
+  credentials:
+    passwords: "Generated per staff account, returned ONCE in the create response, never persisted."
+    signin_links: "Minted on demand via create-signin-link, keyed by learnerId stored in demo_orgs.metadata — works any time, including after the one-time password is gone."
+
+  lifecycle:
+    default_expiry: "30 days from creation, extendable (POST action=extend)."
+    teardown: |
+      Bans every staff auth account (Supabase ban_duration — reversible, not
+      a delete) and marks demo_orgs.status='expired'. Synthetic learner rows
+      never sign in, so they need no teardown. A daily cron
+      (api/cron/expire-demo-schools.ts) auto-expires anything past its date;
+      the manual "Expire now" action in the UI does the same teardown early.
+
+  files:
+    - "supabase/migrations/20260716e_demo_orgs.sql (tracking table, service-role-only)"
+    - "api/_utils/demoSchoolGen.ts (provisioning engine)"
+    - "api/admin/demo-schools.ts (verifyAdmin-gated: list/create/expire/extend)"
+    - "api/cron/expire-demo-schools.ts (daily auto-expiry)"
+    - "views/admin/AdminDemoSchools.vue (create form + list)"
+    - "components/admin/DemoOrgResultCard.vue (shareable result card, reused by both fresh-create and re-open)"
 
 # =============================================================================
 # DATABASE SCHEMA ADDITIONS
