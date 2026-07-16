@@ -5093,6 +5093,10 @@ const isAudioPlaying = computed(() =>
 )
 watch(isAudioPlaying, (playing) => {
   emit('playStateChanged', playing)
+  // Window-level echo so components outside this tree (InstallBanner, the
+  // update-available banner) can gate "never interrupt an active cycle"
+  // (B6/Gap 4) without prop-drilling isPlaying down from PlayerContainer.
+  window.dispatchEvent(new CustomEvent('ssi-play-state', { detail: { playing } }))
 })
 
 // Wake lock: keep screen on during active learning
@@ -5434,6 +5438,24 @@ watch(
 // Initial state - before user has ever tapped play
 const hasEverStarted = ref(false) // True after first play tap (even if welcome plays first)
 
+// Return-celebration copy (Gap 3 / gamification-done-right.md §6): a day-3+
+// returner sees warmth keyed on days away, instead of the identical
+// "ready when you are" a first-timer gets. Days-away, never a streak count —
+// consistent with the app's no-streak-guilt stance.
+const daysSinceLastPractice = computed(() => {
+  if (!savedLastPracticedAt.value) return null
+  const msSince = Date.now() - savedLastPracticedAt.value.getTime()
+  return msSince / (1000 * 60 * 60 * 24)
+})
+const restingWelcomeMessage = computed(() => {
+  const days = daysSinceLastPractice.value
+  if (days === null) return t('resting.readyWhenYouAre', 'ready when you are')
+  if (days >= 30) return t('resting.returnAfter30', "welcome back. your brain remembers more than you think")
+  if (days >= 7) return t('resting.returnAfter7', "deep consolidation complete. you might surprise yourself")
+  if (days >= 3) return t('resting.returnAfter3', "your brain has been consolidating. let's see what stuck!")
+  return t('resting.readyWhenYouAre', 'ready when you are')
+})
+
 // Smooth ring progress (0-100) - continuous animation
 const ringProgressRaw = ref(0)
 let ringAnimationFrame = null
@@ -5496,7 +5518,7 @@ const currentPhrase = computed(() => {
   // Before first play tap, show a welcome message instead of the first phrase
   if (!hasEverStarted.value) {
     return {
-      known: t('resting.readyWhenYouAre', 'ready when you are'),
+      known: restingWelcomeMessage.value,
       target: '',
     }
   }
@@ -5556,6 +5578,17 @@ watch([() => isTransitioningItem.value, () => currentPhrase.value.known], ([tran
   // CRITICAL FIX: Always update if the underlying phrase changed (item transitioned)
   // This prevents showing old known text while new audio plays
   const phraseChanged = newKnown !== lastKnownPhrase.value
+
+  // Never regress a real phrase to blank. currentPhrase falls through to ''
+  // when its data source (currentCycle/currentItem) is transiently
+  // unavailable — e.g. a network hiccup mid-session (B5: offline permanently
+  // blanked the prompt card until reload). All legitimate "nothing to show
+  // yet" states already have their own dedicated loading branches earlier in
+  // the template (isAwakening/isPreparingToPlay/etc.), so an empty string
+  // reaching here is always a transient glitch, never a real state — hold
+  // the last-good text instead of blanking, and it self-heals the moment
+  // the source recovers and reports real text again.
+  if (newKnown === '' && lastKnownPhrase.value !== '') return
 
   // Update when NOT transitioning, OR when phrase changed (MUST update regardless of transition state)
   if (!transitioning || phraseChanged) {
@@ -5757,6 +5790,10 @@ const isIntroOrDebutPhase = computed(() => {
 
 // Computed: should we show the learning hint?
 const showLearningHint = computed(() => {
+  // Don't show while paused — currentPhase is frozen at wherever playback
+  // stopped, so a paused SPEAK phase would otherwise leave "you're meant to
+  // be speaking now" on screen indefinitely (B7: paused-state contradiction).
+  if (!isAudioPlaying.value) return false
   // Don't show if user dismissed
   if (learningHintDismissed.value) return false
   // Don't show after prompt limit
