@@ -48,6 +48,11 @@ const tabs: AdminTab[] = [
     match: (p) => p.startsWith('/admin/methodology'),
   },
   {
+    label: 'Onboarding',
+    to: '/admin/onboarding',
+    match: (p) => p.startsWith('/admin/onboarding'),
+  },
+  {
     label: 'Insights',
     to: '/admin/insights',
     match: (p) => p.startsWith('/admin/insights'),
