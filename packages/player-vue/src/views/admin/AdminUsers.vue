@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUsers, type Tier, type SortKey } from '@/composables/admin/useAdminUsers'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
-import SearchBox from '@/components/schools/shared/SearchBox.vue'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 
@@ -60,12 +59,12 @@ const sortChips: Array<{ value: SortKey; label: string }> = [
   { value: 'name', label: 'Name' },
 ]
 
-// Tier → Badge variant + label (premium = gold, admin = red, school = blue/info).
-const TIER_VARIANT: Record<Tier, 'ssi-gold' | 'ssi-red' | 'info' | 'default'> = {
-  premium: 'ssi-gold',
-  admin: 'ssi-red',
-  school: 'info',
-  free: 'default',
+// Tier → status-pill tone + label (premium = gold, admin = red, school = blue, free = muted).
+const TIER_TONE: Record<Tier, 'gold' | 'red' | 'blue' | 'muted'> = {
+  premium: 'gold',
+  admin: 'red',
+  school: 'blue',
+  free: 'muted',
 }
 const TIER_LABEL: Record<Tier, string> = {
   premium: 'Premium', admin: 'Admin', school: 'School', free: 'Free',
@@ -122,50 +121,69 @@ onMounted(async () => {
       </div>
     </header>
 
-    <!-- Filters bar — canon §5.2 (its own row, NOT inside a card header) -->
-    <div class="filters-bar">
-      <SearchBox
-        v-model="searchInput"
-        placeholder="Search by name or email…"
-        block
-        size="md"
-        @search="handleSearch"
-        @clear="handleClear"
-      />
-      <FilterDropdown
-        :model-value="courseFilter"
-        :options="courseOptions"
-        placeholder="All courses"
-        size="md"
-        @update:model-value="setCourseFilter"
-      />
-    </div>
-
-    <!-- Quick chips: tier filter (left) + sort (right) -->
-    <div class="chips-bar">
-      <div class="chip-group" role="group" aria-label="Filter by access tier">
-        <button
-          v-for="chip in tierChips"
-          :key="chip.label"
-          class="chip"
-          :class="{ 'chip-active': tierFilter === chip.value }"
-          @click="setTierFilter(chip.value)"
-        >
-          {{ chip.label }}
-          <span v-if="chip.count != null" class="chip-count mono-nums">{{ chip.count }}</span>
-        </button>
+    <!-- Filter + sort panel — bounded card so it reads as its own section, not
+         floating on the page background (canon §5.2) -->
+    <div class="schools-card schools-card-pad filters-panel">
+      <div class="filters-bar">
+        <div class="filter-bar filter-bar--search">
+          <svg class="filter-bar-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+          </svg>
+          <input
+            v-model="searchInput"
+            type="text"
+            class="filter-bar-input"
+            placeholder="Search by name or email…"
+            @keydown.enter="handleSearch"
+            @keydown.esc="handleClear"
+          >
+          <button
+            v-if="searchInput"
+            type="button"
+            class="filter-bar-clear"
+            aria-label="Clear search"
+            @click="handleClear"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <FilterDropdown
+          :model-value="courseFilter"
+          :options="courseOptions"
+          placeholder="All courses"
+          size="md"
+          @update:model-value="setCourseFilter"
+        />
       </div>
-      <div class="chip-group chip-group--sort" role="group" aria-label="Sort users">
-        <span class="chip-group-label">Sort</span>
-        <button
-          v-for="chip in sortChips"
-          :key="chip.value"
-          class="chip chip--sort"
-          :class="{ 'chip-active': sortKey === chip.value }"
-          @click="setSort(chip.value)"
-        >
-          {{ chip.label }}
-        </button>
+
+      <!-- Quick chips: tier filter (left) + sort (right) -->
+      <div class="chips-bar">
+        <div class="chip-group" role="group" aria-label="Filter by access tier">
+          <button
+            v-for="chip in tierChips"
+            :key="chip.label"
+            class="chip"
+            :class="{ 'chip-active': tierFilter === chip.value }"
+            @click="setTierFilter(chip.value)"
+          >
+            {{ chip.label }}
+            <span v-if="chip.count != null" class="chip-count mono-nums">{{ chip.count }}</span>
+          </button>
+        </div>
+        <div class="chip-group chip-group--sort" role="group" aria-label="Sort users">
+          <span class="chip-group-label">Sort</span>
+          <button
+            v-for="chip in sortChips"
+            :key="chip.value"
+            class="chip chip--sort"
+            :class="{ 'chip-active': sortKey === chip.value }"
+            @click="setSort(chip.value)"
+          >
+            {{ chip.label }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -201,9 +219,10 @@ onMounted(async () => {
             <td class="cell-name">
               <div class="cell-name-inner">
                 <span class="name-text">{{ user.display_name || 'Anonymous' }}</span>
-                <Badge :variant="TIER_VARIANT[user.tier]" size="sm" pill>
+                <span class="status-pill" :class="`tone-${TIER_TONE[user.tier]}`">
+                  <span class="status-dot" />
                   {{ TIER_LABEL[user.tier] }}
-                </Badge>
+                </span>
               </div>
             </td>
             <td class="cell-email">
@@ -350,6 +369,13 @@ onMounted(async () => {
   color: rgb(var(--tone-green));
 }
 
+/* Filter + sort panel — bounded card so it reads as its own section */
+.filters-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 /* Filters bar — canon §5.2 */
 .filters-bar {
   display: flex;
@@ -357,9 +383,29 @@ onMounted(async () => {
   align-items: center;
 }
 
-.filters-bar :deep(.search-box) {
+.filter-bar--search {
   flex: 1;
-  min-width: 0;
+  max-width: 420px;
+}
+
+.filter-bar-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(15, 18, 18, 0.06);
+  color: var(--schools-fg-3);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.filter-bar-clear:hover {
+  background: rgba(15, 18, 18, 0.12);
+  color: var(--schools-fg);
 }
 
 /* Quick chips — tier filter + sort */
@@ -394,8 +440,8 @@ onMounted(async () => {
   gap: 6px;
   padding: 6px 12px;
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(44, 38, 34, 0.1);
+  background: rgba(15, 18, 18, 0.04);
+  border: 1px solid var(--schools-border-strong);
   color: var(--schools-fg-2);
   font: inherit;
   font-size: var(--text-sm);
@@ -406,8 +452,8 @@ onMounted(async () => {
 }
 
 .chip:hover {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(44, 38, 34, 0.18);
+  background: rgba(15, 18, 18, 0.08);
+  border-color: rgba(15, 18, 18, 0.22);
   color: var(--schools-fg);
 }
 
@@ -469,7 +515,7 @@ onMounted(async () => {
   color: var(--schools-fg-3);
   padding: 14px 18px 12px;
   border-bottom: 1px solid rgba(44, 38, 34, 0.08);
-  background: rgba(255, 255, 255, 0.35);
+  background: #fafafa;
 }
 
 .users-table thead th:last-child {
@@ -483,7 +529,7 @@ onMounted(async () => {
 
 .users-table tbody tr:hover,
 .users-table tbody tr:focus-visible {
-  background: rgba(255, 255, 255, 0.48);
+  background: #fafaf8;
   outline: none;
 }
 
@@ -551,9 +597,9 @@ onMounted(async () => {
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: var(--font-medium);
-  color: rgb(var(--tone-blue));
+  color: rgb(var(--tone-blue-ink));
   background: rgba(var(--tone-blue), 0.10);
-  border: 1px solid rgba(var(--tone-blue), 0.25);
+  border: 1px solid rgba(var(--tone-blue-ink), 0.25);
   padding: 2px 6px;
   border-radius: var(--radius-full);
   flex: 0 0 auto;
@@ -627,8 +673,8 @@ onMounted(async () => {
 .page-btn {
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(44, 38, 34, 0.1);
+  background: rgba(15, 18, 18, 0.04);
+  border: 1px solid var(--schools-border-strong);
   color: var(--schools-fg-2);
   font: inherit;
   font-size: var(--text-sm);
@@ -638,8 +684,8 @@ onMounted(async () => {
 }
 
 .page-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(44, 38, 34, 0.18);
+  background: rgba(15, 18, 18, 0.08);
+  border-color: rgba(15, 18, 18, 0.22);
   color: var(--schools-fg);
 }
 

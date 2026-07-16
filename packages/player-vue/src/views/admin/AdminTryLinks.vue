@@ -27,9 +27,19 @@ const copiedId = ref<string | null>(null)
 const formLabel = ref('')
 const formTtlDays = ref<number>(90)
 
+const searchQuery = ref('')
+
 const activeCount = computed(() =>
   links.value.filter(l => l.is_active && !l.is_expired).length,
 )
+
+const filteredLinks = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return links.value
+  return links.value.filter(l =>
+    l.label.toLowerCase().includes(q) || l.code.toLowerCase().includes(q),
+  )
+})
 
 async function fetchLinks(): Promise<void> {
   isLoading.value = true
@@ -173,6 +183,7 @@ onMounted(() => {
     <!-- Page header -->
     <header class="page-header">
       <div class="title-block">
+        <span class="schools-kicker">Partner access</span>
         <h1 class="arsenal">Try Links</h1>
         <div class="metrics">
           <span class="metric">
@@ -260,7 +271,22 @@ onMounted(() => {
       v-if="links.length > 0"
       class="schools-card links-panel"
     >
-      <table class="links-table">
+      <div class="panel-head links-panel-head">
+        <span class="schools-kicker">All links</span>
+        <div class="filter-bar">
+          <svg class="filter-bar-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="filter-bar-input"
+            placeholder="Search label or code…"
+          />
+        </div>
+      </div>
+      <table class="ssi-table links-table">
         <thead>
           <tr>
             <th>Label</th>
@@ -274,7 +300,7 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr
-            v-for="link in links"
+            v-for="link in filteredLinks"
             :key="link.id"
             :class="{ 'is-inactive': !link.is_active || link.is_expired }"
           >
@@ -319,6 +345,9 @@ onMounted(() => {
                 </svg>
               </button>
             </td>
+          </tr>
+          <tr v-if="filteredLinks.length === 0">
+            <td colspan="7" class="cell-no-results">No links match "{{ searchQuery }}"</td>
           </tr>
         </tbody>
       </table>
@@ -382,7 +411,7 @@ onMounted(() => {
 }
 
 .metric-sep { color: var(--schools-fg-3); }
-.metric-active .metric-value { color: rgb(var(--tone-green)); }
+.metric-active .metric-value { color: rgb(var(--tone-green-ink)); }
 
 .page-subtitle {
   margin: var(--space-2) 0 0;
@@ -406,8 +435,8 @@ onMounted(() => {
 
 .banner-success {
   background: rgba(var(--tone-green), 0.10);
-  border: 1px solid rgba(var(--tone-green), 0.28);
-  color: rgb(var(--tone-green));
+  border: 1px solid rgba(var(--tone-green-ink), 0.28);
+  color: rgb(var(--tone-green-ink));
 }
 
 .banner-error {
@@ -529,48 +558,22 @@ onMounted(() => {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Links table */
+/* Links table — base grid/type from shared table.ssi-table; overrides below */
 .links-panel {
   padding: 0;
   overflow: hidden;
 }
 
-.links-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.links-table thead th {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: var(--font-medium);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  text-align: left;
-  color: var(--schools-fg-3);
-  padding: 14px 18px 12px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.08);
-  background: rgba(255, 255, 255, 0.35);
+.links-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
 }
 
 .links-table thead th:last-child { width: 56px; }
 
-.links-table tbody tr {
-  transition: background var(--transition-base);
-}
-
-.links-table tbody tr:hover { background: rgba(255, 255, 255, 0.48); }
 .links-table tbody tr.is-inactive { opacity: 0.5; }
-
-.links-table td {
-  padding: 12px 18px;
-  border-bottom: 1px solid rgba(44, 38, 34, 0.05);
-  vertical-align: middle;
-  color: var(--schools-fg-2);
-  font-size: var(--text-sm);
-}
-
-.links-table tbody tr:last-child td { border-bottom: none; }
 
 .cell-label {
   color: var(--schools-fg);
@@ -580,6 +583,13 @@ onMounted(() => {
 .cell-muted {
   color: var(--schools-fg-3);
   white-space: nowrap;
+}
+
+.cell-no-results {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--schools-fg-3);
+  font-size: var(--text-sm);
 }
 
 /* Code chip */
@@ -605,50 +615,13 @@ onMounted(() => {
 
 .code-chip.is-copied {
   background: rgba(var(--tone-green), 0.16);
-  border-color: rgba(var(--tone-green), 0.45);
-  color: rgb(var(--tone-green));
+  border-color: rgba(var(--tone-green-ink), 0.45);
+  color: rgb(var(--tone-green-ink));
 }
 
 .code-value {
   font-size: var(--text-sm);
   letter-spacing: 0.05em;
-}
-
-/* Status pill */
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  font-size: var(--text-xs);
-  font-weight: var(--font-medium);
-  border: 1px solid transparent;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.status-pill.tone-green {
-  color: rgb(var(--tone-green));
-  background: rgba(var(--tone-green), 0.10);
-  border-color: rgba(var(--tone-green), 0.30);
-}
-
-.status-pill.tone-gold {
-  color: rgb(var(--tone-gold));
-  background: rgba(var(--tone-gold), 0.12);
-  border-color: rgba(var(--tone-gold), 0.32);
-}
-
-.status-pill.tone-muted {
-  color: var(--schools-fg-3);
-  background: rgba(44, 38, 34, 0.04);
-  border-color: rgba(44, 38, 34, 0.10);
 }
 
 /* Hover-reveal action */
