@@ -156,6 +156,18 @@ if (typeof document !== 'undefined') {
     <div class="right">
       <span v-if="schoolLabel" class="school-label">{{ schoolLabel }}</span>
 
+      <router-link
+        to="/"
+        class="learn-btn"
+        title="Learn — your own practice"
+        aria-label="Learn — your own practice"
+      >
+        <svg class="learn-btn__icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M2.5 1.2 10 6 2.5 10.8Z" fill="currentColor" />
+        </svg>
+        <span class="learn-btn__label">Learn</span>
+      </router-link>
+
       <div class="user-menu">
         <button type="button" class="user-trigger" @click="toggleMenu">
           <span class="avatar" :style="{ background: roleAvatarColor }">{{ initials }}</span>
@@ -241,6 +253,28 @@ if (typeof document !== 'undefined') {
 .school-label {
   font-size: 12.5px;
   color: var(--schools-fg-2);
+}
+
+.learn-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #fff;
+  background: var(--schools-red);
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background 120ms ease-out;
+}
+.learn-btn:hover { background: var(--schools-red-deep); }
+.learn-btn__icon { flex: none; }
+
+@media (max-width: 480px) {
+  .learn-btn__label { display: none; }
+  .learn-btn { padding: 8px; }
 }
 
 .user-menu { position: relative; }
