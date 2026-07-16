@@ -550,7 +550,9 @@ onMounted(() => {
     <!-- Page header — canon §5.1 -->
     <header class="page-header">
       <div class="title-block">
+        <span class="schools-kicker">Access</span>
         <h1 class="arsenal">Access Codes</h1>
+        <p class="subtitle">Invite codes, entitlement grants, and email allowlist — how schools, admins, and testers get in.</p>
         <div class="metrics">
           <span class="metric">
             <span class="metric-value mono-nums">{{ totalCount }}</span>
@@ -1016,38 +1018,50 @@ onMounted(() => {
   font-variant-numeric: tabular-nums;
 }
 
-/* Page header */
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-6);
+/* Page header — Stats/Methodology tokens, verbatim */
+.page-header { margin-bottom: 22px; }
+
+.title-block .schools-kicker {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--schools-red, #DB1E17);
 }
 
 .title-block h1 {
   font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 400;
+  line-height: 1.04;
   letter-spacing: -0.015em;
-  color: var(--schools-fg);
-  margin: 0 0 var(--space-2);
+  color: var(--ink-primary, #2C2622);
+  margin: 8px 0 10px;
+}
+
+.subtitle {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-secondary, #5b534c);
+  max-width: 64ch;
+  margin: 0 0 14px;
 }
 
 .metrics {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  color: var(--schools-fg-3);
+  color: var(--ink-muted, #8A8078);
   font-size: var(--text-sm);
 }
 
 .metric-value {
-  color: var(--schools-fg);
+  color: var(--ink-primary, #2C2622);
   font-weight: var(--font-semibold);
   margin-right: 4px;
 }
 
-.metric-sep { color: var(--schools-fg-3); }
+.metric-sep { color: var(--ink-muted, #8A8078); }
 .metric-active .metric-value { color: rgb(var(--tone-green-ink)); }
 
 /* Banners */
