@@ -770,9 +770,13 @@ async function continueIn() {
                EXCEPT heritage (schools1), where the course-level dropdown above
                already commits the variant directly. -->
           <fieldset v-else-if="!isHeritageDoor" class="ob-field ob-langset">
-            <!-- Cards carry the full course name in the LEARNERS' language,
-                 so the ask is "pick the course", not "name their language". -->
-            <legend class="ob-label">Choose the course for your learners</legend>
+            <!-- Cards carry the full course name in the LEARNERS' language.
+                 Was "Choose the course for your learners" — read as a SECOND
+                 course pick right after "You'll teach [English]" above
+                 ("thought you just said I was teaching English? what other
+                 course?" — Aran, 2026-07-16). This dropdown is the learners'
+                 HOME language, not another course; framed as that directly. -->
+            <legend class="ob-label">Your learners mainly speak</legend>
 
             <!-- LONG list (tutors / non-heritage): browse a compact, scrollable
                  list AND filter with the search box. -->

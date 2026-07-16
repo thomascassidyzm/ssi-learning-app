@@ -18,10 +18,18 @@ const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 // Mirrors the CHECK constraints on learners (see 20260331_tester_role.sql
-// for platform_role and 20260226_rls_entitlements_fix.sql for educational_role).
-// null is permitted to clear the role.
+// for platform_role and learners_educational_role_check for educational_role
+// — confirmed live 2026-07-16 against the DB: ARRAY['student','teacher',
+// 'school_admin','govt_admin','tutor']). null is permitted to clear the role.
+//
+// 'god' was previously listed here (and still gates a bypass check in
+// api/_utils/auth.ts / courseAccess.ts) but was NEVER in the live CHECK
+// constraint — selecting it from the admin UI would 500, and zero learner
+// rows have ever held it. Dropped rather than silently left as a footgun;
+// re-add alongside a migration that actually widens the constraint for it
+// if the 'god' tier gets built out.
 const ALLOWED_PLATFORM_ROLES = new Set(['ssi_admin', 'popty_user', 'tester'])
-const ALLOWED_EDUCATIONAL_ROLES = new Set(['god', 'student', 'teacher', 'school_admin', 'govt_admin'])
+const ALLOWED_EDUCATIONAL_ROLES = new Set(['student', 'teacher', 'tutor', 'school_admin', 'govt_admin'])
 
 export default async function handler(
   req: VercelRequest,
