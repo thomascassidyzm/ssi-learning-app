@@ -232,6 +232,65 @@ already does for anyone) or requires an admin's manual `entitlement_grants` row,
 
 </details>
 
+## Play-as-class permission model (owner ruling, 2026-07-16)
+
+**Play-as-class is a school-STAFF capability, not a teacher-only one.** Any staff
+member of a class's school — teachers AND school admins — may play any class in
+their school as-class. Cover/substitute and shared-class situations are normal;
+multiple teachers per class are already supported (the `class_teachers`
+membership relationship, lead + co-taught, scoped in `useClassesData.fetchClasses`
+via `myTaughtClassIds`).
+
+**Group leaders (`govt_admin`) are excluded by default.** Their product is
+visibility into their group's schools, not classroom delivery — the group-leader
+rollup views (`DashboardView`'s govt_admin template) never show a play button,
+by design. A group leader covering a class in practice gets added as school
+staff (teacher or school_admin) for that school, rather than being granted
+play-as-class through the govt_admin role itself.
+
+**Implementation:** `useSchoolContext().isSchoolStaff` = `isTeacher ||
+isSchoolAdmin` (mutually exclusive with `isGovtAdmin`/`isStudent`/unaffiliated
+by construction, since `educational_role` is a single value). `usePlayAsClass()`
+combines this with the separate `isAdminView` flag (the ssi_admin **read-only**
+god-view under `/admin/schools/:id` etc. — a different axis entirely, unrelated
+to group leaders) into `canPlayAsClass`, which gates both the button's
+visibility and the handler itself in `ClassDetail.vue`, `DashboardView.vue`, and
+`TeacherDashboard.vue`. Permission matrix verified in
+`usePlayAsClass.test.ts`: allowed for teacher / school_admin; excluded for
+govt_admin, student, unaffiliated (no role), and the ssi_admin god-view.
+
+**Gap found and closed 2026-07-16:** before this pass, `ClassDetail.vue`'s Play
+as class button was gated only on `!isAdminView` (the ssi_admin god-view flag),
+with no role check at all — a govt_admin drilling into a class via the normal
+`/schools/classes/:id` route (not the `/admin/...` god-view) could see and click
+it, contradicting this ruling. `DashboardView`'s own class-list templates
+already correctly excluded a play button from the govt_admin's rollup view, but
+that protection didn't extend to what you reach by clicking through to a
+class's detail page.
+
+**Attribution finding (flagged, not redesigned — real design decision, BSC
+scope discipline):** a play-as-class session runs as the signed-in staff
+member's own authenticated identity — there is no impersonation. `class_sessions`
+(class-level start/end tracking) correctly attributes to `teacher_user_id` (the
+staff member's auth uid), and the position **ratchet/ceiling** write
+(`saveRoundProgress`'s `highest_completed_lego_id` update) is deliberately
+skipped in class mode (`LearningPlayer.vue`, the `props.classContext` guard).
+However, the **live cursor** — `persistLivePositionToDb` /
+`progressStore.setLivePosition` / `updateCurrentCycle`, which upserts
+`course_enrollments.current_lego_id/current_round_index/current_cycle_index`
+and touches `last_practiced_at` — is NOT gated by `classContext` and fires
+unconditionally during play. So a play-as-class session **does** create/advance
+the staff member's own personal `course_enrollments` row for the class's course,
+and per-cycle telemetry (`player_events.audio_play`, pairings/fire-count) is
+always stamped with the staff member's own `learnerId` regardless of
+`classContext` — there is no student to attribute it to instead, since nobody
+is impersonated. Net effect: a teacher who plays their Welsh class picks up a
+live cursor + practice telemetry in Welsh against their own account, though not
+a false completion high-water-mark. Logged here as a real, unbuilt gap rather
+than patched inline — silently gating `persistLivePositionToDb`/telemetry on
+`classContext` is a design decision (does the position still need a "resume
+where the class left off" home?) that deserves its own pass, not a ride-along.
+
 ## Open numbers (for the owner)
 
 - `y` — price per teacher, per band.

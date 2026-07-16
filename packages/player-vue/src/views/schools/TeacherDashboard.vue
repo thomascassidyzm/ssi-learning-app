@@ -11,6 +11,7 @@ import { useClassesData, type ClassReport } from '@/composables/schools/useClass
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 type SortKey = 'name' | 'students' | 'hours' | 'journey'
@@ -21,6 +22,7 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
 const { classes: classesData, fetchClasses, createClass, getClassReport } = useClassesData()
+const { canPlayAsClass, switchActiveCourseTo } = usePlayAsClass()
 
 const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
@@ -281,7 +283,8 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
 
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
 // DashboardView): launch the player inside the schools shell for this class.
-function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string }) {
+async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string }) {
+  if (!canPlayAsClass.value) return
   localStorage.setItem('ssi-last-course', cls.course_code)
   localStorage.setItem('ssi-active-class', JSON.stringify({
     id: cls.id,
@@ -290,6 +293,9 @@ function handlePlayClass(cls: { id: string; class_name: string; course_code: str
     current_seed: cls.current_seed,
     timestamp: new Date().toISOString(),
   }))
+  // Force the app onto the class's course now — don't rely on PlayerContainer's
+  // onMounted to win its race against App.vue's async course-catalogue fetch.
+  await switchActiveCourseTo(cls.course_code)
   router.push({ path: '/schools/play', query: { class: cls.id } })
 }
 
@@ -470,7 +476,7 @@ function exportCsv() {
               </button>
             </td>
             <td class="cell-action">
-              <button v-if="!isAdminView" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
+              <button v-if="canPlayAsClass" type="button" class="row-play-btn" @click.stop="handlePlayClass(cls)">▶ Play as class</button>
             </td>
           </tr>
         </tbody>
