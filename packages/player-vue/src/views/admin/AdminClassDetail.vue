@@ -6,7 +6,7 @@
  * school_admin scope, then renders the existing ClassDetail view. The
  * view reads the :id from its own route and queries class detail.
  */
-import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import ClassDetail from '@/views/schools/ClassDetail.vue'
@@ -58,8 +58,17 @@ async function loadContext(classId: string | string[]) {
   }
 }
 
-onMounted(() => loadContext(route.params.id as string))
-watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
+// Was `onMounted(() => loadContext(...))` + a route-id-only watch — on a
+// direct load to /admin/classes/:id, auth.learner.value (the injected
+// useAuth instance) is still null at that instant, so loadContext's own
+// guard silently returned and isLoading stayed true forever: dead on cold
+// load, same bug class as the router/data-composable races elsewhere in
+// this fix. Watching the learner too re-fires once identity resolves.
+watch(
+  [() => route.params.id, () => auth?.learner?.value],
+  ([id]) => { if (id) loadContext(id as string) },
+  { immediate: true },
+)
 // Deterministic teardown — see finding #1a, 2026-07-13 audit.
 onUnmounted(() => ctx.clear())
 </script>

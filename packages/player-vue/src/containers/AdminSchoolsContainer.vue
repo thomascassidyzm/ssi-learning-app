@@ -12,7 +12,7 @@
  * itself via the router guard, so if we're here, access is already
  * verified.
  */
-import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
@@ -56,8 +56,18 @@ async function loadContext(schoolId: string | string[]) {
   }
 }
 
-onMounted(() => loadContext(route.params.id as string))
-watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
+// Was `onMounted(() => loadContext(...))` + a route-id-only watch — on a
+// direct load to /admin/schools/:id, auth.learner.value (the injected useAuth
+// instance) is still null at that instant (its DB fetch hasn't resolved), so
+// loadContext's own guard silently returned and isLoading stayed true
+// forever: dead on cold load, same bug class as the router/data-composable
+// races elsewhere in this fix. Watching the learner too re-fires once
+// identity actually resolves, not just when the route id changes.
+watch(
+  [() => route.params.id, () => auth?.learner?.value],
+  ([id]) => { if (id) loadContext(id as string) },
+  { immediate: true },
+)
 // Deterministic teardown: leaving this read-view must never let its scope
 // leak into whatever mounts next (e.g. the admin's own /schools) — see
 // finding #1a, 2026-07-13 audit.

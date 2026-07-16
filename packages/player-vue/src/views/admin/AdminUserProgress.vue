@@ -7,7 +7,7 @@
  * learner's course enrollments. Real admin's user_id is kept on the
  * context for any action that writes attribution.
  */
-import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import TopNav from '@/components/schools/shared/TopNav.vue'
 import StudentProgressView from '@/views/schools/StudentProgressView.vue'
@@ -48,8 +48,17 @@ async function loadContext(learnerId: string | string[]) {
   }
 }
 
-onMounted(() => loadContext(route.params.learnerId as string))
-watch(() => route.params.learnerId, (id) => { if (id) loadContext(id as string) })
+// Was `onMounted(() => loadContext(...))` + a route-id-only watch — on a
+// direct load to /admin/users/:learnerId/progress, auth.learner.value (the
+// injected useAuth instance) is still null at that instant, so loadContext's
+// own guard silently returned and isLoading stayed true forever: dead on
+// cold load, same bug class as the router/data-composable races elsewhere in
+// this fix. Watching the learner too re-fires once identity resolves.
+watch(
+  [() => route.params.learnerId, () => auth?.learner?.value],
+  ([id]) => { if (id) loadContext(id as string) },
+  { immediate: true },
+)
 // Deterministic teardown — see finding #1a, 2026-07-13 audit.
 onUnmounted(() => ctx.clear())
 </script>

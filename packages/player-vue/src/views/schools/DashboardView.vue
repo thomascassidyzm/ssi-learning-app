@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Greeting from '@/components/schools/shared/Greeting.vue'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
@@ -178,14 +178,12 @@ watch(viewingSchool, (school) => {
   }
 }, { immediate: true })
 
-onMounted(() => {
-  if (currentUser.value) {
-    fetchSchools()
-    if (isTeacher.value || isSchoolAdmin.value) {
-      fetchClasses().then(fetchReports)
-    }
-  }
-})
+// Was also duplicated here as an onMounted() with the identical currentUser
+// check — the watch above already covers both cases (immediate: true fires
+// it synchronously when currentUser is already populated at setup; the
+// reactive callback fires it once currentUser resolves later), so the
+// onMounted block only ever either double-fetched or did nothing. One
+// mechanism, not two racing to fetch the same data.
 
 // ---------- Display helpers ----------
 const firstName = computed(() => {

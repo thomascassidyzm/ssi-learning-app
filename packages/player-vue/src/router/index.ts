@@ -1,5 +1,7 @@
+import { watch } from 'vue'
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
+import { useResolvedSession } from '@/composables/useResolvedSession'
 
 // Breadcrumb for the LAST management surface a user was on (`teach` | `schools`).
 // Solo tutors have no `educational_role`, so the role cache can't tell a tutor
@@ -66,8 +68,9 @@ const routes: RouteRecordRaw[] = [
     // a minted sign-in link, a stale bookmark, a bare-domain magic-link redirect —
     // belongs on /schools, reaching the player only via its own Learn button (the
     // schools-framed /schools/play route). This is the fast path for a role
-    // already cached in this browser; App.vue's post-auth-init check (a fresh
-    // browser, no cache yet) covers the same redirect once the role loads from DB.
+    // already cached in this browser — defers rather than guessing when the
+    // cache is empty (fresh browser); the corrective redirect below the router
+    // definition covers that case once the shared resolved-session gate settles.
     beforeEnter: (_to, _from, next) => {
       const { hasSchoolRole, isInitialized, restoreFromCache } = useUserRole()
       restoreFromCache()
@@ -669,13 +672,44 @@ router.afterEach((to) => {
 // individual pages may be opened to all learners later as we add a per-route
 // `meta.public: true` flag, but for now everything under /methodology requires
 // ssi_admin / god.
+//
+// Used to deny (bounce to '/') whenever canAccessAdmin was false — including
+// a fresh browser with no cache yet, reading "don't know" as "no" and
+// bouncing an about-to-resolve ssi_admin off every deep link. Now mirrors the
+// /schools guard's own shape: only a role the cache actually KNOWS to be
+// non-admin gets bounced here; an unresolved cache defers to AdminContainer,
+// which gates rendering on the shared resolved-session gate and corrects
+// (redirects) once resolution genuinely says non-admin.
 router.beforeEach((to, _from, next) => {
   const requiresAdmin = to.path.startsWith('/admin') || to.path.startsWith('/methodology')
   if (!requiresAdmin) return next()
-  const { canAccessAdmin, restoreFromCache } = useUserRole()
+  const { canAccessAdmin, isInitialized, restoreFromCache } = useUserRole()
   restoreFromCache()
-  return canAccessAdmin.value ? next() : next('/')
+  if (isInitialized.value && !canAccessAdmin.value) return next('/')
+  next()
 })
+
+// Corrective redirect for '/' — the beforeEnter guard above defers rather
+// than bounce when the role cache is empty (a fresh browser has nothing to
+// go on yet). Once the shared resolved-session gate settles (identity + role
+// known — a single fetch, owned by useAuth) AND resolves to a school-staff
+// role, catch a staff member left on the bare player: either because their
+// FIRST navigation to '/' raced ahead of that DB fetch, or because they
+// signed in from an already-mounted '/' (no new navigation to re-run the
+// guard). A reactive watch rather than a one-shot promise so it also covers
+// the later case, and so it keeps working across sign-out/sign-in within the
+// same page load. Replaces the bespoke post-auth-init check that used to
+// live in App.vue's onMounted — this is the one place that owns it now,
+// reachable without any component/injection context (unlike App.vue's
+// injected `auth` instance, which router guards can't see).
+watch(
+  () => useResolvedSession().isResolved.value && useUserRole().hasSchoolRole.value,
+  (shouldRedirect) => {
+    if (shouldRedirect && router.currentRoute.value.path === '/') {
+      router.replace('/schools')
+    }
+  },
+)
 
 // Update document title on navigation
 router.afterEach((to) => {

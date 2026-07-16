@@ -1,20 +1,47 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
-import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
+import { useUserRole } from '@/composables/useUserRole'
+import { useResolvedSession } from '@/composables/useResolvedSession'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
 const route = useRoute()
+const router = useRouter()
 const mounted = ref(false)
 
 onMounted(() => {
   requestAnimationFrame(() => { mounted.value = true })
 })
+
+// Access gate — mirrors SchoolsContainer's isAuthLoading/isRoleLoading gate.
+// The top-level router guard (router/index.ts) only bounces a role the
+// cache ALREADY KNOWS to be non-admin; a fresh browser (no cache yet) used
+// to fall through here with NOTHING gating it, so /admin/* rendered (and its
+// views fetched real data) before identity was known at all. `knowsAnswer`
+// trusts the synchronous cache the instant it's populated — the common,
+// fast case for a returning admin — and only waits on the shared
+// resolved-session gate for the genuinely fresh-browser window.
+const { canAccessAdmin, isInitialized, restoreFromCache } = useUserRole()
+restoreFromCache()
+const { isResolved } = useResolvedSession()
+const knowsAnswer = computed(() => isInitialized.value || isResolved.value)
+const isCheckingAccess = computed(() => !knowsAnswer.value)
+const isDenied = computed(() => knowsAnswer.value && !canAccessAdmin.value)
+
+watch(isDenied, (deny) => {
+  if (deny) router.replace('/')
+}, { immediate: true })
 </script>
 
 <template>
   <div class="admin-container schools-surface" :class="{ 'is-mounted': mounted }">
+    <div v-if="isCheckingAccess || isDenied" class="admin-loading">
+      <div class="loading-spinner"></div>
+      <p>Loading…</p>
+    </div>
+    <template v-else>
     <AdminTopBar />
 
     <main class="admin-main">
@@ -80,6 +107,7 @@ onMounted(() => {
         <span>What's New</span>
       </router-link>
     </nav>
+    </template>
   </div>
 </template>
 
@@ -109,6 +137,30 @@ onMounted(() => {
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* Access-gate loading state (cold load with no cached role yet) */
+.admin-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 16px;
+  color: var(--schools-fg-3, #8a8078);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-subtle, rgba(44, 38, 34, 0.1));
+  border-top-color: var(--schools-red, #DB1E17);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Page transition */
