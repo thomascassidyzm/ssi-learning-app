@@ -13,11 +13,13 @@ import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
+import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const { density } = useSchoolsDensity()
+const { canPlayAsClass, switchActiveCourseTo } = usePlayAsClass()
 
 const {
   schools,
@@ -261,7 +263,8 @@ function benchFor(report: ClassReport | undefined) {
 }
 
 // ---------- Actions ----------
-function handlePlayClass(cls: ClassInfo) {
+async function handlePlayClass(cls: ClassInfo) {
+  if (!canPlayAsClass.value) return
   // Launch the player inside the schools surface so the SchoolsTopBar stays
   // above it (teacher keeps classroom context while running a session).
   // The /schools/play route renders PlayerContainer as a child of
@@ -276,6 +279,9 @@ function handlePlayClass(cls: ClassInfo) {
     teacherUserId: currentUser.value?.user_id,
     timestamp: new Date().toISOString(),
   }))
+  // Force the app onto the class's course now — don't rely on PlayerContainer's
+  // onMounted to win its race against App.vue's async course-catalogue fetch.
+  await switchActiveCourseTo(cls.course_code)
   router.push({ path: '/schools/play', query: { class: cls.id } })
 }
 </script>
@@ -354,7 +360,7 @@ function handlePlayClass(cls: ClassInfo) {
           </div>
           <div class="join-code">{{ cls.student_join_code }}</div>
           <div class="row-cta">
-            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
           </div>
         </div>
 
@@ -391,7 +397,7 @@ function handlePlayClass(cls: ClassInfo) {
 
           <div class="panel-footer">
             <span class="join-code">{{ cls.student_join_code }}</span>
-            <button v-if="!isAdminView" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
+            <button v-if="canPlayAsClass" class="btn-play" @click="handlePlayClass(cls)">▶ Play as class</button>
           </div>
         </article>
 
