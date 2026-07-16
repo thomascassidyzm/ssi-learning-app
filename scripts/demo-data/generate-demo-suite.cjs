@@ -249,7 +249,9 @@ async function deleteDemoAuthUsers(){
     let groupId=null
     if(sc.group){
       groupId=uuid()
-      await q(`insert into public.groups (id, name, is_demo, is_test) values ($1,$2,true,true)`,[groupId,sc.group.name])
+      // name_confirmed=true: a deliberately-chosen demo name, not a leader's
+      // placeholder guess — see generate-ime-demo.cjs for the same fix.
+      await q(`insert into public.groups (id, name, is_demo, is_test, name_confirmed) values ($1,$2,true,true,true)`,[groupId,sc.group.name])
     }
     const schoolId=uuid()
     await q(`insert into public.schools (id, school_name, admin_user_id, region_code, teacher_join_code, admin_join_code, group_id, is_demo, is_test)
