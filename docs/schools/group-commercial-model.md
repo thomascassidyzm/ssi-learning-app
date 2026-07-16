@@ -268,28 +268,66 @@ already correctly excluded a play button from the govt_admin's rollup view, but
 that protection didn't extend to what you reach by clicking through to a
 class's detail page.
 
-**Attribution finding (flagged, not redesigned — real design decision, BSC
-scope discipline):** a play-as-class session runs as the signed-in staff
-member's own authenticated identity — there is no impersonation. `class_sessions`
-(class-level start/end tracking) correctly attributes to `teacher_user_id` (the
-staff member's auth uid), and the position **ratchet/ceiling** write
-(`saveRoundProgress`'s `highest_completed_lego_id` update) is deliberately
-skipped in class mode (`LearningPlayer.vue`, the `props.classContext` guard).
-However, the **live cursor** — `persistLivePositionToDb` /
-`progressStore.setLivePosition` / `updateCurrentCycle`, which upserts
-`course_enrollments.current_lego_id/current_round_index/current_cycle_index`
-and touches `last_practiced_at` — is NOT gated by `classContext` and fires
-unconditionally during play. So a play-as-class session **does** create/advance
-the staff member's own personal `course_enrollments` row for the class's course,
-and per-cycle telemetry (`player_events.audio_play`, pairings/fire-count) is
-always stamped with the staff member's own `learnerId` regardless of
-`classContext` — there is no student to attribute it to instead, since nobody
-is impersonated. Net effect: a teacher who plays their Welsh class picks up a
-live cursor + practice telemetry in Welsh against their own account, though not
-a false completion high-water-mark. Logged here as a real, unbuilt gap rather
-than patched inline — silently gating `persistLivePositionToDb`/telemetry on
-`classContext` is a design decision (does the position still need a "resume
-where the class left off" home?) that deserves its own pass, not a ride-along.
+**Attribution model (shipped 2026-07-16 — owner ruling: class as first-class
+learner):** the attribution gap above is closed. A CLASS now has its own
+learner identity — a `learners` row (`is_class_entity = true`, synthetic
+`user_id = 'class-learner:<classId>'`, never signed in) linked from
+`classes.class_learner_id`, enrolled in its own course via `course_enrollments`
+exactly like a human learner. Play-as-class plays AS THAT ENTITY: while
+`props.classContext` is active, `LearningPlayer.vue`'s `learnerId` resolves to
+the class's own learner id, and every progress write that entity model implies
+follows it — the live cursor (`setLivePosition`/`updateCurrentCycle`), the
+position ratchet/ceiling (`setEnrollmentCursor`/`setMode`/`bumpInfplayRound` —
+no longer skipped), practice minutes (`updateEnrollmentActivity`), and
+per-lego spaced-repetition state (`lego_progress` via
+`getLegoProgressById`/`saveLegoProgress`/`updateLegoProgress`). The class
+genuinely progresses through the course between lessons now — a substitute
+teacher resumes exactly where the last lesson left off, on the CLASS's own
+ceiling, not the covering teacher's.
+
+The staff member's own personal account gets nothing from a class-mode
+session — no cursor, no ratchet, no lego_progress. `class_sessions` keeps
+attributing session start/end to `teacher_user_id` (the staff auth uid)
+exactly as before; `player_events` telemetry now attributes to the class's
+learner id (via a cookie flip on class-mode enter/exit) with the driving
+staff member's auth uid additionally logged as `actor_user_id` in every
+event's payload, so "which teacher was at the keyboard" is never lost even
+though the telemetry itself belongs to the class.
+
+**Why this needed server mediation, not just a learnerId swap:**
+`course_enrollments`/`lego_progress` have RLS enabled, own-row only
+(`current_learner_id()` = the CALLER's own learner row) — a staff member's
+auth uid never resolves to the class's learner id, so a direct browser write
+targeting the class's row is rejected by RLS, by design. Per standing RLS
+doctrine, the fix is a server-mediated endpoint with its own authz check
+(`/api/school/class-progress`, gated on `resolveVisibleScope` + teacher/
+school_admin role), never a "clever" hierarchy-aware write policy. The one
+read-side RLS change made is narrow and additive: `can_view_learner_data()`
+gained one OR clause so a class's own teacher/school_admin can read the
+class's course_enrollments row for belt/progress display — write
+authorization is completely unaffected (writes were never RLS-granted; they
+route through the endpoint above).
+
+**Known residual scope (not built in this pass, flagged deliberately):**
+- `sessions`/`SessionStore` (checkpointSession/endSession, the legacy
+  items_practiced tracking) and RPC-based counters
+  (`bump_speaking_opportunities`, spike_events, response_metrics,
+  learner_lego_pairings/points, pod-activation state) still write directly
+  via the raw Supabase client keyed on `learnerId` — in class mode these
+  silently no-op under RLS (all already warn-and-continue on write failure,
+  never throw). None of these currently have a consumer that reads a CLASS's
+  own row, so the gap is inert today, but it would need the same
+  server-mediated treatment if a future feature reads the class's own session
+  history, speaking-opportunities count, or spike/response telemetry.
+- **daily_contributions (community minutes rollup) — open question, not
+  decided:** class entities were added to `test_learner_ids()` (the one
+  canonical "exclude from real-learner counting" set already used everywhere)
+  so they don't inflate admin Users-page/board headcounts. A side effect:
+  this ALSO excludes a class's own practice minutes from the
+  `daily_contributions` community rollup, since that trigger reads
+  `test_learner_ids()` too. Whether a class's practice SHOULD count toward
+  the public community-minutes number is a genuine open call — left excluded
+  by default (the cautious direction) rather than silently decided either way.
 
 ## Open numbers (for the owner)
 

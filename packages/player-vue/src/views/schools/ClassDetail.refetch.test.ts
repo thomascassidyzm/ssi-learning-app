@@ -53,12 +53,14 @@ describe('ClassDetail — refetch on route param change', () => {
       {
         id: 'c1', class_name: 'Class One', course_code: 'cym_for_eng', school_id: 'SCH1',
         teacher_user_id: 't1', student_join_code: 'AAA', current_seed: 10, last_lego_id: null,
+        class_learner_id: null,
         is_active: true, student_count: 1, avg_seeds_completed: 10, avg_practice_minutes: 5,
         created_at: '2026-01-01',
       },
       {
         id: 'c2', class_name: 'Class Two', course_code: 'cym_for_eng', school_id: 'SCH1',
         teacher_user_id: 't1', student_join_code: 'BBB', current_seed: 20, last_lego_id: null,
+        class_learner_id: null,
         is_active: true, student_count: 1, avg_seeds_completed: 20, avg_practice_minutes: 8,
         created_at: '2026-01-01',
       },

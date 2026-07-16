@@ -79,6 +79,7 @@ const classData = computed(() => {
       student_count: classDetail.value.students.length,
       current_seed: classDetail.value.current_seed || 1,
       join_code: classDetail.value.student_join_code || 'N/A',
+      class_learner_id: classDetail.value.class_learner_id || null,
     }
   }
   const stored = sessionStorage.getItem('ssi-class-detail')
@@ -92,10 +93,11 @@ const classData = computed(() => {
         student_count: parsed.student_count || 0,
         current_seed: parsed.current_seed || 1,
         join_code: parsed.student_join_code || '',
+        class_learner_id: parsed.class_learner_id || null,
       }
     } catch { /* fall through */ }
   }
-  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, join_code: '' }
+  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, join_code: '', class_learner_id: null }
 })
 
 const courseLabel = computed(() => {
@@ -226,6 +228,7 @@ async function handlePlay() {
     name: classData.value.class_name,
     course_code: classData.value.course_code,
     current_seed: classData.value.current_seed,
+    class_learner_id: classData.value.class_learner_id ?? null,
     timestamp: new Date().toISOString(),
   }))
   // Force the app onto the class's course now — don't rely on PlayerContainer's

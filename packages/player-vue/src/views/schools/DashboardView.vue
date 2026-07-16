@@ -276,6 +276,7 @@ async function handlePlayClass(cls: ClassInfo) {
     course_code: cls.course_code,
     current_seed: cls.current_seed,
     last_lego_id: cls.last_lego_id,
+    class_learner_id: cls.class_learner_id,
     teacherUserId: currentUser.value?.user_id,
     timestamp: new Date().toISOString(),
   }))

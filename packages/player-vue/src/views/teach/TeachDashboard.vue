@@ -29,6 +29,7 @@ interface TeacherClass {
   course_code: string
   student_join_code: string
   current_seed: number
+  class_learner_id: string | null
   is_active: boolean
   created_at: string
 }
@@ -197,6 +198,7 @@ async function playAsClass(cls: TeacherClass) {
     name: cls.class_name,
     course_code: cls.course_code,
     current_seed: cls.current_seed,
+    class_learner_id: cls.class_learner_id,
     timestamp: new Date().toISOString(),
   }))
   // Force the app onto the class's course now — don't rely on PlayerContainer's
