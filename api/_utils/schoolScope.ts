@@ -62,8 +62,16 @@ async function taughtClassIds(svc: SupabaseClient, authUid: string): Promise<str
   return [...ids]
 }
 
-/** The school a school_admin belongs to: first-joined SCHOOL: tag, else admin_user_id. */
-async function schoolIdForAdmin(svc: SupabaseClient, authUid: string): Promise<string | null> {
+/**
+ * The school a staff member (school_admin OR teacher) belongs to:
+ * first-joined SCHOOL: tag, else admin_user_id. Exported so endpoints that
+ * need a TEACHER's own school (resolveVisibleScope deliberately leaves a
+ * teacher's schoolIds empty — see filterActiveScope's docstring, a teacher
+ * can span schools) can resolve the same "home school" the client's
+ * useSchoolContext.resolveUser() shows them, without re-deriving it from
+ * classIds (which can't distinguish "no school" from "multiple schools").
+ */
+export async function schoolIdForAdmin(svc: SupabaseClient, authUid: string): Promise<string | null> {
   const { data: tag } = await svc
     .from('user_tags')
     .select('tag_value')
@@ -85,6 +93,30 @@ async function schoolIdForAdmin(svc: SupabaseClient, authUid: string): Promise<s
 }
 
 /** Schools + own group id a govt_admin governs: group-path subtree (preferred), else region_code. */
+/**
+ * Every school in a group's subtree (this group + every descendant, matched
+ * by path prefix — same rule the client's govt-admin class query in
+ * useClassesData uses). Factored out of scopeForGovtAdmin so admin passthrough
+ * endpoints (an ssi_admin viewing an ARBITRARY group, not their own) can reuse
+ * the identical subtree rule without a govt_admins row of their own.
+ */
+export async function schoolsForGroupSubtree(svc: SupabaseClient, groupId: string): Promise<string[]> {
+  const { data: group } = await svc.from('groups').select('path').eq('id', groupId).maybeSingle()
+  const path = (group as any)?.path as string | undefined
+  if (!path) return []
+
+  const { data: subtree } = await svc.from('groups').select('id').like('path', `${path}%`)
+  const groupIds = (subtree ?? []).map((g: any) => g.id).filter(Boolean)
+  if (groupIds.length === 0) return []
+
+  const schoolIds = new Set<string>()
+  for (const batch of chunk(groupIds)) {
+    const { data: schools } = await svc.from('schools').select('id').in('group_id', batch)
+    for (const s of schools ?? []) if ((s as any).id) schoolIds.add((s as any).id)
+  }
+  return [...schoolIds]
+}
+
 async function scopeForGovtAdmin(svc: SupabaseClient, authUid: string): Promise<{ schoolIds: string[]; groupId: string | null }> {
   const { data: govt } = await svc
     .from('govt_admins')
@@ -95,26 +127,8 @@ async function scopeForGovtAdmin(svc: SupabaseClient, authUid: string): Promise<
 
   if ((govt as any).group_id) {
     const groupId = (govt as any).group_id as string
-    const { data: group } = await svc
-      .from('groups')
-      .select('path')
-      .eq('id', groupId)
-      .maybeSingle()
-    const path = (group as any)?.path as string | undefined
-    if (path) {
-      // Subtree = this group and every descendant (path prefix). Matches the
-      // client's govt-admin class query in useClassesData.
-      const { data: subtree } = await svc.from('groups').select('id').like('path', `${path}%`)
-      const groupIds = (subtree ?? []).map((g: any) => g.id).filter(Boolean)
-      if (groupIds.length === 0) return { schoolIds: [], groupId }
-      const schoolIds = new Set<string>()
-      for (const batch of chunk(groupIds)) {
-        const { data: schools } = await svc.from('schools').select('id').in('group_id', batch)
-        for (const s of schools ?? []) if ((s as any).id) schoolIds.add((s as any).id)
-      }
-      return { schoolIds: [...schoolIds], groupId }
-    }
-    return { schoolIds: [], groupId }
+    const schoolIds = await schoolsForGroupSubtree(svc, groupId)
+    return { schoolIds, groupId }
   }
 
   // Legacy fallback: region_code (govt admins created before the group tree)

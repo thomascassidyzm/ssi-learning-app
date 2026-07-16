@@ -140,7 +140,18 @@ export function useSchoolData() {
         const token = session?.access_token
         if (!token) return
 
-        const res = await fetch('/api/school/group-summary', {
+        // An ssi_admin's admin-view (loadFromGroupId fakes
+        // educational_role='govt_admin' to reuse this branch) isn't a real
+        // govt_admin — resolveVisibleScope resolves THEIR OWN role, which the
+        // endpoint 403s unless told explicitly which group is being READ.
+        // A real govt_admin never sends this — the server always derives
+        // their own group, never trusting a client-supplied id for that path.
+        const isAdminView = selectedUser.value._scopeSource === 'admin-view'
+        const url = isAdminView
+          ? `/api/school/group-summary?groupId=${encodeURIComponent(userGroupId)}`
+          : '/api/school/group-summary'
+
+        const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!res.ok) throw new Error(`group-summary ${res.status}`)
@@ -233,14 +244,42 @@ export function useSchoolData() {
           groupSummary.value = { ...regionData, group_name: regionData.region_name }
         }
       } else if ((isSchoolAdmin.value || isTeacher.value) && selectedUser.value.school_id) {
-        // School admin or teacher: fetch their school
-        const { data, error: fetchError } = await client
-          .from('school_summary')
-          .select('*')
-          .eq('school_id', selectedUser.value.school_id)
-          .single()
+        // A REAL school admin/teacher viewing their OWN school: server-mediated
+        // (/api/school/roster), NOT a direct `school_summary` read. That view
+        // LATERAL-joins user_tags to count teachers/students, and user_tags'
+        // RLS has no branch for a school_admin invite-born via the newer
+        // school_admin_join redemption path (schools.admin_user_id stays
+        // null there) — their own session then only ever sees their OWN
+        // user_tags row, zeroing every other teacher/student count. Same
+        // fix shape as group-summary.ts for the govt_admin "zeros" bug.
+        //
+        // An ssi_admin's admin-view (loadFromSchoolId fakes
+        // educational_role='school_admin' to reuse this branch, scoped via
+        // _scopeSource instead) already sees correct numbers — their own
+        // session carries the RLS ssi_admin branch — so it keeps using the
+        // direct view read instead of this caller-scoped endpoint, which
+        // would 403 the real admin's non-staff learner row.
+        const isSelfView = selectedUser.value._scopeSource === 'self'
+        let data: any = null
+        if (isSelfView) {
+          const { data: { session } } = await client.auth.getSession()
+          const token = session?.access_token
+          if (!token) return
 
-        if (fetchError) throw fetchError
+          const res = await fetch('/api/school/roster', {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (!res.ok) throw new Error(`roster ${res.status}`)
+          data = ((await res.json()) as { school: any }).school
+        } else {
+          const { data: viewData, error: fetchError } = await client
+            .from('school_summary')
+            .select('*')
+            .eq('school_id', selectedUser.value.school_id)
+            .single()
+          if (fetchError) throw fetchError
+          data = viewData
+        }
 
         if (data) {
           const schoolId = data.school_id || data.id

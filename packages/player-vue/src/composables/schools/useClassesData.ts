@@ -458,6 +458,7 @@ export function useClassesData() {
       teacher_user_id: currentClass.value.teacher_user_id,
       student_join_code: currentClass.value.student_join_code,
       current_seed: currentClass.value.current_seed,
+      last_lego_id: currentClass.value.last_lego_id,
       class_learner_id: currentClass.value.class_learner_id,
       is_active: currentClass.value.is_active,
       created_at: currentClass.value.created_at,

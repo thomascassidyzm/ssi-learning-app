@@ -12,7 +12,7 @@ import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 import { getLanguageName } from '@/composables/useI18n'
-import { deriveBelt, type Belt } from '@/composables/schools/belts'
+import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
@@ -78,6 +78,7 @@ const classData = computed(() => {
       course_code: classDetail.value.course_code,
       student_count: classDetail.value.students.length,
       current_seed: classDetail.value.current_seed || 1,
+      last_lego_id: classDetail.value.last_lego_id || null,
       join_code: classDetail.value.student_join_code || 'N/A',
       class_learner_id: classDetail.value.class_learner_id || null,
     }
@@ -92,12 +93,13 @@ const classData = computed(() => {
         course_code: parsed.course_code || '',
         student_count: parsed.student_count || 0,
         current_seed: parsed.current_seed || 1,
+        last_lego_id: parsed.last_lego_id || null,
         join_code: parsed.student_join_code || '',
         class_learner_id: parsed.class_learner_id || null,
       }
     } catch { /* fall through */ }
   }
-  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, join_code: '', class_learner_id: null }
+  return { id: '', class_name: '', course_code: '', student_count: 0, current_seed: 1, last_lego_id: null, join_code: '', class_learner_id: null }
 })
 
 const courseLabel = computed(() => {
@@ -113,6 +115,24 @@ const classAvgSeeds = computed(() => {
 })
 
 const classBelt = computed<Belt>(() => deriveBelt(classAvgSeeds.value))
+
+// Customer-facing copy never says "seed" (position-is-LEGO ruling) — belt
+// thresholds are internally seed-cardinality (BELTS' `min`), but the rail
+// note surfaces only the LEGO average and the belt-remaining count, mirroring
+// StudentProgressView.vue's own "X more to your Y belt" phrasing, which never
+// names the unit either.
+const classAvgLegos = computed(() => {
+  const list = classDetail.value?.students ?? []
+  if (!list.length) return 0
+  return Math.round(list.reduce((s, x) => s + x.legos_mastered, 0) / list.length)
+})
+
+const nextBeltInfo = computed(() => {
+  const idx = BELTS.findIndex(b => b.key === classBelt.value)
+  const next = BELTS[idx + 1]
+  if (!next) return null
+  return { name: next.name, remaining: Math.max(0, next.min - classAvgSeeds.value) }
+})
 
 const students = computed(() => {
   const list = classDetail.value?.students ?? []
@@ -305,8 +325,10 @@ async function renameClass() {
           </span>
           <span class="meta-dot">·</span>
           <span>{{ students.length }} students</span>
-          <span class="meta-dot">·</span>
-          <span>Position {{ classData.current_seed }}</span>
+          <template v-if="classData.last_lego_id">
+            <span class="meta-dot">·</span>
+            <span>Position {{ classData.last_lego_id }}</span>
+          </template>
         </div>
       </div>
 
@@ -338,7 +360,7 @@ async function renameClass() {
               <tr>
                 <th>Student</th>
                 <th>Belt</th>
-                <th>Seeds</th>
+                <th>LEGOs</th>
                 <th>Practice</th>
                 <th>Last active</th>
                 <th></th>
@@ -364,7 +386,7 @@ async function renameClass() {
                     {{ s.belt }}
                   </span>
                 </td>
-                <td>{{ s.seeds_completed }}</td>
+                <td>{{ s.legos_mastered }}</td>
                 <td>{{ s.hours7d }}h</td>
                 <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
                 <td class="row-action">
@@ -394,8 +416,9 @@ async function renameClass() {
           <div class="schools-kicker rail-kicker">Course Journey</div>
           <JourneyBar :done="journeyDone" :total="journeyTotal" label="Course Journey" />
           <p class="rail-note">
-            {{ classAvgSeeds }} seeds avg across the class.<br />
-            Next milestone: seed {{ Math.min(journeyTotal, journeyDone + 10) }}.
+            {{ classAvgLegos }} LEGOs mastered avg across the class.<br />
+            <template v-if="nextBeltInfo">{{ nextBeltInfo.remaining }} more to {{ nextBeltInfo.name }} belt.</template>
+            <template v-else>Reached Black belt — top of the ladder.</template>
           </p>
         </div>
 

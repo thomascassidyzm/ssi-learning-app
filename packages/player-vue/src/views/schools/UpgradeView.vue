@@ -29,7 +29,7 @@
  *   2. Embedded in the containers' trial-expired wall — so a locked-out teacher
  *      can pay IN-APP instead of hitting a mailto dead-end.
  */
-import { ref, computed, inject, onMounted, type Ref } from 'vue'
+import { ref, computed, inject, watch, type Ref } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolCheckout } from '@/composables/useSchoolCheckout'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
@@ -352,17 +352,26 @@ async function subscribeTutor() {
   }
 }
 
-onMounted(() => {
+// Lane pick reads currentUser (school_id / educational_role), which resolves
+// asynchronously from useSchoolContext. onMounted fired before that resolved
+// would always see the tutor lane (currentUser still null) and never call
+// loadSubscription() for a school admin — CTA stuck on "Loading…" forever.
+// watch(..., {immediate:true}) re-fires once currentUser actually lands,
+// mirroring the retry pattern used elsewhere (DashboardView etc).
+watch(currentUser, (user) => {
+  if (!user) return
   if (isSchoolLane.value) {
-    loadSubscription()
+    if (!schoolSubLoaded.value) loadSubscription()
     void fetchTeachers()
   } else {
     // Tutor lane: resolve the teacher id up-front (so the button can unblock)
     // and read platform status (so we can route an active tutor to the portal).
-    void resolveTutorTeacherId()
-    void loadTutorSubscription()
+    if (!tutorSubLoaded.value) {
+      void resolveTutorTeacherId()
+      void loadTutorSubscription()
+    }
   }
-})
+}, { immediate: true })
 </script>
 
 <template>

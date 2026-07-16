@@ -12,13 +12,17 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 
+let adminResult: any = { error: 'Requires SSi admin access', status: 403 }
 vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => ({ valid: true, userId: 'caller-1' })),
+  verifyAdmin: vi.fn(async () => adminResult),
 }))
 
 let scope: any
+let subtreeSchoolIds: string[] = []
 vi.mock('../_utils/schoolScope', () => ({
   resolveVisibleScope: vi.fn(async () => scope),
+  schoolsForGroupSubtree: vi.fn(async () => subtreeSchoolIds),
   chunk: (arr: any[], size = 150) => {
     const out = []
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
@@ -46,8 +50,8 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
-function makeReq(): VercelRequest {
-  return { method: 'GET', query: {}, headers: { authorization: 'Bearer tok' } } as any
+function makeReq(query: Record<string, string> = {}): VercelRequest {
+  return { method: 'GET', query, headers: { authorization: 'Bearer tok' } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -75,6 +79,8 @@ beforeEach(async () => {
     ],
   }
   scope = { learnerId: 'l1', role: 'govt_admin', classIds: [], learnerIds: [], studentsByClass: {}, schoolIds: ['s1', 's2'], groupId: 'g1' }
+  subtreeSchoolIds = ['s1', 's2']
+  adminResult = { error: 'Requires SSi admin access', status: 403 }
 })
 
 describe('GET /api/school/group-summary', () => {
@@ -96,12 +102,46 @@ describe('GET /api/school/group-summary', () => {
     expect(res.body.schools.find((s: any) => s.school_id === 's2').active_days_last_7).toBe(0)
   })
 
-  it('403s a non-govt_admin caller', async () => {
+  it('403s a non-govt_admin caller with no groupId param', async () => {
     scope = { ...scope, role: 'teacher', groupId: null }
     const req = makeReq()
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)
+  })
+
+  // Admin passthrough: /admin/groups/:id was 403ing for ssi_admins —
+  // resolveVisibleScope resolves the ADMIN's own role (not govt_admin), and
+  // the endpoint had no branch for "not a group leader, but an SSi admin
+  // reading someone else's group".
+  it('an ssi_admin caller (verifyAdmin passes) with an explicit ?groupId= sees the group\'s full rollup', async () => {
+    scope = { ...scope, role: null, groupId: null } // the real admin's own learner row isn't a govt_admin
+    adminResult = { userId: 'caller-1' }
+    subtreeSchoolIds = ['s1', 's2']
+    const req = makeReq({ groupId: 'g1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.group.student_count).toBe(80)
+    expect(res.body.schools).toHaveLength(2)
+  })
+
+  it('403s a non-admin caller even with a ?groupId= param (verifyAdmin fails)', async () => {
+    scope = { ...scope, role: 'teacher', groupId: null }
+    adminResult = { error: 'Requires SSi admin access', status: 403 }
+    const req = makeReq({ groupId: 'g1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('a real govt_admin ignores a client-supplied groupId and always gets their OWN group', async () => {
+    scope = { ...scope, role: 'govt_admin', groupId: 'g1' } // caller's real own group
+    const req = makeReq({ groupId: 'someone-elses-group' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.group.group_id).toBe('g1')
   })
 
   it('401s an unauthenticated caller', async () => {

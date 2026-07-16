@@ -227,7 +227,7 @@ watch(selectedUser, (newUser) => {
             <th>Student</th>
             <th>Class</th>
             <th>Belt</th>
-            <th>Seeds</th>
+            <th>LEGOs</th>
             <th>Hours/wk</th>
             <th>Health</th>
             <th>Last active</th>
@@ -257,10 +257,10 @@ watch(selectedUser, (newUser) => {
                 <div class="seeds-bar">
                   <div
                     class="seeds-fill"
-                    :style="{ width: `${Math.min(100, (s.seeds_completed / s.legoTotal) * 100)}%` }"
+                    :style="{ width: `${Math.min(100, (s.legos_mastered / s.legoTotal) * 100)}%` }"
                   />
                 </div>
-                <span class="seeds-text">{{ s.seeds_completed }}/{{ s.legoTotal }}</span>
+                <span class="seeds-text">{{ s.legos_mastered }}/{{ s.legoTotal }}</span>
               </div>
             </td>
             <td>{{ s.hours7d }}h</td>

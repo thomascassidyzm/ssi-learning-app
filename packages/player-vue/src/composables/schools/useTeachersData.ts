@@ -43,7 +43,19 @@ export function useTeachersData() {
     viewingSchool.value?.id || selectedUser.value?.school_id
   )
 
-  // Fetch teachers for school
+  // Fetch teachers for school. A REAL school_admin/teacher viewing their OWN
+  // school goes via the server-mediated /api/school/roster, NOT a direct
+  // `user_tags`/`class_teachers`/`class_student_progress` read — those are
+  // RLS-guarded and a school_admin invite-born via the newer
+  // school_admin_join redemption path (schools.admin_user_id stays null
+  // there) only ever sees their OWN user_tags row under their own session —
+  // every other teacher silently vanished. See roster.ts's docstring.
+  //
+  // An ssi_admin's admin-view (loadFromSchoolId fakes
+  // educational_role='school_admin', scoped via _scopeSource='admin-view')
+  // already sees correct numbers via their own RLS ssi_admin branch, and
+  // roster.ts would 403 the real admin's non-staff learner row anyway — so
+  // it keeps the direct reads below.
   async function fetchTeachers(schoolId?: string): Promise<void> {
     if (isDemoMode.value) return
     const targetSchoolId = schoolId || activeSchoolId.value
@@ -53,6 +65,20 @@ export function useTeachersData() {
     error.value = null
 
     try {
+      if (selectedUser.value?._scopeSource === 'self') {
+        const { data: { session } } = await client.auth.getSession()
+        const token = session?.access_token
+        if (!token) { teachers.value = []; return }
+
+        const res = await fetch('/api/school/roster', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error(`roster ${res.status}`)
+        const { teachers: teacherRows } = (await res.json()) as { teachers: Teacher[] }
+        teachers.value = teacherRows
+        return
+      }
+
       // Get teacher user_ids from user_tags
       const { data: teacherTags, error: tagsError } = await client
         .from('user_tags')
