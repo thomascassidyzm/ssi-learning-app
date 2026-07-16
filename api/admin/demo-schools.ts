@@ -41,6 +41,7 @@ import { verifyAdmin } from '../_utils/auth'
 import { provisionDemoOrg, type OrgShape } from '../_utils/demoSchoolGen'
 import { purgeDemoOrg } from '../_utils/demoSchoolTeardown'
 import { refreshDemoOrgActivity } from '../_utils/demoSchoolRefresh'
+import { discoverDemoOrgGraph } from '../_utils/demoSchoolGraph'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -161,7 +162,7 @@ export default async function handler(
     try {
       const { data: org, error: fetchErr } = await supabase
         .from('demo_orgs')
-        .select('id, prospect_name, status, metadata')
+        .select('id, prospect_name, status, metadata, group_id, school_id')
         .eq('id', id)
         .maybeSingle()
       if (fetchErr) throw fetchErr
@@ -170,15 +171,25 @@ export default async function handler(
         return
       }
 
-      const staffLearnerIds: string[] = ((org.metadata as any)?.staff || []).map((s: any) => s.learnerId).filter(Boolean)
-      if (staffLearnerIds.length) {
-        const { data: learners } = await supabase.from('learners').select('user_id').in('id', staffLearnerIds)
-        for (const l of learners || []) {
-          try {
-            await supabase.auth.admin.updateUserById(l.user_id as string, { ban_duration: BAN_DURATION })
-          } catch (banErr) {
-            console.warn('[DemoSchools] ban failed for', l.user_id, banErr)
-          }
+      // Union the graph discovered NOW (covers schools/classes a real member
+      // created themselves after the org was seeded/adopted — containment,
+      // not just the originally-seeded rows) with the static metadata.staff
+      // snapshot (belt-and-braces for any staff the graph walk can't reach,
+      // e.g. a school whose group_id got cleared).
+      const graph = await discoverDemoOrgGraph(supabase, org)
+      const metadataStaffLearnerIds: string[] = ((org.metadata as any)?.staff || []).map((s: any) => s.learnerId).filter(Boolean)
+      const { data: metadataStaffLearners } = metadataStaffLearnerIds.length
+        ? await supabase.from('learners').select('user_id').in('id', metadataStaffLearnerIds)
+        : { data: [] as { user_id: string }[] }
+      const staffAuthUids = [...new Set([
+        ...graph.staffAuthUids,
+        ...((metadataStaffLearners || []).map((l) => l.user_id as string).filter(Boolean)),
+      ])]
+      for (const uid of staffAuthUids) {
+        try {
+          await supabase.auth.admin.updateUserById(uid, { ban_duration: BAN_DURATION })
+        } catch (banErr) {
+          console.warn('[DemoSchools] ban failed for', uid, banErr)
         }
       }
 
@@ -215,7 +226,7 @@ export default async function handler(
     try {
       const { data: org, error: fetchErr } = await supabase
         .from('demo_orgs')
-        .select('id, expires_at, status, metadata')
+        .select('id, expires_at, status, metadata, group_id, school_id')
         .eq('id', id)
         .maybeSingle()
       if (fetchErr) throw fetchErr
@@ -229,17 +240,23 @@ export default async function handler(
 
       // Reviving a previously-expired org: un-ban its staff accounts so the
       // showcase actually works again — extending the date alone would leave
-      // Nick with a live-looking org nobody can sign into.
+      // Nick with a live-looking org nobody can sign into. Same graph union
+      // as expire, so a member-created school's staff get un-banned too.
       if (org.status === 'expired') {
-        const staffLearnerIds: string[] = ((org.metadata as any)?.staff || []).map((s: any) => s.learnerId).filter(Boolean)
-        if (staffLearnerIds.length) {
-          const { data: learners } = await supabase.from('learners').select('user_id').in('id', staffLearnerIds)
-          for (const l of learners || []) {
-            try {
-              await supabase.auth.admin.updateUserById(l.user_id as string, { ban_duration: 'none' })
-            } catch (unbanErr) {
-              console.warn('[DemoSchools] unban failed for', l.user_id, unbanErr)
-            }
+        const graph = await discoverDemoOrgGraph(supabase, org)
+        const metadataStaffLearnerIds: string[] = ((org.metadata as any)?.staff || []).map((s: any) => s.learnerId).filter(Boolean)
+        const { data: metadataStaffLearners } = metadataStaffLearnerIds.length
+          ? await supabase.from('learners').select('user_id').in('id', metadataStaffLearnerIds)
+          : { data: [] as { user_id: string }[] }
+        const staffAuthUids = [...new Set([
+          ...graph.staffAuthUids,
+          ...((metadataStaffLearners || []).map((l) => l.user_id as string).filter(Boolean)),
+        ])]
+        for (const uid of staffAuthUids) {
+          try {
+            await supabase.auth.admin.updateUserById(uid, { ban_duration: 'none' })
+          } catch (unbanErr) {
+            console.warn('[DemoSchools] unban failed for', uid, unbanErr)
           }
         }
       }
