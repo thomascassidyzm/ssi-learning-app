@@ -27,7 +27,7 @@ interface AdminUser {
   created_at: string
   educational_role: string | null
   platform_role: string | null
-  needs_email_verification: boolean
+  needs_verification: boolean
   // Enriched server-side:
   tier: Tier
   last_active: string | null

@@ -36,7 +36,7 @@
  *     signal (only a definitive "no mail exchanger" blocks — DNS flakiness
  *     fails open). None of this proves mailbox RECEIPT (this path never
  *     emails anyone, by design) — that's tracked separately as
- *     learners.needs_email_verification, set true for every possession
+ *     learners.needs_verification, set true for every possession
  *     account and cleared only by a completed round-trip through
  *     api/email/verify.ts.
  */
@@ -218,7 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // app-level "unverified" tracking deliberately does NOT read
     // email_confirmed_at — it reads user_metadata.onboarded_via (set once
     // here, untouched by anything else) instead. See SettingsScreen.vue and
-    // learners.needs_email_verification (api/_utils/emailValidation.ts's
+    // learners.needs_verification (api/_utils/emailValidation.ts's
     // format/disposable/MX checks bound obvious junk at signup time; this
     // flag is the durable "never actually proved mailbox receipt" record).
     const { data: created, error: createError } = await supabase.auth.admin.createUser({

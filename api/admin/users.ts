@@ -44,7 +44,7 @@ interface LearnerRow {
   created_at: string
   educational_role: string | null
   platform_role: string | null
-  needs_email_verification: boolean
+  needs_verification: boolean
 }
 
 interface EnrichedLearner extends LearnerRow {
@@ -269,7 +269,7 @@ export default async function handler(
 
       const { data: learners, error: lErr } = await supabase
         .from('learners')
-        .select('id, user_id, display_name, created_at, educational_role, platform_role, needs_email_verification')
+        .select('id, user_id, display_name, created_at, educational_role, platform_role, needs_verification')
         .in('user_id', userIds)
 
       if (lErr) throw lErr
@@ -301,7 +301,7 @@ export default async function handler(
     // same way board metrics do via test_learner_ids().
     let query = supabase
       .from('learners')
-      .select('id, user_id, display_name, created_at, educational_role, platform_role, needs_email_verification', { count: 'exact' })
+      .select('id, user_id, display_name, created_at, educational_role, platform_role, needs_verification', { count: 'exact' })
       .eq('is_class_entity', false)
       .order('created_at', { ascending: false })
 

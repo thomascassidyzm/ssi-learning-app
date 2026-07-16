@@ -206,7 +206,7 @@ async function redeemInviteCode(
       || 'User'
     // Possession-onboarded accounts (api/auth/possession-redeem.ts) never
     // prove mailbox receipt — that endpoint mints a session without ever
-    // emailing anyone. needs_email_verification is the durable record of
+    // emailing anyone. needs_verification is the durable record of
     // that; cleared only by a completed round-trip through api/email/verify.ts.
     const needsEmailVerification = metadata?.onboarded_via === 'possession'
     const { error: insertError } = await supabase
@@ -214,7 +214,7 @@ async function redeemInviteCode(
       .insert({
         user_id: userId,
         display_name: displayName,
-        needs_email_verification: needsEmailVerification,
+        needs_verification: needsEmailVerification,
       })
     if (insertError) {
       console.error('[CodeRedeem] Failed to create learner:', insertError)

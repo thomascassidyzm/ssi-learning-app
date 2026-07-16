@@ -293,7 +293,7 @@ export function useAuth(): AuthState & AuthActions {
         // This insert races api/code/redeem.ts's own learner-creation insert
         // (both fire off the same SIGNED_IN event — see RedeemCode.vue's
         // handlePossessionSubmit race note). Whichever wins must still set
-        // needs_email_verification correctly, since the loser's insert is a
+        // needs_verification correctly, since the loser's insert is a
         // no-op against an existing row.
         const needsEmailVerification = supabaseUser.value.user_metadata?.onboarded_via === 'possession'
 
@@ -304,7 +304,7 @@ export function useAuth(): AuthState & AuthActions {
             display_name: displayName,
             preferences: defaultPreferences(),
             verified_emails: email ? [email] : [],
-            needs_email_verification: needsEmailVerification,
+            needs_verification: needsEmailVerification,
           })
           .select()
           .single()

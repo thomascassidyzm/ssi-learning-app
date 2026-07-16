@@ -598,7 +598,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     })
   })
 
-  it('teacher branch: a brand-new learner from possession-onboarding is created with needs_email_verification true', async () => {
+  it('teacher branch: a brand-new learner from possession-onboarding is created with needs_verification true', async () => {
     authUserOverride = { email: 'newteacher@school.example', user_metadata: { onboarded_via: 'possession', display_name: 'New Teacher' } }
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
@@ -635,10 +635,10 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(true)
     const insertWrite = writes.learners.find((w) => w.op === 'insert')
-    expect(insertWrite?.payload).toMatchObject({ needs_email_verification: true })
+    expect(insertWrite?.payload).toMatchObject({ needs_verification: true })
   })
 
-  it('teacher branch: a brand-new learner from OTP onboarding is created with needs_email_verification false', async () => {
+  it('teacher branch: a brand-new learner from OTP onboarding is created with needs_verification false', async () => {
     authUserOverride = { email: 'newteacher@school.example', user_metadata: {} }
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
@@ -675,7 +675,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(true)
     const insertWrite = writes.learners.find((w) => w.op === 'insert')
-    expect(insertWrite?.payload).toMatchObject({ needs_email_verification: false })
+    expect(insertWrite?.payload).toMatchObject({ needs_verification: false })
   })
 
   it('student branch: a failed course_enrollments write does not fail the redemption', async () => {

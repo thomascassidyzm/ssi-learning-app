@@ -4842,7 +4842,7 @@ CREATE TABLE public.learners (
     is_demo boolean DEFAULT false NOT NULL,
     is_internal boolean DEFAULT false NOT NULL,
     is_class_entity boolean DEFAULT false NOT NULL,
-    needs_email_verification boolean DEFAULT false NOT NULL,
+    needs_verification boolean DEFAULT false NOT NULL,
     CONSTRAINT learners_educational_role_check CHECK ((educational_role = ANY (ARRAY['student'::text, 'teacher'::text, 'school_admin'::text, 'govt_admin'::text]))),
     CONSTRAINT learners_platform_role_check CHECK (((platform_role IS NULL) OR (platform_role = ANY (ARRAY['ssi_admin'::text, 'popty_user'::text, 'tester'::text]))))
 );
@@ -4884,10 +4884,10 @@ COMMENT ON COLUMN public.learners.is_class_entity IS 'This learner row is a CLAS
 
 
 --
--- Name: COLUMN learners.needs_email_verification; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN learners.needs_verification; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.learners.needs_email_verification IS 'True for possession-onboarded accounts (api/auth/possession-redeem.ts) that have never completed an email-receipt round-trip (api/email/verify.ts). Do NOT derive this from auth.users.email_confirmed_at -- that column is set by the possession flow''s own magic-link mint and does not prove receipt.';
+COMMENT ON COLUMN public.learners.needs_verification IS 'True for possession-onboarded accounts (api/auth/possession-redeem.ts) that have never completed an email-receipt round-trip (api/email/verify.ts). Do NOT derive this from auth.users.email_confirmed_at -- that column is set by the possession flows own magic-link mint and does not prove receipt. Name matches docs/onboarding/onboarding-series-draft.md signal needs_verification.';
 
 
 --

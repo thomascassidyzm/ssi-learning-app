@@ -239,7 +239,7 @@ onMounted(async () => {
                     +{{ user.emails.length - 1 }}
                   </span>
                   <span
-                    v-if="user.needs_email_verification"
+                    v-if="user.needs_verification"
                     class="email-unverified-badge"
                     title="Onboarded without an email verification round-trip — mailbox receipt unconfirmed"
                   >unverified</span>

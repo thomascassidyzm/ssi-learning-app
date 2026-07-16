@@ -102,9 +102,9 @@ describe('POST /api/email/verify', () => {
       onboarded_via: 'possession',
       email_confirmed_manually: true,
     })
-    // Mirrors onto the queryable learners.needs_email_verification column
+    // Mirrors onto the queryable learners.needs_verification column
     // (admin Users page / onboarding-email team's signal).
-    expect(learnersUpdateCalls).toContainEqual({ needs_email_verification: false })
+    expect(learnersUpdateCalls).toContainEqual({ needs_verification: false })
   })
 
   it('does not touch user_metadata when verifying a different (secondary) email', async () => {
