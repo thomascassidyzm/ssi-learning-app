@@ -4,8 +4,17 @@
 // Playwright against a real deployed URL). Creates and then tears down one
 // real demo org each run.
 //
+// Fixtures are prefixed ZZQA- so any that escape teardown (a crashed run,
+// a killed process) are obvious in the admin list and easy to grep/filter —
+// see the 2026-07-16 cleanup that had to hand-identify 5 stragglers by name.
+//
 // Usage: BASE_URL=<url> SUPABASE_SERVICE_ROLE_KEY=... VITE_SUPABASE_ANON_KEY=... \
-//   node e2e/demo-schools/verify-demo-schools.mjs
+//   node e2e/demo-schools/verify-demo-schools.mjs [--purge]
+//
+// --purge: after the run, hard-delete the fixture org (schools, classes,
+// learners, staff accounts) instead of leaving it merely 'expired'. Always
+// used by the CI/manual verify path now — a verify run must clean up after
+// itself, not rely on a later human sweep.
 import { createClient } from '@supabase/supabase-js'
 import { chromium } from '@playwright/test'
 
@@ -15,6 +24,7 @@ const ANON = process.env.VITE_SUPABASE_ANON_KEY
 const BASE = process.env.BASE_URL || 'https://ssi-learning-app-git-dev-zenjin.vercel.app'
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'thomas.cassidy+ssi@gmail.com'
 const COURSE_CODE = process.env.COURSE_CODE || 'zho_for_eng'
+const SHOULD_PURGE = process.argv.includes('--purge')
 
 if (!SERVICE || !ANON) throw new Error('missing SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY in env')
 
@@ -56,12 +66,13 @@ try {
   const adminPage = await adminCtx.newPage()
   const adminConsoleErrors = []
   adminPage.on('pageerror', (e) => adminConsoleErrors.push(String(e)))
+  adminPage.on('dialog', (d) => d.accept()) // Purge's confirm() prompt
 
   await adminPage.goto(BASE + '/admin/demo-schools')
   await adminPage.waitForSelector('.admin-demo-schools', { timeout: 20000 })
   step('admin lands on /admin/demo-schools', true)
 
-  const prospectName = `Playwright QA Trust ${Date.now().toString(36)}`
+  const prospectName = `ZZQA-Playwright Trust ${Date.now().toString(36)}`
   await adminPage.fill('.create-form input.frost-input', prospectName)
   // Language pair select is the second frost-select (first is org shape)
   const selects = adminPage.locator('.create-form select.frost-select')
@@ -144,6 +155,21 @@ try {
     if (statusText === 'Expired') break
   }
   step('org shows Expired after teardown', statusText === 'Expired', statusText)
+
+  // ---- 4. Purge — a verify run must clean up after itself, not leave a
+  // fixture for a human to sweep later. Expired orgs are hidden by default
+  // now, so tick the toggle to find the row again. ----
+  if (SHOULD_PURGE) {
+    await adminPage.check('.show-expired-toggle input')
+    await row.waitFor({ timeout: 15000 })
+    await row.locator('button', { hasText: 'Purge' }).click()
+    await adminPage.waitForFunction(
+      (name) => !document.querySelector('.codes-table')?.textContent?.includes(name),
+      prospectName,
+      { timeout: 15000 },
+    )
+    step('org purged (row gone after hard delete)', true)
+  }
 
   await adminCtx.close()
   await leaderCtx.close()

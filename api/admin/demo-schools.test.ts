@@ -19,6 +19,16 @@ vi.mock('../_utils/demoSchoolGen', () => ({
   provisionDemoOrg: (...args: any[]) => provisionDemoOrgMock(...args),
 }))
 
+let purgeResult: any
+let purgeError: Error | null
+const purgeDemoOrgMock = vi.fn(async () => {
+  if (purgeError) throw purgeError
+  return purgeResult
+})
+vi.mock('../_utils/demoSchoolTeardown', () => ({
+  purgeDemoOrg: (...args: any[]) => purgeDemoOrgMock(...args),
+}))
+
 let rateCount: number
 let demoOrgRows: any[]
 let learnerRows: any[]
@@ -88,6 +98,11 @@ beforeEach(async () => {
   verifyAdminResult = { userId: 'admin-1' }
   rateCount = 0
   provisionError = null
+  purgeError = null
+  purgeResult = {
+    demoOrgId: 'org-1', prospectName: 'Riverside Trust',
+    schoolsDeleted: 1, classesDeleted: 3, learnersDeleted: 30, authAccountsDeleted: 3,
+  }
   provisionResult = {
     demoOrgId: 'org-1',
     orgName: 'Riverside Trust',
@@ -231,6 +246,31 @@ describe('POST /api/admin/demo-schools', () => {
       expect(res.statusCode).toBe(200)
       expect(banCalls).toEqual([{ uid: 'auth-uid-1', patch: { ban_duration: 'none' } }])
       expect(updatedDemoOrgs[0]).toMatchObject({ status: 'active' })
+    })
+  })
+
+  describe('purge', () => {
+    it('requires id', async () => {
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'purge' }), res)
+      expect(res.statusCode).toBe(400)
+    })
+
+    it('hard-deletes the org and writes an audit row', async () => {
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'purge', id: 'org-1' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(purgeDemoOrgMock).toHaveBeenCalledWith(expect.anything(), 'org-1')
+      expect(res.body).toMatchObject({ success: true, schoolsDeleted: 1, learnersDeleted: 30 })
+      expect(insertedEvents[0]).toMatchObject({ event_type: 'admin_demo_school_purged', payload: { actor_user_id: 'admin-1', demo_org_id: 'org-1' } })
+    })
+
+    it('500s when purge throws (e.g. org not yet expired)', async () => {
+      purgeError = new Error('Demo org must be expired before it can be purged — expire it first')
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'purge', id: 'org-1' }), res)
+      expect(res.statusCode).toBe(500)
+      expect(res.body.error).toMatch(/must be expired/)
     })
   })
 })
