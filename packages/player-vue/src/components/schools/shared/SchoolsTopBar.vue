@@ -7,7 +7,7 @@ type NavTab = { label: string; to: string; routeName?: string }
 
 const route = useRoute()
 const router = useRouter()
-const { currentUser, isGovtAdmin, isSchoolAdmin } = useSchoolContext()
+const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
 
 const auth = inject<any>('auth', null)
 
@@ -78,6 +78,11 @@ async function signOut() {
   } catch (err) {
     console.error('[SchoolsTopBar] sign-out failed', err)
   }
+  // auth.signOut() clears the role cache + entitlements but not this
+  // school-context singleton — without this, hasSchoolContext stays true on
+  // the stale ex-user's data, so SchoolsContainer's showLogin/showDashboard
+  // gates never agree on a state until a hard reload wipes it clean.
+  clearSchoolContext()
   router.push('/schools')
 }
 
