@@ -92,8 +92,19 @@ const selectedDemoClass = computed<TeacherClass>(
 const { classes: realClasses, fetchClasses } = useClassesData()
 const { currentUser, isGovtAdmin: isGovtAdminRole, isSchoolAdmin: isSchoolAdminRole } = useSchoolContext()
 const { schools: govtSchools, fetchSchools } = useSchoolData()
-if (!demoMode) fetchClasses()
-if (!demoMode && isGovtAdminRole.value) fetchSchools()
+// A one-shot `fetchClasses()` at setup time only works when currentUser is
+// ALREADY resolved (e.g. navigating here from Dashboard, which has already
+// waited for auth). On a direct load or reload, currentUser resolves async
+// and fetchClasses() no-ops on a null selectedUser (useClassesData.ts) with
+// no retry — this view was permanently dead outside SPA nav. Mirrors
+// DashboardView.vue's `watch(currentUser, ..., { immediate: true })`, which
+// both covers the already-resolved case (immediate) and retries when
+// currentUser resolves late (the watch firing again).
+watch(currentUser, (user) => {
+  if (demoMode || !user) return
+  fetchClasses()
+  if (isGovtAdminRole.value) fetchSchools()
+}, { immediate: true })
 
 interface RealClassOption { id: string; className: string; course: string; schoolId: string }
 const realClassOptions = computed<RealClassOption[]>(() =>

@@ -55,6 +55,18 @@ export interface SchoolUser {
 // Module-level shared state so every caller sees the same context.
 const currentUser = ref<SchoolUser | null>(null)
 
+// Dev-only e2e hook: lets a Playwright spec set a persona directly (same
+// mechanism the *.test.ts unit tests use — `ctx.currentUser.value = {...}`)
+// so layout-only specs (e.g. SchoolsTopBar mobile bounding-box checks) don't
+// need a real Supabase session just to get past the auth gate. Dead-code
+// eliminated from production builds (import.meta.env.DEV is statically
+// false there), so this never ships.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  ;(window as any).__setSchoolsE2EUser = (user: SchoolUser | null) => {
+    currentUser.value = user
+  }
+}
+
 const currentRole = computed((): EducationalRole | null =>
   currentUser.value?.educational_role ?? null,
 )

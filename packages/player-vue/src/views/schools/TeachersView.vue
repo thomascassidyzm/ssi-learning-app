@@ -3,15 +3,22 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
-import { getSchoolsClient } from '@/composables/schools/client'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
 type TeacherStatus = 'active' | 'invited'
 
 const isAdminView = inject<boolean>('isAdminView', false)
-const { currentUser: selectedUser } = useSchoolContext()
-const { teachers: teachersData, fetchTeachers } = useTeachersData()
+const { currentUser: selectedUser, isSchoolAdmin } = useSchoolContext()
+const { teachers: teachersData, fetchTeachers, removeTeacher } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
+
+// Staff-management controls (invite, bulk import, remove) are admin-only —
+// a plain teacher could see and use them even though the endpoints they hit
+// are admin-gated (finding, 2026-07-16 teacher-loop audit). Hidden, not
+// disabled, matching how isAdminView already hides them for ssi_admin's
+// read-only browse view.
+const canManageStaff = computed(() => isSchoolAdmin.value && !isAdminView)
+const removeError = ref('')
 
 const searchQuery = ref('')
 
@@ -90,16 +97,14 @@ function handleInvite() {
 
 async function handleRemoveTeacher(userId: string, name: string) {
   if (!confirm(`Remove ${name} from this school?`)) return
-  const supabase = getSchoolsClient()
-  const { error } = await supabase
-    .from('user_tags')
-    .update({ removed_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .eq('tag_type', 'school')
-    .eq('role_in_context', 'teacher')
-    .eq('tag_value', `SCHOOL:${currentSchool.value?.id}`)
-    .is('removed_at', null)
-  if (!error) fetchTeachers()
+  removeError.value = ''
+  const result = await removeTeacher(userId)
+  if (result.ok) {
+    fetchTeachers()
+  } else {
+    removeError.value = `Could not remove ${name}: ${result.error}`
+    console.error(`[TeachersView] remove-staff failed for ${name}:`, result.error)
+  }
 }
 
 function exportCsv() {
@@ -143,10 +148,10 @@ watch(selectedUser, (newUser) => {
         <button v-if="teachers.length > 0" type="button" class="btn-ghost" @click="exportCsv">
           Export CSV
         </button>
-        <button v-if="!isAdminView" type="button" class="btn-ghost" @click="handleBulkImport">
+        <button v-if="canManageStaff" type="button" class="btn-ghost" @click="handleBulkImport">
           Bulk import CSV
         </button>
-        <button v-if="!isAdminView" type="button" class="btn-play" @click="handleInvite">
+        <button v-if="canManageStaff" type="button" class="btn-play" @click="handleInvite">
           + Invite teacher
         </button>
       </div>
@@ -160,6 +165,11 @@ watch(selectedUser, (newUser) => {
     <Transition name="fade">
       <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
         Copy the teacher invite link below and share it however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
+      </div>
+    </Transition>
+    <Transition name="fade">
+      <div v-if="removeError" class="invite-hint remove-error schools-card schools-card-pad" role="alert">
+        {{ removeError }}
       </div>
     </Transition>
 
@@ -201,7 +211,7 @@ watch(selectedUser, (newUser) => {
             </td>
             <td class="cell-action">
               <button
-                v-if="!isAdminView"
+                v-if="canManageStaff"
                 type="button"
                 class="btn-ghost btn-small remove-btn"
                 @click="handleRemoveTeacher(t.user_id, t.name)"
@@ -240,7 +250,7 @@ watch(selectedUser, (newUser) => {
           Admins manage staff, classes and settings. Teachers see only their own classes. Switch role any time from a teacher's row.
         </p>
       </div>
-      <div class="schools-card schools-card-pad join-card">
+      <div v-if="canManageStaff" class="schools-card schools-card-pad join-card">
         <div class="schools-kicker join-kicker">Invite teachers</div>
         <p class="join-body">
           Share this link however you reach your staff — Teams, WhatsApp, in person. Clicking it signs them straight in.
@@ -316,6 +326,12 @@ watch(selectedUser, (newUser) => {
   border-color: #f0d97a;
   color: #5a3e10;
   font-size: 13px;
+}
+
+.remove-error {
+  background: #fdeceb;
+  border-color: var(--schools-red, #db1e17);
+  color: var(--schools-red-deep, #a3130d);
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.25s ease; }

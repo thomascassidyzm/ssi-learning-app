@@ -3,7 +3,7 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.1"
+  version: "1.0.2"
   date: "2026-07-16"
   author: "Tom Cassidy"
   status: "draft"
@@ -38,6 +38,33 @@ principle SoftConnections:
     student_to_class: "user_tags.tag_value = 'CLASS:{uuid}'"
     teacher_to_school: "user_tags.tag_value = 'SCHOOL:{uuid}'"
     removal: "Set removed_date, never hard delete"
+
+principle AdminOnlySchoolWrites:
+  statement: "A SCHOOL: tag alone never authorizes a write — the tag's role_in_context must be checked too"
+
+  why: |
+    Because teacher_to_school and admin_to_school use the SAME tag_value
+    shape (SCHOOL:{uuid}), a server endpoint that resolves "does this caller
+    belong to a school" by tag_value alone treats a teacher exactly like the
+    school's admin. api/school/update-profile.ts and update-seats.ts both had
+    this gap (2026-07-16 audit): a plain teacher could rename the school or
+    change paid seats. The fix in both, and the pattern for every future
+    admin-only school/{uuid} write, is to additionally require
+    role_in_context = 'admin' on that tag (or schools.admin_user_id ===
+    caller). A rejected attempt is audit-logged to player_events
+    (event_type: school_write_rejected), never just silently 403'd.
+
+  pattern:
+    resolve_admin_school: "schools.admin_user_id = caller OR (user_tags.tag_type='school' AND role_in_context='admin' AND user_id=caller)"
+    reject_non_admin: "403 + player_events audit row (school_write_rejected), distinct from the plain 404 'no school at all'"
+    applies_to: "api/school/update-profile.ts, api/school/update-seats.ts, api/school/remove-staff.ts"
+
+  ui_mirrors_server: |
+    A surface a plain teacher can't legally write to should be hidden or
+    read-only for them too, not just server-rejected on submit — SettingsView's
+    school-profile fields + Billing tab, and TeachersView's invite/remove
+    controls, are all gated on isSchoolAdmin (2026-07-16 fix). Matches the
+    existing isAdminView (ssi_admin read-only browse) hiding pattern.
 
 principle ClassPlayFirst:
   statement: "Primary school use is whole-class smartboard sessions"
@@ -594,6 +621,9 @@ interface TeacherDashboard:
       - "NO <transition> around the routed component — instant swap. Two real-browser bug classes came from animating it: out-in's afterLeave hang (blank page until hard reload) and the plain crossfade's double-DOM (incoming page stacked below the leaving one, then snapped up; white viewport when the leave hung at opacity 0). Guarded by SchoolsContainer.pageTransition.test.ts."
       - "Scroll container is .schools-container (overflow-y auto), NOT the window — the container resets scrollTop to 0 on route change (router scrollBehavior can't reach it), so every page renders in place, scrolled to top."
       - "SchoolsTopBar renders NO tabs until the school context resolves — never the teacher fallback set (a school_admin briefly saw the wrong tab set on cold boot)."
+      - "SchoolsTopBar mobile layout (320-430px, 2026-07-16 audit fix): hamburger, brand, Learn button, and user-menu trigger all carry flex:none plus explicit >=44px tap-target sizing so they can't be crushed below usable size or overlap — verified with real-browser bounding-box assertions (e2e/mobile-topbar/topbar-layout.spec.ts) across chromium/webkit/iphone/android."
+      - "Any per-class/per-school data view (DashboardView's class lists, TeacherInsightsView's analytics) must gate its empty state on the fetch's OWN loading flag, not just an empty array — otherwise a legitimately-loading '[]' renders the confident-wrong empty state (e.g. 'No classes yet') for the ~1-2s before real data lands (2026-07-16 fix)."
+      - "Any view that fetches on mount using currentUser (school context) must use `watch(currentUser, fn, {immediate:true})`, never a one-shot call — currentUser resolves asynchronously post-mount, so a bare call only works when navigating in from a page that already waited (SPA nav), and is permanently dead on a direct load/reload (TeacherInsightsView fix, 2026-07-16; DashboardView already had this right)."
 
 interface SchoolAdminDashboard:
   location: "apps/schools-dashboard"

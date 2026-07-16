@@ -2,13 +2,19 @@
 // ============================================================================
 // DiscoveryFeed.vue — the nightly Discovery deep-run, at the top of /admin/insights.
 //
-// The SSi Machine runs scripts/insight-discovery.cjs once a night, building an
-// aggregate digest from real telemetry (school-demo students excluded), asking
-// Claude to surface findings, and persisting the result to insight_discoveries.
+// The SSi Machine runs scripts/insight-discovery.cjs once a night via the
+// com.ssi.insight-discovery launchd agent (scripts/insight-discovery-cron.sh),
+// building an aggregate digest from real telemetry (school-demo students
+// excluded), asking Claude to surface findings, and persisting the result to
+// insight_discoveries.
 //
 // This component READS the latest row via the god-gated get_latest_insight_discovery
 // RPC and PRESENTS Claude's findings as tone-graded cards. It does NOT re-resolve
 // widget data or touch the analytics RPCs — it shows the finding TEXT only.
+//
+// A stale generated_at (2+ missed nightly runs) surfaces as a loud banner
+// above the cards, never just a quiet "days ago" buried in the sub-line — the
+// job silently died once (June→July 2026) with nothing anywhere to catch it.
 //
 // Frostwell Courtyard canon · no hardcoded hex (tones come from theme.ts /
 // the --tone-* surface tokens) · desktop-first.
@@ -73,6 +79,24 @@ const relativeTime = computed<string>(() => {
   return days === 1 ? 'yesterday' : `${days} days ago`
 })
 
+// The generation job is nightly — two missed nights (36h) means the cron is
+// dead, not just running a bit late. This must be obvious on sight, not
+// buried in the quiet sub-line, so a silent cron death is never invisible again.
+const STALE_THRESHOLD_MS = 36 * 60 * 60 * 1000
+const staleSinceMs = computed<number | null>(() => {
+  if (!row.value?.generated_at) return null
+  const then = new Date(row.value.generated_at).getTime()
+  return Number.isNaN(then) ? null : Date.now() - then
+})
+const isStale = computed<boolean>(() => (staleSinceMs.value ?? 0) > STALE_THRESHOLD_MS)
+const absoluteGeneratedAt = computed<string>(() => {
+  if (!row.value?.generated_at) return ''
+  const d = new Date(row.value.generated_at)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+})
+
 const headerLine = computed<string>(() => {
   const n = findings.value.length
   const noun = n === 1 ? 'finding' : 'findings'
@@ -125,6 +149,15 @@ onMounted(async () => {
 
 <template>
   <section class="discovery-feed" aria-label="Discovery feed">
+    <!-- stale generation banner — the nightly cron missed 2+ runs; make it impossible to miss -->
+    <div v-if="!isLoading && row && isStale" class="disc-stale-banner" role="alert">
+      <span class="disc-stale-badge">Generation stale</span>
+      <span class="disc-stale-text">
+        Last generated {{ absoluteGeneratedAt }} ({{ relativeTime }}) — expected nightly. Check the
+        <code>insight-discovery</code> cron.
+      </span>
+    </div>
+
     <!-- loading -->
     <div v-if="isLoading" class="disc-quiet">Loading the latest discovery run…</div>
 
@@ -177,6 +210,42 @@ onMounted(async () => {
 <style scoped>
 .discovery-feed {
   margin-bottom: 28px;
+}
+
+/* stale generation banner — loud, on purpose */
+.disc-stale-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  background: rgba(219, 30, 23, 0.06);
+  border: 1px solid var(--schools-red, #DB1E17);
+  border-radius: var(--schools-radius-lg, 12px);
+}
+.disc-stale-badge {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--schools-red, #DB1E17);
+  background: rgba(219, 30, 23, 0.12);
+  border-radius: 5px;
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+.disc-stale-text {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 12.5px;
+  color: var(--ink-primary, #2C2622);
+}
+.disc-stale-text code {
+  font-size: 11.5px;
+  background: rgba(44, 38, 34, 0.08);
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
 /* quiet states */

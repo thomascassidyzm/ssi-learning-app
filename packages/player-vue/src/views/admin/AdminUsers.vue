@@ -199,6 +199,7 @@ onMounted(async () => {
 
     <!-- List panel (canon §5.3 table-inside-panel) -->
     <div v-else-if="users.length > 0" class="schools-card list-panel">
+      <div class="table-scroll">
       <table class="users-table">
         <thead>
           <tr>
@@ -292,6 +293,7 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
+      </div>
 
       <!-- Pagination footer -->
       <div v-if="totalPages > 1" class="pagination">
@@ -519,6 +521,11 @@ onMounted(async () => {
 .list-panel {
   padding: 0;
   overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .users-table {
@@ -786,6 +793,25 @@ onMounted(async () => {
 
   .cell-email {
     max-width: 160px;
+  }
+
+  /* Remaining columns (Name/Email/Courses/Last active/Actions) still don't
+     all fit at 375-390px — force a min-width so they scroll horizontally
+     instead of squashing illegibly, and fade the trailing edge as a
+     scroll affordance (classic dual-background-attachment trick, no JS). */
+  .table-scroll {
+    background:
+      linear-gradient(to right, var(--schools-card, #fff) 30%, rgba(255, 255, 255, 0)) 0 0,
+      linear-gradient(to left, var(--schools-card, #fff) 30%, rgba(255, 255, 255, 0)) 100% 0,
+      linear-gradient(to right, rgba(44, 38, 34, 0.12), rgba(44, 38, 34, 0)) 0 0,
+      linear-gradient(to left, rgba(44, 38, 34, 0.12), rgba(44, 38, 34, 0)) 100% 0;
+    background-repeat: no-repeat;
+    background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+
+  .users-table {
+    min-width: 560px;
   }
 }
 </style>

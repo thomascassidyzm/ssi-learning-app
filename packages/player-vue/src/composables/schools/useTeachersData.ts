@@ -11,6 +11,14 @@ import { useSchoolData } from './useSchoolData'
 import { isDemoMode } from '../demo/demoMode'
 import { teachersByClassId } from './classTeacherScope'
 
+async function authHeaders(): Promise<Record<string, string>> {
+  const client = getSchoolsClient()
+  const { data: { session } } = await client.auth.getSession()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+  return headers
+}
+
 export interface Teacher {
   user_id: string
   learner_id: string
@@ -138,6 +146,27 @@ export function useTeachersData() {
     }
   }
 
+  // Remove a teacher from the school — server-mediated (api/school/remove-staff.ts).
+  // The old direct client `user_tags.update()` silently no-opped under
+  // own-row RLS when the caller wasn't the target (2026-07-16 teacher-loop
+  // audit): no error, no effect, but the UI reported success anyway. This
+  // surfaces the REAL result so a blocked removal never claims success.
+  async function removeTeacher(targetUserId: string): Promise<{ ok: boolean; error: string | null }> {
+    try {
+      const headers = await authHeaders()
+      const res = await fetch('/api/school/remove-staff', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ target_user_id: targetUserId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) return { ok: false, error: data?.error || `Request failed: ${res.status}` }
+      return { ok: true, error: null }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Failed to remove teacher' }
+    }
+  }
+
   return {
     // State
     teachers,
@@ -146,5 +175,6 @@ export function useTeachersData() {
 
     // Actions
     fetchTeachers,
+    removeTeacher,
   }
 }
