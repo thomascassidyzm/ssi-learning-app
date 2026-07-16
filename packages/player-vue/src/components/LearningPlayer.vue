@@ -1460,6 +1460,33 @@ function handleSubscribe() {
   startCheckout({ courseCode: courseCode.value || null })
 }
 
+// "Maybe later" / backdrop click / Escape all do the same thing: dismiss the
+// wall and rewind to the start of the free preview. One function so the three
+// entry points can't drift.
+function dismissPaywall() {
+  showPaywall.value = false
+  simplePlayer.jumpToRound(0)
+  simplePlayer.pause()
+}
+
+function onPaywallKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') dismissPaywall()
+}
+
+watch(showPaywall, (open) => {
+  if (typeof document === 'undefined') return
+  if (open) {
+    document.addEventListener('keydown', onPaywallKeydown)
+  } else {
+    document.removeEventListener('keydown', onPaywallKeydown)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof document === 'undefined') return
+  document.removeEventListener('keydown', onPaywallKeydown)
+})
+
 /**
  * Central access guard — the ONE place every jump / skip / resume site routes a
  * target seed through before moving the play cursor there. Returns true when the
@@ -12912,7 +12939,7 @@ defineExpose({
 
   <!-- Paywall Overlay -->
   <Transition name="fade">
-    <div v-if="showPaywall" class="paywall-overlay">
+    <div v-if="showPaywall" class="paywall-overlay" @click.self="dismissPaywall">
       <div class="paywall-card">
         <h2 class="paywall-title">You've reached the end of the free preview</h2>
         <p class="paywall-subtitle">Go Premium — £15/month. Cancel anytime.</p>
@@ -12928,7 +12955,7 @@ defineExpose({
             @click="handleSubscribe"
           >{{ isOpeningCheckout ? 'Opening checkout…' : 'Subscribe — £15/month' }}</button>
           <!-- Access codes are entered in Settings during normal play, not here. -->
-          <button class="paywall-btn paywall-btn-ghost" @click="showPaywall = false; simplePlayer.jumpToRound(0); simplePlayer.pause()">Maybe later</button>
+          <button class="paywall-btn paywall-btn-ghost" @click="dismissPaywall">Maybe later</button>
         </div>
       </div>
     </div>
@@ -13931,6 +13958,19 @@ defineExpose({
   position: fixed;
   inset: 0;
   overflow: hidden;
+  /* Without an explicit z-index here, this element's own stacking level is
+     'auto' among its siblings in PlayerContainer.vue — so a sibling like
+     PlayerRestingState.vue's `.resting-state` (z-index: 50) outranks this
+     ENTIRE subtree regardless of how high a z-index is set on something
+     nested inside it (e.g. .paywall-overlay's z-index: 3000 only orders it
+     against other stacking contexts *inside* .learning-player-root, never
+     against outside siblings). That silently let resting-state's pointer-
+     events:auto content paint over — and swallow every tap on — the paywall
+     card. Must stay above PlayerRestingState's 50; well below the nav/
+     course-selector/settings chrome (2000-3000) that intentionally floats
+     above the whole player.
+  */
+  z-index: 100;
 }
 
 /* Offline depth picker ("take it with you") */
