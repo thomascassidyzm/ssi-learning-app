@@ -2,6 +2,7 @@
 import { ref, inject, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
+import SchoolsErrorBoundary from '@/components/schools/shared/SchoolsErrorBoundary.vue'
 import UpgradeView from '@/views/schools/UpgradeView.vue'
 import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
@@ -491,11 +492,19 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
       </div>
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <SchoolsErrorBoundary>
+          <router-view v-slot="{ Component }">
+            <!-- No mode="out-in": it makes mounting the incoming page depend on
+                 a leave-completion callback (BaseTransition's internal
+                 afterLeave -> instance.update()). That callback reliably
+                 never fired leaving /schools/analytics, leaving the schools
+                 shell on a blank page until a hard reload (white-page-of-death,
+                 2026-07-16). A plain crossfade has no such dependency. -->
+            <transition name="fade">
+              <component :is="Component" />
+            </transition>
+          </router-view>
+        </SchoolsErrorBoundary>
       </main>
     </template>
 
