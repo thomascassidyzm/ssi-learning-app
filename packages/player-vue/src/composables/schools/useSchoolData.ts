@@ -123,47 +123,83 @@ export function useSchoolData() {
 
     try {
       const userGroupId = selectedUser.value.group_id
-      const userGroupPath = selectedUser.value.group_path
       const userRegionCode = selectedUser.value.region_code
 
-      if (isGovtAdmin.value && (userGroupId || userRegionCode)) {
-        // Govt admin: fetch all schools in group subtree
-        // Prefer group_id + path-based subtree query, fall back to region_code
-        let schoolData: any[] = []
+      if (isGovtAdmin.value && userGroupId) {
+        // Group leader: server-mediated (/api/school/group-summary), NOT a
+        // direct view read. group_summary/school_summary/class_activity_stats
+        // LATERAL-join user_tags to count teachers/students — user_tags' RLS
+        // grants a row's own user, an ssi_admin, a school's own admin, or a
+        // class's own teacher, with NO govt_admin branch (RLS answers "is
+        // this my row?" only; hierarchy authz is a server endpoint's job,
+        // never a "clever" policy). A direct client read as the group
+        // leader's own session therefore silently zeroed every teacher/
+        // student/practice-hour count while school_count/class_count (which
+        // never touch user_tags) stayed correct — exactly the reported bug.
+        const { data: { session } } = await client.auth.getSession()
+        const token = session?.access_token
+        if (!token) return
 
-        if (userGroupId && userGroupPath) {
-          // Get all group IDs in subtree via path prefix
-          const { data: subtreeGroups } = await client
-            .from('groups')
-            .select('id')
-            .like('path', userGroupPath + '%')
+        const res = await fetch('/api/school/group-summary', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error(`group-summary ${res.status}`)
+        const { group: groupData, schools: schoolData } = (await res.json()) as { group: any; schools: any[] }
 
-          const subtreeIds = (subtreeGroups || []).map(g => g.id)
-          if (subtreeIds.length > 0) {
-            const { data, error: fetchError } = await client
-              .from('school_summary')
-              .select('*')
-              .in('group_id', subtreeIds)
-              .order('school_name')
-            if (fetchError) throw fetchError
-            schoolData = data || []
+        // A newer fetchSchools() call has started since this one began —
+        // discard this result rather than overwrite fresher state.
+        if (myGeneration !== fetchGeneration) return
+
+        schools.value = (schoolData || []).map(s => {
+          const id = s.id || s.school_id
+          const activeDays = s.active_days_last_7 ?? 0
+          return {
+            id,
+            school_name: s.school_name,
+            region_code: s.region_code,
+            group_id: s.group_id,
+            admin_user_id: s.admin_user_id,
+            teacher_join_code: s.teacher_join_code || '',
+            admin_join_code: s.admin_join_code || '',
+            teacher_count: s.teacher_count,
+            class_count: s.class_count,
+            student_count: s.student_count,
+            total_practice_hours: s.total_practice_hours,
+            created_at: s.created_at,
+            active_days_last_7: activeDays,
+            health: bucketSchoolHealth(s.student_count || 0, activeDays),
+            has_admin: s.has_admin ?? !!s.admin_user_id,
           }
-        } else if (userRegionCode) {
-          // Legacy fallback: filter by region_code
-          const { data, error: fetchError } = await client
-            .from('school_summary')
-            .select('*')
-            .eq('region_code', userRegionCode)
-            .order('school_name')
-          if (fetchError) throw fetchError
-          schoolData = data || []
+        })
+
+        if (groupData) {
+          groupSummary.value = {
+            group_id: groupData.group_id,
+            group_name: groupData.group_name,
+            group_path: groupData.group_path,
+            name_confirmed: groupData.name_confirmed,
+            school_count: groupData.school_count,
+            teacher_count: groupData.teacher_count,
+            student_count: groupData.student_count,
+            total_practice_hours: groupData.total_practice_hours,
+          }
         }
+      } else if (isGovtAdmin.value && userRegionCode) {
+        // Legacy fallback: govt admins created before the group tree existed
+        // (region_code only, no group_id). No live govt_admin is on this
+        // path today — left as a direct read rather than extending the new
+        // endpoint for a path with zero current users.
+        const { data, error: fetchError } = await client
+          .from('school_summary')
+          .select('*')
+          .eq('region_code', userRegionCode)
+          .order('school_name')
+        if (fetchError) throw fetchError
+        const schoolData = data || []
 
         const ids = schoolData.map(s => s.id || s.school_id).filter(Boolean)
         const activeDaysMap = await fetchSchoolActiveDays(ids)
 
-        // A newer fetchSchools() call has started since this one began —
-        // discard this result rather than overwrite fresher state.
         if (myGeneration !== fetchGeneration) return
 
         schools.value = schoolData.map(s => {
@@ -188,35 +224,13 @@ export function useSchoolData() {
           }
         })
 
-        // Fetch group summary (prefer group_summary view, fall back to region_summary)
-        if (userGroupId) {
-          const { data: groupData, error: groupError } = await client
-            .from('group_summary')
-            .select('*')
-            .eq('group_id', userGroupId)
-            .single()
-
-          if (!groupError && groupData) {
-            groupSummary.value = {
-              group_id: groupData.group_id,
-              group_name: groupData.group_name,
-              group_path: groupData.group_path,
-              name_confirmed: groupData.name_confirmed,
-              school_count: groupData.school_count,
-              teacher_count: groupData.teacher_count,
-              student_count: groupData.student_count,
-              total_practice_hours: groupData.total_practice_hours,
-            }
-          }
-        } else if (userRegionCode) {
-          const { data: regionData, error: regionError } = await client
-            .from('region_summary')
-            .select('*')
-            .eq('region_code', userRegionCode)
-            .single()
-          if (!regionError && regionData) {
-            groupSummary.value = { ...regionData, group_name: regionData.region_name }
-          }
+        const { data: regionData, error: regionError } = await client
+          .from('region_summary')
+          .select('*')
+          .eq('region_code', userRegionCode)
+          .single()
+        if (!regionError && regionData) {
+          groupSummary.value = { ...regionData, group_name: regionData.region_name }
         }
       } else if ((isSchoolAdmin.value || isTeacher.value) && selectedUser.value.school_id) {
         // School admin or teacher: fetch their school
