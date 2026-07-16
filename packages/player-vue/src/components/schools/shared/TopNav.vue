@@ -280,14 +280,6 @@ const closeMobileMenu = () => {
       </router-link>
       <router-link
         v-if="!isDemoMode"
-        to="/demo"
-        class="mobile-menu-item"
-        @click="closeMobileMenu"
-      >
-        Demo
-      </router-link>
-      <router-link
-        v-if="!isDemoMode"
         to="/"
         class="mobile-menu-item mobile-menu-learn"
         @click="closeMobileMenu"

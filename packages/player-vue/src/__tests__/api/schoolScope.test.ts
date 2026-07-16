@@ -189,4 +189,42 @@ describe('resolveVisibleScope', () => {
     expect(scope.classIds).toEqual([])
     expect(scope.learnerIds).toEqual([])
   })
+
+  it('caches the resolved scope per authUid — a second call within the TTL does not re-query', async () => {
+    let calls = 0
+    const client = makeClient((table, f) => {
+      calls++
+      if (table === 'learners' && f.eqs.user_id === 'cache-uid')
+        return { data: { id: 'L-cache', educational_role: 'teacher' } }
+      if (table === 'class_teachers') return { data: [{ class_id: 'C1' }] }
+      if (table === 'classes') return { data: [] }
+      if (table === 'user_tags') return { data: [{ tag_value: 'CLASS:C1', user_id: 's1-uid' }] }
+      if (table === 'learners' && Array.isArray(f.ins.user_id)) return { data: [{ id: 'L-s1', user_id: 's1-uid' }] }
+      return { data: null }
+    })
+
+    const first = await resolveVisibleScope(client, 'cache-uid')
+    const callsAfterFirst = calls
+    const second = await resolveVisibleScope(client, 'cache-uid')
+
+    expect(second).toEqual(first)
+    // The second call is served from cache — no additional queries fired.
+    expect(calls).toBe(callsAfterFirst)
+  })
+
+  it('does not share the cached scope across different callers', async () => {
+    const client = makeClient((table, f) => {
+      if (table === 'learners' && f.eqs.user_id === 'cache-a')
+        return { data: { id: 'L-a', educational_role: 'teacher' } }
+      if (table === 'learners' && f.eqs.user_id === 'cache-b')
+        return { data: { id: 'L-b', educational_role: 'teacher' } }
+      if (table === 'class_teachers' || table === 'classes') return { data: [] }
+      return { data: null }
+    })
+
+    const a = await resolveVisibleScope(client, 'cache-a')
+    const b = await resolveVisibleScope(client, 'cache-b')
+    expect(a.learnerId).toBe('L-a')
+    expect(b.learnerId).toBe('L-b')
+  })
 })

@@ -309,7 +309,17 @@ export default async function handler(
 
     query = query.range(offset, offset + limit - 1)
 
-    const { data: learners, count, error: lErr } = await query
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+
+    // The two hero-stat counts don't depend on learnerIds, so kick them off
+    // alongside the page query itself rather than after it — one network
+    // round-trip wave instead of two.
+    const [{ data: learners, count, error: lErr }, { count: totalUsers }, { count: newThisWeek }] = await Promise.all([
+      query,
+      supabase.from('learners').select('id', { count: 'exact', head: true }),
+      supabase.from('learners').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+    ])
     if (lErr) throw lErr
 
     const learnerIds = (learners || []).map(l => l.id)
@@ -342,17 +352,6 @@ export default async function handler(
         course_ids: agg?.course_ids ?? [],
       }
     })
-
-    const { count: totalUsers } = await supabase
-      .from('learners')
-      .select('id', { count: 'exact', head: true })
-
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    const { count: newThisWeek } = await supabase
-      .from('learners')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', weekAgo.toISOString())
 
     res.status(200).json({
       users,

@@ -5,9 +5,8 @@
  * back to the admin's own view. Rendered globally from App.vue.
  */
 import { computed } from 'vue'
-import { useUserRole } from '@/composables/useUserRole'
+import { useUserRole, roleLabel } from '@/composables/useUserRole'
 import { useActAs } from '@/composables/useActAs'
-import { roleLabel } from '@/composables/schools/actAsPersonas'
 
 const { actingAs, isActingAs } = useUserRole()
 const { exitActAs } = useActAs()

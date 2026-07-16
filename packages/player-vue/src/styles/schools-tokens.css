@@ -26,7 +26,14 @@
   --tone-red: 217, 69, 69;
   --tone-accent: 194, 58, 58;  /* SSi brand red #c23a3a — entity/identity accent */
   --tone-green: 74, 222, 128;
-  --tone-green-ink: 21, 128, 61; /* #15803D — deep legible green for green text/lines on light bg */
+
+  /* "-ink" variants: the pale/saturated -50-level tone above is for FILLS
+     (pill backgrounds, dots, chart bars) — never for TEXT on a light card,
+     where it reads as barely-legible pastel. Use these deeper values for
+     any text/label/icon that needs to actually be read. */
+  --tone-green-ink: 21, 128, 61;  /* #15803D */
+  --tone-blue-ink:  29, 78, 216;  /* #1D4ED8 */
+  --tone-gold-ink:  161, 98, 7;   /* #A16207 */
 
   --ink-primary: #2C2622;
   --ink-secondary: #4A4440;
