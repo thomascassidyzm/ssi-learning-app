@@ -86,7 +86,16 @@ let renewTimer: ReturnType<typeof setInterval> | null = null
 let bootTimer: ReturnType<typeof setTimeout> | null = null
 let onlineHandler: (() => void) | null = null
 let supabaseRef: { value: any } | null = null
+// Auth user id, injected from useAuth (App.vue) — read at call-time (not
+// snapshotted) so a sign-out/sign-in flip is picked up without re-init. The
+// lease is per-learner-on-this-device, not per-device (shared-iPad fix).
+let userIdRef: { value: string | null } | null = null
 let initialized = false
+
+/** 'anon' for signed-out — never let a lease silently write to no bucket. */
+function currentUserId(): string {
+  return userIdRef?.value || 'anon'
+}
 
 // ── Dev / demo / try-link bypass ────────────────────────────────────────────
 // PROD honours only a server-minted try-link token; DEV keeps the raw flags.
@@ -139,7 +148,7 @@ async function fetchValidation(courses: string[]): Promise<LeaseValidationResult
 
 /** Recompute the cached status map for every leased course. */
 async function refreshAllStatuses(): Promise<void> {
-  const leases = await getAllOfflineLeases()
+  const leases = await getAllOfflineLeases(currentUserId())
   const next: Record<string, LeaseStatus> = {}
   for (const { courseCode, lease } of leases) {
     next[courseCode] = leaseStatus(lease)
@@ -155,11 +164,13 @@ async function doRenew(): Promise<void> {
   if (isRenewing.value) return
   isRenewing.value = true
   try {
+    const userId = currentUserId()
+
     // Dev/demo: blanket-renew everything downloaded to an infinite lease.
     if (isDevOrDemoBypass()) {
-      const leases = await getAllOfflineLeases()
+      const leases = await getAllOfflineLeases(userId)
       for (const { courseCode, lease } of leases) {
-        await setOfflineLease(courseCode, {
+        await setOfflineLease(courseCode, userId, {
           ...lease,
           expiresAt: INFINITE_EXPIRY_MS,
           lastValidatedAt: Date.now(),
@@ -170,7 +181,7 @@ async function doRenew(): Promise<void> {
       return
     }
 
-    const leases = await getAllOfflineLeases()
+    const leases = await getAllOfflineLeases(userId)
     if (!leases.length) {
       await refreshAllStatuses()
       return
@@ -190,7 +201,7 @@ async function doRenew(): Promise<void> {
       const a = authority.get(courseCode)
       if (a && a.leaseExpiresAt != null) {
         // Stateful authority — the server's word is final.
-        await setOfflineLease(courseCode, {
+        await setOfflineLease(courseCode, userId, {
           ...lease,
           expiresAt: a.leaseExpiresAt,
           lastValidatedAt: serverNow,
@@ -200,7 +211,7 @@ async function doRenew(): Promise<void> {
         })
       } else if (result.blanket || a) {
         // Stateless fallback (table absent) and entitled → renew locally (v1 path).
-        await setOfflineLease(courseCode, {
+        await setOfflineLease(courseCode, userId, {
           ...lease,
           expiresAt: computeExpiry(serverNow, a?.entitlementExpiresAt ?? null),
           lastValidatedAt: serverNow,
@@ -230,7 +241,7 @@ async function maybeRenew(force = false): Promise<void> {
     if (isDevOrDemoBypass()) {
       // dev leases are already infinite; nothing to revalidate.
     } else {
-      const leases = await getAllOfflineLeases()
+      const leases = await getAllOfflineLeases(currentUserId())
       if (!leases.some(({ lease }) => leaseShouldRevalidate(lease))) return // plenty of runway
     }
   }
@@ -257,7 +268,7 @@ async function grantLease(
     subscriptionId: null,
     revoked: false,
   }
-  const ok = await setOfflineLease(courseCode, lease)
+  const ok = await setOfflineLease(courseCode, currentUserId(), lease)
   if (ok) {
     leaseStatuses.value = { ...leaseStatuses.value, [courseCode]: leaseStatus(lease) }
   }
@@ -272,7 +283,7 @@ async function grantLease(
  */
 async function isCourseLeaseValid(courseCode: string): Promise<boolean> {
   if (isDevOrDemoBypass()) return true
-  const lease = await getOfflineLease(courseCode)
+  const lease = await getOfflineLease(courseCode, currentUserId())
   const ok = isLeaseValid(lease)
   leaseStatuses.value = { ...leaseStatuses.value, [courseCode]: leaseStatus(lease) }
   return ok
@@ -283,20 +294,28 @@ function statusFor(courseCode: string): LeaseStatus {
 }
 
 async function expiryLabelFor(courseCode: string): Promise<string | null> {
-  return leaseExpiryLabel(await getOfflineLease(courseCode))
+  return leaseExpiryLabel(await getOfflineLease(courseCode, currentUserId()))
 }
 
 async function daysRemainingFor(courseCode: string): Promise<number> {
-  return leaseDaysRemaining(await getOfflineLease(courseCode))
+  return leaseDaysRemaining(await getOfflineLease(courseCode, currentUserId()))
 }
 
 /**
  * Wire reconnect + timer + a deferred boot tick. Call ONCE from App.vue after
  * useSubscription.initialize. Idempotent. Note: NO eager network call here — the
  * boot tick is deferred and gated, so first load stays quiet.
+ *
+ * `injectedUserId` is useAuth's `userId` computed ref — read at call-time on
+ * every lease op (never snapshotted), so a sign-out/sign-in flip on a shared
+ * device is picked up without re-initializing.
  */
-function initialize(injectedSupabase?: { value: any } | null): void {
+function initialize(
+  injectedSupabase?: { value: any } | null,
+  injectedUserId?: { value: string | null } | null,
+): void {
   supabaseRef = injectedSupabase ?? supabaseRef
+  userIdRef = injectedUserId ?? userIdRef
   if (initialized) return
   initialized = true
 
@@ -328,6 +347,7 @@ function teardown(): void {
   onlineHandler = null
   renewTimer = null
   bootTimer = null
+  userIdRef = null
   initialized = false
 }
 
