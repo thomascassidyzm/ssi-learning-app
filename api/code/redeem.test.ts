@@ -50,6 +50,8 @@ function makeChainable(table: string) {
   return builder
 }
 
+let authUserOverride: { email?: string; user_metadata?: Record<string, unknown> } = { email: 'leader@example.com' }
+
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
@@ -59,7 +61,7 @@ vi.mock('@supabase/supabase-js', () => ({
     },
     auth: {
       admin: {
-        getUserById: () => Promise.resolve({ data: { user: { email: 'leader@example.com' } } }),
+        getUserById: () => Promise.resolve({ data: { user: authUserOverride } }),
       },
     },
   }),
@@ -83,6 +85,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     vi.resetModules()
     writes = {}
     responders = {}
+    authUserOverride = { email: 'leader@example.com' }
     handler = (await import('./redeem')).default
   })
 
@@ -593,6 +596,86 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
       learner_id: 'learner-student-1',
       course_id: 'cym_for_eng',
     })
+  })
+
+  it('teacher branch: a brand-new learner from possession-onboarding is created with needs_email_verification true', async () => {
+    authUserOverride = { email: 'newteacher@school.example', user_metadata: { onboarded_via: 'possession', display_name: 'New Teacher' } }
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-1',
+            code: 'TEACH-1',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-1',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: null, error: null } // no existing learner — triggers the insert path
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    const insertWrite = writes.learners.find((w) => w.op === 'insert')
+    expect(insertWrite?.payload).toMatchObject({ needs_email_verification: true })
+  })
+
+  it('teacher branch: a brand-new learner from OTP onboarding is created with needs_email_verification false', async () => {
+    authUserOverride = { email: 'newteacher@school.example', user_metadata: {} }
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-2',
+            code: 'TEACH-2',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-1',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: null, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-2', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    const insertWrite = writes.learners.find((w) => w.op === 'insert')
+    expect(insertWrite?.payload).toMatchObject({ needs_email_verification: false })
   })
 
   it('student branch: a failed course_enrollments write does not fail the redemption', async () => {

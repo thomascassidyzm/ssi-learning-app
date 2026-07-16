@@ -13,6 +13,27 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-key'
 process.env.VITE_SUPABASE_ANON_KEY = 'anon-key'
 process.env.SUPABASE_ANON_KEY = 'anon-key'
 
+// Tests use fake domains (school.example etc.) that have no real MX record —
+// mock DNS so the (real, network-hitting) MX soft-check doesn't block them.
+// Defaults to "has MX" (the common case); individual tests override to
+// exercise the no-MX-record rejection path.
+let mxResolution: 'has-mx' | 'no-mx' | 'timeout' = 'has-mx'
+vi.mock('dns', () => ({
+  promises: {
+    resolveMx: vi.fn(async () => {
+      if (mxResolution === 'no-mx') {
+        const err: any = new Error('queryMx ENOTFOUND')
+        err.code = 'ENOTFOUND'
+        throw err
+      }
+      if (mxResolution === 'timeout') {
+        throw new Error('timeout')
+      }
+      return [{ exchange: 'mx.example.com', priority: 10 }]
+    }),
+  },
+}))
+
 let inviteRow: any
 let rateCounts: { ip: number; code: number }
 let attempts: any[]
@@ -105,6 +126,7 @@ describe('POST /api/auth/possession-redeem', () => {
 
   beforeEach(async () => {
     vi.resetModules()
+    mxResolution = 'has-mx'
     attempts = []
     deleteUserCalls = []
     rateCounts = { ip: 0, code: 0 }
@@ -219,5 +241,28 @@ describe('POST /api/auth/possession-redeem', () => {
     expect(res._status).toBe(500)
     expect(deleteUserCalls).toEqual(['auth-user-1'])
     expect(attempts.some((a) => a.outcome === 'mint_failed')).toBe(true)
+  })
+
+  it('rejects a disposable-domain email', async () => {
+    const res = makeRes()
+    await handler(makeReq({ code: 'TEACH-1', email: 'a@mailinator.com' }), res)
+    expect(res._status).toBe(400)
+    expect(res._json.success).toBe(false)
+  })
+
+  it('rejects an email domain with no MX record', async () => {
+    mxResolution = 'no-mx'
+    const res = makeRes()
+    await handler(makeReq({ code: 'TEACH-1', email: 'a@school.example' }), res)
+    expect(res._status).toBe(400)
+    expect(attempts.some((a) => a.outcome === 'no_mx_domain')).toBe(true)
+  })
+
+  it('fails open (still mints) when the MX lookup is inconclusive', async () => {
+    mxResolution = 'timeout'
+    const res = makeRes()
+    await handler(makeReq({ code: 'TEACH-1', email: 'a@school.example' }), res)
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
   })
 })

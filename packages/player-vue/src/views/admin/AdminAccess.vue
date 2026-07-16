@@ -2,8 +2,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
+import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
-type Mode = 'invite' | 'direct'
+type Mode = 'invite' | 'direct' | 'grant'
 
 interface Group {
   id: string
@@ -120,6 +121,124 @@ function toggleCourse(code: string) {
 
 function courseLabel(c: CourseOption): string {
   return c.display_name || `${c.target_lang} for ${c.known_lang}`
+}
+
+// ─── Form: grant-mode (one person, one magic link) ────────────────────────
+// Same underlying entitlement_codes mechanism as "Direct access" — the
+// difference is this mints for ONE named person (max_uses locked to 1,
+// email/name/note captured in metadata) and hands back a ready-to-copy
+// /redeem/:code link immediately, instead of a generic reusable code the
+// admin has to fish out of the table below.
+const grantEmail = ref('')
+const grantName = ref('')
+const grantNote = ref('')
+const grantAccessType = ref<'full' | 'courses'>('full')
+const grantDurationType = ref<'lifetime' | 'time_limited'>('lifetime')
+const grantDurationDays = ref<number | ''>('')
+const grantSelectedCourses = ref<Set<string>>(new Set())
+const grantCourseSearch = ref('')
+const grantCoursePickerOpen = ref(false)
+const grantMintedLink = ref<{ code: string; email: string } | null>(null)
+
+const grantFilteredCourses = computed(() => {
+  const q = grantCourseSearch.value.toLowerCase().trim()
+  if (!q) return allCourses.value
+  return allCourses.value.filter(c =>
+    c.course_code.toLowerCase().includes(q) ||
+    (c.display_name || '').toLowerCase().includes(q) ||
+    c.known_lang.toLowerCase().includes(q) ||
+    c.target_lang.toLowerCase().includes(q)
+  )
+})
+
+function toggleGrantCourse(code: string) {
+  const s = new Set(grantSelectedCourses.value)
+  if (s.has(code)) s.delete(code)
+  else s.add(code)
+  grantSelectedCourses.value = s
+}
+
+const isGrantEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(grantEmail.value.trim()))
+
+function grantLinkUrl(code: string): string {
+  return `${window.location.origin}/redeem/${code}`
+}
+
+async function createGrantCode(): Promise<void> {
+  if (!isGrantEmailValid.value) {
+    error.value = 'Enter a valid email address'
+    return
+  }
+  if (grantAccessType.value === 'courses' && grantSelectedCourses.value.size === 0) {
+    error.value = 'Select at least one course'
+    return
+  }
+  if (grantDurationType.value === 'time_limited' && (!grantDurationDays.value || Number(grantDurationDays.value) < 1)) {
+    error.value = 'Duration days must be at least 1'
+    return
+  }
+
+  isCreating.value = true
+  error.value = null
+  successMessage.value = null
+  grantMintedLink.value = null
+
+  try {
+    const token = await getAuthToken()
+    if (!token) {
+      error.value = 'Not authenticated'
+      return
+    }
+
+    const email = grantEmail.value.trim().toLowerCase()
+    const name = grantName.value.trim()
+    const note = grantNote.value.trim()
+
+    const body: Record<string, unknown> = {
+      access_type: grantAccessType.value,
+      duration_type: grantDurationType.value,
+      label: `Complimentary access — ${name || email}`,
+      max_uses: 1,
+      metadata: {
+        granted_to_email: email,
+        ...(name ? { name } : {}),
+        ...(note ? { note } : {}),
+      },
+    }
+    if (grantAccessType.value === 'courses') body.granted_courses = [...grantSelectedCourses.value]
+    if (grantDurationType.value === 'time_limited') body.duration_days = Number(grantDurationDays.value)
+
+    const response = await fetch('/api/entitlement/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    })
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.error || `Request failed: ${response.status}`)
+    }
+
+    const result = await response.json()
+    grantMintedLink.value = { code: result.code, email }
+
+    grantEmail.value = ''
+    grantName.value = ''
+    grantNote.value = ''
+    grantSelectedCourses.value = new Set()
+    grantCourseSearch.value = ''
+    grantCoursePickerOpen.value = false
+    grantDurationDays.value = ''
+    grantAccessType.value = 'full'
+    grantDurationType.value = 'lifetime'
+
+    await fetchAll()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to grant access'
+    console.error('[AdminAccess] grant create error:', err)
+  } finally {
+    isCreating.value = false
+  }
 }
 
 // ─── Allowlist (grant by email) ──────────────────────────────────────────────
@@ -299,6 +418,7 @@ async function fetchAll(): Promise<void> {
 // ─── Create ────────────────────────────────────────────────────────────────
 async function createCode(): Promise<void> {
   if (mode.value === 'invite') return createInviteCode()
+  if (mode.value === 'grant') return createGrantCode()
   return createDirectCode()
 }
 
@@ -615,6 +735,17 @@ onMounted(() => {
           >
             Direct access
           </button>
+          <button
+            v-if="isSsiAdmin"
+            type="button"
+            role="tab"
+            class="mode-btn"
+            :class="{ 'is-active': mode === 'grant' }"
+            :aria-selected="mode === 'grant'"
+            @click="mode = 'grant'; grantMintedLink = null"
+          >
+            Grant free access
+          </button>
         </div>
       </div>
 
@@ -646,6 +777,129 @@ onMounted(() => {
               type="text"
               class="frost-input"
               placeholder="e.g. Welsh Government"
+            />
+          </div>
+        </template>
+
+        <!-- ───── GRANT MODE (one person, one magic link) ───── -->
+        <template v-else-if="mode === 'grant'">
+          <div class="field field-wide">
+            <label class="schools-kicker">Email <span class="required">*</span></label>
+            <input
+              v-model="grantEmail"
+              type="email"
+              class="frost-input"
+              placeholder="learner@example.com"
+            />
+          </div>
+
+          <div class="field">
+            <label class="schools-kicker">Name <span class="optional">(optional)</span></label>
+            <input
+              v-model="grantName"
+              type="text"
+              class="frost-input"
+              placeholder="e.g. Jane Doe"
+            />
+          </div>
+
+          <div class="field">
+            <label class="schools-kicker">Note <span class="optional">(optional)</span></label>
+            <input
+              v-model="grantNote"
+              type="text"
+              class="frost-input"
+              placeholder="e.g. press pass, competition winner…"
+            />
+          </div>
+
+          <div class="field">
+            <label class="schools-kicker">Access</label>
+            <select v-model="grantAccessType" class="frost-select">
+              <option value="full">Full access (all courses)</option>
+              <option value="courses">Specific courses</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="schools-kicker">Duration</label>
+            <select v-model="grantDurationType" class="frost-select">
+              <option value="lifetime">Lifetime</option>
+              <option value="time_limited">Time-limited</option>
+            </select>
+          </div>
+
+          <div v-if="grantDurationType === 'time_limited'" class="field">
+            <label class="schools-kicker">Duration (days)</label>
+            <input
+              v-model="grantDurationDays"
+              type="number" min="1"
+              class="frost-input"
+              placeholder="30"
+            />
+          </div>
+
+          <div v-if="grantAccessType === 'courses'" class="field field-wide">
+            <label class="schools-kicker">Courses</label>
+            <div class="course-picker">
+              <div v-if="grantSelectedCourses.size > 0" class="selected-tags">
+                <span
+                  v-for="code in grantSelectedCourses"
+                  :key="code"
+                  class="course-tag"
+                  @click="toggleGrantCourse(code)"
+                >
+                  {{ code }}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </span>
+              </div>
+              <input
+                v-model="grantCourseSearch"
+                type="text"
+                class="frost-input"
+                placeholder="Search courses…"
+                @focus="grantCoursePickerOpen = true"
+              />
+              <div v-if="grantCoursePickerOpen" class="course-dropdown">
+                <div class="course-dropdown-list">
+                  <div
+                    v-for="c in grantFilteredCourses"
+                    :key="c.course_code"
+                    class="course-option"
+                    :class="{ 'is-selected': grantSelectedCourses.has(c.course_code) }"
+                    @click="toggleGrantCourse(c.course_code)"
+                  >
+                    <div class="course-option-check">
+                      <svg v-if="grantSelectedCourses.has(c.course_code)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </div>
+                    <div class="course-option-info">
+                      <span class="course-option-name">{{ courseLabel(c) }}</span>
+                      <span class="course-option-code">{{ c.course_code }}</span>
+                    </div>
+                  </div>
+                  <div v-if="grantFilteredCourses.length === 0" class="course-option-empty">
+                    No courses match "{{ grantCourseSearch }}"
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="picker-done-btn"
+                  @click="grantCoursePickerOpen = false; grantCourseSearch = ''"
+                >Done</button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="grantMintedLink" class="field field-wide">
+            <InviteLinkField
+              :url="grantLinkUrl(grantMintedLink.code)"
+              :label="`Magic link for ${grantMintedLink.email}`"
+              copy-label="Copy magic link"
             />
           </div>
         </template>
@@ -745,34 +999,36 @@ onMounted(() => {
           </div>
         </template>
 
-        <!-- ───── SHARED FIELDS ───── -->
-        <div class="field">
-          <label class="schools-kicker">Expires <span class="optional">(optional)</span></label>
-          <input v-model="formExpiresAt" type="date" class="frost-input" />
-        </div>
+        <!-- ───── SHARED FIELDS ───── (grant mode locks these: single-use, no code expiry) -->
+        <template v-if="mode !== 'grant'">
+          <div class="field">
+            <label class="schools-kicker">Expires <span class="optional">(optional)</span></label>
+            <input v-model="formExpiresAt" type="date" class="frost-input" />
+          </div>
 
-        <div class="field">
-          <label class="schools-kicker">Max uses <span class="optional">(blank = unlimited)</span></label>
-          <input
-            v-model="formMaxUses"
-            type="number" min="1"
-            class="frost-input"
-            placeholder="Unlimited"
-          />
-        </div>
+          <div class="field">
+            <label class="schools-kicker">Max uses <span class="optional">(blank = unlimited)</span></label>
+            <input
+              v-model="formMaxUses"
+              type="number" min="1"
+              class="frost-input"
+              placeholder="Unlimited"
+            />
+          </div>
+        </template>
 
         <div class="field-actions">
           <button
             type="submit"
             class="btn-primary"
-            :disabled="isCreating || (mode === 'invite' ? !inviteOrgName.trim() : !directLabel.trim())"
+            :disabled="isCreating || (mode === 'invite' ? !inviteOrgName.trim() : mode === 'grant' ? !isGrantEmailValid : !directLabel.trim())"
           >
             <svg v-if="!isCreating" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
               <line x1="12" y1="5" x2="12" y2="19"/>
               <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
             <span v-else class="spinner"></span>
-            {{ isCreating ? 'Creating…' : 'Create code' }}
+            {{ isCreating ? 'Creating…' : (mode === 'grant' ? 'Create magic link' : 'Create code') }}
           </button>
         </div>
       </form>

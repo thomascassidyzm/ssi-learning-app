@@ -238,6 +238,11 @@ onMounted(async () => {
                   >
                     +{{ user.emails.length - 1 }}
                   </span>
+                  <span
+                    v-if="user.needs_email_verification"
+                    class="email-unverified-badge"
+                    title="Onboarded without an email verification round-trip — mailbox receipt unconfirmed"
+                  >unverified</span>
                 </template>
                 <span v-else class="cell-faint">—</span>
               </div>
@@ -614,6 +619,21 @@ onMounted(async () => {
   color: rgb(var(--tone-blue-ink));
   background: rgba(var(--tone-blue), 0.10);
   border: 1px solid rgba(var(--tone-blue-ink), 0.25);
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  flex: 0 0 auto;
+  cursor: help;
+}
+
+.email-unverified-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgb(var(--tone-gold-ink));
+  background: rgba(var(--tone-gold), 0.10);
+  border: 1px solid rgba(var(--tone-gold-ink), 0.25);
   padding: 2px 6px;
   border-radius: var(--radius-full);
   flex: 0 0 auto;

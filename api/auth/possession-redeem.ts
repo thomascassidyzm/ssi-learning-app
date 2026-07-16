@@ -31,11 +31,20 @@
  *     before the expensive admin API calls.
  *   - every attempt (blocked or not) is audit-logged; IP is stored hashed,
  *     never raw (same convention as api/try-link/validate.ts).
+ *   - real-email enforcement (api/_utils/emailValidation.ts): format +
+ *     disposable-domain blocklist are hard rejects; MX lookup is a soft
+ *     signal (only a definitive "no mail exchanger" blocks — DNS flakiness
+ *     fails open). None of this proves mailbox RECEIPT (this path never
+ *     emails anyone, by design) — that's tracked separately as
+ *     learners.needs_email_verification, set true for every possession
+ *     account and cleared only by a completed round-trip through
+ *     api/email/verify.ts.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
+import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -70,10 +79,6 @@ function getClientIp(req: VercelRequest): string {
     (req.headers['x-real-ip'] as string) ||
     'unknown'
   )
-}
-
-function isEmailValid(email: unknown): email is string {
-  return typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
 function isAlreadyRegisteredError(error: any): boolean {
@@ -118,11 +123,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(400).json({ success: false, error: 'Missing code' })
     return
   }
-  if (!isEmailValid(email)) {
+  if (!isValidEmailFormat(email)) {
     res.status(400).json({ success: false, error: 'Please enter a valid email address' })
     return
   }
   const normalizedEmail = email.trim().toLowerCase()
+  if (isDisposableEmailDomain(normalizedEmail)) {
+    res.status(400).json({ success: false, error: 'Please use a real, permanent email address — disposable addresses aren\'t accepted.' })
+    return
+  }
   const cleanDisplayName = typeof displayName === 'string' ? displayName.trim().slice(0, 100) : ''
 
   const strippedCode = String(code).trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
@@ -193,12 +202,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    // MX lookup is a SOFT signal only (see emailValidation.ts) — a definitive
+    // "no mail exchanger" blocks; any DNS flakiness fails open rather than
+    // stopping a legitimate teacher from onboarding.
+    const mxResult = await hasMxRecord(normalizedEmail)
+    if (mxResult === false) {
+      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'no_mx_domain' })
+      res.status(400).json({ success: false, error: 'That email domain can\'t receive mail. Please check for a typo.' })
+      return
+    }
+
     // Create the account with no email sent. email_confirm:false — Supabase's
     // own verifyOtp call below will still mark the email confirmed at the
     // auth layer (that's inherent to how magic-link verification works), so
     // app-level "unverified" tracking deliberately does NOT read
     // email_confirmed_at — it reads user_metadata.onboarded_via (set once
-    // here, untouched by anything else) instead. See SettingsScreen.vue.
+    // here, untouched by anything else) instead. See SettingsScreen.vue and
+    // learners.needs_email_verification (api/_utils/emailValidation.ts's
+    // format/disposable/MX checks bound obvious junk at signup time; this
+    // flag is the durable "never actually proved mailbox receipt" record).
     const { data: created, error: createError } = await supabase.auth.admin.createUser({
       email: normalizedEmail,
       email_confirm: false,

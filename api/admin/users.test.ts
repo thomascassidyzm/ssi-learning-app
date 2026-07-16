@@ -93,8 +93,8 @@ beforeEach(async () => {
   verifyAdminResult = { userId: 'admin-1' }
   fromCalls.length = 0
   learners = [
-    { id: 'l1', user_id: 'u1', display_name: 'Alice', created_at: '2026-07-10T00:00:00Z', educational_role: null, platform_role: null },
-    { id: 'l2', user_id: 'u2', display_name: 'Bob', created_at: '2026-01-01T00:00:00Z', educational_role: null, platform_role: 'ssi_admin' },
+    { id: 'l1', user_id: 'u1', display_name: 'Alice', created_at: '2026-07-10T00:00:00Z', educational_role: null, platform_role: null, needs_email_verification: true },
+    { id: 'l2', user_id: 'u2', display_name: 'Bob', created_at: '2026-01-01T00:00:00Z', educational_role: null, platform_role: 'ssi_admin', needs_email_verification: false },
   ]
   learnerEmails = [
     { learner_id: 'l1', email: 'alice@example.com', is_primary: true },
@@ -135,6 +135,7 @@ describe('GET /api/admin/users', () => {
     expect(alice.tier).toBe('free')
     expect(alice.practice_minutes).toBe(45) // from the RPC, not the stale counter
     expect(alice.course_ids).toEqual(['spa_for_eng'])
+    expect(alice.needs_email_verification).toBe(true)
 
     const bob = res.body.users.find((u: any) => u.id === 'l2')
     expect(bob.tier).toBe('admin') // ssi_admin platform_role
