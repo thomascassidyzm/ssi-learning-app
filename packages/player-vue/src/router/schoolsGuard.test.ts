@@ -71,3 +71,46 @@ describe('/schools route guard', () => {
     expect(useUserRole().hasSchoolRole.value).toBe(true)
   })
 })
+
+// Exercises the real '/' beforeEnter guard (index.ts:57) — staff home is the
+// dashboard, not the bare player (owner ruling 2026-07-16). This is the fast
+// path (a role already cached in this browser); App.vue's post-auth-init
+// redirect covers the fresh-browser case (no cache yet), which a router-only
+// test can't reach since it never runs auth.initialize().
+describe('/ (bare player) route guard — staff redirect', () => {
+  beforeEach(async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    useUserRole().clear()
+    await router.push('/schools')
+  })
+
+  it('redirects a school-role user straight to /schools', async () => {
+    useUserRole().initialize(null, 'teacher')
+    await router.push('/')
+    expect(router.currentRoute.value.fullPath).toBe('/schools')
+  })
+
+  it('redirects govt_admin too', async () => {
+    useUserRole().initialize(null, 'govt_admin')
+    await router.push('/')
+    expect(router.currentRoute.value.fullPath).toBe('/schools')
+  })
+
+  it('does not redirect a plain learner (no school role)', async () => {
+    useUserRole().initialize(null, null)
+    await router.push('/')
+    expect(router.currentRoute.value.fullPath).toBe('/')
+  })
+
+  it('does not redirect a student (school role, but not staff)', async () => {
+    useUserRole().initialize(null, 'student')
+    await router.push('/')
+    expect(router.currentRoute.value.fullPath).toBe('/')
+  })
+
+  it('does not bounce on an uninitialized role cache — defers rather than guessing', async () => {
+    await router.push('/')
+    expect(router.currentRoute.value.fullPath).toBe('/')
+  })
+})
