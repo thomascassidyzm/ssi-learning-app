@@ -39,6 +39,12 @@ vi.mock('../_utils/demoSchoolRefresh', () => ({
   refreshDemoOrgActivity: (...args: any[]) => refreshDemoOrgActivityMock(...args),
 }))
 
+let graphResult: any
+const discoverDemoOrgGraphMock = vi.fn(async () => graphResult)
+vi.mock('../_utils/demoSchoolGraph', () => ({
+  discoverDemoOrgGraph: (...args: any[]) => discoverDemoOrgGraphMock(...args),
+}))
+
 let rateCount: number
 let demoOrgRows: any[]
 let learnerRows: any[]
@@ -133,8 +139,10 @@ beforeEach(async () => {
     id: 'org-1', prospect_name: 'Riverside Trust', status: 'active',
     expires_at: '2026-08-15T00:00:00.000Z',
     metadata: { staff: [{ learnerId: 'learner-1' }] },
+    group_id: null, school_id: 'school-1',
   }]
   learnerRows = [{ user_id: 'auth-uid-1' }]
+  graphResult = { schoolIds: ['school-1'], classIds: [], classLearnerIds: [], staffAuthUids: [], studentUserIds: [] }
   insertedEvents = []
   updatedDemoOrgs = []
   banCalls = []
@@ -229,6 +237,18 @@ describe('POST /api/admin/demo-schools', () => {
       expect(updatedDemoOrgs[0]).toMatchObject({ status: 'expired' })
       expect(insertedEvents[0]).toMatchObject({ event_type: 'admin_demo_school_expired' })
     })
+
+    it('containment: also bans staff of a school a member created themselves (found by the graph walk, not in the original metadata.staff snapshot)', async () => {
+      // e.g. a govt_admin leader created a new school under their demo group
+      // AFTER the org was seeded/adopted — its admin/teachers were never
+      // captured in demo_orgs.metadata.staff at creation time.
+      graphResult = { ...graphResult, staffAuthUids: ['auth-uid-1', 'auth-uid-2'] }
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'expire', id: 'org-1' }), res)
+      expect(res.statusCode).toBe(200)
+      const bannedUids = banCalls.map(c => c.uid).sort()
+      expect(bannedUids).toEqual(['auth-uid-1', 'auth-uid-2'])
+    })
   })
 
   describe('extend', () => {
@@ -261,6 +281,17 @@ describe('POST /api/admin/demo-schools', () => {
       expect(res.statusCode).toBe(200)
       expect(banCalls).toEqual([{ uid: 'auth-uid-1', patch: { ban_duration: 'none' } }])
       expect(updatedDemoOrgs[0]).toMatchObject({ status: 'active' })
+    })
+
+    it('containment: also un-bans staff of a member-created school (graph walk, not just metadata.staff)', async () => {
+      demoOrgRows[0].status = 'expired'
+      graphResult = { ...graphResult, staffAuthUids: ['auth-uid-1', 'auth-uid-2'] }
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'extend', id: 'org-1' }), res)
+      expect(res.statusCode).toBe(200)
+      const unbannedUids = banCalls.map(c => c.uid).sort()
+      expect(unbannedUids).toEqual(['auth-uid-1', 'auth-uid-2'])
+      expect(banCalls.every(c => c.patch.ban_duration === 'none')).toBe(true)
     })
   })
 
