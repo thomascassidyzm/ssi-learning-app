@@ -272,10 +272,24 @@ const authedEmail = computed(() => auth?.user?.value?.email || '')
 // area below the top bar instead of sitting in a centred card.
 const route = useRoute()
 const isPlayRoute = computed(() => route.name === 'schools-play')
+
+// Every schools page renders in place, scrolled to top. The router's global
+// scrollBehavior only scrolls the WINDOW — but this surface scrolls inside
+// .schools-container (overflow-y: auto), so a tab switch used to inherit the
+// previous page's scroll offset (content appearing mid/bottom of the
+// viewport). flush:'post' = the new page is already in the DOM when we reset.
+const containerEl = ref<HTMLElement | null>(null)
+watch(
+  () => route.path,
+  () => {
+    if (containerEl.value) containerEl.value.scrollTop = 0
+  },
+  { flush: 'post' },
+)
 </script>
 
 <template>
-  <div class="schools-container schools-surface">
+  <div ref="containerEl" class="schools-container schools-surface">
     <!-- Loading spinner while auth or the role cache initialises -->
     <div v-if="isAuthLoading || isRoleLoading" class="schools-loading">
       <div class="loading-spinner"></div>
@@ -493,16 +507,20 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
 
       <main :class="['main-content', { 'main-content--full': isPlayRoute }]">
         <SchoolsErrorBoundary>
+          <!-- NO <transition> here, deliberately (2026-07-16). Two bug classes
+               came from animating this swap and each fix produced the next:
+               1. mode="out-in" deferred mounting the incoming page behind a
+                  leave-completion callback that never fired leaving
+                  /schools/analytics — blank page until hard reload.
+               2. The plain crossfade that replaced it kept BOTH pages in
+                  normal flow simultaneously, so the incoming page rendered
+                  stacked BELOW the leaving one (measured at y≈500-870px in a
+                  800px viewport) for the fade duration, then snapped up —
+                  and the enter could wedge >1s when a nav landed mid-boot.
+               An instant swap has no double-DOM, no leave/enter callbacks,
+               nothing to get stuck on: the page renders in place, once. -->
           <router-view v-slot="{ Component }">
-            <!-- No mode="out-in": it makes mounting the incoming page depend on
-                 a leave-completion callback (BaseTransition's internal
-                 afterLeave -> instance.update()). That callback reliably
-                 never fired leaving /schools/analytics, leaving the schools
-                 shell on a blank page until a hard reload (white-page-of-death,
-                 2026-07-16). A plain crossfade has no such dependency. -->
-            <transition name="fade">
-              <component :is="Component" />
-            </transition>
+            <component :is="Component" />
           </router-view>
         </SchoolsErrorBoundary>
       </main>
@@ -881,14 +899,6 @@ const isPlayRoute = computed(() => route.name === 'schools-play')
   gap: 16px;
   font-size: 13px;
 }
-
-/* Page transitions */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.fade-enter-from,
-.fade-leave-to { opacity: 0; }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
