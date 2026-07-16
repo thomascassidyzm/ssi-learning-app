@@ -24,7 +24,7 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
 const { viewingSchool } = useSchoolData()
-const { canPlayAsClass, switchActiveCourseTo } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 // When a govt admin drilled group → school → class, "back" should return to
 // the school dashboard, not the (empty for them) classes list.
@@ -216,25 +216,13 @@ function handleBack() {
   }
 }
 
+// classData falls back to an EMPTY shell ({ id: '', course_code: '' }) while
+// the detail fetch is in flight — the button stays disabled until the class
+// is genuinely launchable, and launchClassSession refuses regardless.
+const canLaunch = computed(() => !!classData.value.id && !!classData.value.course_code)
+
 async function handlePlay() {
-  if (!canPlayAsClass.value) return
-  // Launch the player inside the schools surface so the SchoolsTopBar stays
-  // above it (teacher keeps classroom context while running a session).
-  // The /schools/play route renders PlayerContainer as a child of
-  // SchoolsContainer.
-  localStorage.setItem('ssi-last-course', classData.value.course_code)
-  localStorage.setItem('ssi-active-class', JSON.stringify({
-    id: classData.value.id,
-    name: classData.value.class_name,
-    course_code: classData.value.course_code,
-    current_seed: classData.value.current_seed,
-    class_learner_id: classData.value.class_learner_id ?? null,
-    timestamp: new Date().toISOString(),
-  }))
-  // Force the app onto the class's course now — don't rely on PlayerContainer's
-  // onMounted to win its race against App.vue's async course-catalogue fetch.
-  await switchActiveCourseTo(classData.value.course_code)
-  router.push({ path: '/schools/play', query: { class: classData.value.id } })
+  await launchClassSession(classData.value)
 }
 
 // Same /redeem/:code door as every other invite in the app (group leader,
@@ -323,7 +311,7 @@ async function renameClass() {
       </div>
 
       <div class="page-head-actions">
-        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" @click="handlePlay">
+        <button v-if="canPlayAsClass" type="button" class="btn-play btn-play-lg" :disabled="!canLaunch" @click="handlePlay">
           <span class="play-glyph">&#9654;</span>
           Play as class
         </button>

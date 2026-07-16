@@ -22,7 +22,7 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
 const { classes: classesData, fetchClasses, createClass, getClassReport } = useClassesData()
-const { canPlayAsClass, switchActiveCourseTo } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
@@ -283,22 +283,9 @@ function openClass(cls: { id: string; class_name: string; course_code: string; c
 }
 
 // Play-as-class straight from the row's right-hand action (mirrors ClassDetail /
-// DashboardView): launch the player inside the schools shell for this class.
+// DashboardView): one shared launch path in usePlayAsClass.launchClassSession.
 async function handlePlayClass(cls: { id: string; class_name: string; course_code: string; current_seed: number; join_code: string; class_learner_id?: string | null }) {
-  if (!canPlayAsClass.value) return
-  localStorage.setItem('ssi-last-course', cls.course_code)
-  localStorage.setItem('ssi-active-class', JSON.stringify({
-    id: cls.id,
-    name: cls.class_name,
-    course_code: cls.course_code,
-    current_seed: cls.current_seed,
-    class_learner_id: cls.class_learner_id ?? null,
-    timestamp: new Date().toISOString(),
-  }))
-  // Force the app onto the class's course now — don't rely on PlayerContainer's
-  // onMounted to win its race against App.vue's async course-catalogue fetch.
-  await switchActiveCourseTo(cls.course_code)
-  router.push({ path: '/schools/play', query: { class: cls.id } })
+  await launchClassSession(cls)
 }
 
 // Per-class share link + one-click copy (mirrors the tutor dashboard so the

@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { defineComponent, h, ref } from 'vue'
 import { mount } from '@vue/test-utils'
+import { routerKey } from 'vue-router'
 import { usePlayAsClass } from './usePlayAsClass'
 import { useSchoolContext } from './useSchoolContext'
 
@@ -125,9 +126,9 @@ describe('usePlayAsClass — switchActiveCourseTo', () => {
     )
   })
 
-  it('no-ops when handleCourseSelect is unavailable (never provided)', async () => {
+  it('no-ops (returns false) when handleCourseSelect is unavailable (never provided)', async () => {
     const { switchActiveCourseTo } = mountHarness({ isAdminView: false })
-    await expect(switchActiveCourseTo('cym_for_eng')).resolves.toBeUndefined()
+    await expect(switchActiveCourseTo('cym_for_eng')).resolves.toBe(false)
   })
 
   it('no-ops for a falsy course code', async () => {
@@ -135,5 +136,103 @@ describe('usePlayAsClass — switchActiveCourseTo', () => {
     const { switchActiveCourseTo } = mountHarness({ isAdminView: false, handleCourseSelect, enrolledCourses: ref([]) })
     await switchActiveCourseTo(undefined)
     expect(handleCourseSelect).not.toHaveBeenCalled()
+  })
+})
+
+describe('usePlayAsClass — launchClassSession (the ONE schools launch path)', () => {
+  // Provide a fake router through vue-router's own injection key so
+  // useRouter() inside the composable resolves without a full router setup.
+  function mountWithRouter(provide: Record<string, unknown>) {
+    const push = vi.fn().mockResolvedValue(undefined)
+    const exposed = mountHarness({ ...provide, [routerKey as symbol]: { push } })
+    return { exposed, push }
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    setRole('school_admin')
+  })
+
+  it('refuses a half-loaded class (empty id/course_code) — no storage write, no navigation', async () => {
+    // ClassDetail's Play was clickable while its fetch was in flight,
+    // navigating to /schools/play?class= (empty id) and leaving the player
+    // on the previously-active course (2026-07-16 report).
+    const { exposed, push } = mountWithRouter({ isAdminView: false })
+    const ok = await exposed.launchClassSession({ id: '', class_name: '', course_code: '' })
+    expect(ok).toBe(false)
+    expect(localStorage.getItem('ssi-active-class')).toBeNull()
+    expect(localStorage.getItem('ssi-last-course')).toBeNull()
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('refuses when not permitted (govt_admin), even for a fully-loaded class', async () => {
+    setRole('govt_admin')
+    const { exposed, push } = mountWithRouter({ isAdminView: false })
+    const ok = await exposed.launchClassSession({ id: 'c1', class_name: 'Y7', course_code: 'cym_for_eng_north' })
+    expect(ok).toBe(false)
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('launches a ready class: consistent payload + course switch + /schools/play navigation', async () => {
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const { exposed, push } = mountWithRouter({
+      isAdminView: false,
+      handleCourseSelect,
+      enrolledCourses: ref([{ course_code: 'cym_for_eng_north', display_name: 'Welsh (North)' }]),
+      supabase: ref(null),
+    })
+    const ok = await exposed.launchClassSession({
+      id: 'c1',
+      class_name: 'Ang School Y7 Welsh',
+      course_code: 'cym_for_eng_north',
+      current_seed: 4,
+      class_learner_id: 'cl-123',
+    })
+    expect(ok).toBe(true)
+    expect(localStorage.getItem('ssi-last-course')).toBe('cym_for_eng_north')
+    const stored = JSON.parse(localStorage.getItem('ssi-active-class')!)
+    expect(stored).toMatchObject({
+      id: 'c1',
+      name: 'Ang School Y7 Welsh',
+      course_code: 'cym_for_eng_north',
+      current_seed: 4,
+      class_learner_id: 'cl-123',
+      teacherUserId: 'u1',
+    })
+    expect(handleCourseSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ course_code: 'cym_for_eng_north' })
+    )
+    expect(push).toHaveBeenCalledWith({ path: '/schools/play', query: { class: 'c1' } })
+  })
+})
+
+describe('usePlayAsClass — unresolvable course refusal', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    setRole('teacher')
+  })
+
+  it('refuses to launch when the class course_code matches no catalogue course (phantom code)', async () => {
+    // Two live classes carried 'cym_for_eng_north' — a code with no courses
+    // row (the real course is cym_n_for_eng). Launching anyway put the player
+    // on a half-formed course and crashed the render (2026-07-16).
+    const push = vi.fn().mockResolvedValue(undefined)
+    const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null })
+    const supabase = ref({
+      from: vi.fn(() => ({ select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle })),
+    })
+    const exposed = mountHarness({
+      isAdminView: false,
+      handleCourseSelect,
+      enrolledCourses: ref([]),
+      supabase,
+      [routerKey as symbol]: { push },
+    })
+    const ok = await exposed.launchClassSession({ id: 'c1', class_name: 'Y7 Welsh', course_code: 'cym_for_eng_north' })
+    expect(ok).toBe(false)
+    expect(handleCourseSelect).not.toHaveBeenCalled()
+    expect(localStorage.getItem('ssi-active-class')).toBeNull()
+    expect(push).not.toHaveBeenCalled()
   })
 })

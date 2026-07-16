@@ -19,7 +19,7 @@ const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const { density } = useSchoolsDensity()
-const { canPlayAsClass, switchActiveCourseTo } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 const {
   schools,
@@ -264,26 +264,10 @@ function benchFor(report: ClassReport | undefined) {
 
 // ---------- Actions ----------
 async function handlePlayClass(cls: ClassInfo) {
-  if (!canPlayAsClass.value) return
-  // Launch the player inside the schools surface so the SchoolsTopBar stays
-  // above it (teacher keeps classroom context while running a session).
-  // The /schools/play route renders PlayerContainer as a child of
-  // SchoolsContainer.
-  localStorage.setItem('ssi-last-course', cls.course_code)
-  localStorage.setItem('ssi-active-class', JSON.stringify({
-    id: cls.id,
-    name: cls.class_name,
-    course_code: cls.course_code,
-    current_seed: cls.current_seed,
-    last_lego_id: cls.last_lego_id,
-    class_learner_id: cls.class_learner_id,
-    teacherUserId: currentUser.value?.user_id,
-    timestamp: new Date().toISOString(),
-  }))
-  // Force the app onto the class's course now — don't rely on PlayerContainer's
-  // onMounted to win its race against App.vue's async course-catalogue fetch.
-  await switchActiveCourseTo(cls.course_code)
-  router.push({ path: '/schools/play', query: { class: cls.id } })
+  // One shared launch path (usePlayAsClass.launchClassSession): permission
+  // check, consistent ssi-active-class payload, course switch, and the
+  // /schools/play navigation all live there.
+  await launchClassSession(cls)
 }
 </script>
 
@@ -487,6 +471,11 @@ async function handlePlayClass(cls: ClassInfo) {
                 <th>Course</th>
                 <th>Students</th>
                 <th>Avg practice</th>
+                <!-- Play-as-class is a school-STAFF capability (owner ruling
+                     2026-07-16) — the admin lane gets the same action the
+                     teacher lane's cards carry. Header stays empty; the cell
+                     renders the button when permitted. -->
+                <th v-if="canPlayAsClass"></th>
               </tr>
             </thead>
             <tbody>
@@ -503,9 +492,12 @@ async function handlePlayClass(cls: ClassInfo) {
                 <td class="schools-subtle">{{ courseDisplayName(cls.course_code) }}</td>
                 <td>{{ cls.student_count }}</td>
                 <td>{{ Math.round(cls.avg_practice_minutes || 0) }}m</td>
+                <td v-if="canPlayAsClass" class="row-cta">
+                  <button class="btn-play" @click="handlePlayClass(cls)">▶ Play</button>
+                </td>
               </tr>
               <tr v-if="!teacherClasses.length">
-                <td colspan="4" class="empty-row">
+                <td :colspan="canPlayAsClass ? 5 : 4" class="empty-row">
                   <p class="empty-row-text">No classes yet — create one to get your students playing.</p>
                   <router-link v-if="!isAdminView" to="/schools/classes?create=1" class="btn-play empty-row-cta">
                     + Create your first class

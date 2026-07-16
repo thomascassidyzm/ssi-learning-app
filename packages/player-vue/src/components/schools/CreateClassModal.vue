@@ -45,15 +45,16 @@ const isLoadingCatalogue = ref(false)
 const catalogueError = ref('')
 
 // Small fallback list for demo mode / offline, so the picker still works
-// without a live Supabase catalogue query.
+// without a live Supabase catalogue query. Codes must exist in `courses` —
+// the old cym_for_eng_north/south, spa_for_eng_latam and glv_for_eng entries
+// matched no course row, so classes created from this fallback were born
+// unplayable (2026-07-16).
 const DEMO_COURSES = [
-  { code: 'cym_for_eng_north', name: 'Welsh (Northern)' },
-  { code: 'cym_for_eng_south', name: 'Welsh (Southern)' },
-  { code: 'spa_for_eng', name: 'Spanish (European)' },
-  { code: 'spa_for_eng_latam', name: 'Spanish (Latin American)' },
+  { code: 'cym_n_for_eng', name: 'Welsh (Northern)' },
+  { code: 'cym_s_for_eng', name: 'Welsh (Southern)' },
+  { code: 'spa_for_eng', name: 'Spanish' },
   { code: 'nld_for_eng', name: 'Dutch' },
-  { code: 'cor_for_eng', name: 'Cornish' },
-  { code: 'glv_for_eng', name: 'Manx' }
+  { code: 'cor_for_eng', name: 'Cornish' }
 ]
 
 async function fetchCatalogue() {

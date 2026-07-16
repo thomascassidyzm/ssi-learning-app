@@ -4,7 +4,7 @@
 metadata:
   title: "SSi Schools Integration"
   version: "1.0.0"
-  date: "2026-07-14"
+  date: "2026-07-16"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -512,12 +512,24 @@ interface TeacherDashboard:
           - "Remove student (soft delete tag)"
 
   class_play_mode:
-    description: "When 'Play' clicked, open player"
-    url: "/play?mode=class&class_id={uuid}"
+    description: "When 'Play as class' clicked, open player inside the schools shell"
+    url: "/schools/play?class={uuid}"
+    launch_path: "usePlayAsClass.launchClassSession — the ONE launch path for every schools entry point (DashboardView, TeacherDashboard, ClassDetail)"
     behavior:
-      - "Uses class.current_seed as position"
-      - "Progress saved to class, not teacher"
-      - "Optimized UI for projection"
+      - "Permission: school staff only (teacher + school_admin); govt_admin and ssi_admin read-views excluded (canPlayAsClass)"
+      - "Refuses a half-loaded class (missing id/course_code) — no storage write, no navigation"
+      - "Refuses when the class course_code resolves to no catalogue course (phantom codes like cym_for_eng_north created unplayable classes, fixed 2026-07-16)"
+      - "Switches the app onto the class's course via App.vue handleCourseSelect BEFORE navigating (never relies on PlayerContainer's onMounted race)"
+      - "Writes canonical ssi-active-class payload: id, name, course_code, current_seed, last_lego_id, class_learner_id, teacherUserId, timestamp"
+      - "Progress saved to the CLASS's own learner row (class_learner_id), not the staff member"
+      - "SchoolsTopBar stays above the player (PlayerContainer renders as a child of SchoolsContainer)"
+
+  navigation_shell:
+    description: "How the /schools shell swaps routed pages (SchoolsContainer)"
+    invariants:
+      - "NO <transition> around the routed component — instant swap. Two real-browser bug classes came from animating it: out-in's afterLeave hang (blank page until hard reload) and the plain crossfade's double-DOM (incoming page stacked below the leaving one, then snapped up; white viewport when the leave hung at opacity 0). Guarded by SchoolsContainer.pageTransition.test.ts."
+      - "Scroll container is .schools-container (overflow-y auto), NOT the window — the container resets scrollTop to 0 on route change (router scrollBehavior can't reach it), so every page renders in place, scrolled to top."
+      - "SchoolsTopBar renders NO tabs until the school context resolves — never the teacher fallback set (a school_admin briefly saw the wrong tab set on cold boot)."
 
 interface SchoolAdminDashboard:
   location: "apps/schools-dashboard"
