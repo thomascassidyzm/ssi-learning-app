@@ -32,6 +32,7 @@ import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
+import { isDisposableEmailDomain } from '../_utils/emailValidation'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -93,6 +94,20 @@ export default async function handler(
     //     is keyed on (trial_burns). Lower-cased + trimmed to normalise.
     const { data: authUserLookup } = await supabase.auth.admin.getUserById(auth.userId)
     const authEmail = (authUserLookup?.user?.email || '').trim().toLowerCase()
+
+    // 1c. Real-email enforcement (api/_utils/emailValidation.ts) — same
+    // disposable-domain blocklist possession-redeem applies. This track
+    // proves mailbox RECEIPT via a real OTP round-trip before ever reaching
+    // here (unlike possession-redeem, which never emails anyone), so the
+    // MX/needs_verification machinery doesn't apply — but a disposable
+    // provider can still deliver a real OTP, so it's not itself proof
+    // against trial-farming with throwaway addresses. Tutor-only: this is
+    // a real-earnings product (£15/mo + per-student payouts), the specific
+    // population the blocklist exists to slow down.
+    if (track === 'tutor' && authEmail && isDisposableEmailDomain(authEmail)) {
+      res.status(400).json({ error: 'Please sign up with a permanent email address.' })
+      return
+    }
 
     // 2. Ensure a learner row.
     let { data: learner } = await supabase
@@ -370,8 +385,12 @@ export default async function handler(
       redirect: track === 'tutor' ? '/tutors/dashboard' : '/schools',
     })
   } catch (error: any) {
+    // Full detail server-side only — the raw message can carry internal
+    // implementation detail (e.g. a Postgres constraint name) that has no
+    // business reaching the signup page (finding, 2026-07-16 tutor-signup
+    // audit: a broken DB constraint surfaced its exact error text to users).
     console.error('[onboarding/provision] Error:', error)
-    res.status(500).json({ error: error?.message || 'Internal server error' })
+    res.status(500).json({ error: 'We could not finish setting up your account. Please try again.' })
   }
 }
 

@@ -4843,7 +4843,7 @@ CREATE TABLE public.learners (
     is_internal boolean DEFAULT false NOT NULL,
     is_class_entity boolean DEFAULT false NOT NULL,
     needs_verification boolean DEFAULT false NOT NULL,
-    CONSTRAINT learners_educational_role_check CHECK ((educational_role = ANY (ARRAY['student'::text, 'teacher'::text, 'school_admin'::text, 'govt_admin'::text]))),
+    CONSTRAINT learners_educational_role_check CHECK ((educational_role = ANY (ARRAY['student'::text, 'teacher'::text, 'school_admin'::text, 'govt_admin'::text, 'tutor'::text]))),
     CONSTRAINT learners_platform_role_check CHECK (((platform_role IS NULL) OR (platform_role = ANY (ARRAY['ssi_admin'::text, 'popty_user'::text, 'tester'::text]))))
 );
 
@@ -6488,6 +6488,42 @@ CREATE TABLE public.dashboard_users (
 
 
 --
+-- Name: demo_orgs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.demo_orgs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text NOT NULL,
+    prospect_name text NOT NULL,
+    org_shape text NOT NULL,
+    course_code text NOT NULL,
+    group_id uuid,
+    school_id uuid,
+    expires_at timestamp with time zone NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    expired_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT demo_orgs_org_shape_check CHECK ((org_shape = ANY (ARRAY['single_school'::text, 'group'::text, 'government_region'::text]))),
+    CONSTRAINT demo_orgs_status_check CHECK ((status = ANY (ARRAY['active'::text, 'expired'::text])))
+);
+
+
+--
+-- Name: TABLE demo_orgs; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.demo_orgs IS 'Sales-showcase demo orgs created via /admin/demo-schools. Service-role-only (RLS on, no policies) — every access goes through api/admin/demo-schools.ts (admin-gated) or api/cron/expire-demo-schools.ts (CRON_SECRET-gated).';
+
+
+--
+-- Name: COLUMN demo_orgs.metadata; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.demo_orgs.metadata IS 'Snapshot at creation: { orgName, staff: [{role, name, email, learnerId}], counts: {schools, teachers, classes, learners} }. The result card reads this, not a live join.';
+
+
+--
 -- Name: demographic_cycle_averages; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -7653,6 +7689,71 @@ CREATE TABLE public.offline_leases (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+
+--
+-- Name: onboarding_messages; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.onboarding_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    message_key text NOT NULL,
+    title text NOT NULL,
+    channel text NOT NULL,
+    subject text,
+    preheader text,
+    body text NOT NULL,
+    trigger_description text NOT NULL,
+    notes text,
+    sort_order integer NOT NULL,
+    active boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by text,
+    CONSTRAINT onboarding_messages_channel_check CHECK ((channel = ANY (ARRAY['email'::text, 'in_app'::text])))
+);
+
+
+--
+-- Name: TABLE onboarding_messages; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.onboarding_messages IS 'Live-editable source for the onboarding message series. Service-role-only (RLS on, no policies) — every access goes through api/admin/onboarding-messages.ts (admin-gated). The send system (cron, not yet built) reads this table directly; this IS the copy, not a mirror of it.';
+
+
+--
+-- Name: COLUMN onboarding_messages.message_key; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.onboarding_messages.message_key IS 'Stable slug used by the (future) send system to look up a message, e.g. verify_email, welcome_day1. Never reused across messages.';
+
+
+--
+-- Name: COLUMN onboarding_messages.body; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.onboarding_messages.body IS 'Markdown. Editor is a textarea + preview — no WYSIWYG dependency.';
+
+
+--
+-- Name: COLUMN onboarding_messages.notes; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.onboarding_messages.notes IS 'Design-note asides carried over from the source draft (docs/onboarding/onboarding-series-draft.md) — rationale for future editors, never sent to learners.';
+
+
+--
+-- Name: COLUMN onboarding_messages.active; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.onboarding_messages.active IS 'Whether the send system should consider this message live. Defaults false — nothing sends until the sender/cron pipeline exists regardless of this flag.';
+
+
+--
+-- Name: COLUMN onboarding_messages.updated_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.onboarding_messages.updated_by IS 'auth uid (learners.user_id) of the admin who last saved this row.';
 
 
 --
@@ -9089,6 +9190,14 @@ ALTER TABLE ONLY public.dashboard_users
 
 
 --
+-- Name: demo_orgs demo_orgs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.demo_orgs
+    ADD CONSTRAINT demo_orgs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: documentation_content documentation_content_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9470,6 +9579,22 @@ ALTER TABLE ONLY public.offline_leases
 
 ALTER TABLE ONLY public.offline_leases
     ADD CONSTRAINT offline_leases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: onboarding_messages onboarding_messages_message_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.onboarding_messages
+    ADD CONSTRAINT onboarding_messages_message_key_key UNIQUE (message_key);
+
+
+--
+-- Name: onboarding_messages onboarding_messages_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.onboarding_messages
+    ADD CONSTRAINT onboarding_messages_pkey PRIMARY KEY (id);
 
 
 --
@@ -10493,6 +10618,13 @@ CREATE INDEX idx_dashboard_sessions_expires ON public.dashboard_sessions USING b
 
 
 --
+-- Name: idx_demo_orgs_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_demo_orgs_status ON public.demo_orgs USING btree (status, expires_at);
+
+
+--
 -- Name: idx_documentation_sections_document_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10917,6 +11049,13 @@ CREATE INDEX idx_milestones_learner ON public.learner_milestones USING btree (le
 --
 
 CREATE INDEX idx_milestones_learner_course ON public.learner_milestones USING btree (learner_id, course_id);
+
+
+--
+-- Name: idx_onboarding_messages_sort_order; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_onboarding_messages_sort_order ON public.onboarding_messages USING btree (sort_order);
 
 
 --
@@ -12098,6 +12237,22 @@ ALTER TABLE ONLY public.dashboard_login_codes
 
 ALTER TABLE ONLY public.dashboard_sessions
     ADD CONSTRAINT dashboard_sessions_email_fkey FOREIGN KEY (email) REFERENCES public.dashboard_users(email) ON DELETE CASCADE;
+
+
+--
+-- Name: demo_orgs demo_orgs_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.demo_orgs
+    ADD CONSTRAINT demo_orgs_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id);
+
+
+--
+-- Name: demo_orgs demo_orgs_school_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.demo_orgs
+    ADD CONSTRAINT demo_orgs_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id);
 
 
 --
@@ -13529,6 +13684,12 @@ ALTER TABLE public.dashboard_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dashboard_users ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: demo_orgs; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.demo_orgs ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: documentation_content; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -13855,6 +14016,12 @@ CREATE POLICY offline_leases_owner_select ON public.offline_leases FOR SELECT US
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
+
+--
+-- Name: onboarding_messages; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.onboarding_messages ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: orchestrator_messages; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15923,6 +16090,13 @@ GRANT SELECT ON TABLE public.dashboard_users TO authenticated;
 
 
 --
+-- Name: TABLE demo_orgs; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.demo_orgs TO service_role;
+
+
+--
 -- Name: TABLE demographic_cycle_averages; Type: ACL; Schema: public; Owner: -
 --
 
@@ -16233,6 +16407,13 @@ GRANT ALL ON TABLE public.listening_pods TO service_role;
 GRANT ALL ON TABLE public.offline_leases TO anon;
 GRANT ALL ON TABLE public.offline_leases TO authenticated;
 GRANT ALL ON TABLE public.offline_leases TO service_role;
+
+
+--
+-- Name: TABLE onboarding_messages; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.onboarding_messages TO service_role;
 
 
 --
