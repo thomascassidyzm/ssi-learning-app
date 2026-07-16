@@ -50,17 +50,13 @@ export function chunk<T>(arr: T[], size = 150): T[][] {
 /** Classes a teacher teaches: class_teachers relationship + legacy lead pointer. */
 async function taughtClassIds(svc: SupabaseClient, authUid: string): Promise<string[]> {
   const ids = new Set<string>()
-  const { data: rel } = await svc
-    .from('class_teachers')
-    .select('class_id')
-    .eq('teacher_user_id', authUid)
+  // The two sources are independent (relationship rows vs the legacy owner
+  // column) — run them concurrently instead of paying two round trips in series.
+  const [{ data: rel }, { data: owned }] = await Promise.all([
+    svc.from('class_teachers').select('class_id').eq('teacher_user_id', authUid),
+    svc.from('classes').select('id').eq('teacher_user_id', authUid).eq('is_active', true),
+  ])
   for (const r of rel ?? []) if ((r as any).class_id) ids.add((r as any).class_id)
-
-  const { data: owned } = await svc
-    .from('classes')
-    .select('id')
-    .eq('teacher_user_id', authUid)
-    .eq('is_active', true)
   for (const c of owned ?? []) if ((c as any).id) ids.add((c as any).id)
 
   return [...ids]
@@ -191,11 +187,35 @@ async function studentsByClass(svc: SupabaseClient, classIds: string[]): Promise
   return out
 }
 
+// Short-TTL in-memory cache, keyed by authUid. Each of the three
+// api/school/* endpoints calls resolveVisibleScope independently on every
+// request (no shared invocation), and a single tab visit can trigger several
+// of them in quick succession (e.g. the Analytics tab's filter watchers all
+// fire fetchRealComparison on mount) — each one otherwise re-running ~4-5
+// sequential DB round trips to re-derive the IDENTICAL scope. This caches the
+// SCOPE (who may I see — school/class/learner ids), never the fetched data,
+// so a tab always re-fetches its own numbers; only the redundant re-derivation
+// of "who am I" is skipped. 20s is short enough that a genuine membership
+// change (a student added to a class) is visible on the next natural refresh,
+// long enough to absorb a burst of same-session calls. Only helps when Vercel
+// reuses a warm instance across nearby requests — cold instances just miss.
+const SCOPE_CACHE_TTL_MS = 20_000
+const scopeCache = new Map<string, { scope: CallerScope; expiresAt: number }>()
+
 /**
  * Resolve the caller's visible student scope. `authUid` MUST come from a
  * verified JWT (see verifyAuthToken), never from client-supplied input.
  */
 export async function resolveVisibleScope(svc: SupabaseClient, authUid: string): Promise<CallerScope> {
+  const cached = scopeCache.get(authUid)
+  if (cached && cached.expiresAt > Date.now()) return cached.scope
+
+  const scope = await resolveVisibleScopeUncached(svc, authUid)
+  scopeCache.set(authUid, { scope, expiresAt: Date.now() + SCOPE_CACHE_TTL_MS })
+  return scope
+}
+
+async function resolveVisibleScopeUncached(svc: SupabaseClient, authUid: string): Promise<CallerScope> {
   const { data: learner } = await svc
     .from('learners')
     .select('id, educational_role')

@@ -191,6 +191,17 @@ watch(selectedUser, (newUser) => {
   }
 })
 
+// Vue Router reuses this component instance across two `class-detail` routes
+// that only differ by :id/:classId (e.g. an admin paging through several
+// classes in the same school) — onMounted does NOT fire again, so without
+// this the previous class's data stays on screen under the new URL.
+watch(classIdParam, (classId, previousClassId) => {
+  if (classId && classId !== previousClassId && selectedUser.value) {
+    fetchClassDetail(classId)
+    loadReport(classId)
+  }
+})
+
 function handleBack() {
   // Govt drill-down returns to the school dashboard (viewingSchool stays set),
   // everyone else to the classes list.
