@@ -2,35 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useAdminUsers, type Tier, type SortKey, type AdminUser } from '@/composables/admin/useAdminUsers'
+import { useAdminUsers, type Tier, type SortKey } from '@/composables/admin/useAdminUsers'
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
-import { useActAs } from '@/composables/useActAs'
-import { useUserRole, type ActAsPersona } from '@/composables/useUserRole'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
 
 const { getClient } = useAdminClient()
 const router = useRouter()
-const { canActAs } = useUserRole()
-const { actAs } = useActAs()
-
-// "View as" is only meaningful for users who actually have an educational
-// role — real entities only, resolved straight off the row already on screen.
-const ACT_AS_ROLES = new Set(['teacher', 'school_admin', 'govt_admin'])
-function userPersona(user: AdminUser): ActAsPersona | null {
-  if (!user.educational_role || !ACT_AS_ROLES.has(user.educational_role)) return null
-  return {
-    key: `${user.educational_role}:${user.user_id}`,
-    userId: user.user_id,
-    role: user.educational_role as ActAsPersona['role'],
-    name: user.display_name || user.primary_email || 'User',
-  }
-}
-async function viewAsUser(user: AdminUser): Promise<void> {
-  const persona = userPersona(user)
-  if (!persona) return
-  await actAs(persona)
-}
 const {
   users,
   totalCount,
@@ -293,18 +271,6 @@ onMounted(async () => {
               {{ user.practice_minutes > 0 ? formatDuration(user.practice_minutes) : '—' }}
             </td>
             <td class="cell-actions">
-              <button
-                v-if="canActAs && userPersona(user)"
-                class="row-action"
-                :title="`View schools dashboard as ${user.display_name || 'this user'}`"
-                @click.stop="viewAsUser(user)"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="10 17 15 12 10 7"/>
-                  <line x1="15" y1="12" x2="3" y2="12"/>
-                </svg>
-              </button>
               <button
                 class="row-action"
                 title="View user detail"
