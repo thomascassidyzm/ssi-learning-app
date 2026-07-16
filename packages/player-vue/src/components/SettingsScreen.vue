@@ -2232,6 +2232,36 @@ const confirmReset = async () => {
         </div>
       </section>
 
+      <!-- Community — external links (forum, classic Welsh listening
+           exercises on the legacy .com webapp). Open in a new tab, same
+           idiom as Legal below. -->
+      <section class="section">
+        <h3 class="section-title">{{ t('settings.community') }}</h3>
+        <div class="card">
+          <a href="https://en.forum.saysomethingin.com/" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.forum') }}</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+          <a href="https://en.saysomethingin.com/welsh/level1/intro" target="_blank" rel="noopener" class="setting-row clickable legal-link">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.classicWelshListening') }}</span>
+              <span class="setting-desc">{{ t('settings.classicWelshListeningDesc') }}</span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="external-icon" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+        </div>
+      </section>
+
       <!-- Legal — links to the marketing site (saysomethingin.com is an
            already-approved Paddle domain; pages live there, not on .app).
            Open in a new tab so the app session is preserved. When the
