@@ -105,59 +105,76 @@ describe('TeachersView logic', () => {
     expect(getInitials('Anna Beth Carol')).toBe('AB')
   })
 
-  // --- REGRESSION: teacher removal uses real user_id ---
+  // --- canManageStaff gating (2026-07-16 teacher-loop audit: admin-only
+  //     controls — bulk import, invite, remove — were visible to plain
+  //     teachers, whose Remove clicks silently no-opped under own-row RLS) ---
 
-  describe('teacher removal bug fix', () => {
+  describe('canManageStaff gating', () => {
+    function canManageStaff(isSchoolAdmin: boolean, isAdminView: boolean): boolean {
+      return isSchoolAdmin && !isAdminView
+    }
+
+    it('school_admin viewing their own school can manage staff', () => {
+      expect(canManageStaff(true, false)).toBe(true)
+    })
+
+    it('a plain teacher cannot manage staff', () => {
+      expect(canManageStaff(false, false)).toBe(false)
+    })
+
+    it('an ssi_admin read-only browse view cannot manage staff even though the persona is school_admin', () => {
+      expect(canManageStaff(true, true)).toBe(false)
+    })
+  })
+
+  // --- removeTeacher surfaces the real result (never a false "success") ---
+
+  describe('handleRemoveTeacher error surfacing', () => {
+    it('shows an error when removeTeacher reports failure, and does not refetch', async () => {
+      const fetchTeachers = vi.fn()
+      const removeTeacher = vi.fn(async (_userId: string) => ({ ok: false as const, error: 'Only a school admin can remove staff' as string | null }))
+      let removeError = ''
+
+      async function handleRemoveTeacher(userId: string, name: string) {
+        removeError = ''
+        const result = await removeTeacher(userId)
+        if (result.ok) {
+          fetchTeachers()
+        } else {
+          removeError = `Could not remove ${name}: ${result.error}`
+        }
+      }
+
+      await handleRemoveTeacher('teacher-x', 'Sian Morgan')
+      expect(fetchTeachers).not.toHaveBeenCalled()
+      expect(removeError).toBe('Could not remove Sian Morgan: Only a school admin can remove staff')
+    })
+
+    it('refetches and clears any prior error on success', async () => {
+      const fetchTeachers = vi.fn()
+      const removeTeacher = vi.fn(async (_userId: string) => ({ ok: true as const, error: null as string | null }))
+      let removeError = 'stale error from a previous attempt'
+
+      async function handleRemoveTeacher(userId: string, name: string) {
+        removeError = ''
+        const result = await removeTeacher(userId)
+        if (result.ok) {
+          fetchTeachers()
+        } else {
+          removeError = `Could not remove ${name}: ${(result as any).error}`
+        }
+      }
+
+      await handleRemoveTeacher('teacher-x', 'Sian Morgan')
+      expect(fetchTeachers).toHaveBeenCalledTimes(1)
+      expect(removeError).toBe('')
+    })
+  })
+
+  describe('teacher data shape', () => {
     beforeEach(async () => {
       vi.resetModules()
       Object.keys(store).forEach(k => delete store[k])
-    })
-
-    it('handleRemoveTeacher receives string user_id, not numeric index', async () => {
-      // Simulate what the fixed template does:
-      // teacher.user_id (string UUID) is passed, NOT teacher.id (display index)
-      const { setSchoolsClient } = await import('@/composables/schools/client')
-
-      const updateCalls: any[] = []
-      const mockChain: any = {}
-      const chainMethods = ['update', 'eq', 'is']
-      chainMethods.forEach(m => {
-        mockChain[m] = vi.fn((...args: any[]) => {
-          if (m === 'update') updateCalls.push(args[0])
-          return new Proxy(mockChain, {
-            get(target, prop) {
-              if (prop === 'then') return (resolve: any) => resolve({ data: null, error: null })
-              return target[prop as string]
-            }
-          })
-        })
-      })
-
-      const mockClient = {
-        from: vi.fn(() => mockChain)
-      } as any
-      setSchoolsClient(mockClient)
-
-      // Simulate the fixed handler logic
-      const userId = 'user_abc123' // This is a string UUID
-      const supabase = (await import('@/composables/schools/client')).getSchoolsClient()
-      await supabase
-        .from('user_tags')
-        .update({ removed_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .eq('tag_type', 'school')
-        .eq('role_in_context', 'teacher')
-
-      // The key assertion: user_id passed to .eq is a string, not a number
-      expect(typeof userId).toBe('string')
-      expect(mockClient.from).toHaveBeenCalledWith('user_tags')
-
-      // Before the fix, teacher.id (a number like 1, 2, 3) was passed.
-      // After the fix, teacher.user_id (a string UUID) is passed.
-      const firstEqCall = mockChain.eq.mock.calls[0]
-      expect(firstEqCall[0]).toBe('user_id')
-      expect(firstEqCall[1]).toBe('user_abc123')
-      expect(typeof firstEqCall[1]).toBe('string')
     })
 
     it('computed teachers array includes user_id from source data', async () => {

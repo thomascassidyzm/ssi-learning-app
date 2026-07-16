@@ -19,6 +19,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
+import { auditSchoolWriteRejection } from '../_utils/auditSchoolWriteRejection'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -56,6 +57,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     // --- Resolve the caller's school from the session (never the body). ---
+    // Admin-only: schools.admin_user_id, or a user_tags SCHOOL: tag whose
+    // role_in_context is 'admin' — NEVER a bare tag match, which would also
+    // catch a school's plain teachers (role_in_context: 'teacher') and let
+    // them rename the school (finding, 2026-07-16 teacher-loop audit).
     let schoolId: string | null = null
     {
       const { data: ownSchool } = await supabase
@@ -70,6 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           .select('tag_value')
           .eq('user_id', auth.userId)
           .eq('tag_type', 'school')
+          .eq('role_in_context', 'admin')
           .is('removed_at', null)
           .limit(1)
           .maybeSingle()
@@ -77,6 +83,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
     if (!schoolId) {
+      // Distinguish "no school at all" from "a school, but not as admin" so a
+      // teacher hitting this endpoint gets a clear, audit-logged 403 rather
+      // than a misleading 404.
+      const { data: nonAdminTag } = await supabase
+        .from('user_tags')
+        .select('tag_value, role_in_context')
+        .eq('user_id', auth.userId)
+        .eq('tag_type', 'school')
+        .is('removed_at', null)
+        .limit(1)
+        .maybeSingle()
+      if (nonAdminTag?.tag_value) {
+        const rejectedSchoolId = String(nonAdminTag.tag_value).replace('SCHOOL:', '')
+        await auditSchoolWriteRejection(supabase, {
+          authUserId: auth.userId,
+          schoolId: rejectedSchoolId,
+          endpoint: 'school/update-profile',
+          roleInContext: nonAdminTag.role_in_context ?? null,
+        })
+        res.status(403).json({ error: 'Only a school admin can update the school profile' })
+        return
+      }
       res.status(404).json({ error: 'No school for this account' })
       return
     }
