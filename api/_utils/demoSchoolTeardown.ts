@@ -15,6 +15,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { discoverDemoOrgGraph } from './demoSchoolGraph'
 
 export interface PurgeResult {
   demoOrgId: string
@@ -53,45 +54,7 @@ export async function purgeDemoOrg(
     throw new Error('Demo org must be expired before it can be purged — expire it first')
   }
 
-  const schoolIds: string[] = []
-  if (org.school_id) schoolIds.push(org.school_id as string)
-  if (org.group_id) {
-    const { data: groupSchools } = await supabase.from('schools').select('id').eq('group_id', org.group_id)
-    for (const s of groupSchools || []) schoolIds.push(s.id as string)
-  }
-
-  const { data: classes } = schoolIds.length
-    ? await supabase.from('classes').select('id, class_learner_id').in('school_id', schoolIds)
-    : { data: [] as { id: string; class_learner_id: string | null }[] }
-  const classIds = (classes || []).map((c) => c.id as string)
-  const classLearnerIds = (classes || []).map((c) => c.class_learner_id).filter(Boolean) as string[]
-
-  const { data: schools } = schoolIds.length
-    ? await supabase.from('schools').select('id, admin_user_id').in('id', schoolIds)
-    : { data: [] as { id: string; admin_user_id: string }[] }
-  const staffAuthUids = (schools || []).map((s) => s.admin_user_id).filter(Boolean) as string[]
-
-  if (classIds.length) {
-    const { data: teacherRows } = await supabase.from('classes').select('teacher_user_id').in('id', classIds)
-    for (const t of teacherRows || []) if (t.teacher_user_id) staffAuthUids.push(t.teacher_user_id as string)
-  }
-  if (org.group_id) {
-    const { data: govtAdmins } = await supabase.from('govt_admins').select('user_id').eq('group_id', org.group_id)
-    for (const g of govtAdmins || []) if (g.user_id) staffAuthUids.push(g.user_id as string)
-  }
-
-  // Student learners: tagged CLASS:<classId> in user_tags (they were never
-  // real auth accounts — synthetic user_id, no auth.admin.deleteUser needed).
-  const studentUserIds: string[] = []
-  if (classIds.length) {
-    const classTagValues = classIds.map((id) => `CLASS:${id}`)
-    const { data: tagRows } = await supabase
-      .from('user_tags')
-      .select('user_id')
-      .in('tag_value', classTagValues)
-      .eq('role_in_context', 'student')
-    for (const r of tagRows || []) if (r.user_id) studentUserIds.push(r.user_id as string)
-  }
+  const { schoolIds, classIds, classLearnerIds, staffAuthUids, studentUserIds } = await discoverDemoOrgGraph(supabase, org)
 
   const { data: studentLearners } = studentUserIds.length
     ? await supabase.from('learners').select('id, user_id').in('user_id', studentUserIds)

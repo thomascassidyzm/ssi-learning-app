@@ -3291,6 +3291,31 @@ $$;
 
 
 --
+-- Name: inherit_group_test_flags(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.inherit_group_test_flags() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  group_is_test BOOLEAN;
+  group_is_demo BOOLEAN;
+BEGIN
+  IF NEW.group_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT is_test, is_demo INTO group_is_test, group_is_demo
+  FROM public.groups WHERE id = NEW.group_id;
+
+  NEW.is_test := COALESCE(NEW.is_test, FALSE) OR COALESCE(group_is_test, FALSE);
+  NEW.is_demo := COALESCE(NEW.is_demo, FALSE) OR COALESCE(group_is_demo, FALSE);
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: is_class_teacher(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11843,6 +11868,13 @@ CREATE TRIGGER release_notes_touch_updated_at BEFORE UPDATE ON public.release_no
 
 
 --
+-- Name: schools schools_inherit_group_test_flags; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER schools_inherit_group_test_flags BEFORE INSERT OR UPDATE OF group_id ON public.schools FOR EACH ROW EXECUTE FUNCTION public.inherit_group_test_flags();
+
+
+--
 -- Name: shared_audio shared_audio_audit; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -15314,6 +15346,15 @@ GRANT ALL ON FUNCTION public.increment_version() TO service_role;
 GRANT ALL ON FUNCTION public.increment_voice_sample_count() TO anon;
 GRANT ALL ON FUNCTION public.increment_voice_sample_count() TO authenticated;
 GRANT ALL ON FUNCTION public.increment_voice_sample_count() TO service_role;
+
+
+--
+-- Name: FUNCTION inherit_group_test_flags(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.inherit_group_test_flags() TO anon;
+GRANT ALL ON FUNCTION public.inherit_group_test_flags() TO authenticated;
+GRANT ALL ON FUNCTION public.inherit_group_test_flags() TO service_role;
 
 
 --

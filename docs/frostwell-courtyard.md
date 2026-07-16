@@ -264,6 +264,15 @@ Key behaviours:
 - Actions: opacity 0 by default, opacity 1 on `tr:hover` or `tr:focus-within`
 - Action buttons are icon-only; tooltips on `title=`. Reveal on hover (desktop)
   or always-visible at 0.5 opacity if the surface needs to support touch.
+- **Whole-row-clickable (founder ruling 2026-07-16):** when a row's primary
+  action is "open detail" (a "View" label, a navigate-to-detail link), the
+  ROW carries that action, not a separate label button — `tabindex="0"`,
+  `role="button"`, `@click`/`@keydown.enter`/`@keydown.space.prevent` on the
+  `<tr>`, `cursor: pointer` + a hover background. Any OTHER action buttons in
+  the row (extend/refresh/expire/purge, remove, etc.) opt out via
+  `@click.stop` so they don't also trigger the row navigation. Reference:
+  `AdminUsers.vue`'s `.user-row` (`navigateToUser`), `AdminDemoSchools.vue`'s
+  `.org-row` (`toggleExpanded`).
 
 ### 5.4 Form decisions
 

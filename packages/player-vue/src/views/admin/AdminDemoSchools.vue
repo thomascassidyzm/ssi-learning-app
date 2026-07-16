@@ -305,7 +305,17 @@ onMounted(() => {
           </thead>
           <tbody>
             <template v-for="org in visibleOrgs" :key="org.id">
-              <tr :class="{ 'is-inactive': org.status === 'expired' }">
+              <tr
+                class="org-row"
+                :class="{ 'is-inactive': org.status === 'expired' }"
+                tabindex="0"
+                role="button"
+                :aria-expanded="expandedId === org.id"
+                :aria-label="`${expandedId === org.id ? 'Hide' : 'View'} details for ${org.prospect_name}`"
+                @click="toggleExpanded(org.id)"
+                @keydown.enter="toggleExpanded(org.id)"
+                @keydown.space.prevent="toggleExpanded(org.id)"
+              >
                 <td class="cell-org">{{ org.prospect_name }}</td>
                 <td class="cell-muted">{{ shapeLabel(org.org_shape) }}</td>
                 <td class="cell-muted">{{ org.course_code }}</td>
@@ -323,31 +333,28 @@ onMounted(() => {
                   </span>
                 </td>
                 <td class="cell-actions">
-                  <button class="row-action-text" @click="toggleExpanded(org.id)">
-                    {{ expandedId === org.id ? 'Hide' : 'View' }}
-                  </button>
                   <button
                     class="row-action-text"
                     :disabled="busyAction === `extend:${org.id}`"
-                    @click="runAction(org.id, 'extend')"
+                    @click.stop="runAction(org.id, 'extend')"
                   >Extend 30d</button>
                   <button
                     v-if="org.status === 'active'"
                     class="row-action-text"
                     :disabled="busyAction === `refresh:${org.id}`"
-                    @click="runAction(org.id, 'refresh')"
+                    @click.stop="runAction(org.id, 'refresh')"
                   >{{ busyAction === `refresh:${org.id}` ? 'Refreshing…' : 'Refresh activity' }}</button>
                   <button
                     v-if="org.status === 'active'"
                     class="row-action-text row-action-danger"
                     :disabled="busyAction === `expire:${org.id}`"
-                    @click="runAction(org.id, 'expire')"
+                    @click.stop="runAction(org.id, 'expire')"
                   >Expire now</button>
                   <button
                     v-if="org.status === 'expired'"
                     class="row-action-text row-action-danger"
                     :disabled="busyAction === `purge:${org.id}`"
-                    @click="runAction(org.id, 'purge')"
+                    @click.stop="runAction(org.id, 'purge')"
                   >Purge</button>
                 </td>
               </tr>
@@ -523,6 +530,12 @@ onMounted(() => {
 }
 
 .codes-table tbody tr.is-inactive { opacity: 0.55; }
+
+/* Whole-row-clickable (founder ruling 2026-07-16): the row itself opens the
+   detail expansion; action buttons opt out via @click.stop. */
+.org-row { cursor: pointer; }
+.org-row:hover { background: rgba(44, 38, 34, 0.03); }
+.org-row:focus-visible { outline: 2px solid var(--schools-accent, currentColor); outline-offset: -2px; }
 
 .cell-org { color: var(--schools-fg); font-weight: var(--font-medium); }
 .cell-muted { color: var(--schools-fg-3); white-space: nowrap; }
