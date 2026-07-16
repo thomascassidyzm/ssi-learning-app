@@ -75,13 +75,6 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
         <span class="brand-mark">S</span>
         <span class="brand-text">SSi Admin</span>
       </router-link>
-
-      <router-link to="/demo" class="demo-pill">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <polygon points="5 3 19 12 5 21 5 3"/>
-        </svg>
-        Demo
-      </router-link>
     </div>
 
     <nav v-if="showTabs" class="tabs" aria-label="Admin sections">
@@ -184,32 +177,6 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
   color: #fff;
 }
 
-/* ─────────────── Demo pill ─────────────── */
-.demo-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px 5px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-decoration: none;
-  color: rgba(255, 255, 255, 0.7);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
-}
-
-.demo-pill:hover {
-  color: var(--schools-gold, #FEC902);
-  background: rgba(254, 201, 2, 0.06);
-  border-color: rgba(254, 201, 2, 0.32);
-}
-
-.demo-pill svg { opacity: 0.7; }
-.demo-pill:hover svg { opacity: 1; }
-
 /* ─────────────── Tabs ─────────────── */
 .tabs {
   display: flex;
@@ -271,7 +238,6 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
 
 @media (max-width: 640px) {
   .back-link span { display: none; }
-  .demo-pill { display: none; }
   .admin-topbar { padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; }
 }
 </style>

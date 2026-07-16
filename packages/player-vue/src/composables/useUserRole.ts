@@ -17,6 +17,18 @@ export interface ActAsPersona {
   name: string
 }
 
+/** Human label for a persona's role, for the acting-as banner and any act-as UI. */
+export function roleLabel(role: ActAsPersona['role']): string {
+  switch (role) {
+    case 'teacher':
+      return 'Teacher'
+    case 'school_admin':
+      return 'School leader'
+    case 'govt_admin':
+      return 'Group leader'
+  }
+}
+
 // State (module-level singleton)
 const platformRole = ref<string | null>(null)
 const educationalRole = ref<string | null>(null)

@@ -33,7 +33,7 @@
   --schools-border-strong: rgba(15,18,18,.18);
   --schools-fg:            #0F1212;
   --schools-fg-2:          #555555;
-  --schools-fg-3:          #888888;
+  --schools-fg-3:          #6b6b6b;   /* darkened 2026-07 — #888 read as too weak against the putty bg (< AA contrast) */
   --schools-red:           #DB1E17;
   --schools-red-deep:      #900600;
   --schools-pastel:        #F2D7D7;
@@ -160,8 +160,96 @@
   background: var(--schools-card);
   border: 1px solid var(--schools-border);
   border-radius: var(--schools-radius-lg);
+  box-shadow: var(--schools-shadow-sm);
 }
 .schools-surface .schools-card-pad { padding: 18px 20px; }
+
+/* ---------- Status pill (shared — do not re-declare per view) ----------
+ * Tone fills stay pale/saturated (readable as a colour swatch); tone TEXT
+ * always uses the darker "-ink" variant so it clears body-text contrast on
+ * a white/putty card. Green is the tone most people re-add per file — pull
+ * this one in instead of a local .status-pill block. */
+.schools-surface .status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--schools-radius-pill);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  line-height: 1.3;
+}
+.schools-surface .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.schools-surface .status-pill.tone-green {
+  color: rgb(var(--tone-green-ink));
+  background: rgba(var(--tone-green), 0.16);
+  border-color: rgba(var(--tone-green-ink), 0.30);
+}
+.schools-surface .status-pill.tone-blue {
+  color: rgb(var(--tone-blue-ink));
+  background: rgba(var(--tone-blue), 0.16);
+  border-color: rgba(var(--tone-blue-ink), 0.28);
+}
+.schools-surface .status-pill.tone-gold {
+  color: rgb(var(--tone-gold-ink));
+  background: rgba(var(--tone-gold), 0.20);
+  border-color: rgba(var(--tone-gold-ink), 0.32);
+}
+.schools-surface .status-pill.tone-red {
+  color: rgb(var(--tone-red));
+  background: rgba(var(--tone-red), 0.10);
+  border-color: rgba(var(--tone-red), 0.30);
+}
+.schools-surface .status-pill.tone-muted {
+  color: var(--schools-fg-3);
+  background: rgba(15, 18, 18, 0.05);
+  border-color: var(--schools-border);
+}
+
+/* ---------- Search / filter bar (shared) ----------
+ * Consistent instant-filter input for list/table views — Setup's Groups/
+ * Schools/Staff tabs, Try Links, Users. One markup shape:
+ *   <div class="filter-bar"><svg class="filter-bar-icon">…</svg>
+ *     <input class="filter-bar-input" v-model="query" placeholder="Search…"></div>
+ */
+.schools-surface .filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  height: 38px;
+  background: #fff;
+  border: 1px solid var(--schools-border-strong);
+  border-radius: var(--schools-radius-md);
+  max-width: 340px;
+  transition: border-color 160ms ease-out, box-shadow 160ms ease-out;
+}
+.schools-surface .filter-bar:focus-within {
+  border-color: var(--schools-red);
+  box-shadow: 0 0 0 3px rgba(219, 30, 23, 0.08);
+}
+.schools-surface .filter-bar-icon {
+  flex: none;
+  color: var(--schools-fg-3);
+}
+.schools-surface .filter-bar-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--schools-fg);
+}
+.schools-surface .filter-bar-input::placeholder { color: var(--schools-fg-3); }
 
 /* ---------- Table ---------- */
 .schools-surface table.ssi-table {

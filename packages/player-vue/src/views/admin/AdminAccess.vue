@@ -2,9 +2,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useActAs } from '@/composables/useActAs'
-import { fetchDemoPersonas, roleLabel } from '@/composables/schools/actAsPersonas'
-import type { ActAsPersona } from '@/composables/useUserRole'
 
 type Mode = 'invite' | 'direct'
 
@@ -69,9 +66,8 @@ type Row =
   | { kind: 'invite'; row: InviteCode; createdAt: string }
   | { kind: 'direct'; row: EntitlementCode; createdAt: string }
 
-const { isSsiAdmin, isGovtAdmin, canActAs } = useUserRole()
+const { isSsiAdmin, isGovtAdmin } = useUserRole()
 const { getClient, getAuthToken } = useAdminClient()
-const { actAs } = useActAs()
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 const groups = ref<Group[]>([])
@@ -535,16 +531,6 @@ function inviteOrgLabel(c: InviteCode): string {
   return c.metadata?.organization_name || '—'
 }
 
-const demoPersonas = ref<ActAsPersona[]>([])
-async function loadDemoPersonas() {
-  if (!canActAs.value) return
-  try {
-    demoPersonas.value = await fetchDemoPersonas(getClient())
-  } catch {
-    demoPersonas.value = []
-  }
-}
-
 function formatGrantAccess(g: EmailAccessGrant): string {
   const access = g.access_type === 'full'
     ? 'Full'
@@ -556,7 +542,6 @@ function formatGrantAccess(g: EmailAccessGrant): string {
 onMounted(() => {
   fetchAll()
   fetchAllowlist()
-  loadDemoPersonas()
 })
 </script>
 
@@ -602,29 +587,6 @@ onMounted(() => {
         <span>{{ error }}</span>
       </div>
     </Transition>
-
-    <!-- Act as — step into a demo persona to experience the live schools app -->
-    <div v-if="canActAs && demoPersonas.length" class="schools-card act-as-panel">
-      <div class="panel-head">
-        <span class="schools-kicker">View the app as</span>
-      </div>
-      <p class="act-as-hint">
-        Open the live schools dashboard as a demo persona. You stay signed in as
-        yourself — nothing links your account to them. Exit any time from the banner.
-      </p>
-      <div class="act-as-buttons">
-        <button
-          v-for="p in demoPersonas"
-          :key="p.key"
-          type="button"
-          class="act-as-btn"
-          @click="actAs(p)"
-        >
-          <span class="act-as-role">{{ roleLabel(p.role) }}</span>
-          <span class="act-as-name">{{ p.name }}</span>
-        </button>
-      </div>
-    </div>
 
     <!-- Create form — schools card panel -->
     <div class="schools-card create-panel">
@@ -1108,49 +1070,6 @@ onMounted(() => {
   background: rgba(var(--tone-red), 0.08);
   border: 1px solid rgba(var(--tone-red), 0.28);
   color: rgb(var(--tone-red));
-}
-
-/* Act-as panel */
-.act-as-panel {
-  padding: var(--space-4) var(--space-6) var(--space-6);
-}
-.act-as-hint {
-  margin: var(--space-3) 0 var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--schools-fg-2, #6b6258);
-  max-width: 60ch;
-}
-.act-as-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-.act-as-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: var(--space-3) var(--space-4);
-  min-width: 160px;
-  font: inherit;
-  text-align: left;
-  background: rgba(44, 38, 34, 0.04);
-  border: 1px solid rgba(44, 38, 34, 0.10);
-  border-radius: var(--radius-md, 10px);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.act-as-btn:hover {
-  background: rgba(44, 38, 34, 0.07);
-  border-color: rgba(44, 38, 34, 0.18);
-}
-.act-as-role {
-  font-weight: 600;
-  font-size: var(--text-sm);
-}
-.act-as-name {
-  font-size: var(--text-xs);
-  color: var(--schools-fg-2, #6b6258);
 }
 
 /* Create panel */
