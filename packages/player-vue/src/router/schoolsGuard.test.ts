@@ -47,6 +47,18 @@ describe('/schools route guard', () => {
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
+  it('the /schools/play child route (staff self-practice, embedded under SchoolsTopBar) is covered by the same parent guard — a plain learner is bounced, never reaching it', async () => {
+    useUserRole().initialize(null, null)
+    await router.push('/schools/play')
+    expect(router.currentRoute.value.fullPath).toBe('/')
+  })
+
+  it('a school-role user reaches /schools/play directly (the Learn button target)', async () => {
+    useUserRole().initialize(null, 'teacher')
+    await router.push('/schools/play')
+    expect(router.currentRoute.value.fullPath).toBe('/schools/play')
+  })
+
   it('restores a role persisted by a prior initialize() call on a fresh (uninitialized) module state', async () => {
     // Simulates the real sequence: initialize() (e.g. RedeemCode's
     // post-redemption write) persists to localStorage synchronously; a
