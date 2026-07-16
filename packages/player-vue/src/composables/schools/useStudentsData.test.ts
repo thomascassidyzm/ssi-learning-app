@@ -26,7 +26,10 @@ function createMockClient(responses: Record<string, any>) {
     from: vi.fn((table: string) => {
       currentTable = table
       return new Proxy({}, handler)
-    })
+    }),
+    auth: {
+      getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })),
+    },
   } as any
 }
 
@@ -61,7 +64,7 @@ describe('useStudentsData', () => {
     return useStudentsData()
   }
 
-  it('fetches students for school_admin', async () => {
+  it('fetches students for a school_admin admin-view (no _scopeSource) via the direct read', async () => {
     const sd = await setup({
       classes: { data: [{ id: 'c1' }, { id: 'c2' }], error: null },
       class_student_progress: { data: [
@@ -74,6 +77,43 @@ describe('useStudentsData', () => {
     expect(sd.totalStudents.value).toBe(2)
     expect(sd.avgSeedsCompleted.value).toBe(8) // (10+5)/2 = 7.5 → 8
     expect(sd.avgPracticeMinutes.value).toBe(23) // (30+15)/2 = 22.5 → 23
+  })
+
+  it('a REAL school_admin (_scopeSource=self) fetches students via the server-mediated endpoint, not a direct class_student_progress read', async () => {
+    const { setSchoolsClient } = await import('./client')
+    setSchoolsClient(createMockClient({}))
+    const { useSchoolContext } = await import('./useSchoolContext')
+    const ctx = useSchoolContext()
+    ctx.currentUser.value = ({
+      user_id: 'u-a', learner_id: 'l-a', display_name: 'Admin',
+      educational_role: 'school_admin', platform_role: null, school_id: 's1', _scopeSource: 'self',
+    })
+    const { useStudentsData } = await import('./useStudentsData')
+    const sd = useStudentsData()
+
+    // Root cause of the "school admin sees 0 students" bug: class_student_progress
+    // is RLS-guarded via user_tags, whose SELECT policy misses a school_admin
+    // invite-born via the newer school_admin_join redemption path — a direct
+    // read as that admin's own session silently returned zero rows.
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        school: {}, teachers: [],
+        students: [
+          { user_id: 'su1', learner_id: 'sl1', display_name: 'Alice', class_id: 'c1', class_name: 'Welsh', course_code: 'cym', seeds_completed: 10, legos_mastered: 20, total_practice_minutes: 30, last_active_at: null, joined_class_at: '2025-01-01' },
+        ],
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sd.fetchStudents()
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/school/roster', expect.objectContaining({
+      headers: { Authorization: 'Bearer tok' },
+    }))
+    expect(sd.students.value).toHaveLength(1)
+    expect(sd.students.value[0].display_name).toBe('Alice')
+    vi.unstubAllGlobals()
   })
 
   it('returns empty for teacher with no classes', async () => {

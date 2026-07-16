@@ -11,7 +11,17 @@ Object.defineProperty(globalThis, 'localStorage', {
   writable: true,
 })
 
-function createMockClient(responses: Record<string, any>) {
+function createMockClient() {
+  return {
+    from: vi.fn(),
+    auth: {
+      getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })),
+    },
+  } as any
+}
+
+/** Chainable Supabase mock dispatching by table — used by the admin-view (direct-read) test. */
+function createChainableClient(responses: Record<string, any>) {
   let currentTable = ''
   const handler: ProxyHandler<any> = {
     get(_target, prop) {
@@ -26,7 +36,10 @@ function createMockClient(responses: Record<string, any>) {
     from: vi.fn((table: string) => {
       currentTable = table
       return new Proxy({}, handler)
-    })
+    }),
+    auth: {
+      getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })),
+    },
   } as any
 }
 
@@ -34,31 +47,99 @@ describe('useTeachersData', () => {
   beforeEach(async () => {
     vi.resetModules()
     Object.keys(store).forEach(k => delete store[k])
+    vi.unstubAllGlobals()
   })
 
-  async function setup(responses: Record<string, any> = {}) {
+  async function setup() {
     const { setSchoolsClient } = await import('./client')
-    setSchoolsClient(createMockClient(responses))
+    setSchoolsClient(createMockClient())
     const { useSchoolContext } = await import('./useSchoolContext')
     const ctx = useSchoolContext()
     ctx.currentUser.value = ({
       user_id: 'u-admin', learner_id: 'l-admin', display_name: 'Admin',
-      educational_role: 'school_admin', platform_role: null, school_id: 's1'
+      educational_role: 'school_admin', platform_role: null, school_id: 's1',
+      _scopeSource: 'self',
     })
     const { useTeachersData } = await import('./useTeachersData')
     return useTeachersData()
   }
 
-  it('returns empty array when no teacher tags found', async () => {
-    const td = await setup({
-      user_tags: { data: [], error: null },
-    })
+  // Root cause of the "school admin sees 0 staff" bug + the aggregation math
+  // (co-taught attribution, practice-hour rounding, sorting) now live
+  // server-side in roster.ts — see api/school/roster.test.ts. These tests
+  // cover the thin client wrapper only: does it call the right endpoint with
+  // the right auth, and pass the response through untouched?
+
+  it('calls /api/school/roster with the bearer token and stores the teachers it returns', async () => {
+    const td = await setup()
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        school: {}, students: [],
+        teachers: [
+          { user_id: 'ut1', learner_id: 'l1', display_name: 'Alice', class_count: 1, student_count: 1, total_practice_hours: 1, joined_at: '2025-01-01' },
+          { user_id: 'ut2', learner_id: 'l2', display_name: 'Zara', class_count: 2, student_count: 2, total_practice_hours: 3, joined_at: '2025-02-01' },
+        ],
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await td.fetchTeachers()
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/school/roster', expect.objectContaining({
+      headers: { Authorization: 'Bearer tok' },
+    }))
+    expect(td.teachers.value).toHaveLength(2)
+    expect(td.teachers.value[1].display_name).toBe('Zara')
+  })
+
+  it('returns empty array when the endpoint reports no teachers', async () => {
+    const td = await setup()
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ school: {}, teachers: [], students: [] }),
+    })))
     await td.fetchTeachers()
     expect(td.teachers.value).toEqual([])
   })
 
-  it('aggregates multi-step teacher data correctly', async () => {
-    const td = await setup({
+  it('does not fetch without school id', async () => {
+    const { setSchoolsClient } = await import('./client')
+    setSchoolsClient(createMockClient())
+    const { useSchoolContext } = await import('./useSchoolContext')
+    useSchoolContext() // no user selected
+    const { useTeachersData } = await import('./useTeachersData')
+    const td = useTeachersData()
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    await td.fetchTeachers()
+    expect(td.teachers.value).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('sets error on fetch failure', async () => {
+    const td = await setup()
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })))
+    await td.fetchTeachers()
+    expect(td.error.value).toBeTruthy()
+  })
+
+  it('fetches with an explicit schoolId parameter (still hits the caller-scoped endpoint)', async () => {
+    const td = await setup()
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ school: {}, students: [], teachers: [
+        { user_id: 'ut1', learner_id: 'l1', display_name: 'Test', class_count: 0, student_count: 0, total_practice_hours: 0, joined_at: '' },
+      ] }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    await td.fetchTeachers('explicit-school-id')
+    expect(td.teachers.value).toHaveLength(1)
+  })
+
+  it('an ssi_admin admin-view (loadFromSchoolId fakes school_admin) keeps the direct read + aggregation, never the caller-scoped endpoint', async () => {
+    const { setSchoolsClient } = await import('./client')
+    setSchoolsClient(createChainableClient({
       user_tags: { data: [
         { user_id: 'ut1', added_at: '2025-01-01' },
         { user_id: 'ut2', added_at: '2025-02-01' },
@@ -67,10 +148,7 @@ describe('useTeachersData', () => {
         { id: 'l1', user_id: 'ut1', display_name: 'Zara Teacher' },
         { id: 'l2', user_id: 'ut2', display_name: 'Alice Teacher' },
       ], error: null },
-      classes: { data: [
-        { id: 'c1' }, { id: 'c2' }, { id: 'c3' },
-      ], error: null },
-      // teacher↔class attribution is via the relationship view now
+      classes: { data: [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }], error: null },
       class_teachers: { data: [
         { class_id: 'c1', teacher_user_id: 'ut1', is_lead: true },
         { class_id: 'c2', teacher_user_id: 'ut1', is_lead: true },
@@ -81,97 +159,28 @@ describe('useTeachersData', () => {
         { class_id: 'c1', total_practice_seconds: 7200 },
         { class_id: 'c3', total_practice_seconds: 1800 },
       ], error: null },
-    })
-    await td.fetchTeachers()
-
-    expect(td.teachers.value).toHaveLength(2)
-    // Should be sorted alphabetically
-    expect(td.teachers.value[0].display_name).toBe('Alice Teacher')
-    expect(td.teachers.value[1].display_name).toBe('Zara Teacher')
-
-    const zara = td.teachers.value[1]
-    expect(zara.class_count).toBe(2)
-    expect(zara.student_count).toBe(2)
-    // (3600 + 7200) / 3600 = 3.0 hours
-    expect(zara.total_practice_hours).toBe(3)
-  })
-
-  it('attributes a co-taught class to BOTH teachers (relationship, not ownership)', async () => {
-    const td = await setup({
-      user_tags: { data: [
-        { user_id: 'ut1', added_at: '2025-01-01' },
-        { user_id: 'ut2', added_at: '2025-02-01' },
-      ], error: null },
-      learners: { data: [
-        { id: 'l1', user_id: 'ut1', display_name: 'Alice' },
-        { id: 'l2', user_id: 'ut2', display_name: 'Bryn' },
-      ], error: null },
-      classes: { data: [{ id: 'c1' }], error: null },
-      // one class, two teachers — only the relationship can express this
-      class_teachers: { data: [
-        { class_id: 'c1', teacher_user_id: 'ut1', is_lead: true },
-        { class_id: 'c1', teacher_user_id: 'ut2', is_lead: false },
-      ], error: null },
-      class_student_progress: { data: [
-        { class_id: 'c1', total_practice_seconds: 3600 },
-      ], error: null },
-    })
-    await td.fetchTeachers()
-    expect(td.teachers.value).toHaveLength(2)
-    for (const t of td.teachers.value) {
-      expect(t.class_count).toBe(1)
-      expect(t.student_count).toBe(1)
-      expect(t.total_practice_hours).toBe(1)
-    }
-  })
-
-  it('rounds practice hours to 1 decimal', async () => {
-    const td = await setup({
-      user_tags: { data: [{ user_id: 'ut1', added_at: '2025-01-01' }], error: null },
-      learners: { data: [{ id: 'l1', user_id: 'ut1', display_name: 'Test' }], error: null },
-      classes: { data: [{ id: 'c1' }], error: null },
-      class_teachers: { data: [{ class_id: 'c1', teacher_user_id: 'ut1', is_lead: true }], error: null },
-      class_student_progress: { data: [
-        { class_id: 'c1', total_practice_seconds: 5432 },
-      ], error: null },
-    })
-    await td.fetchTeachers()
-    // 5432 / 3600 = 1.5088... → rounded to 1.5
-    expect(td.teachers.value[0].total_practice_hours).toBe(1.5)
-  })
-
-  it('handles null total_practice_seconds', async () => {
-    const td = await setup({
-      user_tags: { data: [{ user_id: 'ut1', added_at: '2025-01-01' }], error: null },
-      learners: { data: [{ id: 'l1', user_id: 'ut1', display_name: 'Test' }], error: null },
-      classes: { data: [{ id: 'c1' }], error: null },
-      class_teachers: { data: [{ class_id: 'c1', teacher_user_id: 'ut1', is_lead: true }], error: null },
-      class_student_progress: { data: [
-        { class_id: 'c1', total_practice_seconds: null },
-      ], error: null },
-    })
-    await td.fetchTeachers()
-    expect(td.teachers.value[0].total_practice_hours).toBe(0)
-  })
-
-  it('does not fetch without school id', async () => {
-    const { setSchoolsClient } = await import('./client')
-    const mockClient = createMockClient({})
-    setSchoolsClient(mockClient)
+    }))
     const { useSchoolContext } = await import('./useSchoolContext')
-    useSchoolContext() // no user selected
+    const ctx = useSchoolContext()
+    ctx.currentUser.value = ({
+      user_id: 'real-admin-uid', learner_id: 'l-admin', display_name: 'SSI Admin',
+      educational_role: 'school_admin', platform_role: 'ssi_admin',
+      school_id: 's1', _scopeSource: 'admin-view',
+    })
     const { useTeachersData } = await import('./useTeachersData')
     const td = useTeachersData()
-    await td.fetchTeachers()
-    expect(td.teachers.value).toEqual([])
-  })
 
-  it('sets error on fetch failure', async () => {
-    const td = await setup({
-      user_tags: { data: null, error: { message: 'Network error' } },
-    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
     await td.fetchTeachers()
-    expect(td.error.value).toBeTruthy()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(td.teachers.value).toHaveLength(2)
+    const zara = td.teachers.value.find(t => t.display_name === 'Zara Teacher')!
+    expect(zara.class_count).toBe(2)
+    expect(zara.student_count).toBe(2)
+    expect(zara.total_practice_hours).toBe(3)
   })
 
   // --- removeTeacher: server-mediated (api/school/remove-staff.ts), replacing
@@ -180,7 +189,7 @@ describe('useTeachersData', () => {
 
   describe('removeTeacher', () => {
     function setupWithAuth() {
-      const client = createMockClient({})
+      const client = createMockClient()
       ;(client as any).auth = { getSession: vi.fn(async () => ({ data: { session: { access_token: 'tok' } } })) }
       return client
     }
@@ -219,16 +228,5 @@ describe('useTeachersData', () => {
       expect(result).toEqual({ ok: false, error: 'Only a school admin can remove staff' })
       vi.unstubAllGlobals()
     })
-  })
-
-  it('fetches with explicit schoolId parameter', async () => {
-    const td = await setup({
-      user_tags: { data: [{ user_id: 'ut1', added_at: '2025-01-01' }], error: null },
-      learners: { data: [{ id: 'l1', user_id: 'ut1', display_name: 'Test' }], error: null },
-      classes: { data: [], error: null },
-      class_student_progress: { data: [], error: null },
-    })
-    await td.fetchTeachers('explicit-school-id')
-    expect(td.teachers.value).toHaveLength(1)
   })
 })

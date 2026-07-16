@@ -250,24 +250,39 @@ const lastSessionLabel = computed(() => {
   return `${days}d ago`
 })
 
+// Second-person ("you're", "your") is only correct for the learner's own
+// self-view. This page is admin/teacher-facing ONLY (AdminUserProgress.vue
+// is its sole mount point) — isAdminView is true whenever it's live today —
+// but the branch stays keyed on isAdminView (default false) so a genuine
+// future self-view route gets the learner-voice copy for free.
 const streakLine = computed(() => {
+  if (isAdminView) {
+    if (streakDays.value === 0) return 'No current streak.'
+    return `On a ${streakDays.value}-day streak.`
+  }
   if (streakDays.value === 0) return "You're back — let's get this streak going."
   return `You're on a ${streakDays.value}-day streak.`
 })
 
 const subtitle = computed(() => {
-  if (!primaryCourse.value) return 'Enrol in a course to start your journey.'
+  if (!primaryCourse.value) {
+    return isAdminView ? 'Not yet enrolled in a course.' : 'Enrol in a course to start your journey.'
+  }
   const remaining = Math.max(0, belt.value.total - belt.value.done)
   const beltLabel = belt.value.next?.name ?? belt.value.current.name
   const parts: string[] = []
-  parts.push(`You've retired ${legosRetired.value} LEGOs in ${primaryCourseName.value}.`)
-  if (belt.value.next) {
-    parts.push(`${remaining} more to your ${beltLabel} belt.`)
+  if (isAdminView) {
+    parts.push(`Retired ${legosRetired.value} LEGOs in ${primaryCourseName.value}.`)
+    parts.push(belt.value.next
+      ? `${remaining} more to ${beltLabel} belt.`
+      : `Reached ${beltLabel} belt.`)
+    if (lastSessionAt.value) parts.push(`Last session ${lastSessionLabel.value}.`)
   } else {
-    parts.push(`You've reached ${beltLabel} belt — keep going.`)
-  }
-  if (lastSessionAt.value) {
-    parts.push(`Your last session was ${lastSessionLabel.value} — pick up where you left off?`)
+    parts.push(`You've retired ${legosRetired.value} LEGOs in ${primaryCourseName.value}.`)
+    parts.push(belt.value.next
+      ? `${remaining} more to your ${beltLabel} belt.`
+      : `You've reached ${beltLabel} belt — keep going.`)
+    if (lastSessionAt.value) parts.push(`Your last session was ${lastSessionLabel.value} — pick up where you left off?`)
   }
   return parts.join(' ')
 })
@@ -285,7 +300,7 @@ const journeyTotal = computed(() => {
 
 <template>
   <div class="progress-page">
-    <div v-if="isLoading" class="state-msg schools-subtle">Loading your progress…</div>
+    <div v-if="isLoading" class="state-msg schools-subtle">{{ isAdminView ? 'Loading progress…' : 'Loading your progress…' }}</div>
 
     <div v-else-if="error" class="state-msg schools-subtle">{{ error }}</div>
 

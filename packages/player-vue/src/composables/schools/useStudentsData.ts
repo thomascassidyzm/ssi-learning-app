@@ -48,6 +48,29 @@ export function useStudentsData() {
     error.value = null
 
     try {
+      if (isSchoolAdmin.value && selectedUser.value.school_id && selectedUser.value._scopeSource === 'self') {
+        // A REAL school admin viewing their OWN school (never an ssi_admin's
+        // admin-view — loadFromSchoolId fakes educational_role='school_admin'
+        // for that, scoped via _scopeSource instead): server-mediated
+        // (/api/school/roster), NOT a direct `class_student_progress` read.
+        // That view is RLS-guarded via user_tags, whose SELECT policy misses
+        // a school_admin invite-born via the newer school_admin_join
+        // redemption path (schools.admin_user_id stays null there) — a direct
+        // read as that admin's own session silently returned zero students.
+        // An ssi_admin's admin-view already works (their own RLS ssi_admin
+        // branch), so it keeps using the direct read below. See roster.ts.
+        const { data: { session } } = await client.auth.getSession()
+        const token = session?.access_token
+        if (!token) { students.value = []; return }
+        const res = await fetch('/api/school/roster', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok) throw new Error(`roster ${res.status}`)
+        const { students: studentRows } = (await res.json()) as { students: Student[] }
+        students.value = studentRows
+        return
+      }
+
       let classIds: string[] = []
 
       if (isTeacher.value) {

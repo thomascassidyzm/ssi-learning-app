@@ -59,13 +59,13 @@ describe('useSchoolData', () => {
       ctx.currentUser.value = ({
         user_id: 'u2', learner_id: 'l2', display_name: 'Admin',
         educational_role: 'school_admin', platform_role: null,
-        school_id: 's1'
+        school_id: 's1', _scopeSource: 'self',
       })
     } else if (role === 'teacher') {
       ctx.currentUser.value = ({
         user_id: 'u3', learner_id: 'l3', display_name: 'Teacher',
         educational_role: 'teacher', platform_role: null,
-        school_id: 's1'
+        school_id: 's1', _scopeSource: 'self',
       })
     }
 
@@ -101,7 +101,7 @@ describe('useSchoolData', () => {
     ctx.currentUser.value = ({
       user_id: 'u1', learner_id: 'l1', display_name: 'Gov',
       educational_role: 'govt_admin', platform_role: null,
-      group_id: 'g1', group_path: 'ime-demo-programme',
+      group_id: 'g1', group_path: 'ime-demo-programme', _scopeSource: 'self',
     })
     const { useSchoolData } = await import('./useSchoolData')
     const sd = useSchoolData()
@@ -140,38 +140,124 @@ describe('useSchoolData', () => {
     vi.unstubAllGlobals()
   })
 
-  it('fetches single school for school_admin', async () => {
+  it('an ssi_admin admin-view of a group (/admin/groups/:id) passes ?groupId= so group-summary\'s admin passthrough can resolve it', async () => {
+    const { setSchoolsClient } = await import('./client')
+    setSchoolsClient(createMockClient({}))
+    const { useSchoolContext } = await import('./useSchoolContext')
+    const ctx = useSchoolContext()
+    ctx.currentUser.value = ({
+      user_id: 'real-admin-uid', learner_id: 'l-admin', display_name: 'SSI Admin',
+      educational_role: 'govt_admin', platform_role: 'ssi_admin',
+      group_id: 'g9', group_path: 'some-group', _scopeSource: 'admin-view',
+    })
+    const { useSchoolData } = await import('./useSchoolData')
+    const sd = useSchoolData()
+
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        group: { group_id: 'g9', group_name: 'Some Group', school_count: 1, teacher_count: 1, student_count: 1, total_practice_hours: 1 },
+        schools: [],
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sd.fetchSchools()
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/school/group-summary?groupId=g9', expect.objectContaining({
+      headers: { Authorization: 'Bearer tok' },
+    }))
+    expect(sd.groupSummary.value?.group_id).toBe('g9')
+    vi.unstubAllGlobals()
+  })
+
+  it('fetches single school for school_admin via the server-mediated endpoint, not a direct view read', async () => {
     const sd = await setup({
-      school_summary: {
-        data: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 4, class_count: 2, student_count: 25, total_practice_hours: 50, created_at: '2025-01-01' },
-        error: null,
-      },
       schools: {
         data: { teacher_join_code: 'ABC123' },
         error: null,
       },
     }, 'school_admin')
 
+    // Root cause of the "school admin sees 0 staff/0 students" bug:
+    // school_summary is an RLS-invoker view that LATERAL-joins user_tags,
+    // whose SELECT policy misses a school_admin invite-born via the newer
+    // school_admin_join redemption path (schools.admin_user_id stays null
+    // there) — a direct client read as that admin's own session silently
+    // zeroed every teacher/student count. Fixed via /api/school/roster.
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        school: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 4, class_count: 2, student_count: 25, total_practice_hours: 50, created_at: '2025-01-01' },
+        teachers: [],
+        students: [],
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
     await sd.fetchSchools()
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/school/roster', expect.objectContaining({
+      headers: { Authorization: 'Bearer tok' },
+    }))
     expect(sd.currentSchool.value?.school_name).toBe('My School')
+    expect(sd.currentSchool.value?.teacher_count).toBe(4)
+    expect(sd.currentSchool.value?.student_count).toBe(25)
     expect(sd.currentSchool.value?.teacher_join_code).toBe('ABC123')
     expect(sd.schools.value).toHaveLength(1)
+    vi.unstubAllGlobals()
   })
 
-  it('fetches single school for teacher', async () => {
-    const sd = await setup({
+  it('an ssi_admin admin-view (loadFromSchoolId fakes school_admin) keeps the direct view read, never the caller-scoped endpoint', async () => {
+    const { setSchoolsClient } = await import('./client')
+    setSchoolsClient(createMockClient({
       school_summary: {
-        data: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 4, class_count: 2, student_count: 25, total_practice_hours: 50, created_at: '2025-01-01' },
+        data: { school_id: 's9', school_name: 'Admin-Viewed School', region_code: 'WALES', admin_user_id: null, teacher_count: 4, class_count: 2, student_count: 25, total_practice_hours: 50, created_at: '2025-01-01' },
         error: null,
       },
+      schools: { data: { teacher_join_code: 'Q1' }, error: null },
+    }))
+    const { useSchoolContext } = await import('./useSchoolContext')
+    const ctx = useSchoolContext()
+    ctx.currentUser.value = ({
+      user_id: 'real-admin-uid', learner_id: 'l-admin', display_name: 'SSI Admin',
+      educational_role: 'school_admin', platform_role: 'ssi_admin',
+      school_id: 's9', _scopeSource: 'admin-view',
+    })
+    const { useSchoolData } = await import('./useSchoolData')
+    const sd = useSchoolData()
+
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await sd.fetchSchools()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(sd.currentSchool.value?.school_name).toBe('Admin-Viewed School')
+    expect(sd.currentSchool.value?.student_count).toBe(25)
+    vi.unstubAllGlobals()
+  })
+
+  it('fetches single school for teacher via the server-mediated endpoint', async () => {
+    const sd = await setup({
       schools: {
         data: { teacher_join_code: 'XYZ789' },
         error: null,
       },
     }, 'teacher')
 
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        school: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 4, class_count: 2, student_count: 25, total_practice_hours: 50, created_at: '2025-01-01' },
+        teachers: [],
+        students: [],
+      }),
+    })))
+
     await sd.fetchSchools()
     expect(sd.currentSchool.value?.school_name).toBe('My School')
+    vi.unstubAllGlobals()
   })
 
   // --- drill-down ---
@@ -234,13 +320,16 @@ describe('useSchoolData', () => {
   // --- confirm/rename (invite-born admin first-run card) ---
 
   it('confirmSchoolName updates the school_name + name_confirmed and syncs currentSchool', async () => {
-    const sd = await setup({
-      school_summary: {
-        data: { school_id: 's1', school_name: 'Ysgol y Garnedd', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
-        error: null,
-      },
-    }, 'school_admin')
+    const sd = await setup({}, 'school_admin')
 
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        school: { school_id: 's1', school_name: 'Ysgol y Garnedd', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
+        teachers: [],
+        students: [],
+      }),
+    })))
     await sd.fetchSchools()
     expect(sd.currentSchool.value?.name_confirmed).toBe(false)
 
@@ -259,13 +348,16 @@ describe('useSchoolData', () => {
   })
 
   it('confirmSchoolName surfaces the error and does not touch currentSchool on failure', async () => {
-    const sd = await setup({
-      school_summary: {
-        data: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
-        error: null,
-      },
-    }, 'school_admin')
+    const sd = await setup({}, 'school_admin')
 
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        school: { school_id: 's1', school_name: 'My School', region_code: 'WALES', admin_user_id: 'u2', teacher_count: 0, class_count: 0, student_count: 0, total_practice_hours: 0, created_at: '2025-01-01', name_confirmed: false },
+        teachers: [],
+        students: [],
+      }),
+    })))
     await sd.fetchSchools()
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: 'update failed' }) })))
     const ok = await sd.confirmSchoolName('s1', 'New Name')
@@ -276,10 +368,10 @@ describe('useSchoolData', () => {
   })
 
   it('sets error on fetch failure', async () => {
-    const sd = await setup({
-      school_summary: { data: null, error: { message: 'DB error' } },
-    }, 'school_admin')
+    const sd = await setup({}, 'school_admin')
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })))
     await sd.fetchSchools()
     expect(sd.error.value).toBeTruthy()
+    vi.unstubAllGlobals()
   })
 })

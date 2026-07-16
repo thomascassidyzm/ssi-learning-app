@@ -13,6 +13,7 @@ import ClassDetail from '@/views/schools/ClassDetail.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import '@/styles/schools-tokens.css'
+import '@/styles/schools-design.css'
 
 const route = useRoute()
 const supabase = inject<any>('supabase', ref(null))
