@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
+import { useActAs } from '@/composables/useActAs'
+import { useUserRole, type ActAsPersona } from '@/composables/useUserRole'
 import Badge from '@/components/schools/shared/Badge.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -11,6 +13,8 @@ import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 const { getClient, getAuthToken } = useAdminClient()
 const route = useRoute()
 const router = useRouter()
+const { canActAs } = useUserRole()
+const { actAs } = useActAs()
 const {
   profile,
   enrollments,
@@ -419,6 +423,23 @@ async function handleCreateSigninLink() {
   signinLink.value = await createSigninLink(profile.value.id, getAuthToken)
   signinLinkBusy.value = false
 }
+
+// ─── View as (act-as) — real entity only, gated on an actual educational role ──
+const ACT_AS_ROLES = new Set(['teacher', 'school_admin', 'govt_admin'])
+const viewAsPersona = computed<ActAsPersona | null>(() => {
+  const p = profile.value
+  if (!p || !p.educational_role || !ACT_AS_ROLES.has(p.educational_role)) return null
+  return {
+    key: `${p.educational_role}:${p.user_id}`,
+    userId: p.user_id,
+    role: p.educational_role as ActAsPersona['role'],
+    name: p.display_name || p.primary_email || 'User',
+  }
+})
+async function handleViewAs() {
+  if (!viewAsPersona.value) return
+  await actAs(viewAsPersona.value)
+}
 </script>
 
 <template>
@@ -545,6 +566,13 @@ async function handleCreateSigninLink() {
 
             <!-- Sign-in link rescue — for users whose OTP email never arrives -->
             <div class="signin-link-block">
+              <button
+                v-if="canActAs && viewAsPersona"
+                class="btn-ghost"
+                @click="handleViewAs"
+              >
+                View schools dashboard as this user
+              </button>
               <button class="btn-ghost" :disabled="signinLinkBusy" @click="handleCreateSigninLink">
                 {{ signinLinkBusy ? 'Creating…' : 'Create sign-in link' }}
               </button>

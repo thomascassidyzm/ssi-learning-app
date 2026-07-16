@@ -3,6 +3,8 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useActAs } from '@/composables/useActAs'
+import { useUserRole, type ActAsPersona } from '@/composables/useUserRole'
 
 const router = useRouter()
 
@@ -34,6 +36,8 @@ interface Course {
 
 const { user, learner } = useAuth()
 const { getClient, getAuthToken } = useAdminClient()
+const { canActAs } = useUserRole()
+const { actAs } = useActAs()
 
 // State
 const schools = ref<School[]>([])
@@ -239,6 +243,71 @@ const adminClaimedSchoolIds = ref<Set<string>>(new Set())
 
 function schoolHasAdmin(school: School): boolean {
   return !!school.admin_user_id || adminClaimedSchoolIds.value.has(school.id)
+}
+
+// Group leaders (govt_admins), for the "View as leader" row action.
+interface GroupLeader { user_id: string; display_name: string }
+const groupLeaders = ref<Map<string, GroupLeader>>(new Map()) // group_id -> leader
+
+async function fetchGroupLeaders(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data: govtAdmins } = await client
+      .from('govt_admins')
+      .select('user_id, group_id')
+      .not('group_id', 'is', null)
+    if (!govtAdmins?.length) {
+      groupLeaders.value = new Map()
+      return
+    }
+    const { data: leaners } = await client
+      .from('learners')
+      .select('user_id, display_name')
+      .in('user_id', govtAdmins.map((g: { user_id: string }) => g.user_id))
+    const nameByUser = new Map((leaners || []).map((l: { user_id: string; display_name: string }) => [l.user_id, l.display_name]))
+    const map = new Map<string, GroupLeader>()
+    for (const g of govtAdmins as { user_id: string; group_id: string }[]) {
+      map.set(g.group_id, { user_id: g.user_id, display_name: nameByUser.get(g.user_id) || 'Group leader' })
+    }
+    groupLeaders.value = map
+  } catch (err) {
+    console.error('[SetupView] fetch group leaders error:', err)
+  }
+}
+
+// "View as" personas — real entities only, resolved from the same rows
+// already on screen (staffMembers for school admins, govt_admins for group
+// leaders). No fake personas.
+function schoolAdminPersona(school: School): ActAsPersona | null {
+  const staffAdmin = staffMembers.value.find(m => m.school_id === school.id && m.role_in_context === 'admin')
+  if (staffAdmin) {
+    return {
+      key: `school_admin:${staffAdmin.user_id}`,
+      userId: staffAdmin.user_id,
+      role: 'school_admin',
+      name: `${staffAdmin.display_name} · ${school.school_name}`,
+    }
+  }
+  if (school.admin_user_id) {
+    return {
+      key: `school_admin:${school.admin_user_id}`,
+      userId: school.admin_user_id,
+      role: 'school_admin',
+      name: school.school_name,
+    }
+  }
+  return null
+}
+
+function groupLeaderPersona(groupId: string): ActAsPersona | null {
+  const leader = groupLeaders.value.get(groupId)
+  if (!leader) return null
+  return { key: `govt_admin:${leader.user_id}`, userId: leader.user_id, role: 'govt_admin', name: leader.display_name }
+}
+
+async function viewAs(persona: ActAsPersona | null): Promise<void> {
+  if (!persona) return
+  await actAs(persona)
 }
 
 async function fetchAdminClaimedSchoolIds(): Promise<void> {
@@ -931,6 +1000,7 @@ onMounted(() => {
   fetchCourses()
   fetchGrants()
   fetchStaff()
+  fetchGroupLeaders()
 })
 </script>
 
@@ -1156,6 +1226,18 @@ onMounted(() => {
                 {{ group.granted_courses.length }} courses
               </span>
               <div class="row-actions">
+                <button
+                  v-if="canActAs && groupLeaderPersona(group.id)"
+                  class="row-action"
+                  :title="`View as ${groupLeaderPersona(group.id)?.name} (group leader)`"
+                  @click="viewAs(groupLeaderPersona(group.id))"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="10 17 15 12 10 7"/>
+                    <line x1="15" y1="12" x2="3" y2="12"/>
+                  </svg>
+                </button>
                 <button class="row-action" @click="router.push(`/admin/groups/${group.id}`)" title="Open cross-schools dashboard">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -1186,6 +1268,18 @@ onMounted(() => {
                 {{ child.granted_courses.length }} courses
               </span>
               <div class="row-actions">
+                <button
+                  v-if="canActAs && groupLeaderPersona(child.id)"
+                  class="row-action"
+                  :title="`View as ${groupLeaderPersona(child.id)?.name} (group leader)`"
+                  @click="viewAs(groupLeaderPersona(child.id))"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="10 17 15 12 10 7"/>
+                    <line x1="15" y1="12" x2="3" y2="12"/>
+                  </svg>
+                </button>
                 <button class="row-action" @click="router.push(`/admin/groups/${child.id}`)" title="Open cross-schools dashboard">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -1214,6 +1308,18 @@ onMounted(() => {
                 <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
                 <span class="group-meta">{{ grandchild.school_count }} schools</span>
                 <div class="row-actions">
+                  <button
+                    v-if="canActAs && groupLeaderPersona(grandchild.id)"
+                    class="row-action"
+                    :title="`View as ${groupLeaderPersona(grandchild.id)?.name} (group leader)`"
+                    @click="viewAs(groupLeaderPersona(grandchild.id))"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                      <polyline points="10 17 15 12 10 7"/>
+                      <line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                  </button>
                   <button class="row-action" @click="router.push(`/admin/groups/${grandchild.id}`)" title="Open cross-schools dashboard">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -1406,6 +1512,18 @@ onMounted(() => {
               <td class="cell-muted frost-mono-nums">{{ formatDate(school.created_at) }}</td>
               <td class="cell-actions">
                 <div class="row-actions">
+                  <button
+                    v-if="canActAs && schoolAdminPersona(school)"
+                    class="row-action"
+                    :title="`View as ${schoolAdminPersona(school)?.name} (school admin)`"
+                    @click="viewAs(schoolAdminPersona(school))"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                      <polyline points="10 17 15 12 10 7"/>
+                      <line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                  </button>
                   <button class="row-action" @click="router.push(`/admin/schools/${school.id}`)" title="Open dashboard for this school">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
