@@ -64,6 +64,8 @@ function getEnv(host: string | undefined, origin: string | undefined): 'producti
 
 const MAX_BATCH = 50
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
@@ -90,7 +92,11 @@ export default async function handler(
     return res.status(400).json({ error: `batch too large (max ${MAX_BATCH})` })
   }
 
-  const userId = (req.cookies?.['ssi-user-id'] as string | undefined) || null
+  const rawUserId = (req.cookies?.['ssi-user-id'] as string | undefined) || null
+  // `ssi-user-id` can hold a guest id (`guest-<uuid>`) that isn't itself a
+  // valid uuid — the user_id/learner_id columns are uuid, so a non-uuid
+  // value here 500s the insert. Guests log anonymously (null) by design.
+  const userId = rawUserId && UUID_RE.test(rawUserId) ? rawUserId : null
   const deviceType = getDeviceType(req.headers['user-agent'] || '')
   const ipCountry = (req.headers['x-vercel-ip-country'] as string) || null
   const env = getEnv(req.headers['host'] as string | undefined, req.headers['origin'] as string | undefined)
