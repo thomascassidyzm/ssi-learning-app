@@ -13,20 +13,9 @@
 // action (e.g. "just enter your email").
 import { useRouter } from 'vue-router'
 
-// `to`: an explicit destination, for callers that know exactly where "back"
-// should land (e.g. the immersive player, opted back in for schools/tutor
-// staff who arrived via their dashboard's Learn button — real back-history
-// isn't reliable there since a deep reload or a long play session can lose
-// it). Omit it everywhere else and the default back/home behaviour applies.
-const props = defineProps<{ to?: string }>()
-
 const router = useRouter()
 
 function escape() {
-  if (props.to) {
-    router.push(props.to)
-    return
-  }
   // Prefer real back; fall back to the app home when there's nowhere to go back
   // to (cold open of a shared/deep link).
   if (typeof window !== 'undefined' && window.history.length > 1) router.back()

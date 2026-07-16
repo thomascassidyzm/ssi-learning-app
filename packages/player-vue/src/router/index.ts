@@ -17,7 +17,7 @@ function rememberDashboard(kind: 'teach' | 'schools'): void {
   }
 }
 
-export function lastDashboard(): 'teach' | 'schools' | null {
+function lastDashboard(): 'teach' | 'schools' | null {
   try {
     const v = localStorage.getItem(LAST_DASHBOARD_KEY)
     return v === 'teach' || v === 'schools' ? v : null
