@@ -556,7 +556,7 @@ onMounted(async () => {
       // blocking boot. Idempotent + best-effort (fail-open offline).
       void entitlementsReady.then(() => {
         try {
-          useOfflineLease().initialize(supabaseClient)
+          useOfflineLease().initialize(supabaseClient, auth.userId)
         } catch (e) {
           console.warn('[App] Offline-lease init failed (non-fatal):', e)
         }

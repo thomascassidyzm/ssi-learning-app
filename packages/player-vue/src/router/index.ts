@@ -318,6 +318,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
       },
       {
+        path: 'demo-schools',
+        name: 'admin-demo-schools',
+        component: () => import('@/views/admin/AdminDemoSchools.vue'),
+        meta: { title: 'Demo Schools', description: 'Self-serve sales showcase orgs for prospects' },
+      },
+      {
         path: 'invites',
         redirect: '/admin/access',
       },
@@ -415,6 +421,12 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-board',
         component: () => import('@/views/admin/BoardReportView.vue'),
         meta: { title: 'Board', description: 'Living board report — live business state + authored reports' },
+      },
+      {
+        path: 'onboarding',
+        name: 'admin-onboarding',
+        component: () => import('@/views/admin/AdminOnboardingView.vue'),
+        meta: { title: 'Onboarding', description: 'Live-editable onboarding message series' },
       },
     ],
   },

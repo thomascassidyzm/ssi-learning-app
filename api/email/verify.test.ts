@@ -19,6 +19,7 @@ let learnerRow: any
 let crossAccountLearner: any
 let authUser: any
 let updateUserByIdCalls: any[]
+let learnersUpdateCalls: any[]
 
 function makeLearnersBuilder() {
   const calls: any[] = []
@@ -29,6 +30,7 @@ function makeLearnersBuilder() {
     },
     update: (obj: any) => {
       calls.push(['update', obj])
+      learnersUpdateCalls.push(obj)
       return builder
     },
     contains: (...args: any[]) => {
@@ -81,6 +83,7 @@ describe('POST /api/email/verify', () => {
   beforeEach(async () => {
     vi.resetModules()
     updateUserByIdCalls = []
+    learnersUpdateCalls = []
     verifyOtpResult = { error: null }
     learnerRow = { id: 'learner-1', verified_emails: [] }
     crossAccountLearner = null
@@ -99,6 +102,9 @@ describe('POST /api/email/verify', () => {
       onboarded_via: 'possession',
       email_confirmed_manually: true,
     })
+    // Mirrors onto the queryable learners.needs_verification column
+    // (admin Users page / onboarding-email team's signal).
+    expect(learnersUpdateCalls).toContainEqual({ needs_verification: false })
   })
 
   it('does not touch user_metadata when verifying a different (secondary) email', async () => {
