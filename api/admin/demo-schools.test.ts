@@ -29,6 +29,16 @@ vi.mock('../_utils/demoSchoolTeardown', () => ({
   purgeDemoOrg: (...args: any[]) => purgeDemoOrgMock(...args),
 }))
 
+let refreshResult: any
+let refreshError: Error | null
+const refreshDemoOrgActivityMock = vi.fn(async () => {
+  if (refreshError) throw refreshError
+  return refreshResult
+})
+vi.mock('../_utils/demoSchoolRefresh', () => ({
+  refreshDemoOrgActivity: (...args: any[]) => refreshDemoOrgActivityMock(...args),
+}))
+
 let rateCount: number
 let demoOrgRows: any[]
 let learnerRows: any[]
@@ -99,6 +109,11 @@ beforeEach(async () => {
   rateCount = 0
   provisionError = null
   purgeError = null
+  refreshError = null
+  refreshResult = {
+    demoOrgId: 'org-1', activityThrough: '2026-07-16T00:00:00.000Z',
+    learnersTouched: 12, newSessions: 34, tierShifts: 1, noop: false,
+  }
   purgeResult = {
     demoOrgId: 'org-1', prospectName: 'Riverside Trust',
     schoolsDeleted: 1, classesDeleted: 3, learnersDeleted: 30, authAccountsDeleted: 3,
@@ -246,6 +261,30 @@ describe('POST /api/admin/demo-schools', () => {
       expect(res.statusCode).toBe(200)
       expect(banCalls).toEqual([{ uid: 'auth-uid-1', patch: { ban_duration: 'none' } }])
       expect(updatedDemoOrgs[0]).toMatchObject({ status: 'active' })
+    })
+  })
+
+  describe('refresh', () => {
+    it('requires id', async () => {
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'refresh' }), res)
+      expect(res.statusCode).toBe(400)
+    })
+
+    it('tops up activity and returns the result', async () => {
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'refresh', id: 'org-1' }), res)
+      expect(res.statusCode).toBe(200)
+      expect(refreshDemoOrgActivityMock).toHaveBeenCalledWith(expect.anything(), 'org-1', 'admin-1')
+      expect(res.body).toMatchObject({ success: true, learnersTouched: 12, noop: false })
+    })
+
+    it('500s when refresh throws (e.g. non-test school guard)', async () => {
+      refreshError = new Error('Refresh blocked: one or more schools in this org are not marked is_test')
+      const res = makeRes()
+      await handler(makeReq('POST', { action: 'refresh', id: 'org-1' }), res)
+      expect(res.statusCode).toBe(500)
+      expect(res.body.error).toMatch(/not marked is_test/)
     })
   })
 
