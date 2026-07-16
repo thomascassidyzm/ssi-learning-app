@@ -28,6 +28,11 @@ const tabs: AdminTab[] = [
     match: (p) => p === '/admin/access',
   },
   {
+    label: 'Demo Schools',
+    to: '/admin/demo-schools',
+    match: (p) => p.startsWith('/admin/demo-schools'),
+  },
+  {
     label: 'Users',
     to: '/admin/users',
     match: (p) => p.startsWith('/admin/users'),

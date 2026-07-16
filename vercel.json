@@ -9,6 +9,9 @@
     },
     "api/audio/batch-urls.ts": {
       "maxDuration": 10
+    },
+    "api/admin/demo-schools.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
@@ -36,6 +39,7 @@
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [
-    { "path": "/api/cron/teacher-payouts", "schedule": "0 6 1 * *" }
+    { "path": "/api/cron/teacher-payouts", "schedule": "0 6 1 * *" },
+    { "path": "/api/cron/expire-demo-schools", "schedule": "0 5 * * *" }
   ]
 }
