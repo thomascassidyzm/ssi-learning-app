@@ -274,12 +274,19 @@ const handleOffline = () => {
       </div>
     </Transition>
 
-    <!-- Full-screen backdrop to close on outside click -->
-    <Teleport to="body">
-      <Transition name="backdrop">
-        <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
-      </Transition>
-    </Teleport>
+    <!-- Full-screen backdrop to close on outside click. NOT teleported to
+         body: embedded contexts (play-as-class, staff Learn) put a `transform`
+         on an ancestor (.player-container.is-teach-embedded) to anchor
+         position:fixed content below the shell's own top nav — a body-level
+         Teleport escapes that containing block and re-joins the ROOT stacking
+         context, where it painted ABOVE the (locally z-indexed) tray and
+         silently ate every tap on Turbo/Offline/Listening. Staying local
+         keeps the backdrop in the SAME containing block as the tray itself,
+         so the 102-vs-103 z-index order holds in both embedded and
+         standalone play. -->
+    <Transition name="backdrop">
+      <div v-if="isOpen" class="tray-backdrop" @click="closeTray"></div>
+    </Transition>
   </div>
 </template>
 
