@@ -12,15 +12,26 @@
  *   2. Add staff      — share the teacher/admin invite link (live codes); bulk
  *                       email-invite endpoint TBD (not wired)
  *   3. Choose courses — local selection that filters Step 4's course list;
- *                       does NOT grant access (grants are managed elsewhere)
+ *                       does NOT grant access (the course list itself comes
+ *                       from the full catalogue/trial-lock model below)
  *   4. Create classes — useClassesData.createClass (live)
+ *
+ * Course sourcing: schools no longer hold per-course `entitlement_grants`
+ * rows (superseded 2026-07-15, docs/schools/group-commercial-model.md
+ * "Student entitlement — FINAL model") — a subscribed school gets the full
+ * live catalogue, a trial school is locked to its one trial_course_code.
+ * Steps 3/4 read from useSchoolCourseCatalogue, the SAME source
+ * TeacherDashboard/CreateClassModal use, so this wizard can never show a
+ * different (stale, entitlement_grants-based) course list than the rest of
+ * the school's dashboard (2026-07-16 fix — the dropdown was empty because
+ * it was the only surface still reading the superseded model).
  */
 import { ref, computed, inject, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { useClassesData, type ClassInfo } from '@/composables/schools/useClassesData'
-import { useCourseAccess, type CourseGrant } from '@/composables/schools/useCourseAccess'
+import { useSchoolCourseCatalogue, type CatalogueCourse } from '@/composables/schools/useSchoolCourseCatalogue'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { getLanguageName } from '@/composables/useI18n'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
@@ -30,43 +41,8 @@ const supabase = inject('supabase', ref(null)) as any
 const { currentUser } = useSchoolContext()
 const { activeSchool, currentSchool, fetchSchools } = useSchoolData()
 const { classes, fetchClasses, createClass, error: classesError } = useClassesData()
-const { courseGrants, fetchCourseAccess } = useCourseAccess()
+const { availableCourses: effectiveCourseGrants, fetchCatalogue, loadSchoolPlatformState } = useSchoolCourseCatalogue()
 const { teachers, fetchTeachers } = useTeachersData()
-
-// Self-service schools sign up on a free TRIAL with a single language
-// (schools.trial_course_code) and deliberately get NO entitlement_grant
-// (provision.ts) — so courseGrants is empty for them. Fold the trial language
-// into the selectable list (same source as TeacherDashboard's create-class
-// modal: /api/school/subscription) so the wizard can actually create a class.
-// Fails open: if we can't read it, we just fall back to courseGrants.
-const schoolTrialCourse = ref<string | null>(null)
-
-async function loadSchoolTrial(): Promise<void> {
-  if (!supabase.value) return
-  try {
-    const { data: { session } } = await supabase.value.auth.getSession()
-    const token = session?.access_token
-    if (!token) return
-    const res = await fetch('/api/school/subscription', { headers: { Authorization: `Bearer ${token}` } })
-    if (!res.ok) return
-    const data = await res.json()
-    schoolTrialCourse.value = data?.school?.trial_course_code ?? null
-  } catch {
-    /* non-fatal — fall back to entitlement grants */
-  }
-}
-
-// The courses a school can actually use in the wizard: any real entitlement
-// grants PLUS the trial language (added only if not already granted). This is
-// the list Steps 3 and 4 read from.
-const effectiveCourseGrants = computed<CourseGrant[]>(() => {
-  const grants = [...courseGrants.value]
-  const trial = schoolTrialCourse.value
-  if (trial && !grants.some(g => g.course_code === trial)) {
-    grants.push({ course_code: trial, display_name: '', source: 'school' })
-  }
-  return grants
-})
 
 interface Step {
   n: 1 | 2 | 3 | 4
@@ -175,7 +151,7 @@ function toggleCourse(code: string) {
   selectedCourses.value = new Set(selectedCourses.value)
 }
 
-function courseDisplayName(grant: CourseGrant): string {
+function courseDisplayName(grant: CatalogueCourse): string {
   if (grant.display_name && grant.display_name !== grant.course_code) {
     return grant.display_name
   }
@@ -217,7 +193,7 @@ const isStep4Valid = computed(() =>
   classes.value.length > 0,
 )
 
-const availableCoursesForClass = computed<CourseGrant[]>(() => {
+const availableCoursesForClass = computed<CatalogueCourse[]>(() => {
   if (selectedCourses.value.size === 0) return effectiveCourseGrants.value
   return effectiveCourseGrants.value.filter(g => selectedCourses.value.has(g.course_code))
 })
@@ -314,10 +290,10 @@ watch(currentUser, async (user) => {
   if (!user) return
   await fetchSchools()
   hydrateSchoolForm()
-  await loadSchoolTrial()
+  await loadSchoolPlatformState(supabase)
   if (user.school_id) {
     await Promise.all([
-      fetchCourseAccess(user.school_id),
+      fetchCatalogue(),
       fetchClasses(),
       fetchTeachers(user.school_id),
     ])
@@ -462,9 +438,6 @@ onMounted(() => {
                 <div class="course-tile-name">{{ courseDisplayName(grant) }}</div>
                 <div class="course-tile-meta">
                   <span class="course-tile-code">{{ grant.course_code }}</span>
-                  <span v-if="grant.source === 'group'" class="course-tile-source">
-                    via {{ grant.source_name || 'group' }}
-                  </span>
                 </div>
               </div>
             </label>
@@ -499,7 +472,13 @@ onMounted(() => {
             </table>
           </div>
 
-          <div class="class-draft-list">
+          <div v-if="availableCoursesForClass.length === 0" class="empty-state">
+            No courses to choose from yet —
+            <button type="button" class="empty-state-link" @click="jumpToStep(3)">go back to Choose courses</button>
+            to pick which ones to use, or get in touch with us if your school has none available.
+          </div>
+
+          <div v-else class="class-draft-list">
             <div
               v-for="(draft, i) in draftClasses"
               :key="i"
@@ -513,20 +492,22 @@ onMounted(() => {
                 placeholder="Class name"
                 :disabled="draft.saved"
               />
-              <select
-                v-model="draft.course_code"
-                class="field-input field-select"
-                :disabled="draft.saved"
-              >
-                <option value="" disabled>Choose course</option>
-                <option
-                  v-for="g in availableCoursesForClass"
-                  :key="g.course_code"
-                  :value="g.course_code"
+              <span class="select-wrap field-input-flex">
+                <select
+                  v-model="draft.course_code"
+                  class="field-input field-select"
+                  :disabled="draft.saved"
                 >
-                  {{ courseDisplayName(g) }}
-                </option>
-              </select>
+                  <option value="" disabled>Choose course</option>
+                  <option
+                    v-for="g in availableCoursesForClass"
+                    :key="g.course_code"
+                    :value="g.course_code"
+                  >
+                    {{ courseDisplayName(g) }}
+                  </option>
+                </select>
+              </span>
               <span v-if="draft.saved" class="class-draft-saved">Added&nbsp;✓</span>
               <button
                 v-else
@@ -817,9 +798,26 @@ onMounted(() => {
   min-width: 0;
 }
 
+.select-wrap {
+  position: relative;
+  display: flex;
+}
+
 .field-select {
-  /* Inherits .field-input — declared so chrome's default arrow stays visible. */
-  appearance: auto;
+  /* Inherits .field-input; real <select> semantics for free keyboard/screen-
+     reader support — only the chrome is swapped for our own chevron. */
+  appearance: none;
+  width: 100%;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232C2622' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+
+.field-select:disabled {
+  cursor: not-allowed;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a8a29a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
 }
 
 /* Step 2 — invites */
@@ -912,6 +910,23 @@ onMounted(() => {
   font-size: 13.5px;
   color: var(--schools-fg-2);
   line-height: 1.5;
+}
+
+.empty-state-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--schools-red);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.empty-state-link:focus-visible {
+  outline: 2px solid var(--schools-red);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .course-grid {
