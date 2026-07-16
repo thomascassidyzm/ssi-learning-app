@@ -3731,12 +3731,23 @@ const initializeBeltProgress = async () => {
 const initializeAdaptationEngine = async () => {
   if (!courseCode.value || adaptationEngine.value) return
   const engine = useAdaptationEngine({
-    supabase: supabase.value ?? null,
-    learnerId: learnerId.value ?? null,
+    // Pass the REFS, not `.value` snapshots: this composable's own onMounted
+    // runs before App.vue's parent onMounted even calls `auth.initialize()`,
+    // so a dereferenced value here is captured pre-auth-resolution and never
+    // updates — the root cause of learner_lego_metrics never getting written
+    // (2026-07-16 shadow verdict). useAdaptationEngine re-reads these live.
+    supabase,
+    learnerId,
     courseCode: courseCode.value,
     aggregator: sharedEvidenceAggregator,
     ratePolicyConfig: {
       bounds: adaptationV2Config.value.bounds,
+    },
+    onPersistenceError: (stage, error) => {
+      logEvent('adaptation_persistence_error', {
+        stage,
+        message: error instanceof Error ? error.message : String(error),
+      })
     },
   })
   await engine.initialize()

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createEvidenceAggregator, EVIDENCE_SERIES_RING_CAP, type MasteryEvidence } from './evidence';
+import { assessLocalDifficulty } from './localDifficulty';
 
 const ev = (overrides: Partial<MasteryEvidence> = {}): MasteryEvidence => ({
   unitId: 'S0001L01',
@@ -24,7 +25,10 @@ describe('EvidenceAggregator', () => {
     agg.record(ev({ value: 2, cycleId: 'c2', occurredAtMs: 200 }));
     agg.record(ev({ value: 3, cycleId: 'c3', occurredAtMs: 300 }));
 
-    expect(agg.getSeries('S0001L01')).toEqual({ values: [1, 2, 3], x: [100, 200, 300] });
+    // x is cycle-index (ring position), never occurredAtMs — see evidence.ts
+    // header note: feeding the curvature sensor wall-clock ms crushes fitted
+    // acceleration ~10 orders of magnitude below its z-threshold.
+    expect(agg.getSeries('S0001L01')).toEqual({ values: [1, 2, 3], x: [0, 1, 2] });
   });
 
   it('collapses same-cycle evidence to one weighted-merge sample', () => {
@@ -37,8 +41,8 @@ describe('EvidenceAggregator', () => {
     const series = agg.getSeries('S0001L01');
     expect(series.values).toHaveLength(1);
     expect(series.values[0]).toBeCloseTo(expected, 10);
-    // Collapsed sample carries the latest occurrence in the cycle.
-    expect(series.x[0]).toBe(110);
+    // x is the collapsed sample's ring position (index 0) — never occurredAtMs.
+    expect(series.x[0]).toBe(0);
   });
 
   it('collapses three-way same-cycle evidence correctly (weighted merge is associative)', () => {
@@ -161,6 +165,39 @@ describe('acceptance test — a second producer plugs in with zero scheduler cha
     expect(agg.readyUnits(2)).toContain('S0010L02');
     const series = agg.getSeries('S0010L02');
     expect(series.values).toEqual([1.8, 0.9]);
-    expect(series.x).toEqual([1000, 2000]);
+    expect(series.x).toEqual([0, 1]);
+  });
+});
+
+describe('regression — blind sensor (2026-07-16 shadow verdict)', () => {
+  // Reproduces the verdict's synthetic-struggle method through the REAL
+  // producer path (EvidenceAggregator.record → getSeries), not a hand-built
+  // series: real cycles land tens of seconds apart in session-milliseconds,
+  // so an aggregator that (pre-fix) stamped `x = occurredAtMs` fed the
+  // curvature fit a run-to-run delta of ~1e4, crushing fitted acceleration
+  // to ~1e-10 against a z-threshold of 2 — ten orders of magnitude
+  // unreachable. Max |z| across 3 days of real production reads was
+  // 6.5e-10. The fix makes `x` the sample's ring position (cycle-index),
+  // matching the shape every other curvature consumer already assumes.
+  it('a blatant struggle over realistic session timestamps still flags — proves ms x-axis no longer crushes acceleration', () => {
+    const agg = createEvidenceAggregator();
+    const unitId = 'S0042L03';
+    // Long quiet stretch (faint drift) then a sharp upward break, exactly the
+    // localDifficulty.test.ts "struggling" shape — but landed via record()
+    // with real session-clock gaps (~12s/cycle, spanning ~4 minutes) instead
+    // of a hand-built index series.
+    const values = [...Array.from({ length: 16 }, (_, x) => 2.5 + 0.01 * x), 2.9, 3.6, 4.6, 6.0];
+    let occurredAtMs = 847_213; // an arbitrary large session-clock offset, like a real performance.now()
+    values.forEach((value, i) => {
+      agg.record({ unitId, unitKind: 'lego', source: 'latency', value, weight: 1, occurredAtMs });
+      occurredAtMs += 12_000 + (i % 3) * 1_000; // ~12-14s between cycles, deterministic jitter
+    });
+
+    const read = assessLocalDifficulty({ unitId, unitKind: 'lego', ...agg.getSeries(unitId) }, { window: 6, threshold: 2 });
+
+    expect(read.state).toBe('struggling');
+    expect(read.flagged).toBe(true);
+    expect(read.accelerationZ).not.toBeNull();
+    expect(Math.abs(read.accelerationZ!)).toBeGreaterThanOrEqual(2);
   });
 });

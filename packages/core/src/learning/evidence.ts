@@ -67,10 +67,18 @@ export const EVIDENCE_SERIES_RING_CAP = 20;
  * One collapsed sample: a weighted-merge of every observation that landed in
  * the same cycle for the same unit, plus the running weight total needed to
  * fold in one more same-cycle observation correctly.
+ *
+ * NOTE: no `occurredAtMs`/wall-clock field is kept here on purpose. The
+ * curvature sensor's x-axis must be evenly-spaced SAMPLE order, not
+ * session-milliseconds — feeding it `occurredAtMs` crushed fitted
+ * acceleration to ~1e-10 (real cycles land tens of seconds apart), putting
+ * the alarm's z-threshold ten orders of magnitude out of reach and making
+ * the sensor structurally blind (2026-07-16 shadow verdict). `getSeries`/
+ * `snapshot` below derive `x` as each entry's position in the ring —
+ * cycle-index, per the verdict's fix — every time they're read.
  */
 interface RingEntry {
   value: number;
-  x: number;
   cycleId: string | undefined;
   /** Sum of weights collapsed into `value` so far — the merge-rule denominator. */
   weightSum: number;
@@ -91,9 +99,8 @@ class EvidenceAggregatorImpl implements EvidenceAggregator {
       const newWeightSum = last.weightSum + e.weight;
       last.value = newWeightSum > 0 ? (last.value * last.weightSum + e.value * e.weight) / newWeightSum : last.value;
       last.weightSum = newWeightSum;
-      last.x = e.occurredAtMs;
     } else {
-      ring.push({ value: e.value, x: e.occurredAtMs, cycleId: e.cycleId, weightSum: e.weight });
+      ring.push({ value: e.value, cycleId: e.cycleId, weightSum: e.weight });
       while (ring.length > EVIDENCE_SERIES_RING_CAP) {
         ring.shift();
       }
@@ -104,7 +111,7 @@ class EvidenceAggregatorImpl implements EvidenceAggregator {
 
   getSeries(unitId: string): EvidenceSeries {
     const ring = this.series.get(unitId) ?? [];
-    return { values: ring.map((r) => r.value), x: ring.map((r) => r.x) };
+    return { values: ring.map((r) => r.value), x: ring.map((_, i) => i) };
   }
 
   readyUnits(minSamples: number): string[] {
@@ -118,16 +125,16 @@ class EvidenceAggregatorImpl implements EvidenceAggregator {
   snapshot(): Map<string, EvidenceSeries> {
     const out = new Map<string, EvidenceSeries>();
     for (const [unitId, ring] of this.series) {
-      out.set(unitId, { values: ring.map((r) => r.value), x: ring.map((r) => r.x) });
+      out.set(unitId, { values: ring.map((r) => r.value), x: ring.map((_, i) => i) });
     }
     return out;
   }
 
+  /** `x` on the input is ignored (and may be absent/stale ms-based data from before the cycle-index fix) — always recomputed as ring position. */
   hydrate(data: Map<string, EvidenceSeries>): void {
-    for (const [unitId, { values, x }] of data) {
-      const ring: RingEntry[] = values.map((value, i) => ({
+    for (const [unitId, { values }] of data) {
+      const ring: RingEntry[] = values.map((value) => ({
         value,
-        x: x[i],
         cycleId: undefined,
         weightSum: 1,
       }));
