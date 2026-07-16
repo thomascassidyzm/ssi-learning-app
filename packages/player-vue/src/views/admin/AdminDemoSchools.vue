@@ -37,6 +37,10 @@ const error = ref<string | null>(null)
 const showAdvanced = ref(false)
 const expandedId = ref<string | null>(null)
 const busyAction = ref<string | null>(null)
+const showExpired = ref(false)
+
+const visibleOrgs = computed(() => showExpired.value ? orgs.value : orgs.value.filter((o) => o.status !== 'expired'))
+const expiredCount = computed(() => orgs.value.filter((o) => o.status === 'expired').length)
 
 // ─── Create form ─────────────────────────────────────────────────────────
 const prospectName = ref('')
@@ -126,7 +130,8 @@ async function createOrg(): Promise<void> {
   }
 }
 
-async function runAction(id: string, action: 'expire' | 'extend'): Promise<void> {
+async function runAction(id: string, action: 'expire' | 'extend' | 'purge'): Promise<void> {
+  if (action === 'purge' && !confirm('Purge permanently deletes this demo org — schools, classes, learners, and staff accounts. This cannot be undone. Continue?')) return
   error.value = null
   busyAction.value = `${action}:${id}`
   try {
@@ -265,11 +270,15 @@ onMounted(() => {
 
     <!-- List -->
     <div class="schools-card list-panel">
-      <div class="panel-head">
+      <div class="panel-head panel-head-row">
         <span class="schools-kicker">Existing demo orgs</span>
+        <label class="show-expired-toggle">
+          <input v-model="showExpired" type="checkbox" />
+          Show expired{{ expiredCount ? ` (${expiredCount})` : '' }}
+        </label>
       </div>
 
-      <div v-if="orgs.length" class="orgs-table-wrap">
+      <div v-if="visibleOrgs.length" class="orgs-table-wrap">
         <table class="codes-table">
           <thead>
             <tr>
@@ -283,7 +292,7 @@ onMounted(() => {
             </tr>
           </thead>
           <tbody>
-            <template v-for="org in orgs" :key="org.id">
+            <template v-for="org in visibleOrgs" :key="org.id">
               <tr :class="{ 'is-inactive': org.status === 'expired' }">
                 <td class="cell-org">{{ org.prospect_name }}</td>
                 <td class="cell-muted">{{ shapeLabel(org.org_shape) }}</td>
@@ -313,6 +322,12 @@ onMounted(() => {
                     :disabled="busyAction === `expire:${org.id}`"
                     @click="runAction(org.id, 'expire')"
                   >Expire now</button>
+                  <button
+                    v-if="org.status === 'expired'"
+                    class="row-action-text row-action-danger"
+                    :disabled="busyAction === `purge:${org.id}`"
+                    @click="runAction(org.id, 'purge')"
+                  >Purge</button>
                 </td>
               </tr>
               <tr v-if="expandedId === org.id" class="detail-row">
@@ -334,8 +349,9 @@ onMounted(() => {
 
       <div v-else-if="!isLoading" class="schools-card empty">
         <div class="empty-copy">
-          <strong>No demo schools yet</strong>
-          <p>Create one above to get a full showcase org ready to share.</p>
+          <strong>{{ orgs.length ? 'No active demo schools' : 'No demo schools yet' }}</strong>
+          <p v-if="orgs.length">Toggle "Show expired" above to see the {{ expiredCount }} expired org{{ expiredCount === 1 ? '' : 's' }}.</p>
+          <p v-else>Create one above to get a full showcase org ready to share.</p>
         </div>
       </div>
     </div>
@@ -397,6 +413,21 @@ onMounted(() => {
   padding: var(--space-4) var(--space-6) var(--space-3);
   border-bottom: 1px solid rgba(44, 38, 34, 0.06);
 }
+
+.panel-head-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+
+.show-expired-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: var(--schools-fg-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.show-expired-toggle input { cursor: pointer; }
 
 .create-form {
   padding: var(--space-5) var(--space-6) var(--space-6);
