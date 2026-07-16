@@ -37,3 +37,4 @@ test-results/
 # Claude Code
 .claude/
 .env*.local
+packages/player-vue/e2e/schools-nav/sessions.json
