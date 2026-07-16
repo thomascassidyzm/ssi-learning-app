@@ -369,12 +369,19 @@ const scopeLabel = computed(() =>
 </script>
 
 <template>
-  <!-- The teacher's dashboard nav is present in the standalone page; when
-       embedded the schools shell (SchoolsTopBar) provides it instead. -->
-  <TopNav v-if="!props.embedded" :force-tabs="true" />
+  <!-- Single root wrapper — this view used to render TopNav and .tiv-scroll
+       as two sibling roots (a fragment component), which the schools shell's
+       page transition can't animate/track cleanly ("renders non-element root
+       node that cannot be animated"). A plain block div here is
+       layout-neutral: TopNav is position:fixed and .tiv-scroll is
+       height:100vh, so nesting them one level deeper changes nothing. -->
+  <div class="tiv-root">
+    <!-- The teacher's dashboard nav is present in the standalone page; when
+         embedded the schools shell (SchoolsTopBar) provides it instead. -->
+    <TopNav v-if="!props.embedded" :force-tabs="true" />
 
-  <div :class="['tiv-scroll', { 'tiv-scroll--embedded': props.embedded }]">
-  <div class="tiv schools-surface">
+    <div :class="['tiv-scroll', { 'tiv-scroll--embedded': props.embedded }]">
+    <div class="tiv schools-surface">
     <!-- ── Calm, minimal teacher header (NOT the admin "Insight Engine") ── -->
     <header class="tiv-head">
       <div class="tiv-head-top">
@@ -511,9 +518,15 @@ const scopeLabel = computed(() =>
     </div>
   </div>
   </div>
+  </div>
 </template>
 
 <style scoped>
+/* .tiv-root: deliberately plain block (default display) — NOT
+ * display:contents. That generates no box, so it never paints and its
+ * `transitionend` never fires, which broke the schools shell's page
+ * transition (SchoolsContainer.vue) when leaving this route. */
+
 /* ============================================================================
  * ROLE TOKENS — the small palette every coloured element references. ONE green/
  * blue scheme (no look switcher): each token is an "r, g, b" triplet consumed as
