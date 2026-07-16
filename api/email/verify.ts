@@ -108,6 +108,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await admin.auth.admin.updateUserById(userId, {
         user_metadata: { ...(authUser.user.user_metadata || {}), email_confirmed_manually: true },
       })
+      // Mirror onto learners.needs_verification — the admin-facing /
+      // other-team-facing signal, kept in sync so nothing has to join out to
+      // auth.users metadata to read it. Best-effort: the metadata flag above
+      // is already the durable source of truth.
+      const { error: clearErr } = await admin
+        .from('learners')
+        .update({ needs_verification: false })
+        .eq('user_id', userId)
+      if (clearErr) console.warn('[email/verify] Failed to clear needs_verification (non-fatal):', clearErr.message)
     }
 
     return res.status(200).json({ success: true, email: normalizedEmail })

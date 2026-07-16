@@ -290,6 +290,13 @@ export function useAuth(): AuthState & AuthActions {
       if (fetchError?.code === 'PGRST116') {
         const displayName = email?.split('@')[0] || 'Learner'
 
+        // This insert races api/code/redeem.ts's own learner-creation insert
+        // (both fire off the same SIGNED_IN event — see RedeemCode.vue's
+        // handlePossessionSubmit race note). Whichever wins must still set
+        // needs_verification correctly, since the loser's insert is a
+        // no-op against an existing row.
+        const needsEmailVerification = supabaseUser.value.user_metadata?.onboarded_via === 'possession'
+
         const { data: newLearner, error: createError } = await supabase.value
           .from('learners')
           .insert({
@@ -297,6 +304,7 @@ export function useAuth(): AuthState & AuthActions {
             display_name: displayName,
             preferences: defaultPreferences(),
             verified_emails: email ? [email] : [],
+            needs_verification: needsEmailVerification,
           })
           .select()
           .single()

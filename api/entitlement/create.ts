@@ -1,12 +1,17 @@
 /**
  * Entitlement Code Creation API - POST /api/entitlement/create
  *
- * Requires auth. Only ssi_admin users can create entitlement codes.
+ * Requires auth. Only ssi_admin users can create entitlement codes. Also the
+ * backing endpoint for the admin "Grant free access" tool (AdminAccess.vue) —
+ * an optional `metadata` bag lets that tool attach who the code was minted
+ * for (email/name/note) without a schema change (entitlement_codes.metadata
+ * is already jsonb). Every mint is rate-limited per admin and audit-logged
+ * to player_events, same pattern as api/admin/create-signin-link.ts.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAuthToken } from '../_utils/auth'
+import { verifyAdmin } from '../_utils/auth'
 import { generateCode } from '../_utils/codeGen'
 import { boundPrivilegedCodeLimits } from '../_utils/codeGuard'
 
@@ -17,6 +22,9 @@ if (!supabaseUrl) {
   throw new Error('Missing SUPABASE_URL environment variable')
 }
 
+const RATE_WINDOW_MS = 15 * 60 * 1000
+const PER_ADMIN_LIMIT = 30
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -26,24 +34,30 @@ export default async function handler(
     return
   }
 
-  const authResult = await verifyAuthToken(req)
-  if (!authResult.valid || !authResult.userId) {
-    res.status(401).json({ error: authResult.error || 'Unauthorized' })
+  const adminResult = await verifyAdmin(req)
+  if ('error' in adminResult) {
+    res.status(adminResult.status).json({ error: adminResult.error })
     return
   }
-  const userId = authResult.userId
+  const userId = adminResult.userId
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Verify caller is ssi_admin or god
-  const { data: learner } = await supabase
-    .from('learners')
-    .select('platform_role, educational_role')
-    .eq('user_id', userId)
-    .single()
+  // Per-admin rate limit — counts this admin's own recent mints via jsonb
+  // containment on the audit event we write below. Fails open on error (a
+  // transient audit-query blip must never block a legitimate mint).
+  const cutoff = new Date(Date.now() - RATE_WINDOW_MS).toISOString()
+  const { count: recentCount, error: rateErr } = await supabase
+    .from('player_events')
+    .select('id', { count: 'exact', head: true })
+    .eq('event_type', 'admin_entitlement_code_minted')
+    .gte('occurred_at', cutoff)
+    .contains('payload', { actor_user_id: userId })
 
-  if (!learner || (learner.platform_role !== 'ssi_admin' && learner.educational_role !== 'god')) {
-    res.status(403).json({ error: 'Only SSi admins can create entitlement codes' })
+  if (rateErr) {
+    console.warn('[EntitlementCreate] rate-limit check failed (failing open):', rateErr.message)
+  } else if ((recentCount ?? 0) >= PER_ADMIN_LIMIT) {
+    res.status(429).json({ error: 'Too many codes minted recently. Please wait a few minutes.' })
     return
   }
 
@@ -57,6 +71,7 @@ export default async function handler(
     expires_at,
     grants_platform_role,
     grants_dashboard_courses,
+    metadata,
   } = req.body || {}
 
   // Validate required fields
@@ -143,6 +158,9 @@ export default async function handler(
     if (grants_dashboard_courses && Array.isArray(grants_dashboard_courses) && grants_dashboard_courses.length > 0) {
       insertData.grants_dashboard_courses = grants_dashboard_courses
     }
+    if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+      insertData.metadata = metadata
+    }
 
     const { data: created, error: insertError } = await supabase
       .from('entitlement_codes')
@@ -157,6 +175,19 @@ export default async function handler(
     }
 
     console.log('[EntitlementCreate] Created code:', newCode, 'label:', label, 'by:', userId)
+
+    // Best-effort audit — must never block the response, the code is already minted.
+    try {
+      const { error: auditErr } = await supabase.from('player_events').insert({
+        occurred_at: new Date().toISOString(),
+        event_type: 'admin_entitlement_code_minted',
+        payload: { actor_user_id: userId, entitlement_code_id: created.id, label, access_type, metadata: metadata ?? null },
+      })
+      if (auditErr) console.warn('[EntitlementCreate] audit insert failed:', auditErr.message)
+    } catch (auditErr) {
+      console.warn('[EntitlementCreate] audit insert threw:', auditErr)
+    }
+
     res.status(201).json({
       code: created.code,
       id: created.id,

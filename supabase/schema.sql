@@ -2126,6 +2126,17 @@ CREATE FUNCTION public.can_view_learner_data(p_learner_id uuid) RETURNS boolean
                                  OR s2.admin_user_id = (auth.uid())::text))
              )
          )
+      OR EXISTS (
+           SELECT 1 FROM public.classes c
+           LEFT JOIN public.schools s3 ON s3.id = c.school_id
+           WHERE c.class_learner_id = p_learner_id
+             AND (
+               c.teacher_user_id = (auth.uid())::text
+               OR s3.admin_user_id = (auth.uid())::text
+               OR EXISTS (SELECT 1 FROM public.class_teachers ct
+                          WHERE ct.class_id = c.id AND ct.teacher_user_id = (auth.uid())::text)
+             )
+         )
 $$;
 
 
@@ -4221,6 +4232,48 @@ $$;
 
 
 --
+-- Name: test_learner_ids(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.test_learner_ids() RETURNS TABLE(learner_id uuid)
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT l.id
+  FROM learners l
+  WHERE l.is_demo
+     OR l.is_internal
+     OR l.is_class_entity
+     OR EXISTS (SELECT 1 FROM unnest(l.verified_emails) e WHERE e ILIKE 'thomas.cassidy+%')
+     OR (l.user_id IS NOT NULL AND l.user_id IN (
+           SELECT admin_user_id FROM schools WHERE is_test AND admin_user_id IS NOT NULL
+         ))
+     OR (l.user_id IS NOT NULL AND l.user_id IN (
+           SELECT c.teacher_user_id FROM classes c JOIN schools s ON c.school_id = s.id
+           WHERE s.is_test AND c.teacher_user_id IS NOT NULL
+         ))
+     OR EXISTS (
+          SELECT 1 FROM user_tags ut
+          WHERE ut.user_id = l.user_id AND ut.removed_at IS NULL AND ut.tag_type = 'school'
+            AND ut.tag_value IN (SELECT 'SCHOOL:' || id::text FROM schools WHERE is_test)
+        )
+     OR EXISTS (
+          SELECT 1 FROM user_tags ut
+          WHERE ut.user_id = l.user_id AND ut.removed_at IS NULL AND ut.tag_type = 'class'
+            AND ut.tag_value IN (
+              SELECT 'CLASS:' || c.id::text FROM classes c JOIN schools s ON c.school_id = s.id WHERE s.is_test
+            )
+        );
+$$;
+
+
+--
+-- Name: FUNCTION test_learner_ids(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.test_learner_ids() IS 'Canonical test/internal/non-human learner set for analytics + board metrics. Superset of is_demo/is_internal; also excludes is_class_entity (a class''s own learner identity — see 20260716b_class_learner_entity.sql) and any school/class attachment to an is_test school. service_role only (used server-side; SECURITY DEFINER callers like update_daily_contributions run as owner and bypass the grant).';
+
+
+--
 -- Name: tg_release_notes_touch_updated_at(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4265,7 +4318,6 @@ $$;
 
 CREATE FUNCTION public.update_daily_contributions() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
     AS $$
 DECLARE
   v_target_lang TEXT;
@@ -4275,7 +4327,7 @@ BEGIN
   v_date := NEW.started_at::date;
 
   -- Recompute the whole row for (language, date) from sessions, EXCLUDING
-  -- demo learners. SUM seconds first, divide by 60 after.
+  -- test/internal learners. SUM seconds first, divide by 60 after.
   INSERT INTO daily_contributions (target_language, contribution_date, phrases_count, minutes_practiced, unique_speakers)
   SELECT
     v_target_lang,
@@ -4286,7 +4338,7 @@ BEGIN
   FROM sessions s
   WHERE SPLIT_PART(s.course_id, '_for_', 1) = v_target_lang
     AND s.started_at::date = v_date
-    AND NOT EXISTS (SELECT 1 FROM learners ld WHERE ld.id = s.learner_id AND ld.is_demo)
+    AND NOT EXISTS (SELECT 1 FROM public.test_learner_ids() t WHERE t.learner_id = s.learner_id)
   ON CONFLICT (target_language, contribution_date)
   DO UPDATE SET
     phrases_count = EXCLUDED.phrases_count,
@@ -4507,6 +4559,50 @@ CREATE TABLE public.audio_pass_requests (
 
 
 --
+-- Name: board_snapshots; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.board_snapshots (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    label text NOT NULL,
+    report_month text NOT NULL,
+    payload jsonb NOT NULL,
+    share_code text NOT NULL,
+    revoked_at timestamp with time zone,
+    created_by text NOT NULL
+);
+
+
+--
+-- Name: TABLE board_snapshots; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.board_snapshots IS 'Frozen, fully-resolved board reports for external sharing. Service-role-only (RLS on, no policies) — every access goes through api/admin/board-snapshot.ts (mint/list/revoke, admin-gated) or api/board/snapshot/[code].ts (public single-row lookup by share_code).';
+
+
+--
+-- Name: COLUMN board_snapshots.payload; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.board_snapshots.payload IS 'Self-contained resolved document: authored markdown + resolved metric values/methods/as-of timestamps at freeze time. The share route renders only this — never a live query.';
+
+
+--
+-- Name: COLUMN board_snapshots.share_code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.board_snapshots.share_code IS '128-bit random, URL-safe. Not sequential, not derived from label — capability-by-unguessability, same trust model as try_links.code.';
+
+
+--
+-- Name: COLUMN board_snapshots.created_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.board_snapshots.created_by IS 'auth uid (learners.user_id) of the admin who minted this snapshot.';
+
+
+--
 -- Name: build_jobs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4707,7 +4803,8 @@ CREATE TABLE public.classes (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_lego_id text
+    last_lego_id text,
+    class_learner_id uuid
 );
 
 
@@ -4744,6 +4841,8 @@ CREATE TABLE public.learners (
     welcome_played_at timestamp with time zone,
     is_demo boolean DEFAULT false NOT NULL,
     is_internal boolean DEFAULT false NOT NULL,
+    is_class_entity boolean DEFAULT false NOT NULL,
+    needs_verification boolean DEFAULT false NOT NULL,
     CONSTRAINT learners_educational_role_check CHECK ((educational_role = ANY (ARRAY['student'::text, 'teacher'::text, 'school_admin'::text, 'govt_admin'::text]))),
     CONSTRAINT learners_platform_role_check CHECK (((platform_role IS NULL) OR (platform_role = ANY (ARRAY['ssi_admin'::text, 'popty_user'::text, 'tester'::text]))))
 );
@@ -4778,6 +4877,20 @@ COMMENT ON COLUMN public.learners.is_internal IS 'Real human internal/QA/team ac
 
 
 --
+-- Name: COLUMN learners.is_class_entity; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learners.is_class_entity IS 'This learner row is a CLASS''s own learner identity (owner ruling 2026-07-16), not a human. Never signed in; user_id holds a synthetic class-learner:<classId> value. Excluded from real-learner counts (test_learner_ids()) — neither test data nor a countable human.';
+
+
+--
+-- Name: COLUMN learners.needs_verification; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learners.needs_verification IS 'True for possession-onboarded accounts (api/auth/possession-redeem.ts) that have never completed an email-receipt round-trip (api/email/verify.ts). Do NOT derive this from auth.users.email_confirmed_at -- that column is set by the possession flows own magic-link mint and does not prove receipt. Name matches docs/onboarding/onboarding-series-draft.md signal needs_verification.';
+
+
+--
 -- Name: schools; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4801,6 +4914,7 @@ CREATE TABLE public.schools (
     provider_subscription_id text,
     provider_customer_id text,
     name_confirmed boolean DEFAULT true NOT NULL,
+    is_test boolean DEFAULT false NOT NULL,
     CONSTRAINT schools_platform_status_check CHECK ((platform_status = ANY (ARRAY['trial'::text, 'active'::text, 'past_due'::text, 'expired'::text, 'cancelled'::text]))),
     CONSTRAINT schools_trial_kind_check CHECK (((trial_kind IS NULL) OR (trial_kind = ANY (ARRAY['premium_1mo'::text, 'free_1yr'::text]))))
 );
@@ -4839,6 +4953,13 @@ COMMENT ON COLUMN public.schools.trial_kind IS 'premium_1mo (premium course → 
 --
 
 COMMENT ON COLUMN public.schools.teacher_seats IS 'Paid teacher seats = Paddle quantity on the per-seat price (£15/teacher/mo).';
+
+
+--
+-- Name: COLUMN schools.is_test; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.schools.is_test IS 'Not a genuine paying/pilot customer — soak-test/E2E/owner-test school. Superset of is_demo (seeded demo data). Board metrics (schools.total) exclude is_test, never is_demo alone.';
 
 
 --
@@ -5240,6 +5361,56 @@ COMMENT ON COLUMN public.course_audio.s3_key IS 'Path in ssi-audio-stage bucket'
 --
 
 COMMENT ON COLUMN public.course_audio.lego_id IS 'For presentation audio: the LEGO this introduces (e.g., S0001L01). NULL for other roles.';
+
+
+--
+-- Name: course_audio_envelope; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.course_audio_envelope (
+    audio_id uuid NOT NULL,
+    duration_ms integer NOT NULL,
+    peak_count integer NOT NULL,
+    peak_to_mean_ratio real NOT NULL,
+    mean_peak_width_ms real NOT NULL,
+    extractor_version integer DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: TABLE course_audio_envelope; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.course_audio_envelope IS 'Precomputed volume-envelope metadata (duration, peak count, peak shape) for model-voice (course_audio role=target1) clips — adaptation-v2 stage-2 signal.';
+
+
+--
+-- Name: COLUMN course_audio_envelope.peak_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio_envelope.peak_count IS 'Syllable-scale energy peaks, 20ms-grid RMS envelope, prominence >= 25% of (max-mean), min separation 120ms.';
+
+
+--
+-- Name: COLUMN course_audio_envelope.peak_to_mean_ratio; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio_envelope.peak_to_mean_ratio IS 'max linear RMS / mean linear RMS over the whole clip.';
+
+
+--
+-- Name: COLUMN course_audio_envelope.mean_peak_width_ms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio_envelope.mean_peak_width_ms IS 'Mean full-width-at-half-prominence across detected peaks.';
+
+
+--
+-- Name: COLUMN course_audio_envelope.extractor_version; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.course_audio_envelope.extractor_version IS 'Gates comparability against learner-side EnvelopeMetadata of the same version.';
 
 
 --
@@ -6603,7 +6774,8 @@ CREATE TABLE public.groups (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     path text,
     is_demo boolean DEFAULT false NOT NULL,
-    name_confirmed boolean DEFAULT false NOT NULL
+    name_confirmed boolean DEFAULT false NOT NULL,
+    is_test boolean DEFAULT false NOT NULL
 );
 
 
@@ -6619,6 +6791,13 @@ COMMENT ON TABLE public.groups IS 'Hierarchical grouping for entitlement cascade
 --
 
 COMMENT ON COLUMN public.groups.type IS 'Descriptive type: nation, region, district, programme, etc.';
+
+
+--
+-- Name: COLUMN groups.is_test; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.groups.is_test IS 'Not a genuine paying/pilot customer — soak-test/E2E/owner-test group. Superset of is_demo.';
 
 
 --
@@ -6934,6 +7113,7 @@ CREATE TABLE public.learner_lego_metrics (
     next_due_at timestamp with time zone,
     device_class_mix jsonb DEFAULT '{}'::jsonb NOT NULL,
     recent_latency_samples jsonb DEFAULT '[]'::jsonb NOT NULL,
+    evidence_series jsonb DEFAULT '{"x": [], "values": []}'::jsonb NOT NULL,
     CONSTRAINT learner_lego_metrics_mastery_state_check CHECK ((mastery_state = ANY (ARRAY['acquisition'::text, 'consolidating'::text, 'confident'::text, 'mastered'::text])))
 );
 
@@ -7013,6 +7193,13 @@ COMMENT ON COLUMN public.learner_lego_metrics.device_class_mix IS 'Counts by dev
 --
 
 COMMENT ON COLUMN public.learner_lego_metrics.recent_latency_samples IS 'Bounded time-ordered series (oldest→newest) of normalized latency for this (learner, lego) — the difficulty-bearing series the curvature/B4 sensors read. Capped ~20 by the writer. Added 2026-06-13 (metrics B4 rollup, Option 2).';
+
+
+--
+-- Name: COLUMN learner_lego_metrics.evidence_series; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.learner_lego_metrics.evidence_series IS 'Adaptation v2 (WP-0/WP-4): the shared EvidenceAggregator''s merged series for this (learner, lego) — { values: number[], x: number[] }, oldest→newest, ring-capped ~20. Superset of recent_latency_samples (which stays as the pre-v2 latency-only signal). Added 2026-07-14.';
 
 
 --
@@ -7630,6 +7817,22 @@ CREATE TABLE public.pod_legos (
 --
 
 COMMENT ON TABLE public.pod_legos IS 'Canonical pod-LEGO inventory (identity layer) for the Atom-Fusion explainer. One row per recurring known<->target unit per course; owns the canonical per-atom explainer audio. See docs/architecture/atom-fusion-introduction.md.';
+
+
+--
+-- Name: possession_mint_attempts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.possession_mint_attempts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    invite_code_id uuid,
+    email text,
+    ip_hash text,
+    outcome text NOT NULL,
+    auth_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    error_detail text
+);
 
 
 --
@@ -8462,6 +8665,22 @@ ALTER TABLE ONLY public.audio_pass_requests
 
 
 --
+-- Name: board_snapshots board_snapshots_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.board_snapshots
+    ADD CONSTRAINT board_snapshots_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: board_snapshots board_snapshots_share_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.board_snapshots
+    ADD CONSTRAINT board_snapshots_share_code_key UNIQUE (share_code);
+
+
+--
 -- Name: build_jobs build_jobs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8611,6 +8830,14 @@ ALTER TABLE ONLY public.content_feedback
 
 ALTER TABLE ONLY public.conversations
     ADD CONSTRAINT conversations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: course_audio_envelope course_audio_envelope_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio_envelope
+    ADD CONSTRAINT course_audio_envelope_pkey PRIMARY KEY (audio_id);
 
 
 --
@@ -9294,6 +9521,14 @@ ALTER TABLE ONLY public.pod_legos
 
 
 --
+-- Name: possession_mint_attempts possession_mint_attempts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.possession_mint_attempts
+    ADD CONSTRAINT possession_mint_attempts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: practice_prompts practice_prompts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9747,6 +9982,13 @@ CREATE INDEX idx_audio_flags_uuid ON public.audio_flags USING btree (audio_uuid)
 
 
 --
+-- Name: idx_board_snapshots_share_code; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_board_snapshots_share_code ON public.board_snapshots USING btree (share_code);
+
+
+--
 -- Name: idx_build_jobs_course_pass; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9828,6 +10070,13 @@ CREATE INDEX idx_checkpoint_results_course ON public.course_checkpoint_results U
 --
 
 CREATE INDEX idx_class_sessions_class ON public.class_sessions USING btree (class_id, started_at DESC);
+
+
+--
+-- Name: idx_classes_class_learner; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_classes_class_learner ON public.classes USING btree (class_learner_id);
 
 
 --
@@ -10734,10 +10983,31 @@ CREATE INDEX idx_player_events_type_time ON public.player_events USING btree (ev
 
 
 --
+-- Name: idx_player_events_user_session_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_player_events_user_session_time ON public.player_events USING btree (user_id, session_id, occurred_at);
+
+
+--
 -- Name: idx_player_events_user_time; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX idx_player_events_user_time ON public.player_events USING btree (user_id, occurred_at DESC);
+
+
+--
+-- Name: idx_possession_mint_attempts_code_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_possession_mint_attempts_code_time ON public.possession_mint_attempts USING btree (invite_code_id, created_at DESC);
+
+
+--
+-- Name: idx_possession_mint_attempts_ip_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_possession_mint_attempts_ip_time ON public.possession_mint_attempts USING btree (ip_hash, created_at DESC);
 
 
 --
@@ -11151,6 +11421,13 @@ CREATE INDEX idx_user_tags_class ON public.user_tags USING btree (tag_value) WHE
 --
 
 CREATE INDEX idx_user_tags_school ON public.user_tags USING btree (tag_value) WHERE ((tag_type = 'school'::text) AND (removed_at IS NULL));
+
+
+--
+-- Name: learners_is_class_entity_true_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX learners_is_class_entity_true_idx ON public.learners USING btree (id) WHERE is_class_entity;
 
 
 --
@@ -11640,6 +11917,14 @@ ALTER TABLE ONLY public.class_sessions
 
 
 --
+-- Name: classes classes_class_learner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.classes
+    ADD CONSTRAINT classes_class_learner_id_fkey FOREIGN KEY (class_learner_id) REFERENCES public.learners(id);
+
+
+--
 -- Name: classes classes_school_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11653,6 +11938,14 @@ ALTER TABLE ONLY public.classes
 
 ALTER TABLE ONLY public.course_audio
     ADD CONSTRAINT course_audio_course_code_fkey FOREIGN KEY (course_code) REFERENCES public.courses(course_code) ON DELETE CASCADE;
+
+
+--
+-- Name: course_audio_envelope course_audio_envelope_audio_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.course_audio_envelope
+    ADD CONSTRAINT course_audio_envelope_audio_id_fkey FOREIGN KEY (audio_id) REFERENCES public.course_audio(id) ON DELETE CASCADE;
 
 
 --
@@ -12085,6 +12378,14 @@ ALTER TABLE ONLY public.listening_pod_sentences
 
 ALTER TABLE ONLY public.offline_leases
     ADD CONSTRAINT offline_leases_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES public.learners(id) ON DELETE CASCADE;
+
+
+--
+-- Name: possession_mint_attempts possession_mint_attempts_invite_code_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.possession_mint_attempts
+    ADD CONSTRAINT possession_mint_attempts_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
 
 
 --
@@ -12870,6 +13171,13 @@ CREATE POLICY anon_read_course_audio ON public.course_audio FOR SELECT TO anon U
 
 
 --
+-- Name: course_audio_envelope anon_read_course_audio_envelope; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY anon_read_course_audio_envelope ON public.course_audio_envelope FOR SELECT TO anon USING (true);
+
+
+--
 -- Name: apml_documents; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -12902,11 +13210,24 @@ CREATE POLICY authenticated_read_course_audio ON public.course_audio FOR SELECT 
 
 
 --
+-- Name: course_audio_envelope authenticated_read_course_audio_envelope; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY authenticated_read_course_audio_envelope ON public.course_audio_envelope FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: dashboard_users authenticated_read_own_dashboard_user; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY authenticated_read_own_dashboard_user ON public.dashboard_users FOR SELECT TO authenticated USING ((email = (auth.jwt() ->> 'email'::text)));
 
+
+--
+-- Name: board_snapshots; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.board_snapshots ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: build_jobs; Type: ROW SECURITY; Schema: public; Owner: -
@@ -13019,6 +13340,19 @@ CREATE POLICY content_feedback_public_read ON public.content_feedback FOR SELECT
 --
 
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_audio_envelope; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.course_audio_envelope ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: course_audio_envelope course_audio_envelope_service_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY course_audio_envelope_service_policy ON public.course_audio_envelope TO service_role USING (true) WITH CHECK (true);
+
 
 --
 -- Name: course_audio course_audio_service_policy; Type: POLICY; Schema: public; Owner: -
@@ -13567,6 +13901,12 @@ CREATE POLICY phase_prompts_service_policy ON public.phase_prompts TO service_ro
 --
 
 ALTER TABLE public.player_events ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: possession_mint_attempts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.possession_mint_attempts ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: practice_prompts; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15010,6 +15350,16 @@ GRANT ALL ON FUNCTION public.sync_learner_emails_on_learner_insert() TO service_
 
 
 --
+-- Name: FUNCTION test_learner_ids(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.test_learner_ids() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.test_learner_ids() TO anon;
+GRANT ALL ON FUNCTION public.test_learner_ids() TO authenticated;
+GRANT ALL ON FUNCTION public.test_learner_ids() TO service_role;
+
+
+--
 -- Name: FUNCTION tg_release_notes_touch_updated_at(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15130,6 +15480,13 @@ GRANT ALL ON SEQUENCE public.audio_flags_id_seq TO service_role;
 GRANT ALL ON TABLE public.audio_pass_requests TO anon;
 GRANT ALL ON TABLE public.audio_pass_requests TO authenticated;
 GRANT ALL ON TABLE public.audio_pass_requests TO service_role;
+
+
+--
+-- Name: TABLE board_snapshots; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.board_snapshots TO service_role;
 
 
 --
@@ -15345,6 +15702,15 @@ GRANT ALL ON TABLE public.conversations TO service_role;
 GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.course_audio TO anon;
 GRANT SELECT,REFERENCES,TRIGGER,MAINTAIN ON TABLE public.course_audio TO authenticated;
 GRANT ALL ON TABLE public.course_audio TO service_role;
+
+
+--
+-- Name: TABLE course_audio_envelope; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.course_audio_envelope TO anon;
+GRANT ALL ON TABLE public.course_audio_envelope TO authenticated;
+GRANT ALL ON TABLE public.course_audio_envelope TO service_role;
 
 
 --
@@ -15909,6 +16275,15 @@ GRANT ALL ON SEQUENCE public.player_events_id_seq TO service_role;
 GRANT ALL ON TABLE public.pod_legos TO anon;
 GRANT ALL ON TABLE public.pod_legos TO authenticated;
 GRANT ALL ON TABLE public.pod_legos TO service_role;
+
+
+--
+-- Name: TABLE possession_mint_attempts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.possession_mint_attempts TO anon;
+GRANT ALL ON TABLE public.possession_mint_attempts TO authenticated;
+GRANT ALL ON TABLE public.possession_mint_attempts TO service_role;
 
 
 --

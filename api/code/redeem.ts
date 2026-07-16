@@ -199,15 +199,22 @@ async function redeemInviteCode(
     // user (api/auth/possession-redeem.ts) typed a name at redemption time
     // and carries it in user_metadata — prefer that over the email prefix.
     const { data: authUser } = await supabase.auth.admin.getUserById(userId)
-    const metadataName = (authUser?.user?.user_metadata as Record<string, unknown> | undefined)?.display_name
+    const metadata = authUser?.user?.user_metadata as Record<string, unknown> | undefined
+    const metadataName = metadata?.display_name
     const displayName = (typeof metadataName === 'string' && metadataName.trim())
       || authUser?.user?.email?.split('@')[0]
       || 'User'
+    // Possession-onboarded accounts (api/auth/possession-redeem.ts) never
+    // prove mailbox receipt — that endpoint mints a session without ever
+    // emailing anyone. needs_verification is the durable record of
+    // that; cleared only by a completed round-trip through api/email/verify.ts.
+    const needsEmailVerification = metadata?.onboarded_via === 'possession'
     const { error: insertError } = await supabase
       .from('learners')
       .insert({
         user_id: userId,
         display_name: displayName,
+        needs_verification: needsEmailVerification,
       })
     if (insertError) {
       console.error('[CodeRedeem] Failed to create learner:', insertError)
