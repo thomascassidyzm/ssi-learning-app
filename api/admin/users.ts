@@ -105,7 +105,7 @@ function enrich(
   })
 }
 
-type Tier = 'admin' | 'school' | 'premium' | 'free'
+type Tier = 'admin' | 'school' | 'tutor' | 'premium' | 'free'
 
 interface EnrollmentAgg {
   last_active: string | null
@@ -230,6 +230,11 @@ function tierFor(
   if (l.educational_role === 'teacher' || l.educational_role === 'school_admin' || l.educational_role === 'govt_admin') {
     return 'school'
   }
+  // Distinct from 'school': a tutor's own product (teachers table), not the
+  // schools 'teacher' role — access comes from their platform trial/subscription,
+  // not a personal entitlement, so without this they'd fall through to
+  // premium/free and read as an ordinary individual learner (2026-07-16 audit).
+  if (l.educational_role === 'tutor') return 'tutor'
   if (activeSubs.has(l.id) || activeEnts.has(l.id)) return 'premium'
   return 'free'
 }

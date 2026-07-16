@@ -50,6 +50,7 @@ const tierChips = computed<Array<{ value: Tier | null; label: string; count: num
   { value: 'free', label: 'Free', count: tierCounts.value.free },
   { value: 'admin', label: 'Admin', count: tierCounts.value.admin },
   { value: 'school', label: 'School', count: tierCounts.value.school },
+  { value: 'tutor', label: 'Tutor', count: tierCounts.value.tutor },
 ])
 
 const sortChips: Array<{ value: SortKey; label: string }> = [
@@ -59,15 +60,16 @@ const sortChips: Array<{ value: SortKey; label: string }> = [
   { value: 'name', label: 'Name' },
 ]
 
-// Tier → status-pill tone + label (premium = gold, admin = red, school = blue, free = muted).
+// Tier → status-pill tone + label (premium = gold, admin = red, school/tutor = blue, free = muted).
 const TIER_TONE: Record<Tier, 'gold' | 'red' | 'blue' | 'muted'> = {
   premium: 'gold',
   admin: 'red',
   school: 'blue',
+  tutor: 'blue',
   free: 'muted',
 }
 const TIER_LABEL: Record<Tier, string> = {
-  premium: 'Premium', admin: 'Admin', school: 'School', free: 'Free',
+  premium: 'Premium', admin: 'Admin', school: 'School', tutor: 'Tutor', free: 'Free',
 }
 
 // Show at most a couple of course chips per row, then collapse the rest to a

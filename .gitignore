@@ -38,3 +38,4 @@ test-results/
 .claude/
 .env*.local
 packages/player-vue/e2e/schools-nav/sessions.json
+packages/player-vue/e2e/tutors-audit/out/

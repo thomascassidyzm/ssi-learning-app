@@ -24,7 +24,7 @@ interface DemoOrgRow {
   expires_at: string
   status: 'active' | 'expired'
   expired_at: string | null
-  metadata: { orgName: string; staff: DemoStaffRow[]; counts: { schools: number; teachers: number; classes: number; learners: number } }
+  metadata: { orgName: string; staff: DemoStaffRow[]; counts: { schools: number; teachers: number; classes: number; learners: number }; lastActivityThrough?: string }
 }
 
 const { getClient, getAuthToken } = useAdminClient()
@@ -130,7 +130,7 @@ async function createOrg(): Promise<void> {
   }
 }
 
-async function runAction(id: string, action: 'expire' | 'extend' | 'purge'): Promise<void> {
+async function runAction(id: string, action: 'expire' | 'extend' | 'refresh' | 'purge'): Promise<void> {
   if (action === 'purge' && !confirm('Purge permanently deletes this demo org — schools, classes, learners, and staff accounts. This cannot be undone. Continue?')) return
   error.value = null
   busyAction.value = `${action}:${id}`
@@ -167,6 +167,17 @@ function formatDate(iso: string): string {
 
 function isOverdue(org: DemoOrgRow): boolean {
   return org.status === 'active' && new Date(org.expires_at).getTime() < Date.now()
+}
+
+// Falls back to created_at for orgs that predate this field (or have never
+// been refreshed) — still a true "activity through" date, just the original one.
+function activityThroughLabel(org: DemoOrgRow): string {
+  return formatDate(org.metadata?.lastActivityThrough || org.created_at)
+}
+
+function isActivityStale(org: DemoOrgRow): boolean {
+  const through = org.metadata?.lastActivityThrough || org.created_at
+  return Date.now() - new Date(through).getTime() > 7 * 86400000
 }
 
 onMounted(() => {
@@ -286,6 +297,7 @@ onMounted(() => {
               <th>Shape</th>
               <th>Course</th>
               <th>Created</th>
+              <th>Activity through</th>
               <th>Expires</th>
               <th>Status</th>
               <th aria-label="Actions"></th>
@@ -298,6 +310,9 @@ onMounted(() => {
                 <td class="cell-muted">{{ shapeLabel(org.org_shape) }}</td>
                 <td class="cell-muted">{{ org.course_code }}</td>
                 <td class="cell-muted mono-nums">{{ formatDate(org.created_at) }}</td>
+                <td class="cell-muted mono-nums" :class="{ 'cell-overdue': isActivityStale(org) }">
+                  {{ activityThroughLabel(org) }}
+                </td>
                 <td class="cell-muted mono-nums" :class="{ 'cell-overdue': isOverdue(org) }">
                   {{ formatDate(org.expires_at) }}
                 </td>
@@ -318,6 +333,12 @@ onMounted(() => {
                   >Extend 30d</button>
                   <button
                     v-if="org.status === 'active'"
+                    class="row-action-text"
+                    :disabled="busyAction === `refresh:${org.id}`"
+                    @click="runAction(org.id, 'refresh')"
+                  >{{ busyAction === `refresh:${org.id}` ? 'Refreshing…' : 'Refresh activity' }}</button>
+                  <button
+                    v-if="org.status === 'active'"
                     class="row-action-text row-action-danger"
                     :disabled="busyAction === `expire:${org.id}`"
                     @click="runAction(org.id, 'expire')"
@@ -331,7 +352,7 @@ onMounted(() => {
                 </td>
               </tr>
               <tr v-if="expandedId === org.id" class="detail-row">
-                <td colspan="7">
+                <td colspan="8">
                   <DemoOrgResultCard
                     :org-name="org.metadata.orgName"
                     :org-shape="org.org_shape"

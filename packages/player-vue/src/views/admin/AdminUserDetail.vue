@@ -530,6 +530,7 @@ async function handleCreateSigninLink() {
                   <option value="govt_admin">govt_admin</option>
                   <option value="school_admin">school_admin</option>
                   <option value="teacher">teacher</option>
+                  <option value="tutor">tutor</option>
                   <option value="student">student</option>
                 </select>
               </div>

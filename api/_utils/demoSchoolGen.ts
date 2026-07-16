@@ -62,14 +62,16 @@ export interface DemoOrgResult {
 
 // ---------- seeded-ish PRNG (Math.random is fine here — this is sales
 // showcase data, not test fixtures that need reproducibility) ----------
-const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
-const between = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
-const DAY = 86400000
+// Exported for reuse by demoSchoolRefresh.ts (Refresh Activity) — same
+// engagement-mix shape must continue on top-up, not a fresh random draw.
+export const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
+export const between = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
+export const DAY = 86400000
 
 // Weekday-clustered timestamp (~85% land Mon-Fri) — real classroom/practice
 // activity isn't uniform across the week; a demo that IS uniform reads as
 // synthetic at a glance.
-function weekdayTimestamp(startMs: number, endMs: number): Date {
+export function weekdayTimestamp(startMs: number, endMs: number): Date {
   for (let attempt = 0; attempt < 8; attempt++) {
     const t = startMs + Math.random() * (endMs - startMs)
     const day = new Date(t).getDay() // 0=Sun..6=Sat
@@ -126,7 +128,7 @@ async function ensureAuthUser(supabase: SupabaseClient, email: string, password:
   throw new Error(`Failed to create auth user ${email}: ${error?.message}`)
 }
 
-async function insertChunked(
+export async function insertChunked(
   supabase: SupabaseClient,
   table: string,
   rows: Record<string, unknown>[],
@@ -137,6 +139,16 @@ async function insertChunked(
     const { error } = await supabase.from(table).insert(chunk)
     if (error) throw new Error(`${table} bulk insert failed: ${error.message}`)
   }
+}
+
+// Shared with demoSchoolRefresh.ts — the course's own seed count caps how far
+// any learner (fresh or continuing) can plausibly be advanced.
+export async function resolveMaxSeed(supabase: SupabaseClient, courseCode: string): Promise<number> {
+  const { count: seedCount } = await supabase
+    .from('course_seeds')
+    .select('seed_number', { count: 'exact', head: true })
+    .eq('course_code', courseCode)
+  return Math.max(20, Math.min(45, (seedCount ?? 45) - 5))
 }
 
 export async function provisionDemoOrg(
@@ -158,11 +170,7 @@ export async function provisionDemoOrg(
     throw new Error(`course_code "${courseCode}" is not a live course`)
   }
 
-  const { count: seedCount } = await supabase
-    .from('course_seeds')
-    .select('seed_number', { count: 'exact', head: true })
-    .eq('course_code', courseCode)
-  const maxSeed = Math.max(20, Math.min(45, (seedCount ?? 45) - 5))
+  const maxSeed = await resolveMaxSeed(supabase, courseCode)
 
   const numSchools = orgShape === 'single_school' ? 1 : (spec.numSchools ?? 2)
   const teachersPerSchool = spec.teachersPerSchool ?? 2

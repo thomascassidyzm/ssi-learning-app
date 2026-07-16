@@ -15,7 +15,7 @@
 import { ref, computed } from 'vue'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type Tier = 'admin' | 'school' | 'premium' | 'free'
+export type Tier = 'admin' | 'school' | 'tutor' | 'premium' | 'free'
 export type SortKey = 'active' | 'practice' | 'joined' | 'name'
 
 interface AdminUser {
@@ -165,7 +165,7 @@ export function useAdminUsers(client: SupabaseClient) {
   // Counts per tier across the FULL set — drives the filter chip badges, so an
   // admin can see "how many premium" at a glance (checking permissions).
   const tierCounts = computed<Record<Tier, number>>(() => {
-    const c: Record<Tier, number> = { admin: 0, school: 0, premium: 0, free: 0 }
+    const c: Record<Tier, number> = { admin: 0, school: 0, tutor: 0, premium: 0, free: 0 }
     for (const u of allUsers.value) c[u.tier]++
     return c
   })
