@@ -18,7 +18,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type Tier = 'admin' | 'school' | 'premium' | 'free'
 export type SortKey = 'active' | 'practice' | 'joined' | 'name'
 
-export interface AdminUser {
+interface AdminUser {
   id: string
   user_id: string
   display_name: string
