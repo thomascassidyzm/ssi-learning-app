@@ -22,7 +22,7 @@ const route = useRoute()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
-const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
+const { classDetail, fetchClassDetail, getClassReport, renameClass: renameClassApi } = useClassesData()
 const { viewingSchool } = useSchoolData()
 const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
@@ -275,19 +275,14 @@ async function handleRemoveStudent(student: { user_id: string; name: string }) {
   if (!error) fetchClassDetail(classData.value.id)
 }
 
-// Rename the class. classes now grants authenticated UPDATE (the create-class
-// grant fix), so a direct client update works — mirrors the native-dialog
-// pattern used by handleRemoveStudent above.
+// Rename the class via the server-mediated endpoint (api/school/rename-class)
+// — a direct client `classes.update()` has no ownership check at all (classes
+// is RLS-off by design), so ownership is enforced server-side instead.
 async function renameClass() {
   const next = (window.prompt('Rename class', classData.value.class_name) || '').trim()
   if (!next || next === classData.value.class_name) return
-  const supabase = getSchoolsClient()
-  const { error } = await supabase
-    .from('classes')
-    .update({ class_name: next })
-    .eq('id', classData.value.id)
-  if (error) {
-    console.error('[ClassDetail] rename failed:', error)
+  const ok = await renameClassApi(classData.value.id, next)
+  if (!ok) {
     window.alert('Could not rename the class. Please try again.')
     return
   }
@@ -309,6 +304,7 @@ async function renameClass() {
         <h1 class="arsenal page-title">
           {{ classData.class_name }}
           <button
+            v-if="!isAdminView"
             type="button"
             title="Rename class"
             aria-label="Rename class"

@@ -232,7 +232,7 @@ watch(currentUser, (u) => {
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
           Export
         </button>
-        <button type="button" class="btn-play" @click="openAddModal">+ Add school</button>
+        <button v-if="!isAdminView" type="button" class="btn-play" @click="openAddModal">+ Add school</button>
       </div>
     </div>
 
