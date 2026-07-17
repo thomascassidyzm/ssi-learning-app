@@ -2,9 +2,13 @@
 /**
  * MethodologyContainer — layout for the /methodology explainer pages.
  *
- * Admin-gated by the router (see router/index.ts beforeEach). Mirrors the
- * AdminContainer pattern: dark top bar signals "internal tooling" mode,
- * schools-tokens + schools-design.css provide the visual language so
+ * The top-level router guard (router/index.ts beforeEach) only defers on an
+ * unresolved role cache; useAdminGate is this container's own reactive
+ * gate — same shape as AdminContainer, so a cold-cache non-admin deep link
+ * is denied before any child page renders, and a mid-session downgrade
+ * revokes access live (Trinity audit, docs/trinity/admin.md). Mirrors the
+ * AdminContainer pattern otherwise: dark top bar signals "internal tooling"
+ * mode, schools-tokens + schools-design.css provide the visual language so
  * everything looks native to the rest of the admin surface.
  *
  * Pages explain the metrics architecture from
@@ -14,10 +18,12 @@
  */
 import { computed } from 'vue'
 import { useRoute, RouterLink, RouterView } from 'vue-router'
+import { useAdminGate } from '@/composables/useAdminGate'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
 const route = useRoute()
+const { isCheckingAccess, isDenied } = useAdminGate()
 
 type MethodologyTab = { label: string; to: string; match: (path: string) => boolean }
 
@@ -70,7 +76,11 @@ const showTabs = computed(() => route.path.startsWith('/methodology'))
       </nav>
     </header>
 
-    <main class="methodology-main">
+    <div v-if="isCheckingAccess || isDenied" class="methodology-loading">
+      <div class="loading-spinner"></div>
+      <p>Loading…</p>
+    </div>
+    <main v-else class="methodology-main">
       <RouterView v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <component :is="Component" />
@@ -194,6 +204,30 @@ const showTabs = computed(() => route.path.startsWith('/methodology'))
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* Access-gate loading state (cold load with no cached role yet) */
+.methodology-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 16px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: var(--schools-gold, #FEC902);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Page transition */

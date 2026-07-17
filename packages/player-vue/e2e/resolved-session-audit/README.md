@@ -34,7 +34,19 @@ errors) on failure.
 
 Covers: `/schools` (teacher/school_admin/govt_admin), `/schools/analytics`
 (teacher/school_admin), `/schools/upgrade` (school_admin),
-`/admin/{users,stats,demo-schools}` and `/admin/groups/:id` (ssi_admin).
+`/admin/{users,stats,demo-schools}` and `/admin/groups/:id` (ssi_admin) — plus
+(2026-07-17, the admin-reactive-auth-gate fix, useAdminGate.ts) the standalone
+read-view routes that used to have NO gate of their own:
+`ssi_admin` cleanly loading `/admin/schools/:id`, and a cold-cache non-admin
+being DENIED (bounced to `/`) on `/admin/schools/:id`, `/admin/groups/:id`,
+`/admin/classes/:id`, `/admin/users/:id/progress`, and `/methodology`.
+
+`node downgrade-revalidate.mjs` — the mid-session role-downgrade case (same
+fix, useAdminGate's periodic re-validation): loads as `ssi_admin`, then
+writes a REAL `platform_role: null` demotion to the DB mid-session (needs
+`SUPABASE_SERVICE_ROLE_KEY`) and asserts the page bounces to `/` on its own,
+without any reload, once the next revalidation tick lands. Restores the
+persona's role afterwards either way — safe to re-run.
 
 ## Verified regression-catching (2026-07-16)
 
@@ -48,3 +60,17 @@ additionally covered by deterministic unit tests
 fast localhost round-trip to Supabase can mask that particular race in a
 real-browser run, so the unit tests (which force the race directly) are the
 reliable net for those two.
+
+## Standalone-route + downgrade cases (2026-07-17, admin-reactive-auth-gate)
+
+The new `cold-load.mjs` deny-cases and `downgrade-revalidate.mjs` are added
+alongside deterministic unit-test coverage of the same mechanism
+(`useAdminGate.test.ts`, `AdminSchoolsContainer.accessGate.test.ts`,
+`useUserRole.test.ts`'s `setAuthoritative` suite) — those ran green against
+the real component/composable code in this session (fail-first confirmed
+against the pre-fix code, then pass after). **This real-browser suite itself
+was not executed in this session** — no `SUPABASE_SERVICE_ROLE_KEY` /
+`VITE_SUPABASE_ANON_KEY` were available in the sandbox. Run both scripts per
+the Setup steps above before trusting the fix against the real deployed
+Supabase project; `downgrade-revalidate.mjs` takes ~65s per run (one full
+revalidation interval) by design.
