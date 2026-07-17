@@ -40,6 +40,18 @@ function step(name, ok, detail) {
   console.log(`${ok ? 'PASS' : 'FAIL'} — ${name}${detail ? ': ' + detail : ''}`)
 }
 
+/** Poll a locator's count instead of a fixed sleep — client refetch after a delete/create can be slow on a cold serverless invocation. */
+async function waitForCount(locator, predicate, timeoutMs = 8000) {
+  const start = Date.now()
+  let last = -1
+  while (Date.now() - start < timeoutMs) {
+    last = await locator.count()
+    if (predicate(last)) return true
+    await new Promise((r) => setTimeout(r, 300))
+  }
+  return predicate(last)
+}
+
 let orgId = null
 let subGroupId = null
 let schoolId = null
@@ -94,7 +106,7 @@ try {
   const schoolName = `ZZQA-School-${Date.now()}`
   await page.fill('input[placeholder="School name"]', schoolName)
   await page.click('.tree-inline-form button:has-text("Add")')
-  await page.waitForTimeout(1200)
+  await page.waitForTimeout(2500)
   step('school entity visible in tree', await page.locator(`.entity-row:has-text("${schoolName}")`).count() > 0, schoolName)
 
   const { data: schoolRow } = await svc.from('schools').select('id, group_id, is_demo').eq('school_name', schoolName).maybeSingle()
@@ -108,28 +120,36 @@ try {
   const entityRowLocator = page.locator('.entity-row', { hasText: schoolName })
   await entityRowLocator.hover()
   await entityRowLocator.locator('button[title="Delete school"]').click()
-  await page.waitForTimeout(600)
+  await page.waitForTimeout(800)
   step('delete modal opened for school', await page.locator('.modal-title:has-text("Delete school")').count() > 0)
   await page.click('.btn-delete')
-  await page.waitForTimeout(1200)
-  step('school entity removed from tree', await page.locator(`.entity-row:has-text("${schoolName}")`).count() === 0)
+  const schoolGone = await waitForCount(page.locator(`.entity-row:has-text("${schoolName}")`), (n) => n === 0)
+  step('school entity removed from tree', schoolGone)
 
-  // 5. Delete the sub-group, then the org, via the same modal
+  // 5. Delete the sub-group, then the org, via the same modal. DB truth is
+  // the real assertion (schools/groups delete cascades server-side); the
+  // tree-absence check is a UI-refresh sanity check on top of it.
   const subGroupRowLocator2 = page.locator('.group-row', { hasText: subGroupName })
   await subGroupRowLocator2.hover()
   await subGroupRowLocator2.locator('button[title="Delete group"]').click()
-  await page.waitForTimeout(600)
+  await page.waitForTimeout(800)
   await page.click('.btn-delete')
-  await page.waitForTimeout(1200)
-  step('sub-group removed from tree', await page.locator(`text=${subGroupName}`).count() === 0)
+  await page.waitForTimeout(1500)
+  const { data: subGroupAfterDelete } = await svc.from('groups').select('id').eq('id', subGroupId).maybeSingle()
+  step('sub-group deleted (DB truth)', !subGroupAfterDelete)
+  const subGroupGone = await waitForCount(page.locator(`.group-row:has-text("${subGroupName}")`), (n) => n === 0)
+  step('sub-group removed from tree', subGroupGone)
 
   const orgRowLocator2 = page.locator('.group-row', { hasText: orgName })
   await orgRowLocator2.hover()
   await orgRowLocator2.locator('button[title="Delete group"]').click()
-  await page.waitForTimeout(600)
+  await page.waitForTimeout(800)
   await page.click('.btn-delete')
-  await page.waitForTimeout(1200)
-  step('organisation removed from tree', await page.locator(`text=${orgName}`).count() === 0)
+  await page.waitForTimeout(1500)
+  const { data: orgAfterDelete } = await svc.from('groups').select('id').eq('id', orgId).maybeSingle()
+  step('organisation deleted (DB truth)', !orgAfterDelete)
+  const orgGone = await waitForCount(page.locator(`.group-row:has-text("${orgName}")`), (n) => n === 0)
+  step('organisation removed from tree', orgGone)
 
   step('zero console errors', consoleErrors.length === 0, consoleErrors.join(' | '))
 } catch (err) {
