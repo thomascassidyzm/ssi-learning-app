@@ -107,13 +107,39 @@ describe('POST /api/invite/create — school_admin group stamping', () => {
     expect(insert.obj.grants_group_id).not.toBe('someone-elses-group')
   })
 
-  it('rejects a caller with no govt_admins row', async () => {
+  it('rejects a caller with no govt_admins row who is not an ssi_admin', async () => {
     govtAdminRow = null
     const req = makeReq({ code_type: 'school_admin', metadata: { school_name: 'X' } })
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)
     expect(insertedRows.find(r => r.table === 'invite_codes')).toBeUndefined()
+  })
+
+  it('an ssi_admin with no govt_admins row mints for ANY group — client grants_group_id honoured (the /admin/invites surface)', async () => {
+    govtAdminRow = null
+    learnerRow = { platform_role: 'ssi_admin' }
+    const req = makeReq({
+      code_type: 'school_admin',
+      grants_group_id: 'any-group-they-picked',
+      metadata: { school_name: 'Ysgol Newydd' },
+    })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    const insert = insertedRows.find(r => r.table === 'invite_codes')
+    expect(insert.obj.grants_group_id).toBe('any-group-they-picked')
+  })
+
+  it('an ssi_admin minting with NO group picked stamps null (ungrouped school invite)', async () => {
+    govtAdminRow = null
+    learnerRow = { platform_role: 'ssi_admin' }
+    const req = makeReq({ code_type: 'school_admin', metadata: { school_name: 'X' } })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(201)
+    const insert = insertedRows.find(r => r.table === 'invite_codes')
+    expect(insert.obj.grants_group_id).toBeNull()
   })
 
   it('a govt_admin with no group_id yet (self-serve region naming pending) stamps null, not the client value', async () => {
