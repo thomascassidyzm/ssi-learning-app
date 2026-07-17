@@ -12,10 +12,12 @@ import { createHash, createHmac } from 'crypto'
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
-// Same secret + format the audio proxy verifies (api/audio/[audioId].ts).
-const entitlementSecret = (
-  process.env.ENTITLEMENT_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-).trim()
+// Same secret + format the audio proxy verifies (api/_utils/audioAccess.ts).
+// Dedicated HMAC secret — we do NOT fall back to SUPABASE_SERVICE_ROLE_KEY
+// (that would sign low-value tokens with an all-powerful DB credential). The
+// verify side reads ENTITLEMENT_TOKEN_SECRET identically; keep them in lockstep.
+const entitlementSecret = (process.env.ENTITLEMENT_TOKEN_SECRET || '').trim()
+const IS_PROD = process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production'
 
 // How long a try-link entitlement is good for once validated, when the link
 // itself carries no expiry. Time-boxed so a leaked token can't grant forever.
@@ -48,6 +50,15 @@ export default async function handler(
 ): Promise<void> {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  // Fail CLOSED in production if the dedicated signing secret is unset — mirrors
+  // the cron CRON_SECRET posture. Without it we cannot mint a verifiable token,
+  // so refuse loudly rather than silently return a null (UI-only) entitlement.
+  if (IS_PROD && !entitlementSecret) {
+    console.error('[try-link/validate] ENTITLEMENT_TOKEN_SECRET not configured in production — refusing to mint entitlement tokens')
+    res.status(500).json({ error: 'ENTITLEMENT_TOKEN_SECRET not configured' })
     return
   }
 
