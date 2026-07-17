@@ -126,6 +126,28 @@ describe('ensureDemoLeafClass', () => {
     expect(db.classes).toHaveLength(1)
   })
 
+  it('uses courseCodeOverride when given, without touching demo_orgs (root-leaf path)', async () => {
+    // Regression: provisionDemoOrg inserts the demo_orgs row AFTER the root
+    // leaf, so at root-leaf time no demo_orgs row exists yet — resolving by
+    // tree-walk returned null and 500'd. The override makes the known course
+    // flow straight through.
+    const db: any = {
+      groups: [{ id: 'root', name: 'Welsh Health Department', parent_id: null }],
+      demo_orgs: [], // deliberately empty — the org row isn't written yet
+      schools: [],
+      classes: [],
+      invite_codes: [],
+      learners: [],
+      course_enrollments: [],
+    }
+    const result = await ensureDemoLeafClass(makeSupabase(db), 'root', 'admin-1', 'cym_s_for_eng')
+
+    expect('error' in result).toBe(false)
+    if ('error' in result) throw new Error('unexpected error result')
+    expect(result.created).toBe(true)
+    expect(db.classes[0]).toMatchObject({ course_code: 'cym_s_for_eng' })
+  })
+
   it('errors when no ancestor demo_orgs row can resolve a course', async () => {
     const db: any = {
       groups: [{ id: 'orphan', name: 'No Org', parent_id: null }],

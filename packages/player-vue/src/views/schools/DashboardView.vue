@@ -31,6 +31,7 @@ const {
   totalTeachers,
   totalClasses,
   totalPracticeHours,
+  totalStaffPracticeHours,
   fetchSchools,
   confirmSchoolName,
   selectSchoolToView,
@@ -245,8 +246,26 @@ const greetingLines = computed(() => {
   return `${n} classes on the go, ${teacherStats.value.students} students total.`
 })
 
+// Minutes-first headline formatting (founder ruling 2026-07-18): never render a
+// rounded "0h" when real minutes exist — a trial school where only staff have
+// practised (e.g. Chepstow, Lucy's 4m) must show "4m", not "0h". Matches the
+// Own-practice column's formatOwnPractice in TeachersView.
+function formatPracticeHours(hours: number): string {
+  const minutes = Math.round((hours || 0) * 60)
+  if (minutes >= 60) return `${Math.round((minutes / 60) * 10) / 10}h`
+  return `${minutes}m`
+}
+
+// The honest "incl. Xm staff practice" composition line — shown only when staff
+// minutes are nonzero, so the headline is never silently inflated.
+const staffPracticeNote = computed(() => {
+  const minutes = Math.round((totalStaffPracticeHours.value || 0) * 60)
+  if (minutes <= 0) return ''
+  return `incl. ${formatPracticeHours(totalStaffPracticeHours.value)} staff practice`
+})
+
 const adminGreetingLines = computed(() => {
-  return `${totalStudents.value} students across ${totalClasses.value} classes — ${Math.round(totalPracticeHours.value)}h practised all-time.`
+  return `${totalStudents.value} students across ${totalClasses.value} classes — ${formatPracticeHours(totalPracticeHours.value)} practised all-time.`
 })
 
 const breadcrumb = computed(() => {
@@ -463,8 +482,9 @@ async function handlePlayClass(cls: ClassInfo) {
           <span class="stat-label">Classes</span>
         </div>
         <div class="stat-card">
-          <span class="arsenal stat-value">{{ Math.round(totalPracticeHours) }}h</span>
+          <span class="arsenal stat-value">{{ formatPracticeHours(totalPracticeHours) }}</span>
           <span class="stat-label">Hours practised</span>
+          <span v-if="staffPracticeNote" class="stat-subnote">{{ staffPracticeNote }}</span>
         </div>
         <div class="stat-card">
           <span class="arsenal stat-value">{{ teacherClasses.length }}</span>
@@ -562,8 +582,8 @@ async function handlePlayClass(cls: ClassInfo) {
       <Greeting
         :name="`${schoolName}`"
         :lines="isViewingSchool
-          ? `${totalClasses} classes · ${totalStudents} students · ${Math.round(totalPracticeHours)}h practised`
-          : `${schools.length} schools · ${totalStudents} students · ${Math.round(totalPracticeHours)}h practised`"
+          ? `${totalClasses} classes · ${totalStudents} students · ${formatPracticeHours(totalPracticeHours)} practised${staffPracticeNote ? ` (${staffPracticeNote})` : ''}`
+          : `${schools.length} schools · ${totalStudents} students · ${formatPracticeHours(totalPracticeHours)} practised${staffPracticeNote ? ` (${staffPracticeNote})` : ''}`"
         :date="todayLabel"
         :dense="density === 'compact'"
       >
@@ -695,7 +715,7 @@ async function handlePlayClass(cls: ClassInfo) {
               <div class="schools-subtle">Students</div>
             </div>
             <div>
-              <div class="arsenal govt-tile-stat">{{ Math.round(school.total_practice_hours) }}h</div>
+              <div class="arsenal govt-tile-stat">{{ formatPracticeHours(school.total_practice_hours) }}</div>
               <div class="schools-subtle">Hours</div>
             </div>
           </div>
@@ -859,6 +879,7 @@ async function handlePlayClass(cls: ClassInfo) {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .stat-value {
@@ -869,6 +890,14 @@ async function handlePlayClass(cls: ClassInfo) {
 .stat-label {
   font-size: 12px;
   color: var(--schools-fg-2);
+}
+/* Composition line under the headline hours — full-width wrap below the
+   value/label row (founder ruling 2026-07-18, "incl. Xm staff practice"). */
+.stat-subnote {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--schools-fg-2);
+  opacity: 0.85;
 }
 
 /* ---------- Teacher: compact table ---------- */

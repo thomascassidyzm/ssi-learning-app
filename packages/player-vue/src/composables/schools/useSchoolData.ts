@@ -22,6 +22,10 @@ interface GroupSummary {
   teacher_count: number
   student_count: number
   total_practice_hours: number
+  // Staff's OWN practice, already INCLUDED in total_practice_hours (founder
+  // ruling 2026-07-18). Broken out so the headline can show the honest
+  // "incl. Xm staff practice" composition instead of silently inflating.
+  staff_practice_hours?: number
 }
 
 type SchoolHealth = 'excellent' | 'good' | 'needs-attention' | 'inactive'
@@ -38,6 +42,9 @@ export interface School {
   class_count: number
   student_count: number
   total_practice_hours: number
+  // Staff's OWN practice, already INCLUDED in total_practice_hours (founder
+  // ruling 2026-07-18). Broken out for the "incl. Xm staff practice" line.
+  staff_practice_hours?: number
   created_at: string
   // Drives the "confirm your school's name" first-run card (invite-born
   // admins only — see schools.name_confirmed migration). Optional so
@@ -176,6 +183,7 @@ export function useSchoolData() {
             class_count: s.class_count,
             student_count: s.student_count,
             total_practice_hours: s.total_practice_hours,
+            staff_practice_hours: s.staff_practice_hours ?? 0,
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
@@ -193,6 +201,7 @@ export function useSchoolData() {
             teacher_count: groupData.teacher_count,
             student_count: groupData.student_count,
             total_practice_hours: groupData.total_practice_hours,
+            staff_practice_hours: groupData.staff_practice_hours ?? 0,
           }
         }
       } else if (isGovtAdmin.value && userRegionCode) {
@@ -228,6 +237,7 @@ export function useSchoolData() {
             class_count: s.class_count,
             student_count: s.student_count,
             total_practice_hours: s.total_practice_hours,
+            staff_practice_hours: s.staff_practice_hours ?? 0,
             created_at: s.created_at,
             active_days_last_7: activeDays,
             health: bucketSchoolHealth(s.student_count || 0, activeDays),
@@ -307,6 +317,7 @@ export function useSchoolData() {
             class_count: data.class_count,
             student_count: data.student_count,
             total_practice_hours: data.total_practice_hours,
+            staff_practice_hours: data.staff_practice_hours ?? 0,
             created_at: data.created_at,
             name_confirmed: data.name_confirmed,
             active_days_last_7: activeDays,
@@ -395,6 +406,15 @@ export function useSchoolData() {
     return schools.value.reduce((sum, s) => sum + s.total_practice_hours, 0)
   })
 
+  // Staff's OWN practice component of totalPracticeHours (founder ruling
+  // 2026-07-18). Drives the honest "incl. Xm staff practice" headline line;
+  // already summed into totalPracticeHours above, never added on top.
+  const totalStaffPracticeHours = computed(() => {
+    if (viewingSchool.value) return viewingSchool.value.staff_practice_hours ?? 0
+    if (groupSummary.value) return groupSummary.value.staff_practice_hours ?? 0
+    return schools.value.reduce((sum, s) => sum + (s.staff_practice_hours ?? 0), 0)
+  })
+
   return {
     // State
     schools,
@@ -411,6 +431,7 @@ export function useSchoolData() {
     totalTeachers,
     totalClasses,
     totalPracticeHours,
+    totalStaffPracticeHours,
 
     // Actions
     fetchSchools,
