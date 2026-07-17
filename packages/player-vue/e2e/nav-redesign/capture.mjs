@@ -48,7 +48,7 @@ const scenarios = [
   },
   {
     name: 'admin-setup',
-    url: '/admin/setup',
+    url: '/admin/structure',
     persona: { platform: 'ssi_admin', educational: null, schoolName: null },
     waitFor: '.admin-topbar',
   },

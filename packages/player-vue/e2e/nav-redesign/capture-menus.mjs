@@ -3,9 +3,9 @@ const BASE = 'http://localhost:5173'
 const browser = await chromium.launch()
 
 async function prep(page) {
-  await page.goto(BASE + '/admin/setup', { waitUntil: 'domcontentloaded' })
+  await page.goto(BASE + '/admin/structure', { waitUntil: 'domcontentloaded' })
   await page.evaluate(() => window.__setSchoolsE2ERole('ssi_admin', null))
-  await page.goto(BASE + '/admin/setup', { waitUntil: 'networkidle' }).catch(() => {})
+  await page.goto(BASE + '/admin/structure', { waitUntil: 'networkidle' }).catch(() => {})
   await page.evaluate(() => window.__setSchoolsE2ERole('ssi_admin', null))
   await page.waitForSelector('.admin-topbar', { timeout: 15000 })
 }

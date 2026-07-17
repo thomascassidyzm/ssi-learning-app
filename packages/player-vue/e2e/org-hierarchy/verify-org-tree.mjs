@@ -1,5 +1,5 @@
 // Ad-hoc local verification for the Organisations/group-tree admin UI
-// (SchoolsSetup.vue Groups tab + GroupTreeNode.vue), same technique as
+// (AdminStructure.vue + GroupTreeNode.vue), same technique as
 // e2e/demo-schools: mint a real ssi_admin session via admin.generateLink +
 // verifyOtp (no email sent), inject into localStorage, drive with
 // Playwright against a LOCAL dev server. Creates one throwaway demo
@@ -65,19 +65,16 @@ try {
   const consoleErrors = []
   page.on('pageerror', (e) => consoleErrors.push(String(e)))
 
-  await page.goto(`${BASE}/admin/setup`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/admin/structure`, { waitUntil: 'networkidle' })
   await page.waitForTimeout(1500)
-  step('landed on admin setup', page.url().includes('/admin/setup'), page.url())
+  step('landed on admin structure', page.url().includes('/admin/structure'), page.url())
 
-  await page.click('button.tab-btn:has-text("Groups")')
-  await page.waitForTimeout(500)
-
-  // 1. Create a demo organisation (root group)
-  await page.click('summary:has-text("Create organisation")')
+  // 1. Create a demo organisation (root group) — inline "+ Add organisation"
+  await page.click('button:has-text("+ Add organisation")')
   const orgName = `ZZQA-Org-${Date.now()}`
-  await page.fill('input[placeholder*="United Kingdom"]', orgName)
-  await page.check('input[type="checkbox"]')
-  await page.click('button:has-text("Create organisation")')
+  await page.fill('input[placeholder="Organisation name"]', orgName)
+  await page.check('.root-inline-form input[type="checkbox"]')
+  await page.click('.root-inline-form button:has-text("Add")')
   await page.waitForTimeout(1200)
   step('organisation created', await page.locator(`text=${orgName}`).count() > 0, orgName)
 

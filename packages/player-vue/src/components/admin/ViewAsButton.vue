@@ -73,7 +73,7 @@ function pick(persona: ActAsPersona): void {
 }
 /* Self-contained baseline so the button looks right even in contexts that
    don't already define `.row-action` (e.g. AdminSchoolsContainer's context
-   bar) — matches SchoolsSetup.vue's row-action look for visual consistency. */
+   bar) — matches AdminStructure.vue's row-action look for visual consistency. */
 .view-as-btn {
   width: 30px;
   height: 30px;

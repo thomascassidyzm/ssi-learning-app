@@ -7,7 +7,8 @@
  * Open Sans body to match the new schools design system.
  *
  * Information hierarchy (2026-07-17 redesign): the bar shows only the
- * everyday sections as flat tabs (Setup / Users / Stats / Insights); the
+ * everyday sections as flat tabs (Structure / Invites / Users / Stats /
+ * Insights — the four admin ideas, numbers being two surfaces); the
  * rest live in a grouped "More" menu (NavMoreMenu) where each entry
  * carries an icon + one-line description — nine flat labels conveyed
  * nothing and crowded out the context bar below. The bar is ONE row at
@@ -40,14 +41,24 @@ const ICONS: Record<string, string[]> = {
   methodology: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
 }
 
-// The everyday four stay flat on the bar.
+// The four admin ideas stay flat on the bar (2026-07-17 consolidation):
+// Structure (the tree) · Invites (doors) · Users (people) · Stats+Insights
+// (numbers). Setup dissolved into Structure; Invites promoted out of More —
+// a door can't be one of the four ideas and live behind a "More" click.
 const primaryTabs: NavMenuItem[] = [
   {
-    label: 'Setup',
-    to: '/admin/setup',
-    desc: 'Groups, schools and staff',
+    label: 'Structure',
+    to: '/admin/structure',
+    desc: 'The org tree — groups, schools, staff',
     iconPaths: ICONS.setup,
-    match: (p) => p === '/admin' || p.startsWith('/admin/setup') || p.startsWith('/admin/schools'),
+    match: (p) => p === '/admin' || p.startsWith('/admin/structure') || p.startsWith('/admin/setup') || p.startsWith('/admin/schools'),
+  },
+  {
+    label: 'Invites',
+    to: '/admin/invites',
+    desc: 'Every way in — invites, codes, demos, previews',
+    iconPaths: ICONS.access,
+    match: (p) => p.startsWith('/admin/invites'),
   },
   {
     label: 'Users',
@@ -90,13 +101,6 @@ const moreGroups: NavMenuGroup[] = [
     label: 'Platform',
     items: [
       {
-        label: 'Invites',
-        to: '/admin/invites',
-        desc: 'Every way in — invites, codes, demos, previews',
-        iconPaths: ICONS.access,
-        match: (p) => p.startsWith('/admin/invites'),
-      },
-      {
         label: 'Methodology',
         to: '/admin/methodology',
         desc: 'Measuring-progress papers and demos',
@@ -133,7 +137,7 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
         <span>App</span>
       </router-link>
 
-      <router-link to="/admin/setup" class="brand">
+      <router-link to="/admin/structure" class="brand">
         <span class="brand-mark">S</span>
         <span class="brand-text">SSi Admin</span>
       </router-link>

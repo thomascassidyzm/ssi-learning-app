@@ -262,7 +262,7 @@ async function handlePlay() {
 }
 
 // Same /redeem/:code door as every other invite in the app (group leader,
-// school admin, teacher — SchoolsSetup.vue's schoolAdminInviteLink). The
+// school admin, teacher — AdminStructure.vue's schoolAdminInviteLink). The
 // underlying invite_codes row is unchanged (code_type: 'student',
 // max_uses: null) — many students redeem the same link, it's just delivered
 // as a link instead of a bare code now.

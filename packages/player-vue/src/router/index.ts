@@ -102,7 +102,7 @@ const routes: RouteRecordRaw[] = [
       // through to the live school experience as intended. (Guard on the PARENT
       // so it covers every child route, not just the bare dashboard.)
       if (canAccessAdmin.value && !hasSchoolRole.value) {
-        return next('/admin/setup')
+        return next('/admin/structure')
       }
       // A user with a KNOWN role but NO school role is not a school member.
       // Solo tutors have no `educational_role`, so they look identical to a
@@ -324,10 +324,9 @@ const routes: RouteRecordRaw[] = [
     meta: { hideAppEscape: true }, // AdminContainer carries its own nav
     children: [
       {
-        // Default /admin landing — redirect to the Setup page (schools + groups
-        // + staff + entitlements), not the Invite-Codes subpage.
+        // Default /admin landing — the Structure surface (the org tree).
         path: '',
-        redirect: '/admin/setup',
+        redirect: '/admin/structure',
       },
       {
         // Canonical invites surface (2026-07-17 rethink): one create card
@@ -415,17 +414,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Release Notes', description: 'Curate the What\'s New panel in Settings' },
       },
       {
-        // Canonical path — the whole Setup console (schools + groups + staff +
-        // entitlements), not just schools. /admin/schools (below) redirects here
-        // for old links.
+        // Structure — the org tree IS the page (2026-07-17 consolidation:
+        // Setup's Groups/Schools/Staff/Entitlements tabs dissolved into one
+        // tree with node facets; ways-in management lives on /admin/invites).
+        path: 'structure',
+        name: 'admin-structure',
+        component: () => import('@/views/admin/AdminStructure.vue'),
+        meta: { title: 'Structure', description: 'The org tree — groups, schools, staff and entitlements at the node they belong to' },
+      },
+      {
+        // Old Setup console path — Setup dissolved into Structure.
         path: 'setup',
-        name: 'admin-setup',
-        component: () => import('@/views/admin/SchoolsSetup.vue'),
-        meta: { title: 'Setup' },
+        redirect: '/admin/structure',
       },
       {
         path: 'schools',
-        redirect: '/admin/setup',
+        redirect: '/admin/structure',
       },
       {
         path: 'methodology',
