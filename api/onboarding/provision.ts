@@ -30,7 +30,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
-import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial } from '../_utils/schoolPlatformTrial'
+import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial, isMissingPlatformSchema } from '../_utils/schoolPlatformTrial'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
 
@@ -312,6 +312,10 @@ export default async function handler(
         if (sErr || !school) throw new Error(`school create failed: ${sErr?.message}`)
         schoolId = school.id
       }
+      // Unreachable given the insert-or-existing logic above, but narrows the
+      // type from `string | undefined` and is a real guard against a silently
+      // unresolved id reaching the join-code / trial writes below.
+      if (!schoolId) throw new Error('school id unresolved after provision')
 
       // Register the trigger-generated join codes in invite_codes — redemption
       // (/api/code/validate) reads invite_codes, NOT schools.teacher_join_code,

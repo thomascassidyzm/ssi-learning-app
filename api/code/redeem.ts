@@ -7,7 +7,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAuthToken } from '../_utils/auth'
 import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlementGrant'
 import { recordRoleChange } from '../_utils/auditRole'
@@ -117,7 +117,7 @@ export default async function handler(
 // ============================================================================
 
 async function redeemInviteCode(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   strippedCode: string,
   userId: string,
   res: VercelResponse
@@ -560,7 +560,7 @@ async function redeemInviteCode(
 // ============================================================================
 
 async function redeemEntitlementCode(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   strippedCode: string,
   userId: string,
   res: VercelResponse

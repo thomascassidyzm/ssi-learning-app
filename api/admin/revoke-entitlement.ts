@@ -73,13 +73,19 @@ export default async function handler(
       return
     }
 
-    // Decrement use_count on the code if it was code-based
+    // Decrement use_count on the code if it was code-based. The PostgREST
+    // builder is a thenable but has no .catch — the old `.catch(() => {})`
+    // threw synchronously (TypeError), bubbling to the outer catch so a
+    // successful revoke reported a 500 and the decrement never ran. rpc()
+    // resolves with { error } instead of rejecting, so inspect that.
     if (entitlement.entitlement_code_id) {
-      await supabase.rpc('decrement_entitlement_use_count', {
+      const { error: decErr } = await supabase.rpc('decrement_entitlement_use_count', {
         code_id: entitlement.entitlement_code_id,
-      }).catch(() => {
-        // Non-critical — just means use_count may be off by one
       })
+      if (decErr) {
+        // Non-critical — just means use_count may be off by one.
+        console.warn('[RevokeEntitlement] use_count decrement failed (non-critical):', decErr.message)
+      }
     }
 
     console.log('[RevokeEntitlement] Revoked:', entitlement_id, 'by:', authResult.userId)

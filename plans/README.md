@@ -16,7 +16,7 @@ There is currently **no CI** running these (plan 001 fixes that) — run them lo
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 001 | CI verify gate before auto-merge to dev | P1 | S | — | DONE |
-| 002 | Typecheck the whole api/ surface | P1 | S–M | — | TODO |
+| 002 | Typecheck the whole api/ surface | P1 | S–M | — | DONE |
 | 003 | Clear critical/high prod dep vulns (fast-xml-parser) | P1 | S | — | TODO |
 | 004 | Characterization tests for payment/entitlement handlers | P1 | M | — | DONE |
 | 005 | Guard stale awaited plays (audio/text desync race) | P1 | S | — | DONE |

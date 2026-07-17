@@ -106,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data: authUser } = await admin.auth.admin.getUserById(userId)
     if (authUser?.user?.email?.toLowerCase().trim() === normalizedEmail) {
       await admin.auth.admin.updateUserById(userId, {
-        user_metadata: { ...(authUser.user.user_metadata || {}), email_confirmed_manually: true },
+        user_metadata: { ...(authUser.user?.user_metadata || {}), email_confirmed_manually: true },
       })
       // Mirror onto learners.needs_verification — the admin-facing /
       // other-team-facing signal, kept in sync so nothing has to join out to

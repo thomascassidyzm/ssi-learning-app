@@ -651,6 +651,13 @@ export async function handlePremiumSubscription(
     console.error('[paddle-webhook] Premium subscription missing teacher_id and supabase_user_id in customData')
     return
   }
+  if (!learnerId) {
+    // teachers.learner_id was null — proceeding would write a subscription row
+    // keyed on a null learner_id (and the precedence guard would query against
+    // null). Fail loud rather than corrupt the money spine.
+    console.error('[paddle-webhook] resolved learner_id is null; cannot process premium subscription')
+    return
+  }
 
   const status = SUB_STATUS_MAP[data.status] || 'none'
   const periodEnd: string | null =
