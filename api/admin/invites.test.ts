@@ -196,6 +196,34 @@ describe('GET /api/admin/invites — ssi_admin aggregation', () => {
     expect(invite.createdByName).toBe('Admin Alice')
   })
 
+  it('collapses same-name breadcrumb segments (demo hidden school/class named after the group) and nulls a redundant path', async () => {
+    groupRows.push({ id: 'group-welsh', name: 'Welsh Health', path: 'welsh-health', parent_id: null, is_demo: true })
+    schoolRows.push({ id: 'school-welsh', school_name: 'Welsh Health', group_id: 'group-welsh', is_demo: true })
+    classRows.push({ id: 'class-welsh', class_name: 'Welsh Health', school_id: 'school-welsh' })
+    inviteCodeRows.push(
+      {
+        id: 'invite-welsh-leaf', code: 'WEL111', code_type: 'student', created_by: 'user-1',
+        grants_region: null, grants_school_id: null, grants_class_id: 'class-welsh', grants_group_id: null,
+        expires_at: null, max_uses: null, use_count: 0, created_at: '2026-07-06T00:00:00Z', is_active: true,
+      },
+      {
+        id: 'invite-welsh-root', code: 'WEL222', code_type: 'govt_admin', created_by: 'user-1',
+        grants_region: null, grants_school_id: null, grants_class_id: null, grants_group_id: 'group-welsh',
+        expires_at: null, max_uses: 1, use_count: 0, created_at: '2026-07-06T00:00:00Z', is_active: true,
+      },
+    )
+    const res = makeRes()
+    await handler(makeReq('GET'), res)
+    const leaf = res.body.invites.find((i: any) => i.id === 'invite-welsh-leaf')
+    // group › school › class all named "Welsh Health" — one segment survives,
+    // and since that equals the node's own name the path is dropped entirely.
+    expect(leaf.where.path).toBeNull()
+    expect(leaf.where.isDemo).toBe(true)
+    const root = res.body.invites.find((i: any) => i.id === 'invite-welsh-root')
+    expect(root.where.name).toBe('Welsh Health')
+    expect(root.where.path).toBeNull()
+  })
+
   it('maps a platform-scoped teacher invite code', async () => {
     const res = makeRes()
     await handler(makeReq('GET'), res)

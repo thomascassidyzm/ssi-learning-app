@@ -180,6 +180,22 @@ async function resolveInviteWheres(supabase: SupabaseClient, inviteRows: any[]):
     return { names: chain.map(c => c.name), isDemo: chain.some(c => c.is_demo) }
   }
 
+  // Demo orgs name their hidden school and class after the owning group, so a
+  // literal breadcrumb reads "Welsh Health › Welsh Health › Welsh Health" —
+  // collapse consecutive duplicates, and return null when nothing beyond the
+  // node's own name remains (the UI then skips the redundant sub-line).
+  function joinPath(parts: (string | null | undefined)[], ownName?: string | null): string | null {
+    const cleaned: string[] = []
+    for (const p of parts) {
+      if (!p) continue
+      if (cleaned.length && cleaned[cleaned.length - 1] === p) continue
+      cleaned.push(p)
+    }
+    if (!cleaned.length) return null
+    if (ownName && cleaned.length === 1 && cleaned[0] === ownName) return null
+    return cleaned.join(' › ')
+  }
+
   for (const row of inviteRows) {
     if (row.grants_class_id) {
       const cls = classMap.get(row.grants_class_id)
@@ -191,7 +207,7 @@ async function resolveInviteWheres(supabase: SupabaseClient, inviteRows: any[]):
       const chain = groupChain(school?.group_id ?? null)
       const isDemo = !!school?.is_demo || chain.isDemo
       const pathParts = [...chain.names, ...(school ? [school.school_name] : []), cls.class_name]
-      result.set(row.id, { kind: 'class', id: row.grants_class_id, name: cls.class_name, path: pathParts.join(' › '), isDemo })
+      result.set(row.id, { kind: 'class', id: row.grants_class_id, name: cls.class_name, path: joinPath(pathParts, cls.class_name), isDemo })
     } else if (row.grants_school_id) {
       const school = schoolMap.get(row.grants_school_id)
       if (!school) {
@@ -201,7 +217,7 @@ async function resolveInviteWheres(supabase: SupabaseClient, inviteRows: any[]):
       const chain = groupChain(school.group_id)
       const isDemo = !!school.is_demo || chain.isDemo
       const pathParts = [...chain.names, school.school_name]
-      result.set(row.id, { kind: 'school', id: row.grants_school_id, name: school.school_name, path: pathParts.join(' › '), isDemo })
+      result.set(row.id, { kind: 'school', id: row.grants_school_id, name: school.school_name, path: joinPath(pathParts, school.school_name), isDemo })
     } else if (row.grants_group_id) {
       const chain = groupChain(row.grants_group_id)
       const g = groupById.get(row.grants_group_id)
@@ -209,7 +225,7 @@ async function resolveInviteWheres(supabase: SupabaseClient, inviteRows: any[]):
         kind: 'group',
         id: row.grants_group_id,
         name: g?.name ?? null,
-        path: chain.names.length ? chain.names.join(' › ') : null,
+        path: joinPath(chain.names, g?.name ?? null),
         isDemo: chain.isDemo,
       })
     } else {
