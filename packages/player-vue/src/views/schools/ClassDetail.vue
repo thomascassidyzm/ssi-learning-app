@@ -25,6 +25,8 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const {
   classDetail,
+  isLoading: classDetailLoading,
+  error: classDetailError,
   fetchClassDetail,
   getClassReport,
   renameClass: renameClassApi,
@@ -457,11 +459,17 @@ const deleteImpactLines = computed(() => {
                   </button>
                 </td>
               </tr>
-              <tr v-if="filteredStudents.length === 0">
-                <td colspan="6" class="empty-row">
-                  <span v-if="searchQuery">No students match "{{ searchQuery }}"</span>
-                  <span v-else>No students have joined this class yet.</span>
-                </td>
+              <tr v-if="filteredStudents.length === 0 && searchQuery">
+                <td colspan="6" class="empty-row">No students match "{{ searchQuery }}"</td>
+              </tr>
+              <tr v-else-if="filteredStudents.length === 0 && classDetailLoading">
+                <td colspan="6" class="empty-row schools-subtle">Loading roster…</td>
+              </tr>
+              <tr v-else-if="filteredStudents.length === 0 && classDetailError">
+                <td colspan="6" class="empty-row">Couldn't load roster. {{ classDetailError }}</td>
+              </tr>
+              <tr v-else-if="filteredStudents.length === 0">
+                <td colspan="6" class="empty-row">No students have joined this class yet.</td>
               </tr>
             </tbody>
           </table>
@@ -497,6 +505,7 @@ const deleteImpactLines = computed(() => {
               <div class="belt-legend-label">{{ row.belt }}</div>
             </div>
           </div>
+          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
           <p v-else class="rail-note schools-subtle">No students enrolled yet.</p>
         </div>
 

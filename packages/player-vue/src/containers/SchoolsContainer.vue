@@ -11,6 +11,10 @@ import { useAuthModal } from '@/composables/useAuthModal'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { setSchoolsClient } from '@/composables/schools/client'
+import { useSchoolData } from '@/composables/schools/useSchoolData'
+import { useClassesData } from '@/composables/schools/useClassesData'
+import { useTeachersData } from '@/composables/schools/useTeachersData'
+import { useStudentsData } from '@/composables/schools/useStudentsData'
 
 // Supabase client from App
 const supabase = inject('supabase', ref(null)) as any
@@ -39,6 +43,34 @@ watch(
       ctx.loadFromAuth(auth.user.value.id, supabase.value).catch((err: unknown) => {
         console.error('[SchoolsContainer] Failed to load school context:', err)
       })
+    }
+  },
+  { immediate: true },
+)
+
+// Prefetch hoist: fire the dashboard-suite data fetches here, at container
+// (route entry) level, the moment the school context resolves — instead of
+// waiting for each destination view (DashboardView, TeachersView, ...) to
+// mount on navigation. A fresh demo-claim or login lands on /schools before
+// role/school data exists; starting these here means the data is usually
+// warm by the time the learner actually clicks into a tab. Composables are
+// module-level singletons (see useClassesData etc.) so this is just calling
+// their existing fetch functions earlier — no new caching layer.
+const { fetchSchools: prefetchSchools } = useSchoolData()
+const { fetchClasses: prefetchClasses } = useClassesData()
+const { fetchTeachers: prefetchTeachers } = useTeachersData()
+const { fetchStudents: prefetchStudents } = useStudentsData()
+watch(
+  () => ctx.currentUser.value,
+  (user) => {
+    if (!user) return
+    prefetchSchools()
+    if (ctx.isTeacher.value || ctx.isSchoolAdmin.value) prefetchClasses()
+    if (ctx.isSchoolAdmin.value) {
+      prefetchTeachers()
+      prefetchStudents()
+    } else if (ctx.isTeacher.value) {
+      prefetchStudents()
     }
   },
   { immediate: true },

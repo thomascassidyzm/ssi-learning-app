@@ -14,7 +14,7 @@ const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser } = useSchoolContext()
-const { students: studentsData, fetchStudents } = useStudentsData()
+const { students: studentsData, isLoading: studentsLoading, error: studentsError, fetchStudents } = useStudentsData()
 
 const searchQuery = ref('')
 const classFilter = ref<string>('all')
@@ -289,6 +289,15 @@ watch(selectedUser, (newUser) => {
       >
         Reset filters
       </button>
+    </div>
+
+    <div v-else-if="studentsLoading" class="empty-state schools-card schools-card-pad">
+      <p class="schools-subtle">Loading students…</p>
+    </div>
+
+    <div v-else-if="studentsError" class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">Couldn't load students</h3>
+      <p class="empty-text schools-subtle">{{ studentsError }}</p>
     </div>
 
     <div v-else class="empty-state schools-card schools-card-pad">

@@ -21,7 +21,7 @@ const router = useRouter()
 const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
-const { classes: classesData, fetchClasses, createClass, getClassReport } = useClassesData()
+const { classes: classesData, isLoading: classesLoading, error: classesError, fetchClasses, createClass, getClassReport } = useClassesData()
 const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
 const isCreateModalOpen = ref(false)
@@ -483,6 +483,17 @@ function exportCsv() {
       >
         Reset filters
       </button>
+    </div>
+
+    <!-- Still loading, nothing cached yet -->
+    <div v-else-if="classesLoading" class="empty-state schools-card schools-card-pad">
+      <p class="schools-subtle">Loading your classes…</p>
+    </div>
+
+    <!-- Fetch failed -->
+    <div v-else-if="classesError" class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">Couldn't load classes</h3>
+      <p class="empty-text schools-subtle">{{ classesError }}</p>
     </div>
 
     <!-- No classes at all -->
