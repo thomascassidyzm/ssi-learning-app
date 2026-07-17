@@ -457,7 +457,12 @@ async function redeemInviteCode(
         role_in_context: 'admin',
         added_by: userId,
       })
-    if (tagError) {
+    // 23505 = unique_violation on the active-user_tags partial unique index:
+    // a concurrent redemption of this same invite (multi-tab, or a retry after
+    // timeout) already inserted the identical tag — idempotent no-op, not an
+    // error, since the existing tag grants exactly what this request asked for.
+    // Mirrors the govt_admins/schools 23505 handling above.
+    if (tagError && tagError.code !== '23505') {
       console.error('[CodeRedeem] Failed to create school admin tag:', tagError)
       res.status(500).json({ error: 'Internal server error' })
       return
@@ -472,7 +477,9 @@ async function redeemInviteCode(
         role_in_context: 'teacher',
         added_by: userId,
       })
-    if (tagError) {
+    // 23505 → idempotent no-op (concurrent/retried redemption already tagged
+    // this user for this school). See the school_admin_join branch note above.
+    if (tagError && tagError.code !== '23505') {
       console.error('[CodeRedeem] Failed to create teacher tag:', tagError)
       res.status(500).json({ error: 'Internal server error' })
       return
@@ -487,7 +494,9 @@ async function redeemInviteCode(
         role_in_context: 'student',
         added_by: userId,
       })
-    if (tagError) {
+    // 23505 → idempotent no-op (concurrent/retried redemption already tagged
+    // this user into this class). See the school_admin_join branch note above.
+    if (tagError && tagError.code !== '23505') {
       console.error('[CodeRedeem] Failed to create student tag:', tagError)
       res.status(500).json({ error: 'Internal server error' })
       return
@@ -614,6 +623,24 @@ async function redeemEntitlementCode(
     return
   }
 
+  // Atomically claim a use (conditional on still-active/unexpired/under-cap)
+  // BEFORE granting — mirrors the invite branch (redeemInviteCode above). This
+  // closes the cross-user cap-bypass race: previously two redeemers of a capped
+  // code's LAST use both passed the early max_uses check, both got a
+  // user_entitlements row, and only one use was claimed (the failed claim was
+  // merely console.warn'd, never rolled back). The per-user
+  // UNIQUE(learner_id, entitlement_code_id) only stops the SAME user double-
+  // redeeming; the atomic claim is what enforces the cap ACROSS users.
+  // NOTE: claim-first means a downstream failure (the grant insert 500s below)
+  // burns one use of a capped code — the identical deliberate tradeoff the invite
+  // branch documents and accepts, chosen over the reverse (advisory cap under
+  // concurrency). Entitlement codes are frequently capped, so the cap must hold.
+  const claimed = await claimCodeUse(supabase, 'entitlement_codes', 'claim_entitlement_code_use', entitlementRow.id as string)
+  if (!claimed) {
+    res.status(200).json({ success: false, error: 'Code fully used' })
+    return
+  }
+
   // Compute expires_at for the entitlement
   const entitlementExpiresAt = computeEntitlementExpiry(entitlementRow)
 
@@ -632,18 +659,6 @@ async function redeemEntitlementCode(
     console.error('[CodeRedeem] Failed to create user_entitlement:', insertError)
     res.status(500).json({ error: 'Internal server error' })
     return
-  }
-
-  // Atomically claim a use LAST — after the entitlement insert above — so a failed
-  // insert never burns a use. Non-fatal: the entitlement is already granted, and
-  // the per-user UNIQUE(learner_id, entitlement_code_id) is the same-user backstop.
-  try {
-    const claimed = await claimCodeUse(supabase, 'entitlement_codes', 'claim_entitlement_code_use', entitlementRow.id as string)
-    if (!claimed) {
-      console.warn('[CodeRedeem] entitlement use not claimed (code exhausted/expired after grant):', entitlementRow.id)
-    }
-  } catch (e: any) {
-    console.error('[CodeRedeem] Failed to claim entitlement use (non-fatal, entitlement granted):', e?.message)
   }
 
   // If code grants dashboard access, apply platform_role + dashboard_courses.
