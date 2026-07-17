@@ -147,9 +147,13 @@ export function useAuth(): AuthState & AuthActions {
    */
   // Sync the authenticated user's roles into useUserRole. Demo flow writes
   // its own impersonated role directly and overrides this until demo ends
-  // (see DemoLauncher / useDemoController).
+  // (see DemoLauncher / useDemoController). Uses setAuthoritative, not
+  // initialize() — this always carries the full, real DB row, so a null
+  // here must land as a genuine clear (e.g. a de-platformed ssi_admin),
+  // never fall back to the stale cached value the way initialize()'s
+  // partial-knowledge guard would.
   function syncRealRoleCache(platformRole: string | null, educationalRole: string | null): void {
-    useUserRole().initialize(platformRole, educationalRole)
+    useUserRole().setAuthoritative(platformRole, educationalRole)
   }
 
   function toLearnerRecord(row: any): LearnerRecord {

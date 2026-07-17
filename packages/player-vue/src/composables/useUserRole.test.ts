@@ -77,3 +77,70 @@ describe('useUserRole initialize() null-downgrade guard', () => {
     expect(localStorage.getItem('ssi-user-role')).toBeNull()
   })
 })
+
+// setAuthoritative() — the counterpart for the ONE caller (useAuth's
+// syncRealRoleCache) that always holds the full, real DB row. The
+// initialize() guard above is correct for partial-knowledge callers, but its
+// original implementation (458bb15f) accidentally also swallowed a genuine
+// demotion from a full-row caller: since it evaluates each field
+// independently, `syncRealRoleCache(null, 'teacher')` for a real
+// de-platformed ssi_admin hit the exact same "null + cached non-null →
+// preserve" branch as RedeemCode's partial write. That meant a demoted
+// ssi_admin's platform_role NEVER cleared from the cache — not on
+// useAdminGate's periodic re-validation (Trinity audit finding #2,
+// docs/trinity/admin.md), and not even on a hard reload (restoreFromCache()
+// seeds the stale 'ssi_admin' from localStorage before the DB re-fetch
+// lands, so the guard sees "cached non-null" and wins every time) — only an
+// explicit sign-out actually fixed it. setAuthoritative always writes
+// exactly what the DB says, including a genuine null.
+describe('useUserRole setAuthoritative() — full-row sync', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useUserRole().clear()
+  })
+
+  it('reflects a genuine platform-role demotion to null, unlike initialize()', () => {
+    const { setAuthoritative, platformRole, educationalRole } = useUserRole()
+    setAuthoritative('ssi_admin', null)
+    expect(platformRole.value).toBe('ssi_admin')
+
+    // The real DB row now has platform_role: null (de-platformed) and a new
+    // educational role — both fields known, both genuinely this value.
+    setAuthoritative(null, 'teacher')
+    expect(platformRole.value).toBeNull()
+    expect(educationalRole.value).toBe('teacher')
+  })
+
+  it('the same demotion via initialize() is (correctly, for a partial caller) swallowed — proving the two paths differ', () => {
+    const { initialize, platformRole } = useUserRole()
+    initialize('ssi_admin', null)
+    initialize(null, 'teacher')
+    expect(platformRole.value).toBe('ssi_admin') // partial-payload guard still protects RedeemCode's call shape
+  })
+
+  it('survives a restoreFromCache() reload seed — the hard-reload case, not just live revalidation', () => {
+    const { setAuthoritative, restoreFromCache, platformRole, isInitialized } = useUserRole()
+    setAuthoritative('ssi_admin', null) // yesterday's session, persisted to localStorage
+
+    // Simulate a fresh page load's in-memory state (nothing resolved yet)
+    // WITHOUT touching localStorage — clear() would wipe the cache this
+    // scenario depends on; a real reload only resets the JS heap.
+    platformRole.value = null
+    isInitialized.value = false
+    restoreFromCache() // seeds isInitialized=true, platformRole='ssi_admin' from the stale cache
+
+    // The post-reload DB fetch discovers the demotion.
+    setAuthoritative(null, 'teacher')
+    expect(platformRole.value).toBeNull()
+  })
+
+  it('persists the genuine null to localStorage', () => {
+    const { setAuthoritative } = useUserRole()
+    setAuthoritative('ssi_admin', null)
+    setAuthoritative(null, 'teacher')
+
+    const stored = JSON.parse(localStorage.getItem('ssi-user-role') || '{}')
+    expect(stored.platformRole).toBeNull()
+    expect(stored.educationalRole).toBe('teacher')
+  })
+})
