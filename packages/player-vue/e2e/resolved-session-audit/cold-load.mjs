@@ -42,6 +42,19 @@ async function attempt(role, path, expect) {
   }
 }
 
+// A non-admin whose real Supabase session sat, cold-cache, on the wrong side
+// of the standalone read-view gate before this fix (Trinity audit finding
+// #1, docs/trinity/admin.md): /admin/schools/:id, /admin/groups/:id,
+// /admin/classes/:id, /admin/users/:learnerId/progress render OUTSIDE
+// AdminContainer, so they used to rely SOLELY on the deferring global router
+// guard — a cold-cache non-admin deep link fired the scoped query and could
+// see another school/group's live data before any correction landed (these
+// org tables are RLS-off by design; the UI gate IS the enforcement). The :id
+// values below don't need to resolve to real rows — a denial must happen
+// BEFORE any query fires, so even a bogus id proves the gate closed the
+// leak. Swap in real ids for a stronger end-to-end assertion once available.
+const DUMMY_ID = '00000000-0000-0000-0000-000000000000'
+
 const CASES = [
   { role: 'teacher', path: '/schools', expect: { pathIn: ['/schools'], selector: '.schools-container, .schools-dashboard, main' } },
   { role: 'school_admin', path: '/schools', expect: { pathIn: ['/schools'], selector: '.schools-container, .schools-dashboard, main' } },
@@ -53,6 +66,17 @@ const CASES = [
   { role: 'ssi_admin', path: '/admin/stats', expect: { pathIn: ['/admin/stats'], selector: '.admin-main, main' } },
   { role: 'ssi_admin', path: '/admin/demo-schools', expect: { pathIn: ['/admin/demo-schools'], selector: '.admin-main, main' } },
   { role: 'ssi_admin', path: `/admin/groups/${GOVT_GROUP_ID}`, expect: { pathIn: [`/admin/groups/${GOVT_GROUP_ID}`], selector: '.schools-container, main' } },
+  // Genuine admin still gets through the standalone read-views cleanly —
+  // the false-lockout check for the same fix.
+  { role: 'ssi_admin', path: `/admin/schools/${GOVT_GROUP_ID}`, expect: { pathIn: [`/admin/schools/${GOVT_GROUP_ID}`], selector: '.schools-container, main' } },
+  // Cold-cache non-admin deep links to the standalone read-views — must be
+  // DENIED (bounced to '/') before any data render. This is the negative
+  // proof for finding #1.
+  { role: 'teacher', path: `/admin/schools/${DUMMY_ID}`, expect: { pathIn: ['/'] } },
+  { role: 'school_admin', path: `/admin/groups/${DUMMY_ID}`, expect: { pathIn: ['/'] } },
+  { role: 'teacher', path: `/admin/classes/${DUMMY_ID}`, expect: { pathIn: ['/'] } },
+  { role: 'school_admin', path: `/admin/users/${DUMMY_ID}/progress`, expect: { pathIn: ['/'] } },
+  { role: 'teacher', path: '/methodology', expect: { pathIn: ['/'] } },
 ]
 
 const RUNS = 3
