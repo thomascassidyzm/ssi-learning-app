@@ -102,10 +102,10 @@ export function useContribution(client: Ref<SupabaseClient | null>) {
       // Replaces the prior path that summed sessions.items_practiced and
       // duration_seconds — that one had been silently writing zero for
       // items_practiced because the session-start guard short-circuited.
-      let userToday = { minutes: 0, phrases: 0 }
-      let user7 = { minutes: 0, phrases: 0 }
-      let user30 = { minutes: 0, phrases: 0 }
-      let userAll = { minutes: 0, phrases: 0 }
+      const userToday = { minutes: 0, phrases: 0 }
+      const user7 = { minutes: 0, phrases: 0 }
+      const user30 = { minutes: 0, phrases: 0 }
+      const userAll = { minutes: 0, phrases: 0 }
 
       // Skip the per-user query for guests — `learner_id` is uuid-typed and
       // guest IDs use a `guest-{uuid}` prefix, which Supabase rejects with 400.

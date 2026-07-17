@@ -41,7 +41,7 @@ import { recordEnvelopeEvidence } from '../composables/useEnvelopeEvidence'
 import { createEnvelopeMetadataCache, type EnvelopeMetadataCache } from '../composables/useEnvelopeMetadataCache'
 import { createEvidenceAggregator, type RoundPlan } from '@ssi/core'
 import { computeAdaptOmitCycleIds, assembleBreatherRound } from '../playback/adaptationOverrides'
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 import { usePairingsTelemetry } from '../composables/usePairingsTelemetry'
 import { useAudioSessionKeepalive } from '../composables/useAudioSessionKeepalive'
 import { usePlayerLog } from '../composables/usePlayerLog'
@@ -12636,7 +12636,7 @@ watch(courseCode, async (newCourseCode, oldCourseCode) => {
   }
 
   // Load cached script for new course
-  let cachedScript = await getCachedScript(newCourseCode)
+  const cachedScript = await getCachedScript(newCourseCode)
 
   if (cachedScript) {
     console.log('[LearningPlayer] Found cached script for new course:', cachedScript.rounds.length, 'rounds')

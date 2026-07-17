@@ -44,6 +44,9 @@ jobs:
       - name: Build @ssi/core
         run: pnpm --filter @ssi/core build
 
+      - name: Player lint
+        run: pnpm --filter player-vue lint
+
       - name: Player typecheck
         run: pnpm --filter player-vue typecheck
 
