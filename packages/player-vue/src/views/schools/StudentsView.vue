@@ -182,6 +182,11 @@ watch(selectedUser, (newUser) => {
       </div>
     </div>
 
+    <div v-if="studentsError" class="fetch-error-banner">
+      <span>Couldn't refresh this list — showing the last data loaded. {{ studentsError }}</span>
+      <button type="button" class="btn-ghost" @click="fetchStudents()">Retry</button>
+    </div>
+
     <Transition name="fade">
       <div v-if="showInviteHint" class="invite-hint schools-card schools-card-pad">
         Students join classes using an invite link. Open a class to share it.
@@ -321,6 +326,20 @@ watch(selectedUser, (newUser) => {
   padding: 20px 24px 32px;
   max-width: 1320px;
   margin: 0 auto;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
 }
 
 .page-head {

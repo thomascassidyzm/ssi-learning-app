@@ -1,4 +1,4 @@
-import { computed, inject } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSchoolContext } from './useSchoolContext'
 
@@ -41,6 +41,10 @@ export function usePlayAsClass() {
   const router = useRouter()
 
   const canPlayAsClass = computed(() => isSchoolStaff.value && !isAdminView)
+  // Was silent (console.warn/error only) — a teacher clicking Play on a
+  // half-loaded or misconfigured class saw nothing happen at all (trinity
+  // ledger LA #5). Callers render this next to the Play button.
+  const playError = ref<string | null>(null)
 
   /** Returns true iff the course row was found and the switch ran. */
   async function switchActiveCourseTo(courseCode: string | null | undefined): Promise<boolean> {
@@ -69,9 +73,11 @@ export function usePlayAsClass() {
    * refuses, so callers can keep the button disabled/inert instead.
    */
   async function launchClassSession(cls: PlayableClass | null | undefined): Promise<boolean> {
+    playError.value = null
     if (!canPlayAsClass.value) return false
     if (!cls?.id || !cls?.course_code) {
       console.warn('[usePlayAsClass] class not ready (missing id or course_code) — not launching')
+      playError.value = 'This class is still loading — try again in a moment.'
       return false
     }
     // Force the app onto the class's course FIRST — don't rely on
@@ -86,6 +92,7 @@ export function usePlayAsClass() {
         `[usePlayAsClass] course "${cls.course_code}" for class "${cls.class_name}" not found in the catalogue — ` +
         'not launching. Fix the class\'s course assignment.',
       )
+      playError.value = `Couldn't start this class — its course ("${cls.course_code}") isn't set up correctly. Contact support.`
       return false
     }
     localStorage.setItem('ssi-last-course', cls.course_code)
@@ -105,5 +112,5 @@ export function usePlayAsClass() {
     return true
   }
 
-  return { canPlayAsClass, switchActiveCourseTo, launchClassSession }
+  return { canPlayAsClass, switchActiveCourseTo, launchClassSession, playError }
 }

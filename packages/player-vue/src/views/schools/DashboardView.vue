@@ -19,7 +19,7 @@ const router = useRouter()
 const { schoolsLink, isAdminView } = useSchoolsNav()
 const { currentUser, isTeacher, isSchoolAdmin, isGovtAdmin } = useSchoolContext()
 const { density } = useSchoolsDensity()
-const { canPlayAsClass, launchClassSession } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 
 const {
   schools,
@@ -35,6 +35,7 @@ const {
   confirmSchoolName,
   selectSchoolToView,
   clearViewingSchool,
+  error: schoolsFetchError,
 } = useSchoolData()
 
 const {
@@ -42,6 +43,7 @@ const {
   isLoading: classesLoading,
   fetchClasses,
   getClassReport,
+  error: classesFetchError,
 } = useClassesData()
 
 const {
@@ -50,6 +52,10 @@ const {
   createSchoolInMyGroup,
   renameGroup,
 } = useGovtAdminActions()
+
+// A failed refresh must never look like "up to date" — see SchoolsView.vue
+// for the same fix on the govt-admin list screen.
+const dashboardFetchError = computed(() => schoolsFetchError.value || classesFetchError.value)
 
 // ---------- Govt admin: "name your group" first-run card ----------
 const groupNameDraft = ref('')
@@ -281,6 +287,14 @@ async function handlePlayClass(cls: ClassInfo) {
       <span class="breadcrumb-sep">·</span>
       <span class="breadcrumb-current">{{ breadcrumb.school }}</span>
     </nav>
+
+    <div v-if="dashboardFetchError" class="fetch-error-banner">
+      <span>Couldn't refresh this dashboard — showing the last data loaded. {{ dashboardFetchError }}</span>
+      <button type="button" class="btn-ghost" @click="fetchSchools(); fetchClasses()">Retry</button>
+    </div>
+    <div v-if="playError" class="fetch-error-banner">
+      <span>{{ playError }}</span>
+    </div>
 
     <!-- ============================================================
          TEACHER
@@ -757,6 +771,20 @@ async function handlePlayClass(cls: ClassInfo) {
 <style scoped>
 .dashboard-view {
   padding-bottom: 32px;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
 }
 
 /* ---------- Breadcrumb ---------- */

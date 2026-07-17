@@ -163,6 +163,11 @@ watch(selectedUser, (newUser) => {
       </div>
     </div>
 
+    <div v-if="teachersError" class="fetch-error-banner">
+      <span>Couldn't refresh this list — showing the last data loaded. {{ teachersError }}</span>
+      <button type="button" class="btn-ghost" @click="fetchTeachers()">Retry</button>
+    </div>
+
     <Transition name="fade">
       <div v-if="showImportHint" class="invite-hint schools-card schools-card-pad">
         Bulk CSV import is coming soon. For now, share the teacher invite link below — teachers click it, sign in once, and land in your school.
@@ -307,6 +312,20 @@ watch(selectedUser, (newUser) => {
   padding: 22px 28px 32px;
   max-width: 1320px;
   margin: 0 auto;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
 }
 
 .page-head {
