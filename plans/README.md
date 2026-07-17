@@ -31,7 +31,7 @@ There is currently **no CI** running these (plan 001 fixes that) — run them lo
 | 014 | Correct stale file references in CLAUDE.md | P2 | S | — | DONE |
 | 015 | Delete dead workspace packages + stub app | P3 | S | — | DONE (repo cruft = 1 committed broken symlink, removed; ui/demo/apps were untracked local artifacts, not committed pkgs — left for Tom) |
 | 016 | Real ESLint config for player-vue (kill stub) | P2 | M | — | DONE (shared root flat config; core eslint was also broken) |
-| 017 | Upgrade vitest off EOL 1.x; align TS pins | P3 | M | 001 (rec.) | TODO |
+| 017 | Upgrade vitest off EOL 1.x; align TS pins | P3 | M | 001 (rec.) | DONE |
 | 018 | Schools scope-resolution → server endpoint | P2 | L | — | TODO |
 | 019 | Begin decomposing LearningPlayer.vue (17k lines) | P2 | L | 001, 005/006/013 | TODO |
 | 020 | SPIKE: collapse per-course gating for paid seats | P2 | M | — | TODO |
