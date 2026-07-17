@@ -80,10 +80,14 @@ const canSubmit = computed(() => !!prospectName.value.trim() && !!courseCode.val
 async function fetchCourses(): Promise<void> {
   try {
     const client = getClient()
+    // Full canonical catalogue (live + beta — same set the in-app course
+    // picker shows), so a demo can be shaped to ANY language pair a prospect
+    // asks for, not just the ~14 live courses. The server guard in
+    // demoSchoolGen.ts accepts the same set.
     const { data, error: err } = await client
       .from('courses')
       .select('course_code, display_name')
-      .eq('new_app_status', 'live')
+      .in('new_app_status', ['live', 'beta'])
       .order('display_name')
     if (err) throw err
     courses.value = (data || []).map((c: any) => ({ course_code: c.course_code, display_name: c.display_name || c.course_code }))
