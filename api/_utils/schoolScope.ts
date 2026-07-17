@@ -117,6 +117,31 @@ export async function schoolsForGroupSubtree(svc: SupabaseClient, groupId: strin
   return [...schoolIds]
 }
 
+/**
+ * Is `targetGroupId` a STRICT descendant (child, grandchild, ...) of
+ * `ancestorGroupId`, by path-prefix — same rule schoolsForGroupSubtree uses
+ * for the subtree of schools, applied to groups themselves. Used by the
+ * group-leader self-serve delete path (api/groups/[id].ts): a leader may
+ * delete their own SUB-groups ("everything below them", founder ruling),
+ * never their own governed group (that would delete their own seat) and
+ * never a sideways or ancestor group.
+ */
+export async function isStrictDescendantGroup(
+  svc: SupabaseClient,
+  ancestorGroupId: string,
+  targetGroupId: string,
+): Promise<boolean> {
+  if (ancestorGroupId === targetGroupId) return false
+  const [{ data: ancestor }, { data: target }] = await Promise.all([
+    svc.from('groups').select('path').eq('id', ancestorGroupId).maybeSingle(),
+    svc.from('groups').select('path').eq('id', targetGroupId).maybeSingle(),
+  ])
+  const ancestorPath = (ancestor as any)?.path as string | undefined
+  const targetPath = (target as any)?.path as string | undefined
+  if (!ancestorPath || !targetPath) return false
+  return targetPath !== ancestorPath && targetPath.startsWith(ancestorPath)
+}
+
 async function scopeForGovtAdmin(svc: SupabaseClient, authUid: string): Promise<{ schoolIds: string[]; groupId: string | null }> {
   const { data: govt } = await svc
     .from('govt_admins')

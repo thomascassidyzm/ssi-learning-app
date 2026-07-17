@@ -9,9 +9,16 @@
  *   they lead. type/parent_id stay ssi_admin-only: a leader must never
  *   re-parent themselves up the tree.
  * GET (?impact=1): deletion-impact preview (schools/classes/learners in the
- *   group, whether there's real recorded activity) — ssi_admin only. The
- *   confirm dialog in SchoolsSetup.vue calls this before DELETE.
- * DELETE: Delete a group (schools become ungrouped) — ssi_admin only.
+ *   group, whether there's real recorded activity) — ssi_admin, OR the
+ *   leader of an ANCESTOR group previewing one of their own sub-groups.
+ *   The confirm dialog in SchoolsSetup.vue calls this before DELETE.
+ * DELETE: Delete a group (schools become ungrouped) — ssi_admin, OR a group
+ *   leader deleting a SUB-group in their own subtree ("every level can
+ *   delete the things it created and everything below them", founder
+ *   ruling) — a SERVER-DERIVED path-prefix check via
+ *   isStrictDescendantGroup(their own govt_admins.group_id, target id),
+ *   never a client claim. A leader can never delete their OWN governed
+ *   group (that would delete their own seat) or a sideways/ancestor group.
  *   Cleans up invite_codes/govt_admins referencing the group first — those
  *   FKs have no ON DELETE behaviour, see schoolGroupDeletion.ts. If the
  *   group has real recorded activity in any of its schools, the caller must
@@ -26,9 +33,43 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
 import { computeGroupImpact, deleteGroupCascade } from '../_utils/schoolGroupDeletion'
 import { auditAdminDelete } from '../_utils/auditAdminDelete'
+import { isStrictDescendantGroup } from '../_utils/schoolScope'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
+
+/**
+ * ssi_admin/god first; fall back to a group leader whose OWN governed group
+ * is a strict ancestor of `groupId` (deleting/previewing one of THEIR
+ * sub-groups). Writes the 401/403 response itself and returns null on
+ * rejection so callers can `if (!callerUserId) return`.
+ */
+async function resolveAdminOrSubtreeLeader(
+  req: VercelRequest,
+  res: VercelResponse,
+  supabase: ReturnType<typeof createClient>,
+  groupId: string,
+): Promise<string | null> {
+  const adminResult = await verifyAdmin(req)
+  if (!('error' in adminResult)) return adminResult.userId
+
+  const authResult = await verifyAuthToken(req)
+  if (!authResult.valid || !authResult.userId) {
+    res.status(401).json({ error: authResult.error || 'Unauthorized' })
+    return null
+  }
+  const { data: govtAdmin } = await supabase
+    .from('govt_admins')
+    .select('group_id')
+    .eq('user_id', authResult.userId)
+    .maybeSingle()
+  const ownGroupId = (govtAdmin as any)?.group_id as string | undefined
+  if (!ownGroupId || !(await isStrictDescendantGroup(supabase, ownGroupId, groupId))) {
+    res.status(403).json({ error: 'You do not govern this group' })
+    return null
+  }
+  return authResult.userId
+}
 
 export default async function handler(
   req: VercelRequest,
@@ -99,11 +140,8 @@ export default async function handler(
       res.status(500).json({ error: 'Internal server error' })
     }
   } else if (req.method === 'GET') {
-    const adminResult = await verifyAdmin(req)
-    if ('error' in adminResult) {
-      res.status(adminResult.status).json({ error: adminResult.error })
-      return
-    }
+    const callerUserId = await resolveAdminOrSubtreeLeader(req, res, supabase, groupId)
+    if (!callerUserId) return
     try {
       const impact = await computeGroupImpact(supabase, groupId)
       res.status(200).json({ impact })
@@ -112,11 +150,8 @@ export default async function handler(
       res.status(notFound ? 404 : 500).json({ error: err?.message || 'Failed to compute impact' })
     }
   } else if (req.method === 'DELETE') {
-    const adminResult = await verifyAdmin(req)
-    if ('error' in adminResult) {
-      res.status(adminResult.status).json({ error: adminResult.error })
-      return
-    }
+    const callerUserId = await resolveAdminOrSubtreeLeader(req, res, supabase, groupId)
+    if (!callerUserId) return
     const confirmName = ((req.query.confirm_name as string) || (req.body as any)?.confirm_name || '').trim()
     try {
       const impact = await computeGroupImpact(supabase, groupId)
@@ -133,7 +168,7 @@ export default async function handler(
       await deleteGroupCascade(supabase, groupId)
 
       await auditAdminDelete(supabase, {
-        actorUserId: adminResult.userId,
+        actorUserId: callerUserId,
         eventType: 'admin_group_deleted',
         payload: { group_id: groupId, group_name: impact.groupName, impact },
       })

@@ -28,14 +28,21 @@
  * Every delete is logged to player_events (event_type admin_school_deleted)
  * with the impact counts, best-effort, non-blocking.
  *
- * Requires ssi_admin / god caller — enforced by verifyAdmin().
+ * GET/DELETE: ssi_admin/god (verifyAdmin), OR the school's OWN admin — a
+ * SERVER-DERIVED ownership check (schoolIdForAdmin(authUid) === schoolId,
+ * never a client claim) — self-serve delete, "every level can delete the
+ * things it created" (founder ruling). Same admin-first-then-owner-fallback
+ * shape as the leader self-rename path in api/groups/[id].ts PATCH.
+ * PATCH (group_id re-parent) stays ssi_admin-only — a school_admin must
+ * never move their own school between groups unsupervised.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAdmin } from '../_utils/auth'
+import { verifyAdmin, verifyAuthToken } from '../_utils/auth'
 import { computeSchoolImpact, deleteSchoolCascade } from '../_utils/schoolGroupDeletion'
 import { auditAdminDelete } from '../_utils/auditAdminDelete'
+import { schoolIdForAdmin } from '../_utils/schoolScope'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -54,12 +61,6 @@ export default async function handler(
     return
   }
 
-  const adminResult = await verifyAdmin(req)
-  if ('error' in adminResult) {
-    res.status(adminResult.status).json({ error: adminResult.error })
-    return
-  }
-
   if (!supabaseUrl || !supabaseServiceKey) {
     res.status(500).json({ error: 'Server configuration error' })
     return
@@ -67,29 +68,48 @@ export default async function handler(
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  if (req.method === 'GET') {
-    const schoolId = ((req.query.school_id as string) || '').trim()
+  if (req.method === 'GET' || req.method === 'DELETE') {
+    const schoolId =
+      req.method === 'GET'
+        ? ((req.query.school_id as string) || '').trim()
+        : ((req.query.school_id as string) || (req.body as UpdateSchoolBody)?.school_id || '').trim()
     if (!schoolId) {
       res.status(400).json({ error: 'school_id is required' })
       return
     }
-    try {
-      const impact = await computeSchoolImpact(supabase, schoolId)
-      res.status(200).json({ impact })
-    } catch (err: any) {
-      const notFound = /not found/i.test(err?.message || '')
-      res.status(notFound ? 404 : 500).json({ error: err?.message || 'Failed to compute impact' })
-    }
-    return
-  }
 
-  if (req.method === 'DELETE') {
-    const schoolId = ((req.query.school_id as string) || (req.body as UpdateSchoolBody)?.school_id || '').trim()
-    const confirmName = ((req.query.confirm_name as string) || (req.body as any)?.confirm_name || '').trim()
-    if (!schoolId) {
-      res.status(400).json({ error: 'school_id is required' })
+    // ssi_admin/god first; fall back to the school's OWN admin — a
+    // server-derived ownership check, never a client claim of "my school".
+    const adminResult = await verifyAdmin(req)
+    let callerUserId: string
+    if (!('error' in adminResult)) {
+      callerUserId = adminResult.userId
+    } else {
+      const authResult = await verifyAuthToken(req)
+      if (!authResult.valid || !authResult.userId) {
+        res.status(401).json({ error: authResult.error || 'Unauthorized' })
+        return
+      }
+      const ownSchoolId = await schoolIdForAdmin(supabase, authResult.userId)
+      if (!ownSchoolId || ownSchoolId !== schoolId) {
+        res.status(403).json({ error: 'Not your school' })
+        return
+      }
+      callerUserId = authResult.userId
+    }
+
+    if (req.method === 'GET') {
+      try {
+        const impact = await computeSchoolImpact(supabase, schoolId)
+        res.status(200).json({ impact })
+      } catch (err: any) {
+        const notFound = /not found/i.test(err?.message || '')
+        res.status(notFound ? 404 : 500).json({ error: err?.message || 'Failed to compute impact' })
+      }
       return
     }
+
+    const confirmName = ((req.query.confirm_name as string) || (req.body as any)?.confirm_name || '').trim()
     try {
       const impact = await computeSchoolImpact(supabase, schoolId)
 
@@ -104,9 +124,9 @@ export default async function handler(
 
       await deleteSchoolCascade(supabase, schoolId)
 
-      console.log('[UpdateSchool] deleted', schoolId, 'by', adminResult.userId)
+      console.log('[UpdateSchool] deleted', schoolId, 'by', callerUserId)
       await auditAdminDelete(supabase, {
-        actorUserId: adminResult.userId,
+        actorUserId: callerUserId,
         eventType: 'admin_school_deleted',
         payload: { school_id: schoolId, school_name: impact.schoolName, impact },
       })
@@ -116,6 +136,13 @@ export default async function handler(
       const notFound = /not found/i.test(err?.message || '')
       res.status(notFound ? 404 : 500).json({ error: err?.message || 'Failed to delete school' })
     }
+    return
+  }
+
+  // PATCH (group_id re-parent) stays ssi_admin-only.
+  const adminResult = await verifyAdmin(req)
+  if ('error' in adminResult) {
+    res.status(adminResult.status).json({ error: adminResult.error })
     return
   }
 
