@@ -1,11 +1,23 @@
 <script setup lang="ts">
-// Self-serve "Create demo school" tool (owner: Nick, Head of Partnerships).
-// Provisions a full showcase org for a prospect — real accounts, real
-// classes, realistic seeded activity — without engineering help.
-// Server logic: api/admin/demo-schools.ts + api/_utils/demoSchoolGen.ts.
-import { ref, computed, onMounted } from 'vue'
+// Self-serve "Create demo organisation" tool (owner: Nick, Head of Partnerships).
+// Provisions a full showcase ORGANISATION for a prospect — real accounts,
+// real classes, realistic seeded activity — without engineering help, then
+// lets the org's tree grow (sub-groups, more schools at any node) to match
+// the prospect's real shape. Founder org model (CLAUDE.md): an organisation
+// is just the root of the groups tree (`groups.parent_id`/`path`), `is_demo`
+// cascading to every group/school built under it — no separate org table.
+// Server logic: api/admin/demo-schools.ts + api/_utils/demoSchoolGen.ts for
+// the seeded showcase; api/groups + api/admin/create-school for growing the
+// tree afterwards (same endpoints the full org-management surface uses).
+import { ref, computed, onMounted, nextTick, provide } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import DemoOrgResultCard, { type DemoStaffRow } from '@/components/admin/DemoOrgResultCard.vue'
+import GroupTreeNode from '@/components/admin/GroupTreeNode.vue'
+import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import type { ActAsPersona } from '@/composables/useUserRole'
+
+const router = useRouter()
 
 type OrgShape = 'single_school' | 'group' | 'government_region'
 
@@ -21,10 +33,31 @@ interface DemoOrgRow {
   prospect_name: string
   org_shape: OrgShape
   course_code: string
+  group_id: string | null
   expires_at: string
   status: 'active' | 'expired'
   expired_at: string | null
   metadata: { orgName: string; staff: DemoStaffRow[]; counts: { schools: number; teachers: number; classes: number; learners: number }; lastActivityThrough?: string }
+}
+
+// Org-tree types — same shape GroupTreeNode.vue / SchoolsSetup.vue's
+// orgTreeApi already use (see CLAUDE.md founder org model: an organisation
+// is the root of the groups tree, arbitrary depth, is_demo cascading).
+interface TreeGroup {
+  id: string
+  name: string
+  type: string
+  parent_id: string | null
+  is_demo?: boolean
+  is_test?: boolean
+  school_count: number
+  granted_courses: string[]
+}
+interface TreeSchool {
+  id: string
+  school_name: string
+  group_id: string | null
+  admin_user_id: string | null
 }
 
 const { getClient, getAuthToken } = useAdminClient()
@@ -38,6 +71,8 @@ const showAdvanced = ref(false)
 const expandedId = ref<string | null>(null)
 const busyAction = ref<string | null>(null)
 const showExpired = ref(false)
+const treeGroups = ref<TreeGroup[]>([])
+const treeSchools = ref<TreeSchool[]>([])
 
 const visibleOrgs = computed(() => showExpired.value ? orgs.value : orgs.value.filter((o) => o.status !== 'expired'))
 const expiredCount = computed(() => orgs.value.filter((o) => o.status === 'expired').length)
@@ -73,6 +108,239 @@ async function fetchCourses(): Promise<void> {
     console.warn('[AdminDemoSchools] course fetch failed:', err)
   }
 }
+
+// ─── Org tree (GroupTreeNode reuse — see CLAUDE.md founder org model) ─────
+async function fetchTreeGroups(): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    const resp = await fetch('/api/groups', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `Request failed: ${resp.status}`)
+    treeGroups.value = data.groups || []
+  } catch (err) {
+    console.warn('[AdminDemoSchools] groups fetch failed:', err)
+  }
+}
+
+async function fetchTreeSchools(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data, error: err } = await client
+      .from('schools')
+      .select('id, school_name, group_id, admin_user_id')
+    if (err) throw err
+    treeSchools.value = data || []
+  } catch (err) {
+    console.warn('[AdminDemoSchools] schools fetch failed:', err)
+  }
+}
+
+function orgRootGroup(org: DemoOrgRow): TreeGroup | null {
+  return treeGroups.value.find((g) => g.id === org.group_id) || null
+}
+
+const editingGroupId = ref<string | null>(null)
+const editingGroupName = ref('')
+
+function startGroupRename(group: TreeGroup): void {
+  editingGroupId.value = group.id
+  editingGroupName.value = group.name
+  nextTick(() => {
+    const input = document.querySelector('.group-rename-input') as HTMLInputElement
+    input?.focus()
+    input?.select()
+  })
+}
+
+async function saveGroupRename(group: TreeGroup): Promise<void> {
+  const newName = editingGroupName.value.trim()
+  editingGroupId.value = null
+  if (!newName || newName === group.name) return
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const resp = await fetch(`/api/groups/${group.id}`, { method: 'PATCH', headers, body: JSON.stringify({ name: newName }) })
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}))
+      throw new Error(data.error || 'Failed to rename group')
+    }
+    await fetchTreeGroups()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to rename group'
+  }
+}
+
+function cancelGroupRename(): void {
+  editingGroupId.value = null
+}
+
+function openGroupDashboard(groupId: string): void {
+  router.push(`/admin/groups/${groupId}`)
+}
+function openSchoolDashboard(schoolId: string): void {
+  router.push(`/admin/schools/${schoolId}`)
+}
+
+async function createSubgroup(parentId: string, name: string): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+    const resp = await fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name, type: 'group', parent_id: parentId }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    await fetchTreeGroups()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create sub-group'
+  }
+}
+
+async function createSchoolAt(groupId: string, name: string): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+    const resp = await fetch('/api/admin/create-school', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ school_name: name, group_id: groupId }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    await fetchTreeSchools()
+    await fetchTreeGroups()
+    await fetchOrgs()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create school'
+  }
+}
+
+// "View as" candidates — this tool doesn't track leader/staff learner ids
+// the way SchoolsSetup's full org-management surface does (that data is
+// already in the DemoOrgResultCard staff list below, with its own
+// mint-sign-in-link action); the tree here is for building structure.
+function groupLeaderCandidates(): ActAsPersona[] { return [] }
+function schoolAdminCandidates(): ActAsPersona[] { return [] }
+
+type DeleteTargetKind = 'group' | 'school'
+interface DeleteTarget { kind: DeleteTargetKind; id: string; name: string }
+interface DeleteImpact {
+  classCount?: number
+  schoolCount?: number
+  sessionCount: number
+  learnerCount: number
+  teacherCount: number
+  hasRealActivity: boolean
+}
+const deleteModalOpen = ref(false)
+const deleteModalTarget = ref<DeleteTarget | null>(null)
+const deleteModalImpact = ref<DeleteImpact | null>(null)
+const deleteModalSubmitting = ref(false)
+const deleteModalError = ref('')
+
+const deleteModalTitle = computed(() =>
+  deleteModalTarget.value?.kind === 'school' ? 'Delete school' : 'Delete group'
+)
+const deleteModalImpactLines = computed(() => {
+  const impact = deleteModalImpact.value
+  if (!impact) return []
+  const lines: string[] = []
+  if (impact.schoolCount !== undefined) lines.push(`${impact.schoolCount} school(s)`)
+  if (impact.classCount !== undefined) lines.push(`${impact.classCount} class(es)`)
+  lines.push(`${impact.sessionCount} session(s) recorded`)
+  lines.push(`${impact.learnerCount} learner(s)`)
+  lines.push(`${impact.teacherCount} teacher(s)`)
+  return lines
+})
+
+async function openDeleteModal(target: DeleteTarget): Promise<void> {
+  deleteModalTarget.value = target
+  deleteModalImpact.value = null
+  deleteModalError.value = ''
+  deleteModalOpen.value = true
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const url = target.kind === 'group'
+      ? `/api/groups/${target.id}`
+      : `/api/admin/update-school?school_id=${encodeURIComponent(target.id)}`
+    const resp = await fetch(url, { method: 'GET', headers })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || 'Failed to load deletion impact')
+    deleteModalImpact.value = data.impact
+  } catch (err) {
+    deleteModalError.value = err instanceof Error ? err.message : 'Failed to load deletion impact'
+  }
+}
+
+function requestDeleteGroup(group: TreeGroup): void {
+  void openDeleteModal({ kind: 'group', id: group.id, name: group.name })
+}
+function requestDeleteSchool(school: TreeSchool): void {
+  void openDeleteModal({ kind: 'school', id: school.id, name: school.school_name })
+}
+function closeDeleteModal(): void {
+  if (deleteModalSubmitting.value) return
+  deleteModalOpen.value = false
+  deleteModalTarget.value = null
+  deleteModalImpact.value = null
+  deleteModalError.value = ''
+}
+
+async function confirmDelete(typedName: string): Promise<void> {
+  const target = deleteModalTarget.value
+  if (!target) return
+  deleteModalSubmitting.value = true
+  deleteModalError.value = ''
+  try {
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+    if (target.kind === 'group') {
+      const params = typedName ? `?confirm_name=${encodeURIComponent(typedName)}` : ''
+      const resp = await fetch(`/api/groups/${target.id}${params}`, { method: 'DELETE', headers })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || 'Failed to delete group')
+      await fetchTreeGroups()
+      await fetchTreeSchools()
+    } else {
+      const params = new URLSearchParams({ school_id: target.id })
+      if (typedName) params.set('confirm_name', typedName)
+      const resp = await fetch(`/api/admin/update-school?${params.toString()}`, { method: 'DELETE', headers })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || 'Failed to delete school')
+      await fetchTreeSchools()
+      await fetchTreeGroups()
+    }
+    await fetchOrgs()
+    deleteModalOpen.value = false
+    deleteModalTarget.value = null
+  } catch (err) {
+    deleteModalError.value = err instanceof Error ? err.message : 'Failed to delete'
+  } finally {
+    deleteModalSubmitting.value = false
+  }
+}
+
+provide('orgTreeApi', {
+  editingGroupId,
+  editingGroupName,
+  startGroupRename,
+  saveGroupRename,
+  cancelGroupRename,
+  openGroupDashboard,
+  openSchoolDashboard,
+  requestDeleteGroup,
+  requestDeleteSchool,
+  createSubgroup,
+  createSchoolAt,
+  groupLeaderCandidates,
+  schoolAdminCandidates,
+})
 
 async function fetchOrgs(): Promise<void> {
   isLoading.value = true
@@ -123,6 +391,8 @@ async function createOrg(): Promise<void> {
     classesPerSchool.value = ''
     learnersPerSchool.value = ''
     await fetchOrgs()
+    await fetchTreeGroups()
+    await fetchTreeSchools()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create demo school'
   } finally {
@@ -144,6 +414,10 @@ async function runAction(id: string, action: 'expire' | 'extend' | 'refresh' | '
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `Request failed: ${resp.status}`)
     await fetchOrgs()
+    if (action === 'purge') {
+      await fetchTreeGroups()
+      await fetchTreeSchools()
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : `Failed to ${action} demo org`
   } finally {
@@ -183,6 +457,8 @@ function isActivityStale(org: DemoOrgRow): boolean {
 onMounted(() => {
   fetchCourses()
   fetchOrgs()
+  fetchTreeGroups()
+  fetchTreeSchools()
 })
 </script>
 
@@ -191,10 +467,11 @@ onMounted(() => {
     <header class="page-header">
       <div class="title-block">
         <span class="schools-kicker">Sales showcase</span>
-        <h1 class="arsenal">Demo Schools</h1>
+        <h1 class="arsenal">Demo Organisations</h1>
         <p class="subtitle">
-          Provision a full showcase org for a prospect — real accounts, real classes, realistic
-          activity — in one click. No engineering help needed.
+          Provision a full showcase organisation for a prospect — real accounts, real classes,
+          realistic activity — in one click, then grow its tree (sub-groups, more schools) to
+          match the prospect's shape. No engineering help needed.
         </p>
       </div>
     </header>
@@ -206,7 +483,7 @@ onMounted(() => {
     <!-- Create form -->
     <div class="schools-card create-panel">
       <div class="panel-head">
-        <span class="schools-kicker">Create demo school</span>
+        <span class="schools-kicker">Create demo organisation</span>
       </div>
       <form class="create-form" @submit.prevent="createOrg">
         <div class="field field-wide">
@@ -258,7 +535,7 @@ onMounted(() => {
 
         <div class="field-actions">
           <button type="submit" class="btn-primary" :disabled="!canSubmit">
-            {{ isCreating ? 'Creating…' : 'Create demo school' }}
+            {{ isCreating ? 'Creating…' : 'Create demo organisation' }}
           </button>
         </div>
       </form>
@@ -282,7 +559,7 @@ onMounted(() => {
     <!-- List -->
     <div class="schools-card list-panel">
       <div class="panel-head panel-head-row">
-        <span class="schools-kicker">Existing demo orgs</span>
+        <span class="schools-kicker">Existing demo organisations</span>
         <label class="show-expired-toggle">
           <input v-model="showExpired" type="checkbox" />
           Show expired{{ expiredCount ? ` (${expiredCount})` : '' }}
@@ -368,6 +645,20 @@ onMounted(() => {
                     :counts="org.metadata.counts"
                     :staff="org.metadata.staff"
                   />
+                  <div v-if="orgRootGroup(org)" class="org-tree-panel">
+                    <div class="panel-head">
+                      <span class="schools-kicker">Organisation tree</span>
+                      <span class="panel-hint">Add sub-groups or more schools to match the prospect's real shape — hover a row for actions.</span>
+                    </div>
+                    <div class="groups-tree">
+                      <GroupTreeNode
+                        :group="orgRootGroup(org)!"
+                        :all-groups="treeGroups"
+                        :all-schools="treeSchools"
+                        :depth="0"
+                      />
+                    </div>
+                  </div>
                 </td>
               </tr>
             </template>
@@ -377,12 +668,24 @@ onMounted(() => {
 
       <div v-else-if="!isLoading" class="schools-card empty">
         <div class="empty-copy">
-          <strong>{{ orgs.length ? 'No active demo schools' : 'No demo schools yet' }}</strong>
+          <strong>{{ orgs.length ? 'No active demo organisations' : 'No demo organisations yet' }}</strong>
           <p v-if="orgs.length">Toggle "Show expired" above to see the {{ expiredCount }} expired org{{ expiredCount === 1 ? '' : 's' }}.</p>
-          <p v-else>Create one above to get a full showcase org ready to share.</p>
+          <p v-else>Create one above to get a full showcase organisation ready to share.</p>
         </div>
       </div>
     </div>
+
+    <ConfirmDeleteModal
+      :is-open="deleteModalOpen"
+      :title="deleteModalTitle"
+      :target-name="deleteModalTarget?.name || ''"
+      :impact-lines="deleteModalImpactLines"
+      :require-typed-confirm="!!deleteModalImpact?.hasRealActivity"
+      :submitting="deleteModalSubmitting"
+      :error="deleteModalError"
+      @close="closeDeleteModal"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
 
@@ -559,6 +862,126 @@ onMounted(() => {
 .row-action-text:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .detail-row td { padding: 0 18px 18px; background: rgba(255, 255, 255, 0.4); }
+
+/* Org tree (GroupTreeNode reuse — matches SchoolsSetup.vue's Groups tab styling) */
+.org-tree-panel {
+  margin-top: var(--space-4);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(44, 38, 34, 0.08);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.org-tree-panel .panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.panel-hint {
+  font-size: var(--text-xs);
+  color: var(--schools-fg-3);
+}
+
+.groups-tree {
+  padding: var(--space-3) var(--space-2) var(--space-3);
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+  color: var(--schools-fg-2);
+}
+
+.group-row:hover { background: rgba(255, 255, 255, 0.48); }
+
+.group-name-editable {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  color: var(--schools-fg);
+  font-weight: var(--font-semibold);
+}
+
+.group-name-editable:hover {
+  background: rgba(44, 38, 34, 0.06);
+}
+
+.group-rename-input {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(var(--tone-red), 0.55);
+  border-radius: var(--radius-sm);
+  color: var(--schools-fg);
+  width: 220px;
+}
+
+.group-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
+}
+
+.group-meta {
+  margin-left: auto;
+  color: var(--schools-fg-3);
+  font-size: var(--text-xs);
+}
+
+.group-courses {
+  font-size: var(--text-xs);
+  color: rgb(var(--tone-green-ink));
+  font-weight: var(--font-medium);
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: all var(--transition-fast);
+}
+
+.group-row:hover .row-actions,
+.group-row:focus-within .row-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.row-action {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--schools-fg-3);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.row-action:hover {
+  color: var(--schools-fg);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(44, 38, 34, 0.10);
+}
+
+.row-action.is-danger:hover {
+  color: rgb(var(--tone-red));
+  background: rgba(var(--tone-red), 0.08);
+  border-color: rgba(var(--tone-red), 0.30);
+}
 
 .empty { padding: var(--space-8); text-align: center; }
 .empty-copy strong { display: block; font-family: var(--font-display); font-size: var(--text-lg); color: var(--schools-fg); margin-bottom: 4px; }

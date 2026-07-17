@@ -187,13 +187,16 @@ export async function provisionDemoOrg(
   const now = Date.now()
   const termStart = now - 28 * DAY
 
-  // ---- group / government-region leader ----
-  if (orgShape !== 'single_school') {
+  // ---- root group (founder org model: every demo is an ORGANISATION — the
+  // root of the groups tree, `is_demo` cascading to whatever the admin
+  // builds under it — never a bare school, even for the single_school shape,
+  // so the tool's output always has a tree to grow via GroupTreeNode). ----
+  {
     const { data: group, error: groupErr } = await supabase
       .from('groups')
       .insert({
         name: prospectName,
-        type: orgShape === 'government_region' ? 'region' : 'group',
+        type: 'organisation',
         is_demo: true,
         is_test: true,
         // A demo org's name is chosen deliberately by the admin minting it,
@@ -207,7 +210,11 @@ export async function provisionDemoOrg(
       .single()
     if (groupErr || !group) throw new Error(`groups insert failed: ${groupErr?.message}`)
     groupId = group.id as string
+  }
 
+  // ---- government-region / group leader (single_school orgs get no
+  // leader persona — just the root organisation + its one school). ----
+  if (orgShape !== 'single_school') {
     const leaderName = `${pick(STAFF_FIRST)} ${pick(STAFF_LAST)}`
     const leaderEmail = emailFor('leader')
     const leaderPassword = generatePassword()
