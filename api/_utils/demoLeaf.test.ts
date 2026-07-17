@@ -5,6 +5,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { resolveDemoOrgCourseCode, ensureDemoLeafClass } from './demoLeaf'
+import { ensureJoinCodesRegistered } from './schoolJoinCodes'
 
 function makeSupabase(db: any) {
   let nextId = 1
@@ -45,7 +46,11 @@ function makeSupabase(db: any) {
             return Promise.resolve({ data: null, error: null })
           },
         }),
-        upsert: async () => ({ data: null, error: null }),
+        upsert: (rows: any) => {
+          db.__upserts = db.__upserts ?? []
+          db.__upserts.push({ table, rows })
+          return Promise.resolve({ data: null, error: null })
+        },
         then: (resolve: any) => {
           const scoped = limitN != null ? rows.slice(0, limitN) : rows
           return Promise.resolve({ data: scoped, error: null }).then(resolve)
@@ -160,5 +165,38 @@ describe('ensureDemoLeafClass', () => {
     }
     const result = await ensureDemoLeafClass(makeSupabase(db), 'orphan', 'admin-1')
     expect('error' in result).toBe(true)
+  })
+})
+
+describe('ensureJoinCodesRegistered', () => {
+  it('upserts BOTH the teacher and school_admin_join codes for a school', async () => {
+    const db: any = {
+      schools: [{ id: 'school-1', teacher_join_code: 'TEACH-1', admin_join_code: 'ADMIN-1' }],
+    }
+    const supabase = makeSupabase(db)
+    await ensureJoinCodesRegistered(supabase, 'school-1', 'admin-1')
+
+    expect(db.__upserts).toHaveLength(1)
+    const rows = db.__upserts[0].rows
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'TEACH-1', code_type: 'teacher', grants_school_id: 'school-1', created_by: 'admin-1' }),
+        expect.objectContaining({ code: 'ADMIN-1', code_type: 'school_admin_join', grants_school_id: 'school-1', created_by: 'admin-1' }),
+      ]),
+    )
+  })
+
+  it('is a no-op when the school has no join codes yet', async () => {
+    const db: any = { schools: [{ id: 'school-2', teacher_join_code: null, admin_join_code: null }] }
+    const supabase = makeSupabase(db)
+    await ensureJoinCodesRegistered(supabase, 'school-2', 'admin-1')
+    expect(db.__upserts).toBeUndefined()
+  })
+
+  it('is a no-op when the school cannot be found', async () => {
+    const db: any = { schools: [] }
+    const supabase = makeSupabase(db)
+    await ensureJoinCodesRegistered(supabase, 'missing-school', 'admin-1')
+    expect(db.__upserts).toBeUndefined()
   })
 })
