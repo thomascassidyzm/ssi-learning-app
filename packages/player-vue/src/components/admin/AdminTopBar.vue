@@ -15,6 +15,11 @@
  * trigger shows the CURRENT section name, so "where am I" survives the
  * collapse instead of losing to the chrome.
  *
+ * Invites unification (2026-07-17, same day): Demos, Try Links and Access
+ * folded into one /admin/invites surface (docs/invites-redesign/DESIGN.md)
+ * — one create card (org / direct / demo) + one live list. The three old
+ * More-menu entries collapse to a single "Invites" item.
+ *
  * Active-tab indicator is yellow (--schools-gold), distinct from
  * the red used on the schools surface.
  */
@@ -30,8 +35,6 @@ const ICONS: Record<string, string[]> = {
   users: ['M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
   stats: ['M18 20V10', 'M12 20V4', 'M6 20v-6'],
   insights: ['M9 18h6', 'M10 22h4', 'M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z'],
-  demos: ['M10 2v6L4 20a1 1 0 0 0 1 1.5h14A1 1 0 0 0 20 20L14 8V2', 'M8.5 2h7'],
-  tryLinks: ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71', 'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'],
   onboarding: ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'],
   access: ['M21 2l-9.6 9.6', 'M15.5 7.5l3 3', 'M11 13a4 4 0 1 1-5.66 5.66A4 4 0 0 1 11 13z'],
   methodology: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
@@ -75,20 +78,6 @@ const moreGroups: NavMenuGroup[] = [
     label: 'Provisioning',
     items: [
       {
-        label: 'Demos',
-        to: '/admin/demos',
-        desc: 'Demo schools and organisations',
-        iconPaths: ICONS.demos,
-        match: (p) => p.startsWith('/admin/demos') || p.startsWith('/admin/demo-organisations') || p.startsWith('/admin/demo-schools'),
-      },
-      {
-        label: 'Try Links',
-        to: '/admin/try-links',
-        desc: 'Shareable trial links',
-        iconPaths: ICONS.tryLinks,
-        match: (p) => p === '/admin/try-links',
-      },
-      {
         label: 'Onboarding',
         to: '/admin/onboarding',
         desc: 'Onboarding message series',
@@ -101,11 +90,11 @@ const moreGroups: NavMenuGroup[] = [
     label: 'Platform',
     items: [
       {
-        label: 'Access',
-        to: '/admin/access',
-        desc: 'Roles, invite codes, entitlements',
+        label: 'Invites',
+        to: '/admin/invites',
+        desc: 'Every way in — invites, codes, demos, previews',
         iconPaths: ICONS.access,
-        match: (p) => p === '/admin/access',
+        match: (p) => p.startsWith('/admin/invites'),
       },
       {
         label: 'Methodology',

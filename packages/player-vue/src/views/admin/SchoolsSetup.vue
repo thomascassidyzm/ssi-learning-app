@@ -1504,6 +1504,11 @@ onMounted(() => {
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                 </button>
+                <router-link
+                  :to="`/admin/invites?q=${school.teacher_join_code}`"
+                  class="manage-code-link"
+                  title="Manage in Invites"
+                >manage</router-link>
               </td>
               <td>
                 <button
@@ -1521,6 +1526,11 @@ onMounted(() => {
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                 </button>
+                <router-link
+                  :to="`/admin/invites?q=${school.admin_join_code}`"
+                  class="manage-code-link"
+                  title="Manage in Invites"
+                >manage</router-link>
               </td>
               <td class="cell-muted frost-mono-nums">{{ formatDate(school.created_at) }}</td>
               <td class="cell-actions">
@@ -2187,6 +2197,22 @@ onMounted(() => {
 .code-chip.is-large .code-value {
   font-size: var(--text-lg);
   letter-spacing: 0.08em;
+}
+
+/* Manage link — jumps to the unified list, prefiltered to this code */
+.manage-code-link {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  letter-spacing: 0.04em;
+  color: var(--schools-fg-3);
+  text-decoration: none;
+}
+
+.manage-code-link:hover {
+  color: var(--schools-red);
+  text-decoration: underline;
 }
 
 .code-value {
