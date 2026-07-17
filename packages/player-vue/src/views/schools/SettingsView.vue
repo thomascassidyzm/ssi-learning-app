@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
+import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 
 type SectionId = 'profile' | 'locale' | 'data' | 'billing'
 
@@ -140,6 +141,84 @@ async function openBillingPortal() {
     isOpeningPortal.value = false
   }
 }
+
+// Delete school — self-serve for the school's own admin ("every level can
+// delete the things it created", founder ruling). api/admin/update-school.ts
+// enforces ownership server-side (schoolIdForAdmin), same shape as the
+// ssi_admin delete path it already had.
+const showDeleteSchoolModal = ref(false)
+const deleteSchoolImpact = ref<{
+  schoolName: string
+  classCount: number
+  sessionCount: number
+  learnerCount: number
+  teacherCount: number
+  hasRealActivity: boolean
+} | null>(null)
+const isDeletingSchool = ref(false)
+const deleteSchoolError = ref('')
+
+async function openDeleteSchoolModal() {
+  deleteSchoolError.value = ''
+  deleteSchoolImpact.value = null
+  const headers = await authHeaders()
+  const schoolId = activeSchool.value?.id
+  if (!headers || !schoolId) return
+  try {
+    const res = await fetch(`/api/admin/update-school?school_id=${encodeURIComponent(schoolId)}`, { headers })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) deleteSchoolImpact.value = data.impact
+  } catch { /* modal still opens; impact list just stays empty */ }
+  showDeleteSchoolModal.value = true
+}
+
+function closeDeleteSchoolModal() {
+  showDeleteSchoolModal.value = false
+  deleteSchoolError.value = ''
+}
+
+async function confirmDeleteSchool(typedName: string) {
+  const headers = await authHeaders()
+  const schoolId = activeSchool.value?.id
+  if (!headers || !schoolId) {
+    deleteSchoolError.value = 'Sign in again to delete your school'
+    return
+  }
+  isDeletingSchool.value = true
+  deleteSchoolError.value = ''
+  try {
+    const params = typedName ? `?confirm_name=${encodeURIComponent(typedName)}` : ''
+    const res = await fetch(`/api/admin/update-school?school_id=${encodeURIComponent(schoolId)}${params}`, {
+      method: 'DELETE',
+      headers,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      if (data.impact) deleteSchoolImpact.value = data.impact
+      deleteSchoolError.value = data.error || 'Failed to delete school'
+      return
+    }
+    // The admin's own school is gone — sign out to a clean slate, same
+    // escape-hatch pattern as SchoolsContainer's "no school access" wall.
+    await supabase.value?.auth?.signOut()
+    window.location.href = '/schools'
+  } catch {
+    deleteSchoolError.value = 'Failed to delete school'
+  } finally {
+    isDeletingSchool.value = false
+  }
+}
+
+const deleteSchoolImpactLines = computed(() => {
+  const impact = deleteSchoolImpact.value
+  if (!impact) return []
+  const lines: string[] = []
+  if (impact.classCount) lines.push(`${impact.classCount} class${impact.classCount === 1 ? '' : 'es'}`)
+  if (impact.learnerCount) lines.push(`${impact.learnerCount} student${impact.learnerCount === 1 ? '' : 's'}`)
+  if (impact.teacherCount) lines.push(`${impact.teacherCount} teacher${impact.teacherCount === 1 ? '' : 's'}`)
+  if (impact.sessionCount) lines.push(`${impact.sessionCount} recorded session${impact.sessionCount === 1 ? '' : 's'}`)
+  return lines
+})
 
 function syncFromSchoolData() {
   const school = activeSchool.value || currentSchool.value
@@ -392,6 +471,17 @@ function toggleDataItem(id: string) {
               {{ isExporting ? 'Preparing…' : 'Download all data (.csv)' }}
             </button>
           </div>
+
+          <div v-if="canEditSchool" class="danger-zone">
+            <h3 class="danger-zone-title">Danger zone</h3>
+            <div class="toggle-row toggle-row-bordered">
+              <div>
+                <div class="toggle-title">Delete this school</div>
+                <div class="toggle-desc">Permanently deletes the school, its classes and enrolments. Cannot be undone.</div>
+              </div>
+              <button type="button" class="btn-danger" @click="openDeleteSchoolModal">Delete school</button>
+            </div>
+          </div>
         </section>
 
         <section v-else-if="activeSection === 'billing'" class="schools-card schools-card-pad panel">
@@ -423,6 +513,18 @@ function toggleDataItem(id: string) {
         </section>
       </div>
     </div>
+
+    <ConfirmDeleteModal
+      :is-open="showDeleteSchoolModal"
+      title="Delete school"
+      :target-name="deleteSchoolImpact?.schoolName || activeSchool?.school_name || ''"
+      :impact-lines="deleteSchoolImpactLines"
+      :require-typed-confirm="!!deleteSchoolImpact?.hasRealActivity"
+      :submitting="isDeletingSchool"
+      :error="deleteSchoolError"
+      @close="closeDeleteSchoolModal"
+      @confirm="confirmDeleteSchool"
+    />
   </main>
 </template>
 
@@ -588,6 +690,40 @@ function toggleDataItem(id: string) {
   margin-top: 2px;
   max-width: 380px;
   line-height: 1.5;
+}
+
+.danger-zone {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--schools-border);
+}
+
+.danger-zone-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ssi-red, #c23a3a);
+  margin: 0 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.btn-danger {
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid var(--ssi-red, #c23a3a);
+  color: var(--ssi-red, #c23a3a);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: var(--ssi-red, #c23a3a);
+  color: white;
 }
 
 .toggle {
