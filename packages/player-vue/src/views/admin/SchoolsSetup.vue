@@ -3,8 +3,24 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useActAs } from '@/composables/useActAs'
 
 const router = useRouter()
+const { actAs } = useActAs()
+
+// "View as" — read-only impersonation entry point (see useActAs.ts,
+// api/admin/view-as.ts). Staff rows only carry role_in_context 'admin' |
+// 'teacher' (govt_admins aren't listed here), mapped to the ActAsPersona
+// role vocabulary.
+function viewAsStaff(staff: StaffMember): void {
+  if (!staff.user_id) return
+  void actAs({
+    key: staff.user_id,
+    userId: staff.user_id,
+    role: staff.role_in_context === 'admin' ? 'school_admin' : 'teacher',
+    name: staff.display_name,
+  })
+}
 
 interface School {
   id: string
@@ -1575,6 +1591,7 @@ onMounted(() => {
               <th>Email</th>
               <th>Role</th>
               <th>School</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -1591,6 +1608,21 @@ onMounted(() => {
                 </span>
               </td>
               <td>{{ staff.school_name || '—' }}</td>
+              <td class="cell-actions">
+                <div class="row-actions">
+                  <button
+                    type="button"
+                    class="row-action"
+                    title="View as — see exactly what this account sees, read only"
+                    @click="viewAsStaff(staff)"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>

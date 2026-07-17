@@ -179,6 +179,16 @@ function startActingAs(persona: ActAsPersona): void {
   }
 }
 
+/**
+ * Header to attach to any write-endpoint fetch made while acting-as, so the
+ * server can reject it (api/_utils/actAsGuard.ts) even for endpoints that
+ * carry a deliberate ssi_admin support bypass. A real teacher/school-admin
+ * session never sends this, so its presence alone is a safe reject signal.
+ */
+export function viewAsRequestHeaders(): Record<string, string> {
+  return isActingAs.value ? { 'X-Ssi-View-As': '1' } : {}
+}
+
 /** Stop acting as a persona and return to the admin's own identity. */
 function stopActingAs(): void {
   actingAs.value = null
