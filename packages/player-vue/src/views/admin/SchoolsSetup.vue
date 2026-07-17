@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, provide } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useActAs } from '@/composables/useActAs'
+import GroupTreeNode from '@/components/admin/GroupTreeNode.vue'
+import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 
 const router = useRouter()
 const { actAs } = useActAs()
@@ -37,6 +39,9 @@ interface Group {
   name: string
   type: string
   parent_id: string | null
+  path?: string
+  is_demo?: boolean
+  is_test?: boolean
   school_count: number
   granted_courses: string[]
 }
@@ -89,6 +94,7 @@ const newSchoolAdminCode = ref<string | null>(null)
 const newGroupName = ref('')
 const newGroupType = ref('group')
 const newGroupParent = ref('')
+const newGroupIsDemo = ref(false)
 
 // Add Staff form
 const newStaffName = ref('')
@@ -156,12 +162,6 @@ function groupOrDescendantMatches(g: Group): boolean {
   return groupMatches(g) || getChildGroups(g.id).some(groupOrDescendantMatches)
 }
 const filteredRootGroups = computed(() => rootGroups.value.filter(groupOrDescendantMatches))
-function filteredChildGroups(parentId: string): Group[] {
-  return getChildGroups(parentId).filter(groupOrDescendantMatches)
-}
-function filteredGrandchildGroups(parentId: string): Group[] {
-  return getChildGroups(parentId).filter(groupMatches)
-}
 
 const filteredSchools = computed(() => {
   const q = schoolsSearch.value.trim().toLowerCase()
@@ -584,6 +584,7 @@ async function createGroup(): Promise<void> {
       type: newGroupType.value,
     }
     if (newGroupParent.value) insertData.parent_id = newGroupParent.value
+    if (newGroupIsDemo.value) insertData.is_demo = true
 
     const resp = await fetch('/api/groups', {
       method: 'POST',
@@ -594,10 +595,11 @@ async function createGroup(): Promise<void> {
     if (!resp.ok) throw new Error(respData.error || `HTTP ${resp.status}`)
     const data = respData.group
 
-    successMessage.value = `Group "${data.name}" created`
+    successMessage.value = `${newGroupParent.value ? 'Group' : 'Organisation'} "${data.name}" created`
     newGroupName.value = ''
     newGroupType.value = 'group'
     newGroupParent.value = ''
+    newGroupIsDemo.value = false
 
     await fetchGroups()
   } catch (err) {
@@ -606,6 +608,181 @@ async function createGroup(): Promise<void> {
     isCreatingGroup.value = false
   }
 }
+
+/** Quick inline "+ Add sub-group" from a tree row — same POST /api/groups, parent pre-set. */
+async function createSubgroup(parentId: string, name: string): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+    const resp = await fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ name, type: 'group', parent_id: parentId }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    successMessage.value = `Group "${name}" created`
+    await fetchGroups()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create sub-group'
+  }
+}
+
+/** Quick inline "+ Add school" from a tree row — same server path as the Schools tab's create form. */
+async function createSchoolAt(groupId: string, name: string): Promise<void> {
+  try {
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+    const resp = await fetch('/api/admin/create-school', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ school_name: name, group_id: groupId }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    successMessage.value = `School "${name}" created`
+    await fetchSchools()
+    await fetchGroups()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Failed to create school'
+  }
+}
+
+function openGroupDashboard(groupId: string): void {
+  router.push(`/admin/groups/${groupId}`)
+}
+function openSchoolDashboard(schoolId: string): void {
+  router.push(`/admin/schools/${schoolId}`)
+}
+function cancelGroupRename(): void {
+  editingGroupId.value = null
+}
+
+// ---------------------------------------------------------------
+// Unified delete modal — groups AND schools in the org tree route
+// through ConfirmDeleteModal (Teleport, impact preview, type-the-name
+// escalation) instead of browser confirm()/prompt(), matching the
+// class/school self-serve delete flows shipped 2026-07-17. The server
+// endpoints (api/groups/:id DELETE, api/admin/update-school DELETE)
+// were already impact-preview-and-confirm_name-aware — this just gives
+// the admin tree the same UI those flows already have elsewhere.
+// ---------------------------------------------------------------
+type DeleteTargetKind = 'group' | 'school'
+interface DeleteTarget { kind: DeleteTargetKind; id: string; name: string }
+interface DeleteImpact {
+  classCount?: number
+  schoolCount?: number
+  sessionCount: number
+  learnerCount: number
+  teacherCount: number
+  hasRealActivity: boolean
+}
+const deleteModalOpen = ref(false)
+const deleteModalTarget = ref<DeleteTarget | null>(null)
+const deleteModalImpact = ref<DeleteImpact | null>(null)
+const deleteModalSubmitting = ref(false)
+const deleteModalError = ref('')
+
+const deleteModalTitle = computed(() =>
+  deleteModalTarget.value?.kind === 'school' ? 'Delete school' : 'Delete group'
+)
+const deleteModalImpactLines = computed(() => {
+  const impact = deleteModalImpact.value
+  if (!impact) return []
+  const lines: string[] = []
+  if (impact.schoolCount !== undefined) lines.push(`${impact.schoolCount} school(s)`)
+  if (impact.classCount !== undefined) lines.push(`${impact.classCount} class(es)`)
+  lines.push(`${impact.sessionCount} session(s) recorded`)
+  lines.push(`${impact.learnerCount} learner(s)`)
+  lines.push(`${impact.teacherCount} teacher(s)`)
+  return lines
+})
+
+async function openDeleteModal(target: DeleteTarget): Promise<void> {
+  deleteModalTarget.value = target
+  deleteModalImpact.value = null
+  deleteModalError.value = ''
+  deleteModalOpen.value = true
+  try {
+    const token = await getAuthToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const url = target.kind === 'group'
+      ? `/api/groups/${target.id}`
+      : `/api/admin/update-school?school_id=${encodeURIComponent(target.id)}`
+    const resp = await fetch(url, { method: 'GET', headers })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || 'Failed to load deletion impact')
+    deleteModalImpact.value = data.impact
+  } catch (err) {
+    deleteModalError.value = err instanceof Error ? err.message : 'Failed to load deletion impact'
+  }
+}
+
+function requestDeleteGroup(group: Group): void {
+  void openDeleteModal({ kind: 'group', id: group.id, name: group.name })
+}
+function requestDeleteSchool(school: School): void {
+  void openDeleteModal({ kind: 'school', id: school.id, name: school.school_name })
+}
+function closeDeleteModal(): void {
+  if (deleteModalSubmitting.value) return
+  deleteModalOpen.value = false
+  deleteModalTarget.value = null
+  deleteModalImpact.value = null
+  deleteModalError.value = ''
+}
+
+async function confirmDelete(typedName: string): Promise<void> {
+  const target = deleteModalTarget.value
+  if (!target) return
+  deleteModalSubmitting.value = true
+  deleteModalError.value = ''
+  try {
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+
+    if (target.kind === 'group') {
+      const params = typedName ? `?confirm_name=${encodeURIComponent(typedName)}` : ''
+      const resp = await fetch(`/api/groups/${target.id}${params}`, { method: 'DELETE', headers })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || 'Failed to delete group')
+      successMessage.value = `Group "${target.name}" deleted`
+      await fetchGroups()
+      await fetchSchools()
+    } else {
+      const params = new URLSearchParams({ school_id: target.id })
+      if (typedName) params.set('confirm_name', typedName)
+      const resp = await fetch(`/api/admin/update-school?${params.toString()}`, { method: 'DELETE', headers })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || 'Failed to delete school')
+      successMessage.value = `School "${target.name}" deleted`
+      await fetchSchools()
+      await fetchGroups()
+    }
+    deleteModalOpen.value = false
+    deleteModalTarget.value = null
+  } catch (err) {
+    deleteModalError.value = err instanceof Error ? err.message : 'Failed to delete'
+  } finally {
+    deleteModalSubmitting.value = false
+  }
+}
+
+provide('orgTreeApi', {
+  editingGroupId,
+  editingGroupName,
+  startGroupRename,
+  saveGroupRename,
+  cancelGroupRename,
+  openGroupDashboard,
+  openSchoolDashboard,
+  requestDeleteGroup,
+  requestDeleteSchool,
+  createSubgroup,
+  createSchoolAt,
+})
 
 async function saveGrant(): Promise<void> {
   if (!grantTargetId.value || grantCourses.value.length === 0) {
@@ -819,58 +996,8 @@ function clearCourseSelection(): void {
   grantCourses.value = []
 }
 
-// Group delete
-async function deleteGroup(group: Group): Promise<void> {
-  try {
-    const token = await getAuthToken()
-    if (!token) throw new Error('Not authenticated')
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
-
-    const impactResp = await fetch(`/api/groups/${group.id}`, { method: 'GET', headers })
-    const impactData = await impactResp.json().catch(() => ({}))
-    if (!impactResp.ok) throw new Error(impactData.error || 'Failed to load deletion impact')
-    const impact = impactData.impact as {
-      schoolCount: number
-      classCount: number
-      learnerCount: number
-      teacherCount: number
-      hasRealActivity: boolean
-    }
-
-    const summary = `${impact.schoolCount} school(s), ${impact.classCount} class(es), ${impact.learnerCount} learner(s), ${impact.teacherCount} teacher(s)`
-    let confirmName = ''
-    if (impact.hasRealActivity) {
-      const typed = prompt(
-        `"${group.name}" has REAL recorded activity — ${summary}.\n\nThis cannot be undone. Type the group name exactly to confirm deletion:`
-      )
-      if (typed === null) return
-      confirmName = typed.trim()
-      if (confirmName !== group.name) {
-        error.value = 'Group name did not match — deletion cancelled'
-        return
-      }
-    } else {
-      if (!confirm(`Delete group "${group.name}"?\n\nAffects: ${summary}.\nSchools in this group will become ungrouped.`)) return
-    }
-
-    const params = confirmName ? `?confirm_name=${encodeURIComponent(confirmName)}` : ''
-    const response = await fetch(`/api/groups/${group.id}${params}`, {
-      method: 'DELETE',
-      headers,
-    })
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.error || 'Failed to delete group')
-    }
-
-    successMessage.value = `Group "${group.name}" deleted`
-    await fetchGroups()
-    await fetchSchools()
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to delete group'
-  }
-}
+// Group and school delete now route through openDeleteModal/confirmDelete
+// (ConfirmDeleteModal, see orgTreeApi above) instead of browser confirm()/prompt().
 
 // Group rename (inline edit)
 function startGroupRename(group: Group): void {
@@ -909,61 +1036,6 @@ async function saveGroupRename(group: Group): Promise<void> {
     await fetchGroups()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to rename group'
-  }
-}
-
-// School delete
-async function deleteSchool(school: School): Promise<void> {
-  try {
-    // schools.delete moved server-side (/api/admin/update-school) — the
-    // 2026-07-04 grant-hygiene window revoked direct client writes on the
-    // org tables (see CLAUDE.md RLS section).
-    const token = await getAuthToken()
-    if (!token) throw new Error('Not authenticated')
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
-
-    const impactResp = await fetch(`/api/admin/update-school?school_id=${encodeURIComponent(school.id)}`, {
-      method: 'GET',
-      headers,
-    })
-    const impactData = await impactResp.json().catch(() => ({}))
-    if (!impactResp.ok) throw new Error(impactData.error || 'Failed to load deletion impact')
-    const impact = impactData.impact as {
-      classCount: number
-      learnerCount: number
-      teacherCount: number
-      hasRealActivity: boolean
-    }
-
-    const summary = `${impact.classCount} class(es), ${impact.learnerCount} learner(s), ${impact.teacherCount} teacher(s)`
-    let confirmName = ''
-    if (impact.hasRealActivity) {
-      const typed = prompt(
-        `"${school.school_name}" has REAL recorded activity — ${summary}.\n\nThis cannot be undone. Type the school name exactly to confirm deletion:`
-      )
-      if (typed === null) return
-      confirmName = typed.trim()
-      if (confirmName !== school.school_name) {
-        error.value = 'School name did not match — deletion cancelled'
-        return
-      }
-    } else {
-      if (!confirm(`Delete school "${school.school_name}"?\n\nAffects: ${summary}.\nThis cannot be undone.`)) return
-    }
-
-    const params = new URLSearchParams({ school_id: school.id })
-    if (confirmName) params.set('confirm_name', confirmName)
-    const resp = await fetch(`/api/admin/update-school?${params.toString()}`, {
-      method: 'DELETE',
-      headers,
-    })
-    const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-
-    successMessage.value = `School "${school.school_name}" deleted`
-    await fetchSchools()
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to delete school'
   }
 }
 
@@ -1141,15 +1213,15 @@ onMounted(() => {
         </form>
       </div>
 
-      <!-- Create an empty group (advanced) — pre-build a bucket without inviting a leader yet -->
+      <!-- Create organisation / sub-group (advanced) — pre-build a tree without inviting a leader yet -->
       <details class="schools-card form-panel advanced-panel">
         <summary class="panel-head panel-head--summary">
-          <span class="schools-kicker">Create an empty group (advanced)</span>
-          <span class="panel-hint">Pre-build a group or hierarchy without inviting a leader yet — e.g. for a signed contract.</span>
+          <span class="schools-kicker">Create organisation (advanced)</span>
+          <span class="panel-hint">Pre-build an organisation or hierarchy without inviting a leader yet — e.g. a signed contract, or a sales demo.</span>
         </summary>
         <form class="form-grid" @submit.prevent="createGroup">
           <div class="field field-wide">
-            <label class="schools-kicker">Group name <span class="required">*</span></label>
+            <label class="schools-kicker">{{ newGroupParent ? 'Group name' : 'Organisation name' }} <span class="required">*</span></label>
             <input
               v-model="newGroupName"
               type="text"
@@ -1162,6 +1234,7 @@ onMounted(() => {
           <div class="field">
             <label class="schools-kicker">Type</label>
             <select v-model="newGroupType" class="frost-select">
+              <option value="organisation">Organisation</option>
               <option value="nation">Nation</option>
               <option value="group">Group</option>
               <option value="district">District</option>
@@ -1171,13 +1244,20 @@ onMounted(() => {
           </div>
 
           <div class="field">
-            <label class="schools-kicker">Parent group <span class="optional">(optional)</span></label>
+            <label class="schools-kicker">Parent <span class="optional">(optional — leave blank to create a new top-level organisation)</span></label>
             <select v-model="newGroupParent" class="frost-select">
-              <option value="">— None (top level) —</option>
+              <option value="">— None (new organisation) —</option>
               <option v-for="g in groups" :key="g.id" :value="g.id">
                 {{ g.name }}
               </option>
             </select>
+          </div>
+
+          <div class="field field-wide">
+            <label class="checkbox-field">
+              <input v-model="newGroupIsDemo" type="checkbox" />
+              <span>Demo organisation <span class="optional">(sales showcase — flag cascades to every group/school built under it)</span></span>
+            </label>
           </div>
 
           <div class="field-actions">
@@ -1191,7 +1271,7 @@ onMounted(() => {
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
               <span v-else class="spinner"></span>
-              {{ isCreatingGroup ? 'Creating…' : 'Add group' }}
+              {{ isCreatingGroup ? 'Creating…' : (newGroupParent ? 'Add group' : 'Create organisation') }}
             </button>
           </div>
         </form>
@@ -1207,101 +1287,19 @@ onMounted(() => {
       </div>
       <div class="schools-card tree-panel">
         <div class="panel-head">
-          <span class="schools-kicker">All groups</span>
-          <span class="panel-hint">Click a name to rename — hover for actions.</span>
+          <span class="schools-kicker">All organisations</span>
+          <span class="panel-hint">Click a name to rename — hover a row for add-subgroup, add-school, dashboard, and delete actions.</span>
         </div>
         <div class="groups-tree">
-          <template v-for="group in filteredRootGroups" :key="group.id">
-            <div class="group-row group-row--root">
-              <template v-if="editingGroupId === group.id">
-                <input
-                  class="group-rename-input"
-                  v-model="editingGroupName"
-                  @blur="saveGroupRename(group)"
-                  @keyup.enter="saveGroupRename(group)"
-                  @keyup.escape="editingGroupId = null"
-                />
-              </template>
-              <strong v-else class="group-name-editable" @click="startGroupRename(group)" title="Click to rename">{{ group.name }}</strong>
-              <span class="group-meta">{{ group.school_count }} schools</span>
-              <span v-if="group.granted_courses.length > 0" class="group-courses">
-                {{ group.granted_courses.length }} courses
-              </span>
-              <div class="row-actions">
-                <button class="row-action" @click="router.push(`/admin/groups/${group.id}`)" title="Open cross-schools dashboard">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </button>
-                <button class="row-action is-danger" @click="deleteGroup(group)" title="Delete group">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div v-for="child in filteredChildGroups(group.id)" :key="child.id" class="group-row group-row--child">
-              <template v-if="editingGroupId === child.id">
-                <input
-                  class="group-rename-input"
-                  v-model="editingGroupName"
-                  @blur="saveGroupRename(child)"
-                  @keyup.enter="saveGroupRename(child)"
-                  @keyup.escape="editingGroupId = null"
-                />
-              </template>
-              <span v-else class="group-name-editable" @click="startGroupRename(child)" title="Click to rename">{{ child.name }}</span>
-              <span class="group-meta">{{ child.school_count }} schools</span>
-              <span v-if="child.granted_courses.length > 0" class="group-courses">
-                {{ child.granted_courses.length }} courses
-              </span>
-              <div class="row-actions">
-                <button class="row-action" @click="router.push(`/admin/groups/${child.id}`)" title="Open cross-schools dashboard">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </button>
-                <button class="row-action is-danger" @click="deleteGroup(child)" title="Delete group">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <template v-for="child in filteredChildGroups(group.id)" :key="`gc-${child.id}`">
-              <div v-for="grandchild in filteredGrandchildGroups(child.id)" :key="grandchild.id" class="group-row group-row--grandchild">
-                <template v-if="editingGroupId === grandchild.id">
-                  <input
-                    class="group-rename-input"
-                    v-model="editingGroupName"
-                    @blur="saveGroupRename(grandchild)"
-                    @keyup.enter="saveGroupRename(grandchild)"
-                    @keyup.escape="editingGroupId = null"
-                  />
-                </template>
-                <span v-else class="group-name-editable" @click="startGroupRename(grandchild)" title="Click to rename">{{ grandchild.name }}</span>
-                <span class="group-meta">{{ grandchild.school_count }} schools</span>
-                <div class="row-actions">
-                  <button class="row-action" @click="router.push(`/admin/groups/${grandchild.id}`)" title="Open cross-schools dashboard">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  </button>
-                  <button class="row-action is-danger" @click="deleteGroup(grandchild)" title="Delete group">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <line x1="18" y1="6" x2="6" y2="18"/>
-                      <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </template>
-          </template>
+          <GroupTreeNode
+            v-for="group in filteredRootGroups"
+            :key="group.id"
+            :group="group"
+            :all-groups="groups"
+            :all-schools="schools"
+            :depth="0"
+            :search="groupsSearch"
+          />
         </div>
       </div>
 
@@ -1489,7 +1487,7 @@ onMounted(() => {
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     </svg>
                   </button>
-                  <button class="row-action is-danger" @click="deleteSchool(school)" title="Delete school">
+                  <button class="row-action is-danger" @click="requestDeleteSchool(school)" title="Delete school">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <line x1="18" y1="6" x2="6" y2="18"/>
                       <line x1="6" y1="6" x2="18" y2="18"/>
@@ -1747,6 +1745,18 @@ onMounted(() => {
         </div>
       </div>
     </template>
+
+    <ConfirmDeleteModal
+      :is-open="deleteModalOpen"
+      :title="deleteModalTitle"
+      :target-name="deleteModalTarget?.name || ''"
+      :impact-lines="deleteModalImpactLines"
+      :require-typed-confirm="!!deleteModalImpact?.hasRealActivity"
+      :submitting="deleteModalSubmitting"
+      :error="deleteModalError"
+      @close="closeDeleteModal"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
 
@@ -1943,6 +1953,21 @@ onMounted(() => {
 }
 
 .field-wide { grid-column: 1 / -1; }
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--schools-fg-2);
+  cursor: pointer;
+}
+.checkbox-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: rgb(var(--tone-red));
+  cursor: pointer;
+}
 
 .field-actions {
   grid-column: 1 / -1;
@@ -2271,9 +2296,6 @@ onMounted(() => {
 
 .group-row:hover { background: rgba(255, 255, 255, 0.48); }
 
-.group-row--child { padding-left: calc(var(--space-4) + var(--space-6)); }
-.group-row--grandchild { padding-left: calc(var(--space-4) + var(--space-12)); }
-
 .group-name-editable {
   cursor: pointer;
   padding: 2px 6px;
@@ -2281,11 +2303,6 @@ onMounted(() => {
   transition: background var(--transition-fast);
   color: var(--schools-fg);
   font-weight: var(--font-semibold);
-}
-
-.group-row--child .group-name-editable,
-.group-row--grandchild .group-name-editable {
-  font-weight: var(--font-medium);
 }
 
 .group-name-editable:hover {
