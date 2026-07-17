@@ -45,7 +45,8 @@ Regenerate with the dev server running (`pnpm --filter player-vue dev`):
 
 | Surface | Before | After |
 |---|---|---|
-| Admin read-view (the original complaint) | ![](img/before-admin-school-readview-desktop.png) | ![](img/after-admin-school-readview-desktop.png) |
+| Admin read-view (the original complaint) — **deployed dev build, real admin session, Chepstow** | ![](img/before-admin-school-readview-desktop.png) | ![](img/deployed-admin-readview-desktop.png) |
+| Admin read-view, deployed, 768 / 390 | — | ![](img/deployed-admin-readview-tablet.png) ![](img/deployed-admin-readview-phone.png) |
 | Admin, desktop 1440 | ![](img/before-admin-setup-desktop.png) | ![](img/after-admin-setup-desktop.png) |
 | Admin, 768 | ![](img/before-admin-setup-tablet.png) | ![](img/after-admin-setup-tablet.png) |
 | Admin, 390 | ![](img/before-admin-setup-phone.png) | ![](img/after-admin-setup-phone.png) |
@@ -58,9 +59,11 @@ Regenerate with the dev server running (`pnpm --filter player-vue dev`):
 | Schools (teacher), desktop | ![](img/before-schools-teacher-desktop.png) | ![](img/after-schools-teacher-desktop.png) |
 | Schools (teacher), 390 | ![](img/before-schools-teacher-phone.png) | ![](img/after-schools-teacher-phone.png) |
 
-(The "after" read-view shot shows the loading state — captured without live
-school data — but proves the pill is gone and the bar is one clean row; the
-identity bar itself is visible on the deployed dev build.)
+The `deployed-*` shots were captured against the live dev deployment
+(build `32ef53e`) with a real ssi_admin session, viewing the actual Chepstow
+school from the original complaint — Back pill gone (asserted 0 in-page),
+one-row bar, identity bar visible at 1440/768/390
+(`e2e/nav-redesign/verify-deployed.mjs`).
 
 Tests: `AdminTopBar.test.ts` (grouping, active-in-More, collapsed trigger
 names current section), `e2e/mobile-topbar/topbar-layout.spec.ts` (school
