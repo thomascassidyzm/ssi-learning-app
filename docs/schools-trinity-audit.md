@@ -257,7 +257,15 @@
 
 ---
 
-## Screen 8: Analytics (AnalyticsView.vue)
+## Screen 8: Analytics (AnalyticsView.vue) — **STALE, superseded 2026-07-17**
+
+> **Drift confirmed 2026-07-17**: `/schools/analytics` (route name `analytics`) now renders
+> `TeacherInsightsView.vue`, NOT `AnalyticsView.vue` — `router/index.ts:165` (`props: { embedded:
+> true }`), under the `/schools` parent at `router/index.ts:161-171`. `AnalyticsView.vue` still
+> exists but is only wired to the ssi_admin read-views `admin-school-analytics`
+> (`router/index.ts:489-493`) and `admin-group-analytics` (`:513-518`) — not any member-facing
+> `/schools` route. The table below documents behaviour no school member sees anymore. The real,
+> current `/schools/analytics` Trinity table is in `docs/trinity/schools-tutor.md` §5.
 
 | # | Direction | Message |
 |---|-----------|---------|
@@ -273,7 +281,16 @@
 
 ---
 
-## Screen 9: Student Progress (StudentProgressView.vue)
+## Screen 9: Student Progress (StudentProgressView.vue) — **STALE, superseded 2026-07-17**
+
+> **Drift confirmed 2026-07-17**: `StudentProgressView.vue` is no longer reachable from any
+> `/schools` route (zero references in `router/index.ts`). It is now rendered only as a child of
+> `AdminUserProgress.vue` (`views/admin/AdminUserProgress.vue:13,105`), mounted at
+> `/admin/users/:learnerId/progress` (`router/index.ts:529-533`, route name `admin-user-progress`)
+> — an ssi_admin-only read-view. The component itself has also changed substantially since this
+> table was written (streak counter, 7-day sparkline, belt-orb card, "Keep going" CTA, an
+> `isAdminView` second/third-person copy fork). The real, current table for its new home is in
+> `docs/trinity/schools-tutor.md` §7 (Route family 4).
 
 | # | Direction | Message |
 |---|-----------|---------|
@@ -329,7 +346,21 @@
 
 ---
 
-## Screen 11: Admin Setup (SetupView.vue)
+## Screen 11: Admin Setup (SetupView.vue) — **SCOPE CORRECTION, 2026-07-17: this table documents the wrong file**
+
+> **Confirmed 2026-07-17 by reading both files**: everything below (Create School / Schools
+> Management / Create Staff / Groups Management / Course Grants) describes the ssi_admin console
+> that actually lives in `views/admin/SchoolsSetup.vue` (1000+ lines — confirmed against the
+> 2026-07-13 bug-class audit's own citations: `SchoolsSetup.vue:793` `deleteSchool`, `:488`
+> `createGroup`). It was filed under the wrong heading even at the time it was written —
+> `SetupView.vue` (1130 lines, current) is a completely different **self-service, first-time
+> school-onboarding wizard** (Your school → Add staff → Choose courses → Create classes), reached
+> from a Dashboard first-run banner, gated on the school having zero classes and zero students. The
+> real, current Trinity table for `SetupView.vue` (the file this heading names) is in
+> `docs/trinity/schools-tutor.md` §3 Screen 11. `SchoolsSetup.vue` (the console this table below
+> actually describes) has not yet been given its own Trinity table — flagged for a follow-up pass.
+> The table below is kept for now as a historical description of `SchoolsSetup.vue`'s behaviour as
+> of 2026-04-11 — do not use it as a reference for `SetupView.vue`.
 
 ### Banners
 
