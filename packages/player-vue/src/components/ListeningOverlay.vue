@@ -2111,6 +2111,11 @@ watch(
         :model-value="listenMode"
         @update:model-value="listenMode = $event"
       />
+      <!-- Immersion vs Drill were visually identical before pressing play — the
+           desc lived only in a hover :title, invisible on touch (Gap 6). Surface
+           the selected mode's one-liner directly, matching the pattern the mode
+           tray already uses for Turbo/Offline sub-descriptions. -->
+      <p v-if="modeSurface" class="listen-mode-desc">{{ LISTEN_MODES.find(m => m.key === listenMode)?.desc }}</p>
 
       <!-- Gloss eye: show/hide the known-language line under each phrase. -->
       <button
@@ -2415,6 +2420,16 @@ watch(
 
 /* Drill: an empty slot that only reserves the row's height, so switching
  * modes never shifts the layout (nothing is shown under Drill). */
+
+/* One-liner under the Immersion/Drill toggle — same treatment as the mode
+ * tray's Turbo/Offline sub-descriptions, so the two modes read as distinct
+ * before the learner ever presses play (Gap 6). */
+.listen-mode-desc {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
 
 .speed-selector {
   display: flex;

@@ -2,6 +2,7 @@
 import { useRoute } from 'vue-router'
 import { ref, onMounted } from 'vue'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
+import { useAdminGate } from '@/composables/useAdminGate'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
@@ -11,10 +12,19 @@ const mounted = ref(false)
 onMounted(() => {
   requestAnimationFrame(() => { mounted.value = true })
 })
+
+// Access gate — see useAdminGate for the full rationale (deny-not-defer +
+// periodic re-validation so a mid-session downgrade revokes access live).
+const { isCheckingAccess, isDenied } = useAdminGate()
 </script>
 
 <template>
   <div class="admin-container schools-surface" :class="{ 'is-mounted': mounted }">
+    <div v-if="isCheckingAccess || isDenied" class="admin-loading">
+      <div class="loading-spinner"></div>
+      <p>Loading…</p>
+    </div>
+    <template v-else>
     <AdminTopBar />
 
     <main class="admin-main">
@@ -80,6 +90,7 @@ onMounted(() => {
         <span>What's New</span>
       </router-link>
     </nav>
+    </template>
   </div>
 </template>
 
@@ -109,6 +120,30 @@ onMounted(() => {
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* Access-gate loading state (cold load with no cached role yet) */
+.admin-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  gap: 16px;
+  color: var(--schools-fg-3, #8a8078);
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-subtle, rgba(44, 38, 34, 0.1));
+  border-top-color: var(--schools-red, #DB1E17);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Page transition */

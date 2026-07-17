@@ -12,6 +12,7 @@ import { ref, computed, watch, type Ref, type ComputedRef } from 'vue'
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import type { LearnerRecord, LearnerPreferences } from '@ssi/core'
 import { useUserRole } from '@/composables/useUserRole'
+import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useAccessClaim } from '@/composables/useAccessClaim'
@@ -146,9 +147,13 @@ export function useAuth(): AuthState & AuthActions {
    */
   // Sync the authenticated user's roles into useUserRole. Demo flow writes
   // its own impersonated role directly and overrides this until demo ends
-  // (see DemoLauncher / useDemoController).
+  // (see DemoLauncher / useDemoController). Uses setAuthoritative, not
+  // initialize() — this always carries the full, real DB row, so a null
+  // here must land as a genuine clear (e.g. a de-platformed ssi_admin),
+  // never fall back to the stale cached value the way initialize()'s
+  // partial-knowledge guard would.
   function syncRealRoleCache(platformRole: string | null, educationalRole: string | null): void {
-    useUserRole().initialize(platformRole, educationalRole)
+    useUserRole().setAuthoritative(platformRole, educationalRole)
   }
 
   function toLearnerRecord(row: any): LearnerRecord {
@@ -392,11 +397,13 @@ export function useAuth(): AuthState & AuthActions {
       }
 
       isLoading.value = false
+      useResolvedSession().resolve(true)
     } else if (!user && previousUser) {
       // User signed out
       learner.value = null
       // Reinitialize guest ID
       guestId.value = getOrCreateGuestId()
+      useResolvedSession().resolve(false)
     }
     // No explicit syncAudioUserCookie here — the watcher above mirrors
     // learner.id reactively, so any path that mutates learner.value
@@ -474,6 +481,7 @@ export function useAuth(): AuthState & AuthActions {
         }
 
         isLoading.value = false
+        useResolvedSession().resolve(true)
         return
       } else if (result === null) {
         console.warn('[useAuth] Session check timed out, continuing as guest')
@@ -498,6 +506,7 @@ export function useAuth(): AuthState & AuthActions {
               }
               console.log('[useAuth] Restored session from iOS install hand-off')
               isLoading.value = false
+              useResolvedSession().resolve(true)
               return
             }
           }
@@ -510,6 +519,9 @@ export function useAuth(): AuthState & AuthActions {
     }
 
     isLoading.value = false
+    // Fell through every branch above with no session — a real, definitively
+    // resolved guest, not "still loading". supabaseUser.value is null here.
+    useResolvedSession().resolve(false)
   }
 
   // ============================================
@@ -539,6 +551,11 @@ export function useAuth(): AuthState & AuthActions {
     useSharedUserEntitlements().clearCache()
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
+    // Set directly rather than relying on the SIGNED_OUT event's own
+    // handleAuthChange(null) call: that branch only fires resolve(false) when
+    // it sees a previousUser, but supabaseUser.value is already cleared above
+    // by the time the event lands, so it would no-op here.
+    useResolvedSession().resolve(false)
   }
 
   /**

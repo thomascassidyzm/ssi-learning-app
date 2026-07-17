@@ -172,8 +172,11 @@ export default defineConfig(({ mode }) => ({
         name: 'SaySomethingin',
         short_name: 'SSi',
         description: 'Learn languages naturally with immersive audio-based learning',
-        theme_color: '#050508',
-        background_color: '#050508',
+        // Mist palette (matches index.html's pre-hydration bg + design-tokens.css
+        // --bg-primary) — was the deprecated dark "cosmos" theme's black, which
+        // gave every installed PWA a black splash screen on launch.
+        theme_color: '#D9D6D2',
+        background_color: '#e8e3dd',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

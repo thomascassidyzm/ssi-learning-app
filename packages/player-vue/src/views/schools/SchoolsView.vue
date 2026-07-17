@@ -21,6 +21,7 @@ const {
   totalPracticeHours,
   fetchSchools,
   selectSchoolToView,
+  isLoading: schoolsLoading,
   error: fetchError,
 } = useSchoolData()
 const { createSchoolInMyGroup, error: createError } = useGovtAdminActions()
@@ -65,6 +66,7 @@ const awaitingCount = computed(() => schools.value.filter((s) => !s.has_admin).l
 
 const headerLede = computed(() => {
   const n = schools.value.length
+  if (!n && schoolsLoading.value) return 'Loading schools…'
   if (!n) return 'No schools registered in this programme yet.'
   const base = `Programme view of every school on SSi. ${n} school${n === 1 ? '' : 's'}.`
   if (!awaitingCount.value) return base
@@ -232,7 +234,7 @@ watch(currentUser, (u) => {
         <button type="button" class="btn-ghost" :disabled="!filteredSchools.length" @click="handleExport">
           Export
         </button>
-        <button type="button" class="btn-play" @click="openAddModal">+ Add school</button>
+        <button v-if="!isAdminView" type="button" class="btn-play" @click="openAddModal">+ Add school</button>
       </div>
     </div>
 
@@ -357,11 +359,14 @@ watch(currentUser, (u) => {
               <span class="row-link">Open →</span>
             </td>
           </tr>
-          <tr v-if="!filteredSchools.length">
-            <td colspan="10" class="empty-row schools-subtle">
-              <template v-if="searchQuery">No schools match "{{ searchQuery }}".</template>
-              <template v-else>No schools to show.</template>
-            </td>
+          <tr v-if="!filteredSchools.length && searchQuery">
+            <td colspan="10" class="empty-row schools-subtle">No schools match "{{ searchQuery }}".</td>
+          </tr>
+          <tr v-else-if="!filteredSchools.length && schoolsLoading">
+            <td colspan="10" class="empty-row schools-subtle">Loading schools…</td>
+          </tr>
+          <tr v-else-if="!filteredSchools.length">
+            <td colspan="10" class="empty-row schools-subtle">No schools to show.</td>
           </tr>
         </tbody>
       </table>

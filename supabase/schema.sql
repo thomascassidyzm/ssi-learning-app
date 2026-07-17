@@ -4756,7 +4756,8 @@ CREATE TABLE public.canonical_pod_scenarios (
     english_text text NOT NULL,
     author_notes text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    variant_key text
 );
 
 
@@ -8839,11 +8840,11 @@ ALTER TABLE ONLY public.canonical_pod_scenarios
 
 
 --
--- Name: canonical_pod_scenarios canonical_pod_scenarios_pod_slug_scene_number_sentence_numb_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: canonical_pod_scenarios canonical_pod_scenarios_pod_slug_scene_sent_variant_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.canonical_pod_scenarios
-    ADD CONSTRAINT canonical_pod_scenarios_pod_slug_scene_number_sentence_numb_key UNIQUE (pod_slug, scene_number, sentence_number);
+    ADD CONSTRAINT canonical_pod_scenarios_pod_slug_scene_sent_variant_key UNIQUE (pod_slug, scene_number, sentence_number, variant_key);
 
 
 --

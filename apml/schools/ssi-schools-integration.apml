@@ -199,11 +199,56 @@ principle StaffHomeIsDashboard:
         from localStorage) and hasSchoolRole, redirect to "/schools"
         immediately — the fast path for a browser that's seen this user
         before.
-      - App.vue redirects reactively right after auth.initialize() resolves
-        (the point where a FRESH browser — no local role cache yet, e.g. a
-        first-ever click on a minted link — first learns the role from the
-        DB): if still sitting on "/" and hasSchoolRole, router.replace
-        ("/schools").
+      - A reactive watch in router/index.ts (see ResolvedSessionGate below)
+        fires once identity actually resolves — the FRESH-browser case (no
+        role cache yet, e.g. a first-ever click on a minted link). Originally
+        a bespoke check in App.vue's onMounted; migrated onto the shared gate
+        2026-07-16 so it's reachable from router guards too, not just
+        components.
+
+principle ResolvedSessionGate:
+  statement: |
+    useResolvedSession (composables/useResolvedSession.ts) is the ONE shared
+    "is identity known yet" signal — module-level singleton, reachable from
+    anywhere (router guards included, which run with no component/injection
+    context and so can't reach the injected useAuth() instance). useAuth() is
+    the sole writer (resolve(authenticated: boolean), called once identity is
+    known: a real session + role row loaded, or definitively a guest).
+    isResolved is true only once BOTH the session state and useUserRole's
+    role cache agree; whenResolved() is the promise form for one-shot awaits.
+
+  bug_class_closed: |
+    Founder-priority audit (2026-07-16): router guards read only the
+    synchronous localStorage role cache (empty/stale on a fresh browser — a
+    minted link, a deep link, a first visit), and schools/admin composables
+    started fetching (or rendered an empty-state) before auth had actually
+    resolved who the user is — "loading" and "empty" were the same falsy
+    value everywhere. Concrete instances closed: the /admin + /methodology
+    router guard denied outright (bounced to "/") whenever the cache didn't
+    yet have an answer, instead of deferring like the /schools guard already
+    did; AdminContainer.vue had no access gate at all, so /admin/* rendered
+    (and fetched real data) before identity was known; the four admin
+    read-view containers (AdminSchoolsContainer, AdminGroupContainer,
+    AdminUserProgress, AdminClassDetail) triggered their context load only
+    off the route id, silently no-opping forever if auth.learner wasn't
+    populated yet; UpgradeView.vue and TeacherInsightsView.vue picked a
+    lane / fetched classes ONCE at mount off a still-null useSchoolContext
+    currentUser, with no retry once it resolved — dead on a direct cold load
+    (the Subscribe CTA stuck on "Loading…"; /schools/analytics permanently
+    empty). Two of these (UpgradeView, TeacherInsightsView) were
+    independently discovered and fixed the same night by concurrent batches
+    (design-judge-bug-batch3, teacher-loop-bugs-batch2) with the identical
+    watch(currentUser, ..., {immediate:true}) shape — reconciled as one fix
+    on rebase, not a conflict.
+
+  regression_net: |
+    Unit tests: useResolvedSession.test.ts (the gate itself),
+    resolvedSessionGuard.test.ts (admin/methodology guard +  "/" corrective
+    redirect), AdminContainer.accessGate.test.ts, adminReadViewContext.test.ts.
+    Real-browser cold-load suite: e2e/resolved-session-audit/ (fresh
+    incognito, direct URL, 3x per case) — verified it actually catches the
+    regression by reverting the router/AdminContainer fixes and confirming
+    every /admin/* cold load bounced to "/" again (0/3), then restoring.
 
 principle GroupRollupServerMediated:
   statement: |

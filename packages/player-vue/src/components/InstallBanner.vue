@@ -10,6 +10,11 @@ const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
 
 const visible = ref(false)
+const isPlaying = ref(false)
+// A round completed while a cycle was still active (auto-continuing into the
+// next round) — defer showing until playback actually pauses, instead of
+// interrupting the live session (B6/Gap 4: "never during play").
+let pendingShow = false
 
 const DISMISS_KEY = 'ssi-install-dismissed'
 const DISMISS_COUNT_KEY = 'ssi-install-dismiss-count'
@@ -34,16 +39,33 @@ function shouldShow(): boolean {
   return true
 }
 
-// Show after first round completes (user is invested)
+// Show after first round completes (user is invested) — but only once the
+// player is actually resting, never on top of an active cycle.
 function onRoundComplete() {
-  if (shouldShow()) {
+  if (!shouldShow()) return
+  // Only need to react once per session
+  window.removeEventListener('ssi-round-complete', onRoundComplete)
+  if (isPlaying.value) {
+    pendingShow = true
+  } else {
     visible.value = true
-    // Only need to show once per session
-    window.removeEventListener('ssi-round-complete', onRoundComplete)
+  }
+}
+
+function onPlayState(e: Event) {
+  const playing = !!(e as CustomEvent).detail?.playing
+  isPlaying.value = playing
+  if (playing) {
+    // Playback resumed (or auto-continued) — never sit on top of a live cycle.
+    visible.value = false
+  } else if (pendingShow) {
+    pendingShow = false
+    if (shouldShow()) visible.value = true
   }
 }
 
 onMounted(() => {
+  window.addEventListener('ssi-play-state', onPlayState)
   if (!shouldShow()) return
 
   // Listen for first round completion
@@ -52,6 +74,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('ssi-round-complete', onRoundComplete)
+  window.removeEventListener('ssi-play-state', onPlayState)
 })
 
 function handleInstall() {
@@ -76,7 +99,7 @@ function dismiss() {
 </script>
 
 <template>
-  <Transition name="slide-up">
+  <Transition name="slide-down">
     <div v-if="visible" class="install-banner">
       <div class="install-banner-content">
         <div class="install-banner-left">
@@ -98,9 +121,14 @@ function dismiss() {
 </template>
 
 <style scoped>
+/* Anchored to the TOP, not the bottom — the bottom band is the mode-tray's
+   territory (trigger button floats just above the nav bar there) and a
+   bottom-anchored banner sat directly on top of it, eating every
+   Listening/Turbo/Offline tap while shown (B6). Top placement can never
+   collide with any player control. */
 .install-banner {
   position: fixed;
-  bottom: calc(var(--nav-height-safe, 100px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
   left: 0;
   right: 0;
   z-index: 9999;
@@ -191,13 +219,13 @@ function dismiss() {
   color: var(--text-primary, #e8e3dd);
 }
 
-.slide-up-enter-active,
-.slide-up-leave-active {
+.slide-down-enter-active,
+.slide-down-leave-active {
   transition: all 0.3s ease;
 }
-.slide-up-enter-from,
-.slide-up-leave-to {
-  transform: translateY(100%);
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
   opacity: 0;
 }
 </style>

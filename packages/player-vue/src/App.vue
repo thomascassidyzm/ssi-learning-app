@@ -533,19 +533,15 @@ onMounted(async () => {
       progressStore.value = createProgressStore({ client: supabaseClient.value })
       sessionStore.value = createSessionStore({ client: supabaseClient.value })
 
-      // Initialize auth with Supabase client (for learner management)
+      // Initialize auth with Supabase client (for learner management). Its
+      // completion — including the "staff on a fresh browser lands on the
+      // dashboard, not the bare player" redirect that used to live here — is
+      // now owned by the shared resolved-session gate (useResolvedSession),
+      // written by useAuth and read by router/index.ts's one-shot corrective
+      // redirect. One mechanism, reachable from router guards too, instead of
+      // this component-local check.
       if (auth) {
         await auth.initialize(supabaseClient.value)
-      }
-
-      // Staff home is the dashboard, not the bare player (owner ruling 2026-07-16).
-      // The router's own '/' guard (router/index.ts) covers a role already cached
-      // in this browser; this covers the FIRST visit in a fresh browser — e.g. a
-      // minted sign-in link — where auth.initialize() above is what first learns
-      // the role from the DB, only completing after the router already resolved
-      // '/' with no cache to go on. Redirect once, only off the bare root.
-      if (route.path === '/' && useUserRole().hasSchoolRole.value) {
-        router.replace('/schools')
       }
 
       // Initialize entitlements + subscription (now that supabase + auth are

@@ -3,19 +3,23 @@
  * AdminGroupContainer — shell for /admin/groups/:id/* read-views.
  *
  * Mirrors AdminSchoolsContainer but loads group context (govt_admin role)
- * so schools composables take the group-scope query branch.
+ * so schools composables take the group-scope query branch. Standalone
+ * route — see AdminSchoolsContainer's docstring for why useAdminGate is
+ * its own gate (Trinity audit finding #1, docs/trinity/admin.md).
  */
-import { inject, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useAdminGate } from '@/composables/useAdminGate'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
 const route = useRoute()
 const supabase = inject<any>('supabase', ref(null))
 const auth = inject<any>('auth', null)
+const { isCheckingAccess, isDenied } = useAdminGate()
 
 if (supabase.value) setSchoolsClient(supabase.value)
 
@@ -47,8 +51,22 @@ async function loadContext(groupId: string | string[]) {
   }
 }
 
-onMounted(() => loadContext(route.params.id as string))
-watch(() => route.params.id, (id) => { if (id) loadContext(id as string) })
+// Was `onMounted(() => loadContext(...))` + a route-id-only watch — on a
+// direct load to /admin/groups/:id, auth.learner.value (the injected useAuth
+// instance) is still null at that instant (its DB fetch hasn't resolved), so
+// loadContext's own guard silently returned and isLoading stayed true
+// forever: dead on cold load, same bug class as the router/data-composable
+// races elsewhere in this fix. Watching the learner too re-fires once
+// identity actually resolves, not just when the route id changes. Also
+// gated on the access check resolving to "allowed" — see
+// AdminSchoolsContainer's watch for why.
+watch(
+  [() => route.params.id, () => auth?.learner?.value, isCheckingAccess, isDenied],
+  ([id, learner, checking, denied]) => {
+    if (id && learner && !checking && !denied) loadContext(id as string)
+  },
+  { immediate: true },
+)
 // Deterministic teardown — see finding #1a, 2026-07-13 audit.
 onUnmounted(() => ctx.clear())
 </script>
@@ -56,7 +74,7 @@ onUnmounted(() => ctx.clear())
 <template>
   <div class="schools-container schools-surface">
     <AdminTopBar />
-    <div v-if="isLoading" class="schools-loading">
+    <div v-if="isCheckingAccess || isDenied || isLoading" class="schools-loading">
       <div class="loading-spinner"></div>
       <p>Loading group…</p>
     </div>

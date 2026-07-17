@@ -8,11 +8,20 @@
  * as Update) or the next SW update arrives.
  */
 import { useRegisterSW } from 'virtual:pwa-register/vue'
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   updateAvailable, userDismissed, setApplyUpdate,
   isDifferentBuild, fetchLatestBuildNumber,
 } from '@/composables/usePwaUpdate'
+
+// Never interrupt an active cycle (B6/Gap 4) — the banner still appears
+// promptly since it re-evaluates on every play/pause tick, and rounds are
+// ~11s apart, so it surfaces at the very next natural pause rather than
+// mid-speech.
+const isPlaying = ref(false)
+function onPlayState(e: Event) {
+  isPlaying.value = !!(e as CustomEvent).detail?.playing
+}
 
 // @ts-ignore - __BUILD_NUMBER__ is defined by Vite (same pattern as App.vue).
 const BUILD_VERSION = typeof __BUILD_NUMBER__ !== 'undefined' ? __BUILD_NUMBER__ : 'dev'
@@ -71,7 +80,8 @@ watch(needRefresh, (v) => {
 watch(verifiedNewBuild, (v) => { updateAvailable.value = v })
 
 // Banner is visible only until the user dismisses — then the dot takes over.
-const showBanner = computed(() => verifiedNewBuild.value && !userDismissed.value)
+// Also held back while a cycle is actively playing (never interrupt).
+const showBanner = computed(() => verifiedNewBuild.value && !userDismissed.value && !isPlaying.value)
 
 // vite-plugin-pwa's updateServiceWorker(true) posts SKIP_WAITING and the
 // library reloads on controllerchange. The 3s fallback covers a stuck SW
@@ -100,10 +110,15 @@ function onDismiss() {
 // Let the blue dot trigger the same action.
 setApplyUpdate(onUpdate)
 
+onMounted(() => {
+  window.addEventListener('ssi-play-state', onPlayState)
+})
+
 onUnmounted(() => {
   if (updateCheckInterval) {
     clearInterval(updateCheckInterval)
   }
+  window.removeEventListener('ssi-play-state', onPlayState)
 })
 </script>
 
@@ -113,7 +128,7 @@ onUnmounted(() => {
        new stacking context that traps the banner below floating UI like
        the mode-tray trigger button. -->
   <Teleport to="body">
-    <Transition name="slide-up">
+    <Transition name="slide-down">
       <div v-if="showBanner" class="pwa-update-banner" role="status" aria-live="polite">
         <div class="pwa-update-content">
           <span class="pwa-update-text">New version available</span>
@@ -132,9 +147,13 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Top-anchored, like InstallBanner — the bottom band is the mode-tray's
+   territory (B6). Sits a banner-height below the top edge so it stacks
+   under InstallBanner rather than covering it on the rare session where
+   both would otherwise qualify to show. */
 .pwa-update-banner {
   position: fixed;
-  bottom: calc(68px + env(safe-area-inset-bottom, 0px) + 16px);
+  top: calc(env(safe-area-inset-top, 0px) + 76px);
   left: 0;
   right: 0;
   /* Max int32 — guarantees we sit above any other floating UI (mode tray,
@@ -203,14 +222,14 @@ onUnmounted(() => {
   filter: brightness(1.1);
 }
 
-.slide-up-enter-active,
-.slide-up-leave-active {
+.slide-down-enter-active,
+.slide-down-leave-active {
   transition: all 0.3s ease;
 }
 
-.slide-up-enter-from,
-.slide-up-leave-to {
-  transform: translateY(calc(100% + 32px));
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
   opacity: 0;
 }
 </style>
