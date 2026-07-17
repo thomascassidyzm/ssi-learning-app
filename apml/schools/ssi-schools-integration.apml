@@ -284,9 +284,33 @@ principle GroupRollupServerMediated:
     endpoint instead of querying the views directly; the legacy
     region_code-only fallback (no live govt_admin uses it) is untouched.
 
-# =============================================================================
-# USER ROLES
-# =============================================================================
+principle TeacherOwnPracticeVisible:
+  statement: |
+    A teacher's OWN practice (their learner's sessions rows) is a
+    first-class dashboard number, reported per-teacher as
+    own_practice_minutes on GET /api/school/roster and shown in
+    TeachersView's "Own practice" column — separate from "Student hours"
+    (their classes' students' practice).
+
+  gap_closed: |
+    2026-07-17, Chepstow (real trial school): a teacher self-joined via the
+    teacher join code, created a class, practiced ~4 minutes — and every
+    number on the school admin's dashboard read 0. Root cause: every schools
+    aggregate (class_student_progress, class_activity_stats, school_summary)
+    joins user_tags with role_in_context='student' only, so a teacher's own
+    learner is counted nowhere. In a trial school the staff's own practice
+    is usually the ONLY activity, so the whole dashboard read as "tracking
+    is broken". The earlier admin-surface fix (admin_practice_minutes RPCs
+    reading sessions directly) was correct but only fixed ssi_admin views —
+    which is why the RPC returned 4 minutes while the teacher's screen
+    showed 0.
+
+  pattern: |
+    roster.ts sums sessions.duration_seconds per teacher learner (service
+    role); useTeachersData's ssi_admin admin-view branch mirrors it under
+    the "Admins can read all sessions" RLS policy. School-level headline
+    hours stay students-only by design — staff practice is per-teacher
+    visibility, not inflation of the school's student-practice totals.
 
 data UserRoles:
   description: "Educational roles within the school hierarchy"
