@@ -229,13 +229,11 @@ CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABL
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  with sess as (
-    select user_id, session_id, extract(epoch from (max(occurred_at) - min(occurred_at))) as secs
-    from player_events where user_id = any(p_learner_ids) group by user_id, session_id
-  )
-  select user_id as learner_id,
-         coalesce(round(sum(least(greatest(secs,0),7200)) filter (where secs>=30)/60.0),0)::int
-  from sess group by user_id;
+  select s.learner_id,
+         round(sum(s.duration_seconds) / 60.0)::int as practice_minutes
+  from sessions s
+  where s.learner_id = any(p_learner_ids)
+  group by s.learner_id;
 $$;
 
 
@@ -247,13 +245,11 @@ CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEF
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  with sess as (
-    select user_id, course_code, session_id, extract(epoch from (max(occurred_at) - min(occurred_at))) as secs
-    from player_events where (p_learner_ids is null or user_id = any(p_learner_ids)) and course_code is not null
-    group by user_id, course_code, session_id
-  )
-  select course_code, coalesce(round(sum(least(greatest(secs,0),7200)) filter (where secs>=30)/60.0),0)::int
-  from sess group by course_code;
+  select s.course_id as course_code,
+         round(sum(s.duration_seconds) / 60.0)::int as practice_minutes
+  from sessions s
+  where (p_learner_ids is null or s.learner_id = any(p_learner_ids))
+  group by s.course_id;
 $$;
 
 
