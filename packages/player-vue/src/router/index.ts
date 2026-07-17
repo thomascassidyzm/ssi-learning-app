@@ -330,31 +330,33 @@ const routes: RouteRecordRaw[] = [
         redirect: '/admin/setup',
       },
       {
-        path: 'access',
-        name: 'admin-access',
-        component: () => import('@/views/admin/AdminAccess.vue'),
-        meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
-      },
-      {
-        path: 'demos',
-        name: 'admin-demo-schools',
-        component: () => import('@/views/admin/AdminDemoSchools.vue'),
-        meta: { title: 'Demos', description: 'Self-serve sales showcase orgs for prospects — no school/class/teacher language' },
+        // Canonical invites surface (2026-07-17 rethink): one create card
+        // (org / direct / demo) + one live list, replacing the
+        // creation/list halves of Access, Demos and Try Links. See
+        // docs/invites-redesign/DESIGN.md.
+        path: 'invites',
+        name: 'admin-invites',
+        component: () => import('@/views/admin/AdminInvites.vue'),
+        meta: { title: 'Invites', description: 'One primitive — who × where × what × limits; every link that lets someone in, real or demo' },
       },
       {
         // Old paths — kept working, not just bookmark hygiene: each predates
-        // the current model (flat demo school, then a schools/classes org
-        // tree) this route now serves (a learner-only group hierarchy).
+        // the unified Invites surface and preserves the visitor's intent as
+        // a deep-linked mode/sub into the one create card.
+        path: 'access',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'direct' } }),
+      },
+      {
+        path: 'demos',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
+      },
+      {
         path: 'demo-organisations',
-        redirect: '/admin/demos',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
       },
       {
         path: 'demo-schools',
-        redirect: '/admin/demos',
-      },
-      {
-        path: 'invites',
-        redirect: '/admin/access',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
       },
       {
         path: 'analytics',
@@ -400,13 +402,11 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'entitlements',
-        redirect: '/admin/access',
+        redirect: () => ({ path: '/admin/invites' }),
       },
       {
         path: 'try-links',
-        name: 'admin-try-links',
-        component: () => import('@/views/admin/AdminTryLinks.vue'),
-        meta: { title: 'Try Links', description: 'Zero-friction preview links for partners' },
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'direct', sub: 'preview' } }),
       },
       {
         path: 'release-notes',
