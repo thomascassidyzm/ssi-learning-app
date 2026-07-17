@@ -36,7 +36,7 @@ const {
   deleteClass: deleteClassApi,
 } = useClassesData()
 const { viewingSchool } = useSchoolData()
-const { canPlayAsClass, launchClassSession } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 
 // When a govt admin drilled group → school → class, "back" should return to
 // the school dashboard, not the (empty for them) classes list.
@@ -357,6 +357,10 @@ const deleteImpactLines = computed(() => {
       <span class="crumb-current">{{ classData.class_name }}</span>
     </nav>
 
+    <div v-if="playError" class="fetch-error-banner">
+      <span>{{ playError }}</span>
+    </div>
+
     <header class="page-head">
       <div class="page-head-text">
         <div class="schools-kicker page-eyebrow">{{ courseLabel }}</div>
@@ -581,6 +585,19 @@ const deleteImpactLines = computed(() => {
   font-size: 12.5px;
   color: var(--schools-fg-2);
   margin-bottom: 10px;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
 }
 .breadcrumb a {
   color: inherit;

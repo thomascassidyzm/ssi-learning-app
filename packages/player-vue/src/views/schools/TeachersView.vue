@@ -40,6 +40,13 @@ function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
 }
 
+// Teachers trialling the platform practice for minutes, not hours — "0h"
+// for someone who genuinely practised reads as "tracking is broken".
+function formatOwnPractice(minutes: number): string {
+  if (minutes >= 60) return `${Math.round((minutes / 60) * 10) / 10}h`
+  return `${minutes}m`
+}
+
 const teachers = computed(() => {
   return teachersData.value.map(t => ({
     id: t.learner_id,
@@ -49,6 +56,7 @@ const teachers = computed(() => {
     classes: t.class_count,
     students: t.student_count,
     hours7d: t.total_practice_hours,
+    ownMinutes: t.own_practice_minutes ?? 0,
     role: 'Teacher' as 'Teacher' | 'Admin',
     status: 'active' as TeacherStatus,
     joined_at: t.joined_at,
@@ -114,9 +122,9 @@ async function handleRemoveTeacher(userId: string, name: string) {
 }
 
 function exportCsv() {
-  const header = ['Name', 'Classes', 'Students', 'Hours/wk', 'Role', 'Status', 'Joined']
+  const header = ['Name', 'Classes', 'Students', 'Student hours', 'Own practice minutes', 'Role', 'Status', 'Joined']
   const rows = filtered.value.map(t => [
-    t.name, t.classes, t.students, t.hours7d, t.role, t.status, t.joined_at,
+    t.name, t.classes, t.students, t.hours7d, t.ownMinutes, t.role, t.status, t.joined_at,
   ].join(','))
   const csv = [header.join(','), ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
@@ -163,6 +171,11 @@ watch(selectedUser, (newUser) => {
       </div>
     </div>
 
+    <div v-if="teachersError" class="fetch-error-banner">
+      <span>Couldn't refresh this list — showing the last data loaded. {{ teachersError }}</span>
+      <button type="button" class="btn-ghost" @click="fetchTeachers()">Retry</button>
+    </div>
+
     <Transition name="fade">
       <div v-if="showImportHint" class="invite-hint schools-card schools-card-pad">
         Bulk CSV import is coming soon. For now, share the teacher invite link below — teachers click it, sign in once, and land in your school.
@@ -187,7 +200,8 @@ watch(selectedUser, (newUser) => {
             <th>Role</th>
             <th>Classes</th>
             <th>Students</th>
-            <th>Hours/wk</th>
+            <th>Student hours</th>
+            <th>Own practice</th>
             <th>Status</th>
             <th></th>
           </tr>
@@ -209,6 +223,7 @@ watch(selectedUser, (newUser) => {
             <td>{{ t.classes }}</td>
             <td>{{ t.students }}</td>
             <td>{{ t.hours7d }}h</td>
+            <td>{{ formatOwnPractice(t.ownMinutes) }}</td>
             <td>
               <span class="status-cell" :class="t.status">
                 <span class="status-dot" />
@@ -228,7 +243,7 @@ watch(selectedUser, (newUser) => {
             </td>
           </tr>
           <tr v-if="filtered.length === 0">
-            <td colspan="7" class="empty-row">
+            <td colspan="8" class="empty-row">
               No teachers match "{{ searchQuery }}".
             </td>
           </tr>
@@ -307,6 +322,20 @@ watch(selectedUser, (newUser) => {
   padding: 22px 28px 32px;
   max-width: 1320px;
   margin: 0 auto;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
 }
 
 .page-head {
