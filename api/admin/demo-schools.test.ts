@@ -127,12 +127,9 @@ beforeEach(async () => {
   provisionResult = {
     demoOrgId: 'org-1',
     orgName: 'Riverside Trust',
-    orgShape: 'single_school',
     courseCode: 'zho_for_eng',
-    groupId: null,
-    schoolIds: ['school-1'],
-    staff: [{ role: 'school_admin', name: 'Jane Admin', email: 'jane@example.com', learnerId: 'learner-1', password: 'abc123' }],
-    counts: { schools: 1, teachers: 2, classes: 3, learners: 30 },
+    groupId: 'group-1',
+    studentJoinCode: 'ABC-123',
     expiresAt: '2026-08-15T00:00:00.000Z',
   }
   demoOrgRows = [{
@@ -179,27 +176,27 @@ describe('POST /api/admin/demo-schools', () => {
   describe('create', () => {
     it('requires prospectName', async () => {
       const res = makeRes()
-      await handler(makeReq('POST', { action: 'create', orgShape: 'single_school', courseCode: 'zho_for_eng' }), res)
+      await handler(makeReq('POST', { action: 'create', courseCode: 'zho_for_eng' }), res)
       expect(res.statusCode).toBe(400)
     })
 
-    it('requires a valid orgShape', async () => {
+    it('requires courseCode', async () => {
       const res = makeRes()
-      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme', orgShape: 'nonsense', courseCode: 'zho_for_eng' }), res)
+      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme' }), res)
       expect(res.statusCode).toBe(400)
     })
 
     it('rate-limits after too many recent creates by the same admin', async () => {
       rateCount = 10
       const res = makeRes()
-      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme', orgShape: 'single_school', courseCode: 'zho_for_eng' }), res)
+      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme', courseCode: 'zho_for_eng' }), res)
       expect(res.statusCode).toBe(429)
       expect(provisionDemoOrgMock).not.toHaveBeenCalled()
     })
 
     it('provisions the org and writes an audit row', async () => {
       const res = makeRes()
-      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme', orgShape: 'single_school', courseCode: 'zho_for_eng' }), res)
+      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme', courseCode: 'zho_for_eng' }), res)
       expect(res.statusCode).toBe(201)
       expect(res.body.org.demoOrgId).toBe('org-1')
       expect(insertedEvents).toHaveLength(1)
@@ -209,7 +206,7 @@ describe('POST /api/admin/demo-schools', () => {
     it('500s when provisioning throws (e.g. phantom course code)', async () => {
       provisionError = new Error('course_code "fake" is not a live course')
       const res = makeRes()
-      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme', orgShape: 'single_school', courseCode: 'fake' }), res)
+      await handler(makeReq('POST', { action: 'create', prospectName: 'Acme', courseCode: 'fake' }), res)
       expect(res.statusCode).toBe(500)
       expect(res.body.error).toMatch(/not a live course/)
     })
