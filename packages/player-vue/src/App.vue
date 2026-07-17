@@ -7,7 +7,7 @@ import { createCourseDataProvider } from './providers/CourseDataProvider'
 import { loadConfig, isSupabaseConfigured } from './config/env'
 import { useAuth } from './composables/useAuth'
 import { prewarmInstantCaches } from './composables/useInstantPlayback'
-import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches } from './composables/useServiceWorkerSafety'
+import { checkKillSwitch, unregisterAllServiceWorkers, clearAllCaches, killSwitchMessage } from './composables/useServiceWorkerSafety'
 import { useTheme } from './composables/useTheme'
 import { useEagerScriptPreload } from './composables/useEagerScriptPreload'
 import { checkContentVersion } from './composables/useScriptCache'
@@ -669,6 +669,9 @@ onMounted(async () => {
     <TesterFeedback />
     <ActingAsBanner />
     <CheckoutOverlay />
+    <div v-if="killSwitchMessage" class="kill-switch-overlay">
+      <p>{{ killSwitchMessage }}</p>
+    </div>
   </div>
 </template>
 
@@ -685,5 +688,24 @@ onMounted(async () => {
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg-primary);
+}
+
+.kill-switch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  background: rgba(20, 16, 14, 0.92);
+  color: #fff;
+}
+
+.kill-switch-overlay p {
+  max-width: 420px;
+  font-size: 16px;
+  line-height: 1.5;
 }
 </style>

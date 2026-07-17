@@ -319,6 +319,11 @@ const realData = ref<RateComparisonData | null>(null)
 const realInsufficientReason = ref<string | null>(null)
 const isLoadingReal = ref(false)
 const realFetchFailed = ref(false)
+// Was a silent no-op — a missing/expired token fell through to the same
+// "No classes yet" empty state as a genuinely-empty teacher (trinity ledger
+// LA #17). Distinct message so it reads as a re-login prompt, not fabricated
+// content.
+const realAuthMissing = ref(false)
 
 async function fetchRealComparison(): Promise<void> {
   if (demoMode) return
@@ -329,11 +334,15 @@ async function fetchRealComparison(): Promise<void> {
   if (!course || !entityId) return
   isLoadingReal.value = true
   realFetchFailed.value = false
+  realAuthMissing.value = false
   try {
     const client = getSchoolsClient()
     const { data: { session } } = await client.auth.getSession()
     const token = session?.access_token
-    if (!token) return
+    if (!token) {
+      realAuthMissing.value = true
+      return
+    }
     const params = new URLSearchParams({
       course_code: course,
       entity_level: realEntityLevel.value,
@@ -517,6 +526,9 @@ const scopeLabel = computed(() =>
     </div>
     <div v-else-if="isLoadingReal" class="tiv-widget-card tiv-widget-status">
       <p>Loading your {{ entityNoun }}'s rate…</p>
+    </div>
+    <div v-else-if="realAuthMissing" class="tiv-widget-card tiv-widget-status">
+      <p>Your session has expired — sign in again to see your {{ entityNoun }}'s rate.</p>
     </div>
     <div v-else-if="insufficientReason" class="tiv-widget-card tiv-widget-status">
       <p>{{ insufficientReason }}</p>

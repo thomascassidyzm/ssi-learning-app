@@ -22,7 +22,7 @@ const isAdminView = inject<boolean>('isAdminView', false)
 const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isTeacher, isSchoolAdmin } = useSchoolContext()
 const { classes: classesData, isLoading: classesLoading, error: classesError, fetchClasses, createClass, getClassReport } = useClassesData()
-const { canPlayAsClass, launchClassSession } = usePlayAsClass()
+const { canPlayAsClass, launchClassSession, playError } = usePlayAsClass()
 
 const isCreateModalOpen = ref(false)
 const createdClass = ref<any>(null)
@@ -346,6 +346,14 @@ function exportCsv() {
       </div>
     </div>
 
+    <div v-if="classesError" class="fetch-error-banner">
+      <span>Couldn't refresh this list — showing the last data loaded. {{ classesError }}</span>
+      <button type="button" class="btn-ghost" @click="fetchClasses()">Retry</button>
+    </div>
+    <div v-if="playError" class="fetch-error-banner">
+      <span>{{ playError }}</span>
+    </div>
+
     <!-- Summary strip -->
     <div v-if="enrichedClasses.length > 0" class="summary-strip">
       <div class="summary-card schools-card">
@@ -538,6 +546,20 @@ function exportCsv() {
   padding: 22px 28px 32px;
   max-width: 1320px;
   margin: 0 auto;
+}
+
+.fetch-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--schools-red);
+  border: 1px solid rgba(var(--tone-red, 194, 58, 58), 0.28);
+  background: rgba(var(--tone-red, 194, 58, 58), 0.06);
+  border-radius: 8px;
 }
 
 .page-head {
