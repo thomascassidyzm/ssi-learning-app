@@ -5,6 +5,9 @@
  * Loads the class's parent school, populates useSchoolContext as
  * school_admin scope, then renders the existing ClassDetail view. The
  * view reads the :id from its own route and queries class detail.
+ * Standalone route — see AdminSchoolsContainer's docstring for why
+ * useAdminGate is its own gate (Trinity audit finding #1,
+ * docs/trinity/admin.md).
  */
 import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -12,12 +15,14 @@ import TopNav from '@/components/schools/shared/TopNav.vue'
 import ClassDetail from '@/views/schools/ClassDetail.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { useAdminGate } from '@/composables/useAdminGate'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
 const route = useRoute()
 const supabase = inject<any>('supabase', ref(null))
 const auth = inject<any>('auth', null)
+const { isCheckingAccess, isDenied } = useAdminGate()
 
 if (supabase.value) setSchoolsClient(supabase.value)
 
@@ -63,10 +68,14 @@ async function loadContext(classId: string | string[]) {
 // useAuth instance) is still null at that instant, so loadContext's own
 // guard silently returned and isLoading stayed true forever: dead on cold
 // load, same bug class as the router/data-composable races elsewhere in
-// this fix. Watching the learner too re-fires once identity resolves.
+// this fix. Watching the learner too re-fires once identity resolves. Also
+// gated on the access check resolving to "allowed" — see
+// AdminSchoolsContainer's watch for why.
 watch(
-  [() => route.params.id, () => auth?.learner?.value],
-  ([id]) => { if (id) loadContext(id as string) },
+  [() => route.params.id, () => auth?.learner?.value, isCheckingAccess, isDenied],
+  ([id, learner, checking, denied]) => {
+    if (id && learner && !checking && !denied) loadContext(id as string)
+  },
   { immediate: true },
 )
 // Deterministic teardown — see finding #1a, 2026-07-13 audit.
@@ -75,7 +84,7 @@ onUnmounted(() => ctx.clear())
 
 <template>
   <div class="schools-container schools-surface">
-    <div v-if="isLoading" class="schools-loading">
+    <div v-if="isCheckingAccess || isDenied || isLoading" class="schools-loading">
       <div class="loading-spinner"></div>
       <p>Loading class…</p>
     </div>
