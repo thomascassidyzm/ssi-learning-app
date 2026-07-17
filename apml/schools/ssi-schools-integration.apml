@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.2"
-  date: "2026-07-16"
+  version: "1.0.3"
+  date: "2026-07-18"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -308,9 +308,42 @@ principle TeacherOwnPracticeVisible:
   pattern: |
     roster.ts sums sessions.duration_seconds per teacher learner (service
     role); useTeachersData's ssi_admin admin-view branch mirrors it under
-    the "Admins can read all sessions" RLS policy. School-level headline
-    hours stay students-only by design — staff practice is per-teacher
-    visibility, not inflation of the school's student-practice totals.
+    the "Admins can read all sessions" RLS policy.
+
+principle HeadlineHoursIncludeStaffPractice:
+  statement: |
+    A school's HEADLINE hours (school_summary.total_practice_hours, the
+    dashboard "Hours practised" tile, govt tiles/straplines, and every group/
+    org rollup that sums school hours) include ALL practice in the school —
+    students AND staff learners — because that is a more valid testament to
+    true engagement (founder ruling, Tom 2026-07-18). Kept honest, never
+    silently inflated: the number is shown WITH its composition ("incl. Xm
+    staff practice") wherever staff minutes are nonzero, and small values use
+    minutes-first formatting (never a rounded "0h" when real minutes exist).
+
+  gap_closed: |
+    Trial schools where only staff have practiced (Chepstow: Lucy's 4m, zero
+    students) showed a bleak headline 0 even after TeacherOwnPracticeVisible
+    made her minutes visible per-teacher — the school/group rollups still
+    summed class_student_progress (students) only. The founder ruled the
+    headline should count staff's own learning too.
+
+  pattern: |
+    Single source of truth is the school_summary VIEW (migration
+    20260718_headline_hours_include_staff_practice): total_practice_hours =
+    student practice + staff practice, plus a new staff_practice_hours column
+    broken out for the composition line. "Staff" = users tagged to the school
+    as teacher OR admin, summed over ALL their learner accounts' sessions
+    (DISTINCT learner ids, so a teacher+admin double-tag can't double-count;
+    disjoint from student practice, which only sees role_in_context='student').
+    group_summary sums both columns, so org rollups inherit it; roster.ts and
+    group-summary.ts read the view with SELECT * and forward both columns.
+
+  boundary: |
+    Class-level student stats stay students-only — a class's teacher
+    practicing is school engagement, not that class's progress. Only the
+    school/group HEADLINE rollups mix staff in; class_student_progress and
+    class_activity_stats are untouched.
 
 data UserRoles:
   description: "Educational roles within the school hierarchy"
