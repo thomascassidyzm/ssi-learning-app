@@ -28,6 +28,14 @@ transitions, so the white-page/stacking class is invisible to unit tests).
   ClassDetail; absent for govt_admin everywhere (incl. ClassDetail
   deep-link); clicking launches /schools/play?class=<id> with the schools
   top bar persistent, the player mounted, and the CLASS's course active.
+- `verify-viewas.mjs` — asserts the ssi_admin "View as" (useActAs) reads on
+  the DEPLOYED build across the live IME Demo cast (IME Group Leader /
+  Lissy Thomas / Anu Varghese). Mints the admin session in-memory (no token
+  on disk), primes the act-as persona in sessionStorage, loads /schools, and
+  fails on any of: dashboard didn't render, `school_id` null crash, an
+  `/api/*` 403 (esp. `school-links`), a "Couldn't refresh" error banner, or a
+  write control (Create school) visible under the read-only banner. Writes
+  `viewas-<key>.png` per persona. Guards the 2026-07-18 View-as fix batch.
 
 Personas: thomas.cassidy+ang_school_admin / +ang_school_teacher (Angharad 001,
 class "Ang School Y7 Welsh", course cym_n_for_eng) and +govtest (Test Gov
