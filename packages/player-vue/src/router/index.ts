@@ -336,17 +336,21 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
       },
       {
-        path: 'demo-organisations',
+        path: 'demos',
         name: 'admin-demo-schools',
         component: () => import('@/views/admin/AdminDemoSchools.vue'),
-        meta: { title: 'Demo Organisations', description: 'Self-serve sales showcase orgs for prospects' },
+        meta: { title: 'Demos', description: 'Self-serve sales showcase orgs for prospects — no school/class/teacher language' },
       },
       {
-        // Old path — kept working, not just bookmark hygiene: the tool used
-        // to mint a single flat demo school, so any saved link/doc predates
-        // the org-tree model this route now serves.
+        // Old paths — kept working, not just bookmark hygiene: each predates
+        // the current model (flat demo school, then a schools/classes org
+        // tree) this route now serves (a learner-only group hierarchy).
+        path: 'demo-organisations',
+        redirect: '/admin/demos',
+      },
+      {
         path: 'demo-schools',
-        redirect: '/admin/demo-organisations',
+        redirect: '/admin/demos',
       },
       {
         path: 'invites',

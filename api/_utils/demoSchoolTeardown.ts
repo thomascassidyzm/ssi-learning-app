@@ -85,6 +85,13 @@ export async function purgeDemoOrg(
   if (schoolIds.length) {
     await deleteInChunks(supabase, 'invite_codes', 'grants_school_id', schoolIds)
   }
+  if (classIds.length) {
+    // Demos leaf classes (demoLeaf.ts) register their student_join_code as a
+    // grants_class_id invite_codes row, not grants_school_id — the old
+    // synthetic-roster generator never did (its students were bulk-inserted
+    // learner rows, no redeem flow), so this had no prior demo-org case.
+    await deleteInChunks(supabase, 'invite_codes', 'grants_class_id', classIds)
+  }
 
   if (classIds.length) {
     await deleteInChunks(supabase, 'classes', 'id', classIds)
