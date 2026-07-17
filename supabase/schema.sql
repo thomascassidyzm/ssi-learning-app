@@ -222,18 +222,54 @@ $$;
 
 
 --
+-- Name: position_derived_seconds_per_lego(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.position_derived_seconds_per_lego() RETURNS integer
+    LANGUAGE sql IMMUTABLE
+    AS $$ select 120 $$;
+
+
+--
 -- Name: admin_practice_minutes(uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABLE(learner_id uuid, practice_minutes integer)
+CREATE FUNCTION public.admin_practice_minutes(p_learner_ids uuid[]) RETURNS TABLE(learner_id uuid, practice_minutes integer, is_estimated boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select s.learner_id,
-         round(sum(s.duration_seconds) / 60.0)::int as practice_minutes
-  from sessions s
-  where s.learner_id = any(p_learner_ids)
-  group by s.learner_id;
+  with logged as (
+    select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
+    from sessions s
+    where s.learner_id = any(p_learner_ids)
+    group by s.learner_id, s.course_id
+  ),
+  lego_order as (
+    select cl.course_code, cl.lego_id,
+           row_number() over (partition by cl.course_code order by cl.seed_number, cl.lego_index) as ord
+    from course_legos cl
+  ),
+  estimated as (
+    select ce.learner_id, ce.course_id,
+           lo.ord * public.position_derived_seconds_per_lego() as seconds
+    from course_enrollments ce
+    join lego_order lo on lo.course_code = ce.course_id and lo.lego_id = ce.highest_completed_lego_id
+    where ce.learner_id = any(p_learner_ids)
+      and ce.highest_completed_lego_id is not null
+      and not exists (
+        select 1 from logged l where l.learner_id = ce.learner_id and l.course_id = ce.course_id
+      )
+  ),
+  combined as (
+    select learner_id, seconds, false as is_estimated from logged
+    union all
+    select learner_id, seconds, true as is_estimated from estimated
+  )
+  select learner_id,
+         round(sum(seconds) / 60.0)::int as practice_minutes,
+         bool_or(is_estimated) as is_estimated
+  from combined
+  group by learner_id;
 $$;
 
 
@@ -241,15 +277,42 @@ $$;
 -- Name: admin_practice_minutes_by_course(uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(course_code text, practice_minutes integer)
+CREATE FUNCTION public.admin_practice_minutes_by_course(p_learner_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(course_code text, practice_minutes integer, is_estimated boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select s.course_id as course_code,
-         round(sum(s.duration_seconds) / 60.0)::int as practice_minutes
-  from sessions s
-  where (p_learner_ids is null or s.learner_id = any(p_learner_ids))
-  group by s.course_id;
+  with logged as (
+    select s.learner_id, s.course_id, sum(s.duration_seconds) as seconds
+    from sessions s
+    where (p_learner_ids is null or s.learner_id = any(p_learner_ids))
+    group by s.learner_id, s.course_id
+  ),
+  lego_order as (
+    select cl.course_code, cl.lego_id,
+           row_number() over (partition by cl.course_code order by cl.seed_number, cl.lego_index) as ord
+    from course_legos cl
+  ),
+  estimated as (
+    select ce.learner_id, ce.course_id,
+           lo.ord * public.position_derived_seconds_per_lego() as seconds
+    from course_enrollments ce
+    join lego_order lo on lo.course_code = ce.course_id and lo.lego_id = ce.highest_completed_lego_id
+    where (p_learner_ids is null or ce.learner_id = any(p_learner_ids))
+      and ce.highest_completed_lego_id is not null
+      and not exists (
+        select 1 from logged l where l.learner_id = ce.learner_id and l.course_id = ce.course_id
+      )
+  ),
+  combined as (
+    select course_id, seconds, false as is_estimated from logged
+    union all
+    select course_id, seconds, true as is_estimated from estimated
+  )
+  select course_id as course_code,
+         round(sum(seconds) / 60.0)::int as practice_minutes,
+         bool_or(is_estimated) as is_estimated
+  from combined
+  group by course_id;
 $$;
 
 
@@ -6942,13 +7005,14 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
     COALESCE(tc.teacher_count, (0)::bigint) AS teacher_count,
     COALESCE(cc.class_count, (0)::bigint) AS class_count,
     COALESCE(sc.student_count, (0)::bigint) AS student_count,
-    COALESCE(ph.total_practice_hours, (0)::numeric) AS total_practice_hours,
+    (COALESCE(ph.total_practice_hours, (0)::numeric) + COALESCE(sp.staff_practice_hours, (0)::numeric)) AS total_practice_hours,
     s.name_confirmed,
     s.teacher_join_code,
     s.admin_join_code,
     s.created_at,
-    ((s.admin_user_id IS NOT NULL) OR at.has_admin_tag) AS has_admin
-   FROM (((((public.schools s
+    ((s.admin_user_id IS NOT NULL) OR at.has_admin_tag) AS has_admin,
+    COALESCE(sp.staff_practice_hours, (0)::numeric) AS staff_practice_hours
+   FROM ((((((public.schools s
      LEFT JOIN LATERAL ( SELECT count(*) AS teacher_count
            FROM public.user_tags ut
           WHERE ((ut.tag_type = 'school'::text) AND (ut.tag_value = ('SCHOOL:'::text || s.id)) AND (ut.role_in_context = 'teacher'::text) AND (ut.removed_at IS NULL))) tc ON (true))
@@ -6963,6 +7027,12 @@ CREATE VIEW public.school_summary WITH (security_invoker='on') AS
            FROM (public.class_student_progress csp
              JOIN public.classes c ON ((c.id = csp.class_id)))
           WHERE (c.school_id = s.id)) ph ON (true))
+     LEFT JOIN LATERAL ( SELECT (COALESCE(sum(sess.duration_seconds), 0)::numeric / (3600)::numeric) AS staff_practice_hours
+           FROM public.sessions sess
+          WHERE (sess.learner_id IN ( SELECT DISTINCT l.id
+                   FROM (public.user_tags ut3
+                     JOIN public.learners l ON ((l.user_id = ut3.user_id)))
+                  WHERE ((ut3.tag_type = 'school'::text) AND (ut3.tag_value = ('SCHOOL:'::text || s.id)) AND (ut3.role_in_context = ANY (ARRAY['teacher'::text, 'admin'::text])) AND (ut3.removed_at IS NULL))))) sp ON (true))
      LEFT JOIN LATERAL ( SELECT (EXISTS ( SELECT 1
                    FROM public.user_tags ut2
                   WHERE ((ut2.tag_type = 'school'::text) AND (ut2.tag_value = ('SCHOOL:'::text || s.id)) AND (ut2.role_in_context = 'admin'::text) AND (ut2.removed_at IS NULL)))) AS has_admin_tag) at ON (true));
@@ -6981,7 +7051,8 @@ CREATE VIEW public.group_summary WITH (security_invoker='on') AS
     COALESCE(sum(ss.class_count), (0)::numeric) AS class_count,
     COALESCE(sum(ss.student_count), (0)::numeric) AS student_count,
     COALESCE(sum(ss.total_practice_hours), (0)::numeric) AS total_practice_hours,
-    g.name_confirmed
+    g.name_confirmed,
+    COALESCE(sum(ss.staff_practice_hours), (0)::numeric) AS staff_practice_hours
    FROM ((public.groups g
      LEFT JOIN public.schools s ON ((s.group_id IN ( SELECT public.get_subtree_group_ids(g.id) AS get_subtree_group_ids))))
      LEFT JOIN public.school_summary ss ON ((ss.school_id = s.id)))
@@ -14825,6 +14896,14 @@ GRANT ALL ON FUNCTION public.activate_brief_version(p_known_code text, p_target_
 GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO anon;
 GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO authenticated;
 GRANT ALL ON FUNCTION public.activate_prompt_version(p_phase_code text, p_version text) TO service_role;
+
+
+--
+-- Name: FUNCTION position_derived_seconds_per_lego(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.position_derived_seconds_per_lego() TO service_role;
+GRANT ALL ON FUNCTION public.position_derived_seconds_per_lego() TO authenticated;
 
 
 --

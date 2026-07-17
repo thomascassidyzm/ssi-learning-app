@@ -87,16 +87,20 @@ export async function provisionDemoOrg(
 ): Promise<DemoOrgResult> {
   const { prospectName, courseCode, createdBy } = spec
 
-  // Phantom-course guard — server-side, not just the client dropdown. Only a
-  // LIVE course may back a showcase; a beta/draft/retired code would leave
-  // the demo's first join code pointing at content nobody can play.
+  // Phantom-course guard — server-side, not just the client dropdown. A demo
+  // may be shaped to any language pair a prospect wants, so it accepts the
+  // full canonical learner catalogue (new_app_status IN ('live','beta') —
+  // the same set App.vue / api/courses/available.ts surface to real
+  // learners). draft/not_available codes are still rejected: they'd leave the
+  // demo's first join code pointing at content nobody can play.
+  const PLAYABLE_STATUSES = ['live', 'beta']
   const { data: course, error: courseErr } = await supabase
     .from('courses')
     .select('course_code, new_app_status')
     .eq('course_code', courseCode)
     .maybeSingle()
-  if (courseErr || !course || course.new_app_status !== 'live') {
-    throw new Error(`course_code "${courseCode}" is not a live course`)
+  if (courseErr || !course || !PLAYABLE_STATUSES.includes(course.new_app_status)) {
+    throw new Error(`course_code "${courseCode}" is not an available course`)
   }
 
   // ---- root organisation group (founder org model — the root of the
@@ -121,7 +125,9 @@ export async function provisionDemoOrg(
 
   // ---- the root's own hidden leaf, so a fresh demo has a join code ready
   // immediately, before the admin grows the tree any further. ----
-  const leaf = await ensureDemoLeafClass(supabase, groupId, createdBy)
+  // Pass the course explicitly: the owning demo_orgs row is inserted just
+  // below, so ensureDemoLeafClass cannot yet resolve it by walking the tree.
+  const leaf = await ensureDemoLeafClass(supabase, groupId, createdBy, courseCode)
   if ('error' in leaf) throw new Error(`root leaf provisioning failed: ${leaf.error}`)
 
   const expiresAt = new Date(Date.now() + 30 * DAY).toISOString()

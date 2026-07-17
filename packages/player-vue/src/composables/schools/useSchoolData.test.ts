@@ -305,6 +305,46 @@ describe('useSchoolData', () => {
     expect(sd.totalPracticeHours.value).toBe(999)
   })
 
+  it('threads staff_practice_hours from the roster so the headline can show the honest composition (Chepstow, staff-only school)', async () => {
+    // Founder ruling 2026-07-18: headline hours include staff's OWN practice.
+    // Chepstow is a trial school where ONLY staff (Lucy) have practised —
+    // total_practice_hours already INCLUDES her minutes, and staff_practice_hours
+    // breaks them out so the UI shows "incl. Xm staff practice", never a bare 0.
+    const sd = await setup({
+      schools: { data: { teacher_join_code: 'CHEP' }, error: null },
+    }, 'school_admin')
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        // Lucy's 4m of own practice, no students yet: total == staff.
+        school: { school_id: 'chepstow', school_name: 'Chepstow', region_code: 'WALES', admin_user_id: null, teacher_count: 1, class_count: 0, student_count: 0, total_practice_hours: 4 / 60, staff_practice_hours: 4 / 60, created_at: '2025-01-01' },
+        teachers: [], students: [],
+      }),
+    })))
+
+    await sd.fetchSchools()
+
+    expect(sd.currentSchool.value?.staff_practice_hours).toBeCloseTo(4 / 60)
+    expect(sd.totalPracticeHours.value).toBeCloseTo(4 / 60)
+    // The composition equals the whole headline here — every practised minute is staff's.
+    expect(sd.totalStaffPracticeHours.value).toBeCloseTo(4 / 60)
+    vi.unstubAllGlobals()
+  })
+
+  it('totalStaffPracticeHours sums schools and prefers groupSummary/viewingSchool', async () => {
+    const sd = await setup({}, 'govt_admin')
+    sd.schools.value = [
+      { id: 's1', school_name: 'A', region_code: null, admin_user_id: 'u1', teacher_join_code: '', admin_join_code: 'ADM-101', teacher_count: 1, class_count: 1, student_count: 10, total_practice_hours: 5, staff_practice_hours: 1, created_at: '' },
+      { id: 's2', school_name: 'B', region_code: null, admin_user_id: 'u2', teacher_join_code: '', admin_join_code: 'ADM-102', teacher_count: 1, class_count: 1, student_count: 20, total_practice_hours: 10, staff_practice_hours: 2, created_at: '' },
+    ]
+    sd.groupSummary.value = null
+    expect(sd.totalStaffPracticeHours.value).toBe(3)
+
+    sd.groupSummary.value = { region_code: 'W', group_name: 'Wales', school_count: 2, teacher_count: 2, student_count: 30, total_practice_hours: 15, staff_practice_hours: 3 }
+    expect(sd.totalStaffPracticeHours.value).toBe(3)
+  })
+
   it('does not fetch if no selected user', async () => {
     const { setSchoolsClient } = await import('./client')
     const mockClient = createMockClient({})

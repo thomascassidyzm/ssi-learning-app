@@ -55,6 +55,7 @@ export async function ensureDemoLeafClass(
   supabase: SupabaseClient,
   groupId: string,
   createdBy: string,
+  courseCodeOverride?: string,
 ): Promise<DemoLeaf | { error: string }> {
   const { data: existingSchools } = await supabase.from('schools').select('id').eq('group_id', groupId).limit(1)
   const existingSchoolId = existingSchools?.[0]?.id as string | undefined
@@ -74,7 +75,11 @@ export async function ensureDemoLeafClass(
   const { data: group, error: groupErr } = await supabase.from('groups').select('id, name').eq('id', groupId).maybeSingle()
   if (groupErr || !group) return { error: groupErr?.message || 'Group not found' }
 
-  const courseCode = await resolveDemoOrgCourseCode(supabase, groupId)
+  // Root-leaf provisioning at org-creation time passes the course directly
+  // (the owning demo_orgs row is written AFTER this call, so resolving it by
+  // walking the tree would find nothing — the original 500). Tree-grow calls
+  // (api/admin/demo-leaf.ts) omit it and resolve from the org, as before.
+  const courseCode = courseCodeOverride ?? await resolveDemoOrgCourseCode(supabase, groupId)
   if (!courseCode) return { error: 'Could not resolve a course for this organisation' }
 
   let schoolId = existingSchoolId
