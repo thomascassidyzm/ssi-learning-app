@@ -805,14 +805,40 @@ function clearCourseSelection(): void {
 
 // Group delete
 async function deleteGroup(group: Group): Promise<void> {
-  if (!confirm(`Delete group "${group.name}"? Schools in this group will become ungrouped.`)) return
-
   try {
     const token = await getAuthToken()
-    const headers: Record<string, string> = {}
-    if (token) headers['Authorization'] = `Bearer ${token}`
+    if (!token) throw new Error('Not authenticated')
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
 
-    const response = await fetch(`/api/groups/${group.id}`, {
+    const impactResp = await fetch(`/api/groups/${group.id}`, { method: 'GET', headers })
+    const impactData = await impactResp.json().catch(() => ({}))
+    if (!impactResp.ok) throw new Error(impactData.error || 'Failed to load deletion impact')
+    const impact = impactData.impact as {
+      schoolCount: number
+      classCount: number
+      learnerCount: number
+      teacherCount: number
+      hasRealActivity: boolean
+    }
+
+    const summary = `${impact.schoolCount} school(s), ${impact.classCount} class(es), ${impact.learnerCount} learner(s), ${impact.teacherCount} teacher(s)`
+    let confirmName = ''
+    if (impact.hasRealActivity) {
+      const typed = prompt(
+        `"${group.name}" has REAL recorded activity — ${summary}.\n\nThis cannot be undone. Type the group name exactly to confirm deletion:`
+      )
+      if (typed === null) return
+      confirmName = typed.trim()
+      if (confirmName !== group.name) {
+        error.value = 'Group name did not match — deletion cancelled'
+        return
+      }
+    } else {
+      if (!confirm(`Delete group "${group.name}"?\n\nAffects: ${summary}.\nSchools in this group will become ungrouped.`)) return
+    }
+
+    const params = confirmName ? `?confirm_name=${encodeURIComponent(confirmName)}` : ''
+    const response = await fetch(`/api/groups/${group.id}${params}`, {
       method: 'DELETE',
       headers,
     })
@@ -872,18 +898,48 @@ async function saveGroupRename(group: Group): Promise<void> {
 
 // School delete
 async function deleteSchool(school: School): Promise<void> {
-  if (!confirm(`Delete school "${school.school_name}"? This cannot be undone.`)) return
-
   try {
     // schools.delete moved server-side (/api/admin/update-school) — the
     // 2026-07-04 grant-hygiene window revoked direct client writes on the
     // org tables (see CLAUDE.md RLS section).
     const token = await getAuthToken()
     if (!token) throw new Error('Not authenticated')
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
 
-    const resp = await fetch(`/api/admin/update-school?school_id=${encodeURIComponent(school.id)}`, {
+    const impactResp = await fetch(`/api/admin/update-school?school_id=${encodeURIComponent(school.id)}`, {
+      method: 'GET',
+      headers,
+    })
+    const impactData = await impactResp.json().catch(() => ({}))
+    if (!impactResp.ok) throw new Error(impactData.error || 'Failed to load deletion impact')
+    const impact = impactData.impact as {
+      classCount: number
+      learnerCount: number
+      teacherCount: number
+      hasRealActivity: boolean
+    }
+
+    const summary = `${impact.classCount} class(es), ${impact.learnerCount} learner(s), ${impact.teacherCount} teacher(s)`
+    let confirmName = ''
+    if (impact.hasRealActivity) {
+      const typed = prompt(
+        `"${school.school_name}" has REAL recorded activity — ${summary}.\n\nThis cannot be undone. Type the school name exactly to confirm deletion:`
+      )
+      if (typed === null) return
+      confirmName = typed.trim()
+      if (confirmName !== school.school_name) {
+        error.value = 'School name did not match — deletion cancelled'
+        return
+      }
+    } else {
+      if (!confirm(`Delete school "${school.school_name}"?\n\nAffects: ${summary}.\nThis cannot be undone.`)) return
+    }
+
+    const params = new URLSearchParams({ school_id: school.id })
+    if (confirmName) params.set('confirm_name', confirmName)
+    const resp = await fetch(`/api/admin/update-school?${params.toString()}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers,
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
