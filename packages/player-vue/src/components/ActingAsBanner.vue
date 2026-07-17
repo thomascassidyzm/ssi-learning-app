@@ -7,13 +7,18 @@
 import { computed } from 'vue'
 import { useUserRole, roleLabel } from '@/composables/useUserRole'
 import { useActAs } from '@/composables/useActAs'
+import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 
 const { actingAs, isActingAs } = useUserRole()
 const { exitActAs } = useActAs()
+const { currentUser } = useSchoolContext()
 
-const label = computed(() =>
-  actingAs.value ? `${actingAs.value.name} · ${roleLabel(actingAs.value.role)}` : '',
-)
+const label = computed(() => {
+  if (!actingAs.value) return ''
+  const school = currentUser.value?.school_name
+  const parts = [roleLabel(actingAs.value.role), school].filter(Boolean)
+  return `${actingAs.value.name} (${parts.join(', ')})`
+})
 </script>
 
 <template>
@@ -24,7 +29,7 @@ const label = computed(() =>
         <circle cx="12" cy="12" r="3" />
       </svg>
     </span>
-    <span class="aab-text">Viewing as <strong>{{ label }}</strong></span>
+    <span class="aab-text">Viewing as <strong>{{ label }}</strong> — read only</span>
     <button type="button" class="aab-exit" @click="exitActAs">Exit</button>
   </div>
 </template>

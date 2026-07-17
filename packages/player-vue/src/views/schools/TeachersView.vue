@@ -4,6 +4,8 @@ import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useTeachersData } from '@/composables/schools/useTeachersData'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import ViewAsButton from '@/components/admin/ViewAsButton.vue'
+import type { ActAsPersona } from '@/composables/useUserRole'
 
 type TeacherStatus = 'active' | 'invited'
 
@@ -29,6 +31,10 @@ const teacherJoinLink = computed(() => {
   if (teacherJoinCode.value === 'N/A') return ''
   return `${window.location.origin}/redeem/${teacherJoinCode.value}`
 })
+
+function teacherPersona(t: { user_id: string; role: 'Teacher' | 'Admin'; name: string }): ActAsPersona {
+  return { key: t.user_id, userId: t.user_id, role: t.role === 'Admin' ? 'school_admin' : 'teacher', name: t.name }
+}
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -210,6 +216,7 @@ watch(selectedUser, (newUser) => {
               </span>
             </td>
             <td class="cell-action">
+              <ViewAsButton v-if="isAdminView" :candidates="[teacherPersona(t)]" />
               <button
                 v-if="canManageStaff"
                 type="button"

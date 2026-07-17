@@ -12,6 +12,7 @@
 
 import { ref } from 'vue'
 import { getSchoolsClient } from './client'
+import { viewAsRequestHeaders } from '../useUserRole'
 
 export interface SchoolLink {
   id: string
@@ -26,7 +27,7 @@ export interface SchoolLink {
 async function authHeaders(): Promise<Record<string, string>> {
   const client = getSchoolsClient()
   const { data: { session } } = await client.auth.getSession()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...viewAsRequestHeaders() }
   if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
   return headers
 }

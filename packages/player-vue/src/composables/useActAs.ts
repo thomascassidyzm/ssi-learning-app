@@ -21,6 +21,59 @@ import { useUserRole, type ActAsPersona } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { getSchoolsClient, setSchoolsClient } from '@/composables/schools/client'
 
+// The audit row id for the in-flight view-as session, so exitActAs can close
+// it. sessionStorage-backed like the persona itself (ACT_AS_KEY in
+// useUserRole.ts) — a reload keeps it, a closed tab loses it (an
+// open-ended audit row is a truthful record of "no explicit exit", not a
+// bug — see the migration's docstring).
+const AUDIT_ID_KEY = 'ssi-acting-as-audit-id'
+
+async function logViewAsStart(persona: ActAsPersona, authToken: string | undefined, schoolId?: string | null): Promise<void> {
+  if (!authToken) return
+  try {
+    const res = await fetch('/api/admin/view-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({
+        action: 'start',
+        target_user_id: persona.userId,
+        target_role: persona.role,
+        target_name: persona.name,
+        target_school_id: schoolId ?? null,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data?.id) sessionStorage.setItem(AUDIT_ID_KEY, data.id)
+    else if (!res.ok) console.warn('[useActAs] view-as audit start failed:', data?.error || res.status)
+  } catch (err) {
+    console.warn('[useActAs] view-as audit start threw:', err)
+  }
+}
+
+async function logViewAsEnd(authToken: string | undefined): Promise<void> {
+  let id: string | null = null
+  try {
+    id = sessionStorage.getItem(AUDIT_ID_KEY)
+    sessionStorage.removeItem(AUDIT_ID_KEY)
+  } catch {
+    // sessionStorage unavailable
+  }
+  if (!id || !authToken) return
+  try {
+    const res = await fetch('/api/admin/view-as', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ action: 'end', id }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      console.warn('[useActAs] view-as audit end failed:', data?.error || res.status)
+    }
+  } catch (err) {
+    console.warn('[useActAs] view-as audit end threw:', err)
+  }
+}
+
 export function useActAs() {
   const router = useRouter()
   const role = useUserRole()
@@ -43,14 +96,33 @@ export function useActAs() {
   async function actAs(persona: ActAsPersona): Promise<void> {
     if (!role.canActAs.value) return
     role.startActingAs(persona)
+    const c = client()
+    const token = c ? (await c.auth.getSession()).data.session?.access_token : undefined
+
+    if (persona.role === 'student') {
+      // Learners aren't a school role, and the live player must never be
+      // driven read-only (no session writes / position changes) — land on
+      // the existing admin read-view of their progress instead of /schools.
+      // Audit BEFORE navigating, same as every other persona.
+      await logViewAsStart(persona, token, null)
+      await router.push(`/admin/users/${persona.learnerId}/progress`)
+      return
+    }
+
     // Clear any prior context (e.g. a previous persona) before loading.
     ctx.clear()
-    await ctx.loadAsPersona(persona.userId, client())
+    await ctx.loadAsPersona(persona.userId, c)
+    // Audit BEFORE navigating — the compliance record must exist before the
+    // admin can see anything, not as an afterthought.
+    await logViewAsStart(persona, token, ctx.currentUser.value?.school_id ?? null)
     await router.push('/schools')
   }
 
   /** Step back out to the admin's own identity. */
   async function exitActAs(): Promise<void> {
+    const c = client()
+    const token = c ? (await c.auth.getSession()).data.session?.access_token : undefined
+    await logViewAsEnd(token)
     role.stopActingAs()
     ctx.clear()
     await router.push('/admin/access')
@@ -67,6 +139,9 @@ export function useActAs() {
     role.restoreFromCache()
     const persona = role.actingAs.value
     if (!persona) return
+    // The student path never used useSchoolContext (AdminUserProgress.vue
+    // manages its own context from the route's :learnerId) — nothing to reprime.
+    if (persona.role === 'student') return
     if (ctx.currentUser.value?.user_id === persona.userId) return
     await ctx.loadAsPersona(persona.userId, client())
   }

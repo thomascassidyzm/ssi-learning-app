@@ -6,6 +6,22 @@ import { useAdminUsers, type Tier, type SortKey } from '@/composables/admin/useA
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
+import ViewAsButton from '@/components/admin/ViewAsButton.vue'
+import type { ActAsPersona } from '@/composables/useUserRole'
+
+const VIEW_AS_ROLES = new Set(['teacher', 'school_admin', 'govt_admin', 'student'])
+
+/** Catch-all view-as entry point — every role this vocabulary covers, one place. */
+function userPersona(user: { id: string; user_id: string; display_name: string; educational_role: string | null }): ActAsPersona[] {
+  if (!user.educational_role || !VIEW_AS_ROLES.has(user.educational_role)) return []
+  return [{
+    key: user.user_id,
+    userId: user.user_id,
+    learnerId: user.id,
+    role: user.educational_role as ActAsPersona['role'],
+    name: user.display_name,
+  }]
+}
 
 const { getClient } = useAdminClient()
 const router = useRouter()
@@ -285,10 +301,11 @@ onMounted(async () => {
                 @click.stop="navigateToUser(user.id)"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M9 3v18M3 9h18"/>
                 </svg>
               </button>
+              <ViewAsButton :candidates="userPersona(user)" empty-title="No read-only view-as for this role" @click.stop />
             </td>
           </tr>
         </tbody>

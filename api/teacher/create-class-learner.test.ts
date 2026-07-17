@@ -42,8 +42,8 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
-function makeReq(body: any): VercelRequest {
-  return { method: 'POST', body, headers: { authorization: 'Bearer tok' } } as any
+function makeReq(body: any, extraHeaders?: Record<string, string>): VercelRequest {
+  return { method: 'POST', body, headers: { authorization: 'Bearer tok', ...extraHeaders } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -118,5 +118,16 @@ describe('POST /api/teacher/create-class-learner', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(500)
+  })
+
+  it('rejects an admin write attempted while viewing-as, even though the admin bypass would otherwise allow it', async () => {
+    DB.classes[0] = { id: 'class-1', teacher_user_id: 'other-teacher', school_id: null }
+    DB.learners = [{ user_id: 'admin-1', platform_role: 'ssi_admin', educational_role: null }]
+    authResult = { valid: true, userId: 'admin-1' }
+    const req = makeReq({ class_id: 'class-1' }, { 'x-ssi-view-as': '1' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(ensureSpy).not.toHaveBeenCalled()
   })
 })
