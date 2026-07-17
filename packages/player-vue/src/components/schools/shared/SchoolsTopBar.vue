@@ -26,13 +26,14 @@ const tabs = computed<NavTab[]>(() => {
     ]
   }
   if (isSchoolAdmin.value) {
+    // Settings lives in the user menu (account-shaped, not a daily
+    // destination) — fewer tabs means the school name keeps its space.
     return [
       { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
       { label: 'Classes',   to: '/schools/classes',   routeName: 'classes' },
       { label: 'Students',  to: '/schools/students',  routeName: 'students' },
       { label: 'Teachers',  to: '/schools/teachers',  routeName: 'teachers' },
       { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
-      { label: 'Settings',  to: '/schools/settings',  routeName: 'settings' },
       { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
     ]
   }
@@ -136,6 +137,11 @@ if (typeof document !== 'undefined') {
         <span class="brand-tail">Schools</span>
       </router-link>
 
+      <!-- WHERE AM I: the school name is the identity of this surface — it
+           stays visible at every width (truncating, full name in the
+           tooltip) instead of being a throwaway label that mobile hid. -->
+      <span v-if="schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
+
       <nav class="tabs" aria-label="Schools sections">
         <router-link
           v-for="t in tabs"
@@ -161,8 +167,6 @@ if (typeof document !== 'undefined') {
     </div>
 
     <div class="right">
-      <span v-if="schoolLabel" class="school-label">{{ schoolLabel }}</span>
-
       <router-link
         to="/schools/play"
         class="learn-btn"
@@ -185,6 +189,7 @@ if (typeof document !== 'undefined') {
           <span class="caret">▾</span>
         </button>
         <div v-if="menuOpen" class="user-menu-pop">
+          <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">School settings</router-link>
           <button type="button" class="menu-item" @click="signOut">Sign out</button>
         </div>
       </div>
@@ -205,8 +210,22 @@ if (typeof document !== 'undefined') {
   font-family: var(--font-body);
 }
 
-.left { display: flex; align-items: center; gap: 32px; min-width: 0; }
-.right { display: flex; align-items: center; gap: 12px; }
+.left { display: flex; align-items: center; gap: 20px; min-width: 0; flex: 1; }
+.right { display: flex; align-items: center; gap: 12px; flex: none; }
+
+/* Identity: bold, truncating, never hidden — the full name lives in the
+   title tooltip. Tabs and buttons keep their natural size; this is the ONE
+   element that gives up width. */
+.context-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--schools-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
+}
 
 .brand {
   display: flex;
@@ -232,6 +251,7 @@ if (typeof document !== 'undefined') {
   display: flex;
   gap: 4px;
   align-items: center;
+  flex: none;
 }
 .tab {
   padding: 8px 14px;
@@ -255,11 +275,6 @@ if (typeof document !== 'undefined') {
   width: 1px;
   height: 24px;
   background: var(--schools-border);
-}
-
-.school-label {
-  font-size: 12.5px;
-  color: var(--schools-fg-2);
 }
 
 .learn-btn {
@@ -367,6 +382,8 @@ if (typeof document !== 'undefined') {
   border: none;
   cursor: pointer;
   font-family: var(--font-body);
+  text-decoration: none;
+  box-sizing: border-box;
 }
 .menu-item:hover { background: #fafaf6; }
 
@@ -423,7 +440,6 @@ if (typeof document !== 'undefined') {
 @media (max-width: 768px) {
   .tabs { display: none; }
   .nav-toggle { display: inline-flex; }
-  .school-label { display: none; }
   .schools-topbar { padding: 0 16px; position: relative; }
   /* Only the hamburger + brand remain in .left once the tab bar is gone —
      the desktop 32px gap (sized for a row of tabs) left far too little
@@ -437,9 +453,11 @@ if (typeof document !== 'undefined') {
    bounding boxes. */
 @media (max-width: 430px) {
   .schools-topbar { padding: 0 10px; gap: 8px; }
+  .left { gap: 10px; }
   .right { gap: 8px; }
-  .brand-tail { display: none; }
-  .brand-logo { height: 22px; }
+  /* Identity beats brand on a phone: the wordmark goes, the school name
+     stays (the hamburger's Dashboard link covers "home"). */
+  .brand { display: none; }
   .identity { display: none; }
   .user-trigger { gap: 0; padding: 5px; }
   .caret { margin-right: 0; }

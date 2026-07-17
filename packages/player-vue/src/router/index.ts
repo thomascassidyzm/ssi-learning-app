@@ -465,6 +465,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/schools/:id',
     component: AdminSchoolsContainer,
+    meta: { hideAppEscape: true }, // carries AdminTopBar — the floating Back pill overlapped it
     children: [
       {
         path: '',
@@ -508,6 +509,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/groups/:id',
     component: AdminGroupContainer,
+    meta: { hideAppEscape: true }, // carries AdminTopBar — no floating Back pill on top
     children: [
       {
         path: '',

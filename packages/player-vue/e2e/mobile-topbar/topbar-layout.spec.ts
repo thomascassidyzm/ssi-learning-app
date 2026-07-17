@@ -47,12 +47,18 @@ test.describe('SchoolsTopBar — mobile layout (320/375/430px)', () => {
       await signInAsTeacher(page)
 
       const navToggle = await page.locator('.nav-toggle').boundingBox()
-      const brand = await page.locator('.brand').boundingBox()
+      // 2026-07-17 identity-first redesign: at phone widths the brand
+      // wordmark is deliberately gone and the SCHOOL NAME takes its place —
+      // "where am I" beats the logo (founder critique: the logo conveys
+      // nothing; the school name was invisible).
+      const contextName = await page.locator('.context-name').boundingBox()
       const learnBtn = await page.locator('.learn-btn').boundingBox()
       const userTrigger = await page.locator('.user-trigger').boundingBox()
 
       expect(navToggle, 'hamburger must be present').toBeTruthy()
-      expect(brand, 'brand/logo must be present').toBeTruthy()
+      expect(contextName, 'school name must be visible').toBeTruthy()
+      expect(contextName!.width, 'school name must have real width, not be crushed to nothing').toBeGreaterThanOrEqual(60)
+      await expect(page.locator('.brand'), 'brand wordmark yields to identity on phones').toBeHidden()
       expect(learnBtn, 'Learn button must be present').toBeTruthy()
       expect(userTrigger, 'user menu trigger must be present').toBeTruthy()
 
@@ -64,7 +70,7 @@ test.describe('SchoolsTopBar — mobile layout (320/375/430px)', () => {
       expect(userTrigger!.height, 'user menu trigger height').toBeGreaterThanOrEqual(44)
 
       // No two of the four top-bar elements may overlap.
-      const boxes = { navToggle: navToggle!, brand: brand!, learnBtn: learnBtn!, userTrigger: userTrigger! }
+      const boxes = { navToggle: navToggle!, contextName: contextName!, learnBtn: learnBtn!, userTrigger: userTrigger! }
       const names = Object.keys(boxes) as (keyof typeof boxes)[]
       for (let i = 0; i < names.length; i++) {
         for (let j = i + 1; j < names.length; j++) {
