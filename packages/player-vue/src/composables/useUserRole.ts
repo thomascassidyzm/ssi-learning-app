@@ -13,8 +13,11 @@ const ACT_AS_KEY = 'ssi-acting-as'
 export interface ActAsPersona {
   key: string
   userId: string
-  role: 'teacher' | 'school_admin' | 'govt_admin'
+  role: 'teacher' | 'school_admin' | 'govt_admin' | 'student'
   name: string
+  // Only used for role 'student' — AdminUserProgress.vue's route needs the
+  // learner PK, not the auth uid (learners.id vs learners.user_id).
+  learnerId?: string
 }
 
 /** Human label for a persona's role, for the acting-as banner and any act-as UI. */
@@ -26,6 +29,8 @@ export function roleLabel(role: ActAsPersona['role']): string {
       return 'School leader'
     case 'govt_admin':
       return 'Group leader'
+    case 'student':
+      return 'Student'
   }
 }
 
@@ -177,6 +182,16 @@ function startActingAs(persona: ActAsPersona): void {
   } catch {
     // sessionStorage unavailable
   }
+}
+
+/**
+ * Header to attach to any write-endpoint fetch made while acting-as, so the
+ * server can reject it (api/_utils/actAsGuard.ts) even for endpoints that
+ * carry a deliberate ssi_admin support bypass. A real teacher/school-admin
+ * session never sends this, so its presence alone is a safe reject signal.
+ */
+export function viewAsRequestHeaders(): Record<string, string> {
+  return isActingAs.value ? { 'X-Ssi-View-As': '1' } : {}
 }
 
 /** Stop acting as a persona and return to the admin's own identity. */

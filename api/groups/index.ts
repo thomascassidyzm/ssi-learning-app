@@ -36,7 +36,7 @@ export default async function handler(
     try {
       const { data: groups, error } = await supabase
         .from('groups')
-        .select('id, name, type, parent_id, created_at')
+        .select('id, name, type, parent_id, path, is_demo, is_test, created_at')
         .order('name')
 
       if (error) throw error
@@ -79,7 +79,7 @@ export default async function handler(
     }
   } else if (req.method === 'POST') {
     try {
-      const { name, type, parent_id } = req.body || {}
+      const { name, type, parent_id, is_demo } = req.body || {}
 
       if (!name?.trim()) {
         res.status(400).json({ error: 'Group name is required' })
@@ -88,9 +88,18 @@ export default async function handler(
 
       const row: Record<string, unknown> = {
         name: name.trim(),
-        type: type?.trim() || 'group',
+        // Root-level orgs default to 'organisation'; a parent_id implies a
+        // sub-group of an existing tree, kept as the free-text 'group'
+        // default it always had — never overridden unless the caller says so.
+        type: type?.trim() || (parent_id ? 'group' : 'organisation'),
       }
       if (parent_id) row.parent_id = parent_id
+      // is_demo is the ONLY flag on an organisation that marks it as a sales
+      // showcase (founder ruling) — demo and real orgs share every other
+      // code path. groups_inherit_parent_test_flags cascades this to every
+      // descendant group, and schools_inherit_group_test_flags cascades it
+      // on to any school attached anywhere in the subtree.
+      if (is_demo) row.is_demo = true
 
       const { data, error } = await supabase
         .from('groups')

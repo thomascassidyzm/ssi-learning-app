@@ -275,3 +275,48 @@ not a visible-options choice among things the design already listed).
 **Decided by:** agent (Stage 2 execution per the design + Tom's ruling; the pagehide-race fix and
 the null-timestamp scoping correction are judgment calls made against the ruling's stated intent,
 flagged here rather than silently shipped)
+
+## 2026-07-17 — Organisation = root of the existing groups tree, no new table
+**Move:** Built the founder "Organisations + full group hierarchy" model (ORGANISATION →
+arbitrary-depth GROUP containers → leaf ENTITY = school) entirely on the existing `groups`
+table (`parent_id`/`path`, already arbitrary-depth via `trg_compute_group_path`) plus the
+existing `groups.is_demo`/`is_test` flags — no new `organisations` table, and `demo_orgs`
+(20260716e) is left untouched as the orthogonal expiry-tracking ledger for the sales-demo tool,
+not folded in. Added one migration (groups-inherit-from-parent-group trigger, mirroring the
+existing schools-inherit-from-group trigger) so `is_demo`/`is_test` cascade correctly at any
+depth, plus `is_demo` passthrough on `POST /api/groups` and a recursive `GroupTreeNode.vue`
+admin tree UI (replacing the old hardcoded 3-level template) wired to `ConfirmDeleteModal.vue`.
+**Better:** Nick (and any admin) gets the described flow — create an org, build nested
+groups/entities of any depth, get shareable join links — on infrastructure that was already
+95% built by this week's region-tier and self-serve-delete work; the group-delete endpoint
+(`api/groups/[id].ts`) had no UI to hang off (explicitly noted in `73cbca76`'s commit message)
+and now has one.
+**Simpler:** zero new tables for the org concept itself — an "organisation" is just `parent_id
+IS NULL` on a row in a tree that already exists, `is_demo` is a column that already exists and
+already cascades to schools. The leaf-only-join invariant ("learners join ONLY an end entity")
+needed no new enforcement code: `api/code/redeem.ts`'s `student` branch only ever writes
+`CLASS:` tags from `grants_class_id` — there is no code path today that creates a group- or
+school-level learner membership, so this was already true by construction, not something this
+feature had to build.
+**Cheaper (total):** one small trigger migration (mirrors an existing one exactly, same
+maintenance shape) + one recursive Vue component reusing existing CSS tokens and the existing
+`ConfirmDeleteModal`; no new DB surface to keep in sync, no new RLS policies (the six org tables
+stay in their documented RLS-off holding pattern per CLAUDE.md's gated TODO — this feature adds
+rows to that pattern, it doesn't change the pattern).
+**Searched & rejected:**
+- Evolve `demo_orgs` into the general organisation model (the brief's second option) —
+  rejected: `demo_orgs` is a narrow, purpose-built expiry ledger (`expires_at`/`status`/a
+  creation-time metadata snapshot) for one sales-tool flow; a real paying organisation has no
+  expiry and needs none of that shape. Its `group_id`/`school_id` FKs already point INTO the
+  groups tree, so a demo org today already *is* one instance of the general model — nothing to
+  fold, they already compose correctly as two independent, orthogonal concerns (the tree vs. an
+  ephemeral tracking row over one tree instance).
+- A dedicated `organisations` table as the root, with `groups` re-pointed to hang off it —
+  rejected: `groups.parent_id IS NULL` already means exactly "top of a tree"; a second table
+  for the same fact is a duplicate source of truth for zero new capability, and every existing
+  subtree-scoping/RLS-adjacent code (`schoolScope.ts`, `isStrictDescendantGroup`) already treats
+  the groups tree as the one hierarchy — a parallel root concept would need its own scoping code
+  to stay in sync with it.
+**Search width:** visible-options (both alternatives were named in the brief itself).
+**Decided by:** agent (>90% confidence per CLAUDE.md's BSC-autonomy rule — schema/DB decision,
+inside the "code and database changes, decide and go" bucket, not an outward-facing action).

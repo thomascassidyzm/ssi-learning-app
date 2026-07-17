@@ -12,6 +12,8 @@ import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import ViewAsButton from '@/components/admin/ViewAsButton.vue'
+import type { ActAsPersona } from '@/composables/useUserRole'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -51,6 +53,10 @@ const searchQuery = ref('')
 // SCHOOL id, not the class id. Prefer `classId` when present — see
 // finding #1c, 2026-07-13 audit.
 const classIdParam = computed(() => (route.params.classId as string) || (route.params.id as string))
+
+function studentPersona(s: { user_id: string; id: string; name: string }): ActAsPersona {
+  return { key: s.user_id, userId: s.user_id, learnerId: s.id, role: 'student', name: s.name }
+}
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -449,6 +455,7 @@ const deleteImpactLines = computed(() => {
                 <td>{{ s.hours7d }}h</td>
                 <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
                 <td class="row-action">
+                  <ViewAsButton v-if="isAdminView" :candidates="[studentPersona(s)]" />
                   <button
                     v-if="!isAdminView"
                     type="button"

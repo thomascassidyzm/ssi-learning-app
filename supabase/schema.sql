@@ -3312,6 +3312,31 @@ $$;
 
 
 --
+-- Name: inherit_parent_group_test_flags(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.inherit_parent_group_test_flags() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  parent_is_test BOOLEAN;
+  parent_is_demo BOOLEAN;
+BEGIN
+  IF NEW.parent_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT is_test, is_demo INTO parent_is_test, parent_is_demo
+  FROM public.groups WHERE id = NEW.parent_id;
+
+  NEW.is_test := COALESCE(NEW.is_test, FALSE) OR COALESCE(parent_is_test, FALSE);
+  NEW.is_demo := COALESCE(NEW.is_demo, FALSE) OR COALESCE(parent_is_demo, FALSE);
+  RETURN NEW;
+END;
+$$;
+
+
+--
 -- Name: is_class_teacher(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4426,6 +4451,52 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: admin_impersonation_audit; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.admin_impersonation_audit (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    admin_user_id text NOT NULL,
+    target_user_id text NOT NULL,
+    target_role text NOT NULL,
+    target_name text,
+    target_school_id uuid,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    ended_at timestamp with time zone,
+    ip_address text,
+    user_agent text
+);
+
+
+--
+-- Name: TABLE admin_impersonation_audit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.admin_impersonation_audit IS 'Audit trail for ssi_admin "View as" read-only impersonation. Service-role-only (RLS on, no policies) — written only by api/admin/view-as.ts. The compliance record for this legitimate-interest support-access feature.';
+
+
+--
+-- Name: COLUMN admin_impersonation_audit.admin_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.admin_impersonation_audit.admin_user_id IS 'auth uid (learners.user_id) of the ssi_admin who viewed as the persona.';
+
+
+--
+-- Name: COLUMN admin_impersonation_audit.target_user_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.admin_impersonation_audit.target_user_id IS 'auth uid (learners.user_id) of the teacher/school_admin/govt_admin persona viewed.';
+
+
+--
+-- Name: COLUMN admin_impersonation_audit.target_role; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.admin_impersonation_audit.target_role IS 'Persona role at the time of viewing: teacher | school_admin | govt_admin.';
 
 
 --
@@ -8732,6 +8803,14 @@ ALTER TABLE ONLY public.sample_flags ALTER COLUMN id SET DEFAULT nextval('public
 
 
 --
+-- Name: admin_impersonation_audit admin_impersonation_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.admin_impersonation_audit
+    ADD CONSTRAINT admin_impersonation_audit_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: algorithm_config algorithm_config_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10084,6 +10163,20 @@ CREATE UNIQUE INDEX family_members_one_family ON public.family_members USING btr
 --
 
 CREATE INDEX family_members_owner_idx ON public.family_members USING btree (owner_learner_id);
+
+
+--
+-- Name: idx_admin_impersonation_audit_admin; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_admin_impersonation_audit_admin ON public.admin_impersonation_audit USING btree (admin_user_id, started_at DESC);
+
+
+--
+-- Name: idx_admin_impersonation_audit_target; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_admin_impersonation_audit_target ON public.admin_impersonation_audit USING btree (target_user_id, started_at DESC);
 
 
 --
@@ -11809,6 +11902,13 @@ CREATE TRIGGER courses_beta_timestamp_trigger BEFORE UPDATE ON public.courses FO
 
 
 --
+-- Name: groups groups_inherit_parent_test_flags; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER groups_inherit_parent_test_flags BEFORE INSERT OR UPDATE OF parent_id ON public.groups FOR EACH ROW EXECUTE FUNCTION public.inherit_parent_group_test_flags();
+
+
+--
 -- Name: language_briefs language_briefs_updated_at_trigger; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -13340,6 +13440,12 @@ CREATE POLICY "Users read own entitlements" ON public.user_entitlements FOR SELE
    FROM public.learners
   WHERE (learners.user_id = (auth.uid())::text))));
 
+
+--
+-- Name: admin_impersonation_audit; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.admin_impersonation_audit ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: algorithm_config; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15355,6 +15461,15 @@ GRANT ALL ON FUNCTION public.inherit_group_test_flags() TO service_role;
 
 
 --
+-- Name: FUNCTION inherit_parent_group_test_flags(); Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON FUNCTION public.inherit_parent_group_test_flags() TO anon;
+GRANT ALL ON FUNCTION public.inherit_parent_group_test_flags() TO authenticated;
+GRANT ALL ON FUNCTION public.inherit_parent_group_test_flags() TO service_role;
+
+
+--
 -- Name: FUNCTION is_class_teacher(p_class_id uuid, p_uid text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -15634,6 +15749,13 @@ GRANT ALL ON FUNCTION public.update_updated_at() TO service_role;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO anon;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO authenticated;
 GRANT ALL ON FUNCTION public.update_updated_at_column() TO service_role;
+
+
+--
+-- Name: TABLE admin_impersonation_audit; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.admin_impersonation_audit TO service_role;
 
 
 --
@@ -16476,6 +16598,7 @@ GRANT ALL ON TABLE public.phase_prompts TO service_role;
 --
 
 GRANT ALL ON TABLE public.player_events TO service_role;
+GRANT SELECT,INSERT ON TABLE public.player_events TO authenticated;
 
 
 --
