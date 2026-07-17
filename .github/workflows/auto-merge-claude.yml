@@ -18,7 +18,46 @@ permissions:
   contents: write
 
 jobs:
+  # Gate: the branch must pass the four feedback loops before it can merge to
+  # dev. Kept in-file (rather than relying on the separate verify.yml) because a
+  # separate workflow does NOT block this merge job — only an in-file needs: does.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @ssi/core
+        run: pnpm --filter @ssi/core build
+
+      - name: Player typecheck
+        run: pnpm --filter player-vue typecheck
+
+      - name: API typecheck
+        run: pnpm typecheck:api
+
+      - name: Player tests
+        run: pnpm --filter player-vue test
+
+      - name: API tests
+        run: pnpm test:api
+
   merge-to-dev:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

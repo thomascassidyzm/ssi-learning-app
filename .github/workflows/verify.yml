@@ -1,0 +1,54 @@
+name: Verify (typecheck + tests)
+
+# Feedback-loop gate mandated by CLAUDE.md ("all feedback loops must pass
+# before commit"). Runs the four verification gates on every claude/** and
+# dev push and on pull requests. auto-merge-claude.yml gates its merge on an
+# identical set of gates via a needs:verify job so nothing lands on dev red.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - dev
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      # @ssi/core is consumed by player-vue via its built dist; build it first
+      # so the player typecheck resolves the current core exports.
+      - name: Build @ssi/core
+        run: pnpm --filter @ssi/core build
+
+      - name: Player typecheck
+        run: pnpm --filter player-vue typecheck
+
+      - name: API typecheck
+        run: pnpm typecheck:api
+
+      - name: Player tests
+        run: pnpm --filter player-vue test
+
+      - name: API tests
+        run: pnpm test:api
