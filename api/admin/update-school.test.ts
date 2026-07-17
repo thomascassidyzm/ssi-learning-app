@@ -15,6 +15,25 @@ vi.mock('../_utils/auth', () => ({
   verifyAdmin: vi.fn(async () => verifyAdminResult),
 }))
 
+let schoolImpact: any
+let deleteSchoolCascadeError: Error | null = null
+const computeSchoolImpact = vi.fn(async () => {
+  if (!schoolImpact) throw new Error('School not found')
+  return schoolImpact
+})
+const deleteSchoolCascade = vi.fn(async () => {
+  if (deleteSchoolCascadeError) throw deleteSchoolCascadeError
+})
+vi.mock('../_utils/schoolGroupDeletion', () => ({
+  computeSchoolImpact: (...args: any[]) => computeSchoolImpact(...args),
+  deleteSchoolCascade: (...args: any[]) => deleteSchoolCascade(...args),
+}))
+
+const auditAdminDelete = vi.fn(async () => {})
+vi.mock('../_utils/auditAdminDelete', () => ({
+  auditAdminDelete: (...args: any[]) => auditAdminDelete(...args),
+}))
+
 let groupRow: any
 let updateCalls: any[] = []
 let deleteCalls: any[] = []
@@ -60,8 +79,10 @@ function makeReq(body: unknown): VercelRequest {
   return { method: 'PATCH', body, headers: { authorization: 'Bearer tok' } } as any
 }
 
-function makeDeleteReq(schoolId: string): VercelRequest {
-  return { method: 'DELETE', query: { school_id: schoolId }, body: {}, headers: { authorization: 'Bearer tok' } } as any
+function makeDeleteReq(schoolId: string, confirmName?: string): VercelRequest {
+  const query: Record<string, string> = { school_id: schoolId }
+  if (confirmName !== undefined) query.confirm_name = confirmName
+  return { method: 'DELETE', query, body: {}, headers: { authorization: 'Bearer tok' } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -77,6 +98,19 @@ beforeEach(async () => {
   deleteError = null
   groupRow = { id: 'group-1' }
   verifyAdminResult = { userId: 'admin-1' }
+  schoolImpact = {
+    schoolId: 'school-1',
+    schoolName: 'Ysgol Test',
+    classCount: 0,
+    sessionCount: 0,
+    learnerCount: 0,
+    teacherCount: 0,
+    hasRealActivity: false,
+  }
+  deleteSchoolCascadeError = null
+  computeSchoolImpact.mockClear()
+  deleteSchoolCascade.mockClear()
+  auditAdminDelete.mockClear()
   handler = (await import('./update-school')).default
 })
 
@@ -126,6 +160,24 @@ describe('PATCH /api/admin/update-school', () => {
   })
 })
 
+describe('GET /api/admin/update-school (impact preview)', () => {
+  it('rejects a non-admin caller', async () => {
+    verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
+    const req = { method: 'GET', query: { school_id: 'school-1' }, headers: { authorization: 'Bearer tok' } } as any
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('returns the computed impact', async () => {
+    const req = { method: 'GET', query: { school_id: 'school-1' }, headers: { authorization: 'Bearer tok' } } as any
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.impact).toMatchObject({ schoolName: 'Ysgol Test' })
+  })
+})
+
 describe('DELETE /api/admin/update-school', () => {
   it('rejects a non-admin caller', async () => {
     verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
@@ -133,7 +185,7 @@ describe('DELETE /api/admin/update-school', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)
-    expect(deleteCalls.length).toBe(0)
+    expect(deleteSchoolCascade).not.toHaveBeenCalled()
   })
 
   it('requires school_id', async () => {
@@ -141,23 +193,55 @@ describe('DELETE /api/admin/update-school', () => {
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(400)
-    expect(deleteCalls.length).toBe(0)
+    expect(deleteSchoolCascade).not.toHaveBeenCalled()
   })
 
-  it('deletes the school', async () => {
+  it('deletes the school and logs an audit row when there is no real activity', async () => {
     const req = makeDeleteReq('school-1')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(deleteCalls[0]).toMatchObject({ table: 'schools' })
+    expect(deleteSchoolCascade).toHaveBeenCalledWith(expect.anything(), 'school-1')
+    expect(auditAdminDelete).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: 'admin_school_deleted' })
+    )
     expect(res.body.success).toBe(true)
   })
 
   it('surfaces a delete error', async () => {
-    deleteError = { message: 'delete failed' }
+    deleteSchoolCascadeError = new Error('delete failed')
     const req = makeDeleteReq('school-1')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(500)
+  })
+
+  it('blocks deletion of a school with real activity unless confirm_name matches exactly', async () => {
+    schoolImpact.hasRealActivity = true
+    const req = makeDeleteReq('school-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.requires_confirm_name).toBe(true)
+    expect(deleteSchoolCascade).not.toHaveBeenCalled()
+  })
+
+  it('proceeds when confirm_name matches the school name exactly', async () => {
+    schoolImpact.hasRealActivity = true
+    const req = makeDeleteReq('school-1', 'Ysgol Test')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(deleteSchoolCascade).toHaveBeenCalledWith(expect.anything(), 'school-1')
+  })
+
+  it('rejects a near-miss confirm_name (case/whitespace)', async () => {
+    schoolImpact.hasRealActivity = true
+    const req = makeDeleteReq('school-1', 'ysgol test')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(deleteSchoolCascade).not.toHaveBeenCalled()
   })
 })
