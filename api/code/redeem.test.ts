@@ -598,6 +598,102 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     })
   })
 
+  it('LEAF-ONLY JOIN INVARIANT: a student code redemption ALWAYS creates its membership at tag_type=class (CLASS:<id>) — never school or group', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-leaf',
+            code: 'STU-LEAF',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: 'class-leaf-1',
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-leaf-1' }, error: null }
+      return { data: null, error: null }
+    }
+    responders.classes = () => ({ data: { course_code: 'cym_for_eng' }, error: null })
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-LEAF', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    // Exactly one user_tags write, and it is leaf-scoped (class), never
+    // school- or group-scoped — a student never joins at a group/school level.
+    expect(writes.user_tags).toHaveLength(1)
+    const tagWrite = writes.user_tags[0].payload
+    expect(tagWrite.tag_type).toBe('class')
+    expect(tagWrite.tag_value).toBe('CLASS:class-leaf-1')
+    expect(tagWrite.tag_type).not.toBe('school')
+    expect(tagWrite.tag_type).not.toBe('group')
+  })
+
+  it('LEAF-ONLY JOIN INVARIANT: a student code with a null grants_class_id still writes a class-scoped tag (broken CLASS:null), it does not silently fall back to a group/school-level membership', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-noclass',
+            code: 'STU-NOCLASS',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-noclass-1' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-NOCLASS', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    // No group/school-level fallback is ever created for a student redemption.
+    expect(writes.groups).toBeUndefined()
+    expect(writes.schools).toBeUndefined()
+    // The tag write still happens and is still tag_type='class' — the current
+    // (undesirable) behavior is a broken tag_value rather than a silent
+    // group/school-level enrollment. Documents the edge case for whoever
+    // hardens this: grants_class_id should be validated before this branch.
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload.tag_type).toBe('class')
+    expect(writes.user_tags[0].payload.tag_value).toBe('CLASS:null')
+    // course_enrollments is skipped entirely without a class id — no orphan
+    // enrollment gets created either.
+    expect(writes.course_enrollments).toBeUndefined()
+  })
+
   it('teacher branch: a brand-new learner from possession-onboarding is created with needs_verification true', async () => {
     authUserOverride = { email: 'newteacher@school.example', user_metadata: { onboarded_via: 'possession', display_name: 'New Teacher' } }
     responders.invite_codes = (calls) => {
