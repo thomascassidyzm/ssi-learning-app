@@ -159,6 +159,10 @@ describe('useTeachersData', () => {
         { class_id: 'c1', total_practice_seconds: 7200 },
         { class_id: 'c3', total_practice_seconds: 1800 },
       ], error: null },
+      sessions: { data: [
+        { learner_id: 'l1', duration_seconds: 241 },
+        { learner_id: 'l1', duration_seconds: 6 },
+      ], error: null },
     }))
     const { useSchoolContext } = await import('./useSchoolContext')
     const ctx = useSchoolContext()
@@ -181,6 +185,10 @@ describe('useTeachersData', () => {
     expect(zara.class_count).toBe(2)
     expect(zara.student_count).toBe(2)
     expect(zara.total_practice_hours).toBe(3)
+    // own practice (their learner's sessions) is separate from student hours
+    expect(zara.own_practice_minutes).toBe(4)
+    const alice = td.teachers.value.find(t => t.display_name === 'Alice Teacher')!
+    expect(alice.own_practice_minutes).toBe(0)
   })
 
   // --- removeTeacher: server-mediated (api/school/remove-staff.ts), replacing

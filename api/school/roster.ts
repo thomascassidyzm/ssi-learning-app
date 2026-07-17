@@ -123,6 +123,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .in('user_id', teacherUserIds)
       if (learnersErr) throw learnersErr
 
+      // A teacher's OWN practice lives on their own learner's sessions and is
+      // counted by no class/student aggregate (class_student_progress only sees
+      // role_in_context='student' tags). In a trial school the staff's own
+      // practice is usually the ONLY activity — without this every number on
+      // the dashboard reads 0 despite real use (Chepstow, 2026-07-17).
+      const teacherLearnerIds = (learners ?? []).map((l: any) => l.id).filter(Boolean)
+      const ownSeconds = new Map<string, number>()
+      for (const batch of chunk(teacherLearnerIds)) {
+        const { data: sess, error: sessErr } = await svc
+          .from('sessions')
+          .select('learner_id, duration_seconds')
+          .in('learner_id', batch)
+        if (sessErr) throw sessErr
+        for (const s of sess ?? []) {
+          ownSeconds.set(s.learner_id, (ownSeconds.get(s.learner_id) || 0) + (s.duration_seconds || 0))
+        }
+      }
+
       teachers = (learners ?? []).map((l: any) => {
         const classSet = teacherClasses.get(l.user_id) ?? new Set<string>()
         let studentCount = 0
@@ -138,6 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           class_count: classSet.size,
           student_count: studentCount,
           total_practice_hours: Math.round((seconds / 3600) * 10) / 10,
+          own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
           joined_at: joinDates.get(l.user_id) || '',
         }
       }).sort((a: any, b: any) => a.display_name.localeCompare(b.display_name))

@@ -94,6 +94,10 @@ beforeEach(async () => {
       { id: 'l1', user_id: 'ut1', display_name: 'Zara Teacher' },
       { id: 'l2', user_id: 'ut2', display_name: 'Alice Teacher' },
     ],
+    sessions: [
+      { learner_id: 'l1', duration_seconds: 241 },
+      { learner_id: 'l1', duration_seconds: 6 },
+    ],
   }
   scope = { learnerId: 'l1', role: 'school_admin', classIds: ['c1', 'c2', 'c3'], learnerIds: [], studentsByClass: {}, schoolIds: ['s1'], groupId: null }
   schoolIdForAdminResult = null
@@ -119,6 +123,17 @@ describe('GET /api/school/roster', () => {
     expect(zara.student_count).toBe(2)
     // (3600 + 7200) / 3600 = 3.0 hours
     expect(zara.total_practice_hours).toBe(3)
+  })
+
+  it('reports each teacher\'s OWN practice from their learner\'s sessions (the Chepstow trial-school zero)', async () => {
+    const req = makeReq()
+    const res = makeRes()
+    await handler(req, res)
+    const zara = res.body.teachers.find((t: any) => t.display_name === 'Zara Teacher')
+    const alice = res.body.teachers.find((t: any) => t.display_name === 'Alice Teacher')
+    // (241 + 6) / 60 rounds to 4 minutes — students' class hours must not absorb it
+    expect(zara.own_practice_minutes).toBe(4)
+    expect(alice.own_practice_minutes).toBe(0)
   })
 
   it('sorts teachers and students alphabetically', async () => {

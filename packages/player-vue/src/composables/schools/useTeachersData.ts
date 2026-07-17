@@ -27,6 +27,10 @@ export interface Teacher {
   class_count: number
   student_count: number
   total_practice_hours: number
+  /** The teacher's OWN practice (their learner's sessions) — distinct from
+   *  total_practice_hours, which is their classes' STUDENTS' practice. In a
+   *  trial school with no students yet this is the only non-zero number. */
+  own_practice_minutes: number
   joined_at: string
 }
 
@@ -130,6 +134,21 @@ export function useTeachersData() {
 
       if (progressError) throw progressError
 
+      // Teachers' OWN practice — readable here because this branch only runs
+      // for ssi_admin admin-view ("Admins can read all sessions" RLS policy).
+      const teacherLearnerIds = (learners || []).map(l => l.id).filter(Boolean)
+      const ownSeconds = new Map<string, number>()
+      if (teacherLearnerIds.length) {
+        const { data: ownSessions, error: ownError } = await client
+          .from('sessions')
+          .select('learner_id, duration_seconds')
+          .in('learner_id', teacherLearnerIds)
+        if (ownError) throw ownError
+        ownSessions?.forEach(s => {
+          ownSeconds.set(s.learner_id, (ownSeconds.get(s.learner_id) || 0) + (s.duration_seconds || 0))
+        })
+      }
+
       const perClass = new Map<string, { students: number; seconds: number }>()
       progressData?.forEach(p => {
         const e = perClass.get(p.class_id) || { students: 0, seconds: 0 }
@@ -162,6 +181,7 @@ export function useTeachersData() {
           class_count: stats.classes.size,
           student_count: stats.students,
           total_practice_hours: Math.round((stats.practiceSeconds / 3600) * 10) / 10,
+          own_practice_minutes: Math.round((ownSeconds.get(l.id) || 0) / 60),
           joined_at: joinDates.get(l.user_id) || '',
         }
       }).sort((a, b) => a.display_name.localeCompare(b.display_name))
