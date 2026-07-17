@@ -184,13 +184,6 @@ export interface AudioCache {
 
   /** Cache stats for diagnostics + UI ("X MB cached"). */
   stats(): Promise<AudioCacheStats>
-
-  /**
-   * Drop everything for a course (e.g. on version bump). Clears both
-   * namespaces' entries for that course; persistent storage for other
-   * courses is preserved.
-   */
-  clearCourse(courseCode: string): Promise<void>
 }
 
 // ============================================================================
