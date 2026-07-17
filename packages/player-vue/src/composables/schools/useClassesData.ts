@@ -644,6 +644,37 @@ export function useClassesData() {
     }
   }
 
+  // Server-mediated rename — replaces a former direct client
+  // `classes.update({ class_name })`, which had NO ownership check at all
+  // (classes is one of the six org tables that is RLS-off by design;
+  // "authenticated UPDATE" meant ANY signed-in caller could rename ANY
+  // tenant's class by id). api/school/rename-class.ts enforces ownership via
+  // resolveVisibleScope server-side.
+  async function renameClass(classId: string, className: string): Promise<boolean> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        console.warn('[ClassesData] No auth token; skipping class rename')
+        return false
+      }
+      const resp = await fetch('/api/school/rename-class', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ class_id: classId, class_name: className }),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        console.error('[ClassesData] class rename failed:', data.error || resp.status)
+        return false
+      }
+      return true
+    } catch (err) {
+      console.error('[ClassesData] class rename fetch error:', err)
+      return false
+    }
+  }
+
   /** Add (or reactivate) a teacher on a class; `lead` also points the lead pointer at them. */
   async function addClassTeacher(
     classId: string,
@@ -820,6 +851,7 @@ export function useClassesData() {
     fetchClassDetail,
     getClassReport,
     createClass,
+    renameClass,
     addClassTeacher,
     removeClassTeacher,
     startClassSession,

@@ -109,6 +109,15 @@ describe('POST /api/govt/create-school', () => {
     expect(insertedSchool).toBeNull()
   })
 
+  it('REJECTS an ssi_admin browsing another org\'s read-view (no govt_admins row of their own) — the "+Add school" cross-tenant write hole named in the 2026-07-17 admin/group write-gate audit; server-side already refuses to write on their behalf, independent of any UI gating', async () => {
+    govtAdminRow = null
+    const req = makeReq({ school_name: 'Written while impersonating' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(insertedSchool).toBeNull()
+  })
+
   it('400s a missing school_name', async () => {
     const req = makeReq({})
     const res = makeRes()
