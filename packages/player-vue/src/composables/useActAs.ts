@@ -96,13 +96,24 @@ export function useActAs() {
   async function actAs(persona: ActAsPersona): Promise<void> {
     if (!role.canActAs.value) return
     role.startActingAs(persona)
+    const c = client()
+    const token = c ? (await c.auth.getSession()).data.session?.access_token : undefined
+
+    if (persona.role === 'student') {
+      // Learners aren't a school role, and the live player must never be
+      // driven read-only (no session writes / position changes) — land on
+      // the existing admin read-view of their progress instead of /schools.
+      // Audit BEFORE navigating, same as every other persona.
+      await logViewAsStart(persona, token, null)
+      await router.push(`/admin/users/${persona.learnerId}/progress`)
+      return
+    }
+
     // Clear any prior context (e.g. a previous persona) before loading.
     ctx.clear()
-    const c = client()
     await ctx.loadAsPersona(persona.userId, c)
     // Audit BEFORE navigating — the compliance record must exist before the
     // admin can see anything, not as an afterthought.
-    const token = c ? (await c.auth.getSession()).data.session?.access_token : undefined
     await logViewAsStart(persona, token, ctx.currentUser.value?.school_id ?? null)
     await router.push('/schools')
   }
@@ -128,6 +139,9 @@ export function useActAs() {
     role.restoreFromCache()
     const persona = role.actingAs.value
     if (!persona) return
+    // The student path never used useSchoolContext (AdminUserProgress.vue
+    // manages its own context from the route's :learnerId) — nothing to reprime.
+    if (persona.role === 'student') return
     if (ctx.currentUser.value?.user_id === persona.userId) return
     await ctx.loadAsPersona(persona.userId, client())
   }

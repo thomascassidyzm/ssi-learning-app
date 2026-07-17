@@ -90,6 +90,17 @@ describe('POST /api/admin/view-as', () => {
     })
   })
 
+  it.each(['school_admin', 'govt_admin', 'student'])(
+    'logs a start for target_role %s (view-as now covers every entity level)',
+    async (targetRole) => {
+      const req = makeReq({ action: 'start', target_user_id: 'persona-1', target_role: targetRole, target_name: 'Persona' })
+      const res = makeRes()
+      await handler(req, res)
+      expect(res.statusCode).toBe(200)
+      expect(insertCalls[0]).toMatchObject({ target_role: targetRole, target_user_id: 'persona-1' })
+    },
+  )
+
   it('400s a start missing target_user_id', async () => {
     const req = makeReq({ action: 'start', target_role: 'teacher' })
     const res = makeRes()

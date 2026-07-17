@@ -13,8 +13,11 @@ const ACT_AS_KEY = 'ssi-acting-as'
 export interface ActAsPersona {
   key: string
   userId: string
-  role: 'teacher' | 'school_admin' | 'govt_admin'
+  role: 'teacher' | 'school_admin' | 'govt_admin' | 'student'
   name: string
+  // Only used for role 'student' — AdminUserProgress.vue's route needs the
+  // learner PK, not the auth uid (learners.id vs learners.user_id).
+  learnerId?: string
 }
 
 /** Human label for a persona's role, for the acting-as banner and any act-as UI. */
@@ -26,6 +29,8 @@ export function roleLabel(role: ActAsPersona['role']): string {
       return 'School leader'
     case 'govt_admin':
       return 'Group leader'
+    case 'student':
+      return 'Student'
   }
 }
 

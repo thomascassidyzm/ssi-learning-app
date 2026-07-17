@@ -3,10 +3,12 @@ import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
+import ViewAsButton from '@/components/admin/ViewAsButton.vue'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useStudentsData } from '@/composables/schools/useStudentsData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { deriveBelt, type Belt } from '@/composables/schools/belts'
+import type { ActAsPersona } from '@/composables/useUserRole'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
@@ -20,6 +22,10 @@ const searchQuery = ref('')
 const classFilter = ref<string>('all')
 const beltFilter = ref<string>('all')
 const healthFilter = ref<string>('all')
+
+function studentPersona(s: { user_id: string; learner_id: string; name: string }): ActAsPersona {
+  return { key: s.user_id, userId: s.user_id, learnerId: s.learner_id, role: 'student', name: s.name }
+}
 
 function getInitials(name: string): string {
   return name.split(/\s+/).map(p => p[0]).join('').toUpperCase().slice(0, 2)
@@ -272,6 +278,7 @@ watch(selectedUser, (newUser) => {
             </td>
             <td><span class="schools-subtle">{{ s.last_active_display }}</span></td>
             <td class="cell-action">
+              <ViewAsButton v-if="isAdminView" :candidates="[studentPersona(s)]" />
               <a href="#" class="cell-link" @click.prevent="viewStudent(s)">View &rarr;</a>
             </td>
           </tr>

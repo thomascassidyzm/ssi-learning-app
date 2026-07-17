@@ -16,6 +16,8 @@
  * tree.
  */
 import { computed, inject, ref } from 'vue'
+import ViewAsButton from '@/components/admin/ViewAsButton.vue'
+import type { ActAsPersona } from '@/composables/useUserRole'
 
 interface Group {
   id: string
@@ -47,6 +49,8 @@ interface OrgTreeApi {
   openSchoolDashboard: (schoolId: string) => void
   createSubgroup: (parentId: string, name: string) => Promise<void>
   createSchoolAt: (groupId: string, name: string) => Promise<void>
+  groupLeaderCandidates: (group: Group) => ActAsPersona[]
+  schoolAdminCandidates: (school: School) => ActAsPersona[]
 }
 
 const props = withDefaults(defineProps<{
@@ -153,10 +157,11 @@ async function submitSchool(): Promise<void> {
       </button>
       <button class="row-action" title="Open cross-schools dashboard" @click="api.openGroupDashboard(group.id)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 3v18M3 9h18"/>
         </svg>
       </button>
+      <ViewAsButton :candidates="api.groupLeaderCandidates(group)" empty-title="No group leader yet" />
       <button class="row-action is-danger" title="Delete group" @click="api.requestDeleteGroup(group)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -214,10 +219,11 @@ async function submitSchool(): Promise<void> {
     <div class="row-actions">
       <button class="row-action" title="Open school dashboard" @click="api.openSchoolDashboard(school.id)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 3v18M3 9h18"/>
         </svg>
       </button>
+      <ViewAsButton :candidates="api.schoolAdminCandidates(school)" empty-title="No school admin claimed yet" />
       <button class="row-action is-danger" title="Delete school" @click="api.requestDeleteSchool(school)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

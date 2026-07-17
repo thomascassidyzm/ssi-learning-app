@@ -3,25 +3,69 @@ import { ref, computed, onMounted, nextTick, provide } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import { useAdminClient } from '@/composables/useAdminClient'
-import { useActAs } from '@/composables/useActAs'
 import GroupTreeNode from '@/components/admin/GroupTreeNode.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import ViewAsButton from '@/components/admin/ViewAsButton.vue'
+import type { ActAsPersona } from '@/composables/useUserRole'
 
 const router = useRouter()
-const { actAs } = useActAs()
 
-// "View as" — read-only impersonation entry point (see useActAs.ts,
-// api/admin/view-as.ts). Staff rows only carry role_in_context 'admin' |
-// 'teacher' (govt_admins aren't listed here), mapped to the ActAsPersona
-// role vocabulary.
-function viewAsStaff(staff: StaffMember): void {
-  if (!staff.user_id) return
-  void actAs({
+// "View as" — read-only impersonation entry points (see useActAs.ts,
+// ViewAsButton.vue, api/admin/view-as.ts). Staff rows only carry
+// role_in_context 'admin' | 'teacher' (govt_admins aren't listed there),
+// mapped to the ActAsPersona role vocabulary.
+function staffToPersona(staff: StaffMember): ActAsPersona {
+  return {
     key: staff.user_id,
     userId: staff.user_id,
     role: staff.role_in_context === 'admin' ? 'school_admin' : 'teacher',
     name: staff.display_name,
-  })
+  }
+}
+
+/** All staff view-as candidates for a school row (usually 0 or 1 admin). */
+function schoolAdminCandidates(school: School): ActAsPersona[] {
+  return staffMembers.value
+    .filter(s => s.school_id === school.id && s.role_in_context === 'admin' && s.user_id)
+    .map(staffToPersona)
+}
+
+interface GovtAdminRow {
+  user_id: string
+  group_id: string | null
+  display_name: string
+}
+const govtAdmins = ref<GovtAdminRow[]>([])
+
+/** All group-leader view-as candidates for a group row. */
+function groupLeaderCandidates(group: Group): ActAsPersona[] {
+  return govtAdmins.value
+    .filter(g => g.group_id === group.id)
+    .map(g => ({ key: g.user_id, userId: g.user_id, role: 'govt_admin' as const, name: g.display_name }))
+}
+
+async function fetchGovtAdmins(): Promise<void> {
+  try {
+    const client = getClient()
+    const { data: rows } = await client.from('govt_admins').select('user_id, group_id')
+    if (!rows || rows.length === 0) {
+      govtAdmins.value = []
+      return
+    }
+    const userIds = rows.map((r: any) => r.user_id)
+    const { data: learners } = await client
+      .from('learners')
+      .select('user_id, display_name')
+      .in('user_id', userIds)
+    const nameByUser = new Map((learners || []).map((l: any) => [l.user_id, l.display_name]))
+    govtAdmins.value = rows.map((r: any) => ({
+      user_id: r.user_id,
+      group_id: r.group_id,
+      display_name: nameByUser.get(r.user_id) || 'Group leader',
+    }))
+  } catch (err) {
+    console.error('[SetupView] fetch govt admins error:', err)
+  }
 }
 
 interface School {
@@ -782,6 +826,8 @@ provide('orgTreeApi', {
   requestDeleteSchool,
   createSubgroup,
   createSchoolAt,
+  groupLeaderCandidates,
+  schoolAdminCandidates,
 })
 
 async function saveGrant(): Promise<void> {
@@ -1075,6 +1121,7 @@ onMounted(() => {
   fetchCourses()
   fetchGrants()
   fetchStaff()
+  fetchGovtAdmins()
 })
 </script>
 
@@ -1478,10 +1525,11 @@ onMounted(() => {
                 <div class="row-actions">
                   <button class="row-action" @click="router.push(`/admin/schools/${school.id}`)" title="Open dashboard for this school">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
+                      <rect x="3" y="3" width="18" height="18" rx="2"/>
+                      <path d="M9 3v18M3 9h18"/>
                     </svg>
                   </button>
+                  <ViewAsButton :candidates="schoolAdminCandidates(school)" empty-title="No school admin claimed yet" />
                   <button class="row-action" @click="editSchoolEntitlements(school)" title="Edit course entitlements">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -1608,17 +1656,7 @@ onMounted(() => {
               <td>{{ staff.school_name || '—' }}</td>
               <td class="cell-actions">
                 <div class="row-actions">
-                  <button
-                    type="button"
-                    class="row-action"
-                    title="View as — see exactly what this account sees, read only"
-                    @click="viewAsStaff(staff)"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  </button>
+                  <ViewAsButton :candidates="staff.user_id ? [staffToPersona(staff)] : []" />
                 </div>
               </td>
             </tr>

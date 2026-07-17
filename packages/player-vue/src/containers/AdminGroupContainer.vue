@@ -10,9 +10,11 @@
 import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
+import ViewAsButton from '@/components/admin/ViewAsButton.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useAdminGate } from '@/composables/useAdminGate'
+import type { ActAsPersona } from '@/composables/useUserRole'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
@@ -26,8 +28,37 @@ if (supabase.value) setSchoolsClient(supabase.value)
 const ctx = useSchoolContext()
 const isLoading = ref(true)
 const loadError = ref<string | null>(null)
+// "View as" — wherever an admin is looking at a group (any subpage under
+// this container), one-click view-as the group leader(s). See ViewAsButton.vue.
+const groupLeaderCandidates = ref<ActAsPersona[]>([])
 
 provide('isAdminView', true)
+
+// Best-effort, and isolated from the main group-context load — a failure
+// fetching view-as candidates must never surface as "failed to load group"
+// and hide a dashboard that otherwise loaded fine.
+async function loadGroupLeaderCandidates(groupId: string): Promise<void> {
+  const client = supabase.value
+  if (!client || typeof client.from !== 'function') return
+  try {
+    const { data: rows } = await client.from('govt_admins').select('user_id').eq('group_id', groupId)
+    const userIds = (rows || []).map((r: any) => r.user_id)
+    if (userIds.length === 0) {
+      groupLeaderCandidates.value = []
+      return
+    }
+    const { data: learners } = await client.from('learners').select('user_id, display_name').in('user_id', userIds)
+    groupLeaderCandidates.value = (learners || []).map((l: any) => ({
+      key: l.user_id,
+      userId: l.user_id,
+      role: 'govt_admin' as const,
+      name: l.display_name,
+    }))
+  } catch (err) {
+    console.warn('[AdminGroupContainer] Failed to load view-as candidates:', err)
+    groupLeaderCandidates.value = []
+  }
+}
 
 async function loadContext(groupId: string | string[]) {
   const id = Array.isArray(groupId) ? groupId[0] : groupId
@@ -49,6 +80,7 @@ async function loadContext(groupId: string | string[]) {
   } finally {
     isLoading.value = false
   }
+  void loadGroupLeaderCandidates(id)
 }
 
 // Was `onMounted(() => loadContext(...))` + a route-id-only watch — on a
@@ -74,6 +106,10 @@ onUnmounted(() => ctx.clear())
 <template>
   <div class="schools-container schools-surface">
     <AdminTopBar />
+    <div v-if="!isCheckingAccess && !isDenied && !isLoading && !loadError" class="entity-context-bar">
+      <span class="entity-context-name">{{ ctx.currentUser?.value?.organization_name || ctx.currentUser?.value?.group_path || 'Group' }}</span>
+      <ViewAsButton :candidates="groupLeaderCandidates" empty-title="No group leader yet" />
+    </div>
     <div v-if="isCheckingAccess || isDenied || isLoading" class="schools-loading">
       <div class="loading-spinner"></div>
       <p>Loading group…</p>
@@ -98,6 +134,19 @@ onUnmounted(() => ctx.clear())
   flex-direction: column;
   background: var(--schools-bg, #f6f5f1);
   color: var(--schools-fg, #0F1212);
+}
+.entity-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 32px;
+  background: #fff;
+  border-bottom: 1px solid var(--schools-border, rgba(15,18,18,.10));
+}
+.entity-context-name {
+  font-weight: 600;
+  font-size: 14px;
 }
 .schools-loading {
   display: flex;
