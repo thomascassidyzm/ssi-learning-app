@@ -2,7 +2,8 @@
 import { ref, computed, onMounted, watch, inject } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
-import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
+import { useClassesData, type ClassReport, type ClassDeleteImpact } from '@/composables/schools/useClassesData'
+import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import { useSchoolData } from '@/composables/schools/useSchoolData'
 import { getSchoolsClient } from '@/composables/schools/client'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
@@ -22,7 +23,16 @@ const route = useRoute()
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
-const { classDetail, fetchClassDetail, getClassReport } = useClassesData()
+const {
+  classDetail,
+  isLoading: classDetailLoading,
+  error: classDetailError,
+  fetchClassDetail,
+  getClassReport,
+  renameClass: renameClassApi,
+  fetchClassDeleteImpact,
+  deleteClass: deleteClassApi,
+} = useClassesData()
 const { viewingSchool } = useSchoolData()
 const { canPlayAsClass, launchClassSession } = usePlayAsClass()
 
@@ -275,24 +285,62 @@ async function handleRemoveStudent(student: { user_id: string; name: string }) {
   if (!error) fetchClassDetail(classData.value.id)
 }
 
-// Rename the class. classes now grants authenticated UPDATE (the create-class
-// grant fix), so a direct client update works — mirrors the native-dialog
-// pattern used by handleRemoveStudent above.
+// Rename the class via the server-mediated endpoint (api/school/rename-class)
+// — a direct client `classes.update()` has no ownership check at all (classes
+// is RLS-off by design), so ownership is enforced server-side instead.
 async function renameClass() {
   const next = (window.prompt('Rename class', classData.value.class_name) || '').trim()
   if (!next || next === classData.value.class_name) return
-  const supabase = getSchoolsClient()
-  const { error } = await supabase
-    .from('classes')
-    .update({ class_name: next })
-    .eq('id', classData.value.id)
-  if (error) {
-    console.error('[ClassDetail] rename failed:', error)
+  const ok = await renameClassApi(classData.value.id, next)
+  if (!ok) {
     window.alert('Could not rename the class. Please try again.')
     return
   }
   fetchClassDetail(classData.value.id)
 }
+
+// Delete the class — the reported gap ("a teacher can't delete a class they
+// set up wrongly"). api/school/delete-class.ts enforces ownership; this view
+// just drives the confirm modal off its impact preview / real-activity flag.
+const showDeleteModal = ref(false)
+const deleteImpact = ref<ClassDeleteImpact | null>(null)
+const isDeletingClass = ref(false)
+const deleteClassError = ref('')
+
+async function openDeleteModal() {
+  deleteClassError.value = ''
+  deleteImpact.value = await fetchClassDeleteImpact(classData.value.id)
+  showDeleteModal.value = true
+}
+
+function closeDeleteModal() {
+  showDeleteModal.value = false
+  deleteClassError.value = ''
+}
+
+async function confirmDeleteClass(typedName: string) {
+  isDeletingClass.value = true
+  deleteClassError.value = ''
+  const result = await deleteClassApi(classData.value.id, typedName || undefined)
+  isDeletingClass.value = false
+  if (!result.ok) {
+    if (result.impact) deleteImpact.value = result.impact
+    deleteClassError.value = result.error
+    return
+  }
+  showDeleteModal.value = false
+  handleBack()
+}
+
+const deleteImpactLines = computed(() => {
+  const impact = deleteImpact.value
+  if (!impact) return []
+  const lines: string[] = []
+  if (impact.learnerCount) lines.push(`${impact.learnerCount} student${impact.learnerCount === 1 ? '' : 's'}`)
+  if (impact.teacherCount) lines.push(`${impact.teacherCount} teacher${impact.teacherCount === 1 ? '' : 's'}`)
+  if (impact.sessionCount) lines.push(`${impact.sessionCount} recorded session${impact.sessionCount === 1 ? '' : 's'}`)
+  return lines
+})
 </script>
 
 <template>
@@ -309,6 +357,7 @@ async function renameClass() {
         <h1 class="arsenal page-title">
           {{ classData.class_name }}
           <button
+            v-if="!isAdminView"
             type="button"
             title="Rename class"
             aria-label="Rename class"
@@ -316,6 +365,16 @@ async function renameClass() {
             style="margin-left:10px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button
+            v-if="!isAdminView"
+            type="button"
+            title="Delete class"
+            aria-label="Delete class"
+            @click="openDeleteModal"
+            style="margin-left:2px;background:none;border:none;cursor:pointer;color:var(--schools-fg-3);vertical-align:middle;padding:4px;"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </button>
         </h1>
         <div class="meta-row">
@@ -400,11 +459,17 @@ async function renameClass() {
                   </button>
                 </td>
               </tr>
-              <tr v-if="filteredStudents.length === 0">
-                <td colspan="6" class="empty-row">
-                  <span v-if="searchQuery">No students match "{{ searchQuery }}"</span>
-                  <span v-else>No students have joined this class yet.</span>
-                </td>
+              <tr v-if="filteredStudents.length === 0 && searchQuery">
+                <td colspan="6" class="empty-row">No students match "{{ searchQuery }}"</td>
+              </tr>
+              <tr v-else-if="filteredStudents.length === 0 && classDetailLoading">
+                <td colspan="6" class="empty-row schools-subtle">Loading roster…</td>
+              </tr>
+              <tr v-else-if="filteredStudents.length === 0 && classDetailError">
+                <td colspan="6" class="empty-row">Couldn't load roster. {{ classDetailError }}</td>
+              </tr>
+              <tr v-else-if="filteredStudents.length === 0">
+                <td colspan="6" class="empty-row">No students have joined this class yet.</td>
               </tr>
             </tbody>
           </table>
@@ -440,6 +505,7 @@ async function renameClass() {
               <div class="belt-legend-label">{{ row.belt }}</div>
             </div>
           </div>
+          <p v-else-if="classDetailLoading" class="rail-note schools-subtle">Loading…</p>
           <p v-else class="rail-note schools-subtle">No students enrolled yet.</p>
         </div>
 
@@ -482,6 +548,18 @@ async function renameClass() {
         </div>
       </aside>
     </div>
+
+    <ConfirmDeleteModal
+      :is-open="showDeleteModal"
+      title="Delete class"
+      :target-name="classData.class_name"
+      :impact-lines="deleteImpactLines"
+      :require-typed-confirm="!!deleteImpact?.hasRealActivity"
+      :submitting="isDeletingClass"
+      :error="deleteClassError"
+      @close="closeDeleteModal"
+      @confirm="confirmDeleteClass"
+    />
   </main>
 </template>
 

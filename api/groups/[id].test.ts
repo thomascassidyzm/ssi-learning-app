@@ -17,20 +17,47 @@ vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => verifyAuthTokenResult),
 }))
 
+let groupImpact: any
+let deleteGroupCascadeError: Error | null = null
+const computeGroupImpact = vi.fn(async () => {
+  if (!groupImpact) throw new Error('Group not found')
+  return groupImpact
+})
+const deleteGroupCascade = vi.fn(async () => {
+  if (deleteGroupCascadeError) throw deleteGroupCascadeError
+})
+vi.mock('../_utils/schoolGroupDeletion', () => ({
+  computeGroupImpact: (...args: any[]) => computeGroupImpact(...args),
+  deleteGroupCascade: (...args: any[]) => deleteGroupCascade(...args),
+}))
+
+const auditAdminDelete = vi.fn(async () => {})
+vi.mock('../_utils/auditAdminDelete', () => ({
+  auditAdminDelete: (...args: any[]) => auditAdminDelete(...args),
+}))
+
 let govtAdminRow: any
 let updateCalls: any[] = []
 let deleteCalls: any[] = []
 let ungroupSchoolsError: any = null
 let deleteGroupError: any = null
+// Path-prefix fixture for isStrictDescendantGroup: group-2 is a real
+// sub-group of group-1 (path "1.2" starts with "1"); group-3 is unrelated.
+let groupPaths: Record<string, string> = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
 
 function makeChainable(table: string) {
+  let eqVal: unknown
   const builder: any = {
     select: () => builder,
     update: (obj: unknown) => { updateCalls.push({ table, obj }); return builder },
     delete: () => { deleteCalls.push({ table }); return builder },
-    eq: () => builder,
+    eq: (_col: string, val: unknown) => { eqVal = val; return builder },
     maybeSingle: () => {
       if (table === 'govt_admins') return Promise.resolve({ data: govtAdminRow, error: null })
+      if (table === 'groups') {
+        const path = groupPaths[eqVal as string]
+        return Promise.resolve({ data: path ? { path } : null, error: null })
+      }
       return Promise.resolve({ data: null, error: null })
     },
     single: () => Promise.resolve({ data: { id: 'group-1', name: 'Updated Name' }, error: null }),
@@ -55,8 +82,10 @@ vi.mock('@supabase/supabase-js', () => ({
 
 import handler from './[id]'
 
-function makeReq(method: string, body: unknown, groupId = 'group-1'): VercelRequest {
-  return { method, body, query: { id: groupId }, headers: { authorization: 'Bearer tok' } } as any
+function makeReq(method: string, body: unknown, groupId = 'group-1', confirmName?: string): VercelRequest {
+  const query: Record<string, string> = { id: groupId }
+  if (confirmName !== undefined) query.confirm_name = confirmName
+  return { method, body, query, headers: { authorization: 'Bearer tok' } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -72,8 +101,24 @@ beforeEach(() => {
   ungroupSchoolsError = null
   deleteGroupError = null
   govtAdminRow = null
+  groupPaths = { 'group-1': '1', 'group-2': '1.2', 'group-3': '9' }
   verifyAdminResult = { error: 'Requires SSi admin access', status: 403 }
   verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
+  groupImpact = {
+    groupId: 'group-1',
+    groupName: 'Gwynedd Ed Test',
+    schoolCount: 2,
+    schoolNames: ['School A', 'School B'],
+    classCount: 0,
+    sessionCount: 0,
+    learnerCount: 0,
+    teacherCount: 0,
+    hasRealActivity: false,
+  }
+  deleteGroupCascadeError = null
+  computeGroupImpact.mockClear()
+  deleteGroupCascade.mockClear()
+  auditAdminDelete.mockClear()
 })
 
 describe('PATCH /api/groups/:id', () => {
@@ -131,42 +176,130 @@ describe('PATCH /api/groups/:id', () => {
   })
 })
 
+describe('GET /api/groups/:id (impact preview)', () => {
+  it('rejects a caller who is neither admin nor a leader of an ancestor group', async () => {
+    const req = makeReq('GET', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+  })
+
+  it('401s an unauthenticated non-admin caller', async () => {
+    verifyAuthTokenResult = { valid: false, error: 'no token' }
+    const req = makeReq('GET', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns the computed impact', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const req = makeReq('GET', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.impact).toMatchObject({ groupName: 'Gwynedd Ed Test', schoolCount: 2 })
+  })
+
+  it('a leader of an ANCESTOR group can preview one of their own sub-groups', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('GET', {}, 'group-2')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+  })
+})
+
 describe('DELETE /api/groups/:id', () => {
-  it('rejects a non-admin caller', async () => {
+  it('rejects a caller who is neither admin nor a leader of an ancestor group', async () => {
     const req = makeReq('DELETE', {}, 'group-1')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(403)
-    expect(deleteCalls.length).toBe(0)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
   })
 
-  it('ungroups schools then deletes the group', async () => {
+  it('401s an unauthenticated non-admin caller', async () => {
+    verifyAuthTokenResult = { valid: false, error: 'no token' }
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(401)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
+  })
+
+  it('a leader of an ANCESTOR group can delete one of their own SUB-groups', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('DELETE', {}, 'group-2')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(deleteGroupCascade).toHaveBeenCalledWith(expect.anything(), 'group-2')
+    expect(auditAdminDelete).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actorUserId: 'leader-1' })
+    )
+  })
+
+  it('a leader CANNOT delete their OWN governed group (not a sub-group of itself)', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
+  })
+
+  it('a leader CANNOT delete an unrelated group outside their subtree', async () => {
+    govtAdminRow = { group_id: 'group-1' }
+    const req = makeReq('DELETE', {}, 'group-3')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
+  })
+
+  it('deletes the group and logs an audit row when there is no real activity', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const req = makeReq('DELETE', {}, 'group-1')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(200)
-    expect(updateCalls[0]).toMatchObject({ table: 'schools', obj: { group_id: null } })
-    expect(deleteCalls[0]).toMatchObject({ table: 'groups' })
+    expect(deleteGroupCascade).toHaveBeenCalledWith(expect.anything(), 'group-1')
+    expect(auditAdminDelete).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ eventType: 'admin_group_deleted' })
+    )
     expect(res.body.deleted).toBe(true)
-  })
-
-  it('surfaces an ungroup-schools failure and does NOT delete the group (dependent rows must not survive a "successful" delete)', async () => {
-    verifyAdminResult = { userId: 'admin-1' }
-    ungroupSchoolsError = { message: 'ungroup failed' }
-    const req = makeReq('DELETE', {}, 'group-1')
-    const res = makeRes()
-    await handler(req, res)
-    expect(res.statusCode).toBe(500)
-    expect(deleteCalls.length).toBe(0)
   })
 
   it('surfaces a group-delete failure', async () => {
     verifyAdminResult = { userId: 'admin-1' }
-    deleteGroupError = { message: 'delete failed' }
+    deleteGroupCascadeError = new Error('delete failed')
     const req = makeReq('DELETE', {}, 'group-1')
     const res = makeRes()
     await handler(req, res)
     expect(res.statusCode).toBe(500)
+  })
+
+  it('blocks deletion of a group with real activity unless confirm_name matches exactly', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    groupImpact.hasRealActivity = true
+    const req = makeReq('DELETE', {}, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(409)
+    expect(res.body.requires_confirm_name).toBe(true)
+    expect(deleteGroupCascade).not.toHaveBeenCalled()
+  })
+
+  it('proceeds when confirm_name matches the group name exactly', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    groupImpact.hasRealActivity = true
+    const req = makeReq('DELETE', {}, 'group-1', 'Gwynedd Ed Test')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(deleteGroupCascade).toHaveBeenCalledWith(expect.anything(), 'group-1')
   })
 })

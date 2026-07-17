@@ -96,13 +96,33 @@ const canActAs = computed(() => isSsiAdmin.value)
 function initialize(platform: string | null, educational: string | null): void {
   const nextPlatform = platform === null && platformRole.value !== null ? platformRole.value : platform
   const nextEducational = educational === null && educationalRole.value !== null ? educationalRole.value : educational
+  writeRoleCache(nextPlatform, nextEducational)
+}
 
-  platformRole.value = nextPlatform
-  educationalRole.value = nextEducational
+/**
+ * Authoritative sync from a real DB row — the ONLY source of truth for both
+ * fields at once. Unlike initialize(), null here means "the DB row says
+ * this field is genuinely cleared" (e.g. a de-platformed ssi_admin's
+ * platform_role going to null — see api/admin/update-user-role.ts, "null is
+ * permitted to clear the role"), not "caller doesn't know" — so it never
+ * falls back to the stale cached value. initialize()'s guard exists for
+ * partial-knowledge callers (e.g. RedeemCode's optimistic post-redemption
+ * write, which only knows the just-redeemed educational role); a caller
+ * holding the full row — useAuth's syncRealRoleCache, on every learner-row
+ * fetch including useAdminGate's periodic mid-session re-validation — must
+ * use this instead, or a genuine demotion is silently swallowed.
+ */
+function setAuthoritative(platform: string | null, educational: string | null): void {
+  writeRoleCache(platform, educational)
+}
+
+function writeRoleCache(platform: string | null, educational: string | null): void {
+  platformRole.value = platform
+  educationalRole.value = educational
   isInitialized.value = true
 
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ platformRole: nextPlatform, educationalRole: nextEducational }))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ platformRole: platform, educationalRole: educational }))
   } catch {
     // localStorage unavailable
   }
@@ -210,6 +230,7 @@ export function useUserRole() {
 
     // Actions
     initialize,
+    setAuthoritative,
     restoreFromCache,
     startActingAs,
     stopActingAs,

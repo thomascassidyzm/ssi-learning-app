@@ -9,7 +9,7 @@ type TeacherStatus = 'active' | 'invited'
 
 const isAdminView = inject<boolean>('isAdminView', false)
 const { currentUser: selectedUser, isSchoolAdmin } = useSchoolContext()
-const { teachers: teachersData, fetchTeachers, removeTeacher } = useTeachersData()
+const { teachers: teachersData, isLoading: teachersLoading, error: teachersError, fetchTeachers, removeTeacher } = useTeachersData()
 const { currentSchool, fetchSchools } = useSchoolData()
 
 // Staff-management controls (invite, bulk import, remove) are admin-only —
@@ -227,6 +227,15 @@ watch(selectedUser, (newUser) => {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-else-if="teachersLoading" class="empty-state schools-card schools-card-pad">
+      <p class="schools-subtle">Loading teachers…</p>
+    </div>
+
+    <div v-else-if="teachersError" class="empty-state schools-card schools-card-pad">
+      <h3 class="arsenal empty-title">Couldn't load teachers</h3>
+      <p class="empty-text schools-subtle">{{ teachersError }}</p>
     </div>
 
     <div v-else class="empty-state schools-card schools-card-pad">

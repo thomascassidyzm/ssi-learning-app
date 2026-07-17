@@ -84,6 +84,23 @@ export interface StudentProgress {
   joined_class_at: string
 }
 
+export interface ClassDeleteImpact {
+  classId: string
+  className: string
+  classCount: number
+  sessionCount: number
+  learnerCount: number
+  teacherCount: number
+  hasRealActivity: boolean
+}
+
+export interface ClassDeleteResult {
+  ok: boolean
+  error?: string
+  requiresConfirmName?: boolean
+  impact?: ClassDeleteImpact
+}
+
 export interface ClassSession {
   id: string
   class_id: string
@@ -633,6 +650,78 @@ export function useClassesData() {
     }
   }
 
+  // Server-mediated rename — replaces a former direct client
+  // `classes.update({ class_name })`, which had NO ownership check at all
+  // (classes is one of the six org tables that is RLS-off by design;
+  // "authenticated UPDATE" meant ANY signed-in caller could rename ANY
+  // tenant's class by id). api/school/rename-class.ts enforces ownership via
+  // resolveVisibleScope server-side.
+  async function renameClass(classId: string, className: string): Promise<boolean> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        console.warn('[ClassesData] No auth token; skipping class rename')
+        return false
+      }
+      const resp = await fetch('/api/school/rename-class', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ class_id: classId, class_name: className }),
+      })
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}))
+        console.error('[ClassesData] class rename failed:', data.error || resp.status)
+        return false
+      }
+      return true
+    } catch (err) {
+      console.error('[ClassesData] class rename fetch error:', err)
+      return false
+    }
+  }
+
+  // Server-mediated delete — the reported gap (a teacher who set up a class
+  // wrongly had no way to remove it). api/school/delete-class.ts enforces
+  // ownership via the same resolveVisibleScope check rename-class.ts uses.
+  async function fetchClassDeleteImpact(classId: string): Promise<ClassDeleteImpact | null> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return null
+      const resp = await fetch(`/api/school/delete-class?class_id=${encodeURIComponent(classId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!resp.ok) return null
+      const data = await resp.json()
+      return data.impact ?? null
+    } catch (err) {
+      console.error('[ClassesData] class delete impact fetch error:', err)
+      return null
+    }
+  }
+
+  async function deleteClass(classId: string, confirmName?: string): Promise<ClassDeleteResult> {
+    try {
+      const { data: { session } } = await client.auth.getSession()
+      const token = session?.access_token
+      if (!token) return { ok: false, error: 'Not signed in' }
+      const resp = await fetch('/api/school/delete-class', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ class_id: classId, confirm_name: confirmName }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        return { ok: false, error: data.error || 'Failed to delete class', requiresConfirmName: !!data.requires_confirm_name, impact: data.impact }
+      }
+      return { ok: true }
+    } catch (err) {
+      console.error('[ClassesData] class delete fetch error:', err)
+      return { ok: false, error: 'Failed to delete class' }
+    }
+  }
+
   /** Add (or reactivate) a teacher on a class; `lead` also points the lead pointer at them. */
   async function addClassTeacher(
     classId: string,
@@ -789,6 +878,9 @@ export function useClassesData() {
     fetchClassDetail,
     getClassReport,
     createClass,
+    renameClass,
+    fetchClassDeleteImpact,
+    deleteClass,
     addClassTeacher,
     removeClassTeacher,
     startClassSession,
