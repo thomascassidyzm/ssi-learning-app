@@ -111,7 +111,18 @@ const isCreatingGroup = ref(false)
 const isSavingGrant = ref(false)
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
+// The invite link (if any) that belongs WITH the current success confirmation —
+// rendered inside the green success bar as one coherent "invite created" unit.
+// Set fresh on every success via setSuccess(), so it can never leak onto an
+// unrelated action's banner.
+const inviteResult = ref<{ url: string; hint: string } | null>(null)
 const copiedCode = ref<string | null>(null)
+
+/** Flash the success banner. Pass an invite to attach its link to the banner. */
+function setSuccess(message: string, invite: { url: string; hint: string } | null = null): void {
+  successMessage.value = message
+  inviteResult.value = invite
+}
 
 // Entitlement grant data for badge display
 interface EntitlementGrant {
@@ -132,7 +143,6 @@ const inheritedCourseCount = ref(0)
 // School form state
 const newSchoolName = ref('')
 const newSchoolGroup = ref('')
-const newSchoolAdminCode = ref<string | null>(null)
 
 // Group form
 const newGroupName = ref('')
@@ -153,7 +163,6 @@ const newGovtEmail = ref('')
 const newGovtGroup = ref('')
 const newGovtOrg = ref('')
 const isCreatingGovt = ref(false)
-const govtAdminCode = ref<string | null>(null)
 
 // Staff list
 interface StaffMember {
@@ -347,7 +356,6 @@ async function createSchool(): Promise<void> {
   isCreatingSchool.value = true
   error.value = null
   successMessage.value = null
-  newSchoolAdminCode.value = null
 
   // schools + 2 invite_codes inserts moved to /api/admin/create-school
   // (block_anon_role_escalation REVOKEd invite_codes INSERT, so the
@@ -374,8 +382,15 @@ async function createSchool(): Promise<void> {
       throw new Error(data.error || `HTTP ${resp.status}`)
     }
 
-    successMessage.value = `School "${data.school?.school_name || newSchoolName.value.trim()}" created`
-    newSchoolAdminCode.value = data.school?.admin_join_code || null
+    setSuccess(
+      `School "${data.school?.school_name || newSchoolName.value.trim()}" created`,
+      data.school?.admin_join_code
+        ? {
+            url: schoolAdminInviteLink(data.school.admin_join_code),
+            hint: 'Share this with the school admin — clicking it takes them straight to sign-in.',
+          }
+        : null,
+    )
     newSchoolName.value = ''
     newSchoolGroup.value = ''
 
@@ -435,7 +450,7 @@ async function createStaff(): Promise<void> {
 
     const schoolName = schools.value.find(s => s.id === newStaffSchool.value)?.school_name || ''
     const roleLabel = newStaffRole.value === 'admin' ? 'School Admin' : 'Teacher'
-    successMessage.value = `${roleLabel} "${newStaffName.value.trim()}" added to ${schoolName}`
+    setSuccess(`${roleLabel} "${newStaffName.value.trim()}" added to ${schoolName}`)
 
     newStaffName.value = ''
     newStaffEmail.value = ''
@@ -458,7 +473,6 @@ async function createGovtAdmin(): Promise<void> {
   isCreatingGovt.value = true
   error.value = null
   successMessage.value = null
-  govtAdminCode.value = null
 
   // All four DB writes (learners, govt_admins, invite_codes — and the
   // region lookup) moved server-side under service-role auth in
@@ -488,12 +502,18 @@ async function createGovtAdmin(): Promise<void> {
       throw new Error(data.error || `HTTP ${resp.status}`)
     }
 
-    govtAdminCode.value = data.invite_code || null
-
     const groupName = newGovtGroup.value
       ? (groups.value.find(g => g.id === newGovtGroup.value)?.name || 'group')
       : 'a group they will name themselves'
-    successMessage.value = `Invite created for "${newGovtName.value.trim()}" — ${groupName}`
+    setSuccess(
+      `Invite created for "${newGovtName.value.trim()}" — ${groupName}`,
+      data.invite_code
+        ? {
+            url: groupInviteLink(data.invite_code),
+            hint: 'Share this link — clicking it takes them straight to sign-in.',
+          }
+        : null,
+    )
 
     newGovtName.value = ''
     newGovtEmail.value = ''
@@ -639,7 +659,7 @@ async function createGroup(): Promise<void> {
     if (!resp.ok) throw new Error(respData.error || `HTTP ${resp.status}`)
     const data = respData.group
 
-    successMessage.value = `${newGroupParent.value ? 'Group' : 'Organisation'} "${data.name}" created`
+    setSuccess(`${newGroupParent.value ? 'Group' : 'Organisation'} "${data.name}" created`)
     newGroupName.value = ''
     newGroupType.value = 'group'
     newGroupParent.value = ''
@@ -665,7 +685,7 @@ async function createSubgroup(parentId: string, name: string): Promise<void> {
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    successMessage.value = `Group "${name}" created`
+    setSuccess(`Group "${name}" created`)
     await fetchGroups()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to create sub-group'
@@ -684,7 +704,7 @@ async function createSchoolAt(groupId: string, name: string): Promise<void> {
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    successMessage.value = `School "${name}" created`
+    setSuccess(`School "${name}" created`)
     await fetchSchools()
     await fetchGroups()
   } catch (err) {
@@ -792,7 +812,7 @@ async function confirmDelete(typedName: string): Promise<void> {
       const resp = await fetch(`/api/groups/${target.id}${params}`, { method: 'DELETE', headers })
       const data = await resp.json().catch(() => ({}))
       if (!resp.ok) throw new Error(data.error || 'Failed to delete group')
-      successMessage.value = `Group "${target.name}" deleted`
+      setSuccess(`Group "${target.name}" deleted`)
       await fetchGroups()
       await fetchSchools()
     } else {
@@ -801,7 +821,7 @@ async function confirmDelete(typedName: string): Promise<void> {
       const resp = await fetch(`/api/admin/update-school?${params.toString()}`, { method: 'DELETE', headers })
       const data = await resp.json().catch(() => ({}))
       if (!resp.ok) throw new Error(data.error || 'Failed to delete school')
-      successMessage.value = `School "${target.name}" deleted`
+      setSuccess(`School "${target.name}" deleted`)
       await fetchSchools()
       await fetchGroups()
     }
@@ -867,7 +887,7 @@ async function saveGrant(): Promise<void> {
     const targetName = grantTargetType.value === 'group'
       ? getGroupName(grantTargetId.value)
       : schools.value.find(s => s.id === grantTargetId.value)?.school_name || grantTargetId.value
-    successMessage.value = `${action} entitlement for "${targetName}" — ${grantCourses.value.length} courses`
+    setSuccess(`${action} entitlement for "${targetName}" — ${grantCourses.value.length} courses`)
 
     grantTargetId.value = ''
     grantCourses.value = []
@@ -914,11 +934,11 @@ async function updateSchoolGroup(school: School, groupId: string): Promise<void>
     school.group_id = groupId || null
 
     if (groupId && previousGroupName) {
-      successMessage.value = `Moved "${school.school_name}" from ${previousGroupName} to ${getGroupName(groupId)} — entitlements may have changed.`
+      setSuccess(`Moved "${school.school_name}" from ${previousGroupName} to ${getGroupName(groupId)} — entitlements may have changed.`)
     } else if (groupId) {
-      successMessage.value = `Assigned "${school.school_name}" to ${getGroupName(groupId)} — entitlements may have changed.`
+      setSuccess(`Assigned "${school.school_name}" to ${getGroupName(groupId)} — entitlements may have changed.`)
     } else {
-      successMessage.value = `Removed "${school.school_name}" from ${previousGroupName || 'group'}`
+      setSuccess(`Removed "${school.school_name}" from ${previousGroupName || 'group'}`)
     }
 
     // Refresh grants since inherited entitlements may have changed
@@ -1078,7 +1098,7 @@ async function saveGroupRename(group: Group): Promise<void> {
       throw new Error(data.error || 'Failed to rename group')
     }
 
-    successMessage.value = `Group renamed to "${newName}"`
+    setSuccess(`Group renamed to "${newName}"`)
     await fetchGroups()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to rename group'
@@ -1154,12 +1174,34 @@ onMounted(() => {
 
     <!-- Banners -->
     <Transition name="fade">
-      <div v-if="successMessage" class="banner banner-success">
+      <div v-if="successMessage" class="banner banner-success" :class="{ 'banner-success--invite': inviteResult }">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
           <polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
-        <span>{{ successMessage }}</span>
+        <div class="banner-body">
+          <span>{{ successMessage }}</span>
+          <!-- The invite link lives WITH its success confirmation — one coherent "invite created" unit. -->
+          <div v-if="inviteResult" class="invite-result">
+            <span class="schools-kicker">Invite link</span>
+            <button
+              type="button"
+              class="code-chip is-large"
+              :class="{ 'is-copied': copiedCode === inviteResult.url }"
+              @click="copyCode(inviteResult.url)"
+            >
+              <span class="code-value frost-mono-nums">{{ inviteResult.url }}</span>
+              <svg v-if="copiedCode !== inviteResult.url" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+            <span class="invite-hint">{{ inviteResult.hint }}</span>
+          </div>
+        </div>
       </div>
     </Transition>
     <Transition name="fade">
@@ -1221,26 +1263,6 @@ onMounted(() => {
           <div class="field">
             <label class="schools-kicker">Organisation <span class="required">*</span></label>
             <input v-model="newGovtOrg" type="text" class="frost-input" placeholder="e.g. Welsh Government Language Office" />
-          </div>
-
-          <div v-if="govtAdminCode" class="field field-wide invite-result">
-            <span class="schools-kicker">Invite link</span>
-            <button
-              type="button"
-              class="code-chip is-large"
-              :class="{ 'is-copied': copiedCode === groupInviteLink(govtAdminCode) }"
-              @click="copyCode(groupInviteLink(govtAdminCode!))"
-            >
-              <span class="code-value frost-mono-nums">{{ groupInviteLink(govtAdminCode) }}</span>
-              <svg v-if="copiedCode !== groupInviteLink(govtAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </button>
-            <span class="invite-hint">Share this link — clicking it takes them straight to sign-in.</span>
           </div>
 
           <div class="field-actions">
@@ -1395,26 +1417,6 @@ onMounted(() => {
                 {{ g.name }}
               </option>
             </select>
-          </div>
-
-          <div v-if="newSchoolAdminCode" class="field field-wide invite-result">
-            <span class="schools-kicker">Invite link</span>
-            <button
-              type="button"
-              class="code-chip is-large"
-              :class="{ 'is-copied': copiedCode === schoolAdminInviteLink(newSchoolAdminCode) }"
-              @click="copyCode(schoolAdminInviteLink(newSchoolAdminCode!))"
-            >
-              <span class="code-value frost-mono-nums">{{ schoolAdminInviteLink(newSchoolAdminCode) }}</span>
-              <svg v-if="copiedCode !== schoolAdminInviteLink(newSchoolAdminCode)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-            </button>
-            <span class="invite-hint">Share this with the school admin — clicking it takes them straight to sign-in.</span>
           </div>
 
           <div class="field-actions">
@@ -2124,8 +2126,24 @@ onMounted(() => {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Invite-code result inside a form */
-.invite-result {
+/* Invite link block — rendered inside the success banner as one unit. */
+.banner-success--invite {
   align-items: flex-start;
+}
+
+.banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.invite-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .invite-hint {
