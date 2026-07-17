@@ -122,15 +122,24 @@ export function useSchoolData() {
   // Fetch school(s) based on user role
   async function fetchSchools(): Promise<void> {
     if (isDemoMode.value) return  // Data pre-populated by populateDemoData
-    if (!selectedUser.value) return
+    // Snapshot the context ONCE. selectedUser is a shared module-level ref
+    // (useSchoolContext.currentUser) that other flows can null mid-flight —
+    // an act-as entry/exit calls ctx.clear(), a persona switch reloads it.
+    // Re-reading `selectedUser.value` across the awaits below then threw
+    // "Cannot read properties of null (reading 'school_id')" (the reported
+    // school-leader View-as crash). Bind it here so this call operates on a
+    // consistent persona; the generation guard already discards a stale
+    // call's writes if the context changed underneath it.
+    const user = selectedUser.value
+    if (!user) return
 
     const myGeneration = ++fetchGeneration
     isLoading.value = true
     error.value = null
 
     try {
-      const userGroupId = selectedUser.value.group_id
-      const userRegionCode = selectedUser.value.region_code
+      const userGroupId = user.group_id
+      const userRegionCode = user.region_code
 
       if (isGovtAdmin.value && userGroupId) {
         // Group leader: server-mediated (/api/school/group-summary), NOT a
@@ -153,7 +162,7 @@ export function useSchoolData() {
         // endpoint 403s unless told explicitly which group is being READ.
         // A real govt_admin never sends this — the server always derives
         // their own group, never trusting a client-supplied id for that path.
-        const isAdminView = selectedUser.value._scopeSource === 'admin-view'
+        const isAdminView = user._scopeSource === 'admin-view'
         const url = isAdminView
           ? `/api/school/group-summary?groupId=${encodeURIComponent(userGroupId)}`
           : '/api/school/group-summary'
@@ -253,7 +262,7 @@ export function useSchoolData() {
         if (!regionError && regionData) {
           groupSummary.value = { ...regionData, group_name: regionData.region_name }
         }
-      } else if ((isSchoolAdmin.value || isTeacher.value) && selectedUser.value.school_id) {
+      } else if ((isSchoolAdmin.value || isTeacher.value) && user.school_id) {
         // A REAL school admin/teacher viewing their OWN school: server-mediated
         // (/api/school/roster), NOT a direct `school_summary` read. That view
         // LATERAL-joins user_tags to count teachers/students, and user_tags'
@@ -269,7 +278,7 @@ export function useSchoolData() {
         // session carries the RLS ssi_admin branch — so it keeps using the
         // direct view read instead of this caller-scoped endpoint, which
         // would 403 the real admin's non-staff learner row.
-        const isSelfView = selectedUser.value._scopeSource === 'self'
+        const isSelfView = user._scopeSource === 'self'
         let data: any = null
         if (isSelfView) {
           const { data: { session } } = await client.auth.getSession()
@@ -285,7 +294,7 @@ export function useSchoolData() {
           const { data: viewData, error: fetchError } = await client
             .from('school_summary')
             .select('*')
-            .eq('school_id', selectedUser.value.school_id)
+            .eq('school_id', user.school_id)
             .single()
           if (fetchError) throw fetchError
           data = viewData
@@ -297,7 +306,7 @@ export function useSchoolData() {
           const { data: schoolData } = await client
             .from('schools')
             .select('teacher_join_code, admin_join_code')
-            .eq('id', selectedUser.value.school_id)
+            .eq('id', user.school_id)
             .single()
 
           const activeDaysMap = await fetchSchoolActiveDays([schoolId])

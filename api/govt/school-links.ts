@@ -8,11 +8,19 @@
  * redeemed and by which school.
  *
  * Requires auth; caller must have a govt_admins row with a group_id.
+ *
+ * Admin passthrough (View-as): an ssi_admin viewing /schools AS a group
+ * leader (useActAs) carries their OWN bearer token, not the persona's — so
+ * the caller-scoped govt_admins lookup finds no row and 403s (the reported
+ * bug). Same fix shape as group-summary.ts: accept an explicit `?groupId=`
+ * (the group being READ, never the caller's own scope) once verifyAdmin
+ * confirms the caller is ssi_admin/god. A real group leader still always
+ * derives their OWN group and never trusts a client-supplied id.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { verifyAuthToken } from '../_utils/auth'
+import { verifyAuthToken, verifyAdmin } from '../_utils/auth'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -33,6 +41,7 @@ export default async function handler(
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  const requestedGroupId = typeof req.query.groupId === 'string' ? req.query.groupId : null
 
   try {
     const { data: govtAdmin } = await supabase
@@ -40,11 +49,26 @@ export default async function handler(
       .select('group_id')
       .eq('user_id', authResult.userId)
       .maybeSingle()
-    if (!govtAdmin || !(govtAdmin as any).group_id) {
+
+    let groupId: string
+    if (govtAdmin && (govtAdmin as any).group_id) {
+      // A real group leader always sees their OWN group — a client-supplied
+      // groupId is never trusted for this branch.
+      groupId = (govtAdmin as any).group_id as string
+    } else if (requestedGroupId) {
+      // Admin passthrough: only a verified ssi_admin (View-as) may read an
+      // arbitrary group's links; a plain authed user with no govt_admins row
+      // gets the same 403 as before.
+      const adminResult = await verifyAdmin(req)
+      if ('error' in adminResult) {
+        res.status(403).json({ error: 'Only a government admin governing a group can view this' })
+        return
+      }
+      groupId = requestedGroupId
+    } else {
       res.status(403).json({ error: 'Only a government admin governing a group can view this' })
       return
     }
-    const groupId = (govtAdmin as any).group_id as string
 
     const { data: codes, error: codesError } = await supabase
       .from('invite_codes')

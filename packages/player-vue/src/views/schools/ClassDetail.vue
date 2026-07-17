@@ -526,7 +526,7 @@ const deleteImpactLines = computed(() => {
           <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
         </div>
 
-        <div class="schools-card schools-card-pad rail-card join-card">
+        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card">
           <div class="schools-kicker join-kicker">Invite students</div>
           <p class="join-help">
             Share this link — students click it, sign up, and land straight in the class.
