@@ -21,14 +21,14 @@ There is currently **no CI** running these (plan 001 fixes that) — run them lo
 | 004 | Characterization tests for payment/entitlement handlers | P1 | M | — | DONE |
 | 005 | Guard stale awaited plays (audio/text desync race) | P1 | S | — | DONE |
 | 006 | Fix addRounds silent roundIndex mutation | P2 | S | — | DONE |
-| 007 | Throttle code/validate + CSPRNG for codes | P1 | S | — | TODO |
-| 008 | Stop swallowing class-write errors (false "Saved") | P2 | S–M | — | TODO |
+| 007 | Throttle code/validate + CSPRNG for codes | P1 | S | — | DONE |
+| 008 | Stop swallowing class-write errors (false "Saved") | P2 | S–M | — | DONE |
 | 009 | Close entitlement-code cap bypass (claim-first) | P2 | S | 004 (rec.) | TODO |
-| 010 | Harden player-events identity + validation | P2 | M | — | TODO |
-| 011 | Dedicated ENTITLEMENT_TOKEN_SECRET (no service-role fallback) | P2 | S | — | TODO |
+| 010 | Harden player-events identity + validation | P2 | M | — | DONE |
+| 011 | Dedicated ENTITLEMENT_TOKEN_SECRET (no service-role fallback) | P2 | S | — | DONE |
 | 012 | Idempotent user_tags insert + partial unique index | P2 | S + migration | — | TODO |
 | 013 | Fix clearCourse / WAV-URL dedupe / safety timer | P3 | S | — | DONE |
-| 014 | Correct stale file references in CLAUDE.md | P2 | S | — | TODO |
+| 014 | Correct stale file references in CLAUDE.md | P2 | S | — | DONE |
 | 015 | Delete dead workspace packages + stub app | P3 | S | — | TODO |
 | 016 | Real ESLint config for player-vue (kill stub) | P2 | M | — | TODO |
 | 017 | Upgrade vitest off EOL 1.x; align TS pins | P3 | M | 001 (rec.) | TODO |
