@@ -172,7 +172,9 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 24px;
+  /* Top inset keeps controls out of the status bar; left/right insets cover
+     landscape notches (standing rule — always avoid phone safe areas). */
+  padding: env(safe-area-inset-top, 0px) max(24px, env(safe-area-inset-right, 0px)) 0 max(24px, env(safe-area-inset-left, 0px));
   background: #050508;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex: none;
@@ -181,7 +183,6 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
   position: sticky;
   top: 0;
   z-index: 60;
-  padding-top: env(safe-area-inset-top, 0px);
 
   /* NavMoreMenu trigger on the dark surface */
   --nvm-trigger-color: rgba(255, 255, 255, 0.6);
@@ -320,7 +321,7 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
 }
 
 @media (max-width: 640px) {
-  .admin-topbar { padding-left: 12px; padding-right: 12px; }
+  .admin-topbar { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
   .back-link span { display: none; }
   .brand-text { display: none; }
   .left { gap: 8px; }

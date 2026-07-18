@@ -229,11 +229,19 @@ if (typeof document !== 'undefined') {
 
 <style scoped>
 .schools-topbar {
-  height: 54px;
+  /* iOS PWA (standalone, black-translucent status bar) renders this shell
+     UNDER the status bar / notch. Grow the bar by the top safe-area inset and
+     pad the controls down out of that zone, so the hamburger + Learn escape +
+     avatar stay tappable in portrait; left/right insets cover landscape
+     notches. env() is 0 on desktop and non-notched devices, so this is a
+     no-op there. The 54px control-row height is preserved (border-box) by
+     adding the inset to height, not eating into it. Standing rule — always
+     keep fixed shell chrome out of the phone safe areas (see CLAUDE.md). */
+  height: calc(54px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: env(safe-area-inset-top, 0px) max(24px, env(safe-area-inset-right, 0px)) 0 max(24px, env(safe-area-inset-left, 0px));
   background: #fff;
   border-bottom: 1px solid var(--schools-border);
   flex: none;
@@ -470,7 +478,7 @@ if (typeof document !== 'undefined') {
 @media (max-width: 768px) {
   .tabs { display: none; }
   .nav-toggle { display: inline-flex; }
-  .schools-topbar { padding: 0 16px; position: relative; }
+  .schools-topbar { padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); position: relative; }
   /* Only the hamburger + brand remain in .left once the tab bar is gone —
      the desktop 32px gap (sized for a row of tabs) left far too little
      width for .right on a phone, which is what let items overlap. */
@@ -482,7 +490,7 @@ if (typeof document !== 'undefined') {
    un-shrunk size and nothing overlaps — verified against 320/375/430px
    bounding boxes. */
 @media (max-width: 430px) {
-  .schools-topbar { padding: 0 10px; gap: 8px; }
+  .schools-topbar { padding: env(safe-area-inset-top, 0px) max(10px, env(safe-area-inset-right, 0px)) 0 max(10px, env(safe-area-inset-left, 0px)); gap: 8px; }
   .left { gap: 10px; }
   .right { gap: 8px; }
   /* Identity beats brand on a phone: the wordmark goes, the school name
