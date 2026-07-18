@@ -50,11 +50,11 @@ const { isCheckingAccess, isDenied } = useAdminGate()
         </svg>
         <span>Schools</span>
       </router-link>
-      <router-link to="/admin/invites" class="bottom-nav-item" :class="{ active: route.path.startsWith('/admin/invites') }">
+      <router-link to="/admin/structure" class="bottom-nav-item" :class="{ active: route.path.startsWith('/admin/structure') }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          <path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/>
         </svg>
-        <span>Invites</span>
+        <span>Structure</span>
       </router-link>
       <router-link to="/admin/users" class="bottom-nav-item" :class="{ active: route.path.startsWith('/admin/users') }">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

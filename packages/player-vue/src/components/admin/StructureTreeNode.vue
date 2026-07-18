@@ -6,27 +6,33 @@
 // `commercial` attachment (schools.node_group_id) carried on the node
 // itself — label-not-type (I3): no behaviour branches on label beyond
 // choosing an icon/word and showing the commercial badge when present.
-import { computed, inject, ref } from 'vue'
+import { computed, inject, nextTick, ref } from 'vue'
 import type { StructureApi, StructureNode } from './structureApi'
+
+type QuickFilter = 'all' | 'groups' | 'schools' | 'trial' | 'paid' | 'demo'
 
 const props = withDefaults(defineProps<{
   node: StructureNode
   depth: number
   search?: string
-  filterLabel?: string
-  filterDemo?: 'all' | 'demo' | 'real'
-  filterStatus?: string
-}>(), { search: '', filterLabel: '', filterDemo: 'all', filterStatus: '' })
+  quickFilter?: QuickFilter
+}>(), { search: '', quickFilter: 'all' })
 
 const api = inject<StructureApi>('structureApi')!
 
+// Groups vs Schools is STRUCTURAL (commercial attachment presence) — never
+// the label string (I3). Trial vs Paid mirrors the binary entitlement model
+// (§1.11): "paid" = has a commercial attachment and isn't on trial.
 function selfMatches(n: StructureNode): boolean {
   const q = props.search.trim().toLowerCase()
   if (q && !n.name.toLowerCase().includes(q)) return false
-  if (props.filterLabel && n.label !== props.filterLabel) return false
-  if (props.filterDemo === 'demo' && !n.is_demo) return false
-  if (props.filterDemo === 'real' && n.is_demo) return false
-  if (props.filterStatus && n.commercial?.platformStatus !== props.filterStatus) return false
+  switch (props.quickFilter) {
+    case 'groups': if (n.commercial) return false; break
+    case 'schools': if (!n.commercial) return false; break
+    case 'trial': if (n.commercial?.platformStatus !== 'trial') return false; break
+    case 'paid': if (!n.commercial || n.commercial.platformStatus === 'trial') return false; break
+    case 'demo': if (!n.is_demo) return false; break
+  }
   return true
 }
 function isVisible(n: StructureNode): boolean {
@@ -47,7 +53,21 @@ const editing = computed(() => api.editingId.value === props.node.id)
 const showAddChild = ref(false)
 const showInvite = ref(false)
 const showDemoMint = ref(false)
-const editingLabel = ref(false)
+const showLabelPicker = ref(false)
+const labelPickerEl = ref<HTMLSelectElement | null>(null)
+
+const LABEL_OPTIONS = ['group', 'organisation', 'school', 'nation', 'region', 'district', 'programme', 'lea']
+
+function openLabelPicker(): void {
+  showLabelPicker.value = true
+  nextTick(() => labelPickerEl.value?.focus())
+}
+
+async function pickLabel(label: string): Promise<void> {
+  showLabelPicker.value = false
+  if (label === props.node.label) return
+  await api.updateLabel(props.node, label)
+}
 const newChildName = ref('')
 const newChildLabel = ref('group')
 const newChildIsDemo = ref(false)
@@ -119,27 +139,22 @@ async function submitDemoMint(): Promise<void> {
       {{ node.name }}
     </span>
 
-    <template v-if="editingLabel">
-      <select
-        class="label-select"
-        :value="node.label"
-        title="Relabel (display only — I3)"
-        autofocus
-        @change="api.updateLabel(node, ($event.target as HTMLSelectElement).value); editingLabel = false"
-        @blur="editingLabel = false"
-      >
-        <option v-if="!['group','organisation','school','nation','region','district','programme','lea'].includes(node.label)" :value="node.label">{{ node.label }}</option>
-        <option value="group">group</option>
-        <option value="organisation">organisation</option>
-        <option value="school">school</option>
-        <option value="nation">nation</option>
-        <option value="region">region</option>
-        <option value="district">district</option>
-        <option value="programme">programme</option>
-        <option value="lea">LEA</option>
-      </select>
-    </template>
-    <span v-else class="label-badge" @click="editingLabel = true" title="Click to relabel">{{ node.label }}</span>
+    <select
+      v-if="showLabelPicker"
+      ref="labelPickerEl"
+      class="label-select"
+      :value="node.label"
+      title="Change label"
+      @change="pickLabel(($event.target as HTMLSelectElement).value)"
+      @blur="showLabelPicker = false"
+      @keyup.escape="showLabelPicker = false"
+    >
+      <option v-if="!LABEL_OPTIONS.includes(node.label)" :value="node.label">{{ node.label }}</option>
+      <option v-for="opt in LABEL_OPTIONS" :key="opt" :value="opt">{{ opt === 'lea' ? 'LEA' : opt }}</option>
+    </select>
+    <button v-else type="button" class="label-badge" title="Click to change label" @click="openLabelPicker">
+      {{ node.label === 'lea' ? 'LEA' : node.label }}
+    </button>
 
     <span v-if="node.is_demo" class="org-badge is-demo">Demo</span>
     <span v-if="node.commercial" class="status-pill" :class="node.commercial.platformStatus === 'active' ? 'tone-green' : 'tone-amber'">
@@ -202,9 +217,7 @@ async function submitDemoMint(): Promise<void> {
     :node="child"
     :depth="depth + 1"
     :search="search"
-    :filter-label="filterLabel"
-    :filter-demo="filterDemo"
-    :filter-status="filterStatus"
+    :quick-filter="quickFilter"
   />
 
   <div v-if="isTruncated" class="structure-drill-in" :style="childIndentStyle">
@@ -249,31 +262,28 @@ async function submitDemoMint(): Promise<void> {
 }
 .structure-rename-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
 
-.label-badge {
-  font-size: var(--text-xs);
-  font-family: var(--font-mono);
-  color: var(--schools-fg-3);
-  background: rgba(44, 38, 34, 0.04);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.label-badge:hover {
-  background: rgba(44, 38, 34, 0.08);
-  border-color: rgba(44, 38, 34, 0.12);
-}
-
 .label-select {
   font-size: var(--text-xs);
   font-family: var(--font-mono);
   color: var(--schools-fg-3);
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(44, 38, 34, 0.12);
+  background: transparent;
+  border: 1px solid rgba(var(--tone-red), 0.55);
   border-radius: var(--radius-sm);
-  padding: 2px 6px;
+  padding: 1px 4px;
 }
+
+.label-badge {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--schools-fg-3);
+  background: rgba(44, 38, 34, 0.05);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full, 999px);
+  padding: 2px 9px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.label-badge:hover { background: rgba(44, 38, 34, 0.1); border-color: rgba(44, 38, 34, 0.14); color: var(--schools-fg-2); }
 
 .structure-meta {
   margin-left: auto;

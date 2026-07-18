@@ -151,6 +151,24 @@ describe('GET /api/groups/table', () => {
     expect(res.body.rows.map((r: any) => r.id)).toEqual(['group-c'])
   })
 
+  it('status=paid is a bucket — has a commercial attachment and is not on trial', async () => {
+    const res = makeRes()
+    await handler(makeReq({ status: 'paid' }), res)
+    expect(res.body.rows.map((r: any) => r.id)).toEqual(['group-b'])
+  })
+
+  it('filters by bucket=school — structural (commercial attachment), not the label', async () => {
+    const res = makeRes()
+    await handler(makeReq({ bucket: 'school' }), res)
+    expect(res.body.rows.map((r: any) => r.id).sort()).toEqual(['group-b', 'group-c'])
+  })
+
+  it('filters by bucket=group — no commercial attachment, even if labelled "school"', async () => {
+    const res = makeRes()
+    await handler(makeReq({ bucket: 'group' }), res)
+    expect(res.body.rows.map((r: any) => r.id).sort()).toEqual(['group-a', 'region-1', 'region-2'])
+  })
+
   it('paginates', async () => {
     const res = makeRes()
     await handler(makeReq({ page: '1' }), res)

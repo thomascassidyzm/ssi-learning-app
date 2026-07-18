@@ -128,10 +128,10 @@ async function submitAddSchool(): Promise<void> {
 
 // ─── Verb: share class link (copy student join link to clipboard) ───
 const shareClassLinkUrl = ref<string | null>(null)
-const isShareingClassLink = ref(false)
+const isSharingClassLink = ref(false)
 
 async function shareClassLink(): Promise<void> {
-  isShareingClassLink.value = true
+  isSharingClassLink.value = true
   try {
     // Copy student invite link to clipboard if available, or create one
     const studentLink = links.value.find((l) => l.role === 'student')
@@ -155,7 +155,7 @@ async function shareClassLink(): Promise<void> {
   } catch (err) {
     console.error('Error sharing class link:', err)
   } finally {
-    isShareingClassLink.value = false
+    isSharingClassLink.value = false
   }
 }
 
@@ -191,8 +191,8 @@ watch(() => props.node.id, fetchLinks, { immediate: true })
       <button type="button" class="verb-btn" @click="showAddSchoolForm = !showAddSchoolForm">
         Add a school
       </button>
-      <button v-if="node.rollup.classCount > 0" type="button" class="verb-btn" :disabled="isShareingClassLink" @click="shareClassLink">
-        {{ isShareingClassLink ? 'Copying…' : shareClassLinkUrl ? 'Copied!' : 'Share the class link' }}
+      <button v-if="node.rollup.classCount > 0" type="button" class="verb-btn" :disabled="isSharingClassLink" @click="shareClassLink">
+        {{ isSharingClassLink ? 'Copying…' : shareClassLinkUrl ? 'Copied!' : 'Share the class link' }}
       </button>
       <button type="button" class="verb-btn verb-btn-secondary" @click="seeProgress">
         See progress

@@ -1,8 +1,13 @@
 /**
- * GET /api/groups/table?search=&label=&status=&demo=&page= — the Structure
- * table lens (THE-MODEL.md §1.9/§6). Same data as the tree, flat and
- * paginated, filterable by name search, label (groups.type — display
- * vocabulary, I3), commercial status (school-shaped nodes only), and demo.
+ * GET /api/groups/table?search=&label=&status=&demo=&bucket=&page= — the
+ * Structure table lens (THE-MODEL.md §1.9/§6). Same data as the tree, flat
+ * and paginated, filterable by name search, label (groups.type — display
+ * vocabulary, I3), commercial status (school-shaped nodes only — `status=paid`
+ * is a bucket meaning "has a commercial attachment and isn't on trial",
+ * matching the binary trial/paid entitlement model, §1.11), demo, and
+ * `bucket=school|group` — school-shaped (has a commercial attachment) vs
+ * plain group, a STRUCTURAL split (never `type === 'school'`, I3) for the
+ * Structure UI's plain-word quick filters (§1.12.4).
  *
  * Server-mediated, service-role — no client-direct org-table reads.
  */
@@ -41,6 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const label = String(req.query.label || '').trim()
     const demoParam = typeof req.query.demo === 'string' ? req.query.demo : undefined
     const status = String(req.query.status || '').trim()
+    const bucket = String(req.query.bucket || '').trim()
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1)
 
     let rows = scopeRows
@@ -53,7 +59,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const extras = await computeNodeExtras(supabase, rows.map((r) => r.id))
 
-    if (status) {
+    if (bucket === 'school') rows = rows.filter((r) => !!extras[r.id]?.commercial)
+    if (bucket === 'group') rows = rows.filter((r) => !extras[r.id]?.commercial)
+
+    if (status === 'paid') {
+      rows = rows.filter((r) => {
+        const s = extras[r.id]?.commercial?.platformStatus
+        return !!s && s !== 'trial'
+      })
+    } else if (status) {
       rows = rows.filter((r) => extras[r.id]?.commercial?.platformStatus === status)
     }
 
