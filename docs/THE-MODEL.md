@@ -73,6 +73,31 @@ Two lenses on the same data — a proper **paginated TABLE** of organisations an
 **search plus FILTER chips** (by label, status, demo). The current single-view is unwieldy and
 confusing.
 
+### 1.10 Ways-in live ON the node — the invites page dies (ruled later on 2026-07-18)
+
+> "all the invite link info to pop up directly in the Structures page... maybe we don't even need
+> the Invites page."
+
+**THE INVITES PAGE DIES.** Clicking a group in Structure shows, in its panel, the actual shareable
+**LINKS** — grouped by role — with mint-new-invite right there (role + limits, group pre-filled =
+the node). **The URL is the artifact**: copyable in one tap; the code is internal plumbing and
+never leads. The global `/admin/invites` list is demoted to at most a hidden audit view — not a
+nav destination. (The observed regression — a node panel saying "Manage in Invites →" with no
+links shown — is exactly the wrong shape.)
+
+**Links-first everywhere:** anywhere a code is displayed, show the shareable URL with copy; demo
+join links must be as prominent and functional as they were in the old demo flow.
+
+### 1.11 Entitlements are binary (ruled later on 2026-07-18)
+
+> "there are only two options: all courses (if paid up), X_for_Y (if on a trial)."
+
+A node is either **TRIAL** — exactly ONE course, chosen X_for_Y; expiry auto-derived (30 days if
+premium, 365 days otherwise) — or **PAID** — all courses, no list. **Kill the 150-course checkbox
+wall**: one trial/paid state, a single course picker visible only in trial state. (This is the
+schools instance of the standing ALL-LANGUAGES-ON-PAID direction: no per-course entitlement state
+for paid.)
+
 ---
 
 ## 2. The four types
@@ -229,6 +254,13 @@ All new org reads/writes are **server-mediated** (service-role + authz in code, 
 - **Structure view** (admin + leader): TABLE lens (paginated, sortable) + TREE lens (drill-in),
   toggle between them, state-shared search + filter chips (label, status, demo). Node actions:
   create child, invite people, demo-mint, relabel. Tree drill-in is the replacement for view-as.
+- **Node panel = the ways-in surface (§1.10).** Selecting a node shows its shareable invite LINKS
+  grouped by role (URL first, one-tap copy; codes are plumbing, never lead) + mint-new-invite
+  inline (role + limits; group pre-filled). No "Manage in Invites →" indirection. `/admin/invites`
+  is demoted to a hidden audit view at most.
+- **Node entitlement control (§1.11):** one binary state on the panel — TRIAL (single course
+  picker, X_for_Y, auto expiry 30d premium / 365d otherwise) or PAID (all courses, no list). No
+  per-course checkboxes anywhere.
 - **Teacher shell**: one shell for all teachers. No class → "create/join your first class" prompt,
   play-as-class gated off. ≥1 class → full experience. Group or no group changes *content*
   (school context panels) not *shell*.
