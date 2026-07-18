@@ -126,7 +126,7 @@ const handleSignOut = async () => {
     if (auth?.signOut) {
       await auth.signOut()
     } else {
-      await supabaseRef?.value?.auth.signOut()
+      await supabaseRef?.value?.auth.signOut({ scope: 'local' })
     }
   } finally {
     window.location.reload()

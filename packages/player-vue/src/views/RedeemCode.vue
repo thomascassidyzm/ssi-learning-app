@@ -251,7 +251,7 @@ async function useDifferentEmail() {
   const client = supabase.value
   isLoading.value = true
   try {
-    await client?.auth.signOut()
+    await client?.auth.signOut({ scope: 'local' })
   } finally {
     isLoading.value = false
     email.value = ''

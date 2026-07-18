@@ -55,7 +55,14 @@ export async function verifyAuthToken(req: VercelRequest): Promise<VerifyTokenRe
     const { data: { user }, error } = await supabase.auth.getUser()
 
     if (error || !user) {
-      return { valid: false, error: error?.message || 'Invalid token' }
+      // GoTrue's session_not_found (a revoked session's still-unexpired
+      // token) surfaces as AuthSessionMissingError, whose message "Auth
+      // session missing!" reads as gibberish in a UI banner. Say what it
+      // means and what to do.
+      const message = error?.name === 'AuthSessionMissingError'
+        ? 'Your session has ended — sign in again'
+        : error?.message || 'Invalid token'
+      return { valid: false, error: message }
     }
 
     return { valid: true, userId: user.id }

@@ -474,6 +474,16 @@ export function useAuth(): AuthState & AuthActions {
         const s = result.data.session
         void writeAuthHandoff({ access_token: s.access_token, refresh_token: s.refresh_token })
 
+        // Trust-but-verify: getSession() serves the cached session without
+        // asking the server, so a session revoked elsewhere (sign-out on
+        // another device, refresh-token reuse revocation) keeps an unexpired
+        // token that client-direct PostgREST reads accept but GoTrue-verified
+        // endpoints reject — a half-dead login where the player works and
+        // every admin/server call fails "Auth session missing!" (2026-07-18
+        // incident). Validate once in the background; tear down only on the
+        // definitive session-gone error, never on network flakes.
+        void validateSessionAlive(supabaseClient)
+
         // Check if there's guest progress to migrate
         const hadGuestId = localStorage.getItem(GUEST_ID_KEY)
         if (hadGuestId) {
@@ -528,6 +538,25 @@ export function useAuth(): AuthState & AuthActions {
   // ACTIONS
   // ============================================
 
+  /**
+   * Check the locally-restored session is still alive server-side.
+   * GoTrue answers a revoked session's token with session_not_found, which
+   * supabase-js surfaces as AuthSessionMissingError — the one error that
+   * definitively means "this session no longer exists". Anything else
+   * (network flake, timeout) must never sign the user out.
+   */
+  async function validateSessionAlive(client: SupabaseClient): Promise<void> {
+    try {
+      const { error } = await client.auth.getUser()
+      if (error?.name === 'AuthSessionMissingError') {
+        console.warn('[useAuth] Cached session was revoked server-side — signing out locally')
+        await signOut()
+      }
+    } catch {
+      // Only the explicit error above may tear down — swallow everything else.
+    }
+  }
+
   async function signOut(): Promise<void> {
     // The network sign-out must NEVER block local teardown. If the Supabase call
     // hangs or throws (flaky network, an already-expired/invalid session), we
@@ -536,8 +565,14 @@ export function useAuth(): AuthState & AuthActions {
     // runs. Bound it with a timeout and swallow errors.
     if (supabase.value) {
       try {
+        // scope:'local' — supabase-js defaults to 'global', which revokes the
+        // account's sessions on EVERY device. Signing out on a phone (or a
+        // test-account private window) then killed the desktop's session
+        // server-side while its cached token lived on, so GoTrue-verified
+        // endpoints answered "Auth session missing!" (2026-07-18 admin
+        // incident). Sign-out means this device only.
         await Promise.race([
-          supabase.value.auth.signOut(),
+          supabase.value.auth.signOut({ scope: 'local' }),
           new Promise((resolve) => setTimeout(resolve, 3000)),
         ])
       } catch (err) {

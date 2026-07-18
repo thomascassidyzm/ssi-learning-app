@@ -226,7 +226,7 @@ const isJoinCodeLoading = ref(false)
 async function handleSignOut() {
   try {
     if (auth?.signOut) await auth.signOut()
-    else await supabase.value?.auth?.signOut()
+    else await supabase.value?.auth?.signOut({ scope: 'local' })
   } finally {
     window.location.href = '/schools'
   }

@@ -235,6 +235,34 @@ principle OperatorCaptureGuard:
     display_name restored. Regression net: redeem.test.ts +
     provision.test.ts operator-guard cases.
 
+principle DeviceLocalSignOut:
+  statement: |
+    Sign-out is THIS DEVICE only. Every supabase auth.signOut() call passes
+    scope:'local' (useAuth.signOut plus the raw fallbacks in TopNav,
+    SchoolsContainer and RedeemCode) — supabase-js's default scope:'global'
+    revokes the account's sessions on EVERY device, so a sign-out on a phone
+    or a test private window silently killed the desktop's session
+    server-side. The desktop then held a "zombie" session: a cached,
+    unexpired token that stateless client-direct PostgREST reads accept but
+    GoTrue-verified server endpoints reject with session_not_found. Two
+    defences beyond the scope fix: (1) useAuth.initialize validates a
+    restored session once in the background (auth.getUser()) and tears down
+    ONLY on the definitive AuthSessionMissingError — never on network
+    flakes; (2) api/_utils/auth.ts maps that error to the plain-words
+    banner "Your session has ended — sign in again" instead of supabase-js's
+    "Auth session missing!".
+
+  incident_closed: |
+    2026-07-18 (FABLE incident 2, ~18:52): /admin/structure showed "Auth
+    session missing!", 0 organisations, empty tree — while the learner side
+    and the Settings role check (client-direct reads) worked. auth.sessions
+    held ZERO rows for the founder's admin account despite a 17:01 sign-in:
+    a global-scope sign-out during the day's multi-window account testing
+    had revoked every session, and the admin tab kept serving the revoked
+    token. Regression net: useAuth.deadSession.test.ts (scope + boot
+    teardown), api/_utils/auth.test.ts (error mapping),
+    AdminStructure.test.ts (token on data calls; 401 banner).
+
 principle ResolvedSessionGate:
   statement: |
     useResolvedSession (composables/useResolvedSession.ts) is the ONE shared

@@ -79,6 +79,30 @@ describe('AdminStructure — tree lens (default)', () => {
     expect(wrapper.find('.lens-btn.is-active').text()).toBe('Tree')
   })
 
+  it('sends the session token on the data calls — Authorization: Bearer on mount (FABLE incident 2 regression)', async () => {
+    setupFetch({
+      '/api/groups/tree': { roots: [makeNode()] },
+      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
+    })
+    const wrapper = await mountStructure()
+    const treeCall = callFor('/api/groups/tree')
+    expect(treeCall![1]?.headers?.Authorization).toBe('Bearer test-token')
+    // With a valid session the page shows data, not the error banner.
+    expect(wrapper.text()).toContain('Gwynedd')
+    expect(wrapper.find('.banner-error').exists()).toBe(false)
+  })
+
+  it('surfaces the server auth error in the banner when the session is rejected (401)', async () => {
+    fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: 'Your session has ended — sign in again' }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const wrapper = await mountStructure()
+    expect(wrapper.find('.banner-error').text()).toBe('Your session has ended — sign in again')
+  })
+
   it('shows a drill-in affordance when children were depth-truncated', async () => {
     setupFetch({
       '/api/groups/tree': { roots: [makeNode({ rollup: { childGroupCount: 2, teacherCount: 0, classCount: 0, learnerCount: 0 }, children: [] })] },
