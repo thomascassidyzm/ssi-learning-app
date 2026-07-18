@@ -23,6 +23,21 @@ const GUEST_ID_KEY = 'ssi-guest-id'
 const GUEST_SESSIONS_KEY = 'ssi-guest-sessions-count'
 const SIGNUP_PROMPT_SEEN_KEY = 'ssi-signup-prompt-seen'
 
+// Dead-session recovery (see recoverDeadSession below).
+const DEAD_SESSION_RELOAD_KEY = 'ssi-dead-session-reload-at'
+/** SchoolsContainer reads + clears this to show "please sign in again". */
+export const SIGNIN_AGAIN_NOTICE_KEY = 'ssi-signin-again-notice'
+let isRecoveringDeadSession = false
+/**
+ * Navigation indirection so tests can observe/prevent real navigation —
+ * jsdom can't perform location.href assignment or reload.
+ */
+export const deadSessionNav = {
+  reload: () => window.location.reload(),
+  goto: (url: string) => { window.location.href = url },
+  currentPath: () => window.location.pathname,
+}
+
 export interface AuthState {
   /** Supabase Auth user (null if guest) */
   user: Ref<User | null>
@@ -549,11 +564,55 @@ export function useAuth(): AuthState & AuthActions {
     try {
       const { error } = await client.auth.getUser()
       if (error?.name === 'AuthSessionMissingError') {
-        console.warn('[useAuth] Cached session was revoked server-side — signing out locally')
-        await signOut()
+        await recoverDeadSession(client)
       }
     } catch {
       // Only the explicit error above may tear down — swallow everything else.
+    }
+  }
+
+  /**
+   * Graceful recovery for a session the server no longer honours (stale
+   * pre-deploy sessions, sessions revoked from another device). Without
+   * this, admin/schools surfaces sit on a red "Auth session missing!"
+   * banner with empty data until the user works out they must sign in
+   * again themselves.
+   *
+   * 1. Try refreshSession() — a refreshable session comes back live with a
+   *    new token; reload once so every surface reboots against it (the
+   *    in-flight fetches already failed with the dead token).
+   * 2. Refresh failed → the session is definitively gone: tear down
+   *    locally and, on the server-verified surfaces (/admin, /schools,
+   *    /tutors), hard-navigate to the schools sign-in wall with a friendly
+   *    "please sign in again" notice. Hard navigation (the same escape
+   *    SchoolsContainer.handleSignOut uses) resets module singletons like
+   *    the school context, so no half-dead state survives.
+   */
+  async function recoverDeadSession(client: SupabaseClient): Promise<void> {
+    if (isRecoveringDeadSession) return
+    isRecoveringDeadSession = true
+    try {
+      const { data, error } = await client.auth.refreshSession()
+      if (!error && data?.session) {
+        console.warn('[useAuth] Dead session refreshed — reloading to pick up the live token')
+        // Loop guard: if a recovery reload already happened moments ago,
+        // keep the refreshed session but don't reload again.
+        const last = Number(sessionStorage.getItem(DEAD_SESSION_RELOAD_KEY) || 0)
+        if (Date.now() - last > 60_000) {
+          sessionStorage.setItem(DEAD_SESSION_RELOAD_KEY, String(Date.now()))
+          deadSessionNav.reload()
+        }
+        return
+      }
+      console.warn('[useAuth] Session revoked server-side and not refreshable — routing to sign-in')
+      await signOut()
+      const path = deadSessionNav.currentPath()
+      if (/^\/(admin|schools|tutors)(\/|$)/.test(path)) {
+        sessionStorage.setItem(SIGNIN_AGAIN_NOTICE_KEY, '1')
+        deadSessionNav.goto('/schools')
+      }
+    } finally {
+      isRecoveringDeadSession = false
     }
   }
 

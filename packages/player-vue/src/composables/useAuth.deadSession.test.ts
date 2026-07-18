@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useAuth } from './useAuth'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useAuth, deadSessionNav, SIGNIN_AGAIN_NOTICE_KEY } from './useAuth'
 
 // FABLE incident 2 (2026-07-18): admin pages failed with "Auth session
 // missing!" while the learner side worked. Cause: supabase-js signOut()
@@ -28,10 +28,20 @@ function makeClient(overrides: Record<string, any> = {}) {
       getSession: vi.fn(async () => ({ data: { session: null } })),
       getUser: vi.fn(async () => ({ data: { user: null }, error: null })),
       signOut: vi.fn(async () => ({ error: null })),
+      refreshSession: vi.fn(async () => ({
+        data: { session: null },
+        error: { message: 'refresh_token_not_found' },
+      })),
       ...overrides,
     },
   } as any
 }
+
+const zombieGetUser = () =>
+  vi.fn(async () => ({
+    data: { user: null },
+    error: { name: 'AuthSessionMissingError', message: 'Auth session missing!' },
+  }))
 
 const liveSession = {
   user: { id: 'user-1', email: 'admin@example.com' },
@@ -43,9 +53,20 @@ async function flush(times = 8) {
   for (let i = 0; i < times; i++) await new Promise((r) => setTimeout(r, 0))
 }
 
+let navReload: ReturnType<typeof vi.spyOn>
+let navGoto: ReturnType<typeof vi.spyOn>
+let navPath: ReturnType<typeof vi.spyOn>
+
 beforeEach(() => {
   localStorage.clear()
   sessionStorage.clear()
+  navReload = vi.spyOn(deadSessionNav, 'reload').mockImplementation(() => {})
+  navGoto = vi.spyOn(deadSessionNav, 'goto').mockImplementation(() => {})
+  navPath = vi.spyOn(deadSessionNav, 'currentPath').mockReturnValue('/admin/structure')
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('signOut scope — sign-out is this device only, never global', () => {
@@ -61,13 +82,10 @@ describe('signOut scope — sign-out is this device only, never global', () => {
 })
 
 describe('boot validation — a cached session revoked server-side is torn down', () => {
-  it('signs out locally when getUser answers AuthSessionMissingError (session_not_found)', async () => {
+  it('tries refreshSession first, then signs out locally when refresh also fails', async () => {
     const client = makeClient({
       getSession: vi.fn(async () => ({ data: { session: liveSession } })),
-      getUser: vi.fn(async () => ({
-        data: { user: null },
-        error: { name: 'AuthSessionMissingError', message: 'Auth session missing!' },
-      })),
+      getUser: zombieGetUser(),
     })
 
     const auth = useAuth()
@@ -75,8 +93,75 @@ describe('boot validation — a cached session revoked server-side is torn down'
     await flush()
 
     expect(client.auth.getUser).toHaveBeenCalled()
+    expect(client.auth.refreshSession).toHaveBeenCalled()
     expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
     expect(auth.isAuthenticated.value).toBe(false)
+  })
+
+  it('routes an admin/schools surface to the sign-in wall with the friendly notice', async () => {
+    const client = makeClient({
+      getSession: vi.fn(async () => ({ data: { session: liveSession } })),
+      getUser: zombieGetUser(),
+    })
+
+    await useAuth().initialize(client)
+    await flush()
+
+    expect(sessionStorage.getItem(SIGNIN_AGAIN_NOTICE_KEY)).toBe('1')
+    expect(navGoto).toHaveBeenCalledWith('/schools')
+    expect(navReload).not.toHaveBeenCalled()
+  })
+
+  it('tears down without redirecting when the dead session is found on a player surface', async () => {
+    navPath.mockReturnValue('/')
+    const client = makeClient({
+      getSession: vi.fn(async () => ({ data: { session: liveSession } })),
+      getUser: zombieGetUser(),
+    })
+
+    await useAuth().initialize(client)
+    await flush()
+
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+    expect(navGoto).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem(SIGNIN_AGAIN_NOTICE_KEY)).toBeNull()
+  })
+
+  it('keeps the session and reloads once when refreshSession revives it', async () => {
+    const client = makeClient({
+      getSession: vi.fn(async () => ({ data: { session: liveSession } })),
+      getUser: zombieGetUser(),
+      refreshSession: vi.fn(async () => ({
+        data: { session: { ...liveSession, access_token: 'fresh-token' } },
+        error: null,
+      })),
+    })
+
+    await useAuth().initialize(client)
+    await flush()
+
+    expect(client.auth.refreshSession).toHaveBeenCalled()
+    expect(client.auth.signOut).not.toHaveBeenCalled()
+    expect(navGoto).not.toHaveBeenCalled()
+    expect(navReload).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reload again within the loop-guard window after a refresh-reload', async () => {
+    sessionStorage.setItem('ssi-dead-session-reload-at', String(Date.now()))
+    const client = makeClient({
+      getSession: vi.fn(async () => ({ data: { session: liveSession } })),
+      getUser: zombieGetUser(),
+      refreshSession: vi.fn(async () => ({
+        data: { session: { ...liveSession, access_token: 'fresh-token' } },
+        error: null,
+      })),
+    })
+
+    await useAuth().initialize(client)
+    await flush()
+
+    expect(navReload).not.toHaveBeenCalled()
+    expect(client.auth.signOut).not.toHaveBeenCalled()
   })
 
   it('does NOT sign out on any other getUser failure (network flake, transient error)', async () => {

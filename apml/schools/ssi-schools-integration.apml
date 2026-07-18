@@ -252,6 +252,21 @@ principle DeviceLocalSignOut:
     banner "Your session has ended — sign in again" instead of supabase-js's
     "Auth session missing!".
 
+    Graceful recovery (2026-07-18, second pass): tearing down is not enough —
+    every user whose session predates the 2026-07-18 session-handling deploy
+    boots into the dead-session state, and a bare teardown left them on a
+    broken admin/schools page. useAuth.recoverDeadSession now runs on the
+    definitive dead-session signal: (1) try auth.refreshSession() — a
+    refreshable session comes back live and the page reloads once (60s
+    sessionStorage loop guard) so all surfaces reboot on the fresh token;
+    (2) refresh failed → local sign-out, then on /admin, /schools or /tutors
+    a hard navigation to the /schools sign-in wall carrying the
+    ssi-signin-again-notice flag, which SchoolsContainer renders as a calm
+    "Your session has expired — please sign in again" info alert. The
+    learner never sits on the red error banner with empty data. Regression
+    net: useAuth.deadSession.test.ts (refresh-first, redirect + notice,
+    player-surface no-redirect, reload loop guard).
+
   incident_closed: |
     2026-07-18 (FABLE incident 2, ~18:52): /admin/structure showed "Auth
     session missing!", 0 organisations, empty tree — while the learner side

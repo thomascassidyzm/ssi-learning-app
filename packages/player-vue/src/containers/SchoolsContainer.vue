@@ -8,6 +8,7 @@ import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { SIGNIN_AGAIN_NOTICE_KEY } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { setSchoolsClient } from '@/composables/schools/client'
@@ -81,6 +82,17 @@ const loginOtp = ref('')
 const loginStep = ref<'email' | 'otp'>('email')
 const loginError = ref('')
 const isLoginLoading = ref(false)
+
+// Set by useAuth.recoverDeadSession when a server-revoked session couldn't
+// be refreshed and the user was routed here — a calm "sign in again", never
+// the red error banner with empty data.
+const sessionExpiredNotice = ref(false)
+try {
+  if (sessionStorage.getItem(SIGNIN_AGAIN_NOTICE_KEY) === '1') {
+    sessionExpiredNotice.value = true
+    sessionStorage.removeItem(SIGNIN_AGAIN_NOTICE_KEY)
+  }
+} catch { /* storage blocked — no notice, sign-in still works */ }
 
 const isEmailValid = computed(() =>
   loginEmail.value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(loginEmail.value)
@@ -372,6 +384,10 @@ watch(
             <p class="form-lede">
               Enter the email address your school registered with us. We'll send a single-use code.
             </p>
+
+            <div v-if="sessionExpiredNotice" class="form-alert form-alert--info" role="status">
+              Your session has expired — please sign in again.
+            </div>
 
             <div v-if="loginError" class="form-alert form-alert--error" role="alert">
               {{ loginError }}
@@ -870,6 +886,11 @@ watch(
   background: rgba(219, 30, 23, 0.08);
   border: 1px solid rgba(219, 30, 23, 0.25);
   color: var(--schools-red-deep);
+}
+.form-alert--info {
+  background: rgba(43, 108, 176, 0.08);
+  border: 1px solid rgba(43, 108, 176, 0.25);
+  color: var(--schools-text-primary, #2d3748);
 }
 .form-alert--success {
   background: rgba(31, 138, 91, 0.1);
