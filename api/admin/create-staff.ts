@@ -2,7 +2,7 @@
  * Create Staff API - POST /api/admin/create-staff
  *
  * Replaces the two direct client INSERTs in
- * packages/player-vue/src/views/admin/SchoolsSetup.vue::createStaff
+ * packages/player-vue/src/views/admin/AdminStructure.vue::createStaff
  * that were blocked by 20260521180000_block_anon_role_escalation.sql
  * (REVOKE INSERT on learners).
  *
@@ -15,7 +15,7 @@
  * the learner row so the database doesn't drift.
  *
  * Requires ssi_admin / god caller — enforced by verifyAdmin().
- * SchoolsSetup is the platform-admin school provisioning view, not
+ * AdminStructure is the platform-admin school provisioning view, not
  * the per-school teacher onboarding flow, so the ssi_admin gate is
  * correct here. School-admin-driven teacher creation lives on
  * /schools/teachers and is a separate retrofit if/when needed.

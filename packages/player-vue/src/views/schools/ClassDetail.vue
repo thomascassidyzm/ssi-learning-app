@@ -262,7 +262,7 @@ async function handlePlay() {
 }
 
 // Same /redeem/:code door as every other invite in the app (group leader,
-// school admin, teacher — SchoolsSetup.vue's schoolAdminInviteLink). The
+// school admin, teacher — AdminStructure.vue's schoolAdminInviteLink). The
 // underlying invite_codes row is unchanged (code_type: 'student',
 // max_uses: null) — many students redeem the same link, it's just delivered
 // as a link instead of a bare code now.
@@ -526,7 +526,7 @@ const deleteImpactLines = computed(() => {
           <p v-else class="rail-note schools-subtle">Benchmark loading...</p>
         </div>
 
-        <div class="schools-card schools-card-pad rail-card join-card">
+        <div v-if="!isAdminView" class="schools-card schools-card-pad rail-card join-card">
           <div class="schools-kicker join-kicker">Invite students</div>
           <p class="join-help">
             Share this link — students click it, sign up, and land straight in the class.

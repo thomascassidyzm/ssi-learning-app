@@ -63,7 +63,7 @@ const groupNameDraft = ref('')
 const isSavingGroupName = ref(false)
 const groupNameError = ref<string | null>(null)
 const showNameGroupCard = computed(() =>
-  isGovtAdmin.value && !isViewingSchool.value && groupSummary.value?.name_confirmed === false
+  isGovtAdmin.value && !isAdminView && !isViewingSchool.value && groupSummary.value?.name_confirmed === false
 )
 
 async function saveGroupName() {
@@ -89,7 +89,7 @@ const schoolNameDraft = ref('')
 const isSavingSchoolName = ref(false)
 const schoolNameError = ref<string | null>(null)
 const showNameSchoolCard = computed(() =>
-  isSchoolAdmin.value && currentSchool.value?.name_confirmed === false
+  isSchoolAdmin.value && !isAdminView && currentSchool.value?.name_confirmed === false
 )
 
 watch(currentSchool, (school) => {
@@ -641,12 +641,17 @@ async function handlePlayClass(cls: ClassInfo) {
         <p v-if="schoolNameError" class="name-group-error">{{ schoolNameError }}</p>
       </div>
 
-      <!-- Add schools / Create school (design §1e, §5c revised) -->
-      <div v-if="!isViewingSchool" class="schools-card schools-card-pad add-schools-card">
+      <!-- Add schools / Create school (design §1e, §5c revised). In the
+           read-only View-as, this card only earns its place if there are
+           outstanding links to show — otherwise it would be an empty header. -->
+      <div v-if="!isViewingSchool && (!isAdminView || schoolLinks.length)" class="schools-card schools-card-pad add-schools-card">
         <header class="card-header-row">
           <h3 class="arsenal card-header-title">Schools in your group</h3>
         </header>
-        <div class="add-schools-row">
+        <!-- Creating a school is a write — hidden in the ssi_admin read-only
+             View-as (isAdminView). The read-only outstanding-links table below
+             stays visible so the persona's dashboard is still complete. -->
+        <div v-if="!isAdminView" class="add-schools-row">
           <input
             v-model="newSchoolLabel"
             type="text"
@@ -658,7 +663,7 @@ async function handlePlayClass(cls: ClassInfo) {
             {{ isCreatingSchool ? 'Creating…' : 'Create school' }}
           </button>
         </div>
-        <div v-if="createdSchoolLinks" class="created-links">
+        <div v-if="!isAdminView && createdSchoolLinks" class="created-links">
           <InviteLinkField label="Admin" :url="schoolInviteUrl(createdSchoolLinks.admin_join_code)" />
           <InviteLinkField label="Teacher" :url="schoolInviteUrl(createdSchoolLinks.teacher_join_code)" />
         </div>

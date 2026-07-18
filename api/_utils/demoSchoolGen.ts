@@ -3,7 +3,7 @@
  * (api/admin/demo-schools.ts). "Demos" spec (Tom, 2026-07-17): NO teachers,
  * classes, or students anywhere in the UI or flow — a demo is an arbitrary-
  * depth group hierarchy (the same founder org model as the real
- * `SchoolsSetup.vue` tree) whose leaves hold LEARNERS directly. Provisioning
+ * `AdminStructure.vue` tree) whose leaves hold LEARNERS directly. Provisioning
  * here creates just the root organisation group and its first joinable leaf
  * (via demoLeaf.ts's ensureDemoLeafClass — a hidden school+class the Demos
  * UI never names or shows); the admin grows the tree afterwards from
