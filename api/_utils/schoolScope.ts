@@ -92,6 +92,21 @@ export async function schoolIdForAdmin(svc: SupabaseClient, authUid: string): Pr
   return (school as any)?.id ?? null
 }
 
+/**
+ * Bridge a tree node back to its OWN school-shaped row (schools.node_group_id
+ * = nodeId), THE MODEL I2. School-node duality: since the expand migration
+ * every school owns a node, but older data (invite codes, entitlement grants,
+ * SCHOOL:/CLASS: tags) still references the school by `schools.id`. A facet
+ * keyed on the node id alone (e.g. the node panel's "ways in" invite links)
+ * silently finds nothing — this is the single bridge that lets those facets
+ * resolve the school row behind a node. Returns null for a plain group node
+ * (no attached school).
+ */
+export async function ownSchoolIdForNode(svc: SupabaseClient, nodeId: string): Promise<string | null> {
+  const { data } = await svc.from('schools').select('id').eq('node_group_id', nodeId).maybeSingle()
+  return (data as any)?.id ?? null
+}
+
 /** Schools + own group id a govt_admin governs: group-path subtree (preferred), else region_code. */
 /**
  * Every school in a group's subtree (this group + every descendant, matched

@@ -1,14 +1,28 @@
 /**
  * groupRollups — per-node stats for the Structure UI's two lenses (table +
  * tree), THE-MODEL.md §1.9/§6. Computes, for a batch of group node ids:
- *   - childGroupCount: direct child groups
+ *   - childGroupCount: DIRECT child groups (the "3 schools under IME" count —
+ *     stays direct; it is the fan-out at this node, not a subtree total).
  *   - teacherCount / classCount / learnerCount: people & classes affiliated
- *     to the node, unioning the NEW direct model (classes.group_id,
- *     user_tags tag_type='group') with the LEGACY school-shaped path
- *     (schools.node_group_id -> classes.school_id -> user_tags tag_type='school'/'class')
- *     so counts are meaningful today, before any dual-write backfill lands.
- *   - commercial: the schools row's commercial fields, attached via
- *     schools.node_group_id, for nodes that have one (THE-MODEL.md §4).
+ *     across the node's ENTIRE SUBTREE (the node itself + every descendant),
+ *     so a parent node tells the SAME story as its group dashboard (founder
+ *     ruling 2026-07-18 — "every lens must tell the same story as the group
+ *     dashboard"). A programme like IME shows its schools' combined 6 teachers
+ *     / 80 learners, not the 0/0/0 of its own direct affiliations. Each count
+ *     unions the NEW direct model (classes.group_id, user_tags tag_type='group')
+ *     with the LEGACY school-shaped path (schools.node_group_id ->
+ *     classes.school_id -> user_tags tag_type='school'/'class'), then rolls the
+ *     per-node sets up the tree — DISTINCT users/classes, never a naive sum, so
+ *     a teacher shared across two schools counts once at their shared ancestor.
+ *   - commercial: the node's OWN schools row's commercial fields, attached via
+ *     schools.node_group_id (THE-MODEL.md §4) — a per-node attachment, NOT
+ *     rolled up (a parent has no single commercial identity).
+ *
+ * Subtree membership uses the slug path (`compute_group_path()`), matching
+ * schoolScope.schoolsForGroupSubtree — but with a '/'-boundary check so a
+ * sibling whose slug is a string-prefix ('ime-demo' vs 'ime-demo-two') is not
+ * pulled in. The whole groups forest is fetched once (it is small) rather than
+ * one path-LIKE query per target.
  *
  * Batched with chunk() (schoolScope.ts) so large subtrees don't blow the
  * PostgREST .in() URL cap. Service-role only — call from server-mediated
@@ -45,27 +59,56 @@ function addPerson(map: Map<string, Set<string>>, nodeId: string, userId: string
   map.get(nodeId)!.add(userId)
 }
 
+/** Is `path` the subtree of `rootPath` (itself or a descendant), with a
+ * '/'-boundary so 'a/b' is NOT a descendant of 'a/bc'. */
+function inSubtree(path: string | null | undefined, rootPath: string): boolean {
+  return typeof path === 'string' && (path === rootPath || path.startsWith(rootPath + '/'))
+}
+
 export async function computeNodeExtras(
   svc: SupabaseClient,
-  nodeIds: string[],
+  targetNodeIds: string[],
 ): Promise<Record<string, NodeExtras>> {
   const extras: Record<string, NodeExtras> = {}
-  for (const id of nodeIds) {
+  for (const id of targetNodeIds) {
     extras[id] = { rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 }, commercial: null }
   }
-  if (nodeIds.length === 0) return extras
+  if (targetNodeIds.length === 0) return extras
 
-  // 1. Direct child group counts.
-  for (const batch of chunk(nodeIds)) {
-    const { data } = await svc.from('groups').select('parent_id').in('parent_id', batch)
-    for (const g of data ?? []) {
-      const pid = (g as any).parent_id as string | null
-      if (pid && extras[pid]) extras[pid].rollup.childGroupCount++
-    }
+  // 0. The whole forest's (id, path, parent_id) — small; one fetch lets us
+  // resolve every target's subtree + direct-child count in memory.
+  const { data: allGroups } = await svc.from('groups').select('id, path, parent_id')
+  const pathById = new Map<string, string | null>()
+  const directChildCount = new Map<string, number>()
+  for (const g of allGroups ?? []) {
+    pathById.set((g as any).id, (g as any).path ?? null)
+    const pid = (g as any).parent_id as string | null
+    if (pid) directChildCount.set(pid, (directChildCount.get(pid) || 0) + 1)
   }
 
-  // 2. Commercial attachment (schools.node_group_id) + reverse map for the legacy paths below.
+  // Descendants (incl. self) per target, and the union of every node we must
+  // compute DIRECT sets for.
+  const descendantsByTarget = new Map<string, string[]>()
+  const allNodeIds = new Set<string>()
+  for (const tid of targetNodeIds) {
+    const tpath = pathById.get(tid)
+    const desc: string[] = []
+    if (tpath) {
+      for (const g of allGroups ?? []) {
+        const id = (g as any).id as string
+        if (inSubtree(pathById.get(id), tpath)) { desc.push(id); allNodeIds.add(id) }
+      }
+    } else {
+      desc.push(tid); allNodeIds.add(tid)
+    }
+    descendantsByTarget.set(tid, desc)
+  }
+  const nodeIds = [...allNodeIds]
+
+  // 1. Commercial attachment (schools.node_group_id) — per node, NOT rolled up
+  // — plus the reverse map for the legacy school-shaped paths below.
   const nodeBySchool = new Map<string, string>()
+  const commercialByNode = new Map<string, CommercialInfo>()
   for (const batch of chunk(nodeIds)) {
     const { data } = await svc
       .from('schools')
@@ -74,21 +117,19 @@ export async function computeNodeExtras(
     for (const s of data ?? []) {
       const nodeId = (s as any).node_group_id as string
       nodeBySchool.set((s as any).id, nodeId)
-      if (extras[nodeId]) {
-        extras[nodeId].commercial = {
-          schoolId: (s as any).id,
-          platformStatus: (s as any).platform_status,
-          trialCourseCode: (s as any).trial_course_code,
-          trialKind: (s as any).trial_kind,
-          platformExpiresAt: (s as any).platform_expires_at,
-          teacherSeats: (s as any).teacher_seats,
-        }
-      }
+      commercialByNode.set(nodeId, {
+        schoolId: (s as any).id,
+        platformStatus: (s as any).platform_status,
+        trialCourseCode: (s as any).trial_course_code,
+        trialKind: (s as any).trial_kind,
+        platformExpiresAt: (s as any).platform_expires_at,
+        teacherSeats: (s as any).teacher_seats,
+      })
     }
   }
   const schoolIds = [...nodeBySchool.keys()]
 
-  // 3. Classes: direct group affiliation (I7) + legacy school_id affiliation.
+  // 2. Classes per node: direct group affiliation (I7) + legacy school_id.
   const classIdsByNode = new Map<string, Set<string>>()
   const nodeByClass = new Map<string, string>()
   const addClass = (nodeId: string | null | undefined, classId: string) => {
@@ -107,11 +148,8 @@ export async function computeNodeExtras(
       for (const c of data ?? []) addClass(nodeBySchool.get((c as any).school_id), (c as any).id)
     }
   }
-  for (const [nodeId, ids] of classIdsByNode) {
-    if (extras[nodeId]) extras[nodeId].rollup.classCount = ids.size
-  }
 
-  // 4. Teachers: group tags (THE MODEL) + legacy school tags.
+  // 3. Teachers per node: group tags (THE MODEL) + legacy school tags.
   const teacherSetByNode = new Map<string, Set<string>>()
   for (const batch of chunk(nodeIds)) {
     const { data } = await svc
@@ -142,11 +180,9 @@ export async function computeNodeExtras(
       }
     }
   }
-  for (const [nodeId, set] of teacherSetByNode) {
-    if (extras[nodeId]) extras[nodeId].rollup.teacherCount = set.size
-  }
 
-  // 5. Learners: students in this node's classes (CLASS: tags) + directly group-tagged students.
+  // 4. Learners per node: students in this node's classes (CLASS: tags) +
+  // directly group-tagged students.
   const learnerSetByNode = new Map<string, Set<string>>()
   const allClassIds = [...nodeByClass.keys()]
   for (const batch of chunk(allClassIds)) {
@@ -176,8 +212,26 @@ export async function computeNodeExtras(
       addPerson(learnerSetByNode, nodeId, (t as any).user_id)
     }
   }
-  for (const [nodeId, set] of learnerSetByNode) {
-    if (extras[nodeId]) extras[nodeId].rollup.learnerCount = set.size
+
+  // 5. Roll each target's descendants' DIRECT sets up into a DISTINCT subtree
+  // total. childGroupCount stays direct; commercial is the node's own.
+  for (const tid of targetNodeIds) {
+    const desc = descendantsByTarget.get(tid) || [tid]
+    const teachers = new Set<string>()
+    const classes = new Set<string>()
+    const learners = new Set<string>()
+    for (const nid of desc) {
+      for (const u of teacherSetByNode.get(nid) || []) teachers.add(u)
+      for (const c of classIdsByNode.get(nid) || []) classes.add(c)
+      for (const l of learnerSetByNode.get(nid) || []) learners.add(l)
+    }
+    extras[tid].rollup = {
+      childGroupCount: directChildCount.get(tid) || 0,
+      teacherCount: teachers.size,
+      classCount: classes.size,
+      learnerCount: learners.size,
+    }
+    extras[tid].commercial = commercialByNode.get(tid) || null
   }
 
   return extras
