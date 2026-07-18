@@ -24,10 +24,26 @@ const GUEST_SESSIONS_KEY = 'ssi-guest-sessions-count'
 const SIGNUP_PROMPT_SEEN_KEY = 'ssi-signup-prompt-seen'
 
 // Dead-session recovery (see recoverDeadSession below).
-const DEAD_SESSION_RELOAD_KEY = 'ssi-dead-session-reload-at'
+const DEAD_SESSION_NAV_GUARD_KEY = 'ssi-dead-session-nav-guard'
 /** SchoolsContainer reads + clears this to show "please sign in again". */
 export const SIGNIN_AGAIN_NOTICE_KEY = 'ssi-signin-again-notice'
 let isRecoveringDeadSession = false
+
+/**
+ * supabase-js only removes its stored session when the server logout call
+ * succeeds or fails with an ignorable status — a revoked session's logout
+ * can answer otherwise, leaving the dead token in localStorage to
+ * resurrect on the next boot. And any concurrent getSession() can
+ * re-persist the in-memory session after a purge (both verified live
+ * 2026-07-18 in the stale-session recovery check). Purge explicitly.
+ */
+function purgeSupabaseAuthStorage(): void {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (/^sb-.+-auth-token$/.test(key)) localStorage.removeItem(key)
+    }
+  } catch { /* storage blocked — nothing to purge */ }
+}
 /**
  * Navigation indirection so tests can observe/prevent real navigation —
  * jsdom can't perform location.href assignment or reload.
@@ -592,13 +608,21 @@ export function useAuth(): AuthState & AuthActions {
     if (isRecoveringDeadSession) return
     isRecoveringDeadSession = true
     try {
-      // Loop guard for EVERY recovery navigation (reload or redirect): a
-      // recovery already navigated moments ago means this pass must not
-      // navigate again — verified live 2026-07-18: without it, a zombie
-      // that survives teardown reload-loops the page sub-second.
-      const last = Number(sessionStorage.getItem(DEAD_SESSION_RELOAD_KEY) || 0)
-      const canNavigate = Date.now() - last > 60_000
-      const markNavigated = () => sessionStorage.setItem(DEAD_SESSION_RELOAD_KEY, String(Date.now()))
+      // Loop guard for EVERY recovery navigation (reload or redirect):
+      // at most 3 navigations per 5-minute window — verified live
+      // 2026-07-18: without a guard, a zombie that survives teardown
+      // reload-loops the page sub-second. It legitimately takes up to two
+      // recovery navigations to land clean (a concurrent getSession() can
+      // re-persist the zombie between purge and navigation), so a one-shot
+      // guard strands the user on a half-dead page instead.
+      let guard = { n: 0, t: Date.now() }
+      try {
+        const parsed = JSON.parse(sessionStorage.getItem(DEAD_SESSION_NAV_GUARD_KEY) || '')
+        if (parsed && typeof parsed.n === 'number' && Date.now() - parsed.t < 300_000) guard = parsed
+      } catch { /* absent or malformed — fresh window */ }
+      const canNavigate = guard.n < 3
+      const markNavigated = () =>
+        sessionStorage.setItem(DEAD_SESSION_NAV_GUARD_KEY, JSON.stringify({ n: guard.n + 1, t: guard.t }))
 
       const { data, error } = await client.auth.refreshSession()
       if (!error && data?.session) {
@@ -616,6 +640,9 @@ export function useAuth(): AuthState & AuthActions {
         sessionStorage.setItem(SIGNIN_AGAIN_NOTICE_KEY, '1')
         if (canNavigate) {
           markNavigated()
+          // Re-purge right before leaving: a concurrent getSession() may
+          // have re-persisted the dead session since signOut's purge.
+          purgeSupabaseAuthStorage()
           deadSessionNav.goto('/schools')
         }
       }
@@ -646,16 +673,8 @@ export function useAuth(): AuthState & AuthActions {
         console.warn('[useAuth] supabase signOut failed (clearing local state anyway):', err)
       }
     }
-    // Definitive local teardown: supabase-js only removes its stored session
-    // when the server logout call succeeds or fails with an ignorable status
-    // — a revoked session's logout can answer otherwise, leaving the dead
-    // token in localStorage to resurrect on the next boot (verified live
-    // 2026-07-18 in the stale-session recovery check). Purge it ourselves.
-    try {
-      for (const key of Object.keys(localStorage)) {
-        if (/^sb-.+-auth-token$/.test(key)) localStorage.removeItem(key)
-      }
-    } catch { /* storage blocked — nothing to purge */ }
+    // Definitive local teardown — see purgeSupabaseAuthStorage.
+    purgeSupabaseAuthStorage()
     supabaseUser.value = null
     learner.value = null
     useUserRole().clear()

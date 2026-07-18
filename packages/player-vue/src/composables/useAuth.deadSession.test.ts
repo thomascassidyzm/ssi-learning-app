@@ -161,8 +161,8 @@ describe('boot validation — a cached session revoked server-side is torn down'
     expect(localStorage.getItem('sb-swfvymspfxmnfhevgdkg-auth-token')).toBeNull()
   })
 
-  it('does not navigate again within the loop-guard window (no reload loop)', async () => {
-    sessionStorage.setItem('ssi-dead-session-reload-at', String(Date.now()))
+  it('does not navigate again once the loop-guard budget is spent (no reload loop)', async () => {
+    sessionStorage.setItem('ssi-dead-session-nav-guard', JSON.stringify({ n: 3, t: Date.now() }))
     const client = makeClient({
       getSession: vi.fn(async () => ({ data: { session: liveSession } })),
       getUser: zombieGetUser(),
@@ -177,8 +177,8 @@ describe('boot validation — a cached session revoked server-side is torn down'
     expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
   })
 
-  it('does not reload again within the loop-guard window after a refresh-reload', async () => {
-    sessionStorage.setItem('ssi-dead-session-reload-at', String(Date.now()))
+  it('does not reload again after a refresh-reload once the guard budget is spent', async () => {
+    sessionStorage.setItem('ssi-dead-session-nav-guard', JSON.stringify({ n: 3, t: Date.now() }))
     const client = makeClient({
       getSession: vi.fn(async () => ({ data: { session: liveSession } })),
       getUser: zombieGetUser(),
