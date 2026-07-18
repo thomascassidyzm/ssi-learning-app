@@ -263,10 +263,13 @@ async function submitInvite(node: StructureNode, opts: { role: 'teacher' | 'lead
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    const code = data.code || data.invite?.code
+    const code = data.code as string | undefined
+    // Leader codes land on the /group landing door (govt_admin invite flow);
+    // teacher/student codes use the general shareable /redeem link.
+    const path = opts.role === 'leader' ? 'group' : 'redeem'
     setSuccess(
       `Invite created for "${node.name}"`,
-      code ? { url: `${window.location.origin}/redeem/${code}`, hint: 'Share this invite link.' } : null,
+      code ? { url: `${window.location.origin}/${path}/${code}`, hint: 'Share this invite link.' } : null,
     )
     return true
   } catch (err) {
@@ -288,10 +291,12 @@ async function submitDemoMint(node: StructureNode, opts: { name: string; leaderE
     })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    const code = data.invite?.code || data.code
+    // Links-first (THE-MODEL §1.10): the leader link is server-built
+    // (/group/<code>) — use it directly rather than re-deriving a URL.
+    const leaderLink = Array.isArray(data.links) ? data.links.find((l: any) => l.role === 'leader') : null
     setSuccess(
       `Demo org "${opts.name}" minted under "${node.name}"`,
-      code ? { url: `${window.location.origin}/redeem/${code}`, hint: 'Share this with the demo leader.' } : null,
+      leaderLink?.url ? { url: leaderLink.url, hint: 'Share this with the demo leader.' } : null,
     )
     await refetchCurrentLens()
     return true
