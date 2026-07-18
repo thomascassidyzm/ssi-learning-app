@@ -127,6 +127,11 @@ new behaviour may key on it; the shells merge.
 - **I8 — Invites mint people, never structure.** Redeeming any invite code creates/updates
   affiliations and roles only. Group/class creation happens only through tree (or class-management)
   endpoints.
+  *Known expand-phase exceptions (audited 2026-07-18, compat-locked under I10):* two legacy
+  redemption branches still self-mint structure — `school_admin` codes mint the `schools` row, and
+  group-less `govt_admin` codes mint a `groups` row. Both are live, tested leader/school-admin
+  onboarding, not demo debris. I8 is fully true for every invite **creation** path now; these two
+  **redemption** paths migrate to tree-created-structure + join-invites in the contract phase.
 - **I9 — Demo is a flag, not a shape.** A demo org is ordinary structure with `is_demo` propagation;
   it can be extended later like any other subtree.
 - **I10 — Expand-contract safety.** Until the new UI ships, deployed prod code reading
