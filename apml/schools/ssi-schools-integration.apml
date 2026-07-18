@@ -209,6 +209,35 @@ principle LoginLandsInYourOwnPlayer:
     resolvedSessionGuard.test.ts ("/" landing watch),
     useAuth.signOutTeardown.test.ts.
 
+principle OperatorCaptureGuard:
+  statement: |
+    Roles are additive facets of ONE account — and an OPERATOR account
+    (platform_role='ssi_admin') never takes on educational roles through
+    self-service flows. Both role-granting self-service endpoints refuse an
+    ssi_admin caller (api/_utils/operatorGuard.ts, shared message): invite
+    redemption (api/code/redeem.ts, before claiming a code use) and
+    onboarding provisioning (api/onboarding/provision.ts, before any
+    grant/role/trial write). Operators test signup and invite links from
+    separate test accounts (intentional, per CLAUDE.md); deliberate role
+    grants to an admin go through admin tooling, never signup paths.
+    Corollary in the shells: leaving /schools is a NAVIGATION ("My player"
+    in SchoolsTopBar's user menu + TopNav's dropdown), never an identity
+    sign-out — "Sign out" is account-level only.
+
+  incident_closed: |
+    2026-07-18 live case: the founder's main admin account was captured as a
+    teacher by two test walks of real flows while signed in — the /tutors
+    signup (2026-07-16: teachers row, a "My class" class, display_name
+    overwritten via onboarding/profile) and a teacher invite redemption
+    (2026-07-18, code SRC-324 → educational_role='teacher' + a school tag,
+    per role_change_audit). The schools shell then swallowed every login
+    (with the since-removed staff redirect), and its only exit was full
+    sign-out. DB remediation applied 2026-07-18 (audited in
+    role_change_audit, source='admin-cleanup'): role nulled, tag
+    soft-removed, tutor-test teachers/class/shadow-learner rows deleted,
+    display_name restored. Regression net: redeem.test.ts +
+    provision.test.ts operator-guard cases.
+
 principle ResolvedSessionGate:
   statement: |
     useResolvedSession (composables/useResolvedSession.ts) is the ONE shared
