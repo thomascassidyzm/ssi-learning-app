@@ -12579,7 +12579,7 @@ ALTER TABLE ONLY public.course_seeds
 --
 
 ALTER TABLE ONLY public.invite_codes
-    ADD CONSTRAINT fk_invite_codes_class FOREIGN KEY (grants_class_id) REFERENCES public.classes(id);
+    ADD CONSTRAINT fk_invite_codes_class FOREIGN KEY (grants_class_id) REFERENCES public.classes(id) ON DELETE CASCADE;
 
 
 --
@@ -12587,7 +12587,7 @@ ALTER TABLE ONLY public.invite_codes
 --
 
 ALTER TABLE ONLY public.invite_codes
-    ADD CONSTRAINT fk_invite_codes_school FOREIGN KEY (grants_school_id) REFERENCES public.schools(id);
+    ADD CONSTRAINT fk_invite_codes_school FOREIGN KEY (grants_school_id) REFERENCES public.schools(id) ON DELETE CASCADE;
 
 
 --
@@ -12603,7 +12603,7 @@ ALTER TABLE ONLY public.govt_admins
 --
 
 ALTER TABLE ONLY public.govt_admins
-    ADD CONSTRAINT govt_admins_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id);
+    ADD CONSTRAINT govt_admins_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
 
 
 --
@@ -12627,7 +12627,7 @@ ALTER TABLE ONLY public.groups
 --
 
 ALTER TABLE ONLY public.invite_codes
-    ADD CONSTRAINT invite_codes_grants_group_id_fkey FOREIGN KEY (grants_group_id) REFERENCES public.groups(id);
+    ADD CONSTRAINT invite_codes_grants_group_id_fkey FOREIGN KEY (grants_group_id) REFERENCES public.groups(id) ON DELETE CASCADE;
 
 
 --
@@ -12731,7 +12731,7 @@ ALTER TABLE ONLY public.learner_speaking_opportunities
 --
 
 ALTER TABLE ONLY public.learners
-    ADD CONSTRAINT learners_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id);
+    ADD CONSTRAINT learners_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
 
 
 --
@@ -12835,7 +12835,7 @@ ALTER TABLE ONLY public.schools
 --
 
 ALTER TABLE ONLY public.schools
-    ADD CONSTRAINT schools_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id);
+    ADD CONSTRAINT schools_invite_code_id_fkey FOREIGN KEY (invite_code_id) REFERENCES public.invite_codes(id) ON DELETE SET NULL;
 
 
 --

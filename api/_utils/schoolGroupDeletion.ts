@@ -9,13 +9,19 @@
  * the demo_orgs expire/purge lifecycle — this is the equivalent for the
  * plain `schools`/`groups`/`classes` rows, following the SAME deletion order
  * that path proved out (invite_codes/govt_admins/user_tags before the
- * schools/groups/classes row itself): `schools.invite_code_id`,
- * `invite_codes.grants_school_id`/`grants_group_id`/`grants_class_id`, and
- * `govt_admins.group_id`, all reference their target with no ON DELETE
- * behaviour — every school gets 2 invite_codes rows at creation
- * (create-school.ts), so a bare `schools.delete()` 500s on essentially
- * every real school/class. This is why the existing delete buttons were
- * broken (schools/groups) or missing entirely (classes — the reported gap).
+ * schools/groups/classes row itself).
+ *
+ * As of 20260718c_invite_codes_ondelete_fk.sql the invite_codes grants FKs
+ * (`grants_class_id`/`grants_school_id`/`grants_group_id`) are ON DELETE
+ * CASCADE and the redeemer FKs (`learners`/`schools`/`govt_admins`.
+ * `invite_code_id`) are ON DELETE SET NULL — so codes now die with their org
+ * row on EVERY path (incl. the schools->classes cascade that used to 500 on
+ * fk_invite_codes_class, the founder's live bug) with no learner-redeemer
+ * blocking. The explicit invite_codes/`invite_code_id` cleanup below is now
+ * belt-and-braces (runs a moment before the FK would); it is retained because
+ * `govt_admins.group_id` and `user_tags` (string-keyed, no FK) still need
+ * manual cleanup, and keeping the ordering intact is cheaper than proving each
+ * removal safe against the tangle of reverse FKs.
  *
  * `classes` -> `class_sessions`/`entitlement_grants`/`teacher_referrals` DO
  * cascade (ON DELETE CASCADE, see supabase/schema.sql) so deleting the
