@@ -1,7 +1,7 @@
 /**
  * Update / Delete School API - GET | PATCH | DELETE /api/admin/update-school
  *
- * Repoints SchoolsSetup.vue::updateSchoolGroup and ::deleteSchool off direct
+ * Repoints AdminStructure.vue::updateSchoolGroup and ::deleteSchool off direct
  * client `schools.update()`/`schools.delete()` — the 2026-07-04 grant-hygiene
  * window left the org tables' authenticated UPDATE/DELETE grants revoked live
  * (see CLAUDE.md RLS section), so both client calls were 403ing. Org-table
@@ -9,10 +9,10 @@
  * create-school.ts.
  *
  * PATCH only sets/clears schools.group_id today (the one field
- * SchoolsSetup.vue needs). Validates the target group exists when non-null.
+ * AdminStructure.vue needs). Validates the target group exists when non-null.
  *
  * GET returns a deletion-impact preview (classes/sessions/learners, whether
- * there's real recorded activity) — the confirm dialog in SchoolsSetup.vue
+ * there's real recorded activity) — the confirm dialog in AdminStructure.vue
  * calls this before DELETE so the admin sees what dies with the school.
  *
  * DELETE cascades invite_codes/user_tags cleanup before removing the school

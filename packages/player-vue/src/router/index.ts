@@ -102,7 +102,7 @@ const routes: RouteRecordRaw[] = [
       // through to the live school experience as intended. (Guard on the PARENT
       // so it covers every child route, not just the bare dashboard.)
       if (canAccessAdmin.value && !hasSchoolRole.value) {
-        return next('/admin/setup')
+        return next('/admin/structure')
       }
       // A user with a KNOWN role but NO school role is not a school member.
       // Solo tutors have no `educational_role`, so they look identical to a
@@ -324,37 +324,38 @@ const routes: RouteRecordRaw[] = [
     meta: { hideAppEscape: true }, // AdminContainer carries its own nav
     children: [
       {
-        // Default /admin landing — redirect to the Setup page (schools + groups
-        // + staff + entitlements), not the Invite-Codes subpage.
+        // Default /admin landing — the Structure surface (the org tree).
         path: '',
-        redirect: '/admin/setup',
+        redirect: '/admin/structure',
       },
       {
-        path: 'access',
-        name: 'admin-access',
-        component: () => import('@/views/admin/AdminAccess.vue'),
-        meta: { title: 'Access Codes', description: 'Create invite and direct-access codes' },
-      },
-      {
-        path: 'demos',
-        name: 'admin-demo-schools',
-        component: () => import('@/views/admin/AdminDemoSchools.vue'),
-        meta: { title: 'Demos', description: 'Self-serve sales showcase orgs for prospects — no school/class/teacher language' },
+        // Canonical invites surface (2026-07-17 rethink): one create card
+        // (org / direct / demo) + one live list, replacing the
+        // creation/list halves of Access, Demos and Try Links. See
+        // docs/invites-redesign/DESIGN.md.
+        path: 'invites',
+        name: 'admin-invites',
+        component: () => import('@/views/admin/AdminInvites.vue'),
+        meta: { title: 'Invites', description: 'One primitive — who × where × what × limits; every link that lets someone in, real or demo' },
       },
       {
         // Old paths — kept working, not just bookmark hygiene: each predates
-        // the current model (flat demo school, then a schools/classes org
-        // tree) this route now serves (a learner-only group hierarchy).
+        // the unified Invites surface and preserves the visitor's intent as
+        // a deep-linked mode/sub into the one create card.
+        path: 'access',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'direct' } }),
+      },
+      {
+        path: 'demos',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
+      },
+      {
         path: 'demo-organisations',
-        redirect: '/admin/demos',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
       },
       {
         path: 'demo-schools',
-        redirect: '/admin/demos',
-      },
-      {
-        path: 'invites',
-        redirect: '/admin/access',
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
       },
       {
         path: 'analytics',
@@ -400,13 +401,11 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'entitlements',
-        redirect: '/admin/access',
+        redirect: () => ({ path: '/admin/invites' }),
       },
       {
         path: 'try-links',
-        name: 'admin-try-links',
-        component: () => import('@/views/admin/AdminTryLinks.vue'),
-        meta: { title: 'Try Links', description: 'Zero-friction preview links for partners' },
+        redirect: () => ({ path: '/admin/invites', query: { mode: 'direct', sub: 'preview' } }),
       },
       {
         path: 'release-notes',
@@ -415,17 +414,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Release Notes', description: 'Curate the What\'s New panel in Settings' },
       },
       {
-        // Canonical path — the whole Setup console (schools + groups + staff +
-        // entitlements), not just schools. /admin/schools (below) redirects here
-        // for old links.
+        // Structure — the org tree IS the page (2026-07-17 consolidation:
+        // Setup's Groups/Schools/Staff/Entitlements tabs dissolved into one
+        // tree with node facets; ways-in management lives on /admin/invites).
+        path: 'structure',
+        name: 'admin-structure',
+        component: () => import('@/views/admin/AdminStructure.vue'),
+        meta: { title: 'Structure', description: 'The org tree — groups, schools, staff and entitlements at the node they belong to' },
+      },
+      {
+        // Old Setup console path — Setup dissolved into Structure.
         path: 'setup',
-        name: 'admin-setup',
-        component: () => import('@/views/admin/SchoolsSetup.vue'),
-        meta: { title: 'Setup' },
+        redirect: '/admin/structure',
       },
       {
         path: 'schools',
-        redirect: '/admin/setup',
+        redirect: '/admin/structure',
       },
       {
         path: 'methodology',
@@ -465,6 +469,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/schools/:id',
     component: AdminSchoolsContainer,
+    meta: { hideAppEscape: true }, // carries AdminTopBar — the floating Back pill overlapped it
     children: [
       {
         path: '',
@@ -508,6 +513,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/admin/groups/:id',
     component: AdminGroupContainer,
+    meta: { hideAppEscape: true }, // carries AdminTopBar — no floating Back pill on top
     children: [
       {
         path: '',

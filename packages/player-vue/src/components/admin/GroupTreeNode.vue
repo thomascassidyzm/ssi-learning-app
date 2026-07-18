@@ -1,7 +1,6 @@
 <script setup lang="ts">
 /**
- * GroupTreeNode — one row of the admin Organisations tree (SchoolsSetup.vue,
- * Groups tab), recursing over itself so an org tree of ANY depth renders
+ * GroupTreeNode — one row of the admin Organisations tree (AdminStructure.vue), recursing over itself so an org tree of ANY depth renders
  * (org -> region -> district -> school...) instead of the old hardcoded
  * root/child/grandchild-only template. Schools attached directly to this
  * group render as leaf ENTITY rows beneath its sub-groups — the founder
@@ -10,13 +9,13 @@
  * join only an end entity").
  *
  * Action callbacks (rename/delete/add) live once on the root via `provide`
- * (see orgTreeApi in SchoolsSetup.vue) and are `inject`ed here — Vue's
+ * (see orgTreeApi in AdminStructure.vue) and are `inject`ed here — Vue's
  * provide/inject is inherited through every recursion depth automatically,
  * so no per-level event-relay boilerplate is needed for an arbitrarily deep
  * tree.
  *
  * `entityMode` ("school" | "leaf") — two hosts share this component:
- * SchoolsSetup.vue's real org tree (leaves are named schools an admin can
+ * AdminStructure.vue's real org tree (leaves are named schools an admin can
  * open/claim) and the Demos tool (2026-07-17 spec: NO school/class/teacher/
  * student language anywhere — a leaf is just a join code for learners).
  * "leaf" mode hides the school-creation action and the school-row list
@@ -63,6 +62,14 @@ interface OrgTreeApi {
   leafJoinCode?: (groupId: string) => string | null
   /** entityMode="leaf" only — idempotently provisions the group's join code. */
   ensureLeaf?: (groupId: string) => Promise<void>
+  /**
+   * Structure surface only — clicking a node selects it (detail panel);
+   * rename moves to an explicit pencil action. Hosts without selectNode
+   * (Demos leaf mode) keep the legacy click-name-to-rename behaviour.
+   */
+  selectNode?: (kind: 'group' | 'school', id: string) => void
+  /** "group:<id>" | "school:<id>" — highlights the selected row. */
+  selectedNodeKey?: { value: string | null }
 }
 
 const props = withDefaults(defineProps<{
@@ -101,11 +108,17 @@ async function copyJoinCode(): Promise<void> {
   }
 }
 
-function groupMatchesText(g: Group): boolean {
+function textMatches(name: string): boolean {
   const q = props.search.trim().toLowerCase()
-  return !q || g.name.toLowerCase().includes(q)
+  return !q || name.toLowerCase().includes(q)
 }
+function groupMatchesText(g: Group): boolean {
+  return textMatches(g.name)
+}
+// Schools count as matching descendants too — searching a school name keeps
+// its whole branch visible (the search "jumps" the tree to it).
 function hasMatchingDescendant(g: Group): boolean {
+  if (props.allSchools.some((s) => s.group_id === g.id && textMatches(s.school_name))) return true
   return props.allGroups
     .filter((x) => x.parent_id === g.id)
     .some((child) => groupMatchesText(child) || hasMatchingDescendant(child))
@@ -116,7 +129,21 @@ const children = computed(() =>
     .filter((g) => g.parent_id === props.group.id)
     .filter((g) => !props.search.trim() || groupMatchesText(g) || hasMatchingDescendant(g))
 )
-const leafSchools = computed(() => props.allSchools.filter((s) => s.group_id === props.group.id))
+// When searching and this group itself doesn't match, show only its matching
+// schools; otherwise all of them.
+const leafSchools = computed(() =>
+  props.allSchools
+    .filter((s) => s.group_id === props.group.id)
+    .filter((s) => !props.search.trim() || groupMatchesText(props.group) || textMatches(s.school_name))
+)
+
+const isSelected = (kind: 'group' | 'school', id: string): boolean =>
+  api.selectedNodeKey?.value === `${kind}:${id}`
+
+function onNameClick(): void {
+  if (api.selectNode) api.selectNode('group', props.group.id)
+  else api.startGroupRename(props.group)
+}
 
 const indentStyle = computed(() => ({
   paddingLeft: `calc(var(--space-4) + ${props.depth} * var(--space-6))`,
@@ -158,7 +185,7 @@ async function submitSchool(): Promise<void> {
 </script>
 
 <template>
-  <div class="group-row" :style="indentStyle">
+  <div class="group-row" :class="{ 'is-selected': isSelected('group', group.id) }" :style="indentStyle">
     <template v-if="api.editingGroupId.value === group.id">
       <input
         class="group-rename-input"
@@ -169,7 +196,12 @@ async function submitSchool(): Promise<void> {
         @keyup.escape="api.cancelGroupRename()"
       />
     </template>
-    <span v-else class="group-name-editable" @click="api.startGroupRename(group)" title="Click to rename">
+    <span
+      v-else
+      class="group-name-editable"
+      :title="api.selectNode ? 'Click to open' : 'Click to rename'"
+      @click="onNameClick"
+    >
       {{ group.name }}
     </span>
     <span v-if="depth === 0 && entityMode === 'school'" class="org-badge" :class="{ 'is-demo': group.is_demo }">
@@ -188,6 +220,11 @@ async function submitSchool(): Promise<void> {
       </button>
     </template>
     <div class="row-actions">
+      <button v-if="api.selectNode" class="row-action" title="Rename" @click="api.startGroupRename(group)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>
+        </svg>
+      </button>
       <button class="row-action" title="Add sub-group" @click="showAddSubgroup = !showAddSubgroup">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
           <path d="M20 7h-9M20 12h-9M20 17h-9M4 4v7M4 7h0"/>
@@ -257,13 +294,20 @@ async function submitSchool(): Promise<void> {
   />
 
   <template v-if="entityMode === 'school'">
-    <div v-for="school in leafSchools" :key="school.id" class="entity-row" :style="entityIndentStyle">
+    <div
+      v-for="school in leafSchools"
+      :key="school.id"
+      class="entity-row"
+      :class="{ 'is-selected': isSelected('school', school.id), 'is-selectable': !!api.selectNode }"
+      :style="entityIndentStyle"
+      @click="api.selectNode?.('school', school.id)"
+    >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="entity-icon">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
       </svg>
       <span class="entity-name">{{ school.school_name }}</span>
       <span v-if="!school.admin_user_id" class="status-pill tone-red"><span class="status-dot"></span>Awaiting admin</span>
-      <div class="row-actions">
+      <div class="row-actions" @click.stop>
         <button class="row-action" title="Open school dashboard" @click="api.openSchoolDashboard(school.id)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -282,6 +326,116 @@ async function submitSchool(): Promise<void> {
 </template>
 
 <style scoped>
+/* Row styles live HERE, not in the host — GroupTreeNode is multi-root, so a
+ * host's scoped CSS cannot reach these elements. */
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-md);
+  color: var(--schools-fg-2);
+}
+
+.group-row:hover { background: rgba(255, 255, 255, 0.48); }
+
+.group-name-editable {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  color: var(--schools-fg);
+  font-weight: var(--font-semibold);
+}
+
+.group-name-editable:hover { background: rgba(44, 38, 34, 0.06); }
+
+.group-rename-input {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(var(--tone-red), 0.55);
+  border-radius: var(--radius-sm);
+  color: var(--schools-fg);
+  width: 220px;
+}
+
+.group-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
+}
+
+.group-meta {
+  margin-left: auto;
+  color: var(--schools-fg-3);
+  font-size: var(--text-xs);
+}
+
+.group-courses {
+  font-size: var(--text-xs);
+  color: rgb(var(--tone-green-ink));
+  font-weight: var(--font-medium);
+}
+
+.group-row .row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: all var(--transition-fast);
+}
+
+.group-row:hover .row-actions,
+.group-row:focus-within .row-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.row-action {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--schools-fg-3);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.row-action:hover {
+  color: var(--schools-fg);
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(44, 38, 34, 0.10);
+}
+
+.row-action.is-danger:hover {
+  color: rgb(var(--tone-red));
+  background: rgba(var(--tone-red), 0.08);
+  border-color: rgba(var(--tone-red), 0.30);
+}
+
+.frost-input {
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 8px 12px;
+  color: var(--schools-fg);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(44, 38, 34, 0.12);
+  border-radius: var(--radius-lg);
+}
+
+.frost-input:focus {
+  outline: none;
+  border-color: rgba(var(--tone-red), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14);
+}
+
 .join-code-badge {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -343,6 +497,9 @@ async function submitSchool(): Promise<void> {
   border-radius: var(--radius-md);
 }
 .entity-row:hover { background: rgba(255, 255, 255, 0.4); }
+.entity-row.is-selectable { cursor: pointer; }
+.entity-row.is-selected,
+.group-row.is-selected { background: rgba(var(--tone-gold, 194 154 58), 0.14); }
 .entity-row .row-actions { margin-left: auto; opacity: 0; transform: translateX(4px); transition: all var(--transition-fast); }
 .entity-row:hover .row-actions, .entity-row:focus-within .row-actions { opacity: 1; transform: translateX(0); }
 .entity-icon { color: var(--schools-fg-3); flex-shrink: 0; }

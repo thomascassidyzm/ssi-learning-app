@@ -11,7 +11,7 @@
  * GET (?impact=1): deletion-impact preview (schools/classes/learners in the
  *   group, whether there's real recorded activity) — ssi_admin, OR the
  *   leader of an ANCESTOR group previewing one of their own sub-groups.
- *   The confirm dialog in SchoolsSetup.vue calls this before DELETE.
+ *   The confirm dialog in AdminStructure.vue calls this before DELETE.
  * DELETE: Delete a group (schools become ungrouped) — ssi_admin, OR a group
  *   leader deleting a SUB-group in their own subtree ("every level can
  *   delete the things it created and everything below them", founder

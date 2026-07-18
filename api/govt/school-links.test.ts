@@ -9,8 +9,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co'
 process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-role-key'
 
+let adminResult: any = { error: 'Requires SSi admin access', status: 403 }
 vi.mock('../_utils/auth', () => ({
   verifyAuthToken: vi.fn(async () => ({ valid: true, userId: 'leader-1' })),
+  verifyAdmin: vi.fn(async () => adminResult),
 }))
 
 let govtAdminRow: any
@@ -42,8 +44,8 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeChainable(table) }),
 }))
 
-function makeReq(): VercelRequest {
-  return { method: 'GET', headers: { authorization: 'Bearer tok' } } as any
+function makeReq(query: Record<string, string> = {}): VercelRequest {
+  return { method: 'GET', query, headers: { authorization: 'Bearer tok' } } as any
 }
 
 function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
@@ -63,6 +65,7 @@ beforeEach(async () => {
     { id: 'code-1', code: 'ABC-123', metadata: { school_name: 'Ysgol A' }, use_count: 0, max_uses: null, is_active: true, created_at: 't1' },
   ]
   schoolsForGroup = []
+  adminResult = { error: 'Requires SSi admin access', status: 403 }
   handler = (await import('./school-links')).default
 })
 
@@ -93,5 +96,38 @@ describe('GET /api/govt/school-links', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(403)
     expect(res.body.links).toBeUndefined()
+  })
+
+  // Admin View-as passthrough: an ssi_admin browsing AS a group leader carries
+  // their OWN token (no govt_admins row) — the reported 403 bug. With a verified
+  // admin + explicit ?groupId=, the persona's links resolve.
+  it('an ssi_admin (verifyAdmin passes) with ?groupId= sees that group\'s links', async () => {
+    govtAdminRow = null
+    adminResult = { userId: 'leader-1' }
+    const req = makeReq({ groupId: 'persona-group' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.links).toHaveLength(1)
+    expect(lastEqByTable.invite_codes).toEqual(expect.arrayContaining([['grants_group_id', 'persona-group']]))
+  })
+
+  it('403s a non-admin caller even with a ?groupId= param (verifyAdmin fails)', async () => {
+    govtAdminRow = null
+    adminResult = { error: 'Requires SSi admin access', status: 403 }
+    const req = makeReq({ groupId: 'persona-group' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(403)
+    expect(res.body.links).toBeUndefined()
+  })
+
+  it('a real group leader ignores a client-supplied groupId and uses their OWN group', async () => {
+    govtAdminRow = { group_id: 'my-group' }
+    const req = makeReq({ groupId: 'someone-elses-group' })
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(lastEqByTable.invite_codes).toEqual(expect.arrayContaining([['grants_group_id', 'my-group']]))
   })
 })

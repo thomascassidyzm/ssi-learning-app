@@ -127,7 +127,10 @@ onUnmounted(() => ctx.clear())
   <div class="schools-container schools-surface">
     <AdminTopBar />
     <div v-if="!isCheckingAccess && !isDenied && !isLoading && !loadError" class="entity-context-bar">
-      <span class="entity-context-name">{{ ctx.currentUser?.value?.school_name || 'School' }}</span>
+      <div class="entity-context-identity">
+        <span class="entity-context-eyebrow">Viewing school</span>
+        <span class="entity-context-name" :title="ctx.currentUser?.value?.school_name || 'School'">{{ ctx.currentUser?.value?.school_name || 'School' }}</span>
+      </div>
       <ViewAsButton :candidates="schoolAdminCandidates" empty-title="No school admin claimed yet" />
     </div>
     <div v-if="isCheckingAccess || isDenied || isLoading" class="schools-loading">
@@ -155,18 +158,44 @@ onUnmounted(() => ctx.clear())
   background: var(--schools-bg, #f6f5f1);
   color: var(--schools-fg, #0F1212);
 }
+/* Identity-first: the school name is the headline of this surface — it must
+   stay visible (sticky, truncating) at every width instead of losing to the
+   admin chrome above it. */
 .entity-context-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 32px;
+  padding: 8px 32px;
   background: #fff;
   border-bottom: 1px solid var(--schools-border, rgba(15,18,18,.10));
+  position: sticky;
+  top: calc(54px + env(safe-area-inset-top, 0px));
+  z-index: 50;
+}
+.entity-context-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.entity-context-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--schools-red, #DB1E17);
 }
 .entity-context-name {
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .entity-context-bar { padding: 8px 16px; }
 }
 .schools-loading {
   display: flex;
