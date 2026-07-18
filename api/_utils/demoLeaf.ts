@@ -89,6 +89,10 @@ export async function ensureDemoLeafClass(
       .insert({
         school_name: group.name as string,
         group_id: groupId,
+        // THE MODEL I2: this hidden school is the commercial attachment of the
+        // demo group itself — the group IS its node. Lets the tree rollups,
+        // redemption dual-write, and the subtree delete cascade see it.
+        node_group_id: groupId,
         admin_user_id: null,
         is_demo: true,
         is_test: true,

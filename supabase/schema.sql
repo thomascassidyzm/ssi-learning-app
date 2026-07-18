@@ -12491,7 +12491,7 @@ ALTER TABLE ONLY public.dashboard_sessions
 --
 
 ALTER TABLE ONLY public.demo_orgs
-    ADD CONSTRAINT demo_orgs_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id);
+    ADD CONSTRAINT demo_orgs_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id) ON DELETE SET NULL;
 
 
 --
@@ -12499,7 +12499,7 @@ ALTER TABLE ONLY public.demo_orgs
 --
 
 ALTER TABLE ONLY public.demo_orgs
-    ADD CONSTRAINT demo_orgs_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id);
+    ADD CONSTRAINT demo_orgs_school_id_fkey FOREIGN KEY (school_id) REFERENCES public.schools(id) ON DELETE SET NULL;
 
 
 --
@@ -12843,7 +12843,7 @@ ALTER TABLE ONLY public.schools
 --
 
 ALTER TABLE ONLY public.schools
-    ADD CONSTRAINT schools_node_group_id_fkey FOREIGN KEY (node_group_id) REFERENCES public.groups(id);
+    ADD CONSTRAINT schools_node_group_id_fkey FOREIGN KEY (node_group_id) REFERENCES public.groups(id) ON DELETE SET NULL;
 
 
 --

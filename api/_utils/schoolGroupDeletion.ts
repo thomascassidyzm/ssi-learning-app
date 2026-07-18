@@ -181,26 +181,72 @@ export async function deleteSchoolCascade(supabase: SupabaseClient, schoolId: st
   if (deleteErr) throw new Error(`schools delete failed: ${deleteErr.message}`)
 }
 
-/** FK-safe cascade delete of one group. Schools in the group are ungrouped, not deleted. */
+/**
+ * FK-safe cascade delete of a group AND its whole subtree (THE MODEL,
+ * 2026-07-18: one recursive node — "every level can delete the things it
+ * created and everything below them", so deleting a node takes its subtree).
+ *
+ * Walks the trigger-maintained `path` ('/'-separated slugs) to find every
+ * descendant group, deepest-first. Per group: a school whose OWN node
+ * (`node_group_id`) is that group is deleted via the full school cascade —
+ * under the one-node model the school IS the node; they live and die
+ * together. Schools merely *parented* there without a node in the subtree
+ * (pre-model legacy shape) keep the old semantics: ungrouped, not deleted.
+ * demo_orgs mint records survive with nulled pointers (ON DELETE SET NULL,
+ * 20260718d_the_model_delete_family.sql).
+ */
 export async function deleteGroupCascade(supabase: SupabaseClient, groupId: string): Promise<void> {
-  const { error: unlinkErr } = await supabase
-    .from('govt_admins')
-    .update({ invite_code_id: null })
-    .eq('group_id', groupId)
-    .not('invite_code_id', 'is', null)
-  if (unlinkErr) throw new Error(`govt_admins invite_code_id unlink failed: ${unlinkErr.message}`)
+  const { data: root, error: rootErr } = await supabase
+    .from('groups')
+    .select('id, path')
+    .eq('id', groupId)
+    .maybeSingle()
+  if (rootErr) throw new Error(`groups read failed: ${rootErr.message}`)
+  if (!root) return
 
-  const { error: codesErr } = await supabase.from('invite_codes').delete().eq('grants_group_id', groupId)
-  if (codesErr) throw new Error(`invite_codes delete failed: ${codesErr.message}`)
+  let subtree: { id: string; path: string | null }[] = [{ id: root.id as string, path: root.path as string | null }]
+  if (root.path) {
+    const { data: descendants, error: subErr } = await supabase
+      .from('groups')
+      .select('id, path')
+      .like('path', `${root.path}/%`)
+    if (subErr) throw new Error(`groups subtree read failed: ${subErr.message}`)
+    subtree = subtree.concat((descendants || []) as { id: string; path: string | null }[])
+  }
+  // deepest-first so no child row ever blocks its parent's delete
+  subtree.sort((a, b) => (b.path?.length ?? 0) - (a.path?.length ?? 0))
 
-  const { error: govtErr } = await supabase.from('govt_admins').delete().eq('group_id', groupId)
-  if (govtErr) throw new Error(`govt_admins delete failed: ${govtErr.message}`)
+  for (const group of subtree) {
+    const { error: unlinkErr } = await supabase
+      .from('govt_admins')
+      .update({ invite_code_id: null })
+      .eq('group_id', group.id)
+      .not('invite_code_id', 'is', null)
+    if (unlinkErr) throw new Error(`govt_admins invite_code_id unlink failed: ${unlinkErr.message}`)
 
-  const { error: ungroupError } = await supabase.from('schools').update({ group_id: null }).eq('group_id', groupId)
-  if (ungroupError) throw new Error(`ungroup schools failed: ${ungroupError.message}`)
+    const { error: codesErr } = await supabase.from('invite_codes').delete().eq('grants_group_id', group.id)
+    if (codesErr) throw new Error(`invite_codes delete failed: ${codesErr.message}`)
 
-  const { error: deleteErr } = await supabase.from('groups').delete().eq('id', groupId)
-  if (deleteErr) throw new Error(`groups delete failed: ${deleteErr.message}`)
+    const { error: govtErr } = await supabase.from('govt_admins').delete().eq('group_id', group.id)
+    if (govtErr) throw new Error(`govt_admins delete failed: ${govtErr.message}`)
+
+    // one-node: a school whose node is this group dies with it
+    const { data: nodeSchools, error: nodeErr } = await supabase
+      .from('schools')
+      .select('id')
+      .eq('node_group_id', group.id)
+    if (nodeErr) throw new Error(`schools node read failed: ${nodeErr.message}`)
+    for (const school of nodeSchools || []) {
+      await deleteSchoolCascade(supabase, school.id as string)
+    }
+
+    // legacy attachments (no node in this subtree): ungrouped, not deleted
+    const { error: ungroupError } = await supabase.from('schools').update({ group_id: null }).eq('group_id', group.id)
+    if (ungroupError) throw new Error(`ungroup schools failed: ${ungroupError.message}`)
+
+    const { error: deleteErr } = await supabase.from('groups').delete().eq('id', group.id)
+    if (deleteErr) throw new Error(`groups delete failed: ${deleteErr.message}`)
+  }
 }
 
 export interface ClassImpact extends DeletionImpact {
