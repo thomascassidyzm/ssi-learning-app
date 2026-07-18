@@ -8,8 +8,7 @@
  *
  * Rendered by both persistent top bars (SchoolsTopBar, TopNav) on the play
  * routes, so it looks and behaves identically in the schools and tutor shells.
- * Visual language matches the View-as banner (ActingAsBanner): a live-status pill
- * with a one-tap exit.
+ * A live-status pill with a one-tap exit.
  */
 defineProps<{
   className: string

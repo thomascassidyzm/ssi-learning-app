@@ -17,11 +17,9 @@
 import { inject, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
-import ViewAsButton from '@/components/admin/ViewAsButton.vue'
 import { setSchoolsClient } from '@/composables/schools/client'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useAdminGate } from '@/composables/useAdminGate'
-import type { ActAsPersona } from '@/composables/useUserRole'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
@@ -37,45 +35,8 @@ if (supabase.value) setSchoolsClient(supabase.value)
 const ctx = useSchoolContext()
 const isLoading = ref(true)
 const loadError = ref<string | null>(null)
-// "View as" — so wherever an admin is LOOKING at a school (any subpage
-// under this container, not just the schools list), a one-click view-as
-// this school's admin(s) is available. See ViewAsButton.vue.
-const schoolAdminCandidates = ref<ActAsPersona[]>([])
 
 provide('isAdminView', true)
-
-// Best-effort, and isolated from the main school-context load — a failure
-// fetching view-as candidates (network blip, missing column, a test mock
-// without .from()) must never surface as "failed to load school" and hide
-// a dashboard that otherwise loaded fine.
-async function loadSchoolAdminCandidates(schoolId: string): Promise<void> {
-  const client = supabase.value
-  if (!client || typeof client.from !== 'function') return
-  try {
-    const { data: tags } = await client
-      .from('user_tags')
-      .select('user_id')
-      .eq('tag_type', 'school')
-      .eq('tag_value', `SCHOOL:${schoolId}`)
-      .eq('role_in_context', 'admin')
-      .is('removed_at', null)
-    const userIds = (tags || []).map((t: any) => t.user_id)
-    if (userIds.length === 0) {
-      schoolAdminCandidates.value = []
-      return
-    }
-    const { data: learners } = await client.from('learners').select('user_id, display_name').in('user_id', userIds)
-    schoolAdminCandidates.value = (learners || []).map((l: any) => ({
-      key: l.user_id,
-      userId: l.user_id,
-      role: 'school_admin' as const,
-      name: l.display_name,
-    }))
-  } catch (err) {
-    console.warn('[AdminSchoolsContainer] Failed to load view-as candidates:', err)
-    schoolAdminCandidates.value = []
-  }
-}
 
 async function loadContext(schoolId: string | string[]) {
   const id = Array.isArray(schoolId) ? schoolId[0] : schoolId
@@ -97,7 +58,6 @@ async function loadContext(schoolId: string | string[]) {
   } finally {
     isLoading.value = false
   }
-  void loadSchoolAdminCandidates(id)
 }
 
 // Was `onMounted(() => loadContext(...))` + a route-id-only watch — on a
@@ -131,7 +91,6 @@ onUnmounted(() => ctx.clear())
         <span class="entity-context-eyebrow">Viewing school</span>
         <span class="entity-context-name" :title="ctx.currentUser?.value?.school_name || 'School'">{{ ctx.currentUser?.value?.school_name || 'School' }}</span>
       </div>
-      <ViewAsButton :candidates="schoolAdminCandidates" empty-title="No school admin claimed yet" />
     </div>
     <div v-if="isCheckingAccess || isDenied || isLoading" class="schools-loading">
       <div class="loading-spinner"></div>

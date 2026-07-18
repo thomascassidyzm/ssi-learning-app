@@ -8,8 +8,13 @@
 import { ref, computed } from 'vue'
 
 const STORAGE_KEY = 'ssi-user-role'
-const ACT_AS_KEY = 'ssi-acting-as'
 
+/**
+ * A person candidate (name/role/ids) for admin-facing displays — e.g. the
+ * "leader: X" text in the Structure detail panel. Historically also fed the
+ * removed act-as/view-as UI (THE-MODEL.md §1.8); the shape survives for
+ * read-only display, the persona-minting behaviour does not.
+ */
 export interface ActAsPersona {
   key: string
   userId: string
@@ -20,55 +25,27 @@ export interface ActAsPersona {
   learnerId?: string
 }
 
-/** Human label for a persona's role, for the acting-as banner and any act-as UI. */
-export function roleLabel(role: ActAsPersona['role']): string {
-  switch (role) {
-    case 'teacher':
-      return 'Teacher'
-    case 'school_admin':
-      return 'School leader'
-    case 'govt_admin':
-      return 'Group leader'
-    case 'student':
-      return 'Student'
-  }
-}
-
 // State (module-level singleton)
 const platformRole = ref<string | null>(null)
 const educationalRole = ref<string | null>(null)
 const isInitialized = ref(false)
-
-// Act-as overlay: when an ssi_admin steps into a persona's shoes, this holds
-// the persona's role. Stored in sessionStorage (auto-clears on tab close) so
-// a reload keeps the act-as within the tab. The REAL platformRole stays
-// 'ssi_admin' throughout, so admin controls (incl. the exit banner) survive.
-const actingAs = ref<ActAsPersona | null>(null)
-const isActingAs = computed(() => actingAs.value !== null)
-
-// The school role the UI should reflect — the persona's while acting-as,
-// otherwise the user's own. Drives the /schools route guard and capabilities.
-const effectiveEducationalRole = computed(() => actingAs.value?.role ?? educationalRole.value)
 
 // Role hierarchy: ssi_admin > govt_admin > school_admin > teacher > student
 // ('god' was collapsed into the ssi_admin platform role — 2026-06-16)
 const isSsiAdmin = computed(() => platformRole.value === 'ssi_admin')
 // Deprecated alias: 'god' is now just ssi_admin. Kept so any stray caller still resolves.
 const isGod = isSsiAdmin
-const isGovtAdmin = computed(() => effectiveEducationalRole.value === 'govt_admin')
+const isGovtAdmin = computed(() => educationalRole.value === 'govt_admin')
 const isSchoolAdmin = computed(() =>
-  ['school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
+  ['school_admin', 'govt_admin'].includes(educationalRole.value || '')
 )
 const isTeacher = computed(() =>
-  ['teacher', 'school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
+  ['teacher', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
 )
 
-// True for users whose effective role is a school-scoped educational role.
-// Admins reach schools via act-as (effectiveEducationalRole), not direct membership.
-// While acting-as, this is true so the /schools guard renders the live
-// experience instead of bouncing the admin to /admin/schools.
+// True for users whose educational role is school-scoped.
 const hasSchoolRole = computed(() =>
-  ['teacher', 'school_admin', 'govt_admin'].includes(effectiveEducationalRole.value || '')
+  ['teacher', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
 )
 
 const isTester = computed(() => platformRole.value === 'tester' || isSsiAdmin.value)
@@ -81,8 +58,6 @@ const canAccessAdmin = computed(() => isSsiAdmin.value)
 // behaviour, where god — now folded into ssi_admin — passed this gate.
 const canAccessSchools = computed(() => isTeacher.value || isSsiAdmin.value)
 const canImpersonate = computed(() => isSsiAdmin.value)
-// Who may step into a persona's shoes (the act-as feature).
-const canActAs = computed(() => isSsiAdmin.value)
 
 /**
  * Initialize from known role values (called after DB fetch).
@@ -146,17 +121,6 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
  * Used by the router guard on page reload.
  */
 function restoreFromCache(): void {
-  // Always restore an in-flight act-as overlay (sessionStorage) so the
-  // /schools router guard sees the persona's role even on a hard reload,
-  // independent of whether the real role cache is already initialized.
-  if (!actingAs.value) {
-    try {
-      const a = sessionStorage.getItem(ACT_AS_KEY)
-      if (a) actingAs.value = JSON.parse(a)
-    } catch {
-      // malformed or unavailable
-    }
-  }
   if (isInitialized.value) return
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
@@ -172,46 +136,12 @@ function restoreFromCache(): void {
 }
 
 /**
- * Begin acting as a persona. The real platformRole ('ssi_admin') is left
- * intact; only the effective school role changes. Persisted to sessionStorage.
- */
-function startActingAs(persona: ActAsPersona): void {
-  actingAs.value = persona
-  try {
-    sessionStorage.setItem(ACT_AS_KEY, JSON.stringify(persona))
-  } catch {
-    // sessionStorage unavailable
-  }
-}
-
-/**
- * Header to attach to any write-endpoint fetch made while acting-as, so the
- * server can reject it (api/_utils/actAsGuard.ts) even for endpoints that
- * carry a deliberate ssi_admin support bypass. A real teacher/school-admin
- * session never sends this, so its presence alone is a safe reject signal.
- */
-export function viewAsRequestHeaders(): Record<string, string> {
-  return isActingAs.value ? { 'X-Ssi-View-As': '1' } : {}
-}
-
-/** Stop acting as a persona and return to the admin's own identity. */
-function stopActingAs(): void {
-  actingAs.value = null
-  try {
-    sessionStorage.removeItem(ACT_AS_KEY)
-  } catch {
-    // sessionStorage unavailable
-  }
-}
-
-/**
  * Clear on logout
  */
 function clear(): void {
   platformRole.value = null
   educationalRole.value = null
   isInitialized.value = false
-  stopActingAs()
   try {
     localStorage.removeItem(STORAGE_KEY)
   } catch {
@@ -225,8 +155,6 @@ export function useUserRole() {
     platformRole,
     educationalRole,
     isInitialized,
-    actingAs,
-    isActingAs,
 
     // Role booleans
     isGod,
@@ -241,14 +169,11 @@ export function useUserRole() {
     canAccessAdmin,
     canAccessSchools,
     canImpersonate,
-    canActAs,
 
     // Actions
     initialize,
     setAuthoritative,
     restoreFromCache,
-    startActingAs,
-    stopActingAs,
     clear,
   }
 }

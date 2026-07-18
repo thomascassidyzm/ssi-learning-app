@@ -10,12 +10,11 @@ import { useSchoolContext } from './useSchoolContext'
 import { useSchoolData } from './useSchoolData'
 import { isDemoMode } from '../demo/demoMode'
 import { teachersByClassId } from './classTeacherScope'
-import { viewAsRequestHeaders } from '../useUserRole'
 
 async function authHeaders(): Promise<Record<string, string>> {
   const client = getSchoolsClient()
   const { data: { session } } = await client.auth.getSession()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...viewAsRequestHeaders() }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
   return headers
 }
