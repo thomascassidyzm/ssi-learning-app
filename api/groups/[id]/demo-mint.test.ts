@@ -104,8 +104,6 @@ vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ from: (table: string) => makeQueryBuilder(table) }),
 }))
 
-import handler from './demo-mint'
-
 function makeReq(body: unknown, groupId = 'node-1'): VercelRequest {
   return { method: 'POST', body, query: { id: groupId }, headers: { authorization: 'Bearer tok' } } as any
 }
@@ -117,7 +115,17 @@ function makeRes(): VercelResponse & { statusCode?: number; body?: any } {
   return res
 }
 
-beforeEach(() => {
+let handler: typeof import('./demo-mint').default
+
+beforeEach(async () => {
+  // Dynamic import AFTER process.env is set above (mirrors invites.test.ts
+  // in this same directory) — a static top-level import evaluates
+  // demo-mint.ts's module-level `const supabaseUrl = ...` before this
+  // file's own env-var assignment runs (real ESM import-before-body
+  // ordering), leaving it '' and tripping demo-mint.ts's own
+  // "Server configuration error" 500 guard on every request.
+  vi.resetModules()
+  handler = (await import('./demo-mint')).default
   groupPaths = { 'node-1': '1', 'node-1a': '1.2', 'node-2': '9' }
   govtAdminRow = null
   verifyAdminResult = { userId: 'admin-1' }
