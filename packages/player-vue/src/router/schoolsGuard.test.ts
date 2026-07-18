@@ -60,6 +60,22 @@ describe('/schools route guard', () => {
     expect(useUserRole().hasSchoolRole.value).toBe(true)
   })
 
+  it('an ssi_admin visiting /schools is redirected to /admin/structure — support access, never the member sign-in/no-access wall', async () => {
+    // Founder-facing invariant (2026-07-18 incident): an ssi_admin has no
+    // educational_role, so hasSchoolRole is false — but canAccessAdmin is
+    // true, so the guard sends them to their OWN admin surface rather than
+    // letting them fall onto the member-facing /schools tree (whose container
+    // would otherwise show the "Sign in / no school access" wall). The
+    // tutor-shell dissolution only widened the gate to admit 'tutor'; it
+    // never touched this admin branch, so admin support access is unchanged.
+    useUserRole().initialize('ssi_admin', null)
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
+    // Even a deep link into a child route redirects out, not onto the wall.
+    await router.push('/schools/teachers')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
+  })
+
   it('trapped-Aran fallback still holds: an initialized user with NO role who last visited /teach bounces to /tutors/dashboard, not the dead-end wall', async () => {
     localStorage.setItem('ssi-last-dashboard', 'teach')
     useUserRole().initialize(null, null)
