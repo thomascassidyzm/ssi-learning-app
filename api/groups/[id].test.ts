@@ -174,6 +174,34 @@ describe('PATCH /api/groups/:id', () => {
     await handler(req, res)
     expect(res.statusCode).toBe(401)
   })
+
+  it('rejects re-parenting a group as its own parent (cycle check)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const req = makeReq('PATCH', { parent_id: 'group-1' }, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('rejects re-parenting a group under its own descendant (cycle check)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    // group-2's path ("1.2") is a strict descendant of group-1's ("1").
+    const req = makeReq('PATCH', { parent_id: 'group-2' }, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(400)
+    expect(updateCalls.length).toBe(0)
+  })
+
+  it('allows re-parenting under an unrelated group', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const req = makeReq('PATCH', { parent_id: 'group-3' }, 'group-1')
+    const res = makeRes()
+    await handler(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(updateCalls[0].obj).toMatchObject({ parent_id: 'group-3' })
+  })
 })
 
 describe('GET /api/groups/:id (impact preview)', () => {
