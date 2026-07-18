@@ -50,18 +50,27 @@ function authHeaders(token: string | null): Record<string, string> {
 // ─── Lens toggle + shared filters ───
 const lens = ref<'tree' | 'table'>('tree')
 const search = ref('')
-const filterLabel = ref('')
-const filterDemo = ref<'all' | 'demo' | 'real'>('all')
-const filterStatus = ref('')
-const STATUS_OPTIONS = ['trial', 'active', 'past_due', 'expired', 'cancelled']
+
+// Plain-word quick filter (§1.12.4) — ONE flat, mutually-exclusive set
+// replacing the old label-dropdown + demo 3-way + raw-status dropdown (which
+// leaked jargon like "organisation"/"past_due" straight into the UI). Groups
+// vs Schools is a STRUCTURAL split (has a commercial attachment or not,
+// I3 — never the label string); Trial vs Paid mirrors the binary
+// entitlement model (§1.11).
+type QuickFilter = 'all' | 'groups' | 'schools' | 'trial' | 'paid' | 'demo'
+const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'groups', label: 'Groups' },
+  { value: 'schools', label: 'Schools' },
+  { value: 'trial', label: 'Trial' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'demo', label: 'Demo' },
+]
+const quickFilter = ref<QuickFilter>('all')
 
 function flattenNodes(nodes: StructureNode[]): StructureNode[] {
   return nodes.flatMap((n) => [n, ...flattenNodes(n.children || [])])
 }
-const labelOptions = computed(() => {
-  const source = lens.value === 'tree' ? flattenNodes(treeRoots.value) : tableRows.value
-  return [...new Set(source.map((n) => n.label))].sort()
-})
 
 // ─── Tree lens ───
 const treeRoots = ref<StructureNode[]>([])
@@ -106,9 +115,11 @@ async function fetchTable(): Promise<void> {
     const token = await getAuthToken()
     const params = new URLSearchParams({ page: String(tablePage.value) })
     if (search.value.trim()) params.set('search', search.value.trim())
-    if (filterLabel.value) params.set('label', filterLabel.value)
-    if (filterDemo.value !== 'all') params.set('demo', filterDemo.value === 'demo' ? 'true' : 'false')
-    if (filterStatus.value) params.set('status', filterStatus.value)
+    if (quickFilter.value === 'groups') params.set('bucket', 'group')
+    if (quickFilter.value === 'schools') params.set('bucket', 'school')
+    if (quickFilter.value === 'trial') params.set('status', 'trial')
+    if (quickFilter.value === 'paid') params.set('status', 'paid')
+    if (quickFilter.value === 'demo') params.set('demo', 'true')
     const resp = await fetch(`/api/groups/table?${params.toString()}`, { headers: authHeaders(token) })
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || 'Failed to load table')
@@ -132,7 +143,7 @@ watch(search, () => {
     if (lens.value === 'table') { tablePage.value = 1; fetchTable() }
   }, 250)
 })
-watch([filterLabel, filterDemo, filterStatus], () => {
+watch(quickFilter, () => {
   if (lens.value === 'table') { tablePage.value = 1; fetchTable() }
 })
 watch(tablePage, () => { if (lens.value === 'table') fetchTable() })
@@ -468,22 +479,21 @@ onMounted(() => {
       <button type="button" class="lens-btn" :class="{ 'is-active': lens === 'table' }" @click="lens = 'table'">Table</button>
     </div>
 
-    <!-- Search + filter chips (shared across both lenses) -->
-    <div class="filter-bar">
-      <input v-model="search" class="filter-bar-input" type="text" placeholder="Search organisations…" />
-      <select v-model="filterLabel" class="chip-select">
-        <option value="">All labels</option>
-        <option v-for="l in labelOptions" :key="l" :value="l">{{ l }}</option>
-      </select>
+    <!-- Search + quick filters (shared across both lenses). Note: these
+         classes are deliberately NOT named "filter-bar"/"filter-bar-input" —
+         those are already claimed globally by schools-design.css's compact
+         search-box pattern (max-width 340px, height 38px), and reusing them
+         here silently squashed this whole row into a 340×38 box with its
+         wrapped second line rendering behind the panel below (founder-
+         reported: chips only showing their top edge). -->
+    <div class="structure-filters">
+      <input v-model="search" class="structure-search-input" type="text" placeholder="Search organisations…" />
       <div class="chip-group">
-        <button type="button" class="chip" :class="{ 'is-active': filterDemo === 'all' }" @click="filterDemo = 'all'">All</button>
-        <button type="button" class="chip" :class="{ 'is-active': filterDemo === 'demo' }" @click="filterDemo = 'demo'">Demo</button>
-        <button type="button" class="chip" :class="{ 'is-active': filterDemo === 'real' }" @click="filterDemo = 'real'">Real</button>
+        <button
+          v-for="f in QUICK_FILTERS" :key="f.value" type="button" class="chip"
+          :class="{ 'is-active': quickFilter === f.value }" @click="quickFilter = f.value"
+        >{{ f.label }}</button>
       </div>
-      <select v-model="filterStatus" class="chip-select">
-        <option value="">Any status</option>
-        <option v-for="s in STATUS_OPTIONS" :key="s" :value="s">{{ s }}</option>
-      </select>
     </div>
 
     <div class="structure-layout" :class="{ 'has-panel': selectedNode }">
@@ -523,9 +533,7 @@ onMounted(() => {
               :node="root"
               :depth="0"
               :search="search"
-              :filter-label="filterLabel"
-              :filter-demo="filterDemo"
-              :filter-status="filterStatus"
+              :quick-filter="quickFilter"
             />
             <div v-if="treeRoots.length === 0" class="structure-empty">
               <strong>No organisations yet</strong>
@@ -631,16 +639,12 @@ onMounted(() => {
 }
 .lens-btn.is-active { background: #fff; color: var(--schools-fg); box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10); }
 
-.filter-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.filter-bar-input {
+.structure-filters { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.structure-search-input {
   flex: 1; min-width: 220px; padding: 9px 14px; font: inherit; font-size: var(--text-sm);
   background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg); color: var(--schools-fg);
 }
-.chip-select {
-  font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg);
-  background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg);
-}
-.chip-group { display: inline-flex; gap: 4px; }
+.chip-group { display: inline-flex; gap: 4px; flex-wrap: wrap; }
 .chip {
   padding: 6px 14px; font-size: var(--text-xs); font-weight: var(--font-medium); border-radius: var(--radius-full, 999px);
   border: 1px solid rgba(44, 38, 34, 0.14); background: rgba(255, 255, 255, 0.5); color: var(--schools-fg-2); cursor: pointer;

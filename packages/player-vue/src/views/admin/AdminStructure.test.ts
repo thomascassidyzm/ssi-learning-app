@@ -142,7 +142,7 @@ describe('AdminStructure — shared search + filter chips', () => {
       return w
     })()
     fetchMock.mockClear()
-    await wrapper.find('.filter-bar-input').setValue('gwynedd')
+    await wrapper.find('.structure-search-input').setValue('gwynedd')
     await new Promise((r) => setTimeout(r, 300))
     await flushPromises()
     const call = callFor('/api/groups/table')
@@ -164,7 +164,7 @@ describe('AdminStructure — shared search + filter chips', () => {
     expect(call![0]).toContain('demo=true')
   })
 
-  it('the status select re-fetches the table lens with the status param', async () => {
+  it('the Trial chip re-fetches the table lens with the status param', async () => {
     setupFetch({
       '/api/groups/tree': { roots: [] },
       '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
@@ -173,11 +173,25 @@ describe('AdminStructure — shared search + filter chips', () => {
     await wrapper.findAll('.lens-btn').find((b) => b.text() === 'Table')!.trigger('click')
     await flushPromises()
     fetchMock.mockClear()
-    const selects = wrapper.findAll('.chip-select')
-    await selects[1].setValue('trial')
+    await wrapper.findAll('.chip').find((b) => b.text() === 'Trial')!.trigger('click')
     await flushPromises()
     const call = callFor('/api/groups/table')
     expect(call![0]).toContain('status=trial')
+  })
+
+  it('the Schools chip re-fetches the table lens with the bucket param', async () => {
+    setupFetch({
+      '/api/groups/tree': { roots: [] },
+      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
+    })
+    const wrapper = await mountStructure()
+    await wrapper.findAll('.lens-btn').find((b) => b.text() === 'Table')!.trigger('click')
+    await flushPromises()
+    fetchMock.mockClear()
+    await wrapper.findAll('.chip').find((b) => b.text() === 'Schools')!.trigger('click')
+    await flushPromises()
+    const call = callFor('/api/groups/table')
+    expect(call![0]).toContain('bucket=school')
   })
 })
 
@@ -263,6 +277,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
       '/api/groups/group-a': { group: { id: 'group-a', type: 'school' } },
     })
     const wrapper = await mountStructure()
+    await wrapper.find('.label-badge').trigger('click')
     await wrapper.find('select.label-select').setValue('school')
     await flushPromises()
     const call = fetchMock.mock.calls.find((c) => c[0] === '/api/groups/group-a' && c[1]?.method === 'PATCH')
