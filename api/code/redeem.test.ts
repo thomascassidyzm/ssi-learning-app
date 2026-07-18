@@ -1203,6 +1203,49 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(res._json.error).toBe('Invalid code')
   })
 
+  it('operator-capture guard: refuses to role-mutate an ssi_admin account, before any use is claimed (2026-07-18 incident)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-op',
+            code: 'SRC-324',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: 'school-1',
+            grants_class_id: null,
+            grants_group_id: null,
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    // The signed-in account is the platform operator.
+    responders.learners = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'learner-op', platform_role: 'ssi_admin' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'SRC-324', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toMatch(/platform admin/)
+    // Nothing written: no role update, no tag, no use claimed.
+    expect(writes.learners).toBeUndefined()
+    expect(writes.user_tags).toBeUndefined()
+    expect(writes.role_change_audit).toBeUndefined()
+  })
+
   it('rejects a request missing codeKind', async () => {
     const res = makeRes()
     await handler(makeReq({ body: { code: 'ANY-CODE' } }), res)

@@ -320,3 +320,56 @@ rows to that pattern, it doesn't change the pattern).
 **Search width:** visible-options (both alternatives were named in the brief itself).
 **Decided by:** agent (>90% confidence per CLAUDE.md's BSC-autonomy rule — schema/DB decision,
 inside the "code and database changes, decide and go" bucket, not an outward-facing action).
+
+## 2026-07-18 — login lands in your own player; view-as dies with the session
+**Move:** Removed the '/' cached-role staff redirect (beforeEnter + the role-driven corrective
+watch) from `router/index.ts`; the only thing that now moves a freshly-resolved session off '/'
+is the new opt-in "Start me at" preference (`learners.preferences.start_surface`, surfaced in
+SettingsScreen's Dashboards section, options limited to surfaces the current role can access,
+default Player), read via a new `useStartSurface` module singleton. `useAuth.signOut` now tears
+down all session-scoped surface/view-as state: `useSchoolContext` (admin-view/persona scope),
+the start-surface singleton, and the persisted `ssi-active-class` / `ssi-demo-active-class` /
+`ssi-last-dashboard` keys. Course-progress persistence untouched.
+**Better:** kills the trap class where a stale localStorage role/class context from a prior
+session (tutor test account, view-as detour) hijacked a fresh login onto /schools — founder
+ruling: remember progress, not position. A stale/demoted preference degrades silently to the
+player, never a bounce-wall.
+**Simpler:** deletes a role-inference redirect (two code paths: fast cached + slow resolved) and
+replaces it with one explicit, DB-persisted setting read by one watch; landing behaviour is now
+identical for every role.
+**Cheaper (total):** one optional JSONB key in an existing preferences column — no new table, no
+new endpoint, no localStorage mirror to invalidate.
+**Searched & rejected:**
+- Keep the staff→/schools redirect but validate the cache against the DB before redirecting —
+  rejected: still a position-memory, still needs the async fetch anyway, and re-creates the
+  race the resolved-session gate exists to kill.
+- Persist "last surface" server-side and restore it — rejected: exactly the behaviour the
+  ruling forbids (position memory), just moved somewhere harder to clear.
+- localStorage-cached preference for a synchronous fast-path redirect — rejected: reintroduces
+  the stale-cache-hijack this change removes; a one-tick post-resolution redirect is imperceptible.
+**Search width:** visible-options
+**Decided by:** agent (ruling from Tom)
+
+## 2026-07-18 — operator-capture guard: self-service flows never mutate an ssi_admin's roles
+**Move:** New `api/_utils/operatorGuard.ts`; invite redemption (`api/code/redeem.ts`, before the
+use-claim) and onboarding provisioning (`api/onboarding/provision.ts`, before any write) refuse a
+caller whose learner row carries `platform_role='ssi_admin'`, with one shared message pointing at
+test accounts. Schools shells gain a "My player" menu item (SchoolsTopBar + TopNav) — leaving the
+dashboard is navigation, never identity sign-out. DB remediation for the live capture applied
+directly (audited in role_change_audit, source='admin-cleanup').
+**Better:** closes the incident class where the founder's real admin account was captured as a
+teacher/tutor by testing real signup/invite flows while signed in; also stops a test burning a
+capped code use or a one-per-email trial burn.
+**Simpler:** one 15-line util + two early returns; no new state, no client changes to the flows.
+**Cheaper (total):** one extra indexed select per role-granting redemption/provision call — paths
+that already do several round-trips.
+**Searched & rejected:**
+- Confirmation dialog ("really take this role onto your admin account?") — rejected: the operator
+  is testing the REAL flow; a dialog either blocks the test anyway or gets clicked through and
+  captures again. Refusal + test accounts is the honest shape.
+- Client-side guard in RedeemCode.vue/Onboarding.vue — rejected: the mutation is server-side;
+  a client guard is bypassable and misses future callers.
+- Auto-revert after redemption — rejected: leaves a mutation window and cleanup complexity for
+  zero benefit over refusing up front.
+**Search width:** visible-options
+**Decided by:** agent (incident + ruling from Tom: testing must never mutate operator roles)
