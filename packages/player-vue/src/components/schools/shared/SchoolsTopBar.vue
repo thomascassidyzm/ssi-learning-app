@@ -220,6 +220,12 @@ if (typeof document !== 'undefined') {
         </button>
         <div v-if="menuOpen" class="user-menu-pop">
           <router-link v-if="isSchoolAdmin" to="/schools/settings" class="menu-item" @click="closeMenu">School settings</router-link>
+          <!-- Roles are additive facets of ONE account — leaving the schools
+               surface is a NAVIGATION, not an identity sign-out. Before this
+               existed, the only exit in the menu was "Sign out", which reads
+               as "sign out of the teacher identity" but kills the whole
+               session (founder incident, 2026-07-18). -->
+          <router-link to="/" class="menu-item" @click="closeMenu">My player</router-link>
           <button type="button" class="menu-item" @click="signOut">Sign out</button>
         </div>
       </div>

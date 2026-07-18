@@ -349,3 +349,27 @@ new endpoint, no localStorage mirror to invalidate.
   the stale-cache-hijack this change removes; a one-tick post-resolution redirect is imperceptible.
 **Search width:** visible-options
 **Decided by:** agent (ruling from Tom)
+
+## 2026-07-18 — operator-capture guard: self-service flows never mutate an ssi_admin's roles
+**Move:** New `api/_utils/operatorGuard.ts`; invite redemption (`api/code/redeem.ts`, before the
+use-claim) and onboarding provisioning (`api/onboarding/provision.ts`, before any write) refuse a
+caller whose learner row carries `platform_role='ssi_admin'`, with one shared message pointing at
+test accounts. Schools shells gain a "My player" menu item (SchoolsTopBar + TopNav) — leaving the
+dashboard is navigation, never identity sign-out. DB remediation for the live capture applied
+directly (audited in role_change_audit, source='admin-cleanup').
+**Better:** closes the incident class where the founder's real admin account was captured as a
+teacher/tutor by testing real signup/invite flows while signed in; also stops a test burning a
+capped code use or a one-per-email trial burn.
+**Simpler:** one 15-line util + two early returns; no new state, no client changes to the flows.
+**Cheaper (total):** one extra indexed select per role-granting redemption/provision call — paths
+that already do several round-trips.
+**Searched & rejected:**
+- Confirmation dialog ("really take this role onto your admin account?") — rejected: the operator
+  is testing the REAL flow; a dialog either blocks the test anyway or gets clicked through and
+  captures again. Refusal + test accounts is the honest shape.
+- Client-side guard in RedeemCode.vue/Onboarding.vue — rejected: the mutation is server-side;
+  a client guard is bypassable and misses future callers.
+- Auto-revert after redemption — rejected: leaves a mutation window and cleanup complexity for
+  zero benefit over refusing up front.
+**Search width:** visible-options
+**Decided by:** agent (incident + ruling from Tom: testing must never mutate operator roles)
