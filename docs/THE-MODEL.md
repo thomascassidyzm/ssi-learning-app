@@ -98,6 +98,28 @@ wall**: one trial/paid state, a single course picker visible only in trial state
 schools instance of the standing ALL-LANGUAGES-ON-PAID direction: no per-course entitlement state
 for paid.)
 
+### 1.12 Design law — VERBS ON TOP, MODEL UNDERNEATH (ruled later on 2026-07-18)
+
+> "better — yes, for sure; simpler in some ways but a lot less intuitive... cheaper — not really,
+> since more to think about and manage and communicate. The average end user is decently smart but
+> not necessarily tech-savvy — we have got to make it idiot proof."
+
+**Structural simplicity must NOT become cognitive load.** The one-node model stays as substrate;
+every surface leads with plain-language TASK actions, not concepts. Concretely:
+
+1. **The node panel opens with 3–4 big task buttons** — *Invite a teacher* / *Add a school* /
+   *Share the class link* / *See progress* — each a short guided gesture ending with the artifact
+   in hand (link copied, person invited).
+2. **Tree, labels, entitlements, staff lists are progressive disclosure BELOW the verbs.**
+3. **Empty states are teaching buttons** ("No teachers yet → Invite one"), never captions.
+4. **Plain words everywhere** — no "node", "entitlement", "primitive", "subtree" in user-facing
+   copy; say *school*, *group*, *courses*, *everyone below this*.
+5. **ACCEPTANCE TEST:** a decently smart non-techy school leader completes the top five jobs first
+   try, no training, no tour.
+
+Quality over speed from here — founder: "I want it done well: better × simpler × cheaper."
+
+
 ---
 
 ## 2. The four types
@@ -254,10 +276,15 @@ All new org reads/writes are **server-mediated** (service-role + authz in code, 
 - **Structure view** (admin + leader): TABLE lens (paginated, sortable) + TREE lens (drill-in),
   toggle between them, state-shared search + filter chips (label, status, demo). Node actions:
   create child, invite people, demo-mint, relabel. Tree drill-in is the replacement for view-as.
-- **Node panel = the ways-in surface (§1.10).** Selecting a node shows its shareable invite LINKS
-  grouped by role (URL first, one-tap copy; codes are plumbing, never lead) + mint-new-invite
-  inline (role + limits; group pre-filled). No "Manage in Invites →" indirection. `/admin/invites`
-  is demoted to a hidden audit view at most.
+- **Node panel = the ways-in surface (§1.10), VERBS FIRST (§1.12).** The panel OPENS with 3–4 big
+  task buttons in plain language — *Invite a teacher* / *Add a school* / *Share the class link* /
+  *See progress* — each a short guided gesture ending with the artifact in hand. The shareable
+  invite LINKS grouped by role (URL first, one-tap copy; codes are plumbing, never lead) +
+  mint-new-invite inline sit with those verbs; tree mechanics, labels, entitlement state, staff
+  lists are progressive disclosure below. Empty states are teaching buttons ("No teachers yet →
+  Invite one"). No "Manage in Invites →" indirection. `/admin/invites` is demoted to a hidden
+  audit view at most. User-facing copy never says node/entitlement/subtree — it says school,
+  group, courses, everyone below this. Acceptance: §1.12.5.
 - **Node entitlement control (§1.11):** one binary state on the panel — TRIAL (single course
   picker, X_for_Y, auto expiry 30d premium / 365d otherwise) or PAID (all courses, no list). No
   per-course checkboxes anywhere.

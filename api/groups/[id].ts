@@ -117,6 +117,21 @@ export default async function handler(
     }
 
     try {
+      // Re-parent cycle check (THE-MODEL.md §6 "PATCH ... re-parent
+      // (cycle-checked)"): a group can never become its own parent, nor be
+      // re-parented under one of its own descendants (I1 — the group graph
+      // is a forest, parent_id chains never cycle).
+      if (parent_id) {
+        if (parent_id === groupId) {
+          res.status(400).json({ error: 'A group cannot be its own parent' })
+          return
+        }
+        if (await isStrictDescendantGroup(supabase, groupId, parent_id)) {
+          res.status(400).json({ error: 'Cannot re-parent a group under its own descendant' })
+          return
+        }
+      }
+
       const updates: Record<string, unknown> = { updated_at: new Date().toISOString() }
       if (name !== undefined) {
         updates.name = String(name).trim()
