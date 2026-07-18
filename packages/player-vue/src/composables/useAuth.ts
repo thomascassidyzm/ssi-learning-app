@@ -592,14 +592,19 @@ export function useAuth(): AuthState & AuthActions {
     if (isRecoveringDeadSession) return
     isRecoveringDeadSession = true
     try {
+      // Loop guard for EVERY recovery navigation (reload or redirect): a
+      // recovery already navigated moments ago means this pass must not
+      // navigate again — verified live 2026-07-18: without it, a zombie
+      // that survives teardown reload-loops the page sub-second.
+      const last = Number(sessionStorage.getItem(DEAD_SESSION_RELOAD_KEY) || 0)
+      const canNavigate = Date.now() - last > 60_000
+      const markNavigated = () => sessionStorage.setItem(DEAD_SESSION_RELOAD_KEY, String(Date.now()))
+
       const { data, error } = await client.auth.refreshSession()
       if (!error && data?.session) {
         console.warn('[useAuth] Dead session refreshed — reloading to pick up the live token')
-        // Loop guard: if a recovery reload already happened moments ago,
-        // keep the refreshed session but don't reload again.
-        const last = Number(sessionStorage.getItem(DEAD_SESSION_RELOAD_KEY) || 0)
-        if (Date.now() - last > 60_000) {
-          sessionStorage.setItem(DEAD_SESSION_RELOAD_KEY, String(Date.now()))
+        if (canNavigate) {
+          markNavigated()
           deadSessionNav.reload()
         }
         return
@@ -609,7 +614,10 @@ export function useAuth(): AuthState & AuthActions {
       const path = deadSessionNav.currentPath()
       if (/^\/(admin|schools|tutors)(\/|$)/.test(path)) {
         sessionStorage.setItem(SIGNIN_AGAIN_NOTICE_KEY, '1')
-        deadSessionNav.goto('/schools')
+        if (canNavigate) {
+          markNavigated()
+          deadSessionNav.goto('/schools')
+        }
       }
     } finally {
       isRecoveringDeadSession = false
@@ -638,6 +646,16 @@ export function useAuth(): AuthState & AuthActions {
         console.warn('[useAuth] supabase signOut failed (clearing local state anyway):', err)
       }
     }
+    // Definitive local teardown: supabase-js only removes its stored session
+    // when the server logout call succeeds or fails with an ignorable status
+    // — a revoked session's logout can answer otherwise, leaving the dead
+    // token in localStorage to resurrect on the next boot (verified live
+    // 2026-07-18 in the stale-session recovery check). Purge it ourselves.
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (/^sb-.+-auth-token$/.test(key)) localStorage.removeItem(key)
+      }
+    } catch { /* storage blocked — nothing to purge */ }
     supabaseUser.value = null
     learner.value = null
     useUserRole().clear()

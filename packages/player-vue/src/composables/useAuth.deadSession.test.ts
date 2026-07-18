@@ -146,6 +146,37 @@ describe('boot validation — a cached session revoked server-side is torn down'
     expect(navReload).toHaveBeenCalledTimes(1)
   })
 
+  it('purges the stored supabase session even when the server logout does not (zombie resurrection)', async () => {
+    localStorage.setItem('sb-swfvymspfxmnfhevgdkg-auth-token', JSON.stringify(liveSession))
+    const client = makeClient({
+      getSession: vi.fn(async () => ({ data: { session: liveSession } })),
+      getUser: zombieGetUser(),
+      // Server logout fails — supabase-js would leave the local session behind.
+      signOut: vi.fn(async () => ({ error: { message: 'session not found' } })),
+    })
+
+    await useAuth().initialize(client)
+    await flush()
+
+    expect(localStorage.getItem('sb-swfvymspfxmnfhevgdkg-auth-token')).toBeNull()
+  })
+
+  it('does not navigate again within the loop-guard window (no reload loop)', async () => {
+    sessionStorage.setItem('ssi-dead-session-reload-at', String(Date.now()))
+    const client = makeClient({
+      getSession: vi.fn(async () => ({ data: { session: liveSession } })),
+      getUser: zombieGetUser(),
+    })
+
+    await useAuth().initialize(client)
+    await flush()
+
+    expect(navGoto).not.toHaveBeenCalled()
+    expect(navReload).not.toHaveBeenCalled()
+    // Teardown still ran — only the navigation is suppressed.
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
+  })
+
   it('does not reload again within the loop-guard window after a refresh-reload', async () => {
     sessionStorage.setItem('ssi-dead-session-reload-at', String(Date.now()))
     const client = makeClient({
