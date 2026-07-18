@@ -41,24 +41,17 @@ const ICONS: Record<string, string[]> = {
   methodology: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'],
 }
 
-// The four admin ideas stay flat on the bar (2026-07-17 consolidation):
-// Structure (the tree) · Invites (doors) · Users (people) · Stats+Insights
-// (numbers). Setup dissolved into Structure; Invites promoted out of More —
-// a door can't be one of the four ideas and live behind a "More" click.
+// The everyday ideas stay flat on the bar (2026-07-18 §1.10 revision — "the
+// invites page dies": ways-in now lives ON the node in Structure, one tap
+// away, not a destination you have to find first. /admin/invites is demoted
+// to a hidden audit list in the More menu below — never a flat tab again.
 const primaryTabs: NavMenuItem[] = [
   {
     label: 'Structure',
     to: '/admin/structure',
-    desc: 'The org tree — groups, schools, staff',
+    desc: 'The org tree — groups, schools, staff, ways in',
     iconPaths: ICONS.setup,
     match: (p) => p === '/admin' || p.startsWith('/admin/structure') || p.startsWith('/admin/setup') || p.startsWith('/admin/schools'),
-  },
-  {
-    label: 'Invites',
-    to: '/admin/invites',
-    desc: 'Every way in — invites, codes, demos, previews',
-    iconPaths: ICONS.access,
-    match: (p) => p.startsWith('/admin/invites'),
   },
   {
     label: 'Users',
@@ -94,6 +87,13 @@ const moreGroups: NavMenuGroup[] = [
         desc: 'Onboarding message series',
         iconPaths: ICONS.onboarding,
         match: (p) => p.startsWith('/admin/onboarding'),
+      },
+      {
+        label: 'Invites (audit)',
+        to: '/admin/invites',
+        desc: 'Every code ever minted — read-only; make new ones from a node in Structure',
+        iconPaths: ICONS.access,
+        match: (p) => p.startsWith('/admin/invites'),
       },
     ],
   },
@@ -172,7 +172,9 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 24px;
+  /* Top inset keeps controls out of the status bar; left/right insets cover
+     landscape notches (standing rule — always avoid phone safe areas). */
+  padding: env(safe-area-inset-top, 0px) max(24px, env(safe-area-inset-right, 0px)) 0 max(24px, env(safe-area-inset-left, 0px));
   background: #050508;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex: none;
@@ -181,7 +183,6 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
   position: sticky;
   top: 0;
   z-index: 60;
-  padding-top: env(safe-area-inset-top, 0px);
 
   /* NavMoreMenu trigger on the dark surface */
   --nvm-trigger-color: rgba(255, 255, 255, 0.6);
@@ -320,7 +321,7 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
 }
 
 @media (max-width: 640px) {
-  .admin-topbar { padding-left: 12px; padding-right: 12px; }
+  .admin-topbar { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
   .back-link span { display: none; }
   .brand-text { display: none; }
   .left { gap: 8px; }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, provide, computed, watch } from 'vue'
+import { ref, inject, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SchoolsTopBar from '@/components/schools/shared/SchoolsTopBar.vue'
 import SchoolsErrorBoundary from '@/components/schools/shared/SchoolsErrorBoundary.vue'
@@ -28,22 +28,15 @@ if (supabase.value) {
 const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
-const { canAccessSchools, isSsiAdmin, isActingAs, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
+const { canAccessSchools, isSsiAdmin, isTeacher, educationalRole, isInitialized: isRoleInitialized, restoreFromCache } = useUserRole()
 restoreFromCache()
 const router = useRouter()
 
 // Load the school context for the real authenticated user — the schools
 // composables scope their queries off this.
 const ctx = useSchoolContext()
-// Populate school context from the real auth session once both are ready.
-// Skipped while isActingAs — an ssi_admin stepping into a persona
-// (useActAs.actAs) already populated ctx via loadAsPersona BEFORE this
-// container mounts; this watch would otherwise immediately clobber that
-// persona scope with the admin's own (loadFromAuth's admin-view guard only
-// skips when the loaded user_id ALSO differs from authUserId — see
-// loadFromAuth in useSchoolContext.ts).
 watch(
-  () => auth?.isAuthenticated?.value && canAccessSchools.value && !isActingAs.value,
+  () => auth?.isAuthenticated?.value && canAccessSchools.value,
   (ready) => {
     if (ready && supabase.value && auth?.user?.value?.id) {
       ctx.loadFromAuth(auth.user.value.id, supabase.value).catch((err: unknown) => {
@@ -53,13 +46,6 @@ watch(
   },
   { immediate: true },
 )
-
-// Read-only browse controls hide behind the same isAdminView flag every
-// existing admin read-view (AdminSchoolsContainer, AdminGroupContainer, …)
-// already uses — reusing it here means every "hide when admin-view" check
-// already scattered across the schools composables/views also covers
-// act-as for free.
-provide('isAdminView', isActingAs.value)
 
 // Prefetch hoist: fire the dashboard-suite data fetches here, at container
 // (route entry) level, the moment the school context resolves — instead of
@@ -107,10 +93,10 @@ const hasSchoolContext = computed(() => !!ctx.currentUser.value)
 
 // Platform-subscription gate (lever-3). FAIL-OPEN: ctx.platformActive defaults
 // to true for legacy rows / pre-migration DBs / unloaded context, so this never
-// locks anyone out before the migration lands. ssi_admins, act-as sessions, and
-// demo (no real auth) all bypass — only a real, expired school/tutor is blocked.
+// locks anyone out before the migration lands. ssi_admins and demo (no real
+// auth) all bypass — only a real, expired school/tutor is blocked.
 const platformBypass = computed(
-  () => isSsiAdmin.value || isActingAs.value || !isAuthenticated.value,
+  () => isSsiAdmin.value || !isAuthenticated.value,
 )
 const platformActive = computed(() => platformBypass.value || ctx.platformActive.value)
 
@@ -585,7 +571,11 @@ watch(
 }
 
 .main-content {
-  margin-top: calc(var(--nav-height, 80px) + env(safe-area-inset-top, 0px));
+  /* The in-flow SchoolsTopBar now owns the top safe-area inset (it grows by
+     env(safe-area-inset-top) and pads its controls clear of the status bar),
+     so this margin must NOT add the inset again — doing so double-counted it
+     and pushed the dashboard down by an extra notch height. */
+  margin-top: var(--nav-height, 80px);
   min-height: calc(100vh - var(--nav-height, 80px) - env(safe-area-inset-top, 0px));
   position: relative;
   z-index: 10;
@@ -600,7 +590,9 @@ watch(
   margin-top: 0;
   padding: 0;
   max-width: none;
-  min-height: calc(100vh - 54px);
+  /* Topbar is 54px + top inset now, so the full-bleed player area is the
+     rest of the viewport below it. */
+  min-height: calc(100vh - 54px - env(safe-area-inset-top, 0px));
 }
 
 /* Loading */

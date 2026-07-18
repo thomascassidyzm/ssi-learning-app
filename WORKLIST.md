@@ -171,3 +171,5 @@ This is *not* a bug tracker or a subtask list, and it sits **on top of** the dev
 - Today: TopNav "Learn" (teach mode) does router.push('/') → bare learner home, LOSES the teach nav/context.
 - Want: (1) make it OBVIOUS the top-right button is the teacher's OWN account learning (not class learning) — relabel e.g. "Learn something new yourself" / "My learning", distinct affordance/icon; (2) open the player IN the teach environment so the nav stays (desktop).
 - Open question (Tom flagged): MOBILE has no room for a top nav bar over the player. Proposed: desktop = player inside the teach shell (keeps TopNav, like /teach/play); mobile = full-screen player with a clear "← Back to teaching" control (AppEscape-style) instead of the full bar. Needs a route like /teach/learn (PlayerContainer, no class context = teacher's own courses).
+
+- [x] @fable-architect 07-18 **THE MODEL — one-node unpick** (groups=the node; labels-not-types; tutor dissolution; invites people-only; view-as UI removal) → `docs/THE-MODEL.md`

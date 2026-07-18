@@ -1,11 +1,12 @@
 /**
  * DashboardView — write affordances must be absent in the ssi_admin read-only
- * View-as (isAdminView). Regression for the founder's report: the "Create
- * school" form (and the name-your-group / confirm-school-name write cards)
- * still rendered under the "Viewing as … read only" banner.
+ * admin drill-in view (isAdminView, e.g. /admin/groups/:id). Regression for
+ * the founder's report: the "Create school" form (and the name-your-group /
+ * confirm-school-name write cards) still rendered under the read-only view.
  *
- * Mounts the real SFC with isAdminView provided, seeds a group-leader persona,
- * and asserts the create-school input+button render only when NOT acting-as.
+ * Mounts the real SFC with isAdminView provided, seeds a group-leader scope,
+ * and asserts the create-school input+button render only for a real leader
+ * (isAdminView false), not the admin read-view.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -76,7 +77,7 @@ async function mountDashboard(isAdminView: boolean, scopeSource: 'self' | 'admin
   return wrapper
 }
 
-describe('DashboardView — write controls hidden in View-as', () => {
+describe('DashboardView — write controls hidden in the admin read-view', () => {
   beforeEach(() => {
     vi.resetModules()
     Object.keys(store).forEach(k => delete store[k])
@@ -90,7 +91,7 @@ describe('DashboardView — write controls hidden in View-as', () => {
   })
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('hides the Create school form while acting-as a group leader (read only)', async () => {
+  it('hides the Create school form in the admin read-view of a group leader (read only)', async () => {
     const wrapper = await mountDashboard(true, 'admin-view')
     expect(wrapper.find('input[placeholder="School name"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Create school')

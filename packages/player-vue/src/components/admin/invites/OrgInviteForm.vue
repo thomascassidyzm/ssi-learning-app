@@ -4,12 +4,15 @@
 // school-admin-join (surfaces the school's standing codes instead of
 // minting a new one); demo-leaf for learner joins, restricted to demo
 // nodes only (real-class learner links belong to teachers).
+// Invites mint PEOPLE only (THE-MODEL.md I8) — there is deliberately no
+// "school admin — new school" option here. Minting a new node is a tree
+// action (create-school-in-group / the tree UI), not an invite shape.
 import { ref, computed, onMounted, watch } from 'vue'
 import { useUserRole } from '@/composables/useUserRole'
 import { useAdminClient } from '@/composables/useAdminClient'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
 
-type Who = 'leader' | 'school_admin_new' | 'school_admin_join' | 'teacher' | 'learner_demo'
+type Who = 'leader' | 'school_admin_join' | 'teacher' | 'learner_demo'
 
 interface TreeGroup {
   id: string
@@ -42,7 +45,7 @@ const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 
 function normalizeWho(v: string | undefined): Who {
-  const valid: Who[] = ['leader', 'school_admin_new', 'school_admin_join', 'teacher', 'learner_demo']
+  const valid: Who[] = ['leader', 'school_admin_join', 'teacher', 'learner_demo']
   return (valid as string[]).includes(v || '') ? (v as Who) : (isSsiAdmin.value ? 'leader' : 'school_admin_join')
 }
 
@@ -50,7 +53,6 @@ const who = ref<Who>(normalizeWho(props.initialWho))
 watch(() => props.initialWho, (v) => { who.value = normalizeWho(v) })
 
 const whereId = ref('')
-const orgName = ref('')
 const expiresAt = ref('')
 const maxUses = ref<number | ''>('')
 
@@ -64,7 +66,7 @@ function resetResult(): void {
   error.value = null
 }
 
-watch(who, () => { whereId.value = ''; orgName.value = ''; resetResult() })
+watch(who, () => { whereId.value = ''; resetResult() })
 
 async function fetchGroups(): Promise<void> {
   try {
@@ -118,7 +120,7 @@ function groupName(id: string | null): string {
 
 // WHERE kind per WHO: 'group' (any group), 'demo-group' (demo subtree only), 'school'
 const whereKind = computed<'group' | 'demo-group' | 'school'>(() => {
-  if (who.value === 'leader' || who.value === 'school_admin_new') return 'group'
+  if (who.value === 'leader') return 'group'
   if (who.value === 'learner_demo') return 'demo-group'
   return 'school'
 })
@@ -139,17 +141,12 @@ const whereOptions = computed<TreeOption[]>(() => {
 
 const whoLabel = computed(() => ({
   leader: 'Group',
-  school_admin_new: 'Group (school will be created under it)',
   school_admin_join: 'School',
   teacher: 'School',
   learner_demo: 'Demo group',
 }[who.value]))
 
-const canSubmit = computed(() => {
-  if (!whereId.value) return false
-  if (who.value === 'school_admin_new' && !orgName.value.trim()) return false
-  return true
-})
+const canSubmit = computed(() => !!whereId.value)
 
 const submitLabel = computed(() => {
   if (who.value === 'school_admin_join' || who.value === 'teacher') return isSubmitting.value ? 'Fetching…' : 'Get link'
@@ -162,10 +159,9 @@ async function submit(): Promise<void> {
   if (!canSubmit.value) return
   isSubmitting.value = true
   try {
-    if (who.value === 'leader' || who.value === 'school_admin_new') {
+    if (who.value === 'leader') {
       const token = await getAuthToken()
-      const body: Record<string, unknown> = { code_type: who.value === 'leader' ? 'govt_admin' : 'school_admin', grants_group_id: whereId.value }
-      if (who.value === 'school_admin_new') body.metadata = { organization_name: orgName.value.trim() }
+      const body: Record<string, unknown> = { code_type: 'govt_admin', grants_group_id: whereId.value }
       if (expiresAt.value) body.expires_at = new Date(expiresAt.value).toISOString()
       if (maxUses.value !== '') body.max_uses = Number(maxUses.value)
 
@@ -176,10 +172,8 @@ async function submit(): Promise<void> {
       const data = await resp.json().catch(() => ({}))
       if (!resp.ok) throw new Error(data.error || `Request failed: ${resp.status}`)
 
-      const path = who.value === 'leader' ? '/group/' : '/redeem/'
-      mintedLink.value = `${window.location.origin}${path}${data.code}`
+      mintedLink.value = `${window.location.origin}/group/${data.code}`
       emit('created')
-      orgName.value = ''
       expiresAt.value = ''
       maxUses.value = ''
     } else if (who.value === 'school_admin_join' || who.value === 'teacher') {
@@ -225,7 +219,6 @@ onMounted(async () => {
       <label class="schools-kicker">Who</label>
       <select v-model="who" class="frost-select">
         <option v-if="isSsiAdmin || isGovtAdmin" value="leader">Group leader</option>
-        <option v-if="isSsiAdmin" value="school_admin_new">School admin — new school</option>
         <option value="school_admin_join">School admin — join existing</option>
         <option value="teacher">Teacher</option>
         <option value="learner_demo">Learner — demo node</option>
@@ -243,12 +236,7 @@ onMounted(async () => {
       </span>
     </div>
 
-    <div v-if="who === 'school_admin_new'" class="field field-wide">
-      <label class="schools-kicker">Organisation / school name <span class="required">*</span></label>
-      <input v-model="orgName" type="text" class="frost-input" placeholder="e.g. Ysgol Bryn Coch" />
-    </div>
-
-    <template v-if="who === 'leader' || who === 'school_admin_new'">
+    <template v-if="who === 'leader'">
       <div class="field">
         <label class="schools-kicker">Expires <span class="optional">(optional)</span></label>
         <input v-model="expiresAt" type="date" class="frost-input" />

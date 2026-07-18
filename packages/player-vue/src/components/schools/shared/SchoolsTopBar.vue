@@ -2,12 +2,19 @@
 import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
+import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 
 type NavTab = { label: string; to: string; routeName?: string }
 
 const route = useRoute()
 const router = useRouter()
 const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
+
+// Play-as-class: while a class session is live, the class name is the primary
+// identity in the bar (school/teacher demoted, section tabs + Learn launcher
+// dropped) so a teacher always knows WHICH class is on screen.
+const { isPlayingAsClass, className, exitClassSession } = usePlayAsClassContext()
 
 const auth = inject<any>('auth', null)
 
@@ -37,12 +44,21 @@ const tabs = computed<NavTab[]>(() => {
       { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
     ]
   }
-  // Teacher (default)
-  return [
+  // Teacher (default) — a school-employed teacher's billing is the school
+  // admin's job, so no Upgrade tab. A GROUPLESS teacher (the derived tutor,
+  // THE-MODEL §1.3/I5: no school_id) has nobody else to bill them, so they
+  // need their own reachable Upgrade tab — same UpgradeView, whose tutor
+  // lane (isSchoolLane false) already resolves their own teacher-billing
+  // record via /api/teacher/me. Structure-gated, never on the 'tutor' label.
+  const teacherTabs: NavTab[] = [
     { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
     { label: 'Students',  to: '/schools/students',  routeName: 'students' },
     { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
   ]
+  if (!currentUser.value.school_id) {
+    teacherTabs.push({ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' })
+  }
+  return teacherTabs
 })
 
 function isActive(tab: NavTab): boolean {
@@ -119,6 +135,7 @@ if (typeof document !== 'undefined') {
   <header class="schools-topbar">
     <div class="left">
       <button
+        v-if="!isPlayingAsClass"
         type="button"
         class="nav-toggle"
         aria-label="Menu"
@@ -137,12 +154,22 @@ if (typeof document !== 'undefined') {
         <span class="brand-tail">Schools</span>
       </router-link>
 
+      <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT, so
+           it becomes the dominant identity here (school demoted inside it), and
+           the section tabs + school label are dropped to cut chrome. -->
+      <PlayAsClassIdentity
+        v-if="isPlayingAsClass"
+        :class-name="className"
+        :school-name="schoolLabel"
+        @exit="exitClassSession"
+      />
+
       <!-- WHERE AM I: the school name is the identity of this surface — it
            stays visible at every width (truncating, full name in the
            tooltip) instead of being a throwaway label that mobile hid. -->
-      <span v-if="schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
+      <span v-if="!isPlayingAsClass && schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
 
-      <nav class="tabs" aria-label="Schools sections">
+      <nav v-if="!isPlayingAsClass" class="tabs" aria-label="Schools sections">
         <router-link
           v-for="t in tabs"
           :key="t.to"
@@ -153,7 +180,7 @@ if (typeof document !== 'undefined') {
         </router-link>
       </nav>
 
-      <nav v-if="mobileNavOpen" class="mobile-nav" aria-label="Schools sections">
+      <nav v-if="mobileNavOpen && !isPlayingAsClass" class="mobile-nav" aria-label="Schools sections">
         <router-link
           v-for="t in tabs"
           :key="t.to"
@@ -167,7 +194,10 @@ if (typeof document !== 'undefined') {
     </div>
 
     <div class="right">
+      <!-- Self-practice launcher is dropped while a class session is live — the
+           bar's job in this mode is to name the class and offer the exit. -->
       <router-link
+        v-if="!isPlayingAsClass"
         to="/schools/play"
         class="learn-btn"
         title="Learn — your own practice"
@@ -199,11 +229,19 @@ if (typeof document !== 'undefined') {
 
 <style scoped>
 .schools-topbar {
-  height: 54px;
+  /* iOS PWA (standalone, black-translucent status bar) renders this shell
+     UNDER the status bar / notch. Grow the bar by the top safe-area inset and
+     pad the controls down out of that zone, so the hamburger + Learn escape +
+     avatar stay tappable in portrait; left/right insets cover landscape
+     notches. env() is 0 on desktop and non-notched devices, so this is a
+     no-op there. The 54px control-row height is preserved (border-box) by
+     adding the inset to height, not eating into it. Standing rule — always
+     keep fixed shell chrome out of the phone safe areas (see CLAUDE.md). */
+  height: calc(54px + env(safe-area-inset-top, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: env(safe-area-inset-top, 0px) max(24px, env(safe-area-inset-right, 0px)) 0 max(24px, env(safe-area-inset-left, 0px));
   background: #fff;
   border-bottom: 1px solid var(--schools-border);
   flex: none;
@@ -440,7 +478,7 @@ if (typeof document !== 'undefined') {
 @media (max-width: 768px) {
   .tabs { display: none; }
   .nav-toggle { display: inline-flex; }
-  .schools-topbar { padding: 0 16px; position: relative; }
+  .schools-topbar { padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); position: relative; }
   /* Only the hamburger + brand remain in .left once the tab bar is gone —
      the desktop 32px gap (sized for a row of tabs) left far too little
      width for .right on a phone, which is what let items overlap. */
@@ -452,7 +490,7 @@ if (typeof document !== 'undefined') {
    un-shrunk size and nothing overlaps — verified against 320/375/430px
    bounding boxes. */
 @media (max-width: 430px) {
-  .schools-topbar { padding: 0 10px; gap: 8px; }
+  .schools-topbar { padding: env(safe-area-inset-top, 0px) max(10px, env(safe-area-inset-right, 0px)) 0 max(10px, env(safe-area-inset-left, 0px)); gap: 8px; }
   .left { gap: 10px; }
   .right { gap: 8px; }
   /* Identity beats brand on a phone: the wordmark goes, the school name

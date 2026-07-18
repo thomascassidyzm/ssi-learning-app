@@ -23,8 +23,6 @@
  * instead — the group node IS the joinable thing, no separate entity type.
  */
 import { computed, inject, ref } from 'vue'
-import ViewAsButton from '@/components/admin/ViewAsButton.vue'
-import type { ActAsPersona } from '@/composables/useUserRole'
 
 interface Group {
   id: string
@@ -56,8 +54,6 @@ interface OrgTreeApi {
   openSchoolDashboard: (schoolId: string) => void
   createSubgroup: (parentId: string, name: string) => Promise<void>
   createSchoolAt: (groupId: string, name: string) => Promise<void>
-  groupLeaderCandidates: (group: Group) => ActAsPersona[]
-  schoolAdminCandidates: (school: School) => ActAsPersona[]
   /** entityMode="leaf" only — the group's own join code, if one exists yet. */
   leafJoinCode?: (groupId: string) => string | null
   /** entityMode="leaf" only — idempotently provisions the group's join code. */
@@ -243,7 +239,6 @@ async function submitSchool(): Promise<void> {
           <path d="M9 3v18M3 9h18"/>
         </svg>
       </button>
-      <ViewAsButton v-if="entityMode === 'school'" :candidates="api.groupLeaderCandidates(group)" empty-title="No group leader yet" />
       <button class="row-action is-danger" title="Delete group" @click="api.requestDeleteGroup(group)">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -314,7 +309,6 @@ async function submitSchool(): Promise<void> {
             <path d="M9 3v18M3 9h18"/>
           </svg>
         </button>
-        <ViewAsButton :candidates="api.schoolAdminCandidates(school)" empty-title="No school admin claimed yet" />
         <button class="row-action is-danger" title="Delete school" @click="api.requestDeleteSchool(school)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

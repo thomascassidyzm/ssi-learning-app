@@ -339,23 +339,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Invites', description: 'One primitive — who × where × what × limits; every link that lets someone in, real or demo' },
       },
       {
-        // Old paths — kept working, not just bookmark hygiene: each predates
-        // the unified Invites surface and preserves the visitor's intent as
-        // a deep-linked mode/sub into the one create card.
+        // Old paths — kept working, not just bookmark hygiene. Ways-in
+        // management now lives on /admin/structure (THE-MODEL.md §1.10).
         path: 'access',
-        redirect: () => ({ path: '/admin/invites', query: { mode: 'direct' } }),
+        redirect: '/admin/structure',
       },
       {
         path: 'demos',
-        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
+        redirect: '/admin/structure',
       },
       {
         path: 'demo-organisations',
-        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
+        redirect: '/admin/structure',
       },
       {
         path: 'demo-schools',
-        redirect: () => ({ path: '/admin/invites', query: { mode: 'demo' } }),
+        redirect: '/admin/structure',
       },
       {
         path: 'analytics',
@@ -401,11 +400,11 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'entitlements',
-        redirect: () => ({ path: '/admin/invites' }),
+        redirect: '/admin/structure',
       },
       {
         path: 'try-links',
-        redirect: () => ({ path: '/admin/invites', query: { mode: 'direct', sub: 'preview' } }),
+        redirect: '/admin/structure',
       },
       {
         path: 'release-notes',
@@ -416,7 +415,8 @@ const routes: RouteRecordRaw[] = [
       {
         // Structure — the org tree IS the page (2026-07-17 consolidation:
         // Setup's Groups/Schools/Staff/Entitlements tabs dissolved into one
-        // tree with node facets; ways-in management lives on /admin/invites).
+        // tree with node facets; ways-in management lives on the node panel —
+        // THE-MODEL.md §1.10).
         path: 'structure',
         name: 'admin-structure',
         component: () => import('@/views/admin/AdminStructure.vue'),

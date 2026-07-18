@@ -232,8 +232,12 @@ function closeCreateModal() {
 async function handleCreateClass(params: { class_name: string; course_code: string }) {
   if (isCreatingClass.value) return
   createClassError.value = null
-  const schoolId = selectedUser.value?.school_id
-  if (!schoolId) {
+  const schoolId = selectedUser.value?.school_id ?? null
+  // A school admin's account is always tied to a school — a missing id there
+  // is a genuine data problem. A teacher with no school_id is a groupless
+  // tutor (THE-MODEL §1.3/I5), not an error — their classes affiliate to no
+  // group node, exactly like the personal /teach lane always has.
+  if (!schoolId && isSchoolAdmin.value) {
     createClassError.value = 'No school found for your account. Please contact an administrator.'
     return
   }

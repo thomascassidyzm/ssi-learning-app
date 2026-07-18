@@ -11,7 +11,6 @@ import { ref, computed, onMounted, nextTick, provide } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import GroupTreeNode from '@/components/admin/GroupTreeNode.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
-import type { ActAsPersona } from '@/composables/useUserRole'
 
 interface DemoOrgRow {
   id: string
@@ -149,8 +148,6 @@ function cancelGroupRename(): void {
 
 function openGroupDashboard(): void {}
 function openSchoolDashboard(): void {}
-function groupLeaderCandidates(): ActAsPersona[] { return [] }
-function schoolAdminCandidates(): ActAsPersona[] { return [] }
 async function createSchoolAt(): Promise<void> {}
 
 async function createSubgroup(parentId: string, name: string): Promise<void> {
@@ -261,8 +258,6 @@ provide('orgTreeApi', {
   requestDeleteSchool: () => {},
   createSubgroup,
   createSchoolAt,
-  groupLeaderCandidates,
-  schoolAdminCandidates,
   leafJoinCode,
   ensureLeaf,
 })
