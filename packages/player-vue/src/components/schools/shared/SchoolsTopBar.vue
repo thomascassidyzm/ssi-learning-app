@@ -2,12 +2,19 @@
 import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
+import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
+import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
 
 type NavTab = { label: string; to: string; routeName?: string }
 
 const route = useRoute()
 const router = useRouter()
 const { currentUser, isGovtAdmin, isSchoolAdmin, clear: clearSchoolContext } = useSchoolContext()
+
+// Play-as-class: while a class session is live, the class name is the primary
+// identity in the bar (school/teacher demoted, section tabs + Learn launcher
+// dropped) so a teacher always knows WHICH class is on screen.
+const { isPlayingAsClass, className, exitClassSession } = usePlayAsClassContext()
 
 const auth = inject<any>('auth', null)
 
@@ -119,6 +126,7 @@ if (typeof document !== 'undefined') {
   <header class="schools-topbar">
     <div class="left">
       <button
+        v-if="!isPlayingAsClass"
         type="button"
         class="nav-toggle"
         aria-label="Menu"
@@ -137,12 +145,22 @@ if (typeof document !== 'undefined') {
         <span class="brand-tail">Schools</span>
       </router-link>
 
+      <!-- Play-as-class: the class name is the MOST SPECIFIC ACTIVE CONTEXT, so
+           it becomes the dominant identity here (school demoted inside it), and
+           the section tabs + school label are dropped to cut chrome. -->
+      <PlayAsClassIdentity
+        v-if="isPlayingAsClass"
+        :class-name="className"
+        :school-name="schoolLabel"
+        @exit="exitClassSession"
+      />
+
       <!-- WHERE AM I: the school name is the identity of this surface — it
            stays visible at every width (truncating, full name in the
            tooltip) instead of being a throwaway label that mobile hid. -->
-      <span v-if="schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
+      <span v-if="!isPlayingAsClass && schoolLabel" class="context-name" :title="schoolLabel">{{ schoolLabel }}</span>
 
-      <nav class="tabs" aria-label="Schools sections">
+      <nav v-if="!isPlayingAsClass" class="tabs" aria-label="Schools sections">
         <router-link
           v-for="t in tabs"
           :key="t.to"
@@ -153,7 +171,7 @@ if (typeof document !== 'undefined') {
         </router-link>
       </nav>
 
-      <nav v-if="mobileNavOpen" class="mobile-nav" aria-label="Schools sections">
+      <nav v-if="mobileNavOpen && !isPlayingAsClass" class="mobile-nav" aria-label="Schools sections">
         <router-link
           v-for="t in tabs"
           :key="t.to"
@@ -167,7 +185,10 @@ if (typeof document !== 'undefined') {
     </div>
 
     <div class="right">
+      <!-- Self-practice launcher is dropped while a class session is live — the
+           bar's job in this mode is to name the class and offer the exit. -->
       <router-link
+        v-if="!isPlayingAsClass"
         to="/schools/play"
         class="learn-btn"
         title="Learn — your own practice"
