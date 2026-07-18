@@ -166,6 +166,34 @@ describe('GET /api/groups/tree', () => {
     expect(groupB.commercial).toMatchObject({ schoolId: 'school-1', platformStatus: 'active' })
   })
 
+  it('rolls child counts UP into an ancestor — parent tells the group-dashboard story', async () => {
+    // group-a itself has zero direct teachers/classes/learners; group-b (its
+    // child school) has 1 of each. The founder-ruled fix: group-a's rollup is
+    // the SUBTREE total, not its (empty) direct affiliations.
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ root: 'region-1' }), res)
+    const groupA = findNode(res.body.roots, 'group-a')
+    expect(groupA.rollup).toMatchObject({ teacherCount: 1, classCount: 1, learnerCount: 1 })
+    // childGroupCount stays DIRECT — group-a has one direct child (group-b).
+    expect(groupA.rollup.childGroupCount).toBe(1)
+    // A parent node carries no commercial identity of its own.
+    expect(groupA.commercial).toBeNull()
+  })
+
+  it('subtree rollup counts a shared user ONCE (distinct, not a naive sum)', async () => {
+    // Same teacher tagged at region-1 (group) AND its descendant group-b: the
+    // ancestor rollup must not double-count.
+    TABLES.user_tags.push(
+      { tag_type: 'group', tag_value: 'GROUP:region-1', role_in_context: 'teacher', user_id: 'teacher-1', removed_at: null },
+    )
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq({ root: 'region-1' }), res)
+    const region = res.body.roots.find((r: any) => r.id === 'region-1')
+    expect(region.rollup.teacherCount).toBe(1)
+  })
+
   it('govt_admin with no root defaults to their own governed group', async () => {
     verifyAuthTokenResult = { valid: true, userId: 'leader-1' }
     const res = makeRes()

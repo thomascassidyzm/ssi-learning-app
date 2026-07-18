@@ -250,6 +250,18 @@ All new org reads/writes are **server-mediated** (service-role + authz in code, 
   classes, learners, demo/status flags). Root defaults to caller's highest node.
 - `GET  /api/groups/table?filters=<label,status,demo>&search=&page=` — the paginated table lens.
   Same data, flat.
+- **Rollups are SUBTREE totals (founder ruling 2026-07-18 — "every lens tells the same story as the
+  group dashboard").** A node's teacher/class/learner counts aggregate the node + every descendant,
+  DISTINCT (a user shared across two schools counts once at their shared ancestor), so a programme
+  shows its schools' combined 6 teachers / 80 learners rather than the 0/0/0 of its own direct
+  affiliations. `childGroupCount` stays DIRECT (the fan-out at this node). One resolver
+  (`api/_utils/groupRollups.computeNodeExtras`) serves tree + table; commercial attachment is the
+  node's OWN school, never rolled up.
+- **School-node duality bridge (I2).** Facets keyed on a node id must resolve the school row behind a
+  school node (`schools.node_group_id`), because pre-node data — invite codes, entitlement grants,
+  SCHOOL:/CLASS: tags — still references `schools.id`. `api/_utils/schoolScope.ownSchoolIdForNode` is
+  that single bridge; the node-panel "ways in" GET matches `grants_group_id = node OR grants_school_id
+  = its own school`, so a school node's demo codes surface instead of "No invite links yet".
 - `POST /api/groups` — create node: `{ name, label, parent_id, is_demo? }`. The ONLY way structure
   is born (plus existing class-creation endpoints for classes).
 - `PATCH /api/groups/:id` — rename, relabel, re-parent (cycle-checked), flag changes.

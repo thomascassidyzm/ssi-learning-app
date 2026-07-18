@@ -33,7 +33,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { generateCode } from '../../_utils/codeGen'
-import { isStrictDescendantGroup } from '../../_utils/schoolScope'
+import { isStrictDescendantGroup, ownSchoolIdForNode } from '../../_utils/schoolScope'
 import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -104,12 +104,21 @@ export default async function handler(
 
   if (req.method === 'GET') {
     try {
-      const { data, error } = await supabase
+      // School-node duality (THE MODEL I2): codes minted BEFORE the node
+      // existed reference the school row by schools.id (grants_school_id), not
+      // the node id — so a node-id-only query silently returns nothing (the
+      // founder-reported "No invite links yet" on a school node that has demo
+      // codes). Bridge to the node's own school and match either key.
+      const ownSchoolId = await ownSchoolIdForNode(supabase, groupId)
+      let query = supabase
         .from('invite_codes')
         .select('code, code_type, max_uses, use_count, expires_at, created_at')
-        .eq('grants_group_id', groupId)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
+      query = ownSchoolId
+        ? query.or(`grants_group_id.eq.${groupId},grants_school_id.eq.${ownSchoolId}`)
+        : query.eq('grants_group_id', groupId)
+      const { data, error } = await query
       if (error) throw error
 
       const origin = getAppOrigin(req)
