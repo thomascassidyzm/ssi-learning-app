@@ -175,36 +175,39 @@ principle SchoolCreationOnePrimitive:
     (DashboardView.vue still lists them, read-only). No new leader surface
     mints new ones.
 
-principle StaffHomeIsDashboard:
+principle LoginLandsInYourOwnPlayer:
   statement: |
-    Owner ruling 2026-07-16: any school-staff role (teacher, school_admin,
-    govt_admin — useUserRole's hasSchoolRole) landing on the bare root route
-    "/" belongs on "/schools" instead, reaching the player only via the
-    dashboard's own Learn button (the schools-framed "/schools/play" route,
-    SchoolsTopBar always above the player). Learners/students keep landing in
-    the bare player at "/" — this principle is staff-only.
+    Founder ruling 2026-07-18 (REMEMBER PROGRESS, NOT POSITION — supersedes
+    the 2026-07-16 "staff home is the dashboard" ruling): default landing
+    after login is the user's OWN player at "/", for EVERY role. The app
+    persists where you are within a course, never which surface/view you
+    last had open — no role-based or navigation-history-based redirect off
+    "/" exists. Staff reach /schools or /admin by navigating (Settings'
+    Dashboards rows, direct URLs), or by opting into the "Start me at"
+    account preference (learners.preferences.start_surface, surfaced in
+    SettingsScreen's Dashboards section — options limited to surfaces the
+    account can actually access, default Player). Deep links always win: the
+    preference-driven redirect (a reactive watch in router/index.ts on the
+    ResolvedSessionGate + useStartSurface singleton) fires only while the
+    current route is exactly "/".
 
   gap_closed: |
-    A minted sign-in link (api/admin/create-signin-link.ts) redirects
-    Supabase's magic-link verification to the bare app origin (no path — a
-    path-specific redirectTo risks falling outside the Supabase project's
-    allow-listed Redirect URLs). With no staff-aware routing on "/", a staff
-    member landed on the bare, un-framed player with the dashboard reachable
-    only via a buried Settings entry (SettingsScreen.vue's "hasSchoolRole"
-    row). Closed generically (covers every entry point that lands on "/",
-    not just this one API) with two redirects that target the same fast/slow
-    cases the existing "/schools" guard already splits on:
-      - router/index.ts's "/" route gained a beforeEnter mirroring the
-        "/schools" guard: if the role cache is already initialized (restored
-        from localStorage) and hasSchoolRole, redirect to "/schools"
-        immediately — the fast path for a browser that's seen this user
-        before.
-      - A reactive watch in router/index.ts (see ResolvedSessionGate below)
-        fires once identity actually resolves — the FRESH-browser case (no
-        role cache yet, e.g. a first-ever click on a minted link). Originally
-        a bespoke check in App.vue's onMounted; migrated onto the shared gate
-        2026-07-16 so it's reachable from router guards too, not just
-        components.
+    The 2026-07-16 cached-role fast-path ("/" beforeEnter: role cache says
+    hasSchoolRole -> redirect /schools) resurrected STALE state: a role
+    cache left by a prior session (e.g. a tutor test account, a view-as
+    detour) survived in localStorage and hijacked a fresh login onto the
+    /schools dashboard before the DB re-sync could correct it — trapping
+    the user on a surface that wasn't theirs. Removed entirely; the only
+    redirect off "/" is now the explicit, DB-persisted preference, gated on
+    the CURRENT resolved role (a stale/demoted preference degrades silently
+    to the player, never a wall). Session-scoped view-as / surface state
+    now also dies on logout: useAuth.signOut clears useSchoolContext (the
+    admin-view/persona scope), the useStartSurface singleton, and the
+    persisted ssi-active-class / ssi-demo-active-class / ssi-last-dashboard
+    keys — course-progress keys untouched. Regression net:
+    schoolsGuard.test.ts ("login lands at the player" block),
+    resolvedSessionGuard.test.ts ("/" landing watch),
+    useAuth.signOutTeardown.test.ts.
 
 principle ResolvedSessionGate:
   statement: |

@@ -320,3 +320,32 @@ rows to that pattern, it doesn't change the pattern).
 **Search width:** visible-options (both alternatives were named in the brief itself).
 **Decided by:** agent (>90% confidence per CLAUDE.md's BSC-autonomy rule — schema/DB decision,
 inside the "code and database changes, decide and go" bucket, not an outward-facing action).
+
+## 2026-07-18 — login lands in your own player; view-as dies with the session
+**Move:** Removed the '/' cached-role staff redirect (beforeEnter + the role-driven corrective
+watch) from `router/index.ts`; the only thing that now moves a freshly-resolved session off '/'
+is the new opt-in "Start me at" preference (`learners.preferences.start_surface`, surfaced in
+SettingsScreen's Dashboards section, options limited to surfaces the current role can access,
+default Player), read via a new `useStartSurface` module singleton. `useAuth.signOut` now tears
+down all session-scoped surface/view-as state: `useSchoolContext` (admin-view/persona scope),
+the start-surface singleton, and the persisted `ssi-active-class` / `ssi-demo-active-class` /
+`ssi-last-dashboard` keys. Course-progress persistence untouched.
+**Better:** kills the trap class where a stale localStorage role/class context from a prior
+session (tutor test account, view-as detour) hijacked a fresh login onto /schools — founder
+ruling: remember progress, not position. A stale/demoted preference degrades silently to the
+player, never a bounce-wall.
+**Simpler:** deletes a role-inference redirect (two code paths: fast cached + slow resolved) and
+replaces it with one explicit, DB-persisted setting read by one watch; landing behaviour is now
+identical for every role.
+**Cheaper (total):** one optional JSONB key in an existing preferences column — no new table, no
+new endpoint, no localStorage mirror to invalidate.
+**Searched & rejected:**
+- Keep the staff→/schools redirect but validate the cache against the DB before redirecting —
+  rejected: still a position-memory, still needs the async fetch anyway, and re-creates the
+  race the resolved-session gate exists to kill.
+- Persist "last surface" server-side and restore it — rejected: exactly the behaviour the
+  ruling forbids (position memory), just moved somewhere harder to clear.
+- localStorage-cached preference for a synchronous fast-path redirect — rejected: reintroduces
+  the stale-cache-hijack this change removes; a one-tick post-resolution redirect is imperceptible.
+**Search width:** visible-options
+**Decided by:** agent (ruling from Tom)
