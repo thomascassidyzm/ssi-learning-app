@@ -739,7 +739,10 @@ export function useClassesData() {
   async function createClass(params: {
     class_name: string
     course_code: string
-    school_id: string
+    // Null for a groupless tutor (THE-MODEL §1.3/I5) — a class affiliates to
+    // ANY group node or none at all; the personal /teach lane has always
+    // created classes with school_id null (api/teacher/classes.ts).
+    school_id: string | null
   }): Promise<ClassInfo | null> {
     if (!selectedUser.value) return null
     const creatorUserId = selectedUser.value.user_id
