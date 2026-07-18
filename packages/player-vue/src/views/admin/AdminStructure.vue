@@ -631,7 +631,7 @@ onMounted(() => {
 }
 .lens-btn.is-active { background: #fff; color: var(--schools-fg); box-shadow: 0 1px 2px rgba(44, 38, 34, 0.10); }
 
-.filter-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.filter-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; padding-bottom: var(--space-3); }
 .filter-bar-input {
   flex: 1; min-width: 220px; padding: 9px 14px; font: inherit; font-size: var(--text-sm);
   background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg); color: var(--schools-fg);

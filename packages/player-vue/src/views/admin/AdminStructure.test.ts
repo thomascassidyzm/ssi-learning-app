@@ -263,6 +263,10 @@ describe('AdminStructure — node actions (tree lens)', () => {
       '/api/groups/group-a': { group: { id: 'group-a', type: 'school' } },
     })
     const wrapper = await mountStructure()
+    // Click badge to enter edit mode
+    await wrapper.find('span.label-badge').trigger('click')
+    await wrapper.vm.$nextTick()
+    // Now select the dropdown and change value
     await wrapper.find('select.label-select').setValue('school')
     await flushPromises()
     const call = fetchMock.mock.calls.find((c) => c[0] === '/api/groups/group-a' && c[1]?.method === 'PATCH')

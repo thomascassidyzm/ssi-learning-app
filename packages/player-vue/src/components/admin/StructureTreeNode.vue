@@ -47,6 +47,7 @@ const editing = computed(() => api.editingId.value === props.node.id)
 const showAddChild = ref(false)
 const showInvite = ref(false)
 const showDemoMint = ref(false)
+const editingLabel = ref(false)
 const newChildName = ref('')
 const newChildLabel = ref('group')
 const newChildIsDemo = ref(false)
@@ -118,22 +119,27 @@ async function submitDemoMint(): Promise<void> {
       {{ node.name }}
     </span>
 
-    <select
-      class="label-select"
-      :value="node.label"
-      title="Relabel (display only — I3)"
-      @change="api.updateLabel(node, ($event.target as HTMLSelectElement).value)"
-    >
-      <option v-if="!['group','organisation','school','nation','region','district','programme','lea'].includes(node.label)" :value="node.label">{{ node.label }}</option>
-      <option value="group">group</option>
-      <option value="organisation">organisation</option>
-      <option value="school">school</option>
-      <option value="nation">nation</option>
-      <option value="region">region</option>
-      <option value="district">district</option>
-      <option value="programme">programme</option>
-      <option value="lea">LEA</option>
-    </select>
+    <template v-if="editingLabel">
+      <select
+        class="label-select"
+        :value="node.label"
+        title="Relabel (display only — I3)"
+        autofocus
+        @change="api.updateLabel(node, ($event.target as HTMLSelectElement).value); editingLabel = false"
+        @blur="editingLabel = false"
+      >
+        <option v-if="!['group','organisation','school','nation','region','district','programme','lea'].includes(node.label)" :value="node.label">{{ node.label }}</option>
+        <option value="group">group</option>
+        <option value="organisation">organisation</option>
+        <option value="school">school</option>
+        <option value="nation">nation</option>
+        <option value="region">region</option>
+        <option value="district">district</option>
+        <option value="programme">programme</option>
+        <option value="lea">LEA</option>
+      </select>
+    </template>
+    <span v-else class="label-badge" @click="editingLabel = true" title="Click to relabel">{{ node.label }}</span>
 
     <span v-if="node.is_demo" class="org-badge is-demo">Demo</span>
     <span v-if="node.commercial" class="status-pill" :class="node.commercial.platformStatus === 'active' ? 'tone-green' : 'tone-amber'">
@@ -243,14 +249,30 @@ async function submitDemoMint(): Promise<void> {
 }
 .structure-rename-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(var(--tone-red), 0.14); }
 
+.label-badge {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--schools-fg-3);
+  background: rgba(44, 38, 34, 0.04);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.label-badge:hover {
+  background: rgba(44, 38, 34, 0.08);
+  border-color: rgba(44, 38, 34, 0.12);
+}
+
 .label-select {
   font-size: var(--text-xs);
   font-family: var(--font-mono);
   color: var(--schools-fg-3);
-  background: transparent;
+  background: rgba(255, 255, 255, 0.6);
   border: 1px solid rgba(44, 38, 34, 0.12);
   border-radius: var(--radius-sm);
-  padding: 1px 4px;
+  padding: 2px 6px;
 }
 
 .structure-meta {

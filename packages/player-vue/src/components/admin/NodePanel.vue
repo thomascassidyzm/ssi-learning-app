@@ -97,6 +97,68 @@ async function submitAddGroup(): Promise<void> {
   }
 }
 
+// ─── Verb: add a school (real schools with commercial attachment) ───
+const showAddSchoolForm = ref(false)
+const newSchoolName = ref('')
+const isAddingSchool = ref(false)
+
+async function submitAddSchool(): Promise<void> {
+  if (!newSchoolName.value.trim()) return
+  isAddingSchool.value = true
+  try {
+    const token = await getAuthToken()
+    if (!token) throw new Error('Not authenticated')
+    const resp = await fetch('/api/admin/create-school', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+      body: JSON.stringify({ school_name: newSchoolName.value.trim(), group_id: props.node.id }),
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    if (newSchoolName.value) {
+      newSchoolName.value = ''
+      showAddSchoolForm.value = false
+      // Refetch to show the new school in the tree
+      await fetchLinks()
+    }
+  } finally {
+    isAddingSchool.value = false
+  }
+}
+
+// ─── Verb: share class link (copy student join link to clipboard) ───
+const shareClassLinkUrl = ref<string | null>(null)
+const isShareingClassLink = ref(false)
+
+async function shareClassLink(): Promise<void> {
+  isShareingClassLink.value = true
+  try {
+    // Copy student invite link to clipboard if available, or create one
+    const studentLink = links.value.find((l) => l.role === 'student')
+    if (studentLink?.url) {
+      await navigator.clipboard.writeText(studentLink.url)
+      shareClassLinkUrl.value = studentLink.url
+      setTimeout(() => { shareClassLinkUrl.value = null }, 2000)
+    } else {
+      // Create a student invite link
+      const ok = await api.submitInvite(props.node, { role: 'student' })
+      if (ok) {
+        await fetchLinks()
+        const newStudentLink = links.value.find((l) => l.role === 'student')
+        if (newStudentLink?.url) {
+          await navigator.clipboard.writeText(newStudentLink.url)
+          shareClassLinkUrl.value = newStudentLink.url
+          setTimeout(() => { shareClassLinkUrl.value = null }, 2000)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error sharing class link:', err)
+  } finally {
+    isShareingClassLink.value = false
+  }
+}
+
 // ─── Verb: see progress — straight drill-in, no form ───
 function seeProgress(): void {
   api.openDashboard(props.node)
@@ -126,6 +188,12 @@ watch(() => props.node.id, fetchLinks, { immediate: true })
       <button type="button" class="verb-btn" :class="{ 'is-empty': node.rollup.childGroupCount === 0 }" @click="showAddGroupForm = !showAddGroupForm">
         {{ addGroupVerbLabel }}
       </button>
+      <button type="button" class="verb-btn" @click="showAddSchoolForm = !showAddSchoolForm">
+        Add a school
+      </button>
+      <button v-if="node.rollup.classCount > 0" type="button" class="verb-btn" :disabled="isShareingClassLink" @click="shareClassLink">
+        {{ isShareingClassLink ? 'Copying…' : shareClassLinkUrl ? 'Copied!' : 'Share the class link' }}
+      </button>
       <button type="button" class="verb-btn verb-btn-secondary" @click="seeProgress">
         See progress
       </button>
@@ -146,6 +214,13 @@ watch(() => props.node.id, fetchLinks, { immediate: true })
       <input v-model="newGroupName" type="text" class="frost-input" placeholder="Group name" @keyup.enter="submitAddGroup" />
       <button class="btn-primary-sm" :disabled="isAddingGroup || !newGroupName.trim()" @click="submitAddGroup">
         {{ isAddingGroup ? 'Adding…' : 'Add' }}
+      </button>
+    </div>
+
+    <div v-if="showAddSchoolForm" class="verb-form">
+      <input v-model="newSchoolName" type="text" class="frost-input" placeholder="School name" @keyup.enter="submitAddSchool" />
+      <button class="btn-primary-sm" :disabled="isAddingSchool || !newSchoolName.trim()" @click="submitAddSchool">
+        {{ isAddingSchool ? 'Adding…' : 'Add' }}
       </button>
     </div>
 
