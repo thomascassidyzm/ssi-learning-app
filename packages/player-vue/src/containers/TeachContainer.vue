@@ -18,7 +18,7 @@ const auth = inject<any>('auth', null)
 const isAuthenticated = computed(() => auth?.isAuthenticated?.value ?? false)
 const isAuthLoading = computed(() => auth?.isLoading?.value ?? false)
 
-const { isSsiAdmin, isActingAs, restoreFromCache } = useUserRole()
+const { isSsiAdmin, restoreFromCache } = useUserRole()
 restoreFromCache()
 
 const showLogin = computed(() => !isAuthenticated.value && !isAuthLoading.value)
@@ -31,12 +31,12 @@ const isPlayRoute = computed(() => route.name === 'teach-play')
 // server (api/school/subscription) which FAILS OPEN: a pre-migration DB, a
 // legacy tutor with no platform record, or any infra blip all resolve to active.
 // We only flip to expired on an explicit { active: false } from the server.
-// ssi_admins and act-as sessions bypass entirely.
+// ssi_admins bypass entirely.
 const platformExpired = ref(false)
 const platformChecked = ref(false)
 
 async function checkPlatform() {
-  if (isSsiAdmin.value || isActingAs.value) {
+  if (isSsiAdmin.value) {
     platformExpired.value = false
     platformChecked.value = true
     return

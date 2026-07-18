@@ -28,9 +28,7 @@ import { installConsoleDedup } from './utils/consoleDedup'
 const PwaUpdatePrompt = defineAsyncComponent(() => import('./components/PwaUpdatePrompt.vue'))
 const InstallBanner = defineAsyncComponent(() => import('./components/InstallBanner.vue'))
 const TesterFeedback = defineAsyncComponent(() => import('./components/TesterFeedback.vue'))
-const ActingAsBanner = defineAsyncComponent(() => import('./components/ActingAsBanner.vue'))
 import { setSchoolsClient } from './composables/schools/client'
-import { useActAs } from './composables/useActAs'
 import AppEscape from './components/AppEscape.vue'
 import CheckoutOverlay from './components/CheckoutOverlay.vue'
 
@@ -508,17 +506,9 @@ provide('inviteCode', inviteCode)
 provide('installPrompt', installPrompt)
 provide('fetchEnrolledCourses', fetchEnrolledCourses)
 
-// Rehydrate an in-flight admin act-as (sessionStorage) after a reload.
-const { restoreActAs } = useActAs()
-
 onMounted(async () => {
   // Clear stale caches on new deploy
   invalidateStaleCaches()
-
-  // Re-prime the schools context if an admin reloaded while acting-as.
-  restoreActAs().catch(err => {
-    console.warn('[App] act-as restore failed (non-fatal):', err)
-  })
 
   // Check service worker kill switch (for emergency recovery)
   // If kill switch is active, this will unregister SW and reload
@@ -667,7 +657,6 @@ onMounted(async () => {
     <PwaUpdatePrompt />
     <InstallBanner />
     <TesterFeedback />
-    <ActingAsBanner />
     <CheckoutOverlay />
     <div v-if="killSwitchMessage" class="kill-switch-overlay">
       <p>{{ killSwitchMessage }}</p>

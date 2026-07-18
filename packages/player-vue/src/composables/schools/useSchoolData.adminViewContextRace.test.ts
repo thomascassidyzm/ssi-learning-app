@@ -42,14 +42,14 @@ function createControlledClient(resolvers: Record<string, () => Promise<any>>) {
   } as any
 }
 
-// Regression for the View-as SCHOOL LEADER crash (useSchoolData.ts:300,
+// Regression for the SCHOOL LEADER context-race crash (useSchoolData.ts:300,
 // "Cannot read properties of null (reading 'school_id')"): fetchSchools()
 // re-read the SHARED, module-level currentUser ref across its awaits. When an
-// act-as entry/exit/persona-switch nulled that ref mid-flight, the next
-// `selectedUser.value.school_id` threw and the dashboard showed "Couldn't
-// refresh". fetchSchools now snapshots the persona once; nulling the context
-// mid-request can no longer crash it.
-describe('useSchoolData — View-as school leader: context nulled mid-flight never crashes', () => {
+// admin read-view drill-in (AdminSchoolsContainer) nulled that ref mid-flight
+// on teardown, the next `selectedUser.value.school_id` threw and the
+// dashboard showed "Couldn't refresh". fetchSchools now snapshots the scope
+// once; nulling the context mid-request can no longer crash it.
+describe('useSchoolData — admin read-view: context nulled mid-flight never crashes', () => {
   beforeEach(() => {
     vi.resetModules()
     Object.keys(store).forEach((k) => delete store[k])
@@ -108,7 +108,7 @@ describe('useSchoolData — View-as school leader: context nulled mid-flight nev
     const sd = useSchoolData()
 
     const inFlight = sd.fetchSchools()
-    // Simulate an act-as exit / persona switch clearing the shared context
+    // Simulate an admin read-view teardown clearing the shared context
     // WHILE the read above is still pending.
     ctx.currentUser.value = null
     gate.resolve(null)

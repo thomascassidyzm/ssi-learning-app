@@ -10,8 +10,7 @@ import { useRoute, useRouter } from 'vue-router'
  * mode is WHICH CLASS is live — a teacher running back-to-back sessions on a
  * projector/shared device otherwise can't tell 6S from 6M. Identity in the bar =
  * the MOST SPECIFIC ACTIVE CONTEXT, so the class name becomes the primary
- * identity here (school/teacher demoted), matching the clarity of the View-as
- * banner (ActingAsBanner).
+ * identity here (school/teacher demoted).
  *
  * The active-class payload is the SAME one every launcher writes
  * (usePlayAsClass.launchClassSession + TeachDashboard.playAsClass) and that

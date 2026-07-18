@@ -13,7 +13,6 @@ import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import GroupTreeNode from '@/components/admin/GroupTreeNode.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
-import ViewAsButton from '@/components/admin/ViewAsButton.vue'
 import type { ActAsPersona } from '@/composables/useUserRole'
 
 const router = useRouter()
@@ -65,7 +64,7 @@ function setSuccess(message: string, invite: { url: string; hint: string } | nul
   inviteResult.value = invite
 }
 
-// ─── "View as" — read-only impersonation entry points ───
+// ─── Staff/leader candidates — read-only display in the detail panel (name, "leader: X") ───
 interface StaffMember {
   user_id: string
   display_name: string
@@ -609,8 +608,6 @@ provide('orgTreeApi', {
   requestDeleteSchool,
   createSubgroup,
   createSchoolAt: (groupId: string, name: string) => createSchoolAt(groupId, name),
-  groupLeaderCandidates,
-  schoolAdminCandidates,
   selectNode,
   selectedNodeKey: computed(() =>
     selectedKind.value && selectedId.value ? `${selectedKind.value}:${selectedId.value}` : null
@@ -1041,7 +1038,6 @@ onMounted(() => {
             </div>
             <div class="detail-actions">
               <button class="btn-ghost-sm" @click="openGroupDashboard(selectedGroup.id)">Dashboard</button>
-              <ViewAsButton :candidates="groupLeaderCandidates(selectedGroup)" empty-title="No group leader yet" />
               <button class="btn-ghost-sm" @click="clearSelection">✕</button>
             </div>
           </div>
@@ -1078,7 +1074,6 @@ onMounted(() => {
                   <span class="status-dot"></span>{{ staff.role_in_context === 'admin' ? 'Admin' : 'Teacher' }}
                 </span>
                 <span class="staff-school">{{ staff.school_name || '—' }}</span>
-                <ViewAsButton :candidates="[staffToPersona(staff)]" />
               </div>
             </div>
             <p v-else class="facet-hint">No staff in this subtree yet — select a school to add some.</p>
@@ -1131,7 +1126,6 @@ onMounted(() => {
             </div>
             <div class="detail-actions">
               <button class="btn-ghost-sm" @click="openSchoolDashboard(selectedSchool.id)">Dashboard</button>
-              <ViewAsButton :candidates="schoolAdminCandidates(selectedSchool)" empty-title="No school admin claimed yet" />
               <button class="btn-ghost-sm" title="Delete school" @click="requestDeleteSchool(selectedSchool)">Delete</button>
               <button class="btn-ghost-sm" @click="clearSelection">✕</button>
             </div>
@@ -1203,7 +1197,6 @@ onMounted(() => {
                 <span class="status-pill" :class="staff.role_in_context === 'admin' ? 'tone-red' : 'tone-green'">
                   <span class="status-dot"></span>{{ staff.role_in_context === 'admin' ? 'Admin' : 'Teacher' }}
                 </span>
-                <ViewAsButton :candidates="[staffToPersona(staff)]" />
               </div>
             </div>
             <p v-else-if="!isLoadingStaff" class="facet-hint">No staff at this school yet.</p>
