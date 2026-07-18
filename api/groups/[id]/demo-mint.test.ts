@@ -146,6 +146,10 @@ describe('POST /api/groups/:id/demo-mint', () => {
     expect(res.body.invite_code).toBe('ABC-123')
     expect(res.body.group_id).toBe('new-group-1')
     expect(ensureDemoLeafClassMock).not.toHaveBeenCalled()
+    // Links-first (THE-MODEL §1.10): the URL is the artifact.
+    expect(res.body.links).toEqual([
+      expect.objectContaining({ role: 'leader', url: expect.stringMatching(/\/group\/ABC-123$/), code: 'ABC-123' }),
+    ])
   })
 
   it('shape=school provisions the hidden leaf via the demo-schools generator machinery', async () => {
@@ -156,6 +160,10 @@ describe('POST /api/groups/:id/demo-mint', () => {
     expect(ensureDemoLeafClassMock).toHaveBeenCalledWith(expect.anything(), 'new-group-1', 'admin-1', 'spa_for_eng_v2')
     expect(insertedDemoOrgs[0]).toMatchObject({ org_shape: 'single_school', school_id: 'school-1' })
     expect(res.body.student_join_code).toBe('STU-999')
+    expect(res.body.links).toEqual([
+      expect.objectContaining({ role: 'leader', url: expect.stringMatching(/\/group\/ABC-123$/) }),
+      expect.objectContaining({ role: 'student', url: expect.stringMatching(/\/with\/STU-999$/), code: 'STU-999' }),
+    ])
   })
 
   it('400s shape=school when no course_code can be resolved', async () => {

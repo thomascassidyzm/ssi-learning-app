@@ -53,6 +53,19 @@ const DAY = 86400000
 const DEFAULT_DEMO_DAYS = 30
 
 /**
+ * Derive the app origin from the request — never trust a client-supplied
+ * value (same pattern as api/admin/create-signin-link.ts). Links-first
+ * (THE-MODEL §1.10): the URL is the artifact, the code is plumbing.
+ */
+function getAppOrigin(req: VercelRequest): string {
+  const host = ((req.headers['host'] as string) || '').toLowerCase().replace(/:\d+$/, '')
+  if (host === 'saysomethingin.app' || host === 'www.saysomethingin.app') return 'https://saysomethingin.app'
+  if (host === 'staging.saysomethingin.app') return 'https://staging.saysomethingin.app'
+  if (host) return `https://${host}`
+  return 'https://saysomethingin.app'
+}
+
+/**
  * ssi_admin first; fall back to a leader whose OWN governed group is
  * `groupId` itself or a strict ancestor of it (minting AT their own node or
  * somewhere in their own subtree). Writes the 401/403 response itself and
@@ -267,10 +280,33 @@ export default async function handler(
       console.warn('[DemoMint] audit insert threw:', auditErr)
     }
 
+    // Links-first (THE-MODEL §1.10): the shareable URL leads; codes are
+    // plumbing. Same URL shapes as the standalone demo flow's result card
+    // (leader /group/<code>, learner /with/<join_code>) and the node panel
+    // consumes this array by contract: { role, url, code, limits }.
+    const origin = getAppOrigin(req)
+    const links = [
+      {
+        role: 'leader',
+        url: `${origin}/group/${invite.code}`,
+        code: invite.code,
+        limits: { max_uses: null, expires_at: expiresAt },
+      },
+      ...(studentJoinCode
+        ? [{
+            role: 'student',
+            url: `${origin}/with/${studentJoinCode}`,
+            code: studentJoinCode,
+            limits: { max_uses: null, expires_at: expiresAt },
+          }]
+        : []),
+    ]
+
     res.status(201).json({
       group_id: groupId,
       demo_org_id: demoOrg.id,
       shape: mintShape,
+      links,
       invite_code: invite.code,
       school_id: schoolId,
       student_join_code: studentJoinCode,
