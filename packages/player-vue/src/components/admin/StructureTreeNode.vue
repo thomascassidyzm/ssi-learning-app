@@ -114,7 +114,7 @@ async function submitDemoMint(): Promise<void> {
         @keyup.escape="api.cancelRename()"
       />
     </template>
-    <span v-else class="structure-name" title="Click to open dashboard" @click="api.openDashboard(node)">
+    <span v-else class="structure-name" title="Click to open" @click="api.selectNode(node)">
       {{ node.name }}
     </span>
 

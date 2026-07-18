@@ -47,4 +47,6 @@ export interface StructureApi {
   submitDemoMint(node: StructureNode, opts: { name: string; leaderEmail?: string }): Promise<boolean>
   /** Tree lens only — re-root the tree at this node when its children were depth-truncated. */
   drillInto(node: StructureNode): void
+  /** Opens the verbs-first node panel (THE-MODEL.md §1.12) for this node. */
+  selectNode(node: StructureNode): void
 }

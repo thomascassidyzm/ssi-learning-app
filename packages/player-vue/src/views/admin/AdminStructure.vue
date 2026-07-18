@@ -1,18 +1,20 @@
 <script setup lang="ts">
-// Structure — TWO LENSES ON ONE TREE (THE-MODEL.md §1.9/§6/§7).
-// "There is no in-principle difference between a group, a school or an
-// organisation" — every row in both lenses is the SAME group node; a
-// school is just a node with label 'school' plus a commercial attachment
-// (schools.node_group_id) shown as a status pill. Data comes from the
-// server-mediated /api/groups/tree and /api/groups/table endpoints — no
-// client-direct org-table reads (§6). Facet editing (staff rosters,
-// entitlement grants) stays on the existing /admin/schools/:id and
-// /admin/groups/:id dashboards; tree/table drill-in (openDashboard) is the
-// view-as replacement (I11) that gets you there.
+// Structure — TWO LENSES ON ONE TREE (THE-MODEL.md §1.9/§6/§7), VERBS ON
+// TOP (§1.12). "There is no in-principle difference between a group, a
+// school or an organisation" — every row in both lenses is the SAME group
+// node; a school is just a node with label 'school' plus a commercial
+// attachment (schools.node_group_id) shown as a status pill. Data comes
+// from the server-mediated /api/groups/tree and /api/groups/table
+// endpoints — no client-direct org-table reads (§6). Selecting a node opens
+// NodePanel.vue — plain-language task buttons first (invite/add/see
+// progress), ways-in LINKS second (§1.10 — the invites page dies), the
+// deep dashboards (/admin/schools/:id, /admin/groups/:id) are one "See
+// progress" tap away, not a destination you have to find first.
 import { ref, computed, onMounted, provide, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import StructureTreeNode from '@/components/admin/StructureTreeNode.vue'
+import NodePanel from '@/components/admin/NodePanel.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import type { StructureApi, StructureNode } from '@/components/admin/structureApi'
 
@@ -139,6 +141,11 @@ watch(lens, (v) => { if (v === 'table' && !tableFetchedOnce.value) fetchTable() 
 async function refetchCurrentLens(): Promise<void> {
   if (lens.value === 'tree') await fetchTree()
   if (lens.value === 'table' || tableFetchedOnce.value) await fetchTable()
+  // Keep an open node panel showing fresh counts/name after a mutating action.
+  if (selectedNode.value) {
+    const fresh = [...flattenNodes(treeRoots.value), ...tableRows.value].find((n) => n.id === selectedNode.value!.id)
+    if (fresh) selectedNode.value = fresh
+  }
 }
 
 // ─── Root "+ Add organisation" ───
@@ -312,6 +319,15 @@ function drillInto(node: StructureNode): void {
   fetchTree()
 }
 
+// ─── Node panel (THE-MODEL.md §1.12 — verbs on top) ───
+const selectedNode = ref<StructureNode | null>(null)
+function selectNode(node: StructureNode): void {
+  selectedNode.value = node
+}
+function closeNodePanel(): void {
+  selectedNode.value = null
+}
+
 // ─── Delete (unchanged wiring from the old Structure page) ───
 interface DeleteImpact {
   classCount?: number
@@ -401,7 +417,7 @@ async function confirmDelete(typedName: string): Promise<void> {
 
 provide<StructureApi>('structureApi', {
   editingId, editingName, startRename, saveRename, cancelRename, updateLabel,
-  openDashboard, createChild, requestDelete, submitInvite, submitDemoMint, drillInto,
+  openDashboard, createChild, requestDelete, submitInvite, submitDemoMint, drillInto, selectNode,
 })
 
 onMounted(() => {
@@ -470,90 +486,96 @@ onMounted(() => {
       </select>
     </div>
 
-    <div class="schools-card structure-panel">
-      <div class="panel-head">
-        <span class="schools-kicker">Organisations</span>
-        <button type="button" class="btn-ghost-sm" @click="showAddOrg = !showAddOrg">+ Add organisation</button>
-      </div>
-      <div v-if="showAddOrg" class="structure-inline-form root-inline-form">
-        <input
-          v-model="newOrgName" type="text" class="frost-input" placeholder="Organisation name" autofocus
-          @keyup.enter="createOrganisation" @keyup.escape="showAddOrg = false"
-        />
-        <select v-model="newOrgLabel" class="frost-select">
-          <option value="organisation">organisation</option>
-          <option value="nation">nation</option>
-          <option value="region">region</option>
-          <option value="school">school</option>
-        </select>
-        <label class="checkbox-field"><input v-model="newOrgIsDemo" type="checkbox" /><span>Demo</span></label>
-        <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation">
-          {{ isCreatingOrg ? 'Adding…' : 'Add' }}
-        </button>
-      </div>
-
-      <!-- TREE lens -->
-      <template v-if="lens === 'tree'">
-        <div v-if="focusedRootId" class="focused-breadcrumb">
-          <button type="button" class="link-btn" @click="resetToTop">← Back to top</button>
-          <span>Showing subtree of: <strong>{{ focusedRootName }}</strong></span>
+    <div class="structure-layout" :class="{ 'has-panel': selectedNode }">
+      <div class="schools-card structure-panel">
+        <div class="panel-head">
+          <span class="schools-kicker">Organisations</span>
+          <button type="button" class="btn-ghost-sm" @click="showAddOrg = !showAddOrg">+ Add organisation</button>
         </div>
-        <div v-if="isLoadingTree" class="structure-empty">Loading…</div>
-        <div v-else class="structure-tree">
-          <StructureTreeNode
-            v-for="root in treeRoots"
-            :key="root.id"
-            :node="root"
-            :depth="0"
-            :search="search"
-            :filter-label="filterLabel"
-            :filter-demo="filterDemo"
-            :filter-status="filterStatus"
+        <div v-if="showAddOrg" class="structure-inline-form root-inline-form">
+          <input
+            v-model="newOrgName" type="text" class="frost-input" placeholder="Organisation name" autofocus
+            @keyup.enter="createOrganisation" @keyup.escape="showAddOrg = false"
           />
-          <div v-if="treeRoots.length === 0" class="structure-empty">
-            <strong>No organisations yet</strong>
-            <p>Add one above.</p>
-          </div>
+          <select v-model="newOrgLabel" class="frost-select">
+            <option value="organisation">organisation</option>
+            <option value="nation">nation</option>
+            <option value="region">region</option>
+            <option value="school">school</option>
+          </select>
+          <label class="checkbox-field"><input v-model="newOrgIsDemo" type="checkbox" /><span>Demo</span></label>
+          <button class="btn-ghost-sm" :disabled="isCreatingOrg || !newOrgName.trim()" @click="createOrganisation">
+            {{ isCreatingOrg ? 'Adding…' : 'Add' }}
+          </button>
         </div>
-      </template>
 
-      <!-- TABLE lens -->
-      <template v-else>
-        <div v-if="isLoadingTable" class="structure-empty">Loading…</div>
-        <table v-else class="structure-table">
-          <thead>
-            <tr>
-              <th>Name</th><th>Label</th><th>Demo</th><th>Status</th>
-              <th>Teachers</th><th>Classes</th><th>Learners</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in tableRows" :key="row.id">
-              <td class="cell-name" @click="openDashboard(row)">{{ row.name }}</td>
-              <td>{{ row.label }}</td>
-              <td>{{ row.is_demo ? 'Demo' : '—' }}</td>
-              <td>{{ row.commercial?.platformStatus || '—' }}</td>
-              <td>{{ row.rollup.teacherCount }}</td>
-              <td>{{ row.rollup.classCount }}</td>
-              <td>{{ row.rollup.learnerCount }}</td>
-              <td class="cell-actions">
-                <button class="row-action" title="Rename" @click="startRename(row)">✎</button>
-                <button class="row-action" title="Open dashboard" @click="openDashboard(row)">↗</button>
-                <button class="row-action is-danger" title="Delete" @click="requestDelete(row)">✕</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="tableRows.length === 0 && !isLoadingTable" class="structure-empty">
-          <strong>No matches</strong>
-          <p>Try clearing a filter.</p>
-        </div>
-        <div class="pagination">
-          <button class="btn-ghost-sm" :disabled="tablePage <= 1" @click="tablePage -= 1">← Prev</button>
-          <span class="pagination-info">Page {{ tablePage }} of {{ tablePageCount }} ({{ tableTotal }} total)</span>
-          <button class="btn-ghost-sm" :disabled="tablePage >= tablePageCount" @click="tablePage += 1">Next →</button>
-        </div>
-      </template>
+        <!-- TREE lens -->
+        <template v-if="lens === 'tree'">
+          <div v-if="focusedRootId" class="focused-breadcrumb">
+            <button type="button" class="link-btn" @click="resetToTop">← Back to top</button>
+            <span>Showing subtree of: <strong>{{ focusedRootName }}</strong></span>
+          </div>
+          <div v-if="isLoadingTree" class="structure-empty">Loading…</div>
+          <div v-else class="structure-tree">
+            <StructureTreeNode
+              v-for="root in treeRoots"
+              :key="root.id"
+              :node="root"
+              :depth="0"
+              :search="search"
+              :filter-label="filterLabel"
+              :filter-demo="filterDemo"
+              :filter-status="filterStatus"
+            />
+            <div v-if="treeRoots.length === 0" class="structure-empty">
+              <strong>No organisations yet</strong>
+              <p>Add one above.</p>
+            </div>
+          </div>
+        </template>
+
+        <!-- TABLE lens -->
+        <template v-else>
+          <div v-if="isLoadingTable" class="structure-empty">Loading…</div>
+          <table v-else class="structure-table">
+            <thead>
+              <tr>
+                <th>Name</th><th>Label</th><th>Demo</th><th>Status</th>
+                <th>Teachers</th><th>Classes</th><th>Learners</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in tableRows" :key="row.id">
+                <td class="cell-name" @click="selectNode(row)">{{ row.name }}</td>
+                <td>{{ row.label }}</td>
+                <td>{{ row.is_demo ? 'Demo' : '—' }}</td>
+                <td>{{ row.commercial?.platformStatus || '—' }}</td>
+                <td>{{ row.rollup.teacherCount }}</td>
+                <td>{{ row.rollup.classCount }}</td>
+                <td>{{ row.rollup.learnerCount }}</td>
+                <td class="cell-actions">
+                  <button class="row-action" title="Rename" @click="startRename(row)">✎</button>
+                  <button class="row-action" title="Open dashboard" @click="openDashboard(row)">↗</button>
+                  <button class="row-action is-danger" title="Delete" @click="requestDelete(row)">✕</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-if="tableRows.length === 0 && !isLoadingTable" class="structure-empty">
+            <strong>No matches</strong>
+            <p>Try clearing a filter.</p>
+          </div>
+          <div class="pagination">
+            <button class="btn-ghost-sm" :disabled="tablePage <= 1" @click="tablePage -= 1">← Prev</button>
+            <span class="pagination-info">Page {{ tablePage }} of {{ tablePageCount }} ({{ tableTotal }} total)</span>
+            <button class="btn-ghost-sm" :disabled="tablePage >= tablePageCount" @click="tablePage += 1">Next →</button>
+          </div>
+        </template>
+      </div>
+
+      <div v-if="selectedNode" class="schools-card node-panel-host">
+        <NodePanel :node="selectedNode" @close="closeNodePanel" />
+      </div>
     </div>
 
     <ConfirmDeleteModal
@@ -625,7 +647,12 @@ onMounted(() => {
 }
 .chip.is-active { background: rgba(var(--tone-gold), 0.18); border-color: rgba(var(--tone-gold), 0.45); color: rgb(var(--tone-gold-ink)); }
 
+.structure-layout { display: grid; grid-template-columns: 1fr; gap: var(--space-5); align-items: start; }
+.structure-layout.has-panel { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+@media (max-width: 1000px) { .structure-layout.has-panel { grid-template-columns: 1fr; } }
+
 .structure-panel { padding: 0; overflow: hidden; }
+.node-panel-host { padding: 0; overflow: hidden; }
 .panel-head {
   padding: var(--space-4) var(--space-6) var(--space-3); border-bottom: 1px solid rgba(44, 38, 34, 0.06);
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;

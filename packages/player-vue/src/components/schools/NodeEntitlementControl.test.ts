@@ -52,7 +52,7 @@ describe('NodeEntitlementControl', () => {
     const wrapper = mount(NodeEntitlementControl, { props: { nodeId: 's1', nodeType: 'school' } })
     await flushPromises()
     expect(wrapper.text()).toContain('Not set')
-    expect(wrapper.text()).toContain('No entitlement set yet')
+    expect(wrapper.text()).toContain('No course access set yet')
   })
 
   it('shows the trial state with its course and expiry', async () => {

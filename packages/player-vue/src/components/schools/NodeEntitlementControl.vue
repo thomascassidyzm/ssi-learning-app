@@ -158,11 +158,11 @@ async function fetchGrant(): Promise<void> {
     const headers: Record<string, string> = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
     const response = await fetch(`/api/entitlement/grants?${nodeQueryKey.value}=${props.nodeId}`, { headers })
-    if (!response.ok) throw new Error('Failed to load entitlement')
+    if (!response.ok) throw new Error('Failed to load course access')
     const data = await response.json()
     currentGrant.value = data.grants?.[0] ?? null
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load entitlement'
+    error.value = err instanceof Error ? err.message : 'Failed to load course access'
   } finally {
     isLoading.value = false
   }
@@ -187,12 +187,12 @@ async function save(): Promise<void> {
     const response = await fetch('/api/entitlement/grant', { method: 'POST', headers, body: JSON.stringify(body) })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
-      throw new Error(data.error || 'Failed to save entitlement')
+      throw new Error(data.error || 'Failed to save course access')
     }
     const result = await response.json()
     currentGrant.value = result.grant
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to save entitlement'
+    error.value = err instanceof Error ? err.message : 'Failed to save course access'
   } finally {
     isSaving.value = false
   }
@@ -207,7 +207,7 @@ onMounted(() => {
 <template>
   <FrostCard variant="panel" class="node-entitlement">
     <div class="facet-head">
-      <span class="schools-kicker">Entitlement</span>
+      <span class="schools-kicker">Courses</span>
       <span v-if="displayState === 'trial'" class="status-pill tone-gold"><span class="status-dot"></span>Trial</span>
       <span v-else-if="displayState === 'paid'" class="status-pill tone-green"><span class="status-dot"></span>Paid</span>
       <span v-else class="status-pill tone-muted"><span class="status-dot"></span>Not set</span>
@@ -219,9 +219,9 @@ onMounted(() => {
         {{ currentTrialCourse.label }} — expires {{ formatExpiry(currentGrant?.expires_at ?? null) }}
       </p>
       <p v-else-if="displayState === 'paid'" class="current-summary">All courses, no expiry.</p>
-      <p v-else class="facet-hint">No entitlement set yet.</p>
+      <p v-else class="facet-hint">No course access set yet.</p>
 
-      <div class="state-toggle" role="radiogroup" aria-label="Entitlement state">
+      <div class="state-toggle" role="radiogroup" aria-label="Course access state">
         <button
           type="button"
           class="state-option"
@@ -269,7 +269,7 @@ onMounted(() => {
 
       <div class="facet-actions">
         <Button variant="primary" size="sm" :loading="isSaving" :disabled="isSaving" @click="save">
-          {{ isSaving ? 'Saving…' : 'Save entitlement' }}
+          {{ isSaving ? 'Saving…' : 'Save' }}
         </Button>
       </div>
     </template>

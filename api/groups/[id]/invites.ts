@@ -1,12 +1,18 @@
 /**
- * Group Invites API - POST /api/groups/:id/invites
+ * Group Invites API - GET/POST /api/groups/:id/invites
  *
- * THE-MODEL.md §6 groundwork: the group-scoped shape of the "invites mint
- * people, never structure" contract (I8). Body is role × limits only —
- * `{ role: 'teacher' | 'leader' | 'student', limits?: { max_uses?, expires_at? } }`
- * — the :id in the path IS the where, so there is no grants_group_id field to
- * accept from the client (mirrors invite/create.ts's rule that a leader's own
- * group is always server-derived, never client-supplied).
+ * THE-MODEL.md §6 groundwork + §1.10 ("the invites page dies — links live
+ * ON the node"): the group-scoped shape of the "invites mint people, never
+ * structure" contract (I8).
+ *
+ * GET  — the node panel's "ways in" section: every ACTIVE link minted at
+ *   this exact node, links-first (`{role, url, code, limits, useCount}`),
+ *   newest first. The URL is the artifact; the code is plumbing.
+ * POST — `{ role: 'teacher' | 'leader' | 'student', limits?: { max_uses?, expires_at? } }`
+ *   — the :id in the path IS the where, so there is no grants_group_id field to
+ *   accept from the client (mirrors invite/create.ts's rule that a leader's own
+ *   group is always server-derived, never client-supplied). Response includes
+ *   the ready-to-share `url` (links-first) alongside the raw `code`.
  *
  * Reuses the existing invite_codes table/machinery (generateCode, the same
  * columns api/invite/create.ts writes) — no new table, no new redemption
@@ -28,6 +34,7 @@ import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { generateCode } from '../../_utils/codeGen'
 import { isStrictDescendantGroup } from '../../_utils/schoolScope'
+import { getAppOrigin, redeemPathForRole } from '../../_utils/appOrigin'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -39,12 +46,17 @@ const CODE_TYPE_BY_ROLE: Record<Role, string> = {
   teacher: 'teacher',
   student: 'student',
 }
+const ROLE_BY_CODE_TYPE: Record<string, Role> = {
+  govt_admin: 'leader',
+  teacher: 'teacher',
+  student: 'student',
+}
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ): Promise<void> {
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
@@ -57,16 +69,6 @@ export default async function handler(
 
   if (!supabaseUrl || !supabaseServiceKey) {
     res.status(500).json({ error: 'Server misconfigured — missing SUPABASE_SERVICE_ROLE_KEY' })
-    return
-  }
-
-  const { role, limits } = (req.body || {}) as {
-    role?: string
-    limits?: { max_uses?: number; expires_at?: string }
-  }
-
-  if (role !== 'teacher' && role !== 'leader' && role !== 'student') {
-    res.status(400).json({ error: "role must be one of 'teacher', 'leader', 'student'" })
     return
   }
 
@@ -98,6 +100,49 @@ export default async function handler(
       return
     }
     callerUserId = authResult.userId
+  }
+
+  if (req.method === 'GET') {
+    try {
+      const { data, error } = await supabase
+        .from('invite_codes')
+        .select('code, code_type, max_uses, use_count, expires_at, created_at')
+        .eq('grants_group_id', groupId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+
+      const origin = getAppOrigin(req)
+      const links = (data || [])
+        .map((row: any) => {
+          const role = ROLE_BY_CODE_TYPE[row.code_type as string]
+          if (!role) return null
+          return {
+            role,
+            url: `${origin}/${redeemPathForRole(role)}/${row.code}`,
+            code: row.code,
+            limits: { max_uses: row.max_uses, expires_at: row.expires_at },
+            useCount: row.use_count,
+          }
+        })
+        .filter(Boolean)
+
+      res.status(200).json({ links })
+    } catch (error) {
+      console.error('[GroupInvites] List error:', error)
+      res.status(500).json({ error: 'Internal server error' })
+    }
+    return
+  }
+
+  const { role, limits } = (req.body || {}) as {
+    role?: string
+    limits?: { max_uses?: number; expires_at?: string }
+  }
+
+  if (role !== 'teacher' && role !== 'leader' && role !== 'student') {
+    res.status(400).json({ error: "role must be one of 'teacher', 'leader', 'student'" })
+    return
   }
 
   try {
@@ -142,7 +187,12 @@ export default async function handler(
       return
     }
 
-    res.status(201).json({ code: created.code, id: created.id })
+    const origin = getAppOrigin(req)
+    res.status(201).json({
+      code: created.code,
+      id: created.id,
+      url: `${origin}/${redeemPathForRole(role)}/${created.code}`,
+    })
   } catch (error) {
     console.error('[GroupInvites] Error:', error)
     res.status(500).json({ error: 'Internal server error' })
