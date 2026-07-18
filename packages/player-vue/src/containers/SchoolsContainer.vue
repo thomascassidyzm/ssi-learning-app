@@ -571,7 +571,11 @@ watch(
 }
 
 .main-content {
-  margin-top: calc(var(--nav-height, 80px) + env(safe-area-inset-top, 0px));
+  /* The in-flow SchoolsTopBar now owns the top safe-area inset (it grows by
+     env(safe-area-inset-top) and pads its controls clear of the status bar),
+     so this margin must NOT add the inset again — doing so double-counted it
+     and pushed the dashboard down by an extra notch height. */
+  margin-top: var(--nav-height, 80px);
   min-height: calc(100vh - var(--nav-height, 80px) - env(safe-area-inset-top, 0px));
   position: relative;
   z-index: 10;
@@ -586,7 +590,9 @@ watch(
   margin-top: 0;
   padding: 0;
   max-width: none;
-  min-height: calc(100vh - 54px);
+  /* Topbar is 54px + top inset now, so the full-bleed player area is the
+     rest of the viewport below it. */
+  min-height: calc(100vh - 54px - env(safe-area-inset-top, 0px));
 }
 
 /* Loading */
