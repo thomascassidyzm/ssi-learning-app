@@ -224,7 +224,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
     setupFetch({
       '/api/groups/tree': { roots: [makeNode()] },
       '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
-      '/demo-mint': { group: { id: 'demo-1' }, invite: { code: 'DEMO1' } },
+      '/demo-mint': { group_id: 'demo-1', links: [{ role: 'leader', url: 'https://app/group/DEMO1', code: 'DEMO1' }] },
     })
     const wrapper = await mountStructure()
     await wrapper.find('[title="Mint a demo org here"]').trigger('click')
@@ -236,6 +236,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
     expect(call).toBeTruthy()
     const body = JSON.parse(call![1].body)
     expect(body.name).toBe('Demo Academy')
+    expect(wrapper.text()).toContain('https://app/group/DEMO1')
   })
 
   it('rename PATCHes /api/groups/:id with the new name', async () => {
