@@ -20,6 +20,9 @@ interface CourseStats {
   active_30d: number
   avg_seeds_introduced: number
   total_practice_minutes: number
+  /** True when total_practice_minutes includes a position-derived estimate
+   *  for at least one learner (no session logs for that learner+course). */
+  total_practice_minutes_estimated: boolean
 }
 
 const courses = ref<CourseInfo[]>([])
@@ -120,7 +123,11 @@ export function useAdminCourses(client: SupabaseClient) {
       // Telemetry-derived practice minutes per course (keyed by course_code,
       // which equals course_enrollments.course_id in this DB).
       const practiceByCourse = new Map<string, number>()
-      ;(practiceData || []).forEach((r: any) => practiceByCourse.set(r.course_code, r.practice_minutes || 0))
+      const practiceEstimatedByCourse = new Map<string, boolean>()
+      ;(practiceData || []).forEach((r: any) => {
+        practiceByCourse.set(r.course_code, r.practice_minutes || 0)
+        practiceEstimatedByCourse.set(r.course_code, !!r.is_estimated)
+      })
 
       // Active learners (30d)
       const activeByCourse = new Map<string, Set<string>>()
@@ -158,6 +165,7 @@ export function useAdminCourses(client: SupabaseClient) {
           active_30d: activeByCourse.get(code)?.size || 0,
           avg_seeds_introduced: avgSeeds,
           total_practice_minutes: practiceByCourse.get(code) || 0,
+          total_practice_minutes_estimated: practiceEstimatedByCourse.get(code) || false,
         })
       })
 
@@ -177,6 +185,7 @@ export function useAdminCourses(client: SupabaseClient) {
       active_30d: 0,
       avg_seeds_introduced: 0,
       total_practice_minutes: 0,
+      total_practice_minutes_estimated: false,
     }
   }
 

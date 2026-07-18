@@ -32,6 +32,10 @@ interface AdminUser {
   tier: Tier
   last_active: string | null
   practice_minutes: number
+  /** True when practice_minutes includes a position-derived estimate for at
+   *  least one course (no session logs for that course) rather than being
+   *  entirely logged time. */
+  practice_minutes_estimated: boolean
   course_ids: string[]
 }
 
