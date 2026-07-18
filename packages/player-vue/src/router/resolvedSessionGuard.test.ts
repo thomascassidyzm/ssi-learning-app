@@ -3,6 +3,7 @@ import { nextTick } from 'vue'
 import router from './index'
 import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
+import { useStartSurface } from '@/composables/useStartSurface'
 
 // Exercises the admin/methodology top-level guard (index.ts) and the '/'
 // corrective redirect watch — the two pieces the founder-priority bug fix
@@ -50,18 +51,29 @@ describe('/admin + /methodology guard', () => {
   })
 })
 
-describe("'/' corrective redirect once the resolved-session gate settles", () => {
+describe("'/' landing watch once the resolved-session gate settles", () => {
   beforeEach(async () => {
     localStorage.clear()
     sessionStorage.clear()
     useUserRole().clear()
+    useStartSurface().clear()
     useResolvedSession().reset()
     await router.push('/schools') // neutral non-'/' starting point
     await router.push('/')
   })
 
-  it('redirects a staff member left on the bare player once identity resolves — the minted-sign-in-link case', async () => {
+  it('a staff role alone does NOT move the landing — login lands at the player (founder ruling 2026-07-18)', async () => {
     expect(router.currentRoute.value.fullPath).toBe('/')
+    useResolvedSession().resolve(true)
+    await nextTick()
+    useUserRole().initialize(null, 'school_admin')
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(router.currentRoute.value.fullPath).toBe('/')
+  })
+
+  it('the explicit "Start me at: Schools" preference DOES move it once identity + role resolve', async () => {
+    useStartSurface().setFromPreferences({ start_surface: 'schools' })
     // Simulates useAuth's real sequence: resolve(true) fires as soon as the
     // session is found, then the role row lands a tick later.
     useResolvedSession().resolve(true)

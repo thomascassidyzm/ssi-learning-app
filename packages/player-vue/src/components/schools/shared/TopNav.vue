@@ -256,6 +256,15 @@ const closeMobileMenu = () => {
                 </svg>
                 Settings
               </router-link>
+              <!-- Leaving the dashboard is a navigation, never an identity
+                   sign-out — roles are additive facets of one account (see
+                   SchoolsTopBar's menu note, founder incident 2026-07-18). -->
+              <router-link to="/" class="user-dropdown-item" @click="isUserMenuOpen = false">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12l9-9 9 9M5 10v10h14V10"/>
+                </svg>
+                My player
+              </router-link>
               <button class="user-dropdown-item logout" @click="handleSignOut">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>

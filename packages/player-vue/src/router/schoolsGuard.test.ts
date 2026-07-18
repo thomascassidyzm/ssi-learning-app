@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import router from './index'
 import { useUserRole } from '@/composables/useUserRole'
+import { useStartSurface } from '@/composables/useStartSurface'
+import { useResolvedSession } from '@/composables/useResolvedSession'
 
 // Exercises the real /schools beforeEnter guard (index.ts:76) via actual
 // navigation — the guard that bounced a freshly-redeemed govt_admin to '/'
@@ -58,6 +60,22 @@ describe('/schools route guard', () => {
     expect(useUserRole().hasSchoolRole.value).toBe(true)
   })
 
+  it('an ssi_admin visiting /schools is redirected to /admin/structure — support access, never the member sign-in/no-access wall', async () => {
+    // Founder-facing invariant (2026-07-18 incident): an ssi_admin has no
+    // educational_role, so hasSchoolRole is false — but canAccessAdmin is
+    // true, so the guard sends them to their OWN admin surface rather than
+    // letting them fall onto the member-facing /schools tree (whose container
+    // would otherwise show the "Sign in / no school access" wall). The
+    // tutor-shell dissolution only widened the gate to admit 'tutor'; it
+    // never touched this admin branch, so admin support access is unchanged.
+    useUserRole().initialize('ssi_admin', null)
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
+    // Even a deep link into a child route redirects out, not onto the wall.
+    await router.push('/schools/teachers')
+    expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
+  })
+
   it('trapped-Aran fallback still holds: an initialized user with NO role who last visited /teach bounces to /tutors/dashboard, not the dead-end wall', async () => {
     localStorage.setItem('ssi-last-dashboard', 'teach')
     useUserRole().initialize(null, null)
@@ -90,51 +108,73 @@ describe('/schools route guard', () => {
   })
 })
 
-// Exercises the real '/' beforeEnter guard (index.ts:57) — staff home is the
-// dashboard, not the bare player (owner ruling 2026-07-16). This is the fast
-// path (a role already cached in this browser); App.vue's post-auth-init
-// redirect covers the fresh-browser case (no cache yet), which a router-only
-// test can't reach since it never runs auth.initialize().
-describe('/ (bare player) route guard — staff redirect', () => {
+// Login lands in your OWN player, for every role (founder ruling 2026-07-18:
+// remember progress, not position — supersedes the 2026-07-16 "staff home is
+// the dashboard" ruling and its cached-role fast-path, which resurrected a
+// stale role cache from a prior session on a fresh login). The ONLY thing
+// that moves a resolved session off '/' is the explicit "Start me at"
+// preference, and only to a surface the current role can access.
+describe('/ (bare player) — login lands at the player; start preference is opt-in', () => {
   beforeEach(async () => {
     localStorage.clear()
     sessionStorage.clear()
     useUserRole().clear()
-    await router.push('/schools')
+    useStartSurface().clear()
+    useResolvedSession().reset()
+    await router.push('/schools1') // neutral non-'/' start so the push to '/' is a real navigation
   })
 
-  it('redirects a school-role user straight to /schools', async () => {
+  it('does NOT redirect a school-role user — a stale cached role can no longer hijack the landing', async () => {
     useUserRole().initialize(null, 'teacher')
     await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('redirects a tutor straight to /schools too — one shell for all teachers', async () => {
+  it('does NOT redirect a tutor or govt_admin either', async () => {
     useUserRole().initialize(null, 'tutor')
     await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/schools')
-  })
-
-  it('redirects govt_admin too', async () => {
+    expect(router.currentRoute.value.fullPath).toBe('/')
     useUserRole().initialize(null, 'govt_admin')
+    await router.push('/schools1')
     await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('does not redirect a plain learner (no school role)', async () => {
+  it('respects an explicit "Start me at: Schools" preference once the session resolves', async () => {
+    await router.push('/')
+    useUserRole().initialize(null, 'teacher')
+    useStartSurface().setFromPreferences({ start_surface: 'schools' })
+    useResolvedSession().resolve(true)
+    await vi.waitFor(() => {
+      expect(router.currentRoute.value.fullPath).toBe('/schools')
+    })
+  })
+
+  it('ignores a "schools" preference when the current role has no school access — degrades to the player, never a wall', async () => {
+    await router.push('/')
     useUserRole().initialize(null, null)
-    await router.push('/')
+    useStartSurface().setFromPreferences({ start_surface: 'schools' })
+    useResolvedSession().resolve(true)
+    await new Promise((r) => setTimeout(r, 20))
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
-  it('does not redirect a student (school role, but not staff)', async () => {
-    useUserRole().initialize(null, 'student')
-    await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/')
+  it('deep link wins: preference never fires when the session resolves on a non-root route', async () => {
+    await router.push('/schools1')
+    useUserRole().initialize(null, 'teacher')
+    useStartSurface().setFromPreferences({ start_surface: 'schools' })
+    useResolvedSession().resolve(true)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(router.currentRoute.value.fullPath).toBe('/schools1')
   })
 
-  it('does not bounce on an uninitialized role cache — defers rather than guessing', async () => {
+  it('an admin preference lands on /admin/structure for an ssi_admin', async () => {
     await router.push('/')
-    expect(router.currentRoute.value.fullPath).toBe('/')
+    useUserRole().initialize('ssi_admin', null)
+    useStartSurface().setFromPreferences({ start_surface: 'admin' })
+    useResolvedSession().resolve(true)
+    await vi.waitFor(() => {
+      expect(router.currentRoute.value.fullPath).toBe('/admin/structure')
+    })
   })
 })

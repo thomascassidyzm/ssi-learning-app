@@ -33,6 +33,7 @@ import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial } from '../_utils/schoolPlatformTrial'
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
+import { OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -112,7 +113,7 @@ export default async function handler(
     // 2. Ensure a learner row.
     let { data: learner } = await supabase
       .from('learners')
-      .select('id, display_name, educational_role')
+      .select('id, display_name, educational_role, platform_role')
       .eq('user_id', auth.userId)
       .maybeSingle()
 
@@ -121,7 +122,7 @@ export default async function handler(
       const { data: created, error: createErr } = await supabase
         .from('learners')
         .insert({ user_id: auth.userId, display_name: fallbackName })
-        .select('id, display_name, educational_role')
+        .select('id, display_name, educational_role, platform_role')
         .single()
       if (createErr) {
         if (createErr.code === '23505') {
@@ -129,7 +130,7 @@ export default async function handler(
           // UNIQUE(user_id) means the row now exists — re-fetch instead of failing.
           const { data: again } = await supabase
             .from('learners')
-            .select('id, display_name, educational_role')
+            .select('id, display_name, educational_role, platform_role')
             .eq('user_id', auth.userId)
             .maybeSingle()
           if (!again) throw new Error('learner create raced and re-fetch failed')
@@ -142,6 +143,17 @@ export default async function handler(
       } else {
         learner = created
       }
+    }
+
+    // 2b. Operator-capture guard (2026-07-18): provisioning mutates the
+    // signed-in account (educational_role, teachers/schools rows, a first
+    // class) — an ssi_admin walking the signup doors to test them must never
+    // have their real account captured into a tutor/school identity. Sits
+    // BEFORE any grant/role/trial write so a test run leaves zero residue
+    // (no trial entitlement, no email burn).
+    if ((learner as { platform_role?: string | null }).platform_role === 'ssi_admin') {
+      res.status(409).json({ error: OPERATOR_CAPTURE_ERROR })
+      return
     }
 
     // 3. Access. Free/Community courses are already accessible to everyone, so no

@@ -13,6 +13,7 @@ import { applyDashboardRole, computeEntitlementExpiry } from '../_utils/entitlem
 import { recordRoleChange } from '../_utils/auditRole'
 import { ensureJoinCodesRegistered } from '../_utils/schoolJoinCodes'
 import { provisionSchoolPlatformTrial } from '../_utils/schoolPlatformTrial'
+import { isOperatorAccount, OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -240,6 +241,16 @@ async function redeemInviteCode(
       res.status(200).json({ success: false, error: 'Already redeemed for this group' })
       return
     }
+  }
+
+  // Operator-capture guard (2026-07-18): every invite code type mutates the
+  // signed-in account's roles (platform_role or educational_role) — an
+  // ssi_admin testing an invite link must never have their real account
+  // captured. Refuse BEFORE claiming a use, so the test doesn't burn a
+  // capped code either.
+  if (await isOperatorAccount(supabase, userId)) {
+    res.status(200).json({ success: false, error: OPERATOR_CAPTURE_ERROR })
+    return
   }
 
   // Atomically claim a use (conditional on still-active/unexpired/under-cap),

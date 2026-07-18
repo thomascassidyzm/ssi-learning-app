@@ -42,6 +42,11 @@ export interface LearnerPreferences {
   volume: number;
   /** Last accessed course code (cross-device persistence) */
   last_course_code?: string;
+  /**
+   * Optional post-login landing surface ("Start me at"). Absent = player.
+   * Only honoured when the account's current role can access the surface.
+   */
+  start_surface?: 'player' | 'schools' | 'admin';
 }
 
 export interface CourseEnrollmentRecord {
