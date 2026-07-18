@@ -580,51 +580,6 @@ watch(isSignedIn, async (signedIn) => {
   }
 }, { immediate: true })
 
-// "Start me at" — optional post-login landing surface (founder ruling
-// 2026-07-18: remember progress, not position — landing is the player unless
-// the account explicitly opts into a dashboard). Persisted in
-// learners.preferences.start_surface; useAuth mirrors it into the
-// useStartSurface singleton the router's landing watch reads.
-const startSurface = ref<'player' | 'schools' | 'admin'>('player')
-watch(
-  () => auth?.learner?.value?.preferences?.start_surface ?? null,
-  (v) => {
-    startSurface.value = v === 'schools' || v === 'admin' ? v : 'player'
-  },
-  { immediate: true },
-)
-const startSurfaceOptions = computed(() => {
-  const opts: Array<{ value: 'player' | 'schools' | 'admin'; label: string }> = [
-    { value: 'player', label: 'Player' },
-  ]
-  if (hasSchoolRole.value) opts.push({ value: 'schools', label: 'Schools dashboard' })
-  if (hasAdminRole.value) opts.push({ value: 'admin', label: 'Admin' })
-  return opts
-})
-const setStartSurface = async (value: 'player' | 'schools' | 'admin') => {
-  startSurface.value = value
-  if (!supabase?.value || !auth?.learner?.value) return
-  const prefs = { ...auth.learner.value.preferences, start_surface: value }
-  // 'player' is the default — store its absence, not the value, so accounts
-  // that never touched this carry no surface state at all.
-  if (value === 'player') delete prefs.start_surface
-  try {
-    const { error } = await supabase.value
-      .from('learners')
-      .update({ preferences: prefs })
-      .eq('id', auth.learner.value.id)
-    if (error) {
-      console.error('[Settings] Failed to save start preference:', error.message)
-      return
-    }
-    // Update the local learner ref too — useAuth's preferences watch then
-    // syncs the useStartSurface singleton without a refetch.
-    auth.learner.value = { ...auth.learner.value, preferences: prefs }
-  } catch (e) {
-    console.error('[Settings] Failed to save start preference:', e)
-  }
-}
-
 // Join school/class via invite code
 const { validateCode, redeemCode, pendingCode, clearPendingCode } = useInviteCode()
 const showJoinCode = ref(false)
@@ -1837,27 +1792,6 @@ const confirmReset = async () => {
             <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
-          </div>
-
-          <div v-if="startSurfaceOptions.length > 1" class="divider"></div>
-
-          <!-- Start me at — optional landing preference (default: Player) -->
-          <div v-if="startSurfaceOptions.length > 1" class="setting-row">
-            <div class="setting-info">
-              <span class="setting-label">Start me at</span>
-              <span class="setting-desc">Where the app opens after you sign in</span>
-            </div>
-          </div>
-          <div v-if="startSurfaceOptions.length > 1" class="lang-picker">
-            <button
-              v-for="opt in startSurfaceOptions"
-              :key="opt.value"
-              class="lang-option"
-              :class="{ active: startSurface === opt.value }"
-              @click="setStartSurface(opt.value)"
-            >
-              {{ opt.label }}
-            </button>
           </div>
         </div>
       </section>

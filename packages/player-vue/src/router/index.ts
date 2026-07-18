@@ -2,7 +2,6 @@ import { watch } from 'vue'
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
-import { useStartSurface } from '@/composables/useStartSurface'
 
 // Breadcrumb for the LAST management surface a user was on (`teach` | `schools`).
 // Solo tutors have no `educational_role`, so the role cache can't tell a tutor
@@ -64,13 +63,22 @@ const routes: RouteRecordRaw[] = [
       title: 'Learn',
       hideAppEscape: true, // immersive player — its own flow, no shell escape
     },
-    // NO role-based redirect here. Login lands in your OWN player, for every
-    // role (founder ruling 2026-07-18: remember progress, not position —
-    // supersedes the 2026-07-16 "staff home is the dashboard" ruling). The
-    // old cached-role fast-path to /schools is exactly what resurrected a
-    // stale role cache from a prior session on a fresh login and trapped the
-    // user on the wrong surface. Staff who want a dashboard landing opt in
-    // via the "Start me at" preference — see the post-resolution watch below.
+    // Staff home is the dashboard, not the bare player (owner ruling 2026-07-16):
+    // any school-staff role (teacher/school_admin/govt_admin) landing on root —
+    // a minted sign-in link, a stale bookmark, a bare-domain magic-link redirect —
+    // belongs on /schools, reaching the player only via its own Learn button (the
+    // schools-framed /schools/play route). This is the fast path for a role
+    // already cached in this browser — defers rather than guessing when the
+    // cache is empty (fresh browser); the corrective redirect below the router
+    // definition covers that case once the shared resolved-session gate settles.
+    beforeEnter: (_to, _from, next) => {
+      const { hasSchoolRole, isInitialized, restoreFromCache } = useUserRole()
+      restoreFromCache()
+      if (isInitialized.value && hasSchoolRole.value) {
+        return next('/schools')
+      }
+      next()
+    },
   },
   // Schools dashboard routes
   {
@@ -698,23 +706,24 @@ router.beforeEach((to, _from, next) => {
   next()
 })
 
-// Start-surface preference (founder ruling 2026-07-18: remember progress,
-// not position). Default landing after login is the user's OWN player for
-// every role — no role-based redirect exists any more. The ONLY thing that
-// moves a freshly-resolved session off '/' is the explicit "Start me at"
-// account preference (learners.preferences.start_surface, surfaced in
-// Settings), and only to a surface the CURRENT role can actually access
-// (useStartSurface gates that). Deep links always win: the redirect fires
-// only while the current route is exactly '/'. A reactive watch on the
-// resolved-session gate (not a one-shot) so it covers both a first
-// navigation racing the DB fetch and a sign-in from an already-mounted '/',
-// and keeps working across sign-out/sign-in within the same page load —
-// reachable without any component/injection context.
+// Corrective redirect for '/' — the beforeEnter guard above defers rather
+// than bounce when the role cache is empty (a fresh browser has nothing to
+// go on yet). Once the shared resolved-session gate settles (identity + role
+// known — a single fetch, owned by useAuth) AND resolves to a school-staff
+// role, catch a staff member left on the bare player: either because their
+// FIRST navigation to '/' raced ahead of that DB fetch, or because they
+// signed in from an already-mounted '/' (no new navigation to re-run the
+// guard). A reactive watch rather than a one-shot promise so it also covers
+// the later case, and so it keeps working across sign-out/sign-in within the
+// same page load. Replaces the bespoke post-auth-init check that used to
+// live in App.vue's onMounted — this is the one place that owns it now,
+// reachable without any component/injection context (unlike App.vue's
+// injected `auth` instance, which router guards can't see).
 watch(
-  () => (useResolvedSession().isResolved.value ? useStartSurface().landingPath.value : null),
-  (dest) => {
-    if (dest && router.currentRoute.value.path === '/') {
-      router.replace(dest)
+  () => useResolvedSession().isResolved.value && useUserRole().hasSchoolRole.value,
+  (shouldRedirect) => {
+    if (shouldRedirect && router.currentRoute.value.path === '/') {
+      router.replace('/schools')
     }
   },
 )

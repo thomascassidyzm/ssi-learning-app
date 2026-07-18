@@ -16,8 +16,6 @@ import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
 import { useAccessClaim } from '@/composables/useAccessClaim'
-import { useStartSurface } from '@/composables/useStartSurface'
-import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 
 // Local storage keys
@@ -380,20 +378,6 @@ export function useAuth(): AuthState & AuthActions {
     { immediate: true },
   )
 
-  // Mirror the account's "Start me at" preference into the useStartSurface
-  // singleton the router's post-resolution landing watch reads (router
-  // guards can't reach this injected useAuth instance). Follows learner
-  // reactively so sign-in, account switch and SettingsScreen's local
-  // preference update all land without explicit calls.
-  watch(
-    () => (learner.value?.preferences as { start_surface?: string } | undefined) ?? null,
-    (prefs) => {
-      if (prefs) useStartSurface().setFromPreferences(prefs)
-      else useStartSurface().clear()
-    },
-    { immediate: true, deep: true },
-  )
-
   /**
    * Handle auth state change (sign in or sign out)
    */
@@ -565,22 +549,6 @@ export function useAuth(): AuthState & AuthActions {
     useUserRole().clear()
     useSharedSubscription().clearCache()
     useSharedUserEntitlements().clearCache()
-    // View-as / impersonation and any "which surface was I on" state is
-    // strictly session-scoped — it must die here and never be restorable on
-    // a later login (founder ruling 2026-07-18: remember progress, not
-    // position). useSchoolContext holds admin-view/persona scope in memory;
-    // the storage keys below are the persisted class-context + dashboard
-    // breadcrumb a next login could otherwise resurrect. Course-progress
-    // keys are deliberately untouched.
-    useSchoolContext().clear()
-    useStartSurface().clear()
-    try {
-      localStorage.removeItem('ssi-active-class')
-      localStorage.removeItem('ssi-last-dashboard')
-      sessionStorage.removeItem('ssi-demo-active-class')
-    } catch {
-      // storage unavailable — nothing to leak from it either
-    }
     // Reinitialize guest
     guestId.value = getOrCreateGuestId()
     // Set directly rather than relying on the SIGNED_OUT event's own
