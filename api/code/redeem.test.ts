@@ -598,7 +598,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     })
   })
 
-  it('LEAF-ONLY JOIN INVARIANT: a student code redemption ALWAYS creates its membership at tag_type=class (CLASS:<id>) — never school or group', async () => {
+  it('LEAF GRANT COMPAT (I10): a student code carrying an explicit grants_class_id still joins at tag_type=class (CLASS:<id>), never group — the leaf-only rule this pinned is superseded by I7, but an explicit leaf grant is unchanged', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
       if (isSelect) {
@@ -634,8 +634,9 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
 
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(true)
-    // Exactly one user_tags write, and it is leaf-scoped (class), never
-    // school- or group-scoped — a student never joins at a group/school level.
+    // Exactly one user_tags write, and it is leaf-scoped (class). An explicit
+    // grants_class_id always wins over any group grant (see the group-only
+    // branch below) — this is compat, not an enforced leaf-only restriction.
     expect(writes.user_tags).toHaveLength(1)
     const tagWrite = writes.user_tags[0].payload
     expect(tagWrite.tag_type).toBe('class')
@@ -644,7 +645,7 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     expect(tagWrite.tag_type).not.toBe('group')
   })
 
-  it('LEAF-ONLY JOIN INVARIANT: a student code with a null grants_class_id still writes a class-scoped tag (broken CLASS:null), it does not silently fall back to a group/school-level membership', async () => {
+  it('DEGENERATE GRANT (pre-existing edge case, unhardened): a student code with neither grants_class_id nor grants_group_id still writes a broken CLASS:null tag rather than silently affiliating anywhere else', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
       if (isSelect) {
@@ -692,6 +693,227 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     // course_enrollments is skipped entirely without a class id — no orphan
     // enrollment gets created either.
     expect(writes.course_enrollments).toBeUndefined()
+  })
+
+  it('INTERIOR-NODE JOIN (I7): a teacher code carrying only grants_group_id (no grants_school_id) affiliates at the group node — writes a GROUP: tag, no dual-write when the node is not a school', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-1',
+            code: 'TEACH-GRP-1',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-interior-1',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-teacher-group-1' }, error: null })
+    // Default schools responder (data: null) — this group node is not a school.
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.redirectTo).toBe('/schools')
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-interior-1',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it("INTERIOR-NODE JOIN + DUAL-WRITE (THE-MODEL.md §5 item 5): a teacher code granting a group that IS a school's own node (schools.node_group_id) also writes the legacy SCHOOL: tag so deployed dashboards see the person tonight", async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-2',
+            code: 'TEACH-GRP-2',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-school-node-1',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-teacher-group-2' }, error: null })
+    responders.schools = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'school-42' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-2', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(2)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-school-node-1',
+      role_in_context: 'teacher',
+    })
+    expect(writes.user_tags[1].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-42',
+      role_in_context: 'teacher',
+    })
+  })
+
+  it('INTERIOR-NODE JOIN (I7): a student code carrying only grants_group_id (no grants_class_id) affiliates at the group node — writes a GROUP: tag, no dual-write when the node is not a school, and no course_enrollments write (no class to enrol into)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-group-1',
+            code: 'STU-GRP-1',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-interior-2',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-student-group-1' }, error: null })
+    // Default schools responder (data: null) — this group node is not a school.
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-GRP-1', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(1)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-interior-2',
+      role_in_context: 'student',
+    })
+    // No class grant on a group-scoped student code — nothing to enrol into.
+    expect(writes.course_enrollments).toBeUndefined()
+  })
+
+  it("INTERIOR-NODE JOIN + DUAL-WRITE (THE-MODEL.md §5 item 5): a student code granting a group that IS a school's own node also writes the legacy SCHOOL: tag", async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-student-group-2',
+            code: 'STU-GRP-2',
+            code_type: 'student',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-school-node-2',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-student-group-2' }, error: null })
+    responders.schools = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'school-77' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'STU-GRP-2', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(writes.user_tags).toHaveLength(2)
+    expect(writes.user_tags[0].payload).toMatchObject({
+      tag_type: 'group',
+      tag_value: 'GROUP:group-school-node-2',
+      role_in_context: 'student',
+    })
+    expect(writes.user_tags[1].payload).toMatchObject({
+      tag_type: 'school',
+      tag_value: 'SCHOOL:school-77',
+      role_in_context: 'student',
+    })
+  })
+
+  it('group-scoped dedup: a teacher already tagged GROUP:<id> gets "Already redeemed for this group" and writes nothing (check-then-act, same shape as the school/class dedup checks above)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-dup',
+            code: 'TEACH-GRP-DUP',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-already-1',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.user_tags = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'existing-tag-1' }, error: null }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-DUP', codeKind: 'invite' } }), res)
+
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(false)
+    expect(res._json.error).toBe('Already redeemed for this group')
+    expect(writes.user_tags).toBeUndefined()
+    expect(writes.learners).toBeUndefined()
   })
 
   it('teacher branch: a brand-new learner from possession-onboarding is created with needs_verification true', async () => {
