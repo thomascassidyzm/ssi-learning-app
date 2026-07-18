@@ -238,7 +238,7 @@ if (probeTeacher) {
   const tutorSession = await mintSession(`themodel.tutor.${ts}@gmail.com`)
   const r = await fetch(`${BASE}/api/onboarding/provision`, {
     method: 'POST', headers: authed(tutorSession.access_token),
-    body: JSON.stringify({ track: 'tutor', course_code: 'spa_for_eng_v2' }),
+    body: JSON.stringify({ track: 'tutor', course_code: 'ben_for_eng' }),
   })
   step('tutor: real provisioning succeeds', r.ok, `status=${r.status}`)
   const t = await makePage(tutorSession, { width: 1280, height: 900 })
