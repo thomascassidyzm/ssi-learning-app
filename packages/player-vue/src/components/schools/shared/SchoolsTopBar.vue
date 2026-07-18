@@ -44,12 +44,21 @@ const tabs = computed<NavTab[]>(() => {
       { label: 'Upgrade',   to: '/schools/upgrade',   routeName: 'schools-upgrade' },
     ]
   }
-  // Teacher (default)
-  return [
+  // Teacher (default) — a school-employed teacher's billing is the school
+  // admin's job, so no Upgrade tab. A GROUPLESS teacher (the derived tutor,
+  // THE-MODEL §1.3/I5: no school_id) has nobody else to bill them, so they
+  // need their own reachable Upgrade tab — same UpgradeView, whose tutor
+  // lane (isSchoolLane false) already resolves their own teacher-billing
+  // record via /api/teacher/me. Structure-gated, never on the 'tutor' label.
+  const teacherTabs: NavTab[] = [
     { label: 'Dashboard', to: '/schools',           routeName: 'schools-dashboard' },
     { label: 'Students',  to: '/schools/students',  routeName: 'students' },
     { label: 'Analytics', to: '/schools/analytics', routeName: 'analytics' },
   ]
+  if (!currentUser.value.school_id) {
+    teacherTabs.push({ label: 'Upgrade', to: '/schools/upgrade', routeName: 'schools-upgrade' })
+  }
+  return teacherTabs
 })
 
 function isActive(tab: NavTab): boolean {

@@ -39,13 +39,16 @@ const isGovtAdmin = computed(() => educationalRole.value === 'govt_admin')
 const isSchoolAdmin = computed(() =>
   ['school_admin', 'govt_admin'].includes(educationalRole.value || '')
 )
+// THE-MODEL §1.3/§2.1/I5: 'tutor' is a groupless teacher, not a separate
+// type — the tutor/schools shell split dissolves, so every role gate that
+// admits 'teacher' admits 'tutor' too.
 const isTeacher = computed(() =>
-  ['teacher', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
+  ['teacher', 'tutor', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
 )
 
 // True for users whose educational role is school-scoped.
 const hasSchoolRole = computed(() =>
-  ['teacher', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
+  ['teacher', 'tutor', 'school_admin', 'govt_admin'].includes(educationalRole.value || '')
 )
 
 const isTester = computed(() => platformRole.value === 'tester' || isSsiAdmin.value)

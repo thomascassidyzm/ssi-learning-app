@@ -78,6 +78,39 @@ describe('useUserRole initialize() null-downgrade guard', () => {
   })
 })
 
+// THE-MODEL §1.3/§2.1/I5: 'tutor' is a groupless teacher, not a separate
+// type — every gate that admits 'teacher' must admit 'tutor' identically.
+describe('useUserRole — tutor is teacher-shaped (THE-MODEL I5)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    useUserRole().clear()
+  })
+
+  it('isTeacher/hasSchoolRole/canAccessSchools are all true for a tutor, matching a school teacher', () => {
+    const { initialize, isTeacher, hasSchoolRole, canAccessSchools } = useUserRole()
+    initialize(null, 'tutor')
+    expect(isTeacher.value).toBe(true)
+    expect(hasSchoolRole.value).toBe(true)
+    expect(canAccessSchools.value).toBe(true)
+
+    initialize(null, 'teacher')
+    expect(isTeacher.value).toBe(true)
+    expect(hasSchoolRole.value).toBe(true)
+    expect(canAccessSchools.value).toBe(true)
+  })
+
+  it('a plain student or unset role is still excluded', () => {
+    const { initialize, isTeacher, hasSchoolRole } = useUserRole()
+    initialize(null, 'student')
+    expect(isTeacher.value).toBe(false)
+    expect(hasSchoolRole.value).toBe(false)
+
+    initialize(null, null)
+    expect(isTeacher.value).toBe(false)
+    expect(hasSchoolRole.value).toBe(false)
+  })
+})
+
 // setAuthoritative() — the counterpart for the ONE caller (useAuth's
 // syncRealRoleCache) that always holds the full, real DB row. The
 // initialize() guard above is correct for partial-knowledge callers, but its
