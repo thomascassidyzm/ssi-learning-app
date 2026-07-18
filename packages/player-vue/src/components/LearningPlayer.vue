@@ -12823,7 +12823,7 @@ defineExpose({
 
 <template>
   <!-- Single root wrapper - required for v-show from parent to work correctly -->
-  <div class="learning-player-root">
+  <div class="learning-player-root" :class="{ 'has-blocking-overlay': showPaywall || (offlineLeaseLocked && !isOnline) }">
 
   <!-- Offline download progress is shown as a ring on the mode button + the
        Offline row in ModeTray (where offline was switched on), not a banner. -->
@@ -14006,18 +14006,24 @@ defineExpose({
   position: fixed;
   inset: 0;
   overflow: hidden;
-  /* Without an explicit z-index here, this element's own stacking level is
-     'auto' among its siblings in PlayerContainer.vue — so a sibling like
-     PlayerRestingState.vue's `.resting-state` (z-index: 50) outranks this
-     ENTIRE subtree regardless of how high a z-index is set on something
-     nested inside it (e.g. .paywall-overlay's z-index: 3000 only orders it
-     against other stacking contexts *inside* .learning-player-root, never
-     against outside siblings). That silently let resting-state's pointer-
-     events:auto content paint over — and swallow every tap on — the paywall
-     card. Must stay above PlayerRestingState's 50; well below the nav/
-     course-selector/settings chrome (2000-3000) that intentionally floats
-     above the whole player.
-  */
+  /* NO unconditional z-index here. This full-viewport div is a sibling of
+     PlayerRestingState.vue's `.resting-state` (z-index: 50) in
+     PlayerContainer.vue; with z-index 'auto' the resting state paints and
+     hit-tests ABOVE this entire subtree, which is what makes its tappable
+     course name (the course chooser trigger), Save Progress, etc. reachable
+     while paused. A permanent z-index: 100 on this root put a transparent
+     tap-shield over the whole resting UI and killed the course chooser for
+     every user (prod incident 2026-07-18). */
+}
+
+/* While a blocking overlay (paywall / offline-lease lock) is showing, the
+   root must outrank .resting-state's 50 — the overlay's own z-index: 3000
+   only orders it INSIDE this stacking context, never against outside
+   siblings, so without this the resting state silently ate every tap on the
+   paywall card (the original fd382b27 bug). Elevation is scoped to exactly
+   the moments a blocking overlay is up; stays well below the nav/
+   course-selector/settings chrome (2000-3000). */
+.learning-player-root.has-blocking-overlay {
   z-index: 100;
 }
 
