@@ -6865,6 +6865,8 @@ CREATE TABLE public.entitlement_grants (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     expires_at timestamp with time zone,
     is_active boolean DEFAULT true NOT NULL,
+    state text,
+    CONSTRAINT entitlement_grants_state_check CHECK ((state = ANY (ARRAY['trial'::text, 'paid'::text]))),
     CONSTRAINT one_target_level CHECK ((((((group_id IS NOT NULL))::integer + ((school_id IS NOT NULL))::integer) + ((class_id IS NOT NULL))::integer) = 1))
 );
 
@@ -6874,6 +6876,13 @@ CREATE TABLE public.entitlement_grants (
 --
 
 COMMENT ON TABLE public.entitlement_grants IS 'Course access grants at group/school/class level.';
+
+
+--
+-- Name: COLUMN entitlement_grants.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.entitlement_grants.state IS 'THE MODEL §1.11: binary entitlement state. trial = exactly one course (granted_courses is a single-element array, expires_at auto-derived: 30d premium / 365d free). paid = all courses (granted_courses is a compat-only full live/beta-catalogue expansion, expires_at NULL). NULL = legacy/custom multi-course grant predating this ruling — left as-is, never auto-migrated.';
 
 
 --
