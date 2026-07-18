@@ -291,8 +291,12 @@ onMounted(async () => {
             <td class="cell-muted">
               {{ user.last_active ? timeAgo(user.last_active) : '—' }}
             </td>
-            <td class="cell-muted mono-nums">
-              {{ user.practice_minutes > 0 ? formatDuration(user.practice_minutes) : '—' }}
+            <td
+              class="cell-muted mono-nums"
+              :title="user.practice_minutes_estimated ? 'Approximate — derived from course position, no session logs for at least one course' : undefined"
+            >
+              <template v-if="user.practice_minutes > 0">{{ user.practice_minutes_estimated ? '~' : '' }}{{ formatDuration(user.practice_minutes) }}</template>
+              <template v-else>—</template>
             </td>
             <td class="cell-actions">
               <button

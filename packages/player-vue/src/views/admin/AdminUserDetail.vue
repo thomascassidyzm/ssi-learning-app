@@ -808,7 +808,10 @@ async function handleCreateSigninLink() {
               <div class="course-foot">
                 <span>
                   <span class="schools-subtle">Practice ·</span>
-                  <span class="course-foot-value frost-mono-nums">{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
+                  <span
+                    class="course-foot-value frost-mono-nums"
+                    :title="enrollment.total_practice_minutes_estimated ? 'Approximate — no session logs for this course, derived from course position' : undefined"
+                  >{{ enrollment.total_practice_minutes_estimated ? '~' : '' }}{{ formatDuration(enrollment.total_practice_minutes || 0) }}</span>
                 </span>
                 <span>
                   <span class="schools-subtle">Last ·</span>

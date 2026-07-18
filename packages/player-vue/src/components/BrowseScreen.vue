@@ -91,6 +91,10 @@ const props = defineProps({
     type: Number,
     default: 0
   },
+  totalLearningMinutesEstimated: {
+    type: Boolean,
+    default: false
+  },
   totalPhrasesSpoken: {
     type: Number,
     default: 0
@@ -171,8 +175,9 @@ const beltSegments = computed(() => {
 const formattedTime = computed(() => {
   const mins = props.totalLearningMinutes
   const hours = Math.floor(mins / 60)
-  if (hours === 0) return `${mins}m`
-  return `${hours}h ${mins % 60}m`
+  const prefix = props.totalLearningMinutesEstimated ? '~' : ''
+  if (hours === 0) return `${prefix}${mins}m`
+  return `${prefix}${hours}h ${mins % 60}m`
 })
 
 // ── Course catalog ──
@@ -527,7 +532,10 @@ onMounted(() => {
                 <polyline points="12 6 12 12 16 14"/>
               </svg>
             </div>
-            <div class="stat-value">{{ formattedTime }}</div>
+            <div
+              class="stat-value"
+              :title="totalLearningMinutesEstimated ? 'Approximate — estimated from your course position, not yet logged session time' : undefined"
+            >{{ formattedTime }}</div>
             <div class="stat-label">Total Time</div>
           </div>
 
