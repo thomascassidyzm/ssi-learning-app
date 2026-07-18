@@ -286,4 +286,29 @@ All new org reads/writes are **server-mediated** (service-role + authz in code, 
 
 ---
 
-*Last updated: 2026-07-18 (initial canonical version — architect session)*
+## 9. Commercial layer (founder-ruled 2026-07-18 — answers the tutor-billing fork)
+
+**Tutors ARE a distinct commercial classification but NOT a structural one — same plumbing,
+different money routing.** The structural model stays exactly as §2 (tutor = groupless teacher,
+derived); billing is a **PROFILE on the arrangement**, never a type.
+
+The **AnyoneCanTeach** model (numbers verbatim):
+
+- **Revenue-share lane (tutor):** tutor pays **£15/month**, creates a class, signs up students at a
+  discounted **£10/month**, and **receives £5 per student per month** for running the teaching
+  experience.
+- **Pass-through lane (schools):** same model but the school passes ALL discount to students, who
+  pay **£5/month** joining through their school.
+
+So: ONE structural model, plus a billing profile of **revenue-share** (tutor keeps the £5 margin)
+vs **pass-through** (learners get it).
+
+**Implementation status:** this ruling **de-risks the shell dissolution** (no billing behaviour
+change is needed for the merge — billing paths stay byte-identical) and it does **not** commission
+billing work. No new billing plumbing gets built until the profile model is explicitly picked up as
+its own scoped piece.
+
+---
+
+*Last updated: 2026-07-18 (architect session — §1.10/§1.11 rulings and §9 commercial layer added
+during the night)*
