@@ -5,11 +5,10 @@
  * the commitment metric the learner sees in the Library ("Total Time").
  *
  * This is the SAME definition the admin surfaces use (admin_practice_minutes):
- * per session_id, span = max(occurred_at) - min(occurred_at); keep sessions
- * >= 30s, cap each at 2h; sum -> minutes. Derived from player_events session
- * spans, NOT audio-playback seconds — so it reflects real engaged time
- * (including main-flow listening, and listening-mode once its heartbeat lands),
- * not just how long audio was playing.
+ * sessions.duration_seconds, summed per course, per learner. When a course
+ * has no session logs but the learner has made progress, the RPC falls back
+ * to a position-derived estimate and flags it via is_estimated — surfaced
+ * here as `isEstimated` so the client can render the "~" prefix.
  *
  * Scoped to the caller's own learner id, so reusing the admin RPC here only ever
  * returns the caller's own number.
@@ -61,8 +60,11 @@ export default async function handler(
       return
     }
 
-    const minutes = Array.isArray(data) && data[0] ? (data[0].practice_minutes ?? 0) : 0
-    res.status(200).json({ engagedMinutes: minutes })
+    const row = Array.isArray(data) && data[0] ? data[0] : null
+    res.status(200).json({
+      engagedMinutes: row?.practice_minutes ?? 0,
+      isEstimated: !!row?.is_estimated,
+    })
   } catch (error: any) {
     console.error('[me/engaged-time] Error:', error)
     res.status(200).json({ engagedMinutes: null })

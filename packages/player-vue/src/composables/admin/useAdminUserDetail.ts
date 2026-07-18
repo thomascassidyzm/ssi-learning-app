@@ -20,6 +20,9 @@ export interface DetailEnrollment {
   course_id: string
   last_practiced_at: string | null
   total_practice_minutes: number
+  /** True when total_practice_minutes is a position-derived estimate (no
+   *  session logs for this learner+course) rather than logged time. */
+  total_practice_minutes_estimated: boolean
   highest_completed_seed: number | null
   /** Legacy ratcheted ceiling — only ever increases. Being retired
    *  (2026-07-04 cursor-only decision); last_completed_lego_id is now the
@@ -182,10 +185,13 @@ export function useAdminUserDetail(client: SupabaseClient) {
       if (pmErr) console.warn('[AdminUserDetail] practice RPC error:', pmErr)
       const pmByCourse = pmErr
         ? null
-        : new Map<string, number>((pmRows || []).map((r: any) => [r.course_code, r.practice_minutes || 0]))
+        : new Map<string, { minutes: number; isEstimated: boolean }>(
+            (pmRows || []).map((r: any) => [r.course_code, { minutes: r.practice_minutes || 0, isEstimated: !!r.is_estimated }]),
+          )
       enrollments.value = (enrollResult.data || []).map((e: any) => ({
         ...e,
-        total_practice_minutes: pmByCourse ? (pmByCourse.get(e.course_id) ?? 0) : e.total_practice_minutes,
+        total_practice_minutes: pmByCourse ? (pmByCourse.get(e.course_id)?.minutes ?? 0) : e.total_practice_minutes,
+        total_practice_minutes_estimated: pmByCourse ? (pmByCourse.get(e.course_id)?.isEstimated ?? false) : false,
       }))
       // Shape learner_speaking_opportunities rows to the DetailSession contract
       // the view already renders. id is synthesised; started_at is the day

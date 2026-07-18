@@ -13,6 +13,9 @@ interface CourseProgress {
   enrolled_at: string
   last_practiced_at: string | null
   total_practice_minutes: number
+  /** True when total_practice_minutes is a position-derived estimate (no
+   *  session logs for this course) rather than logged time. */
+  total_practice_minutes_estimated: boolean
   seeds_completed: number
   legos_mastered: number
   legos_retired: number
@@ -73,8 +76,12 @@ async function fetchProgress() {
     const { data: minutesRows } = await client
       .rpc('admin_practice_minutes_by_course', { p_learner_ids: [currentUser.value.learner_id] })
     const minutesByCourse = new Map<string, number>()
-    ;(minutesRows as Array<{ course_code: string; practice_minutes: number }> | null)?.forEach(r => {
-      if (r.course_code) minutesByCourse.set(r.course_code, r.practice_minutes || 0)
+    const minutesEstimatedByCourse = new Map<string, boolean>()
+    ;(minutesRows as Array<{ course_code: string; practice_minutes: number; is_estimated: boolean }> | null)?.forEach(r => {
+      if (r.course_code) {
+        minutesByCourse.set(r.course_code, r.practice_minutes || 0)
+        minutesEstimatedByCourse.set(r.course_code, !!r.is_estimated)
+      }
     })
 
     const seedCountMap = new Map<string, number>()
@@ -95,6 +102,7 @@ async function fetchProgress() {
       enrolled_at: e.enrolled_at,
       last_practiced_at: e.last_practiced_at,
       total_practice_minutes: minutesByCourse.get(e.course_id) ?? 0,
+      total_practice_minutes_estimated: minutesEstimatedByCourse.get(e.course_id) ?? false,
       seeds_completed: seedCountMap.get(e.course_id) || 0,
       legos_mastered: legoCountMap.get(e.course_id)?.total || 0,
       legos_retired: legoCountMap.get(e.course_id)?.retired || 0,
@@ -403,7 +411,7 @@ const journeyTotal = computed(() => {
               <td>{{ formatCourseName(c.course_id) }}</td>
               <td>{{ c.legos_retired }}</td>
               <td>{{ c.seeds_completed }}</td>
-              <td>{{ c.total_practice_minutes }}m</td>
+              <td :title="c.total_practice_minutes_estimated ? 'Approximate — no session logs for this course, derived from course position' : undefined">{{ c.total_practice_minutes_estimated ? '~' : '' }}{{ c.total_practice_minutes }}m</td>
               <td>
                 {{
                   c.last_practiced_at
