@@ -65,6 +65,51 @@ async function claimCodeUse(
   return true
 }
 
+/**
+ * Group-scoped teacher/student affiliation (THE-MODEL.md §6, I8; I7 — any
+ * node, not just leaves). Writes the GROUP: tag at the invited node, and —
+ * if that node IS a school's own node (schools.node_group_id) — dual-writes
+ * the legacy SCHOOL:<id> tag too (§5 item 5), so every deployed dashboard
+ * still sees the person tonight without waiting on a reader repoint.
+ * Returns an error message on failure, or null on success.
+ */
+async function affiliateToGroupNode(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  groupId: string,
+  roleInContext: 'teacher' | 'student'
+): Promise<string | null> {
+  const { error: groupTagError } = await supabase
+    .from('user_tags')
+    .insert({
+      user_id: userId,
+      tag_type: 'group',
+      tag_value: `GROUP:${groupId}`,
+      role_in_context: roleInContext,
+      added_by: userId,
+    })
+  if (groupTagError) return groupTagError.message
+
+  const { data: schoolNode } = await supabase
+    .from('schools')
+    .select('id')
+    .eq('node_group_id', groupId)
+    .maybeSingle()
+  if (schoolNode) {
+    const { error: schoolTagError } = await supabase
+      .from('user_tags')
+      .insert({
+        user_id: userId,
+        tag_type: 'school',
+        tag_value: `SCHOOL:${(schoolNode as any).id}`,
+        role_in_context: roleInContext,
+        added_by: userId,
+      })
+    if (schoolTagError) return schoolTagError.message
+  }
+  return null
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -172,6 +217,27 @@ async function redeemInviteCode(
       .maybeSingle()
     if (existingTag) {
       res.status(200).json({ success: false, error: 'Already redeemed for this class' })
+      return
+    }
+  } else if (
+    (codeType === 'teacher' || codeType === 'student') &&
+    inviteRow.grants_group_id &&
+    !inviteRow.grants_school_id &&
+    !inviteRow.grants_class_id
+  ) {
+    // Group-scoped codes (THE-MODEL.md §6, I8; api/groups/:id/invites.ts) carry
+    // ONLY grants_group_id — an interior-node join (I7). Same dedup shape as
+    // the school/class checks above, scoped to the group tag instead.
+    const { data: existingTag } = await supabase
+      .from('user_tags')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('tag_type', 'group')
+      .eq('tag_value', `GROUP:${inviteRow.grants_group_id}`)
+      .is('removed_at', null)
+      .maybeSingle()
+    if (existingTag) {
+      res.status(200).json({ success: false, error: 'Already redeemed for this group' })
       return
     }
   }
@@ -463,34 +529,59 @@ async function redeemInviteCode(
       return
     }
   } else if (codeType === 'teacher') {
-    const { error: tagError } = await supabase
-      .from('user_tags')
-      .insert({
-        user_id: userId,
-        tag_type: 'school',
-        tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
-        role_in_context: 'teacher',
-        added_by: userId,
-      })
-    if (tagError) {
-      console.error('[CodeRedeem] Failed to create teacher tag:', tagError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
+    if (inviteRow.grants_group_id && !inviteRow.grants_school_id) {
+      // Group-scoped code (interior-node join, I7) — no legacy branch to fall
+      // through to.
+      const affiliateError = await affiliateToGroupNode(supabase, userId, inviteRow.grants_group_id as string, 'teacher')
+      if (affiliateError) {
+        console.error('[CodeRedeem] Failed to create teacher group tag:', affiliateError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+    } else {
+      const { error: tagError } = await supabase
+        .from('user_tags')
+        .insert({
+          user_id: userId,
+          tag_type: 'school',
+          tag_value: `SCHOOL:${inviteRow.grants_school_id}`,
+          role_in_context: 'teacher',
+          added_by: userId,
+        })
+      if (tagError) {
+        console.error('[CodeRedeem] Failed to create teacher tag:', tagError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
     }
   } else if (codeType === 'student') {
-    const { error: tagError } = await supabase
-      .from('user_tags')
-      .insert({
-        user_id: userId,
-        tag_type: 'class',
-        tag_value: `CLASS:${inviteRow.grants_class_id}`,
-        role_in_context: 'student',
-        added_by: userId,
-      })
-    if (tagError) {
-      console.error('[CodeRedeem] Failed to create student tag:', tagError)
-      res.status(500).json({ error: 'Internal server error' })
-      return
+    if (inviteRow.grants_group_id && !inviteRow.grants_class_id) {
+      // Group-scoped code (interior-node join, I7) — no legacy branch to fall
+      // through to. No course to auto-enrol into (a group-scoped student code
+      // carries no class), so the course_enrollments step below stays gated
+      // on grants_class_id and is skipped for this path, same as any student
+      // code without a class grant.
+      const affiliateError = await affiliateToGroupNode(supabase, userId, inviteRow.grants_group_id as string, 'student')
+      if (affiliateError) {
+        console.error('[CodeRedeem] Failed to create student group tag:', affiliateError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
+    } else {
+      const { error: tagError } = await supabase
+        .from('user_tags')
+        .insert({
+          user_id: userId,
+          tag_type: 'class',
+          tag_value: `CLASS:${inviteRow.grants_class_id}`,
+          role_in_context: 'student',
+          added_by: userId,
+        })
+      if (tagError) {
+        console.error('[CodeRedeem] Failed to create student tag:', tagError)
+        res.status(500).json({ error: 'Internal server error' })
+        return
+      }
     }
   }
 

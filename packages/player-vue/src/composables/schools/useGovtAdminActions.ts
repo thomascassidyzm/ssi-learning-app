@@ -12,7 +12,6 @@
 
 import { ref } from 'vue'
 import { getSchoolsClient } from './client'
-import { viewAsRequestHeaders } from '../useUserRole'
 import { useSchoolContext } from './useSchoolContext'
 
 export interface SchoolLink {
@@ -28,7 +27,7 @@ export interface SchoolLink {
 async function authHeaders(): Promise<Record<string, string>> {
   const client = getSchoolsClient()
   const { data: { session } } = await client.auth.getSession()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...viewAsRequestHeaders() }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
   return headers
 }
@@ -84,12 +83,13 @@ export function useGovtAdminActions() {
     error.value = null
     try {
       const headers = await authHeaders()
-      // Admin View-as: an ssi_admin browsing as a group leader carries their
-      // OWN token (not the persona's), so the server can't derive the group
-      // from a govt_admins row it doesn't have. Pass the persona's group id
-      // explicitly — the endpoint accepts it only for verified admins
-      // (api/govt/school-links.ts). A real leader never sends it and the
-      // server always derives their own group. Mirrors useSchoolData.fetchSchools.
+      // Admin read-view (/admin/groups/:id drill-in): an ssi_admin browsing a
+      // group carries their OWN token (not a persona's), so the server can't
+      // derive the group from a govt_admins row it doesn't have. Pass the
+      // viewed group's id explicitly — the endpoint accepts it only for
+      // verified admins (api/govt/school-links.ts). A real leader never sends
+      // it and the server always derives their own group. Mirrors
+      // useSchoolData.fetchSchools.
       const cu = currentUser.value
       const url = cu?._scopeSource === 'admin-view' && cu.group_id
         ? `/api/govt/school-links?groupId=${encodeURIComponent(cu.group_id)}`

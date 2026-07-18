@@ -47,6 +47,24 @@ describe('/schools route guard', () => {
     expect(router.currentRoute.value.fullPath).toBe('/')
   })
 
+  it('THE-MODEL I5: a tutor role reaches /schools directly — no bounce to /tutors/dashboard', async () => {
+    // Tutor/schools shell dissolution: once the role cache knows 'tutor',
+    // hasSchoolRole is true synchronously (no async teaching-context fetch
+    // needed to avoid the bounce), so this never flickers through
+    // /tutors/dashboard before landing on /schools.
+    useUserRole().initialize(null, 'tutor')
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/schools')
+    expect(useUserRole().hasSchoolRole.value).toBe(true)
+  })
+
+  it('trapped-Aran fallback still holds: an initialized user with NO role who last visited /teach bounces to /tutors/dashboard, not the dead-end wall', async () => {
+    localStorage.setItem('ssi-last-dashboard', 'teach')
+    useUserRole().initialize(null, null)
+    await router.push('/schools')
+    expect(router.currentRoute.value.fullPath).toBe('/tutors/dashboard')
+  })
+
   it('the /schools/play child route (staff self-practice, embedded under SchoolsTopBar) is covered by the same parent guard — a plain learner is bounced, never reaching it', async () => {
     useUserRole().initialize(null, null)
     await router.push('/schools/play')
@@ -87,6 +105,12 @@ describe('/ (bare player) route guard — staff redirect', () => {
 
   it('redirects a school-role user straight to /schools', async () => {
     useUserRole().initialize(null, 'teacher')
+    await router.push('/')
+    expect(router.currentRoute.value.fullPath).toBe('/schools')
+  })
+
+  it('redirects a tutor straight to /schools too — one shell for all teachers', async () => {
+    useUserRole().initialize(null, 'tutor')
     await router.push('/')
     expect(router.currentRoute.value.fullPath).toBe('/schools')
   })

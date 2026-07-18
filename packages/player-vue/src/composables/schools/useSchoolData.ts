@@ -124,12 +124,13 @@ export function useSchoolData() {
     if (isDemoMode.value) return  // Data pre-populated by populateDemoData
     // Snapshot the context ONCE. selectedUser is a shared module-level ref
     // (useSchoolContext.currentUser) that other flows can null mid-flight —
-    // an act-as entry/exit calls ctx.clear(), a persona switch reloads it.
-    // Re-reading `selectedUser.value` across the awaits below then threw
-    // "Cannot read properties of null (reading 'school_id')" (the reported
-    // school-leader View-as crash). Bind it here so this call operates on a
-    // consistent persona; the generation guard already discards a stale
-    // call's writes if the context changed underneath it.
+    // e.g. an admin read-view (AdminSchoolsContainer) tears down ctx on
+    // unmount while navigating between drill-ins. Re-reading
+    // `selectedUser.value` across the awaits below then threw "Cannot read
+    // properties of null (reading 'school_id')" (the reported school-leader
+    // crash). Bind it here so this call operates on a consistent scope; the
+    // generation guard already discards a stale call's writes if the context
+    // changed underneath it.
     const user = selectedUser.value
     if (!user) return
 

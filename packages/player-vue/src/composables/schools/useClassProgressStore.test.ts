@@ -71,7 +71,53 @@ describe('createClassAwareProgressStore — in class mode', () => {
     expect(body).toEqual({ classId: 'class-1', method: 'setLivePosition', args: ['S0002L03', 2, 1, null] })
 
     const result = await store.getEnrollment('staff-learner-id', 'course-1')
-    expect(result).toEqual({ server: true })
+    // getEnrollment hydrates timestamp fields (see the date-hydration test
+    // below); the base payload otherwise passes through untouched.
+    expect(result).toMatchObject({ server: true })
+  })
+
+  // Regression: the class-progress endpoint returns raw JSON (ISO-string
+  // timestamps), but the base ProgressStore.getEnrollment returns Date objects
+  // and callers (the resume gap rule, daysSinceLastPractice) call .getTime() on
+  // last_practiced_at. Before hydration, launching play-as-class for a class
+  // with a practised enrollment white-screened the player with
+  // "last_practiced_at.getTime is not a function".
+  it('hydrates last_practiced_at / enrolled_at into Date objects so .getTime() callers do not crash', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        result: {
+          last_completed_lego_id: 'S0004L02',
+          last_practiced_at: '2026-07-10T09:30:00.000Z',
+          enrolled_at: '2026-06-01T00:00:00.000Z',
+        },
+      }),
+    })
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref({ id: 'class-1' }), ref(makeSupabase('tok')))
+    const row = await store.getEnrollment('l', 'c')
+    expect(row.last_practiced_at).toBeInstanceOf(Date)
+    expect(row.last_practiced_at.getTime()).toBe(Date.parse('2026-07-10T09:30:00.000Z'))
+    expect(row.enrolled_at).toBeInstanceOf(Date)
+    expect(row.last_completed_lego_id).toBe('S0004L02')
+  })
+
+  it('leaves a null last_practiced_at as null (a never-practised class enrollment)', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ result: { last_practiced_at: null, enrolled_at: null } }),
+    })
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref({ id: 'class-1' }), ref(makeSupabase('tok')))
+    const row = await store.getEnrollment('l', 'c')
+    expect(row.last_practiced_at).toBeNull()
+  })
+
+  it('returns null enrollment untouched (no class enrollment yet)', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ result: null }) })
+    const base = makeBaseStore()
+    const store = createClassAwareProgressStore(ref(base), ref({ id: 'class-1' }), ref(makeSupabase('tok')))
+    expect(await store.getEnrollment('l', 'c')).toBeNull()
   })
 
   it('never leaks the caller-supplied learnerId into the request — the server resolves it from classId', async () => {

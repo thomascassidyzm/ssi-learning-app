@@ -72,7 +72,11 @@ const currentRole = computed((): EducationalRole | null =>
 )
 const isGovtAdmin = computed(() => currentRole.value === 'govt_admin')
 const isSchoolAdmin = computed(() => currentRole.value === 'school_admin')
-const isTeacher = computed(() => currentRole.value === 'teacher')
+// THE-MODEL §1.3/§2.1/I5: a tutor IS a teacher (groupless, ≥1 class) — the
+// shells dissolve, so every composable/view that branches on "is this a
+// teacher" must treat the two labels identically. Never gate on the label
+// alone beyond this one seam.
+const isTeacher = computed(() => currentRole.value === 'teacher' || currentRole.value === 'tutor')
 const isStudent = computed(() => currentRole.value === 'student')
 
 // Play-as-class is a school-STAFF capability (teachers + school admins), not a
@@ -193,7 +197,13 @@ export function useSchoolContext() {
           if (group) user.group_path = group.path
         }
       }
-    } else if (['school_admin', 'teacher'].includes(learner.educational_role || '')) {
+    } else if (['school_admin', 'teacher', 'tutor'].includes(learner.educational_role || '')) {
+      // THE-MODEL §1.3/I5: a tutor is a groupless teacher, not a separate
+      // type — run the SAME school/teacher lookup as 'teacher'. A tutor
+      // legitimately has no school tag and no admin_user_id row, so both
+      // reads below just resolve to null and user.school_id stays unset
+      // (groups.length === 0, the tutor signature) — never an error.
+      //
       // Deterministic when a user belongs to 2+ schools: without an ORDER BY
       // the picked school could flip between sessions (limit(1) on an
       // unordered read). First-joined wins, stably.

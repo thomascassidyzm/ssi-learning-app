@@ -13,7 +13,6 @@ import { isDemoMode } from '../demo/demoMode'
 import { assertScope } from './rlsGuard'
 import { deriveBelt as bucketBelt, type Belt } from './belts'
 import { myTaughtClassIds, teachersByClassId, type ClassTeacherRef } from './classTeacherScope'
-import { viewAsRequestHeaders } from '../useUserRole'
 
 export type { Belt }
 
@@ -636,7 +635,7 @@ export function useClassesData() {
       }
       const resp = await fetch('/api/teacher/class-teachers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...viewAsRequestHeaders() },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
       })
       if (!resp.ok) {
@@ -667,7 +666,7 @@ export function useClassesData() {
       }
       const resp = await fetch('/api/school/rename-class', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...viewAsRequestHeaders() },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ class_id: classId, class_name: className }),
       })
       if (!resp.ok) {
@@ -709,7 +708,7 @@ export function useClassesData() {
       if (!token) return { ok: false, error: 'Not signed in' }
       const resp = await fetch('/api/school/delete-class', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...viewAsRequestHeaders() },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ class_id: classId, confirm_name: confirmName }),
       })
       const data = await resp.json().catch(() => ({}))
@@ -740,7 +739,10 @@ export function useClassesData() {
   async function createClass(params: {
     class_name: string
     course_code: string
-    school_id: string
+    // Null for a groupless tutor (THE-MODEL §1.3/I5) — a class affiliates to
+    // ANY group node or none at all; the personal /teach lane has always
+    // created classes with school_id null (api/teacher/classes.ts).
+    school_id: string | null
   }): Promise<ClassInfo | null> {
     if (!selectedUser.value) return null
     const creatorUserId = selectedUser.value.user_id
@@ -773,7 +775,6 @@ export function useClassesData() {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
-                ...viewAsRequestHeaders(),
               },
               body: JSON.stringify({ class_id: newClass.id }),
             })
@@ -802,7 +803,7 @@ export function useClassesData() {
         if (token) {
           const resp = await fetch('/api/teacher/create-class-learner', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...viewAsRequestHeaders() },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ class_id: newClass.id }),
           })
           if (!resp.ok) {
