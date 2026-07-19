@@ -76,3 +76,5 @@ dev build `c4569c5`:
   pin the new contract)
 - `api/` vitest: rate-compare lanes 445/445 ✅ (one pre-existing intentional
   failure in a stale `.claude/worktrees/org-hierarchy-tests` copy, unrelated)
+
+**Staging re-walk:** promoted dev→staging (`88f71c0c`); voicecheck re-run against `staging.saysomethingin.app` build `88f71c0` — ALL GREEN 23/23.
