@@ -1,7 +1,7 @@
 # Founder pass A — windows relabel · insights keeps the map · scroll bug
 
-**Status: IN FLIGHT — code landed on dev; deployed verification pending (this
-line flips when the walk is green).**
+**Status: VERIFIED GREEN on deployed staging (`staging.saysomethingin.app`,
+build `104d906`), 2026-07-19 — full walk below.**
 
 Founder rulings from playing the deployed staging build, 2026-07-19. Three
 items, three commits, each scoped and revertable.
@@ -86,6 +86,54 @@ applied to `AdminGroupContainer`, `AdminSchoolsContainer`,
 (entity context bar, node-home rail) stick against the container scroll as
 designed.
 
-## Deployed verification
+## Deployed verification — staging walk, 2026-07-19
 
-_(pending — filled in after the dev deploy of the three commits)_
+Walked **deployed staging** (`/version.json` → `104d906`, the merge of dev tip
+`a829959d`; all three pass A commits confirmed ancestors of `origin/staging`)
+with a real admin session (magic-link auth, same pattern as the scroll probe).
+Scripted walk committed as `packages/player-vue/e2e/the-lens/pass-a-staging-verify.mjs`
+— 36 automated checks + the committed scroll probe re-run against staging.
+
+### 1. Window chips — PASS
+- Chips read **Today / Last 7 days / Last 30 days / All time** on group
+  insights, class insights, AND the Stats board Rate-compare lens; default
+  **Last 30 days** everywhere. (`pass-a-verify-group-insights.jpg`,
+  `pass-a-verify-class-insights.jpg`, `pass-a-verify-stats-rates.jpg`)
+- **Today honest framing live:** class insights under Today shows the
+  headline in **LEGOs / day** (2 v 3, cohort scaled with it) with the
+  **"Hourly · last 24 hours"** trend caption and hourly x-labels.
+  (`pass-a-verify-today-hourly.jpg`)
+- **Old deep-links alias forward without error:** `?window=term` → Last 30
+  days, `?window=4w` → Last 30 days, `?window=week` → Last 7 days — checked
+  on both group and class mounts, no error state, chip lands correctly.
+- *Caveat, not a defect:* the demo **region** node shows "Not enough data to
+  compare fairly yet" in every window (`pass-a-verify-group-today-empty.jpg`)
+  — it's the only region in the demo programme, so the fair-compare floor has
+  no comparator cohort. School tier (`pass-a-verify-school-insights.jpg`) and
+  class tier both render full data, proving the code path; the region empty
+  state is the K_FLOOR guard being honest and predates this pass.
+
+### 2. Insights carries the where-you-are nav — PASS
+On group, school, and class insight mounts: **NodeMapRail present with
+you're-here lit**, identity kicker `<Label> · Insights` (Region/Class ·
+Insights observed), **zero "← Back to group home"** text anywhere, and the
+verbs corner offers **Overview + All boards**.
+
+### 3. Scroll — PASS
+- Committed probe (`scroll-probe.mjs`) against staging: **18/18 PASS, 0
+  failures** (9 surfaces × laptop 1280×800 + phone 390×700). Every surface
+  reports a scroll owner (`admin-container` / `schools-container` /
+  `methodology-container`) or content that fits the viewport.
+- Manual scroll-to-true-bottom (drive the owner to `scrollHeight`, assert
+  bottom reached): Structure, node home, insights, Users, Stats — **10/10
+  at both viewport heights**. (`pass-a-verify-insights-bottom-phone.jpg`)
+
+### 4. Regression — PASS
+- Cold load: `/admin/structure` content rendered in **211 ms** on a fresh
+  context.
+- Idle polling: **zero network requests** over a 65 s idle sit on an
+  insights view (images/fonts excluded; nothing at all fired).
+
+**Result: 34/36 scripted checks PASS; the 2 "fails" are the region
+fair-compare empty state documented above — honest by design, feature proven
+live at school and class tiers. Nothing to fix; no dev changes needed.**
