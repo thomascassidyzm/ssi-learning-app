@@ -102,6 +102,8 @@ Screenshots (committed alongside): `windows-school-term/week/all.jpg`,
   windows×measures demo parity)
 - api: vitest **633/633** ✅ (rateCompare 23→51; node rate-compare 14→31)
 
+**Staging re-walk:** promoted dev→staging (fast-forward to `408035e3`); full 47-check walk re-run against `staging.saysomethingin.app` build `408035e` — ALL GREEN 47/47.
+
 ## Commits
 
 Contract `77883629` · client `6976ca64`, `8eb4e7c0`, `f1d9f12e`, `e5a57a24` ·
