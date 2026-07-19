@@ -50,7 +50,7 @@
 | fw-3-class.jpg | Class home: full teaching density |
 | fw-4-student-expanded.jpg | Student expanded in place |
 | fw-5-class-insights.jpg | Node-scoped insight view with ancestor compare |
-| fw-6-school-insights.png · fw-7-idle-refresh.png · fw-8-structure.png | School insights · idle-soak page state · Structure page |
+| fw-6-school-insights.png · fw-7-idle-refresh.png · fw-8-structure.jpg | School insights · idle-soak page state · Structure page |
 | fw-9-ways-in.png · fw-10-straight-in.png | Node panel Ways-in with teacher link · fresh-context landing, authenticated |
 | fw-cold-*.png · fw-cold2-*.png | Per-load cold screenshots (first batch shell-timed; cold2 = data-timed) |
 
