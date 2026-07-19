@@ -85,7 +85,7 @@ export async function getAuthUserId(req: VercelRequest): Promise<string | null> 
  * Uses the user's own auth token to query learners (works with RLS).
  * Returns the user ID if admin, null otherwise.
  */
-export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string } | { error: string; status: number }> {
+export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string } | { error: string; status: number; userId?: string }> {
   const authResult = await verifyAuthToken(req)
   if (!authResult.valid || !authResult.userId) {
     return { error: authResult.error || 'Unauthorized', status: 401 }
@@ -115,7 +115,9 @@ export async function verifyAdmin(req: VercelRequest): Promise<{ userId: string 
       learner?.educational_role === 'god'
 
     if (!isAdmin) {
-      return { error: 'Requires SSi admin access', status: 403 }
+      // The token IS valid — carry the uid so callers with a non-admin door
+      // (e.g. rate-compare's visible-scope path) don't re-verify it.
+      return { error: 'Requires SSi admin access', status: 403, userId: authResult.userId }
     }
 
     return { userId: authResult.userId }

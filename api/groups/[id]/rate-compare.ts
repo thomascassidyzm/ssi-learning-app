@@ -75,7 +75,7 @@ interface CompareOption {
   word: string // ancestor's label word ('school', 'programme'…) or 'global'
 }
 
-interface SchoolRef { id: string; node_group_id: string | null }
+interface SchoolRef { id: string; node_group_id: string | null; group_id: string | null }
 
 function inSubtree(path: string | null | undefined, rootPath: string): boolean {
   return typeof path === 'string' && (path === rootPath || path.startsWith(rootPath + '/'))
@@ -85,20 +85,23 @@ function inSubtree(path: string | null | undefined, rootPath: string): boolean {
 async function subtreeSchools(svc: SupabaseClient, subtreeGroupIds: string[]): Promise<SchoolRef[]> {
   const out: SchoolRef[] = []
   const seen = new Set<string>()
-  for (const batch of chunk(subtreeGroupIds)) {
-    const [{ data: byNode }, { data: byParent }] = await Promise.all([
-      svc.from('schools').select('id, node_group_id').in('node_group_id', batch),
-      svc.from('schools').select('id, node_group_id').in('group_id', batch),
-    ])
-    for (const s of [...(byNode ?? []), ...(byParent ?? [])]) {
+  const add = (rows: any[] | null) => {
+    for (const s of rows ?? []) {
       const id = (s as any).id as string
-      if (id && !seen.has(id)) { seen.add(id); out.push({ id, node_group_id: (s as any).node_group_id ?? null }) }
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        out.push({ id, node_group_id: (s as any).node_group_id ?? null, group_id: (s as any).group_id ?? null })
+      }
     }
   }
+  await Promise.all(chunk(subtreeGroupIds).flatMap((batch) => [
+    svc.from('schools').select('id, node_group_id, group_id').in('node_group_id', batch).then(({ data }) => add(data)),
+    svc.from('schools').select('id, node_group_id, group_id').in('group_id', batch).then(({ data }) => add(data)),
+  ]))
   return out
 }
 
-interface SubtreeClass { id: string; course_code: string | null; school_id: string | null }
+interface SubtreeClass { id: string; course_code: string | null; school_id: string | null; group_id: string | null }
 
 /** Active classes in a subtree: node-attached (group_id) ∪ school-attached — the home.ts union. */
 async function subtreeClasses(
@@ -111,21 +114,21 @@ async function subtreeClasses(
   const seen = new Set<string>()
   const add = (rows: any[] | null) => {
     for (const c of rows ?? []) {
-      if (c.id && !seen.has(c.id)) { seen.add(c.id); out.push({ id: c.id, course_code: c.course_code ?? null, school_id: c.school_id ?? null }) }
+      if (c.id && !seen.has(c.id)) {
+        seen.add(c.id)
+        out.push({ id: c.id, course_code: c.course_code ?? null, school_id: c.school_id ?? null, group_id: c.group_id ?? null })
+      }
     }
   }
-  for (const batch of chunk(subtreeGroupIds)) {
-    let q = svc.from('classes').select('id, course_code, school_id').in('group_id', batch).eq('is_active', true)
+  const forBatch = (col: 'group_id' | 'school_id', batch: string[]) => {
+    let q = svc.from('classes').select('id, course_code, school_id, group_id').in(col, batch).eq('is_active', true)
     if (courseCode) q = q.eq('course_code', courseCode)
-    const { data } = await q.limit(MAX_COHORT_IDS)
-    add(data)
+    return q.limit(MAX_COHORT_IDS).then(({ data }) => add(data))
   }
-  for (const batch of chunk(schoolIds)) {
-    let q = svc.from('classes').select('id, course_code, school_id').in('school_id', batch).eq('is_active', true)
-    if (courseCode) q = q.eq('course_code', courseCode)
-    const { data } = await q.limit(MAX_COHORT_IDS)
-    add(data)
-  }
+  await Promise.all([
+    ...chunk(subtreeGroupIds).map((batch) => forBatch('group_id', batch)),
+    ...chunk(schoolIds).map((batch) => forBatch('school_id', batch)),
+  ])
   return out
 }
 
@@ -140,92 +143,106 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
   const svc = createClient(supabaseUrl, supabaseServiceKey)
 
-  // ─── Auth: admin door first, then the visible-scope door. ───
-  let isAdmin = false
-  let authUid: string | null = null
-  const adminResult = await verifyAdmin(req)
-  if (!('error' in adminResult)) {
-    isAdmin = true
-    authUid = adminResult.userId
-  } else {
-    const authResult = await verifyAuthToken(req)
-    if (!authResult.valid || !authResult.userId) {
-      res.status(401).json({ error: authResult.error || 'Unauthorized' })
-      return
-    }
-    authUid = authResult.userId
-  }
-
   const rawId = String(req.query.id || '')
   const requestedCourse = String(req.query.course_code || '').trim() || null
   const requestedCompare = String(req.query.compare_to || '').trim() || null
   const days = Math.min(180, Math.max(7, parseInt(String(req.query.days || '90'), 10) || 90))
 
   try {
-    // ─── Resolve :id → node / class (same order as home.ts). ───
+    // ─── One opening wave: auth + every :id interpretation + the forest map.
+    // (The serial version paid one Atlantic round trip per await; the only
+    // true dependency below is subtree→sessions.) ───
+    const [adminResult, { data: asGroup }, { data: asSchool }, { data: asClass }, { data: allGroupsData }] = await Promise.all([
+      verifyAdmin(req),
+      svc.from('groups').select('id').eq('id', rawId).maybeSingle(),
+      svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', rawId).maybeSingle(),
+      svc.from('classes').select('id, class_name, course_code, school_id, group_id').eq('id', rawId).maybeSingle(),
+      svc.from('groups').select('id, name, type, parent_id, path, is_demo'),
+    ])
+
+    // ─── Auth: admin door first, then the visible-scope door. verifyAdmin's
+    // 403 carries the verified uid, so no second token verification. ───
+    let isAdmin = false
+    let authUid: string | null = null
+    if (!('error' in adminResult)) {
+      isAdmin = true
+      authUid = adminResult.userId
+    } else if (adminResult.userId) {
+      authUid = adminResult.userId
+    } else {
+      const authResult = await verifyAuthToken(req)
+      if (!authResult.valid || !authResult.userId) {
+        res.status(401).json({ error: authResult.error || 'Unauthorized' })
+        return
+      }
+      authUid = authResult.userId
+    }
+
+    // ─── Resolve :id → node / class (same precedence as home.ts). ───
     let nodeId: string | null = null
     let classRow: { id: string; class_name: string; course_code: string | null; school_id: string | null; group_id: string | null } | null = null
 
-    const { data: asGroup } = await svc.from('groups').select('id').eq('id', rawId).maybeSingle()
     if (asGroup) {
       nodeId = rawId
-    } else {
-      const { data: asSchool } = await svc
-        .from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test')
-        .eq('id', rawId).maybeSingle()
-      if (asSchool) {
-        nodeId = (asSchool as any).node_group_id
-          || (await ensureSchoolNode(svc, asSchool as any, { is_demo: (asSchool as any).is_demo, is_test: (asSchool as any).is_test }))
-      } else {
-        const { data: asClass } = await svc
-          .from('classes').select('id, class_name, course_code, school_id, group_id')
-          .eq('id', rawId).maybeSingle()
-        if (asClass) {
-          classRow = asClass as any
-          if (classRow!.school_id) {
-            const { data: sch } = await svc
-              .from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test')
-              .eq('id', classRow!.school_id).maybeSingle()
-            if (sch) {
-              nodeId = (sch as any).node_group_id
-                || (await ensureSchoolNode(svc, sch as any, { is_demo: (sch as any).is_demo, is_test: (sch as any).is_test }))
-            }
-          }
-          if (!nodeId && classRow!.group_id) nodeId = classRow!.group_id
+    } else if (asSchool) {
+      nodeId = (asSchool as any).node_group_id
+        || (await ensureSchoolNode(svc, asSchool as any, { is_demo: (asSchool as any).is_demo, is_test: (asSchool as any).is_test }))
+    } else if (asClass) {
+      classRow = asClass as any
+      if (classRow!.school_id) {
+        const { data: sch } = await svc
+          .from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test')
+          .eq('id', classRow!.school_id).maybeSingle()
+        if (sch) {
+          nodeId = (sch as any).node_group_id
+            || (await ensureSchoolNode(svc, sch as any, { is_demo: (sch as any).is_demo, is_test: (sch as any).is_test }))
         }
       }
+      if (!nodeId && classRow!.group_id) nodeId = classRow!.group_id
     }
     if (!nodeId && !classRow) {
       res.status(404).json({ error: 'Not found' })
       return
     }
 
+    const allGroups = (allGroupsData ?? []) as GroupRow[]
+    const groupPathById = new Map(allGroups.map((g) => [g.id, g.path]))
+
     // ─── Authz (non-admin): class membership / own school / governed subtree. ───
     if (!isAdmin) {
-      const scope = await resolveVisibleScope(svc, authUid!)
+      const [scope, ownSchool] = await Promise.all([
+        resolveVisibleScope(svc, authUid!),
+        classRow ? Promise.resolve(null) : ownSchoolIdForNode(svc, nodeId!),
+      ])
       let authorized = false
       if (classRow) {
         authorized = scope.classIds.includes(classRow.id)
       } else if (nodeId) {
-        const ownSchool = await ownSchoolIdForNode(svc, nodeId)
         if (ownSchool && scope.schoolIds.includes(ownSchool)) authorized = true
-        else if (scope.groupId && (scope.groupId === nodeId || (await isStrictDescendantGroup(svc, scope.groupId, nodeId)))) authorized = true
+        else if (scope.groupId) {
+          if (scope.groupId === nodeId) authorized = true
+          else {
+            // Strict-descendant check from the forest already in hand; the
+            // helper query only when a path is missing.
+            const ownPath = groupPathById.get(scope.groupId)
+            const nodePath = groupPathById.get(nodeId)
+            authorized = ownPath && nodePath
+              ? nodePath === ownPath || nodePath.startsWith(ownPath + '/')
+              : await isStrictDescendantGroup(svc, scope.groupId, nodeId)
+          }
+        }
       }
       if (!authorized) {
         res.status(403).json({ error: 'That entity is outside your visible scope' })
         return
       }
       // Coverage gate (non-admin callers only — admins may inspect expired schools).
-      const gateSchoolId = classRow?.school_id ?? (nodeId ? await ownSchoolIdForNode(svc, nodeId) : null)
+      const gateSchoolId = classRow?.school_id ?? ownSchool
       if (await isEntityCoverageExpired(svc, gateSchoolId)) {
         res.status(403).json({ error: 'coverage_expired', message: 'This school’s platform coverage has expired.' })
         return
       }
     }
-
-    // ─── Forest map (one fetch — the home.ts pattern). ───
-    const { data: allGroupsData } = await svc.from('groups').select('id, name, type, parent_id, path, is_demo')
-    const allGroups = (allGroupsData ?? []) as GroupRow[]
     const byId = new Map(allGroups.map((g) => [g.id, g]))
     const nodeRow = nodeId ? byId.get(nodeId) : undefined
     if (nodeId && !nodeRow) {
@@ -251,15 +268,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ? requestedCompare
       : compareOptions[0].value
 
-    // ─── Entity subtree + course options. ───
+    // ─── Entity subtree + cohort scope: ONE schools wave + ONE classes wave
+    // over the WIDEST scope needed (an ancestor's subtree contains the
+    // entity's), then split entity vs peers in memory — instead of fetching
+    // the entity's subtree and the compare scope's subtree separately. ───
     const entitySubtreeGroupIds = classRow
       ? []
       : (nodeRow!.path ? allGroups.filter((g) => inSubtree(g.path, nodeRow!.path!)).map((g) => g.id) : [nodeId!])
-    const entitySchools = classRow ? [] : await subtreeSchools(svc, entitySubtreeGroupIds)
-    const entitySchoolIds = new Set(entitySchools.map((s) => s.id))
+    const entityGroupIdSet = new Set(entitySubtreeGroupIds)
+    const isGlobalCompare = compareTo === 'global' || compareTo === 'global_all_courses'
+    const compareAnc = isGlobalCompare ? undefined : byId.get(compareTo)
+    const scopeGroupIds = compareAnc?.path
+      ? allGroups.filter((g) => inSubtree(g.path, compareAnc.path!)).map((g) => g.id)
+      : entitySubtreeGroupIds
+
+    const scopeSchools = await subtreeSchools(svc, scopeGroupIds)
+    const entitySchoolIds = new Set(scopeSchools
+      .filter((s) => (s.node_group_id && entityGroupIdSet.has(s.node_group_id)) || (s.group_id && entityGroupIdSet.has(s.group_id)))
+      .map((s) => s.id))
+    const scopeClasses = await subtreeClasses(svc, scopeGroupIds, scopeSchools.map((s) => s.id), null)
     const entityAllClasses = classRow
-      ? [{ id: classRow.id, course_code: classRow.course_code, school_id: classRow.school_id }]
-      : await subtreeClasses(svc, entitySubtreeGroupIds, [...entitySchoolIds], null)
+      ? [{ id: classRow.id, course_code: classRow.course_code, school_id: classRow.school_id, group_id: classRow.group_id }]
+      : scopeClasses.filter((c) =>
+          (c.group_id && entityGroupIdSet.has(c.group_id)) || (c.school_id && entitySchoolIds.has(c.school_id)))
 
     const courseCounts = new Map<string, number>()
     for (const c of entityAllClasses) {
@@ -302,7 +333,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const cohortCourse = compareTo === 'global_all_courses' ? null : courseCode
     let members: { id: string; classIds: string[] }[] = []
 
-    if (compareTo === 'global' || compareTo === 'global_all_courses') {
+    if (isGlobalCompare) {
       if (classRow) {
         let q = svc.from('classes').select('id').eq('is_active', true).neq('id', classRow.id)
         if (cohortCourse) q = q.eq('course_code', cohortCourse)
@@ -324,23 +355,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         members = [...bySchool.entries()].map(([id, classIds]) => ({ id, classIds }))
       }
     } else {
-      // an ancestor group id
-      const anc = byId.get(compareTo)
-      if (!anc || !anc.path) {
+      // an ancestor group id — its subtree is exactly the scope already fetched
+      if (!compareAnc || !compareAnc.path) {
         insufficient('That comparison scope has no resolvable data yet.')
         return
       }
-      const ancGroupIds = allGroups.filter((g) => inSubtree(g.path, anc.path!)).map((g) => g.id)
-      const ancSchools = await subtreeSchools(svc, ancGroupIds)
       if (classRow) {
-        const ancClasses = await subtreeClasses(svc, ancGroupIds, ancSchools.map((s) => s.id), cohortCourse)
-        members = ancClasses.filter((c) => c.id !== classRow!.id).map((c) => ({ id: c.id, classIds: [c.id] }))
+        members = scopeClasses
+          .filter((c) => c.id !== classRow!.id && (!cohortCourse || c.course_code === cohortCourse))
+          .map((c) => ({ id: c.id, classIds: [c.id] }))
       } else {
-        const peerSchools = ancSchools.filter((s) => !entitySchoolIds.has(s.id))
-        const peerClasses = await subtreeClasses(svc, [], peerSchools.map((s) => s.id), cohortCourse)
+        // Peer schools only: classes attached directly to groups with no school
+        // stay out of the cohort (counted in entity values only — header note).
+        const scopeSchoolIdSet = new Set(scopeSchools.map((s) => s.id))
         const bySchool = new Map<string, string[]>()
-        for (const c of peerClasses) {
-          if (!c.school_id) continue
+        for (const c of scopeClasses) {
+          if (!c.school_id || !scopeSchoolIdSet.has(c.school_id) || entitySchoolIds.has(c.school_id)) continue
+          if (cohortCourse && c.course_code !== cohortCourse) continue
           const arr = bySchool.get(c.school_id) ?? []
           arr.push(c.id)
           bySchool.set(c.school_id, arr)
