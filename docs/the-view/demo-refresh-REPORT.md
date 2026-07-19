@@ -77,12 +77,40 @@ visible without hover, labeled "Open", 36px tall; tapping it lands on the
 node's dashboard. Evidence: `open-by-name-phone.png`,
 `open-tapped-node-home-phone.png`.
 
+## Finish walk (build 60b8faf, deployed dev, 2026-07-19)
+
+Independent re-walk at dev HEAD after THE LENS windows+measures landed
+(the lens agent fixed its rate-compare suite; full suites now green:
+player-vue 957/957, api 684/684).
+
+**Run 1: 15/15 PASS.** Refresh on IME Demo Programme: 80 learners, 980
+sessions, 70 class sessions, 3,373 seed rows, 11,806 lego rows in 10.3s;
+latest session TODAY. Guard live: same call against Welsh Gov Lang Office
+→ 403 "Refresh refused: this is not a demo node", zero writes.
+
+**Run 2: idempotency re-proven.** 980 → 907 sessions — replaced, not
+stacked; counts plausible, not inflated.
+
+**Supplemental probes (`demo-refresh-walk2.mjs`): 4/4 PASS.**
+- Class home (Grade 6A, Sunrise Pune) alive after refresh: belts
+  orange/green, last-practised through today, one honest needs-attention
+  row, 41.6h practice — `after-class-home.png`.
+- Node home cold load (fresh context): **1.0s to stats** — first-time-fast
+  holds.
+- Idle network: **0 requests in 30s** after settle — no polling.
+
+Screenshots refreshed: `after-insights.png` (programme — honest
+"not enough data" compare, by design), `after-school-insights.png`
+(school rate trend alive at the right edge, rank 2nd of 2 within the
+programme), `after-node-home.png`, `after-class-home.png`,
+`open-by-name-phone.png` (Open pill on all 35 rows at 390px, 36px tall,
+tap lands on node home).
+
 ## Promotion
 
-dev → staging held at time of writing: the api suite at dev HEAD carries 6
-failing tests in `api/groups/[id]/rate-compare.test.ts` — THE LENS agent's
-in-flight windows+measures work, not this scope (my suites: player-vue
-957/957, api demo-refresh 6/6, full api green before the lens commits
-landed). Promote once the lens suite is green.
+The earlier hold (lens rate-compare failures) cleared when the lens agent
+fixed its suite. THE LENS agent promoted dev → staging (both at
+`408035e3`, which contains all demo-refresh + OPEN work); staging serving
+sha verified on promotion day.
 
-*Last updated: 2026-07-19*
+*Last updated: 2026-07-19 (finish walk)*
