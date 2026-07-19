@@ -1,6 +1,6 @@
 # APML v2.0.0 - Lazy Loading & Instant Startup
 # SSI Learning App
-# Last Updated: 2026-06-08
+# Last Updated: 2026-07-19
 
 spec lazy_loading_architecture:
   version: "2.0.0"
@@ -85,6 +85,26 @@ spec lazy_loading_architecture:
       loop to overrun, so the "detect once / suppress spam logging / clear
       queue" machinery of v1.0.0 no longer exists. The round-map simply has
       no entry past the last round.
+
+    coalesced_boot_fetches: |
+      On a COLD course switch, the SAME round-map / cycles GET is requested
+      by several callers at once: prewarmInstantCaches (fire-and-forget on
+      course select), the resume resolver's getOrFetchRoundMap, the mount
+      bootstrap's round-map + cycles fetch, and — after any cache hit — the
+      background revalidate. Before 2026-07-19 they raced: every one missed
+      the not-yet-written localStorage cache and fetched cold, so one
+      round-map + one cycles fetch became ×3 each and prewarm ADDED load
+      instead of preventing it. useInstantPlayback.ts now routes every
+      round-map / cycles GET through a module-level in-flight coalescer
+      (`coalescedJsonGet`, keyed by URL, cleared on settle): concurrent
+      identical GETs share ONE fetch resolving to already-parsed JSON (no
+      shared-body hazard). A genuinely-later refetch — the intentional
+      post-first-paint revalidate once the first has landed — still hits the
+      network, so version-bump detection is preserved; only the duplication
+      is killed. The shared fetch owns its own BOOT_FETCH_TIMEOUT_MS timeout;
+      a per-caller AbortSignal still lets one caller stop awaiting (its boot
+      timeout, or cancel() on unmount) without aborting the shared fetch that
+      other coalesced callers depend on.
 
   ## ==========================================================================
   ## BELT SYSTEM

@@ -249,6 +249,91 @@ function writeCachedCycles(
 }
 
 // ============================================================================
+// IN-FLIGHT REQUEST COALESCING (round-map / cycles cold fetches)
+// ============================================================================
+//
+// prewarmInstantCaches (fire-and-forget on course select), the player-mount
+// bootstrap, the resume resolver's getOrFetchRoundMap, and the post-cache-hit
+// revalidate all fire the SAME round-map / cycles GETs. On a COLD course switch
+// they race each other — every one misses the not-yet-written localStorage
+// cache and fetches cold — so one round-map + one cycles fetch became ×3 each.
+// Prewarm was ADDING load instead of preventing it.
+//
+// This coalesces concurrent identical GETs by URL: the first caller starts the
+// fetch, later callers within its in-flight window share the SAME promise, and
+// the entry clears on settle — so a genuinely-later refetch (e.g. an intentional
+// post-first-paint revalidate once the first has already landed) still hits the
+// network. The shared promise resolves to ALREADY-PARSED JSON, so the response
+// body is never shared raw and there is no "body already read" hazard.
+
+const BOOT_FETCH_TIMEOUT_MS = 9000
+
+interface CoalescedJson {
+  ok: boolean
+  status: number
+  statusText: string
+  data: unknown
+}
+
+const inflightGets = new Map<string, Promise<CoalescedJson>>()
+
+/** AbortError shaped like a real fetch abort, so existing
+ *  `(err).name === 'AbortError'` guards keep working in any JS env
+ *  (DOMException isn't guaranteed outside the browser). */
+function abortError(): Error {
+  const e = new Error('Aborted')
+  e.name = 'AbortError'
+  return e
+}
+
+function sharedJsonGet(url: string): Promise<CoalescedJson> {
+  const existing = inflightGets.get(url)
+  if (existing) return existing
+  const p = (async (): Promise<CoalescedJson> => {
+    // The shared fetch owns its own timeout so a fire-and-forget prewarm (no
+    // caller signal) can't leak forever; per-caller early-abort is layered on
+    // top in coalescedJsonGet without touching this shared request.
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), BOOT_FETCH_TIMEOUT_MS)
+    try {
+      const res = await fetch(url, { signal: ctrl.signal })
+      if (!res.ok) {
+        return { ok: false, status: res.status, statusText: res.statusText, data: null }
+      }
+      return { ok: true, status: res.status, statusText: res.statusText, data: await res.json() }
+    } finally {
+      clearTimeout(timer)
+    }
+  })()
+  inflightGets.set(url, p)
+  const clear = () => { inflightGets.delete(url) }
+  p.then(clear, clear)
+  return p
+}
+
+/**
+ * Coalesced JSON GET. Concurrent identical URLs share one fetch (see above).
+ * An optional caller `signal` lets a specific caller stop awaiting (its boot
+ * timeout, or cancel() on course-switch/unmount) without aborting the shared
+ * fetch that other coalesced callers — or a fire-and-forget prewarm — still
+ * depend on. The caller's promise rejects with an AbortError, matching the
+ * pre-coalescing behaviour every call site already handles.
+ */
+function coalescedJsonGet(url: string, signal?: AbortSignal): Promise<CoalescedJson> {
+  const shared = sharedJsonGet(url)
+  if (!signal) return shared
+  if (signal.aborted) return Promise.reject(abortError())
+  return new Promise<CoalescedJson>((resolve, reject) => {
+    const onAbort = () => reject(abortError())
+    signal.addEventListener('abort', onAbort, { once: true })
+    shared.then(
+      (v) => { signal.removeEventListener('abort', onAbort); resolve(v) },
+      (e) => { signal.removeEventListener('abort', onAbort); reject(e) },
+    )
+  })
+}
+
+// ============================================================================
 // PREWARM (course switch / hover / idle)
 // ============================================================================
 
@@ -270,20 +355,20 @@ export async function prewarmInstantCaches(
   try {
     let map = readCachedRoundMap(courseCode)
     if (!map) {
-      const res = await fetch(`${apiBase}/${encodeURIComponent(courseCode)}/round-map`)
+      const res = await coalescedJsonGet(`${apiBase}/${encodeURIComponent(courseCode)}/round-map`)
       if (!res.ok) return
-      map = (await res.json()) as RoundMap
+      map = res.data as RoundMap
       writeCachedRoundMap(courseCode, map)
     }
     const first = map.rounds?.[0]
     if (!first) return
     let cycles = readCachedCycles(courseCode, first.legoId, map.version)
     if (!cycles) {
-      const res = await fetch(
+      const res = await coalescedJsonGet(
         `${apiBase}/${encodeURIComponent(courseCode)}/cycles?from=${encodeURIComponent(first.legoId)}&limit=15`,
       )
       if (!res.ok) return
-      cycles = (await res.json()) as CyclesResponse
+      cycles = res.data as CyclesResponse
       writeCachedCycles(courseCode, first.legoId, cycles)
     }
     // Precache the FIRST cycle's audio into the SW CacheFirst layer so
@@ -341,7 +426,7 @@ export function useInstantPlayback(
   // call site (bootstrap, bootstrapInfPlay, prefetch) with one change;
   // existing catch/finally blocks already treat abort as an ordinary
   // failure, so this only bounds worst-case duration, not behavior.
-  const BOOT_FETCH_TIMEOUT_MS = 9000
+  // (BOOT_FETCH_TIMEOUT_MS is module-scoped — shared with the coalescer.)
 
   // -----------------------------------------------------------
   // Computed
@@ -392,15 +477,16 @@ export function useInstantPlayback(
     // Cache miss — one tiny fetch (~20 KB for a 700-LEGO course)
     const ctrl = makeAbort()
     try {
-      const res = await fetch(`${apiBase}/${encodeURIComponent(code)}/round-map`, {
-        signal: ctrl.signal,
-      })
+      const res = await coalescedJsonGet(
+        `${apiBase}/${encodeURIComponent(code)}/round-map`,
+        ctrl.signal,
+      )
       if (!res.ok) {
         throw new Error(
           `[InstantPlayback] round-map fetch failed: ${res.status} ${res.statusText}`,
         )
       }
-      const map = (await res.json()) as RoundMap
+      const map = res.data as RoundMap
       writeCachedRoundMap(code, map)
       return map
     } finally {
@@ -418,9 +504,9 @@ export function useInstantPlayback(
    */
   async function revalidateRoundMap(code: string, cached: RoundMap): Promise<void> {
     try {
-      const res = await fetch(`${apiBase}/${encodeURIComponent(code)}/round-map`)
+      const res = await coalescedJsonGet(`${apiBase}/${encodeURIComponent(code)}/round-map`)
       if (!res.ok) return
-      const fresh = (await res.json()) as RoundMap
+      const fresh = res.data as RoundMap
       const changed =
         fresh.version > cached.version ||
         (fresh.version === cached.version && fresh.rounds.length !== cached.rounds.length)
@@ -466,13 +552,13 @@ export function useInstantPlayback(
       `${apiBase}/${encodeURIComponent(code)}/cycles` +
       `?from=${encodeURIComponent(fromLegoId)}&limit=${limit}`
 
-    const res = await fetch(url, { signal })
+    const res = await coalescedJsonGet(url, signal)
     if (!res.ok) {
       throw new Error(
         `[InstantPlayback] cycles fetch failed: ${res.status} ${res.statusText}`,
       )
     }
-    const response = (await res.json()) as CyclesResponse
+    const response = res.data as CyclesResponse
     // Write-through cache. Stamp is the version the server returned, which
     // gets compared against the current round-map version on read.
     writeCachedCycles(code, fromLegoId, response)
