@@ -27,6 +27,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import NavMoreMenu, { type NavMenuGroup, type NavMenuItem } from '@/components/shared/NavMoreMenu.vue'
+import RefreshButton from '@/components/shared/RefreshButton.vue'
 
 const route = useRoute()
 
@@ -143,25 +144,32 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
       </router-link>
     </div>
 
-    <template v-if="showTabs">
-      <!-- Wide: flat everyday tabs + grouped More -->
-      <nav class="tabs" aria-label="Admin sections">
-        <router-link
-          v-for="t in primaryTabs"
-          :key="t.to"
-          :to="t.to"
-          :class="['tab', { active: isActive(t) }]"
-        >
-          {{ t.label }}
-        </router-link>
-        <NavMoreMenu :groups="moreGroups" trigger-label="More" trigger-class="tab" align="right" />
-      </nav>
+    <div class="right">
+      <template v-if="showTabs">
+        <!-- Wide: flat everyday tabs + grouped More -->
+        <nav class="tabs" aria-label="Admin sections">
+          <router-link
+            v-for="t in primaryTabs"
+            :key="t.to"
+            :to="t.to"
+            :class="['tab', { active: isActive(t) }]"
+          >
+            {{ t.label }}
+          </router-link>
+          <NavMoreMenu :groups="moreGroups" trigger-label="More" trigger-class="tab" align="right" />
+        </nav>
 
-      <!-- Narrow: everything in one grouped menu; trigger names the current section -->
-      <nav class="tabs-collapsed" aria-label="Admin sections">
-        <NavMoreMenu :groups="allGroups" :trigger-label="currentSectionLabel" trigger-class="tab" align="right" />
-      </nav>
-    </template>
+        <!-- Narrow: everything in one grouped menu; trigger names the current section -->
+        <nav class="tabs-collapsed" aria-label="Admin sections">
+          <NavMoreMenu :groups="allGroups" :trigger-label="currentSectionLabel" trigger-class="tab" align="right" />
+        </nav>
+      </template>
+
+      <!-- The ONE universal refresh affordance — same button, same spot as the
+           schools surface (consistency law §1.12). Renders only where a loader
+           is registered. -->
+      <RefreshButton />
+    </div>
   </header>
 </template>
 
@@ -188,6 +196,12 @@ const showTabs = computed(() => route.path.startsWith('/admin'))
   --nvm-trigger-color: rgba(255, 255, 255, 0.6);
   --nvm-trigger-hover-bg: rgba(255, 255, 255, 0.06);
   --nvm-active-color: #fff;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .left {

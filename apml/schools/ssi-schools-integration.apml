@@ -3,8 +3,8 @@
 
 metadata:
   title: "SSi Schools Integration"
-  version: "1.0.3"
-  date: "2026-07-18"
+  version: "1.0.4"
+  date: "2026-07-19"
   author: "Tom Cassidy"
   status: "draft"
 
@@ -416,6 +416,40 @@ principle HeadlineHoursIncludeStaffPractice:
     practicing is school engagement, not that class's progress. Only the
     school/group HEADLINE rollups mix staff in; class_student_progress and
     class_activity_stats are untouched.
+
+principle NoAutoRefreshOneAffordance:
+  statement: |
+    NO auto-refresh anywhere on dashboard surfaces — not even during a live
+    class (founder ruling, Tom 2026-07-19). Data loads on navigation and then
+    HOLDS STILL. The only way it updates is a deliberate human action through
+    ONE universal affordance: a circular-arrow refresh button in a consistent
+    navbar position (top-right, near identity) AND pull-to-refresh on touch,
+    both firing the same action, with a quiet "Updated HH:MM" stamp near the
+    stats so staleness is honest. Consistency law §1.12: same spot, same icon,
+    same behaviour on every dashboard page.
+
+  pattern: |
+    One shared singleton composable, composables/useDashboardRefresh.ts. Each
+    dashboard page registers its loader (registerRefresh, auto-cleaned on
+    unmount) and routes its INITIAL load through the same refresh() so the
+    spinner + timestamp are honest from first paint. components/shared/
+    RefreshButton.vue (in SchoolsTopBar + AdminTopBar, renders only where a
+    loader is registered), UpdatedStamp.vue (reads the shared timestamp), and
+    usePullToRefresh.ts (wired at the container scroll root) all drive the one
+    action. A failed refresh NEVER advances the stamp. Full audit +
+    on/off-protocol inventory: docs/the-view/refresh/README.md.
+
+  removed_polling: |
+    useAdminActivity's setInterval(fetchActivity, 60s) live-activity poll, and
+    SchoolsView's visibilitychange/focus auto-refetch. Deliberately KEPT (not
+    dashboard-data auto-refresh): useAdminGate's 60s auth revalidation, and all
+    player/audio/offline/SW timers. Play-as-class has no polling to begin with —
+    useClassProgressStore is a write path; class stats load on navigation.
+
+  pinned_by: |
+    noDashboardPolling.test.ts (fails if setInterval / visibility-focus
+    refetch reappears in any guarded surface); useDashboardRefresh.test.ts;
+    usePullToRefresh.test.ts.
 
 data UserRoles:
   description: "Educational roles within the school hierarchy"

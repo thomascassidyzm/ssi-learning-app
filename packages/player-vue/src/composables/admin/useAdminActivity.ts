@@ -20,9 +20,6 @@ const sessions = ref<ActivitySession[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
-// Auto-refresh timer
-let refreshInterval: ReturnType<typeof setInterval> | null = null
-
 export function useAdminActivity(client: SupabaseClient) {
 
   // --- Computed summaries ---
@@ -133,18 +130,6 @@ export function useAdminActivity(client: SupabaseClient) {
     }
   }
 
-  function startAutoRefresh() {
-    stopAutoRefresh()
-    refreshInterval = setInterval(fetchActivity, 60_000)
-  }
-
-  function stopAutoRefresh() {
-    if (refreshInterval) {
-      clearInterval(refreshInterval)
-      refreshInterval = null
-    }
-  }
-
   return {
     // State
     sessions,
@@ -161,7 +146,5 @@ export function useAdminActivity(client: SupabaseClient) {
 
     // Actions
     fetchActivity,
-    startAutoRefresh,
-    stopAutoRefresh,
   }
 }

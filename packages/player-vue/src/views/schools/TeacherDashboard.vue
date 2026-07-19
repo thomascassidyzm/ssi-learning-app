@@ -6,6 +6,8 @@ import ClassCreatedModal from '@/components/schools/ClassCreatedModal.vue'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { useClassesData, type ClassReport } from '@/composables/schools/useClassesData'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
@@ -195,13 +197,22 @@ const headlineSubtitle = computed(() => {
   return `${enrichedClasses.value.length} ${enrichedClasses.value.length === 1 ? 'class' : 'classes'}${schoolBit} · ${totalStudents.value} students · ${totalHours.value}h this week`
 })
 
-onMounted(async () => {
+// The ONE refresh protocol: one loader for this classes dashboard, driving the
+// navbar button + pull-to-refresh. Initial load routes through it (spinner +
+// honest "Updated HH:MM"). No polling — the roster holds still until refreshed.
+async function loadDashboard(): Promise<void> {
   if (selectedUser.value) {
     await fetchClasses()
     fetchReportsForClasses()
     loadPractice7d()
   }
   if (isSchoolAdmin.value && !isAdminView) loadSchoolTrial()
+}
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(loadDashboard, { immediate: false })
+
+onMounted(async () => {
+  await refresh()
   // Deep-linked from the dashboard's "Create class" CTA → open the form straight away.
   if (!isAdminView && router.currentRoute.value.query.create) openCreateModal()
 })
@@ -338,7 +349,7 @@ function exportCsv() {
     <div class="page-head">
       <div class="page-head-text">
         <h1 class="arsenal page-title">{{ headlineTitle }}</h1>
-        <p class="page-subtitle schools-subtle">{{ headlineSubtitle }}</p>
+        <p class="page-subtitle schools-subtle">{{ headlineSubtitle }} <UpdatedStamp /></p>
       </div>
       <div class="page-head-actions">
         <button v-if="enrichedClasses.length > 0" type="button" class="btn-ghost" @click="exportCsv">
@@ -352,7 +363,7 @@ function exportCsv() {
 
     <div v-if="classesError" class="fetch-error-banner">
       <span>Couldn't refresh this list — showing the last data loaded. {{ classesError }}</span>
-      <button type="button" class="btn-ghost" @click="fetchClasses()">Retry</button>
+      <button type="button" class="btn-ghost" @click="refresh">Retry</button>
     </div>
     <div v-if="playError" class="fetch-error-banner">
       <span>{{ playError }}</span>

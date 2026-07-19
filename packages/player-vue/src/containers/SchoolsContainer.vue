@@ -8,6 +8,7 @@ import { SignInModal } from '@/components/auth'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 import { useAuthModal } from '@/composables/useAuthModal'
+import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { SIGNIN_AGAIN_NOTICE_KEY } from '@/composables/useAuth'
 import { useUserRole } from '@/composables/useUserRole'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
@@ -329,6 +330,10 @@ watch(
   },
   { flush: 'post' },
 )
+
+// Pull-to-refresh: the touch half of the ONE refresh protocol, fired from the
+// same scroll root and driving the same shared refresh() as the navbar button.
+const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 </script>
 
 <template>
@@ -541,6 +546,27 @@ watch(
 
     <!-- Authenticated dashboard -->
     <template v-else-if="showDashboard">
+      <!-- Pull-to-refresh indicator: a circular-arrow glyph that follows the
+           finger and snaps to a spin once past threshold. Same action as the
+           navbar refresh button. -->
+      <div
+        v-if="isPulling"
+        class="pull-indicator"
+        :style="{ transform: `translate(-50%, ${Math.min(pullDistance, 90)}px)` }"
+      >
+        <svg
+          class="pull-indicator__icon"
+          :style="{ transform: `rotate(${pullDistance * 3}deg)` }"
+          width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+      </div>
+
       <SchoolsTopBar />
 
       <!-- Dunning grace: Paddle marked past_due but retries are still running.
@@ -584,6 +610,23 @@ watch(
   position: relative;
   background: var(--schools-page-backdrop, #e8e5dd);
   overflow-y: auto;
+}
+
+.pull-indicator {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--schools-ink, #1c1a17);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
+  pointer-events: none;
 }
 
 .main-content {

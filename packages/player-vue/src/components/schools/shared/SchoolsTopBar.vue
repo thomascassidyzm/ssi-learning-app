@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useSchoolContext } from '@/composables/schools/useSchoolContext'
 import { usePlayAsClassContext } from '@/composables/schools/usePlayAsClassContext'
 import PlayAsClassIdentity from './PlayAsClassIdentity.vue'
+import RefreshButton from '@/components/shared/RefreshButton.vue'
 
 type NavTab = { label: string; to: string; routeName?: string }
 
@@ -194,6 +195,11 @@ if (typeof document !== 'undefined') {
     </div>
 
     <div class="right">
+      <!-- The ONE universal refresh affordance — renders only on surfaces that
+           registered a loader, spins while fetching. Same button, same spot on
+           every dashboard (consistency law §1.12). -->
+      <RefreshButton />
+
       <!-- Self-practice launcher is dropped while a class session is live — the
            bar's job in this mode is to name the class and offer the exit. -->
       <router-link

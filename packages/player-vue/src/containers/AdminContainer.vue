@@ -3,6 +3,7 @@ import { useRoute } from 'vue-router'
 import { ref, onMounted } from 'vue'
 import AdminTopBar from '@/components/admin/AdminTopBar.vue'
 import { useAdminGate } from '@/composables/useAdminGate'
+import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import '@/styles/schools-tokens.css'
 import '@/styles/schools-design.css'
 
@@ -16,10 +17,32 @@ onMounted(() => {
 // Access gate — see useAdminGate for the full rationale (deny-not-defer +
 // periodic re-validation so a mid-session downgrade revokes access live).
 const { isCheckingAccess, isDenied } = useAdminGate()
+
+// Pull-to-refresh: touch half of the ONE refresh protocol, same shared
+// refresh() as the navbar button, fired from this scroll root.
+const containerEl = ref<HTMLElement | null>(null)
+const { pullDistance, isPulling } = usePullToRefresh(containerEl)
 </script>
 
 <template>
-  <div class="admin-container schools-surface" :class="{ 'is-mounted': mounted }">
+  <div ref="containerEl" class="admin-container schools-surface" :class="{ 'is-mounted': mounted }">
+    <!-- Pull-to-refresh indicator (touch) — same action as the navbar refresh -->
+    <div
+      v-if="isPulling"
+      class="pull-indicator"
+      :style="{ transform: `translate(-50%, ${Math.min(pullDistance, 90)}px)` }"
+    >
+      <svg
+        :style="{ transform: `rotate(${pullDistance * 3}deg)` }"
+        width="20" height="20" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="23 4 23 10 17 10" />
+        <polyline points="1 20 1 14 7 14" />
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+      </svg>
+    </div>
     <div v-if="isCheckingAccess || isDenied" class="admin-loading">
       <div class="loading-spinner"></div>
       <p>Loading…</p>
@@ -108,6 +131,24 @@ const { isCheckingAccess, isDenied } = useAdminGate()
   flex-direction: column;
   background: var(--schools-bg, #f6f5f1);
   color: var(--schools-fg, #0F1212);
+  position: relative;
+}
+
+.pull-indicator {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 50%;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #fff;
+  color: #0F1212;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
 }
 
 /* ================================================================

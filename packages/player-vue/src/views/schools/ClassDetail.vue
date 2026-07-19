@@ -12,6 +12,8 @@ import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Bench from '@/components/schools/shared/Bench.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import InviteLinkField from '@/components/schools/shared/InviteLinkField.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
@@ -206,11 +208,21 @@ async function loadReport(classId: string) {
   classReport.value = await getClassReport(classId)
 }
 
+// The ONE refresh protocol: reload this class's detail + report on demand via
+// the navbar button / pull-to-refresh. No polling — the class view holds still.
+async function loadClass(): Promise<void> {
+  const classId = classIdParam.value
+  if (classId && selectedUser.value) {
+    await Promise.all([fetchClassDetail(classId), loadReport(classId)])
+  }
+}
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(loadClass, { immediate: false })
+
 onMounted(() => {
   const classId = classIdParam.value
   if (classId && selectedUser.value) {
-    fetchClassDetail(classId)
-    loadReport(classId)
+    void refresh()
   } else if (!classId) {
     const stored = sessionStorage.getItem('ssi-class-detail')
     if (!stored) router.push({ name: 'classes' })
@@ -392,6 +404,8 @@ const deleteImpactLines = computed(() => {
             <span class="meta-dot">·</span>
             <span>Position {{ classData.last_lego_id }}</span>
           </template>
+          <span class="meta-dot">·</span>
+          <UpdatedStamp />
         </div>
       </div>
 

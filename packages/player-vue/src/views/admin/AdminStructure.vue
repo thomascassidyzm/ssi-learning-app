@@ -13,6 +13,8 @@
 import { ref, computed, onMounted, provide, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import StructureTreeNode from '@/components/admin/StructureTreeNode.vue'
 import NodePanel from '@/components/admin/NodePanel.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
@@ -431,10 +433,16 @@ provide<StructureApi>('structureApi', {
   openDashboard, createChild, requestDelete, submitInvite, submitDemoMint, drillInto, selectNode,
 })
 
-onMounted(() => {
-  fetchTree()
-  fetchTable()
-})
+// The ONE refresh protocol: a full-page reload (both lenses) drives the navbar
+// button + pull-to-refresh; the initial load routes through it so the spinner
+// and "Updated HH:MM" stamp are honest. No polling — Structure holds still.
+async function loadPage(): Promise<void> {
+  await Promise.all([fetchTree(), fetchTable()])
+}
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(loadPage, { immediate: false })
+
+onMounted(() => { void refresh() })
 </script>
 
 <template>
@@ -446,6 +454,8 @@ onMounted(() => {
         <p class="subtitle">One tree, two lenses — table and tree — for every organisation, school and group.</p>
         <div class="metrics">
           <span class="metric"><span class="metric-value frost-mono-nums">{{ tableTotal }}</span> organisations</span>
+          <span class="metric-sep">·</span>
+          <UpdatedStamp />
         </div>
       </div>
     </header>

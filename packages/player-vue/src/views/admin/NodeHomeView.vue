@@ -9,6 +9,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 
 const route = useRoute()
 const router = useRouter()
@@ -61,9 +63,16 @@ async function fetchHome(): Promise<void> {
   }
 }
 
+// The ONE refresh protocol: register this node's loader so the navbar button
+// and pull-to-refresh drive it. Navigation between nodes/lenses still reloads
+// (that's a navigation, not auto-refresh) — routed through refresh() so it
+// stamps "Updated HH:MM". No polling: the node holds still until asked.
+const { refresh, registerRefresh } = useDashboardRefresh()
+registerRefresh(fetchHome, { immediate: false })
+
 watch(
   [() => route.params.id, () => route.query.lens],
-  () => { fetchHome() },
+  () => { void refresh() },
   { immediate: true },
 )
 
@@ -220,6 +229,7 @@ const listPayload = computed(() => {
           </div>
 
           <!-- STATS ROW -->
+          <div class="stats-updated"><UpdatedStamp /></div>
           <div class="stats-row">
             <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
               <span class="stat-value frost-mono-nums">{{ s.value }}</span>
@@ -312,6 +322,7 @@ const listPayload = computed(() => {
 }
 .invite-url.is-copied { background: rgba(var(--tone-green), 0.16); border-color: rgba(var(--tone-green), 0.45); color: rgb(var(--tone-green-ink)); }
 
+.stats-updated { display: flex; justify-content: flex-end; min-height: 14px; margin-bottom: 4px; }
 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }
 .stat-card { display: flex; flex-direction: column; gap: 2px; padding: var(--space-4); }
 .stat-value { font-size: clamp(22px, 2.6vw, 30px); font-weight: var(--font-semibold); color: var(--ink-primary, #2C2622); line-height: 1.1; }

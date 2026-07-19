@@ -6,6 +6,8 @@ import { useAdminUsers, type Tier, type SortKey } from '@/composables/admin/useA
 import { parseCourseCode, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
 import FilterDropdown from '@/components/schools/shared/FilterDropdown.vue'
 import Badge from '@/components/schools/shared/Badge.vue'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 
 const { getClient } = useAdminClient()
 const router = useRouter()
@@ -98,9 +100,12 @@ function navigateToUser(learnerId: string) {
   router.push(`/admin/users/${learnerId}`)
 }
 
-onMounted(async () => {
-  await fetchAll()
-})
+// The ONE refresh protocol: register the loader; navbar button + pull-to-refresh
+// drive it, initial load routes through it for the spinner + honest stamp. No poll.
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(fetchAll, { immediate: false })
+
+onMounted(() => { void refresh() })
 </script>
 
 <template>
@@ -121,6 +126,8 @@ onMounted(async () => {
             <span class="metric-value mono-nums">{{ newThisWeek }}</span>
             new this week
           </span>
+          <span class="metric-sep">·</span>
+          <UpdatedStamp />
         </div>
       </div>
     </header>

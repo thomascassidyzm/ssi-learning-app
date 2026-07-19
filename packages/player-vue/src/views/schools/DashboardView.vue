@@ -13,6 +13,8 @@ import { useSchoolsDensity } from '@/composables/schools/useSchoolsDensity'
 import { useGovtAdminActions } from '@/composables/schools/useGovtAdminActions'
 import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 import { getLanguageName } from '@/composables/useI18n'
+import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
 
 const router = useRouter()
@@ -159,15 +161,27 @@ async function fetchReports() {
   }
 }
 
-watch(currentUser, (user) => {
+// The ONE refresh protocol: one role-aware loader for the whole dashboard,
+// driving the navbar button + pull-to-refresh. Initial load routes through it
+// (spinner + honest "Updated HH:MM"). No polling — the dashboard holds still,
+// even during a live class, until a deliberate refresh (founder ruling).
+async function loadDashboard(): Promise<void> {
+  const user = currentUser.value
   if (!user) return
-  fetchSchools()
+  await fetchSchools()
   if (isTeacher.value || isSchoolAdmin.value) {
-    fetchClasses().then(fetchReports)
+    await fetchClasses().then(fetchReports)
   }
   if (isGovtAdmin.value) {
-    fetchSchoolLinks()
+    await fetchSchoolLinks()
+    if (viewingSchool.value) await fetchClasses().then(fetchReports)
   }
+}
+const { registerRefresh, refresh } = useDashboardRefresh()
+registerRefresh(loadDashboard, { immediate: false })
+
+watch(currentUser, (user) => {
+  if (user) void refresh()
 }, { immediate: true })
 
 // Govt admin drills into a school → load that school's classes (the classes
@@ -309,11 +323,13 @@ async function handlePlayClass(cls: ClassInfo) {
 
     <div v-if="dashboardFetchError" class="fetch-error-banner">
       <span>Couldn't refresh this dashboard — showing the last data loaded. {{ dashboardFetchError }}</span>
-      <button type="button" class="btn-ghost" @click="fetchSchools(); fetchClasses()">Retry</button>
+      <button type="button" class="btn-ghost" @click="refresh">Retry</button>
     </div>
     <div v-if="playError" class="fetch-error-banner">
       <span>{{ playError }}</span>
     </div>
+
+    <div class="dashboard-updated-row"><UpdatedStamp /></div>
 
     <!-- ============================================================
          TEACHER
@@ -813,6 +829,13 @@ async function handlePlayClass(cls: ClassInfo) {
 }
 
 /* ---------- Breadcrumb ---------- */
+.dashboard-updated-row {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 14px;
+  margin-bottom: 10px;
+}
+
 .dashboard-breadcrumb {
   display: inline-flex;
   align-items: center;
