@@ -106,6 +106,26 @@ programme), `after-node-home.png`, `after-class-home.png`,
 `open-by-name-phone.png` (Open pill on all 35 rows at 390px, 36px tall,
 tap lands on node home).
 
+## 3-tier demo tree (scope add, 2026-07-19)
+
+The LENS finding — compare-set thinning was DATA (a 2-tier org tree, so no
+node ever had a grandparent) — resolved by restructuring the DEMO tree only:
+new demo group **"Pilot Districts Region"** (type `region`, `is_demo`) under
+IME Demo Programme, with the three demo schools re-parented beneath it
+(expand-contract: `groups.parent_id` + `schools.group_id` re-pointed, nothing
+deleted, before-state asserted demo-flagged on every touched row — 8 demo
+rows total, zero non-demo). Demo refresh re-run through the deeper subtree:
+80 learners / 883 sessions, main walk 15/15 green again.
+
+**Compare-to chain verified live (`demo-refresh-walk3.mjs`, 8/8 PASS):**
+a demo class (Grade 6A) now offers the full ancestor chain —
+school → Pilot Districts Region → IME Demo Programme → global (this course)
+→ global (all courses), **5 options**, in the API (`options.compares`) and
+in the open UI dropdown. Evidence: `compare-chain-class-3tier.png` (dropdown
+open, class data alive: 4.60 v 3.60, ranks 2nd of 4). School-level insights
+now compare against the region (nearest ancestor) — the walk script's
+expectation updated to match.
+
 ## Promotion
 
 The earlier hold (lens rate-compare failures) cleared when the lens agent

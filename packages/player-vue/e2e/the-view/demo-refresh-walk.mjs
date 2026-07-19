@@ -46,7 +46,15 @@ function check(label, ok, detail = '') {
 }
 
 async function imeLatestSession() {
-  const { data: schools } = await svc.from('schools').select('id').eq('group_id', IME_GROUP_ID)
+  // subtree-aware: the demo tree is 3-tier (programme → region → schools)
+  const groupIds = [IME_GROUP_ID]
+  for (let depth = 0; depth < 4; depth++) {
+    const { data: kids } = await svc.from('groups').select('id').in('parent_id', groupIds)
+    const fresh = (kids || []).map((k) => k.id).filter((id) => !groupIds.includes(id))
+    if (!fresh.length) break
+    groupIds.push(...fresh)
+  }
+  const { data: schools } = await svc.from('schools').select('id').in('group_id', groupIds)
   const { data: classes } = await svc.from('classes').select('id').in('school_id', schools.map((s) => s.id))
   const { data: imeTags } = await svc.from('user_tags').select('user_id').in('tag_value', classes.map((c) => `CLASS:${c.id}`)).eq('role_in_context', 'student')
   const { data: learners } = await svc.from('learners').select('id').in('user_id', imeTags.map((t) => t.user_id)).eq('is_demo', true)
@@ -123,7 +131,7 @@ await shot(desktop, `/admin/groups/${IME_GROUP_ID}`, 'after-node-home')
 // real cohorts exclude demo by design). This must read ALIVE after refresh.
 const SUNRISE_SCHOOL_ID = '2fd27c83-936f-4810-a88b-7d7b32315cee'
 const schoolBody = await shot(desktop, `/admin/schools/${SUNRISE_SCHOOL_ID}/analytics`, 'after-school-insights')
-check('school insights compares within the programme', /IME Demo Programme average/i.test(schoolBody))
+check('school insights compares within the demo cohort (nearest ancestor)', /(IME Demo Programme|Pilot Districts Region) average/i.test(schoolBody))
 check('school insights is not insufficient', !/Not enough data/i.test(schoolBody))
 
 // ── 6. OPEN by the name on a phone viewport ──
