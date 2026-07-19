@@ -5,6 +5,8 @@ import {
   listEntities,
   listAverages,
   listEntityLevels,
+  WINDOW_OPTIONS,
+  DEFAULT_WINDOW,
 } from './demoRates'
 
 describe('demoRates — the "entity vs average" rate fixtures', () => {
@@ -96,8 +98,9 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     expect(out.metricLabel).toBe('Rate of progress')
     expect(out.unit).toBe('LEGOs')
     expect(out.per).toBe('week')
-    expect(out.entity.trend).toHaveLength(8)
-    expect(out.average.trend).toHaveLength(8)
+    // default window (term) = 12 weekly points
+    expect(out.entity.trend).toHaveLength(12)
+    expect(out.average.trend).toHaveLength(12)
     expect(out.percentile).toBeGreaterThanOrEqual(0)
     expect(out.percentile).toBeLessThanOrEqual(100)
     const expectUp = out.entity.value >= out.average.value
@@ -160,5 +163,55 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
   it('listEntityLevels mirrors the hero-rate definitions', () => {
     expect(listEntityLevels('progressPace')).toEqual(HERO_RATES[0].entityLevels)
     expect(listEntityLevels('nope')).toEqual([])
+  })
+
+  // ── Windows (the windows+measures contract, mirrored on the demo path) ────
+  it('ships the 4 contract windows with term as the default', () => {
+    expect(WINDOW_OPTIONS.map((w) => w.value)).toEqual(['week', '4w', 'term', 'all'])
+    expect(DEFAULT_WINDOW).toBe('term')
+  })
+
+  it('defaults to term when window is omitted — 12 weekly trend points', () => {
+    const id = listEntities('progressPace', 'class')[0].value
+    const out = getRateComparison('progressPace', 'class', id, 'school')
+    expect(out.entity.trend).toHaveLength(12)
+    expect(out.average.trend).toHaveLength(12)
+    expect(out.windowLabel).toBe('This term')
+    expect(out.trendPeriodDays).toBe(7)
+  })
+
+  it('a non-default window (week) reshapes the trend to daily points, coherently for a non-default measure', () => {
+    const classes = listEntities('appMinutesDay', 'class')
+    const id = classes[0].value
+    const out = getRateComparison('appMinutesDay', 'class', id, 'school', 'week')
+    expect(out.entity.trend).toHaveLength(7)
+    expect(out.average.trend).toHaveLength(7)
+    expect(out.windowLabel).toBe('This week')
+    expect(out.trendLabel).toBe('Daily · this week')
+    expect(out.trendPeriodDays).toBe(1)
+    // still coherent: same voice/cohort contract as the default window
+    expect(out.metricLabel).toBe('App-minutes')
+    expect(out.subjectIsViewer).toBe(false)
+    expect(out.cohortLabel?.length).toBeGreaterThan(0)
+  })
+
+  it('all four windows stay internally coherent (point count matches trendPeriodDays\' spacing)', () => {
+    const id = listEntities('progressPace', 'class')[0].value
+    const expectedPoints: Record<string, number> = { week: 7, '4w': 4, term: 12, all: 12 }
+    const expectedDays: Record<string, number> = { week: 1, '4w': 7, term: 7, all: 30 }
+    for (const w of WINDOW_OPTIONS) {
+      const out = getRateComparison('progressPace', 'class', id, 'school', w.value)
+      expect(out.entity.trend).toHaveLength(expectedPoints[w.value])
+      expect(out.trendPeriodDays).toBe(expectedDays[w.value])
+      expect(out.windowLabel).toBe(w.label)
+    }
+  })
+
+  it('an unknown window falls back to the default (term), never throws', () => {
+    const id = listEntities('progressPace', 'class')[0].value
+    expect(() => getRateComparison('progressPace', 'class', id, 'school', 'not-a-window')).not.toThrow()
+    const out = getRateComparison('progressPace', 'class', id, 'school', 'not-a-window')
+    expect(out.windowLabel).toBe('This term')
+    expect(out.entity.trend).toHaveLength(12)
   })
 })

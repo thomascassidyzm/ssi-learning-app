@@ -22,21 +22,29 @@
 // ============================================================================
 import { ref, computed, watch } from 'vue'
 import RateCompare from '../components/RateCompare.vue'
+import WindowChips from '../components/WindowChips.vue'
+import FrostSelect from '@/components/FrostSelect.vue'
 import {
   HERO_RATES,
   getRateComparison,
   listEntities,
   listAverages,
   listEntityLevels,
+  WINDOW_OPTIONS,
+  DEFAULT_WINDOW,
   type EntityLevel,
 } from '../data/demoRates'
 import type { RateComparisonData } from '../spec'
 
 // ── Selection state ─────────────────────────────────────────────────────────
+const windowId = ref<string>(DEFAULT_WINDOW)           // This week / 4w / term / all
 const metricId = ref<string>('progressPace')          // headline rate by default
 const entityLevel = ref<EntityLevel>('class')          // default: a class entity
 const entityId = ref<string>('')
 const averageId = ref<string>('')                      // snapped to the nearest ancestor below
+
+const metricSelectOptions = computed(() =>
+  HERO_RATES.map((m) => ({ value: m.id, label: `${m.label} (${m.unit} / ${m.per})` })))
 
 const ALL_LEVELS: { value: EntityLevel; label: string }[] = [
   { value: 'learner', label: 'Learner' },
@@ -98,6 +106,7 @@ const comparison = computed<RateComparisonData>(() =>
     entityLevel.value,
     entityId.value,
     averageId.value,
+    windowId.value,
   ),
 )
 </script>
@@ -119,14 +128,16 @@ const comparison = computed<RateComparisonData>(() =>
 
     <!-- ── Selectors ── -->
     <div class="rtb-controls">
-      <!-- Metric -->
+      <!-- Time window -->
+      <div class="rtb-field">
+        <span class="rtb-field-label">Window</span>
+        <WindowChips v-model="windowId" :options="WINDOW_OPTIONS" aria-label="Time window" />
+      </div>
+
+      <!-- Measure -->
       <label class="rtb-field rtb-field-wide">
-        <span class="rtb-field-label">Metric</span>
-        <select v-model="metricId" class="rtb-select">
-          <option v-for="m in HERO_RATES" :key="m.id" :value="m.id">
-            {{ m.label }} ({{ m.unit }} / {{ m.per }})
-          </option>
-        </select>
+        <span class="rtb-field-label">Measure</span>
+        <FrostSelect v-model="metricId" :options="metricSelectOptions" aria-label="Measure" />
       </label>
 
       <!-- Entity level switch -->

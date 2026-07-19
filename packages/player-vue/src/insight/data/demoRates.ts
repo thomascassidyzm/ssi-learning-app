@@ -151,6 +151,35 @@ export const HERO_RATES: HeroRate[] = [
 
 const HERO_BY_ID = new Map(HERO_RATES.map((m) => [m.id, m]))
 
+// ── Time windows (the windows+measures contract, frozen 2026-07-19) ────────
+// Same four windows the real engine offers: chip value/label, the trend point
+// count + spacing, and the honest chart caption. `term` is the default
+// (continuity with the old 90-day default).
+export interface WindowOption { value: string; label: string }
+export const WINDOW_OPTIONS: WindowOption[] = [
+  { value: 'week', label: 'This week' },
+  { value: '4w', label: 'Last 4 weeks' },
+  { value: 'term', label: 'This term' },
+  { value: 'all', label: 'All time' },
+]
+export const DEFAULT_WINDOW = 'term'
+
+interface WindowMeta {
+  trendPoints: number
+  trendPeriodDays: 1 | 7 | 30
+  trendLabel: string
+  windowLabel: string
+}
+const WINDOW_META: Record<string, WindowMeta> = {
+  week: { trendPoints: 7, trendPeriodDays: 1, trendLabel: 'Daily · this week', windowLabel: 'This week' },
+  '4w': { trendPoints: 4, trendPeriodDays: 7, trendLabel: 'Weekly · last 4 weeks', windowLabel: 'Last 4 weeks' },
+  term: { trendPoints: 12, trendPeriodDays: 7, trendLabel: 'Weekly · this term', windowLabel: 'This term' },
+  all: { trendPoints: 12, trendPeriodDays: 30, trendLabel: 'Monthly · last 12 months', windowLabel: 'All time' },
+}
+function windowMeta(window: string): WindowMeta {
+  return WINDOW_META[window] ?? WINDOW_META[DEFAULT_WINDOW]
+}
+
 // ── The synthetic org (the Irish-government showcase) ───────────────────────
 // Two demo directions:
 //   · "— Sínis"  classes = Chinese for Irish speakers (Gaelscoileanna, MFL
@@ -218,14 +247,15 @@ const courseOfClass = (classLabel: string): string =>
 // An entity's value + trend derive ONLY from (metric, level, label): the same
 // entity reads identically in every scope it appears in.
 
-// Build an 8-period trend ending near `target`, with a believable shape.
+// Build an N-period trend ending near `target`, with a believable shape.
 function buildTrend(
   rand: () => number,
   target: number,
   shape: 'rising' | 'stalled' | 'steady',
   dp: number,
+  points = 8,
 ): number[] {
-  const N = 8
+  const N = points
   const pts: number[] = []
   for (let i = 0; i < N; i++) {
     const t = i / (N - 1) // 0 -> 1
@@ -245,18 +275,22 @@ function buildTrend(
 
 interface EntityNumbers { value: number; trend: number[]; rand: () => number }
 
-function entityNumbers(metric: HeroRate, level: EntityLevel, label: string): EntityNumbers {
+function entityNumbers(
+  metric: HeroRate, level: EntityLevel, label: string, trendPoints = 8,
+): EntityNumbers {
   const rand = mulberry32(strHash(`${metric.id}::${level}::${label}`))
   const [lo, hi] = metric.range
   const roll = rand()
   const value = round(lo + rand() * (hi - lo), metric.dp)
   const shape = roll < 0.3 ? 'rising' : roll < 0.85 ? 'steady' : 'stalled'
-  return { value, trend: buildTrend(rand, value, shape, metric.dp), rand }
+  return { value, trend: buildTrend(rand, value, shape, metric.dp, trendPoints), rand }
 }
 
 // Unlabelled synthetic siblings for scopes wider than the named roster (e.g.
 // learners across the whole school). Values + trends only — no names exist.
-function syntheticSiblings(metric: HeroRate, seedKey: string, count: number): EntityNumbers[] {
+function syntheticSiblings(
+  metric: HeroRate, seedKey: string, count: number, trendPoints = 8,
+): EntityNumbers[] {
   const rand = mulberry32(strHash(`${metric.id}::synthetic::${seedKey}`))
   const [lo, hi] = metric.range
   const out: EntityNumbers[] = []
@@ -264,7 +298,7 @@ function syntheticSiblings(metric: HeroRate, seedKey: string, count: number): En
     const roll = rand()
     const value = round(lo + rand() * (hi - lo), metric.dp)
     const shape = roll < 0.3 ? 'rising' : roll < 0.85 ? 'steady' : 'stalled'
-    out.push({ value, trend: buildTrend(rand, value, shape, metric.dp), rand })
+    out.push({ value, trend: buildTrend(rand, value, shape, metric.dp, trendPoints), rand })
   }
   return out
 }
@@ -308,7 +342,9 @@ interface Scope {
   siblings: () => EntityNumbers[]   // the entity's siblings (entity EXCLUDED)
 }
 
-function scopesFor(metric: HeroRate, level: EntityLevel, label: string): Scope[] {
+function scopesFor(
+  metric: HeroRate, level: EntityLevel, label: string, trendPoints = 8,
+): Scope[] {
   switch (level) {
     case 'learner': {
       const school = schoolOfClass(LEARNER_HOME_CLASS)
@@ -319,19 +355,19 @@ function scopesFor(metric: HeroRate, level: EntityLevel, label: string): Scope[]
           label: `${shortClassName(LEARNER_HOME_CLASS)} avg`,
           cohortLabel: `learners in ${shortClassName(LEARNER_HOME_CLASS)}`,
           siblings: () => LEARNER_NAMES.filter((n) => n !== label)
-            .map((n) => entityNumbers(metric, 'learner', n)),
+            .map((n) => entityNumbers(metric, 'learner', n, trendPoints)),
         },
         {
           kind: 'school',
           label: `${school} avg`,
           cohortLabel: `learners in ${school}`,
-          siblings: () => syntheticSiblings(metric, `learner-school:${school}`, 42),
+          siblings: () => syntheticSiblings(metric, `learner-school:${school}`, 42, trendPoints),
         },
         {
           kind: 'course',
           label: `${course} avg`,
           cohortLabel: `learners on ${course}`,
-          siblings: () => syntheticSiblings(metric, `learner-course:${course}`, 120),
+          siblings: () => syntheticSiblings(metric, `learner-course:${course}`, 120, trendPoints),
         },
       ]
     }
@@ -345,7 +381,7 @@ function scopesFor(metric: HeroRate, level: EntityLevel, label: string): Scope[]
           cohortLabel: `classes in ${school}`,
           siblings: () => CLASS_NAMES
             .filter((c) => c !== label && schoolOfClass(c) === school)
-            .map((c) => entityNumbers(metric, 'class', c)),
+            .map((c) => entityNumbers(metric, 'class', c, trendPoints)),
         },
         {
           kind: 'course',
@@ -353,7 +389,7 @@ function scopesFor(metric: HeroRate, level: EntityLevel, label: string): Scope[]
           cohortLabel: `classes on ${course}`,
           siblings: () => CLASS_NAMES
             .filter((c) => c !== label && courseOfClass(c) === course)
-            .map((c) => entityNumbers(metric, 'class', c)),
+            .map((c) => entityNumbers(metric, 'class', c, trendPoints)),
         },
       ]
     }
@@ -364,7 +400,7 @@ function scopesFor(metric: HeroRate, level: EntityLevel, label: string): Scope[]
           label: `${ORG_NAME} avg`,
           cohortLabel: `schools in ${ORG_NAME}`,
           siblings: () => SCHOOL_NAMES.filter((s) => s !== label)
-            .map((s) => entityNumbers(metric, 'school', s)),
+            .map((s) => entityNumbers(metric, 'school', s, trendPoints)),
         },
       ]
     case 'course':
@@ -374,7 +410,7 @@ function scopesFor(metric: HeroRate, level: EntityLevel, label: string): Scope[]
           label: 'All SSi courses avg',
           cohortLabel: 'all SSi courses',
           siblings: () => COURSE_NAMES.filter((c) => c !== label)
-            .map((c) => entityNumbers(metric, 'course', c)),
+            .map((c) => entityNumbers(metric, 'course', c, trendPoints)),
         },
       ]
   }
@@ -473,22 +509,28 @@ function meanTrend(trends: number[][], dp: number): number[] {
 // getRateComparison — the one read the board makes. Total + deterministic.
 // `averageId` is a scope KIND from listAverages ('school', 'course', …);
 // anything unknown falls back to the NEAREST ancestor (the default).
+// `window` is one of WINDOW_OPTIONS ('week'|'4w'|'term'|'all'); it shapes the
+// trend's point count + spacing (coherent per window×measure) and rides back
+// on the response as windowLabel/trendLabel/trendPeriodDays, mirroring the
+// real engine's contract.
 // ============================================================================
 export function getRateComparison(
   metricId: string,
   entityLevel: EntityLevel,
   entityId: string,
   averageId: string,
+  window: string = DEFAULT_WINDOW,
 ): RateComparisonData {
   const metric = HERO_BY_ID.get(metricId)
   if (!metric) return emptyComparison()
   const label = entityLabelFor(metricId, entityLevel, entityId)
   if (!label) return emptyComparison(metric)
 
-  const scopes = scopesFor(metric, entityLevel, label)
+  const meta = windowMeta(window)
+  const scopes = scopesFor(metric, entityLevel, label, meta.trendPoints)
   const scope = scopes.find((s) => s.kind === averageId) ?? scopes[0]
 
-  const self = entityNumbers(metric, entityLevel, label)
+  const self = entityNumbers(metric, entityLevel, label, meta.trendPoints)
   const siblings = scope.siblings()
 
   const values = siblings.map((s) => s.value).sort((a, b) => a - b)
@@ -540,5 +582,10 @@ export function getRateComparison(
     subjectIsViewer: false,
     levelNoun: entityLevel,
     cohortLabel: scope.cohortLabel,
+    // Time window: mirrors the real engine's contract (windowLabel/trendLabel/
+    // trendPeriodDays), so the demo board previews the honest chart caption.
+    windowLabel: meta.windowLabel,
+    trendLabel: meta.trendLabel,
+    trendPeriodDays: meta.trendPeriodDays,
   }
 }
