@@ -4,15 +4,20 @@
 // analytics URLs (/admin/schools/:id/analytics, /admin/groups/:id/analytics —
 // the URLs live, the old-school page died) and at /admin/classes/:id/insights.
 //
-// The page is a thin identity wrapper: WHOSE numbers you're looking at (the
-// most-specific-context law) + a way back to node home + the door to the full
-// Stats boards. The engine itself (NodeRateEngine) owns the pickers, the
-// fetch, the refresh registration and the widget. Deep-linkable: ?course= and
-// ?compare= mirror the engine state.
+// Founder ruling (pass A, 2026-07-19): insights is a LENS on the node, not a
+// separate place — so the page keeps the node-home chrome: the WHERE-YOU-ARE
+// map rail (you-are-here lit) and the same identity header. No "← Back" link
+// pattern; the rail is the way around, and the verbs corner offers Overview
+// (node home) the same way node home offers See insights.
+//
+// The engine (NodeRateEngine) owns the pickers, the fetch, the refresh
+// registration and the widget. Deep-linkable: ?course= / ?compare= / ?window=
+// / ?measure= mirror the engine state.
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
+import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 
 const route = useRoute()
@@ -47,18 +52,42 @@ watch(
 
 const state = ref<EngineState | null>(null)
 
-const kicker = computed(() => {
-  const label = state.value?.node.label
-  return label ? `Insights · ${label}` : 'Insights'
+// ─── The node-home chrome: same rail + identity data, same endpoint the
+// node home reads. One light fetch per node; the org map doesn't churn, so
+// no refresh registration (the engine owns the refresh protocol here). ───
+const home = ref<any | null>(null)
+watch(nodeId, async (id) => {
+  home.value = null
+  if (!id) return
+  try {
+    const token = await getAuthToken()
+    const resp = await fetch(`/api/groups/${id}/home`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+    if (resp.ok) home.value = await resp.json()
+  } catch {
+    // rail degrades to nothing; the engine still renders
+  }
+}, { immediate: true })
+
+const isClass = computed(() =>
+  home.value?.kind === 'class' || state.value?.node.kind === 'class')
+
+// Same identity words as NodeHomeView — one grammar, every lens.
+const labelWord = computed(() => {
+  const n = home.value?.node
+  if (!n) return state.value?.node.label ? state.value.node.label[0].toUpperCase() + state.value.node.label.slice(1) : ''
+  if (isClass.value) return 'Class'
+  if (n.commercial || n.hasSchool) return 'School'
+  return n.label ? n.label[0].toUpperCase() + n.label.slice(1) : 'Group'
 })
-const title = computed(() => state.value?.node.name || '…')
-const isClass = computed(() => state.value?.node.kind === 'class')
+const title = computed(() => home.value?.node?.name || state.value?.node.name || '…')
 const subtitle = computed(() =>
   isClass.value
     ? 'How this class is moving, compared with the average you choose. Rate leads; position is just context.'
     : 'How everyone below this is moving, compared with the average you choose. Rate leads; position is just context.')
 
-// Back to this node's home — the same URL family the engine was opened from.
+// Overview = this node's home — the same URL family the lens was opened from.
 const homeLink = computed(() => {
   const p = route.path
   if (p.includes('/admin/classes/')) return `/admin/classes/${nodeId.value}`
@@ -69,58 +98,68 @@ const homeLink = computed(() => {
 
 <template>
   <div class="niv">
-    <header class="niv-head">
-      <div class="niv-title-block">
-        <span class="schools-kicker">{{ kicker }}</span>
-        <h1 class="niv-title arsenal">{{ title }}</h1>
-        <p class="niv-sub">{{ subtitle }}</p>
-      </div>
-      <div class="niv-side">
-        <UpdatedStamp />
-        <nav class="niv-links">
-          <router-link :to="homeLink" class="niv-link">← Back to {{ isClass ? 'class' : 'group' }} home</router-link>
-          <router-link to="/admin/stats" class="niv-link">All boards →</router-link>
-        </nav>
-      </div>
-    </header>
+    <div class="node-layout">
+      <!-- MAP RAIL — the same where-you-are spine as node home -->
+      <aside v-if="home" class="rail-col schools-card">
+        <NodeMapRail
+          :ancestors="home.ancestors || []"
+          :node="home.node"
+          :siblings="home.siblings || []"
+          :children="isClass ? [] : (home.children || [])"
+          :kind="home.kind"
+        />
+      </aside>
 
-    <NodeRateEngine
-      v-model:course="course"
-      v-model:compare="compare"
-      v-model:window="window_"
-      v-model:measure="measure"
-      :node-id="nodeId"
-      :get-token="getAuthToken"
-      @state="state = $event"
-    />
+      <div class="main-col">
+        <!-- IDENTITY HEADER — same grammar as node home; insights is a lens -->
+        <header class="identity">
+          <div class="identity-text">
+            <span class="schools-kicker">{{ labelWord }} · Insights</span>
+            <h1 class="identity-name arsenal">{{ title }}</h1>
+            <p class="niv-sub">{{ subtitle }}</p>
+          </div>
+          <div class="niv-side">
+            <UpdatedStamp />
+            <div class="verbs">
+              <router-link :to="homeLink" class="verb-btn verb-btn-secondary">Overview</router-link>
+              <router-link to="/admin/stats" class="verb-btn verb-btn-secondary">All boards</router-link>
+            </div>
+          </div>
+        </header>
+
+        <NodeRateEngine
+          v-model:course="course"
+          v-model:compare="compare"
+          v-model:window="window_"
+          v-model:measure="measure"
+          :node-id="nodeId"
+          :get-token="getAuthToken"
+          @state="state = $event"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.niv { display: flex; flex-direction: column; gap: 20px; max-width: 1100px; margin: 0 auto; }
-.niv-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.niv-title-block { min-width: 0; }
-.schools-kicker {
+.niv { display: flex; flex-direction: column; gap: 20px; }
+
+/* Same layout skeleton as NodeHomeView — the lens keeps the node's shape. */
+.node-layout { display: grid; grid-template-columns: minmax(220px, 290px) minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+@media (max-width: 900px) { .node-layout { grid-template-columns: 1fr; } }
+.rail-col { padding: var(--space-4); position: sticky; top: calc(110px + env(safe-area-inset-top, 0px)); }
+@media (max-width: 900px) { .rail-col { position: static; } }
+.main-col { display: flex; flex-direction: column; gap: var(--space-5); min-width: 0; }
+
+.identity { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+.identity-text { min-width: 0; }
+.identity-text .schools-kicker {
   font-family: var(--font-mono, 'Spline Sans Mono', monospace);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--schools-red, #DB1E17);
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--schools-red, #DB1E17);
 }
-.niv-title {
-  font-family: var(--font-display);
-  font-size: clamp(26px, 3.4vw, 38px);
-  font-weight: 400;
-  line-height: 1.05;
-  letter-spacing: -0.015em;
-  color: var(--ink-primary, #2C2622);
-  margin: 6px 0 8px;
+.identity-name {
+  font-family: var(--font-display); font-size: clamp(26px, 3.4vw, 38px); font-weight: 400;
+  line-height: 1.05; letter-spacing: -0.015em; color: var(--ink-primary, #2C2622); margin: 6px 0 8px;
 }
 .niv-sub {
   font-size: 14.5px;
@@ -135,14 +174,14 @@ const homeLink = computed(() => {
   align-items: flex-end;
   gap: 8px;
 }
-.niv-links { display: flex; gap: 14px; flex-wrap: wrap; }
-.niv-link {
-  font-size: var(--text-sm, 13px);
-  font-weight: var(--font-medium, 500);
-  color: var(--schools-fg-2, #555);
-  text-decoration: none;
+.verbs { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.verb-btn {
+  display: inline-flex; align-items: center; padding: 10px 16px; font: inherit; font-size: var(--text-sm);
+  font-weight: var(--font-semibold); border-radius: var(--radius-lg); border: 1px solid transparent;
+  cursor: pointer; text-decoration: none;
 }
-.niv-link:hover { color: var(--schools-red, #DB1E17); }
+.verb-btn-secondary { background: rgba(44, 38, 34, 0.06); color: var(--schools-fg, #0F1212); }
+.verb-btn-secondary:hover { background: rgba(44, 38, 34, 0.12); }
 @media (max-width: 720px) {
   .niv-side { align-items: flex-start; }
 }
