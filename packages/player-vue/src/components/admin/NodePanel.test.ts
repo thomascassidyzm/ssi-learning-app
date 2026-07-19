@@ -131,6 +131,35 @@ describe('NodePanel — verbs on top (§1.12.1)', () => {
   })
 })
 
+describe('NodePanel — refresh demo activity (demo nodes only, founder-ruled 2026-07-19)', () => {
+  it('shows the verb only on demo nodes', async () => {
+    setupFetch({ '/invites': { links: [] } })
+    const plain = mountPanel(makeNode(), makeApi())
+    await flushPromises()
+    expect(plain.findAll('.verb-btn').map((b) => b.text())).not.toContain('Refresh demo activity')
+
+    const demo = mountPanel(makeNode({ is_demo: true }), makeApi())
+    await flushPromises()
+    expect(demo.findAll('.verb-btn').map((b) => b.text())).toContain('Refresh demo activity')
+  })
+
+  it('posts to /api/groups/:id/demo-refresh and reports the regenerated activity', async () => {
+    setupFetch({
+      '/invites': { links: [] },
+      '/demo-refresh': { success: true, noop: false, learnersTouched: 62, sessionsWritten: 540 },
+    })
+    const wrapper = mountPanel(makeNode({ is_demo: true }), makeApi())
+    await flushPromises()
+    await wrapper.findAll('.verb-btn').find((b) => b.text() === 'Refresh demo activity')!.trigger('click')
+    await flushPromises()
+    const call = fetchMock.mock.calls.find((c) => (c[0] as string).includes('/api/groups/group-a/demo-refresh'))
+    expect(call).toBeTruthy()
+    expect(call![1].method).toBe('POST')
+    expect(wrapper.text()).toContain('62 learners')
+    expect(wrapper.text()).toContain('540 practice sessions')
+  })
+})
+
 describe('NodePanel — ways in, links-first (§1.10)', () => {
   it('renders existing invite links as ready-to-share URLs, grouped by role', async () => {
     setupFetch({

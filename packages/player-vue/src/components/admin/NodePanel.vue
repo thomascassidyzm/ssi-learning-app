@@ -168,6 +168,37 @@ function seeProgress(): void {
   api.openDashboard(props.node)
 }
 
+// ─── Verb: refresh demo activity (demo nodes only, founder-ruled
+// 2026-07-19) — regenerates the subtree's synthetic telemetry up to the
+// minute so demo dashboards never read burst-then-dead. All safety guards
+// are server-side; this button only exists on is_demo nodes.
+const isRefreshingDemo = ref(false)
+const demoRefreshResult = ref<string | null>(null)
+const demoRefreshError = ref<string | null>(null)
+
+async function refreshDemoActivity(): Promise<void> {
+  if (isRefreshingDemo.value) return
+  isRefreshingDemo.value = true
+  demoRefreshResult.value = null
+  demoRefreshError.value = null
+  try {
+    const token = await getAuthToken()
+    const resp = await fetch(`/api/groups/${props.node.id}/demo-refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+    })
+    const data = await resp.json().catch(() => ({}))
+    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+    demoRefreshResult.value = data.noop
+      ? 'Nothing to refresh — no demo learners below this node yet.'
+      : `Fresh activity for ${data.learnersTouched} learners — ${data.sessionsWritten} practice sessions over the last 8 weeks.`
+  } catch (err) {
+    demoRefreshError.value = err instanceof Error ? err.message : 'Failed to refresh demo activity'
+  } finally {
+    isRefreshingDemo.value = false
+  }
+}
+
 // ─── Progressive disclosure — everything else, collapsed by default ───
 const showMore = ref(false)
 
@@ -201,7 +232,13 @@ watch(() => props.node.id, fetchLinks, { immediate: true })
       <button type="button" class="verb-btn verb-btn-secondary" @click="seeProgress">
         See progress
       </button>
+      <button v-if="node.is_demo" type="button" class="verb-btn verb-btn-demo" :disabled="isRefreshingDemo" @click="refreshDemoActivity">
+        {{ isRefreshingDemo ? 'Refreshing demo activity…' : 'Refresh demo activity' }}
+      </button>
     </div>
+
+    <p v-if="demoRefreshResult" class="demo-refresh-note">{{ demoRefreshResult }}</p>
+    <p v-if="demoRefreshError" class="demo-refresh-note is-error">{{ demoRefreshError }}</p>
 
     <div v-if="showInviteForm" class="verb-form">
       <select v-model="inviteRole" class="frost-select">
@@ -310,6 +347,12 @@ watch(() => props.node.id, fetchLinks, { immediate: true })
 .verb-btn.is-empty { background: rgb(var(--tone-amber-ink, 154 96 24)); }
 .verb-btn-secondary { background: rgba(44, 38, 34, 0.06); color: var(--schools-fg); }
 .verb-btn-secondary:hover { background: rgba(44, 38, 34, 0.12); }
+.verb-btn-demo { background: rgb(var(--tone-amber-ink, 154 96 24)); }
+.verb-btn-demo:hover:not(:disabled) { background: rgb(var(--tone-amber-ink, 154 96 24)); filter: brightness(0.92); }
+.verb-btn-demo:disabled { opacity: 0.7; cursor: wait; }
+
+.demo-refresh-note { font-size: var(--text-sm); color: var(--schools-fg-2); margin: 0; }
+.demo-refresh-note.is-error { color: rgb(var(--tone-red)); }
 
 .verb-form { display: flex; align-items: center; gap: var(--space-2); }
 
