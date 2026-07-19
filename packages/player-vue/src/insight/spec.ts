@@ -246,4 +246,12 @@ export interface RateComparisonData {
   subjectIsViewer?: boolean
   levelNoun?: string
   cohortLabel?: string
+  // ── Time window (founder ruling 2026-07-19: the today/7d/30d/all-time ask
+  // resolves as an explicit WINDOW selector, not a new lens). The chip sets the
+  // period the rate is computed over AND the chart's x-span — headline and
+  // chart always obey the same window (honest-pace: idle time inside the
+  // window decays the rate). All optional; absent → the legacy 8-week read.
+  windowLabel?: string      // the applied chip's label, e.g. "Last 4 weeks"
+  trendLabel?: string       // honest chart caption, e.g. "Weekly · last 12 weeks"
+  trendPeriodDays?: number  // 1 | 7 | 30 — x-axis label spacing for RateTrend
 }
