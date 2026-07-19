@@ -515,7 +515,8 @@ function meanTrend(trends: number[][], dp: number): number[] {
 // getRateComparison — the one read the board makes. Total + deterministic.
 // `averageId` is a scope KIND from listAverages ('school', 'course', …);
 // anything unknown falls back to the NEAREST ancestor (the default).
-// `window` is one of WINDOW_OPTIONS ('week'|'4w'|'term'|'all'); it shapes the
+// `window` is one of WINDOW_OPTIONS ('today'|'7d'|'30d'|'all'; old values
+// alias forward); it shapes the
 // trend's point count + spacing (coherent per window×measure) and rides back
 // on the response as windowLabel/trendLabel/trendPeriodDays, mirroring the
 // real engine's contract.
