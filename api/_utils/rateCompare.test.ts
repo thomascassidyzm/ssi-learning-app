@@ -53,6 +53,19 @@ describe('windowPaceForClass', () => {
     expect(result.pace).toBe(21)
   })
 
+  it('decays the rate for a class that has gone quiet (denominator anchored to NOW)', () => {
+    // One burst 9 weeks ago: 18 legos in a week. The honest CURRENT rate is
+    // 18 / 9 weeks = 2/wk — not 18/wk. (This was the flat-trend-chart card
+    // headlining +88.9%: the old span-of-activity denominator ignored idle time.)
+    const rows: ScopedSessionRow[] = [
+      row({ start_ord: 1, end_ord: 10, started_at: new Date(NOW.getTime() - 63 * 86_400_000).toISOString() }),
+      row({ start_ord: 10, end_ord: 19, end_lego_id: 'S3L19', started_at: new Date(NOW.getTime() - 56 * 86_400_000).toISOString() }),
+    ]
+    const result = windowPaceForClass(rows, 'c1', 90, NOW)
+    expect(result.legosAdvanced).toBe(18)
+    expect(result.pace).toBe(2) // 18 / 9 weeks since first activity
+  })
+
   it('ignores rows outside the requested window', () => {
     const rows: ScopedSessionRow[] = [
       row({ start_ord: 1, end_ord: 50, end_lego_id: 'S5L50', started_at: new Date(NOW.getTime() - 200 * 86_400_000).toISOString() }),

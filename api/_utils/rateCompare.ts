@@ -6,10 +6,11 @@
  * split insight/data/coverage.ts already uses for the admin Coverage board.
  *
  * Rate of progress (LEGOs/week) = legos advanced over a window, divided by
- * the wall-clock span of activity in that window (floored at 1 day so a
- * single-session class doesn't divide by ~0) — identical math to
- * analytics_class_coverage / coverage.ts, just re-derived per caller-scoped
- * class instead of admin-wide.
+ * the span from FIRST activity in the window to NOW (floored at 1 day so a
+ * single-session class doesn't divide by ~0). Anchoring the denominator to
+ * now — not to the last session — keeps the headline honest for entities
+ * that have gone quiet: a burst 9 weeks ago decays instead of headlining a
+ * hero "per week" rate while the weekly trend chart truthfully reads ~0.
  */
 
 export interface ScopedSessionRow {
@@ -40,7 +41,7 @@ export interface WindowPace {
   furthestOrd: number // raw ordinal behind furthestLegoId — comparable across classes on the SAME course
 }
 
-/** Window-level pace for one class: legos advanced / weeks spanned, floored at 1 day. */
+/** Window-level pace for one class: legos advanced / weeks from first activity to NOW, floored at 1 day. */
 export function windowPaceForClass(
   rows: ScopedSessionRow[],
   classId: string,
@@ -55,7 +56,6 @@ export function windowPaceForClass(
   let furthestLegoId: string | null = null
   let earliestOrd = Infinity
   let firstAt = Infinity
-  let lastAt = -Infinity
 
   for (const r of own) {
     const endOrd = r.end_ord ?? 0
@@ -69,11 +69,11 @@ export function windowPaceForClass(
     earliestOrd = Math.min(earliestOrd, beginOrd)
     const t = new Date(r.started_at).getTime()
     firstAt = Math.min(firstAt, t)
-    lastAt = Math.max(lastAt, t)
   }
 
   const legosAdvanced = Math.max(furthestOrd - (earliestOrd === Infinity ? furthestOrd : earliestOrd), 0)
-  const weeks = Math.max((lastAt - firstAt) / MS_PER_WEEK, 1 / 7)
+  // Anchored to NOW: idle time since the last session counts against the rate.
+  const weeks = Math.max((now.getTime() - firstAt) / MS_PER_WEEK, 1 / 7)
   return { pace: round1(legosAdvanced / weeks), legosAdvanced, hasData: true, furthestLegoId, furthestOrd }
 }
 
