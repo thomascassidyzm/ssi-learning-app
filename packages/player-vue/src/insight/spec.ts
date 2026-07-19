@@ -232,6 +232,18 @@ export interface RateComparisonData {
   average: RateSeries
   deltaPct: number       // signed % the entity is above (+) / below (-) the average
   percentile: number     // 0..100 — the entity's rank within the cohort
-  contextLine?: string   // secondary position context, e.g. "Furthest LEGO · S38 · L02"
+  contextLine?: string   // secondary position context — the furthest LEGO's own content ("dw i eisiau" — "I want"), never raw S/L ids
   distribution: RateDistribution  // anonymised cohort shape — entity + average marked, NO other names
+  // ── Voice: every card speaks AS the selected entity (founder ruling 2026-07-19) ──
+  // `subject` = how the card names the entity; `subjectIsViewer` is true ONLY when
+  // the entity is the viewer's own learner identity — the sole case the card may
+  // say "You". `levelNoun` ("class") + `cohortLabel` ("classes in Gaelcholáiste
+  // Luimnigh") anchor the cohort copy. All optional; an absent subject falls back
+  // to entity.label — never to "You". `distribution.values` are the entity's
+  // SIBLINGS at its level within the ancestor scope (entity excluded), never the
+  // entity's own members.
+  subject?: string
+  subjectIsViewer?: boolean
+  levelNoun?: string
+  cohortLabel?: string
 }

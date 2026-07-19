@@ -42,9 +42,74 @@ const perLabel = computed(() => {
 const isPercent = computed(() => props.data.unit.trim() === '%')
 const valueSuffix = computed(() => (isPercent.value ? '%' : ''))
 
-// Caption tail after the entity-blue "YOU": "{average.label} · {unit} / {per}"
-// e.g. "YOU / COURSE AVG · LEGOs / WEEK" (uppercased via CSS).
+// Caption tail after the entity-blue subject: "{average.label} · {unit} / {per}"
+// e.g. "RANG A 1 v SCHOOL AVG · LEGOs / WEEK" (uppercased via CSS).
 const captionRest = computed(() => `${props.data.average.label} · ${perLabel.value}`)
+
+// ── Voice: the card speaks AS the selected entity ───────────────────────────
+// "You" is allowed ONLY when the entity is the viewer's own learner identity
+// (subjectIsViewer). Otherwise the subject is the entity's own name, and the
+// cohort copy anchors to its level ("Where this class sits · classes in …").
+const isViewer = computed(() => props.data.subjectIsViewer === true)
+const subject = computed(() =>
+  isViewer.value ? 'You' : (props.data.subject || props.data.entity.label))
+// Short form for the strip dot + legend, where the full name won't fit.
+const subjectShort = computed(() => {
+  if (isViewer.value) return 'You'
+  return props.data.levelNoun ? `This ${props.data.levelNoun}` : subject.value
+})
+const sitsLine = computed(() => {
+  const head = isViewer.value
+    ? 'Where you sit'
+    : `Where this ${props.data.levelNoun ?? 'entity'} sits`
+  const tail = props.data.cohortLabel
+    ?? `cohort of ${cohortTotal.value} (anonymised)`
+  return `${head} · ${tail}`
+})
+
+// ── Honest rank: siblings + the entity itself ───────────────────────────────
+// distribution.values are the entity's SIBLINGS (entity excluded); the cohort
+// the entity sits in is siblings + itself. With a tiny cohort a percentile is
+// dishonest ("100th pctl" of 3 classes) — below TINY_COHORT we say "1st of 3".
+const TINY_COHORT = 10
+const cohortTotal = computed(() => props.data.distribution.values.length + 1)
+const rank = computed(() =>
+  1 + props.data.distribution.values.filter((v) => v > props.data.distribution.entityValue).length)
+const useOrdinal = computed(() => cohortTotal.value < TINY_COHORT)
+function ordinal(n: number): string {
+  const rem10 = n % 10
+  const rem100 = n % 100
+  if (rem10 === 1 && rem100 !== 11) return `${n}st`
+  if (rem10 === 2 && rem100 !== 12) return `${n}nd`
+  if (rem10 === 3 && rem100 !== 13) return `${n}rd`
+  return `${n}th`
+}
+const rankChipLabel = computed(() =>
+  useOrdinal.value
+    ? `${ordinal(rank.value)} of ${cohortTotal.value}`
+    : `${ordinal(props.data.percentile)} pctl`)
+const cohortNoun = computed(() => {
+  const noun = props.data.levelNoun
+  if (!noun) return 'this cohort'
+  return noun === 'class' ? 'classes' : `${noun}s`
+})
+// Foot line: "This class ranks **1st of 3** classes in Gaelcholáiste Luimnigh."
+// or, for a large cohort, "You're at the **87th percentile** of this cohort."
+const rankFoot = computed(() => {
+  const noun = props.data.levelNoun ?? 'entity'
+  if (useOrdinal.value) {
+    return {
+      pre: isViewer.value ? 'You rank' : `This ${noun} ranks`,
+      strong: `${ordinal(rank.value)} of ${cohortTotal.value}`,
+      post: props.data.cohortLabel ?? cohortNoun.value,
+    }
+  }
+  return {
+    pre: isViewer.value ? "You're at the" : `This ${noun} is at the`,
+    strong: `${ordinal(props.data.percentile)} percentile`,
+    post: 'of this cohort',
+  }
+})
 
 // Format a rate value: integers plain, otherwise pick precision from magnitude
 // (sub-10 → 2dp for ratio-style metrics, else 1dp).
@@ -60,9 +125,12 @@ const deltaLabel = computed(() => {
   return `${sign}${Math.abs(d)}%`
 })
 
-// Percentile chip tone: top third good, mid neutral, bottom third warn.
+// Rank chip tone: top third good, mid neutral, bottom third warn. For tiny
+// cohorts the tone reads off the ordinal rank, not the (dishonest) percentile.
 const pctTone = computed(() => {
-  const p = props.data.percentile
+  const p = useOrdinal.value
+    ? Math.round(((cohortTotal.value - rank.value) / Math.max(cohortTotal.value - 1, 1)) * 100)
+    : props.data.percentile
   if (p >= 66) return 'good'
   if (p >= 33) return 'neutral'
   return 'warn'
@@ -137,7 +205,7 @@ const cohortTicks = computed<number[]>(() => {
             <span class="rc-value average">{{ fmt(data.average.value) }}{{ valueSuffix }}</span>
           </div>
           <span class="rc-stat-caption">
-            <span class="rc-cap-you">YOU</span> v {{ captionRest }}
+            <span class="rc-cap-you">{{ subject }}</span> v {{ captionRest }}
           </span>
         </div>
 
@@ -146,7 +214,7 @@ const cohortTicks = computed<number[]>(() => {
             <span class="rc-delta-arrow">{{ deltaUp ? '▲' : '▼' }}</span>
             {{ deltaLabel }}
           </span>
-          <span :class="['rc-pct-chip', pctTone]">{{ data.percentile }}th pctl</span>
+          <span :class="['rc-pct-chip', pctTone]">{{ rankChipLabel }}</span>
         </div>
       </header>
 
@@ -174,10 +242,10 @@ const cohortTicks = computed<number[]>(() => {
       <div class="rc-dist">
         <div class="rc-dist-head">
           <span class="rc-section-label">
-            Where you sit · cohort of {{ data.distribution.values.length }} (anonymised)
+            {{ sitsLine }}
           </span>
           <span class="rc-dist-legend">
-            <span class="rc-leg-item"><span class="rc-leg-dot you" /> You</span>
+            <span class="rc-leg-item"><span class="rc-leg-dot you" /> {{ subjectShort }}</span>
             <span class="rc-leg-item"><span class="rc-leg-line avg" /> {{ data.average.label }}</span>
           </span>
         </div>
@@ -201,10 +269,10 @@ const cohortTicks = computed<number[]>(() => {
           <div class="rc-strip-avg" :style="{ left: avgPos + '%' }">
             <span class="rc-strip-avg-cap">avg</span>
           </div>
-          <!-- YOU — the only named entity (the selected one) -->
+          <!-- The SUBJECT — the only named entity (the selected one) -->
           <div class="rc-strip-you" :style="{ left: youPos + '%' }">
             <span class="rc-strip-you-dot" />
-            <span class="rc-strip-you-cap">You · {{ fmt(data.distribution.entityValue) }}</span>
+            <span class="rc-strip-you-cap">{{ subjectShort }} · {{ fmt(data.distribution.entityValue) }}</span>
           </div>
         </div>
 
@@ -218,7 +286,7 @@ const cohortTicks = computed<number[]>(() => {
         </div>
 
         <p class="rc-dist-foot">
-          You're at the <strong>{{ data.percentile }}th percentile</strong> of this cohort.
+          {{ rankFoot.pre }} <strong>{{ rankFoot.strong }}</strong> {{ rankFoot.post }}.
         </p>
       </div>
 
