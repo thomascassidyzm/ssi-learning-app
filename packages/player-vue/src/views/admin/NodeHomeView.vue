@@ -147,12 +147,21 @@ async function copyInvite(): Promise<void> {
   } catch { /* clipboard unavailable */ }
 }
 
-const analyticsLink = computed(() => {
+// THE LENS: "See insights" on every node — the Insight Engine opens scoped to
+// THIS node, parent's average as the default mirror (docs/THE-VIEW.md sibling).
+const insightsLink = computed(() => {
   const n = home.value?.node
   if (!n) return null
-  if (isClass.value) return home.value?.schoolId ? `/admin/schools/${home.value.schoolId}/classes/${n.id}` : null
+  if (isClass.value) return `/admin/classes/${n.id}/insights`
   if (n.commercial?.schoolId) return `/admin/schools/${n.commercial.schoolId}/analytics`
   return `/admin/groups/${n.id}/analytics`
+})
+
+// Class level keeps its rich tools (roster, settings) one tap away.
+const classToolsLink = computed(() => {
+  const n = home.value?.node
+  if (!n || !isClass.value) return null
+  return home.value?.schoolId ? `/admin/schools/${home.value.schoolId}/classes/${n.id}` : null
 })
 
 const structureLink = computed(() => '/admin/structure')
@@ -207,9 +216,8 @@ const listPayload = computed(() => {
             <!-- VERBS — same corner, every level -->
             <div class="verbs">
               <button v-if="!isClass" type="button" class="verb-btn" @click="showInvite = !showInvite">Invite someone</button>
-              <router-link v-if="analyticsLink" :to="analyticsLink" class="verb-btn verb-btn-secondary">
-                {{ isClass ? 'Class tools' : 'See analytics' }}
-              </router-link>
+              <router-link v-if="insightsLink" :to="insightsLink" class="verb-btn verb-btn-secondary">See insights</router-link>
+              <router-link v-if="classToolsLink" :to="classToolsLink" class="verb-btn verb-btn-secondary">Class tools</router-link>
               <router-link v-if="!isClass" :to="structureLink" class="verb-btn verb-btn-secondary">Quick actions</router-link>
             </div>
           </header>

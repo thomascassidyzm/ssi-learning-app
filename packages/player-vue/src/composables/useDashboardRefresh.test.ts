@@ -15,7 +15,7 @@ async function fresh() {
   return (await import('./useDashboardRefresh')).useDashboardRefresh()
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.restoreAllMocks() })
 
 describe('useDashboardRefresh', () => {
   it('exposes no handler until one registers, and drops it on scope dispose', async () => {

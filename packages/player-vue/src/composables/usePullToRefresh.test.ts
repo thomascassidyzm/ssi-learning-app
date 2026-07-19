@@ -14,7 +14,7 @@ beforeEach(() => {
   ;(window as unknown as { ontouchstart: null }).ontouchstart = null
   vi.resetModules()
 })
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => { vi.restoreAllMocks() })
 
 function touchEvent(type: string, x: number, y: number): Event {
   const e = new Event(type, { cancelable: true, bubbles: true }) as Event & {

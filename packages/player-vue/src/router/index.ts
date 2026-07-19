@@ -42,7 +42,9 @@ const TeachersView = () => import('@/views/schools/TeachersView.vue')
 const StudentsView = () => import('@/views/schools/StudentsView.vue')
 const TeacherDashboard = () => import('@/views/schools/TeacherDashboard.vue')
 const ClassDetail = () => import('@/views/schools/ClassDetail.vue')
-const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
+// THE LENS: the node-scoped Insight Engine — mounted at the old analytics
+// URLs (the URLs live, the old-school analytics page died).
+const NodeInsightsView = () => import('@/views/admin/NodeInsightsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
@@ -509,8 +511,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'analytics',
         name: 'admin-school-analytics',
-        component: AnalyticsView,
-        meta: { title: 'School Analytics' },
+        component: NodeInsightsView,
+        meta: { title: 'School Insights', description: 'The Insight Engine scoped to this school' },
       },
     ],
   },
@@ -537,8 +539,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'analytics',
         name: 'admin-group-analytics',
-        component: AnalyticsView,
-        meta: { title: 'Group Analytics' },
+        component: NodeInsightsView,
+        meta: { title: 'Group Insights', description: 'The Insight Engine scoped to this group' },
       },
     ],
   },
@@ -552,6 +554,13 @@ const routes: RouteRecordRaw[] = [
     name: 'admin-class-detail',
     component: () => import('@/views/admin/AdminClassHome.vue'),
     meta: { title: 'Class Home (Admin)' },
+  },
+  {
+    // THE LENS at class level — "See insights" on a class node home.
+    path: '/admin/classes/:id/insights',
+    name: 'admin-class-insights',
+    component: () => import('@/views/admin/AdminClassInsights.vue'),
+    meta: { title: 'Class Insights (Admin)' },
   },
   {
     path: '/admin/users/:learnerId/progress',
