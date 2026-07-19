@@ -112,14 +112,15 @@ describe('verifyAdmin', () => {
     // no longer carries an admin role.
     learnerResult = { data: { platform_role: null, educational_role: null }, error: null }
     const result = await verifyAdmin(makeReq('Bearer still-valid-token'))
-    expect(result).toEqual({ error: 'Requires SSi admin access', status: 403 })
+    // The 403 carries the verified uid so non-admin doors can reuse it.
+    expect(result).toEqual({ error: 'Requires SSi admin access', status: 403, userId: 'was-admin' })
   })
 
   it('403s when the caller has no learner row (PGRST116)', async () => {
     getUserResult = { data: { user: { id: 'ghost' } }, error: null }
     learnerResult = { data: null, error: { code: 'PGRST116' } }
     const result = await verifyAdmin(makeReq('Bearer good-token'))
-    expect(result).toEqual({ error: 'Requires SSi admin access', status: 403 })
+    expect(result).toEqual({ error: 'Requires SSi admin access', status: 403, userId: 'ghost' })
   })
 
   it('500s (never silently denies) on a transient lookup error — no false lockout', async () => {

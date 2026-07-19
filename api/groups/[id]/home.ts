@@ -55,14 +55,14 @@ function inSubtree(path: string | null | undefined, rootPath: string): boolean {
 /** Learner display names for a set of auth uids, via learners.user_id. */
 async function namesForAuthUids(svc: SupabaseClient, uids: string[]): Promise<Map<string, string>> {
   const names = new Map<string, string>()
-  for (const batch of chunk(uids)) {
+  await Promise.all(chunk(uids).map(async (batch) => {
     const { data } = await svc.from('learners').select('user_id, display_name').in('user_id', batch)
     for (const l of data ?? []) {
       const uid = (l as any).user_id as string
       // Multiple learner accounts per person are intentional — first name wins.
       if (!names.has(uid)) names.set(uid, (l as any).display_name || 'Unnamed')
     }
-  }
+  }))
   return names
 }
 
@@ -76,51 +76,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return
   }
   const svc = createClient(supabaseUrl, supabaseServiceKey)
-  const caller = await resolveGroupTreeCaller(req, res, svc)
-  if (!caller) return
 
   const rawId = String(req.query.id || '')
   const lens = typeof req.query.lens === 'string' ? req.query.lens : null
 
   try {
-    // ─── Resolve :id → a group node (or a class) ───
+    // ─── One opening wave: auth + all three :id interpretations + the forest
+    // map every later step needs (the serial version paid one DB round trip
+    // per await — with the DB an ocean away that was most of the latency). ───
+    const [caller, { data: asGroup }, { data: asSchool }, { data: asClass }, { data: allGroupsData }] = await Promise.all([
+      resolveGroupTreeCaller(req, res, svc),
+      svc.from('groups').select('id').eq('id', rawId).maybeSingle(),
+      svc.from('schools').select('id, school_name, group_id, node_group_id, is_demo, is_test').eq('id', rawId).maybeSingle(),
+      svc.from('classes').select('id, class_name, course_code, school_id, group_id, teacher_user_id, current_seed').eq('id', rawId).maybeSingle(),
+      svc.from('groups').select('id, name, type, parent_id, path, is_demo, is_test'),
+    ])
+    if (!caller) return
+
+    // ─── Resolve :id → a group node (or a class), same precedence as before ───
     let nodeId: string | null = null
     let classRow: { id: string; class_name: string; course_code: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null; current_seed: number | null } | null = null
 
-    const { data: asGroup } = await svc.from('groups').select('id').eq('id', rawId).maybeSingle()
     if (asGroup) {
       nodeId = rawId
-    } else {
-      const { data: asSchool } = await svc
-        .from('schools')
-        .select('id, school_name, group_id, node_group_id, is_demo, is_test')
-        .eq('id', rawId)
-        .maybeSingle()
-      if (asSchool) {
-        nodeId = (asSchool as any).node_group_id
-          || (await ensureSchoolNode(svc, asSchool as any, { is_demo: (asSchool as any).is_demo, is_test: (asSchool as any).is_test }))
-      } else {
-        const { data: asClass } = await svc
-          .from('classes')
-          .select('id, class_name, course_code, school_id, group_id, teacher_user_id, current_seed')
-          .eq('id', rawId)
+    } else if (asSchool) {
+      nodeId = (asSchool as any).node_group_id
+        || (await ensureSchoolNode(svc, asSchool as any, { is_demo: (asSchool as any).is_demo, is_test: (asSchool as any).is_test }))
+    } else if (asClass) {
+      classRow = asClass as any
+      if (classRow!.school_id) {
+        const { data: sch } = await svc
+          .from('schools')
+          .select('id, school_name, group_id, node_group_id, is_demo, is_test')
+          .eq('id', classRow!.school_id)
           .maybeSingle()
-        if (asClass) {
-          classRow = asClass as any
-          if (classRow!.school_id) {
-            const { data: sch } = await svc
-              .from('schools')
-              .select('id, school_name, group_id, node_group_id, is_demo, is_test')
-              .eq('id', classRow!.school_id)
-              .maybeSingle()
-            if (sch) {
-              nodeId = (sch as any).node_group_id
-                || (await ensureSchoolNode(svc, sch as any, { is_demo: (sch as any).is_demo, is_test: (sch as any).is_test }))
-            }
-          }
-          if (!nodeId && classRow!.group_id) nodeId = classRow!.group_id
+        if (sch) {
+          nodeId = (sch as any).node_group_id
+            || (await ensureSchoolNode(svc, sch as any, { is_demo: (sch as any).is_demo, is_test: (sch as any).is_test }))
         }
       }
+      if (!nodeId && classRow!.group_id) nodeId = classRow!.group_id
     }
     if (!nodeId) {
       res.status(404).json({ error: 'Not found' })
@@ -131,10 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
-    // ─── Forest maps (one small fetch, like groupRollups) ───
-    const { data: allGroupsData } = await svc
-      .from('groups')
-      .select('id, name, type, parent_id, path, is_demo, is_test')
+    // ─── Forest maps (already fetched in the opening wave) ───
     const allGroups = (allGroupsData ?? []) as GroupRow[]
     const byId = new Map(allGroups.map((g) => [g.id, g]))
     const nodeRow = byId.get(nodeId)
@@ -150,17 +142,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       : [nodeId]
     const subtreeIdSet = new Set(subtreeIds)
 
+    const childRows = allGroups
+      .filter((g) => g.parent_id === nodeId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    // ─── Subtree schools + node/children rollups (the same shared resolver,
+    // fed the forest already in hand) + practice hours: ONE concurrent wave.
+    // Practice hours chains off the schools fetch it needs. ───
     const schoolRows: { id: string; school_name: string; node_group_id: string | null; group_id: string | null }[] = []
     const seenSchoolIds = new Set<string>()
-    for (const batch of chunk(subtreeIds)) {
-      const [{ data: byNode }, { data: byParent }] = await Promise.all([
-        svc.from('schools').select('id, school_name, node_group_id, group_id').in('node_group_id', batch),
-        svc.from('schools').select('id, school_name, node_group_id, group_id').in('group_id', batch),
-      ])
-      for (const s of [...(byNode ?? []), ...(byParent ?? [])]) {
-        if (!seenSchoolIds.has((s as any).id)) { seenSchoolIds.add((s as any).id); schoolRows.push(s as any) }
+    const schoolsPromise = Promise.all(chunk(subtreeIds).flatMap((batch) => [
+      svc.from('schools').select('id, school_name, node_group_id, group_id').in('node_group_id', batch),
+      svc.from('schools').select('id, school_name, node_group_id, group_id').in('group_id', batch),
+    ])).then((results) => {
+      for (const { data } of results) {
+        for (const s of data ?? []) {
+          if (!seenSchoolIds.has((s as any).id)) { seenSchoolIds.add((s as any).id); schoolRows.push(s as any) }
+        }
       }
-    }
+    })
+    const practiceHoursPromise = schoolsPromise.then(async () => {
+      let hours = 0
+      await Promise.all(chunk(schoolRows.map((s) => s.id)).map(async (batch) => {
+        const { data } = await svc.from('school_summary').select('school_id, total_practice_hours').in('school_id', batch)
+        for (const r of data ?? []) hours += Number((r as any).total_practice_hours) || 0
+      }))
+      return hours
+    })
+    const [, extras, practiceHours] = await Promise.all([
+      schoolsPromise,
+      computeNodeExtras(svc, [nodeId, ...childRows.map((c) => c.id)], allGroups),
+      practiceHoursPromise,
+    ])
     const schoolNodeIds = new Set(schoolRows.map((s) => s.node_group_id).filter(Boolean) as string[])
     const subtreeSchoolIds = schoolRows.map((s) => s.id)
 
@@ -190,23 +203,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           .map((g) => toRef(g, schoolNodeIds))
       : []
 
-    const childRows = allGroups
-      .filter((g) => g.parent_id === nodeId)
-      .sort((a, b) => a.name.localeCompare(b.name))
-
-    // ─── Rollups: node + direct children (the same shared resolver). ───
-    const extras = await computeNodeExtras(svc, [nodeId, ...childRows.map((c) => c.id)])
     const withExtras = (g: GroupRow) => {
       const ex: NodeExtras = extras[g.id] || { rollup: { childGroupCount: 0, teacherCount: 0, classCount: 0, learnerCount: 0 }, commercial: null }
       return { ...toRef(g, schoolNodeIds), is_test: g.is_test, rollup: ex.rollup, commercial: ex.commercial }
-    }
-
-    // ─── Practice hours: subtree school_summary sum (incl. staff) — the same
-    // number the old group dashboard told. ───
-    let practiceHours = 0
-    for (const batch of chunk(subtreeSchoolIds)) {
-      const { data } = await svc.from('school_summary').select('school_id, total_practice_hours').in('school_id', batch)
-      for (const r of data ?? []) practiceHours += Number((r as any).total_practice_hours) || 0
     }
 
     // ─── Class kind — leaf home: teachers (read-only, co-teacher view) +
@@ -223,35 +222,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ])
       const teacherIds = new Set<string>((ct ?? []).map((t: any) => t.teacher_user_id))
       if (classRow.teacher_user_id) teacherIds.add(classRow.teacher_user_id)
-      const teacherNames = await namesForAuthUids(svc, [...teacherIds])
-      const teachers = [...teacherIds].map((uid) => ({
-        user_id: uid,
-        name: teacherNames.get(uid) || 'Unnamed',
-        is_lead: uid === classRow!.teacher_user_id || (ct ?? []).some((t: any) => t.teacher_user_id === uid && t.is_lead),
-      })).sort((a, b) => Number(b.is_lead) - Number(a.is_lead) || a.name.localeCompare(b.name))
 
-      // Per-student daily activity (last 14 days) from the player_events-derived
-      // rollup — the same source StudentProgressView used — for streaks + the
-      // last-7-days spark in the in-place student expansion.
+      // Second wave — teacher names, per-student daily activity (last 14 days,
+      // player_events-derived, same source StudentProgressView used) and the
+      // benchmark demographics all only need wave 1: run them together.
       const learnerIds = (csp ?? []).map((s: any) => s.learner_id).filter(Boolean)
       const since = new Date()
       since.setDate(since.getDate() - 14)
       const sinceDay = since.toISOString().split('T')[0]
       const secondsByLearnerDay = new Map<string, Map<string, number>>()
-      for (const batch of chunk(learnerIds)) {
-        const { data } = await svc
-          .from('learner_speaking_opportunities')
-          .select('learner_id, day, play_seconds')
-          .in('learner_id', batch)
-          .gte('day', sinceDay)
-        for (const r of data ?? []) {
-          const lid = (r as any).learner_id as string
-          const day = String((r as any).day)
-          if (!secondsByLearnerDay.has(lid)) secondsByLearnerDay.set(lid, new Map())
-          const m = secondsByLearnerDay.get(lid)!
-          m.set(day, (m.get(day) || 0) + (Number((r as any).play_seconds) || 0))
-        }
-      }
+      const [teacherNames, , { data: demographics }] = await Promise.all([
+        namesForAuthUids(svc, [...teacherIds]),
+        Promise.all(chunk(learnerIds).map(async (batch) => {
+          const { data } = await svc
+            .from('learner_speaking_opportunities')
+            .select('learner_id, day, play_seconds')
+            .in('learner_id', batch)
+            .gte('day', sinceDay)
+          for (const r of data ?? []) {
+            const lid = (r as any).learner_id as string
+            const day = String((r as any).day)
+            if (!secondsByLearnerDay.has(lid)) secondsByLearnerDay.set(lid, new Map())
+            const m = secondsByLearnerDay.get(lid)!
+            m.set(day, (m.get(day) || 0) + (Number((r as any).play_seconds) || 0))
+          }
+        })),
+        classStats
+          ? svc
+              .from('demographic_cycle_averages')
+              .select('level, group_id, avg_cycles_per_session')
+              .in('level', ['school', 'course'])
+              .in('group_id', [(classStats as any).school_id, (classStats as any).course_code].filter(Boolean))
+          : Promise.resolve({ data: null as any[] | null }),
+      ])
+      const teachers = [...teacherIds].map((uid) => ({
+        user_id: uid,
+        name: teacherNames.get(uid) || 'Unnamed',
+        is_lead: uid === classRow!.teacher_user_id || (ct ?? []).some((t: any) => t.teacher_user_id === uid && t.is_lead),
+      })).sort((a, b) => Number(b.is_lead) - Number(a.is_lead) || a.name.localeCompare(b.name))
       const dayKey = (offset: number): string => {
         const d = new Date()
         d.setDate(d.getDate() - offset)
@@ -302,11 +310,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       if (classStats) {
         const activeStudents = Number((classStats as any).active_students) || students.length || 1
         const classMin = Math.round((Number((classStats as any).total_practice_seconds) || 0) / 60 / Math.max(1, activeStudents))
-        const { data: demographics } = await svc
-          .from('demographic_cycle_averages')
-          .select('level, group_id, avg_cycles_per_session')
-          .in('level', ['school', 'course'])
-          .in('group_id', [(classStats as any).school_id, (classStats as any).course_code].filter(Boolean))
         const avgFor = (level: string, groupId: string | null): number => {
           const d = (demographics ?? []).find((r: any) => r.level === level && r.group_id === groupId)
           return d ? Math.round((Number((d as any).avg_cycles_per_session) || 0) * 0.6) : 0
@@ -353,7 +356,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const descendants = allGroups
         .filter((g) => subtreeIdSet.has(g.id) && g.id !== nodeId)
         .sort((a, b) => (a.path || '').localeCompare(b.path || ''))
-      const descExtras = await computeNodeExtras(svc, descendants.map((d) => d.id))
+      const descExtras = await computeNodeExtras(svc, descendants.map((d) => d.id), allGroups)
       lensPayload = {
         groups: descendants.map((g) => ({
           ...toRef(g, schoolNodeIds),
@@ -364,25 +367,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         })),
       }
     } else if (lens === 'schools') {
+      // Summaries + teacher tags only need school ids — one parallel wave.
       const summaries = new Map<string, any>()
-      for (const batch of chunk(subtreeSchoolIds)) {
-        const { data } = await svc.from('school_summary').select('*').in('school_id', batch)
-        for (const r of data ?? []) summaries.set((r as any).school_id, r)
-      }
-      // Teachers per school (names, for the "with teachers" lens promise).
       const teacherUidsBySchool = new Map<string, Set<string>>()
-      for (const batch of chunk(subtreeSchoolIds)) {
-        const { data } = await svc
-          .from('user_tags')
-          .select('tag_value, user_id')
-          .eq('tag_type', 'school').eq('role_in_context', 'teacher').is('removed_at', null)
-          .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
-        for (const t of data ?? []) {
-          const sid = ((t as any).tag_value as string).replace('SCHOOL:', '')
-          if (!teacherUidsBySchool.has(sid)) teacherUidsBySchool.set(sid, new Set())
-          teacherUidsBySchool.get(sid)!.add((t as any).user_id)
-        }
-      }
+      await Promise.all([
+        ...chunk(subtreeSchoolIds).map(async (batch) => {
+          const { data } = await svc.from('school_summary').select('*').in('school_id', batch)
+          for (const r of data ?? []) summaries.set((r as any).school_id, r)
+        }),
+        // Teachers per school (names, for the "with teachers" lens promise).
+        ...chunk(subtreeSchoolIds).map(async (batch) => {
+          const { data } = await svc
+            .from('user_tags')
+            .select('tag_value, user_id')
+            .eq('tag_type', 'school').eq('role_in_context', 'teacher').is('removed_at', null)
+            .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
+          for (const t of data ?? []) {
+            const sid = ((t as any).tag_value as string).replace('SCHOOL:', '')
+            if (!teacherUidsBySchool.has(sid)) teacherUidsBySchool.set(sid, new Set())
+            teacherUidsBySchool.get(sid)!.add((t as any).user_id)
+          }
+        }),
+      ])
       const allUids = [...new Set([...teacherUidsBySchool.values()].flatMap((s) => [...s]))]
       const names = await namesForAuthUids(svc, allUids)
       lensPayload = {
@@ -402,48 +408,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         }).sort((a, b) => b.practiceHours - a.practiceHours),
       }
     } else if (lens === 'teachers' || lens === 'classes') {
-      // Subtree classes: node-attached (group_id) ∪ legacy school-attached.
+      // Subtree classes: node-attached (group_id) ∪ legacy school-attached —
+      // both arms of the union in one parallel wave, plus (teachers lens) the
+      // school/group teacher tags that don't need class ids.
       const classes: { id: string; class_name: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null }[] = []
       const seenClassIds = new Set<string>()
       const addClasses = (rows: any[] | null) => {
         for (const c of rows ?? []) if (!seenClassIds.has(c.id)) { seenClassIds.add(c.id); classes.push(c) }
       }
-      for (const batch of chunk(subtreeIds)) {
-        const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id').in('group_id', batch).eq('is_active', true)
-        addClasses(data)
-      }
-      for (const batch of chunk(subtreeSchoolIds)) {
-        const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id').in('school_id', batch).eq('is_active', true)
-        addClasses(data)
-      }
+      const taggedTeacherUids = new Set<string>()
+      await Promise.all([
+        ...chunk(subtreeIds).map(async (batch) => {
+          const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id').in('group_id', batch).eq('is_active', true)
+          addClasses(data)
+        }),
+        ...chunk(subtreeSchoolIds).map(async (batch) => {
+          const { data } = await svc.from('classes').select('id, class_name, school_id, group_id, teacher_user_id').in('school_id', batch).eq('is_active', true)
+          addClasses(data)
+        }),
+        ...(lens === 'teachers'
+          ? [
+              ...chunk(subtreeSchoolIds).map(async (batch) => {
+                const { data } = await svc
+                  .from('user_tags').select('user_id')
+                  .eq('tag_type', 'school').eq('role_in_context', 'teacher').is('removed_at', null)
+                  .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
+                for (const t of data ?? []) taggedTeacherUids.add((t as any).user_id)
+              }),
+              ...chunk(subtreeIds).map(async (batch) => {
+                const { data } = await svc
+                  .from('user_tags').select('user_id')
+                  .eq('tag_type', 'group').eq('role_in_context', 'teacher').is('removed_at', null)
+                  .in('tag_value', batch.map((id) => `GROUP:${id}`))
+                for (const t of data ?? []) taggedTeacherUids.add((t as any).user_id)
+              }),
+            ]
+          : []),
+      ])
       const classIds = classes.map((c) => c.id)
 
-      // Teacher↔class from the source of truth, lead pointer unioned in.
+      // Teacher↔class (source of truth) + students/hours per class — both only
+      // need class ids: one parallel wave.
       const teachersByClass = new Map<string, Set<string>>()
-      for (const batch of chunk(classIds)) {
-        const { data } = await svc.from('class_teachers').select('class_id, teacher_user_id').in('class_id', batch)
-        for (const t of data ?? []) {
-          const cid = (t as any).class_id as string
-          if (!teachersByClass.has(cid)) teachersByClass.set(cid, new Set())
-          teachersByClass.get(cid)!.add((t as any).teacher_user_id)
-        }
-      }
+      const studentCountByClass = new Map<string, number>()
+      const hoursByClass = new Map<string, number>()
+      await Promise.all([
+        ...chunk(classIds).map(async (batch) => {
+          const { data } = await svc.from('class_teachers').select('class_id, teacher_user_id').in('class_id', batch)
+          for (const t of data ?? []) {
+            const cid = (t as any).class_id as string
+            if (!teachersByClass.has(cid)) teachersByClass.set(cid, new Set())
+            teachersByClass.get(cid)!.add((t as any).teacher_user_id)
+          }
+        }),
+        ...chunk(classIds).map(async (batch) => {
+          const { data } = await svc.from('class_student_progress').select('class_id, total_practice_seconds').in('class_id', batch)
+          for (const r of data ?? []) {
+            const cid = (r as any).class_id as string
+            studentCountByClass.set(cid, (studentCountByClass.get(cid) || 0) + 1)
+            hoursByClass.set(cid, (hoursByClass.get(cid) || 0) + (Number((r as any).total_practice_seconds) || 0) / 3600)
+          }
+        }),
+      ])
+      // Lead pointer unioned in after the wave.
       for (const c of classes) {
         if (c.teacher_user_id) {
           if (!teachersByClass.has(c.id)) teachersByClass.set(c.id, new Set())
           teachersByClass.get(c.id)!.add(c.teacher_user_id)
-        }
-      }
-
-      // Students + hours per class.
-      const studentCountByClass = new Map<string, number>()
-      const hoursByClass = new Map<string, number>()
-      for (const batch of chunk(classIds)) {
-        const { data } = await svc.from('class_student_progress').select('class_id, total_practice_seconds').in('class_id', batch)
-        for (const r of data ?? []) {
-          const cid = (r as any).class_id as string
-          studentCountByClass.set(cid, (studentCountByClass.get(cid) || 0) + 1)
-          hoursByClass.set(cid, (hoursByClass.get(cid) || 0) + (Number((r as any).total_practice_seconds) || 0) / 3600)
         }
       }
 
@@ -465,23 +496,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           })).sort((a, b) => (a.home || '').localeCompare(b.home || '') || a.name.localeCompare(b.name)),
         }
       } else {
-        // teachers lens: every teacher below (school + group tags), with
-        // their classes in this subtree.
-        const teacherUids = new Set<string>()
-        for (const batch of chunk(subtreeSchoolIds)) {
-          const { data } = await svc
-            .from('user_tags').select('user_id')
-            .eq('tag_type', 'school').eq('role_in_context', 'teacher').is('removed_at', null)
-            .in('tag_value', batch.map((id) => `SCHOOL:${id}`))
-          for (const t of data ?? []) teacherUids.add((t as any).user_id)
-        }
-        for (const batch of chunk(subtreeIds)) {
-          const { data } = await svc
-            .from('user_tags').select('user_id')
-            .eq('tag_type', 'group').eq('role_in_context', 'teacher').is('removed_at', null)
-            .in('tag_value', batch.map((id) => `GROUP:${id}`))
-          for (const t of data ?? []) teacherUids.add((t as any).user_id)
-        }
+        // teachers lens: every teacher below (school + group tags, fetched in
+        // the first wave), with their classes in this subtree.
+        const teacherUids = new Set<string>(taggedTeacherUids)
         for (const uids of teachersByClass.values()) for (const uid of uids) teacherUids.add(uid)
 
         const classesByTeacher = new Map<string, { id: string; name: string; home: string | null }[]>()
