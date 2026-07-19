@@ -11567,7 +11567,27 @@ onMounted(async () => {
           // Instant-playback failed for some reason (backend 500,
           // round map not refreshed, etc.). Fall through to the
           // legacy load — that's our safety net, exactly as designed.
-          console.warn('[InstantPlayback] Cutover path failed, falling back to legacy:', err)
+          const status = (err as { status?: number } | null)?.status
+          if (status === 403) {
+            // An entitlement 403 here is NOT a benign degrade — it means a
+            // learner who SHOULD get the fast path is being dropped onto the
+            // slow legacy walk. This is exactly the silent regression class
+            // d4396730 introduced. Make it LOUD (error, not warn) and record
+            // it in player_events so it's visible in telemetry, not just the
+            // console.
+            console.error(
+              '[InstantPlayback] ENTITLEMENT 403 → degrading to slow legacy walk. ' +
+              'Signed-in paid learner denied the fast path (auth token likely not ' +
+              'reaching the server, or a genuine entitlement gap).', err,
+            )
+            logEvent('instant_playback_entitlement_fallback', {
+              courseCode: courseCode.value,
+              guest: isGuestLearner.value,
+              mode: inferEnrollmentMode,
+            })
+          } else {
+            console.warn('[InstantPlayback] Cutover path failed, falling back to legacy:', err)
+          }
         }
       }
 
