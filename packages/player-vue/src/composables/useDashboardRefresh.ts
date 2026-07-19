@@ -99,6 +99,18 @@ function registerRefresh(
   return unregister
 }
 
+/**
+ * Stamp "Updated now" after a successful data load that ran OUTSIDE `refresh()`.
+ * Pages whose loads are driven by route/prop watches can't route them through
+ * `refresh()` (it drops calls while one is in flight — fatal for rapid drill
+ * navigation), so they register with `immediate: false`, run their own loader,
+ * and call this at the loader's success point. Only ever call on success —
+ * a failed load must never look fresh.
+ */
+function markUpdated(): void {
+  lastUpdated.value = new Date()
+}
+
 export function useDashboardRefresh() {
   return {
     isRefreshing: readonly(isRefreshing),
@@ -107,5 +119,6 @@ export function useDashboardRefresh() {
     hasHandler,
     registerRefresh,
     refresh,
+    markUpdated,
   }
 }

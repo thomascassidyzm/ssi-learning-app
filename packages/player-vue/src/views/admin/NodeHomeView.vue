@@ -61,6 +61,7 @@ async function fetchHome(): Promise<void> {
     const data = await resp.json().catch(() => ({}))
     if (!resp.ok) throw new Error(data.error || 'Failed to load')
     home.value = data
+    markUpdated()
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load'
   } finally {
@@ -75,7 +76,10 @@ async function fetchHome(): Promise<void> {
 // surface's still-running refresh swallow this page's only load when the
 // admin containers re-gate and remount as auth resolves (same wedge fixed in
 // NodeRateEngine, seen live on deployed dev).
-const { registerRefresh } = useDashboardRefresh()
+// Because loads bypass refresh(), fetchHome stamps the "Updated" marker itself
+// (markUpdated on success) — otherwise the stamp stays blank until the first
+// manual refresh, which is exactly the staleness-honesty gap it exists to close.
+const { registerRefresh, markUpdated } = useDashboardRefresh()
 registerRefresh(fetchHome, { immediate: false })
 
 watch(

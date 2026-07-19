@@ -432,7 +432,11 @@ principle NoAutoRefreshOneAffordance:
     One shared singleton composable, composables/useDashboardRefresh.ts. Each
     dashboard page registers its loader (registerRefresh, auto-cleaned on
     unmount) and routes its INITIAL load through the same refresh() so the
-    spinner + timestamp are honest from first paint. components/shared/
+    spinner + timestamp are honest from first paint. Exception: pages whose
+    loads are driven by route/prop watches (NodeHomeView, NodeRateEngine)
+    bypass refresh() — its in-flight guard would drop rapid drill navigations —
+    and instead call markUpdated() at their loader's success point so the
+    stamp is still honest from the first load. components/shared/
     RefreshButton.vue (in SchoolsTopBar + AdminTopBar, renders only where a
     loader is registered), UpdatedStamp.vue (reads the shared timestamp), and
     usePullToRefresh.ts (wired at the container scroll root) all drive the one
