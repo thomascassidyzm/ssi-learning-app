@@ -165,4 +165,20 @@ describe('refreshDemoNodeActivity — replace + recency shape', () => {
     const maxSeedRow = Math.max(...seedRows.map((r: any) => parseInt((r.seed_id as string).slice(1), 10)))
     expect(maxSeedRow).toBe(patch.highest_completed_seed)
   })
+
+  it('class sessions form an ADVANCING arc ending at current_seed, latest landing now-ish — never a flat range that rolls the rate to zero', async () => {
+    const log = emptyLog()
+    await refreshDemoNodeActivity(makeSupabase(makeDb(), log), 'g-demo', 'admin-1')
+    const cs = log.inserts.filter((i) => i.table === 'class_sessions').flatMap((i) => i.rows)
+      .sort((a: any, b: any) => (a.started_at as string).localeCompare(b.started_at as string))
+    expect(cs.length).toBeGreaterThanOrEqual(8)
+    const seedOf = (id: string) => parseInt(id.slice(1, 5), 10)
+    const newest = cs[cs.length - 1] as any
+    const oldest = cs[0] as any
+    // Ends at the class's current seed (25), started meaningfully below it.
+    expect(seedOf(newest.end_lego_id)).toBe(25)
+    expect(seedOf(oldest.end_lego_id)).toBeLessThan(25 - 3)
+    // Latest teacher session is recent (within ~3 days of now).
+    expect(Date.now() - new Date(newest.started_at).getTime()).toBeLessThan(3 * 86400000)
+  })
 })

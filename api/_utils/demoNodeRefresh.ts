@@ -268,21 +268,40 @@ export async function refreshDemoNodeActivity(
     })
   }
 
-  // Teacher-led class sessions — recent weeks, so class-level charts move too.
+  // Teacher-led class sessions — the SOURCE of school/class rate-of-progress
+  // (analytics_class_sessions_scoped reads start→end LEGO ordinals from
+  // class_sessions). The arc must ADVANCE session by session and END at the
+  // class's current seed with the latest session landing today — a fixed
+  // start/end range would roll the weekly rate down to zero at "now" (the
+  // burst-then-dead shape this whole verb exists to kill).
   const classSessionRows: Record<string, unknown>[] = []
   for (const cls of classes) {
-    const nCs = between(6, 12)
+    const nCs = between(8, 14)
+    // Spread over ~5 weeks, oldest → newest, latest today: steady cadence
+    // (2-4 days apart with jitter), so the rolling weekly rate stays alive.
+    const offsets: number[] = [0]
+    let acc = 0
+    for (let k = 1; k < nCs; k++) {
+      acc += between(2, 4)
+      offsets.push(Math.min(acc, 38))
+    }
+    const arcSeeds = Math.min(cls.currentSeed - 1, between(6, 10)) // seeds covered across the arc
+    const arcStartSeed = Math.max(1, cls.currentSeed - arcSeeds)
     for (let k = 0; k < nCs; k++) {
-      const dayOff = recentWeightedDayOffset(28)
-      const dayStart = now - dayOff * DAY - 12 * 3600000
-      const st = weekdayTimestamp(Math.max(windowStart, dayStart), Math.min(now, dayStart + 12 * 3600000))
+      const dayOff = offsets[k]
+      const dayStart = now - dayOff * DAY - 10 * 3600000
+      const st = weekdayTimestamp(Math.max(windowStart, dayStart), Math.min(now, dayStart + 9 * 3600000))
       const dur = between(900, 2100)
-      const startSeed = Math.max(1, cls.currentSeed - 2)
+      // Session k (dayOff descending in recency as k grows) — map so the
+      // OLDEST session starts the arc and the NEWEST ends at current_seed.
+      const progress = (nCs - 1 - k) / Math.max(1, nCs - 1) // 0 = oldest, 1 = newest
+      const endSeed = Math.round(arcStartSeed + arcSeeds * progress)
+      const startSeed = Math.max(1, endSeed - 1)
       classSessionRows.push({
         class_id: cls.id,
         teacher_user_id: cls.teacherUserId,
         start_lego_id: `S${String(startSeed).padStart(4, '0')}L01`,
-        end_lego_id: `S${String(cls.currentSeed).padStart(4, '0')}L01`,
+        end_lego_id: `S${String(endSeed).padStart(4, '0')}L0${between(1, 3)}`,
         started_at: st.toISOString(),
         ended_at: new Date(st.getTime() + dur * 1000).toISOString(),
         cycles_completed: Math.floor(dur / 11),
