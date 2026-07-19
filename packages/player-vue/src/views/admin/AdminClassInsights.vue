@@ -29,7 +29,10 @@ const { isCheckingAccess, isDenied } = useAdminGate()
 
 <style scoped>
 .schools-container {
-  min-height: 100vh;
+  /* Owns its scroll: body carries overflow:hidden app-wide (Android bounce
+     fix in style.css) — same pattern as AdminContainer (founder pass A). */
+  height: 100vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   background: var(--schools-bg, #f6f5f1);
