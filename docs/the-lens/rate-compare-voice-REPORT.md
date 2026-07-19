@@ -49,11 +49,26 @@ screen was the demo Stats board, whose cohort really was circular.
 - "You" survives ONLY where `subjectIsViewer` is true (a learner viewing their
   own identity — no current surface sets it; the default is the entity's name).
 
-## Deployed-dev walk (real admin session)
+## Deployed-dev walk (real admin session) — ALL GREEN, 23/23
 
-_Pending — `e2e/the-lens/voicecheck.mjs` (magiclink admin session, Playwright)
-walks the class node, school node, and the three demo-board levels on the dev
-deployment and drops screenshots beside this file._
+`e2e/the-lens/voicecheck.mjs` (magiclink admin session, Playwright) against
+dev build `c4569c5`:
+
+- **Class node** (`voice-class.jpg`, Rang a Trí · Gaelscoil na Mara): caption
+  "RANG A TRÍ v GAELSCOIL NA MARA AVERAGE", compare-to prefilled "Gaelscoil na
+  Mara average", "WHERE THIS CLASS SITS · CLASSES IN GAELSCOIL NA MARA", chip
+  and foot "**2nd of 3** classes in Gaelscoil na Mara" (ordinal — no more
+  100th-pctl-of-itself), footer "Furthest LEGO · "an lá ar fad" — "all day""
+  (LEGO content, not `S21 · L1`).
+- **School node** (`voice-school.jpg`, Sunrise Public School, Pune): "WHERE
+  THIS SCHOOL SITS · SCHOOLS IN IME DEMO PROGRAMME", compare-to prefilled
+  "IME Demo Programme average".
+- **Demo board** (`board-learner/class/school.jpg`): compare-to prefilled at
+  every level (learner → "Gaelcholáiste Luimnigh avg", class → "Gaelscoil
+  Cholmcille avg", school → "An Roinn Oideachais pilot avg"); no "Where you
+  sit"; no raw S/L ids; class level shows sibling-classes copy + honest
+  "2nd of 3".
+- Zero occurrences of "YOU v" / "Where you sit" anywhere on any surface.
 
 ## Suites
 
