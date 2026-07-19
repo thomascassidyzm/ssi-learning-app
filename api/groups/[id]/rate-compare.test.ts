@@ -416,39 +416,59 @@ describe('GET /api/groups/:id/rate-compare', () => {
   })
 })
 
-describe('GET /api/groups/:id/rate-compare — windows (?window=)', () => {
-  it('defaults to "term" when neither window nor days is present', async () => {
+describe('GET /api/groups/:id/rate-compare — windows (?window=, rolling day units)', () => {
+  it('defaults to "30d" when neither window nor days is present', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
     await handler(makeReq('c1', { compare_to: 'programme' }), res)
-    expect(res.body.applied.window).toBe('term')
-    expect(res.body.applied.days).toBe(84)
-    expect(res.body.windowLabel).toBe('This term')
-    expect(res.body.trendLabel).toBe('Weekly · last 12 weeks')
-    expect(res.body.trendPeriodDays).toBe(7)
-    expect(lastRpcArgs.p_days).toBe(91) // (12+1)*7
+    expect(res.body.applied.window).toBe('30d')
+    expect(res.body.applied.days).toBe(30)
+    expect(res.body.windowLabel).toBe('Last 30 days')
+    expect(res.body.trendLabel).toBe('Daily · last 30 days')
+    expect(res.body.trendPeriodDays).toBe(1)
+    expect(lastRpcArgs.p_days).toBe(31) // (30+1)*1
   })
 
-  it('?window=week sets a 7-day headline period and a 7-point daily trend', async () => {
+  it('?window=7d sets a 7-day headline period and a 7-point daily trend', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: 'week' }), res)
-    expect(res.body.applied.window).toBe('week')
-    expect(res.body.windowLabel).toBe('This week')
+    await handler(makeReq('c1', { compare_to: 'programme', window: '7d' }), res)
+    expect(res.body.applied.window).toBe('7d')
+    expect(res.body.windowLabel).toBe('Last 7 days')
     expect(res.body.trendLabel).toBe('Daily · last 7 days')
     expect(res.body.trendPeriodDays).toBe(1)
     expect(res.body.entity.trend).toHaveLength(7)
     expect(lastRpcArgs.p_days).toBe(8) // (7+1)*1
   })
 
-  it('?window=4w sets a 28-day headline period and a 4-point weekly trend', async () => {
+  it('?window=today sets a 1-day headline period, a 24-point hourly trend, and a per-day rate', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: '4w' }), res)
-    expect(res.body.applied.window).toBe('4w')
-    expect(res.body.trendPeriodDays).toBe(7)
-    expect(res.body.entity.trend).toHaveLength(4)
-    expect(lastRpcArgs.p_days).toBe(35) // (4+1)*7
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'today' }), res)
+    expect(res.body.applied.window).toBe('today')
+    expect(res.body.applied.days).toBe(1)
+    expect(res.body.windowLabel).toBe('Today')
+    expect(res.body.trendLabel).toBe('Hourly · last 24 hours')
+    expect(res.body.trendPeriodDays).toBeCloseTo(1 / 24)
+    expect(res.body.entity.trend).toHaveLength(24)
+    // honest rate framing: never "per week" over a single day
+    expect(res.body.per).toBe('day')
+    expect(lastRpcArgs.p_days).toBe(2) // ceil((24+1)/24)
+  })
+
+  it('?window=today scales the headline AND the cohort together (delta is scale-invariant)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const resWeekly = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: '7d' }), resWeekly)
+    const resToday = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'today' }), resToday)
+    // both headline and average carry the same /7 scaling, so the entity's
+    // standing vs the cohort is a pure function of the window's data.
+    expect(resToday.body.distribution.entityValue).toBe(resToday.body.entity.value)
+    expect(resToday.body.distribution.averageValue).toBe(resToday.body.average.value)
+    // c1 advanced 5 LEGOs in its today-session → exactly 5 LEGOs/day, not 35/week
+    expect(resToday.body.entity.value).toBe(5)
+    expect(resToday.body.average.value).toBe(3) // mean of c2 (4/day) and c3 (2/day)
   })
 
   it('?window=all sets a practical-unbounded headline period and a 12-point monthly trend', async () => {
@@ -460,6 +480,15 @@ describe('GET /api/groups/:id/rate-compare — windows (?window=)', () => {
     expect(res.body.trendPeriodDays).toBe(30)
     expect(res.body.entity.trend).toHaveLength(12)
     expect(lastRpcArgs.p_days).toBe(3650)
+  })
+
+  it('old chip values alias forward (week→7d, 4w→30d, term→30d) — saved links keep working', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    for (const [legacy, expected] of [['week', '7d'], ['4w', '30d'], ['term', '30d']] as const) {
+      const res = makeRes()
+      await handler(makeReq('c1', { compare_to: 'programme', window: legacy }), res)
+      expect(res.body.applied.window).toBe(expected)
+    }
   })
 
   it('legacy ?days= alone still works — byte-identical trend shape, applied.window is null (no chip matches)', async () => {
@@ -476,8 +505,8 @@ describe('GET /api/groups/:id/rate-compare — windows (?window=)', () => {
   it('?window= wins over ?days= when both are present', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
-    await handler(makeReq('c1', { compare_to: 'programme', window: 'week', days: '90' }), res)
-    expect(res.body.applied.window).toBe('week')
+    await handler(makeReq('c1', { compare_to: 'programme', window: '7d', days: '90' }), res)
+    expect(res.body.applied.window).toBe('7d')
     expect(res.body.applied.days).toBe(7)
   })
 
@@ -486,9 +515,9 @@ describe('GET /api/groups/:id/rate-compare — windows (?window=)', () => {
     const res = makeRes()
     await handler(makeReq('c1'), res)
     expect(res.body.options.windows).toEqual([
-      { value: 'week', label: 'This week' },
-      { value: '4w', label: 'Last 4 weeks' },
-      { value: 'term', label: 'This term' },
+      { value: 'today', label: 'Today' },
+      { value: '7d', label: 'Last 7 days' },
+      { value: '30d', label: 'Last 30 days' },
       { value: 'all', label: 'All time' },
     ])
   })

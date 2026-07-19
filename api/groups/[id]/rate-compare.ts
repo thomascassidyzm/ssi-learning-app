@@ -59,22 +59,29 @@ const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const MAX_COHORT_IDS = 2000
 
-// ─── Windows (docs/the-lens/windows-measures-REPORT.md contract, frozen) ───
+// ─── Windows (docs/the-lens/windows-measures-REPORT.md contract; labels
+// re-ruled 2026-07-19: ROLLING day-unit windows anchored to now — Today /
+// Last 7 days / Last 30 days / All time. No calendar definitions ("this
+// week" / "this term" were ambiguous). ───
 interface WindowConfig {
   value: string
   label: string
   days: number       // headline period length; 'all' uses a practical-unbounded value
   periods: number     // trend series point count
-  periodDays: number  // trend granularity in days
+  periodDays: number  // trend granularity in days (fractional = sub-day buckets)
   trendLabel: string  // honest chart caption
+  perDay?: boolean    // per-week rate measures present in per-day form (a per-week rate over one day would lie)
 }
 const WINDOWS: WindowConfig[] = [
-  { value: 'week', label: 'This week', days: 7, periods: 7, periodDays: 1, trendLabel: 'Daily · last 7 days' },
-  { value: '4w', label: 'Last 4 weeks', days: 28, periods: 4, periodDays: 7, trendLabel: 'Weekly · last 4 weeks' },
-  { value: 'term', label: 'This term', days: 84, periods: 12, periodDays: 7, trendLabel: 'Weekly · last 12 weeks' },
+  { value: 'today', label: 'Today', days: 1, periods: 24, periodDays: 1 / 24, trendLabel: 'Hourly · last 24 hours', perDay: true },
+  { value: '7d', label: 'Last 7 days', days: 7, periods: 7, periodDays: 1, trendLabel: 'Daily · last 7 days' },
+  { value: '30d', label: 'Last 30 days', days: 30, periods: 30, periodDays: 1, trendLabel: 'Daily · last 30 days' },
   { value: 'all', label: 'All time', days: 3650, periods: 12, periodDays: 30, trendLabel: 'Monthly · last 12 months' },
 ]
-const DEFAULT_WINDOW = 'term'
+const DEFAULT_WINDOW = '30d'
+// Old chip values live in bookmarks/deep links — map them onto the nearest
+// rolling window rather than 404ing to the default.
+const WINDOW_ALIASES: Record<string, string> = { week: '7d', '4w': '30d', term: '30d' }
 const WINDOW_OPTIONS = WINDOWS.map((w) => ({ value: w.value, label: w.label }))
 // Legacy trend shape (unchanged) for callers that pass ?days= without ?window=.
 const LEGACY_TREND_WEEKS = 8
@@ -183,10 +190,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const requestedCourse = String(req.query.course_code || '').trim() || null
   const requestedCompare = String(req.query.compare_to || '').trim() || null
 
-  // ─── Window: ?window= wins; ?days= alone is the legacy path (still
-  // honoured, byte-identical trend shape); neither present -> new default
-  // 'term'. window is never inferred from days. ───
-  const requestedWindow = String(req.query.window || '').trim()
+  // ─── Window: ?window= wins (old chip values alias forward); ?days= alone
+  // is the legacy path (still honoured, byte-identical trend shape); neither
+  // present -> default '30d'. window is never inferred from days. ───
+  const requestedWindowRaw = String(req.query.window || '').trim()
+  const requestedWindow = WINDOW_ALIASES[requestedWindowRaw] ?? requestedWindowRaw
   const requestedDaysRaw = req.query.days !== undefined ? String(req.query.days) : null
   let windowConfig: WindowConfig
   let appliedWindowValue: string | null
@@ -454,8 +462,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
-    // ─── Sessions + math (shared primitives). ───
-    const fetchDays = Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays)
+    // ─── Sessions + math (shared primitives). Ceil: periodDays can be
+    // fractional (hourly buckets) and the RPC takes whole days. ───
+    const fetchDays = Math.ceil(Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays))
     const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
     // A DEMO node reads its own demo sessions (demo orgs are self-contained
     // subtrees, so its ancestor cohorts are demo peers); a real node keeps the
@@ -489,10 +498,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // ─── The displayed measure — entity + each active cohort member, via
     // the SAME dispatch function so every measure follows one grammar. ───
-    const entityMeasure = computeMeasureForClassIds(
+    const entityMeasureRaw = computeMeasureForClassIds(
       measureConfig.value, rows, entityClassIds, days, windowConfig.periods, windowConfig.periodDays, now)
-    const memberMeasures = active.map((x) =>
+    const memberMeasuresRaw = active.map((x) =>
       computeMeasureForClassIds(measureConfig.value, rows, x.member.classIds, days, windowConfig.periods, windowConfig.periodDays, now))
+
+    // Under 'Today' a per-week rate would be a 7x extrapolation of one day —
+    // present per-week measures in their natural per-day form instead (the
+    // headline AND every cohort value scale together; delta/percentile are
+    // scale-invariant). Trend points stay raw per-bucket — trendLabel names
+    // the bucket, same as the daily-bucket windows under a per-week headline.
+    const perDay = Boolean(windowConfig.perDay) && measureConfig.per === 'week'
+    const scaleValue = (v: number): number => (perDay ? Math.round((v / 7) * 10) / 10 : v)
+    const measurePer = perDay ? 'day' : measureConfig.per
+    const entityMeasure = { value: scaleValue(entityMeasureRaw.value), trend: entityMeasureRaw.trend }
+    const memberMeasures = memberMeasuresRaw.map((m) => ({ value: scaleValue(m.value), trend: m.trend }))
 
     const cohortValues = memberMeasures.map((m) => m.value)
     const averageTrend = meanTrend(memberMeasures.map((m) => m.trend))
@@ -530,7 +550,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       insufficientData: false,
       metricLabel: measureConfig.label,
       unit: measureConfig.unit,
-      per: measureConfig.per,
+      per: measurePer,
       entity: { label: nodeMeta.name, value: entityMeasure.value, trend: entityMeasure.trend },
       average: { label: compareLabel, value: averageValue, trend: averageTrend },
       deltaPct: deltaPct(entityMeasure.value, averageValue),

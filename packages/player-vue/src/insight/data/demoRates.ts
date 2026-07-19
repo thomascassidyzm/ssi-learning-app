@@ -151,33 +151,39 @@ export const HERO_RATES: HeroRate[] = [
 
 const HERO_BY_ID = new Map(HERO_RATES.map((m) => [m.id, m]))
 
-// ── Time windows (the windows+measures contract, frozen 2026-07-19) ────────
-// Same four windows the real engine offers: chip value/label, the trend point
-// count + spacing, and the honest chart caption. `term` is the default
-// (continuity with the old 90-day default).
+// ── Time windows (the windows+measures contract; labels re-ruled 2026-07-19:
+// ROLLING day-unit windows anchored to now — Today / Last 7 days / Last 30
+// days / All time; no calendar definitions). Same four windows the real
+// engine offers: chip value/label, the trend point count + spacing, and the
+// honest chart caption. `30d` is the default. Under `today`, per-week rates
+// present in per-day form (a per-week rate over one day would lie).
 export interface WindowOption { value: string; label: string }
 export const WINDOW_OPTIONS: WindowOption[] = [
-  { value: 'week', label: 'This week' },
-  { value: '4w', label: 'Last 4 weeks' },
-  { value: 'term', label: 'This term' },
+  { value: 'today', label: 'Today' },
+  { value: '7d', label: 'Last 7 days' },
+  { value: '30d', label: 'Last 30 days' },
   { value: 'all', label: 'All time' },
 ]
-export const DEFAULT_WINDOW = 'term'
+export const DEFAULT_WINDOW = '30d'
+// Old chip values in saved links map onto the nearest rolling window.
+const WINDOW_ALIASES: Record<string, string> = { week: '7d', '4w': '30d', term: '30d' }
 
 interface WindowMeta {
   trendPoints: number
-  trendPeriodDays: 1 | 7 | 30
+  trendPeriodDays: number   // <1 = hourly buckets (the Today window)
   trendLabel: string
   windowLabel: string
+  perDay?: boolean          // per-week metrics present per-day under this window
 }
 const WINDOW_META: Record<string, WindowMeta> = {
-  week: { trendPoints: 7, trendPeriodDays: 1, trendLabel: 'Daily · this week', windowLabel: 'This week' },
-  '4w': { trendPoints: 4, trendPeriodDays: 7, trendLabel: 'Weekly · last 4 weeks', windowLabel: 'Last 4 weeks' },
-  term: { trendPoints: 12, trendPeriodDays: 7, trendLabel: 'Weekly · this term', windowLabel: 'This term' },
+  today: { trendPoints: 24, trendPeriodDays: 1 / 24, trendLabel: 'Hourly · last 24 hours', windowLabel: 'Today', perDay: true },
+  '7d': { trendPoints: 7, trendPeriodDays: 1, trendLabel: 'Daily · last 7 days', windowLabel: 'Last 7 days' },
+  '30d': { trendPoints: 30, trendPeriodDays: 1, trendLabel: 'Daily · last 30 days', windowLabel: 'Last 30 days' },
   all: { trendPoints: 12, trendPeriodDays: 30, trendLabel: 'Monthly · last 12 months', windowLabel: 'All time' },
 }
 function windowMeta(window: string): WindowMeta {
-  return WINDOW_META[window] ?? WINDOW_META[DEFAULT_WINDOW]
+  const key = WINDOW_ALIASES[window] ?? window
+  return WINDOW_META[key] ?? WINDOW_META[DEFAULT_WINDOW]
 }
 
 // ── The synthetic org (the Irish-government showcase) ───────────────────────
@@ -530,10 +536,17 @@ export function getRateComparison(
   const scopes = scopesFor(metric, entityLevel, label, meta.trendPoints)
   const scope = scopes.find((s) => s.kind === averageId) ?? scopes[0]
 
-  const self = entityNumbers(metric, entityLevel, label, meta.trendPoints)
+  const selfRaw = entityNumbers(metric, entityLevel, label, meta.trendPoints)
   const siblings = scope.siblings()
 
-  const values = siblings.map((s) => s.value).sort((a, b) => a - b)
+  // Under 'Today', per-week rates present in their natural per-day form
+  // (headline + every cohort value scale together — mirrors the real engine).
+  const perDay = Boolean(meta.perDay) && metric.per === 'week'
+  const scaleValue = (v: number): number => (perDay ? round(v / 7, metric.dp) : v)
+  const per = perDay ? 'day' : metric.per
+  const self = { ...selfRaw, value: scaleValue(selfRaw.value) }
+
+  const values = siblings.map((s) => scaleValue(s.value)).sort((a, b) => a - b)
   const avgValue = values.length
     ? round(values.reduce((a, b) => a + b, 0) / values.length, metric.dp)
     : 0
@@ -570,7 +583,7 @@ export function getRateComparison(
   return {
     metricLabel: metric.label,
     unit: metric.unit,
-    per: metric.per,
+    per,
     entity: entitySeries,
     average: averageSeries,
     deltaPct,

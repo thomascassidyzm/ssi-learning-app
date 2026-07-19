@@ -37,7 +37,7 @@ import {
 import type { RateComparisonData } from '../spec'
 
 // ── Selection state ─────────────────────────────────────────────────────────
-const windowId = ref<string>(DEFAULT_WINDOW)           // This week / 4w / term / all
+const windowId = ref<string>(DEFAULT_WINDOW)           // today / 7d / 30d / all
 const metricId = ref<string>('progressPace')          // headline rate by default
 const entityLevel = ref<EntityLevel>('class')          // default: a class entity
 const entityId = ref<string>('')

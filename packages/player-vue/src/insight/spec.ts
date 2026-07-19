@@ -251,7 +251,7 @@ export interface RateComparisonData {
   // period the rate is computed over AND the chart's x-span — headline and
   // chart always obey the same window (honest-pace: idle time inside the
   // window decays the rate). All optional; absent → the legacy 8-week read.
-  windowLabel?: string      // the applied chip's label, e.g. "Last 4 weeks"
-  trendLabel?: string       // honest chart caption, e.g. "Weekly · last 12 weeks"
-  trendPeriodDays?: number  // 1 | 7 | 30 — x-axis label spacing for RateTrend
+  windowLabel?: string      // the applied chip's label, e.g. "Last 30 days"
+  trendLabel?: string       // honest chart caption, e.g. "Daily · last 30 days"
+  trendPeriodDays?: number  // x-axis label spacing for RateTrend (<1 = hourly, 1 daily, 7 weekly, 30 monthly)
 }

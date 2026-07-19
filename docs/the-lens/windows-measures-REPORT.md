@@ -2,6 +2,16 @@
 
 **Status: SHIPPED to dev + verified on deployed dev (`60b8faf`); promoted dev→staging.**
 
+> **AMENDED 2026-07-19 (founder pass A):** the window set below is superseded.
+> Founder ruling from playing the deployed build: chips are now **Today / Last
+> 7 days / Last 30 days / All time** — ROLLING windows anchored to now, day
+> units, no calendar definitions ("this week" / "this term" were ambiguous).
+> "Today" is reinstated WITH honest framing: per-week rate measures present in
+> their natural per-day form under it (headline + cohort scale together;
+> trend = hourly · last 24 hours). Default is Last 30 days (daily · 30 pts).
+> Old chip values (`week`/`4w`/`term`) alias forward server-side so saved
+> links keep working. See `docs/the-lens/founder-pass-a-REPORT.md`.
+
 **Founder rulings (2026-07-19):**
 1. **Time window chips** — everything is a rate, so today/7d/30d/all-time resolves
    as an explicit WINDOW selector: chips set the period the rate is computed over

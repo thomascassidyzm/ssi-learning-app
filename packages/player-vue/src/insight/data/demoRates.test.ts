@@ -98,9 +98,9 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     expect(out.metricLabel).toBe('Rate of progress')
     expect(out.unit).toBe('LEGOs')
     expect(out.per).toBe('week')
-    // default window (term) = 12 weekly points
-    expect(out.entity.trend).toHaveLength(12)
-    expect(out.average.trend).toHaveLength(12)
+    // default window (30d) = 30 daily points
+    expect(out.entity.trend).toHaveLength(30)
+    expect(out.average.trend).toHaveLength(30)
     expect(out.percentile).toBeGreaterThanOrEqual(0)
     expect(out.percentile).toBeLessThanOrEqual(100)
     const expectUp = out.entity.value >= out.average.value
@@ -165,29 +165,30 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
     expect(listEntityLevels('nope')).toEqual([])
   })
 
-  // ── Windows (the windows+measures contract, mirrored on the demo path) ────
-  it('ships the 4 contract windows with term as the default', () => {
-    expect(WINDOW_OPTIONS.map((w) => w.value)).toEqual(['week', '4w', 'term', 'all'])
-    expect(DEFAULT_WINDOW).toBe('term')
+  // ── Windows (rolling day units, founder ruling 2026-07-19, demo parity) ────
+  it('ships the 4 rolling windows with 30d as the default', () => {
+    expect(WINDOW_OPTIONS.map((w) => w.value)).toEqual(['today', '7d', '30d', 'all'])
+    expect(WINDOW_OPTIONS.map((w) => w.label)).toEqual(['Today', 'Last 7 days', 'Last 30 days', 'All time'])
+    expect(DEFAULT_WINDOW).toBe('30d')
   })
 
-  it('defaults to term when window is omitted — 12 weekly trend points', () => {
+  it('defaults to 30d when window is omitted — 30 daily trend points', () => {
     const id = listEntities('progressPace', 'class')[0].value
     const out = getRateComparison('progressPace', 'class', id, 'school')
-    expect(out.entity.trend).toHaveLength(12)
-    expect(out.average.trend).toHaveLength(12)
-    expect(out.windowLabel).toBe('This term')
-    expect(out.trendPeriodDays).toBe(7)
+    expect(out.entity.trend).toHaveLength(30)
+    expect(out.average.trend).toHaveLength(30)
+    expect(out.windowLabel).toBe('Last 30 days')
+    expect(out.trendPeriodDays).toBe(1)
   })
 
-  it('a non-default window (week) reshapes the trend to daily points, coherently for a non-default measure', () => {
+  it('a non-default window (7d) reshapes the trend to daily points, coherently for a non-default measure', () => {
     const classes = listEntities('appMinutesDay', 'class')
     const id = classes[0].value
-    const out = getRateComparison('appMinutesDay', 'class', id, 'school', 'week')
+    const out = getRateComparison('appMinutesDay', 'class', id, 'school', '7d')
     expect(out.entity.trend).toHaveLength(7)
     expect(out.average.trend).toHaveLength(7)
-    expect(out.windowLabel).toBe('This week')
-    expect(out.trendLabel).toBe('Daily · this week')
+    expect(out.windowLabel).toBe('Last 7 days')
+    expect(out.trendLabel).toBe('Daily · last 7 days')
     expect(out.trendPeriodDays).toBe(1)
     // still coherent: same voice/cohort contract as the default window
     expect(out.metricLabel).toBe('App-minutes')
@@ -197,21 +198,35 @@ describe('demoRates — the "entity vs average" rate fixtures', () => {
 
   it('all four windows stay internally coherent (point count matches trendPeriodDays\' spacing)', () => {
     const id = listEntities('progressPace', 'class')[0].value
-    const expectedPoints: Record<string, number> = { week: 7, '4w': 4, term: 12, all: 12 }
-    const expectedDays: Record<string, number> = { week: 1, '4w': 7, term: 7, all: 30 }
+    const expectedPoints: Record<string, number> = { today: 24, '7d': 7, '30d': 30, all: 12 }
+    const expectedDays: Record<string, number> = { today: 1 / 24, '7d': 1, '30d': 1, all: 30 }
     for (const w of WINDOW_OPTIONS) {
       const out = getRateComparison('progressPace', 'class', id, 'school', w.value)
       expect(out.entity.trend).toHaveLength(expectedPoints[w.value])
-      expect(out.trendPeriodDays).toBe(expectedDays[w.value])
+      expect(out.trendPeriodDays).toBeCloseTo(expectedDays[w.value])
       expect(out.windowLabel).toBe(w.label)
     }
   })
 
-  it('an unknown window falls back to the default (term), never throws', () => {
+  it('under Today, a per-week rate presents honestly in per-day form (headline + cohort together)', () => {
     const id = listEntities('progressPace', 'class')[0].value
+    const monthly = getRateComparison('progressPace', 'class', id, 'school', '30d')
+    const today = getRateComparison('progressPace', 'class', id, 'school', 'today')
+    expect(monthly.per).toBe('week')
+    expect(today.per).toBe('day')
+    expect(today.entity.value).toBeCloseTo(monthly.entity.value / 7, 1)
+    expect(today.distribution.entityValue).toBe(today.entity.value)
+    expect(today.distribution.averageValue).toBe(today.average.value)
+  })
+
+  it('old window values alias forward; an unknown window falls back to the default, never throws', () => {
+    const id = listEntities('progressPace', 'class')[0].value
+    expect(getRateComparison('progressPace', 'class', id, 'school', 'week').windowLabel).toBe('Last 7 days')
+    expect(getRateComparison('progressPace', 'class', id, 'school', '4w').windowLabel).toBe('Last 30 days')
+    expect(getRateComparison('progressPace', 'class', id, 'school', 'term').windowLabel).toBe('Last 30 days')
     expect(() => getRateComparison('progressPace', 'class', id, 'school', 'not-a-window')).not.toThrow()
     const out = getRateComparison('progressPace', 'class', id, 'school', 'not-a-window')
-    expect(out.windowLabel).toBe('This term')
-    expect(out.entity.trend).toHaveLength(12)
+    expect(out.windowLabel).toBe('Last 30 days')
+    expect(out.entity.trend).toHaveLength(30)
   })
 })
