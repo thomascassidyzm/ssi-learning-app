@@ -96,9 +96,6 @@ watch(classOptions, (opts) => {
   if (!context.value) return
   if (!opts.find((c) => c.id === selectedClassId.value)) selectedClassId.value = opts[0]?.id ?? ''
 }, { immediate: true })
-watch(selectedClassId, (id) => {
-  void router.replace({ query: { ...route.query, class: id || undefined } })
-})
 const classSelectOptions = computed(() => classOptions.value.map((c) => ({ value: c.id, label: c.name })))
 const selectedClass = computed<ClassDetail | null>(
   () => classOptions.value.find((c) => c.id === selectedClassId.value) ?? null,
@@ -106,14 +103,15 @@ const selectedClass = computed<ClassDetail | null>(
 
 // ── Course / compare — mirrored into the route query so the view is
 // deep-linkable. The engine resolves defaults server-side and reflects them
-// back up via v-model. ──
-const course = computed({
-  get: () => (typeof route.query.course === 'string' ? route.query.course : null),
-  set: (v: string | null) => { void router.replace({ query: { ...route.query, course: v || undefined } }) },
-})
-const compare = computed({
-  get: () => (typeof route.query.compare === 'string' ? route.query.compare : null),
-  set: (v: string | null) => { void router.replace({ query: { ...route.query, compare: v || undefined } }) },
+// back up via v-model. Local refs + ONE coalesced replace for all three
+// params — separate per-param query-setters raced each other (each replace
+// read the pre-replace query and clobbered the other's write). ──
+const course = ref<string | null>(typeof route.query.course === 'string' ? route.query.course : null)
+const compare = ref<string | null>(typeof route.query.compare === 'string' ? route.query.compare : null)
+watch([selectedClassId, course, compare], ([cls, c, cmp]) => {
+  void router.replace({
+    query: { ...route.query, class: cls || undefined, course: c || undefined, compare: cmp || undefined },
+  })
 })
 
 // ── Plain-words header: "Your class", the class name, the school/group name

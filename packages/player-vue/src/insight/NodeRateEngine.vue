@@ -57,8 +57,13 @@ const insufficientReason = ref<string | null>(null)
 const comparison = ref<RateComparisonData | null>(null)
 const engineState = ref<EngineState | null>(null)
 
+// Direct calls can overlap (rapid prop changes) — latest request wins, a
+// stale response never overwrites a newer one.
+let fetchSeq = 0
+
 async function fetchComparison(): Promise<void> {
   if (!props.nodeId) return
+  const seq = ++fetchSeq
   isLoading.value = true
   authMissing.value = false
   fetchFailed.value = false
@@ -74,8 +79,10 @@ async function fetchComparison(): Promise<void> {
     const resp = await fetch(`/api/groups/${props.nodeId}/rate-compare${qs ? `?${qs}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
+    if (seq !== fetchSeq) return
     if (!resp.ok) throw new Error(`rate-compare ${resp.status}`)
     const json = await resp.json()
+    if (seq !== fetchSeq) return
     engineState.value = { node: json.node, options: json.options, applied: json.applied }
     emit('state', engineState.value)
     // Reflect server-resolved defaults back into the v-models (deep links stay
@@ -88,21 +95,27 @@ async function fetchComparison(): Promise<void> {
       comparison.value = json as RateComparisonData
     }
   } catch (err) {
+    if (seq !== fetchSeq) return
     console.error('[NodeRateEngine] fetch failed:', err)
     fetchFailed.value = true
   } finally {
-    isLoading.value = false
+    if (seq === fetchSeq) isLoading.value = false
   }
 }
 
-// The ONE refresh protocol: the engine's loader is the page's loader. Input
-// changes (node / course / compare) are navigations — routed through refresh()
-// so they stamp "Updated HH:MM". No polling; the page holds still until asked.
-const { refresh, registerRefresh } = useDashboardRefresh()
+// The ONE refresh protocol: register the loader so the navbar button and
+// pull-to-refresh re-fetch (no polling; the page holds still until asked).
+// Input changes (node / course / compare) call the loader DIRECTLY, not via
+// refresh(): the singleton's in-flight guard is for the button, and routing
+// initial loads through it let another surface's still-running refresh
+// swallow this instance's only load (seen live when the admin containers
+// re-gate and remount the page as auth resolves — the ghost instance's
+// refresh() left the fresh one stuck on "Loading…" forever).
+const { registerRefresh } = useDashboardRefresh()
 registerRefresh(fetchComparison, { immediate: false })
 watch(
   [() => props.nodeId, () => props.course, () => props.compare],
-  () => { void refresh() },
+  () => { void fetchComparison() },
   { immediate: true },
 )
 

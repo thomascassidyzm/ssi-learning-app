@@ -9,7 +9,7 @@
 // Stats boards. The engine itself (NodeRateEngine) owns the pickers, the
 // fetch, the refresh registration and the widget. Deep-linkable: ?course= and
 // ?compare= mirror the engine state.
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeRateEngine, { type EngineState } from '@/insight/NodeRateEngine.vue'
@@ -22,15 +22,21 @@ const { getAuthToken } = useAdminClient()
 const nodeId = computed(() => String(route.params.id || ''))
 
 // ?course= / ?compare= are the deep link; the engine resolves defaults and
-// reflects them back here so a copied URL reproduces the exact view.
-const course = computed({
-  get: () => (typeof route.query.course === 'string' ? route.query.course : null),
-  set: (v: string | null) => { void router.replace({ query: { ...route.query, course: v || undefined } }) },
+// reflects them back here so a copied URL reproduces the exact view. Local
+// refs + ONE coalesced replace — two separate query-setters raced each other
+// (the second replace read the pre-first-replace query and clobbered it).
+const course = ref<string | null>(typeof route.query.course === 'string' ? route.query.course : null)
+const compare = ref<string | null>(typeof route.query.compare === 'string' ? route.query.compare : null)
+watch([course, compare], ([c, cmp]) => {
+  void router.replace({ query: { ...route.query, course: c || undefined, compare: cmp || undefined } })
 })
-const compare = computed({
-  get: () => (typeof route.query.compare === 'string' ? route.query.compare : null),
-  set: (v: string | null) => { void router.replace({ query: { ...route.query, compare: v || undefined } }) },
-})
+watch(
+  () => [route.query.course, route.query.compare],
+  ([qc, qcmp]) => {
+    course.value = typeof qc === 'string' ? qc : null
+    compare.value = typeof qcmp === 'string' ? qcmp : null
+  },
+)
 
 const state = ref<EngineState | null>(null)
 
