@@ -133,4 +133,70 @@ fixed its suite. THE LENS agent promoted dev → staging (both at
 `408035e3`, which contains all demo-refresh + OPEN work); staging serving
 sha verified on promotion day.
 
-*Last updated: 2026-07-19 (finish walk)*
+## Second demo region — region-level compare lit up (DATA, 2026-07-19)
+
+**The gap.** With a single region (Pilot Districts Region), the REGION-level
+Insight view (`api/groups/:id/rate-compare.ts`) showed the k-floor empty
+state — "Not enough data to compare fairly yet" — in every window. A region's
+compare cohort is its **peer schools within the compare scope** (the endpoint's
+own rule: "schools when the entity is a school node or an interior group;
+sibling-group cohorts are structurally too sparse"), and *every* school lived
+inside the one region, so the peer set was empty (0 < the admin floor of 1).
+
+**The fix — pure DATA, no schema/code change.** Added a SECOND demo region,
+**Coastal Districts Region** (`652bd018-4b84-477e-8e06-676d5d6a7630`, type
+`region`, `is_demo`), under IME Demo Programme, mirroring the Pilot region's
+exact linkage (school = `groups` node + `schools` row with
+`node_group_id`=school node, `group_id`=region; `classes.group_id`=school node).
+Two demo schools — **Seaside Model School, Chennai** (2 classes) and **Harbour
+View School, Visakhapatnam** (1 class) — with 43 synthetic `is_demo` learners
+(12–15/class) + enrollment cursors. Generator:
+`scripts/demo-data/generate-coastal-region.cjs` (idempotent, scoped reset,
+demo-flagged only; staff use `+demo.ime.coastal.` emails so the existing
+`generate-ime-demo.cjs` reset sweeps them too). Then **"Refresh demo activity"
+over the whole programme** regenerated coherent recent telemetry across BOTH
+regions in one call (123 learners, 1,354 sessions, 99 class sessions, up to the
+minute).
+
+**Meaningfully different by design.** Coastal is a genuinely earlier-stage
+region — its classes sit at a LOW `current_seed` (5) vs Pilot's 15–41. Since the
+refresh engine caps a class's per-week LEGO arc by `current_seed`, Coastal reads
+honestly slower. The compare is now interesting both directions.
+
+**Verified live on deployed dev with a real admin session**
+(`e2e/the-view/coastal-region-compare-walk.mjs`, 18/18 PASS, build `6741937`):
+region rate-compare renders full data (`insufficientData:false`, cohort = 2 peer
+schools) for **both regions × all 4 windows** (Today / 7d / 30d / All time).
+
+| window | Pilot (advanced) | Coastal (new) |
+|--------|------------------|---------------|
+| 30d | **5.3** v 3.4 · **+55.9%** · 1st of 3 | **3.4** v 5.5 · **−38.2%** · 3rd of 3 |
+| all | 5.0 v 3.4 · +47.1% | 3.4 v 5.2 · −34.6% |
+| 7d  | 7.4 v 7.1 · +4.2% | 7.2 v 7.7 · −6.5% |
+| today | 2.7 v 3.3 | 3.3 v 3.2 |
+
+The longer windows (30d, All time — the meaningful "rate of progress" horizon)
+carry the clear, honest gap; the short windows are dominated by the most-recent
+sessions both regions land today, so the gap narrows there (correct, not a bug).
+
+**Note on the cohort unit.** The lit-up compare pits the region (entity) against
+its **peer schools** — the ordinal reads "1st/3rd **of 3**" (entity + 2 peer
+schools), not "of 2 regions". That is the shipped rate-compare cohort rule
+(sibling-group cohorts are deliberately not used); the DATA fix removes the
+empty state exactly as intended. The map rail correctly shows the sibling region
+as "1 other at this level".
+
+Evidence (deployed dev, 1440×1100): `coastal-compare-coastal-{today,7d,30d,all}.png`
+(Coastal below average, down arrow), `coastal-compare-pilot-30d.png` (Pilot
+above average, +55.9%, 1st of 3, green arrow).
+
+Suites green: api 637/637, player-vue 954/954.
+
+## Promotion
+
+The earlier hold (lens rate-compare failures) cleared when the lens agent
+fixed its suite. THE LENS agent promoted dev → staging (both at
+`408035e3`, which contains all demo-refresh + OPEN work); staging serving
+sha verified on promotion day.
+
+*Last updated: 2026-07-19 (second demo region — region compare lit up)*
