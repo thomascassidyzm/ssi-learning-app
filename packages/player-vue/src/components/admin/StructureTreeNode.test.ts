@@ -77,6 +77,30 @@ describe('StructureTreeNode — label is a badge, not a permanently-open form co
   })
 })
 
+describe('StructureTreeNode — OPEN by the name (founder-ruled 2026-07-19)', () => {
+  it('renders a labeled, always-visible Open button next to the name that opens the dashboard', async () => {
+    const api = makeApi()
+    const wrapper = mountNode(makeNode(), api)
+    const open = wrapper.find('.open-btn')
+    expect(open.exists()).toBe(true)
+    expect(open.text()).toBe('Open')
+    await open.trigger('click')
+    expect(api.openDashboard).toHaveBeenCalledWith(expect.objectContaining({ id: 'group-a' }))
+  })
+
+  it('folds the less-used verbs into an overflow menu with labeled words, no bare-icon strip', async () => {
+    const api = makeApi()
+    const wrapper = mountNode(makeNode(), api)
+    expect(wrapper.find('.overflow-menu').exists()).toBe(false)
+    await wrapper.find('.overflow-toggle').trigger('click')
+    const items = wrapper.findAll('.overflow-item').map((i) => i.text())
+    expect(items).toEqual(['Rename', 'Add child group', 'Invite people', 'Mint a demo org', 'Delete'])
+    await wrapper.findAll('.overflow-item')[0].trigger('click')
+    expect(api.startRename).toHaveBeenCalled()
+    expect(wrapper.find('.overflow-menu').exists()).toBe(false)
+  })
+})
+
 describe('StructureTreeNode — plain-word quick filter (§1.12.4)', () => {
   // Note the deliberate label/commercial mismatch: "Paid School" carries the
   // 'school' LABEL but no commercial attachment, "Real School" carries the

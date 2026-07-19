@@ -53,6 +53,7 @@ const editing = computed(() => api.editingId.value === props.node.id)
 const showAddChild = ref(false)
 const showInvite = ref(false)
 const showDemoMint = ref(false)
+const showOverflow = ref(false)
 const showLabelPicker = ref(false)
 const labelPickerEl = ref<HTMLSelectElement | null>(null)
 
@@ -135,9 +136,16 @@ async function submitDemoMint(): Promise<void> {
         @keyup.escape="api.cancelRename()"
       />
     </template>
-    <span v-else class="structure-name" title="Click to open" @click="api.selectNode(node)">
+    <span v-else class="structure-name" title="Quick actions" @click="api.selectNode(node)">
       {{ node.name }}
     </span>
+
+    <!-- OPEN lives by the name (founder-ruled 2026-07-19): a labeled, always-
+         visible, thumb-sized affordance — never a bare icon hidden in a
+         hover-only strip on the far right (invisible on touch). -->
+    <button v-if="!editing" type="button" class="open-btn" @click="api.openDashboard(node)">
+      Open
+    </button>
 
     <select
       v-if="showLabelPicker"
@@ -167,13 +175,17 @@ async function submitDemoMint(): Promise<void> {
       <span v-if="node.rollup.learnerCount" class="meta-item">{{ node.rollup.learnerCount }} learner{{ node.rollup.learnerCount === 1 ? '' : 's' }}</span>
     </span>
 
-    <div class="row-actions">
-      <button class="row-action" title="Rename" @click="api.startRename(node)">✎</button>
-      <button class="row-action" title="Add child group" @click="showAddChild = !showAddChild">+</button>
-      <button class="row-action" title="Invite people" @click="showInvite = !showInvite">✉</button>
-      <button class="row-action" title="Mint a demo org here" @click="showDemoMint = !showDemoMint">✨</button>
-      <button class="row-action" title="Open dashboard" @click="api.openDashboard(node)">↗</button>
-      <button class="row-action is-danger" title="Delete" @click="api.requestDelete(node)">✕</button>
+    <!-- Less-used verbs fold into one always-visible overflow — labeled words
+         inside, no hover-gating, so the whole row works on a phone. -->
+    <div class="row-overflow">
+      <button type="button" class="overflow-toggle" :aria-expanded="showOverflow" aria-label="More actions" @click="showOverflow = !showOverflow">⋯</button>
+      <div v-if="showOverflow" class="overflow-menu" @click="showOverflow = false">
+        <button type="button" class="overflow-item" @click="api.startRename(node)">Rename</button>
+        <button type="button" class="overflow-item" @click="showAddChild = !showAddChild">Add child group</button>
+        <button type="button" class="overflow-item" @click="showInvite = !showInvite">Invite people</button>
+        <button type="button" class="overflow-item" @click="showDemoMint = !showDemoMint">Mint a demo org</button>
+        <button type="button" class="overflow-item is-danger" @click="api.requestDelete(node)">Delete</button>
+      </div>
     </div>
   </div>
 
@@ -293,31 +305,72 @@ async function submitDemoMint(): Promise<void> {
   color: var(--schools-fg-3);
 }
 
-.structure-row .row-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  opacity: 0;
-  transform: translateX(4px);
+.open-btn {
+  padding: 4px 12px;
+  min-height: 28px;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.02em;
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid rgba(var(--tone-red), 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--schools-red, #DB1E17);
+  cursor: pointer;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
 }
-.structure-row:hover .row-actions,
-.structure-row:focus-within .row-actions { opacity: 1; transform: translateX(0); }
+.open-btn:hover { background: var(--schools-red, #DB1E17); border-color: transparent; color: #fff; }
+@media (max-width: 768px) {
+  .open-btn { min-height: 36px; padding: 6px 16px; font-size: var(--text-sm); }
+}
 
-.row-action {
-  width: 28px;
-  height: 28px;
+.row-overflow { position: relative; }
+.overflow-toggle {
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   color: var(--schools-fg-3);
+  font-size: var(--text-base);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
-.row-action:hover { color: var(--schools-fg); background: rgba(255, 255, 255, 0.72); border-color: rgba(44, 38, 34, 0.10); }
-.row-action.is-danger:hover { color: rgb(var(--tone-red)); background: rgba(var(--tone-red), 0.08); border-color: rgba(var(--tone-red), 0.30); }
+.overflow-toggle:hover { color: var(--schools-fg); background: rgba(255, 255, 255, 0.72); border-color: rgba(44, 38, 34, 0.10); }
+@media (max-width: 768px) {
+  .overflow-toggle { width: 40px; height: 40px; }
+}
+.overflow-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1, 4px);
+  background: #fff;
+  border: 1px solid rgba(44, 38, 34, 0.12);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(44, 38, 34, 0.14);
+}
+.overflow-item {
+  padding: 9px 12px;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--schools-fg-2);
+  cursor: pointer;
+}
+.overflow-item:hover { background: rgba(44, 38, 34, 0.06); color: var(--schools-fg); }
+.overflow-item.is-danger { color: rgb(var(--tone-red)); }
+.overflow-item.is-danger:hover { background: rgba(var(--tone-red), 0.08); }
 
 .structure-inline-form {
   display: flex;

@@ -564,7 +564,10 @@ onMounted(() => { void refresh() })
             </thead>
             <tbody>
               <tr v-for="row in tableRows" :key="row.id">
-                <td class="cell-name" @click="selectNode(row)">{{ row.name }}</td>
+                <td class="cell-name">
+                  <span class="cell-name-text" @click="selectNode(row)">{{ row.name }}</span>
+                  <button type="button" class="open-btn" @click="openDashboard(row)">Open</button>
+                </td>
                 <td>{{ row.label }}</td>
                 <td>{{ row.is_demo ? 'Demo' : '—' }}</td>
                 <td>{{ row.commercial?.platformStatus || '—' }}</td>
@@ -573,7 +576,6 @@ onMounted(() => { void refresh() })
                 <td>{{ row.rollup.learnerCount }}</td>
                 <td class="cell-actions">
                   <button class="row-action" title="Rename" @click="startRename(row)">✎</button>
-                  <button class="row-action" title="Open dashboard" @click="openDashboard(row)">↗</button>
                   <button class="row-action is-danger" title="Delete" @click="requestDelete(row)">✕</button>
                 </td>
               </tr>
@@ -708,8 +710,24 @@ onMounted(() => { void refresh() })
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3); border-bottom: 1px solid rgba(44, 38, 34, 0.08);
 }
 .structure-table td { padding: var(--space-2) var(--space-4); border-bottom: 1px solid rgba(44, 38, 34, 0.05); color: var(--schools-fg-2); }
-.cell-name { font-weight: var(--font-medium); color: var(--schools-fg); cursor: pointer; }
-.cell-name:hover { text-decoration: underline; }
+.cell-name { display: flex; align-items: center; gap: var(--space-3); font-weight: var(--font-medium); color: var(--schools-fg); }
+.cell-name-text { cursor: pointer; }
+.cell-name-text:hover { text-decoration: underline; }
+.open-btn {
+  padding: 4px 12px;
+  min-height: 28px;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid rgba(var(--tone-red), 0.35);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--schools-red, #DB1E17);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+.open-btn:hover { background: var(--schools-red, #DB1E17); border-color: transparent; color: #fff; }
 .cell-actions { display: flex; gap: 4px; }
 .row-action {
   width: 26px; height: 26px; display: grid; place-items: center; background: transparent; border: 1px solid transparent;

@@ -219,6 +219,13 @@ describe('AdminStructure — shared search + filter chips', () => {
   })
 })
 
+
+async function clickOverflowItem(wrapper: any, label: string): Promise<void> {
+  await wrapper.find('.overflow-toggle').trigger('click')
+  const item = wrapper.findAll('.overflow-item').find((b: any) => b.text() === label)!
+  await item.trigger('click')
+}
+
 describe('AdminStructure — node actions (tree lens)', () => {
   it('create child posts to /api/groups with the parent id and label', async () => {
     setupFetch({
@@ -227,7 +234,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
       '/api/groups': { group: { id: 'new-1', name: 'New Sub-group' } },
     })
     const wrapper = await mountStructure()
-    await wrapper.find('[title="Add child group"]').trigger('click')
+    await clickOverflowItem(wrapper, 'Add child group')
     await wrapper.find('.structure-inline-form input.frost-input').setValue('New Sub-group')
     await wrapper.find('.structure-inline-form .btn-ghost-sm').trigger('click')
     await flushPromises()
@@ -244,7 +251,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
       '/invites': { code: 'ABC123' },
     })
     const wrapper = await mountStructure()
-    await wrapper.find('[title="Invite people"]').trigger('click')
+    await clickOverflowItem(wrapper, 'Invite people')
     await wrapper.find('button.btn-ghost-sm').trigger('click') // "Create invite" — first ghost button in the invite form context
     // Re-find the invite form's submit specifically (role select is default 'teacher').
     const inviteForm = wrapper.findAll('.structure-inline-form').find((f) => f.find('select.frost-select').exists() && f.text().includes('Create invite'))
@@ -265,7 +272,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
       '/demo-mint': { group_id: 'demo-1', links: [{ role: 'leader', url: 'https://app/group/DEMO1', code: 'DEMO1' }] },
     })
     const wrapper = await mountStructure()
-    await wrapper.find('[title="Mint a demo org here"]').trigger('click')
+    await clickOverflowItem(wrapper, 'Mint a demo org')
     const demoForm = wrapper.findAll('.structure-inline-form').find((f) => f.text().includes('Mint'))!
     await demoForm.find('input.frost-input').setValue('Demo Academy')
     await demoForm.find('.btn-ghost-sm').trigger('click')
@@ -284,7 +291,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
       '/api/groups/group-a': { group: { id: 'group-a', name: 'Renamed' } },
     })
     const wrapper = await mountStructure()
-    await wrapper.find('[title="Rename"]').trigger('click')
+    await clickOverflowItem(wrapper, 'Rename')
     const input = wrapper.find('.structure-rename-input')
     await input.setValue('Renamed')
     await input.trigger('keyup.enter')
@@ -322,7 +329,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
     })
     const wrapper = await mountStructure()
     const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as any)
-    await wrapper.find('[title="Open dashboard"]').trigger('click')
+    await wrapper.find('.open-btn').trigger('click')
     await flushPromises()
     expect(pushSpy).toHaveBeenCalledWith('/admin/groups/group-a')
     pushSpy.mockRestore()
@@ -337,7 +344,7 @@ describe('AdminStructure — delete flow', () => {
       '/api/groups/group-a': { impact: { groupName: 'Gwynedd', schoolCount: 0, classCount: 0, sessionCount: 0, learnerCount: 0, teacherCount: 0, hasRealActivity: false } },
     })
     const wrapper = await mountStructure()
-    await wrapper.find('[title="Delete"]').trigger('click')
+    await clickOverflowItem(wrapper, 'Delete')
     await flushPromises()
     const call = fetchMock.mock.calls.find((c) => c[0] === '/api/groups/group-a' && (!c[1] || c[1].method === 'GET' || c[1].method === undefined))
     expect(call).toBeTruthy()
@@ -350,7 +357,7 @@ describe('AdminStructure — delete flow', () => {
       '/api/admin/update-school': { impact: { schoolName: 'Ysgol', classCount: 0, sessionCount: 0, learnerCount: 0, teacherCount: 0, hasRealActivity: false } },
     })
     const wrapper = await mountStructure()
-    await wrapper.find('[title="Delete"]').trigger('click')
+    await clickOverflowItem(wrapper, 'Delete')
     await flushPromises()
     const call = fetchMock.mock.calls.find((c) => (c[0] as string).includes('/api/admin/update-school?school_id=school-1'))
     expect(call).toBeTruthy()
