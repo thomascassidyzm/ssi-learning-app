@@ -218,7 +218,7 @@ export function minutesTrendForClass(rows: ScopedSessionRow[], classId: string, 
     for (const r of rows) {
       if (r.class_id !== classId) continue
       const t = new Date(r.started_at).getTime()
-      if (t >= bounds[i - 1] && t < bounds[i]) secs += r.duration_seconds ?? 0
+      if (t > bounds[i - 1] && t <= bounds[i]) secs += r.duration_seconds ?? 0
     }
     trend.push(round1(secs / 60))
   }
@@ -260,7 +260,7 @@ export function hoursTrendForEntity(rows: ScopedSessionRow[], classIds: string[]
     for (const r of rows) {
       if (!idSet.has(r.class_id)) continue
       const t = new Date(r.started_at).getTime()
-      if (t >= bounds[i - 1] && t < bounds[i]) secs += r.duration_seconds ?? 0
+      if (t > bounds[i - 1] && t <= bounds[i]) secs += r.duration_seconds ?? 0
     }
     trend.push(round1(secs / 3600))
   }
@@ -297,7 +297,7 @@ export function activeClassesTrendForEntity(rows: ScopedSessionRow[], classIds: 
     for (const r of rows) {
       if (!idSet.has(r.class_id)) continue
       const t = new Date(r.started_at).getTime()
-      if (t >= bounds[i - 1] && t < bounds[i]) activeSet.add(r.class_id)
+      if (t > bounds[i - 1] && t <= bounds[i]) activeSet.add(r.class_id)
     }
     trend.push(Math.round((activeSet.size / classIds.length) * 1000) / 10)
   }
