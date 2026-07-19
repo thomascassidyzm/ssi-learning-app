@@ -29,17 +29,13 @@ const GUARDED = [
   'views/admin/AdminClassHome.vue',
   'views/admin/AdminAnalytics.vue',
   'composables/admin/useAdminActivity.ts',
+  // The access gate itself — founder ruling 2026-07-19: the SERVER enforces
+  // admin role/scope per request (docs/trinity/admin.md audit: 0 endpoint
+  // gaps), so the gate's old 60s refreshRole() poll + visibilitychange
+  // re-check bought no security, only idle chatter. It now re-validates on
+  // NAVIGATION only. Pinned here so no interval / focus re-check creeps back.
+  'composables/useAdminGate.ts',
 ]
-
-// NOTE ON useAdminGate.ts (deliberately NOT guarded here): it runs a 60s
-// `refreshRole()` DB re-validation + a visibilitychange re-check on every admin
-// surface. That is a documented SECURITY control, not dashboard-data
-// auto-refresh — the org tables it protects are RLS-off by design, so this
-// UI gate IS the live-revocation enforcement (see useAdminGate's header and
-// docs/trinity/admin.md). It shows up as ~1 idle request/min on admin pages;
-// whether that periodic access-revalidation stays is a founder call, tracked
-// separately from the no-data-auto-refresh pin. Do NOT add it to GUARDED
-// without resolving that — the test would fail by design.
 
 describe('no auto-refresh on dashboard surfaces', () => {
   for (const rel of GUARDED) {
