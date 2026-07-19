@@ -211,11 +211,12 @@ const firstName = computed(() => {
   const name = currentUser.value?.display_name || ''
   // Link-auth accounts carry a machine placeholder ("link-<uuid>") until the
   // person sets a real name — never greet anyone with it.
-  if (/^link-[0-9a-f]{8}/i.test(name)) return 'there'
-  return name.split(/\s+/).filter(Boolean)[0] || 'there'
+  if (/^link-[0-9a-f]{8}/i.test(name)) return ''
+  return name.split(/\s+/).filter(Boolean)[0] || ''
 })
 
-const greetingName = computed(() => `Welcome back, ${firstName.value}.`)
+const greetingName = computed(() =>
+  firstName.value ? `Welcome back, ${firstName.value}.` : 'Welcome back.')
 
 const todayLabel = computed(() => {
   const parts = new Date().toLocaleDateString('en-GB', {
@@ -455,7 +456,7 @@ async function handlePlayClass(cls: ClassInfo) {
          ============================================================ -->
     <template v-else-if="isSchoolAdmin">
       <Greeting
-        :name="`Welcome back, ${firstName}.`"
+        :name="greetingName"
         :lines="adminGreetingLines"
         :date="todayLabel"
         :dense="density === 'compact'"
