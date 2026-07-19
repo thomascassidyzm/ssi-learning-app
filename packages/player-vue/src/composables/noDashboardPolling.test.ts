@@ -26,7 +26,6 @@ const GUARDED = [
   'views/admin/AdminStatsView.vue',
   'views/admin/AdminActivity.vue',
   'views/admin/AdminUserDetail.vue',
-  'views/admin/AdminClassHome.vue',
   'views/admin/AdminAnalytics.vue',
   'composables/admin/useAdminActivity.ts',
   // The access gate itself — founder ruling 2026-07-19: the SERVER enforces

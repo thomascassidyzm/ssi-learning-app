@@ -85,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     // ─── Resolve :id → a group node (or a class) ───
     let nodeId: string | null = null
-    let classRow: { id: string; class_name: string; course_code: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null } | null = null
+    let classRow: { id: string; class_name: string; course_code: string; school_id: string | null; group_id: string | null; teacher_user_id: string | null; current_seed: number | null } | null = null
 
     const { data: asGroup } = await svc.from('groups').select('id').eq('id', rawId).maybeSingle()
     if (asGroup) {
@@ -102,7 +102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       } else {
         const { data: asClass } = await svc
           .from('classes')
-          .select('id, class_name, course_code, school_id, group_id, teacher_user_id')
+          .select('id, class_name, course_code, school_id, group_id, teacher_user_id, current_seed')
           .eq('id', rawId)
           .maybeSingle()
         if (asClass) {
@@ -210,11 +210,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ─── Class kind — leaf home: teachers (read-only, co-teacher view) +
-    // learners as children. ───
+    // learners as children, carrying the teaching data the old roster had
+    // (belt-bearing seeds/LEGO counts, streak, last-7-days) so the class
+    // node home is the page teachers teach from — the individual learner
+    // page is gone (founder ruling 2026-07-19).
     if (classRow) {
-      const [{ data: ct }, { data: csp }] = await Promise.all([
+      const [{ data: ct }, { data: csp }, { count: legoTotal }, { data: classStats }] = await Promise.all([
         svc.from('class_teachers').select('teacher_user_id, is_lead').eq('class_id', classRow.id),
-        svc.from('class_student_progress').select('learner_id, student_name, total_practice_seconds, last_active_at').eq('class_id', classRow.id),
+        svc.from('class_student_progress').select('learner_id, student_name, seeds_completed, legos_mastered, total_practice_seconds, last_active_at, joined_class_at').eq('class_id', classRow.id),
+        svc.from('course_legos').select('id', { count: 'exact', head: true }).eq('course_code', classRow.course_code),
+        svc.from('class_activity_stats').select('total_practice_seconds, active_students, school_id, region_code, course_code').eq('class_id', classRow.id).maybeSingle(),
       ])
       const teacherIds = new Set<string>((ct ?? []).map((t: any) => t.teacher_user_id))
       if (classRow.teacher_user_id) teacherIds.add(classRow.teacher_user_id)
@@ -225,14 +230,93 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         is_lead: uid === classRow!.teacher_user_id || (ct ?? []).some((t: any) => t.teacher_user_id === uid && t.is_lead),
       })).sort((a, b) => Number(b.is_lead) - Number(a.is_lead) || a.name.localeCompare(b.name))
 
-      const students = (csp ?? []).map((s: any) => ({
-        learner_id: s.learner_id,
-        name: s.student_name || 'Unnamed',
-        practice_hours: Math.round(((Number(s.total_practice_seconds) || 0) / 3600) * 10) / 10,
-        last_active_at: s.last_active_at,
-      })).sort((a, b) => b.practice_hours - a.practice_hours)
+      // Per-student daily activity (last 14 days) from the player_events-derived
+      // rollup — the same source StudentProgressView used — for streaks + the
+      // last-7-days spark in the in-place student expansion.
+      const learnerIds = (csp ?? []).map((s: any) => s.learner_id).filter(Boolean)
+      const since = new Date()
+      since.setDate(since.getDate() - 14)
+      const sinceDay = since.toISOString().split('T')[0]
+      const secondsByLearnerDay = new Map<string, Map<string, number>>()
+      for (const batch of chunk(learnerIds)) {
+        const { data } = await svc
+          .from('learner_speaking_opportunities')
+          .select('learner_id, day, play_seconds')
+          .in('learner_id', batch)
+          .gte('day', sinceDay)
+        for (const r of data ?? []) {
+          const lid = (r as any).learner_id as string
+          const day = String((r as any).day)
+          if (!secondsByLearnerDay.has(lid)) secondsByLearnerDay.set(lid, new Map())
+          const m = secondsByLearnerDay.get(lid)!
+          m.set(day, (m.get(day) || 0) + (Number((r as any).play_seconds) || 0))
+        }
+      }
+      const dayKey = (offset: number): string => {
+        const d = new Date()
+        d.setDate(d.getDate() - offset)
+        return d.toISOString().split('T')[0]
+      }
+      // Same rule as the learner's own progress view: today may be skipped if
+      // they haven't played yet, then count consecutive practised days back.
+      const streakFor = (days: Map<string, number> | undefined): number => {
+        if (!days) return 0
+        const start = (days.get(dayKey(0)) || 0) > 0 ? 0 : 1
+        let streak = 0
+        for (let i = start; i < start + 14; i++) {
+          if ((days.get(dayKey(i)) || 0) > 0) streak++
+          else break
+        }
+        return streak
+      }
+
+      const students = (csp ?? []).map((s: any) => {
+        const days = secondsByLearnerDay.get(s.learner_id)
+        const last7 = Array.from({ length: 7 }, (_, i) => Math.round(((days?.get(dayKey(6 - i)) || 0) / 60)))
+        return {
+          learner_id: s.learner_id,
+          name: s.student_name || 'Unnamed',
+          seeds_completed: Number(s.seeds_completed) || 0,
+          legos_mastered: Number(s.legos_mastered) || 0,
+          practice_hours: Math.round(((Number(s.total_practice_seconds) || 0) / 3600) * 10) / 10,
+          last_active_at: s.last_active_at,
+          joined_class_at: s.joined_class_at,
+          streak_days: streakFor(days),
+          last7_minutes: last7,
+          week_minutes: last7.reduce((a, b) => a + b, 0),
+        }
+      }).sort((a, b) => b.practice_hours - a.practice_hours)
 
       const classHours = (csp ?? []).reduce((sum: number, s: any) => sum + (Number(s.total_practice_seconds) || 0), 0) / 3600
+
+      // Journey: how far the class entity has travelled through the course
+      // (same numbers the old class page's Course Journey card told).
+      const journeyTotal = Number(legoTotal) || 0
+      const journeyDone = journeyTotal > 0
+        ? Math.min(journeyTotal, classRow.current_seed || 0)
+        : (classRow.current_seed || 0)
+
+      // Practice min/student/week benchmark vs school + course averages
+      // (the old page's Bench card, same formulas).
+      let benchmark: { class: number; school: number; course: number } | null = null
+      if (classStats) {
+        const activeStudents = Number((classStats as any).active_students) || students.length || 1
+        const classMin = Math.round((Number((classStats as any).total_practice_seconds) || 0) / 60 / Math.max(1, activeStudents))
+        const { data: demographics } = await svc
+          .from('demographic_cycle_averages')
+          .select('level, group_id, avg_cycles_per_session')
+          .in('level', ['school', 'course'])
+          .in('group_id', [(classStats as any).school_id, (classStats as any).course_code].filter(Boolean))
+        const avgFor = (level: string, groupId: string | null): number => {
+          const d = (demographics ?? []).find((r: any) => r.level === level && r.group_id === groupId)
+          return d ? Math.round((Number((d as any).avg_cycles_per_session) || 0) * 0.6) : 0
+        }
+        benchmark = {
+          class: classMin,
+          school: avgFor('school', (classStats as any).school_id),
+          course: avgFor('course', (classStats as any).course_code),
+        }
+      }
 
       res.setHeader('Cache-Control', 'no-store')
       res.status(200).json({
@@ -253,6 +337,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         children: [],
         teachers,
         students,
+        journey: { done: journeyDone, total: journeyTotal },
+        benchmark,
         practiceHours: Math.round(classHours * 10) / 10,
         schoolId: classRow.school_id,
         nodeId,

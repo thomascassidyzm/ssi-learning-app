@@ -5,8 +5,21 @@
 // classes) are filters over this one list — each lens maps its payload onto
 // the same row shape: avatar initial, name (click → that thing's home),
 // caption, count columns.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import BeltDot from '@/components/schools/shared/BeltDot.vue'
+import HealthDot from '@/components/schools/shared/HealthDot.vue'
+import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
+import Sparkline from '@/components/schools/shared/Sparkline.vue'
+import type { Belt } from '@/composables/schools/belts'
+
+interface StudentDetail {
+  legos_mastered: number
+  journey_total: number
+  streak_days: number
+  last7_minutes: number[]
+  week_minutes: number
+}
 
 interface Row {
   key: string
@@ -15,6 +28,10 @@ interface Row {
   badge?: string | null
   counts: { value: string | number; word: string }[]
   to: string | null
+  belt?: Belt | null
+  health?: string | null
+  /** In-place expansion payload (students) — the row opens here, not on a new page. */
+  detail?: StudentDetail | null
 }
 
 const props = defineProps<{
@@ -76,7 +93,9 @@ const rows = computed<Row[]>(() => {
         { value: s.classCount, word: 'classes' },
         { value: `${s.practiceHours}h`, word: 'practised' },
       ],
-      to: `/admin/schools/${s.schoolId}`,
+      // Stay inside the one map surface: a school IS a node (THE MODEL I2),
+      // so open its node home rather than repainting a separate school page.
+      to: s.nodeId ? `/admin/groups/${s.nodeId}` : `/admin/schools/${s.schoolId}`,
     }))
   }
   if (props.lens === 'teachers') {
@@ -103,44 +122,89 @@ const rows = computed<Row[]>(() => {
     }))
   }
   if (props.lens === 'students') {
+    // The teaching row: belt · LEGOs · hours · last active · health flag —
+    // the density the old roster table had. Clicking expands IN PLACE
+    // (journey, streak, last 7 days); there is no individual learner page.
     return (p.students || []).map((s: any): Row => ({
       key: s.learner_id,
       name: s.name,
       caption: s.last_active_at
         ? `Last practised ${new Date(s.last_active_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
         : 'Not started yet',
-      counts: [{ value: `${s.practice_hours}h`, word: 'practised' }],
-      to: `/admin/users/${s.learner_id}/progress`,
+      belt: s.belt || null,
+      health: s.health || null,
+      counts: [
+        { value: s.legos_mastered ?? 0, word: 'LEGOs' },
+        { value: `${s.practice_hours}h`, word: 'practised' },
+      ],
+      to: null,
+      detail: {
+        legos_mastered: s.legos_mastered ?? 0,
+        journey_total: s.journey_total ?? 0,
+        streak_days: s.streak_days ?? 0,
+        last7_minutes: s.last7_minutes ?? [],
+        week_minutes: s.week_minutes ?? 0,
+      },
     }))
   }
   return []
 })
 
+const expandedKey = ref<string | null>(null)
+
 function open(row: Row): void {
+  if (row.detail) {
+    expandedKey.value = expandedKey.value === row.key ? null : row.key
+    return
+  }
   if (row.to) router.push(row.to)
 }
 </script>
 
 <template>
   <ul class="child-list">
-    <li v-for="row in rows" :key="row.key" class="child-row" :class="{ 'is-static': !row.to }">
-      <button type="button" class="child-btn" :disabled="!row.to" @click="open(row)">
+    <li v-for="row in rows" :key="row.key" class="child-row" :class="{ 'is-static': !row.to && !row.detail }">
+      <button type="button" class="child-btn" :disabled="!row.to && !row.detail" @click="open(row)">
         <span class="child-avatar">{{ initial(row.name) }}</span>
         <span class="child-main">
           <span class="child-name-line">
             <span class="child-name">{{ row.name }}</span>
             <span v-if="row.badge" class="child-badge">{{ row.badge }}</span>
           </span>
-          <span v-if="row.caption" class="child-caption">{{ row.caption }}</span>
+          <span v-if="row.caption" class="child-caption">
+            <template v-if="row.health"><HealthDot :health="row.health as any" /> {{ row.health.replace('-', ' ') }} · </template>{{ row.caption }}
+          </span>
         </span>
         <span class="child-counts">
+          <span v-if="row.belt" class="child-count child-belt">
+            <span class="child-count-value"><BeltDot :belt="row.belt" :size="12" /> {{ row.belt }}</span>
+            <span class="child-count-word">belt</span>
+          </span>
           <span v-for="(c, i) in row.counts" :key="i" class="child-count">
             <span class="child-count-value frost-mono-nums">{{ c.value }}</span>
             <span class="child-count-word">{{ c.word }}</span>
           </span>
         </span>
-        <span v-if="row.to" class="child-open" aria-hidden="true">→</span>
+        <span v-if="row.detail" class="child-open" aria-hidden="true">{{ expandedKey === row.key ? '▾' : '▸' }}</span>
+        <span v-else-if="row.to" class="child-open" aria-hidden="true">→</span>
       </button>
+      <div v-if="row.detail && expandedKey === row.key" class="child-detail">
+        <div class="detail-block detail-journey">
+          <span class="detail-word">Course journey</span>
+          <JourneyBar :done="row.detail.legos_mastered" :total="Math.max(row.detail.journey_total, row.detail.legos_mastered)" label="" />
+          <span class="detail-note">{{ row.detail.legos_mastered }} LEGOs mastered<template v-if="row.detail.journey_total"> of {{ row.detail.journey_total }}</template></span>
+        </div>
+        <div class="detail-block">
+          <span class="detail-word">Streak</span>
+          <span class="detail-big frost-mono-nums">{{ row.detail.streak_days }}d</span>
+          <span class="detail-note">{{ row.detail.streak_days ? 'practising daily' : 'no current streak' }}</span>
+        </div>
+        <div class="detail-block">
+          <span class="detail-word">Last 7 days</span>
+          <Sparkline :data="row.detail.last7_minutes" :width="120" :height="30" />
+          <span class="detail-note">{{ row.detail.week_minutes }} min this week</span>
+        </div>
+      </div>
     </li>
     <li v-if="rows.length === 0" class="child-empty">
       <slot name="empty">Nothing here yet.</slot>
@@ -187,6 +251,23 @@ function open(row: Row): void {
 .child-open { color: var(--schools-red, #DB1E17); flex-shrink: 0; font-size: var(--text-sm); }
 
 .child-empty { padding: var(--space-6); text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); }
+
+.child-belt .child-count-value { display: inline-flex; align-items: center; gap: 5px; text-transform: capitalize; }
+.child-caption { display: inline-flex; align-items: center; gap: 4px; }
+
+.child-detail {
+  display: grid; grid-template-columns: minmax(180px, 1.4fr) 1fr 1fr; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4) calc(36px + var(--space-4) * 2);
+  background: rgba(255, 255, 255, 0.55); border-top: 1px dashed rgba(44, 38, 34, 0.08);
+}
+.detail-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.detail-word { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--schools-fg-3, #8A8078); }
+.detail-big { font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--ink-primary, #2C2622); }
+.detail-note { font-size: var(--text-xs); color: var(--schools-fg-2, #555); }
+@media (max-width: 640px) {
+  .child-detail { grid-template-columns: 1fr 1fr; padding-left: var(--space-4); }
+  .detail-journey { grid-column: 1 / -1; }
+}
 
 @media (max-width: 640px) {
   .child-counts { display: none; }

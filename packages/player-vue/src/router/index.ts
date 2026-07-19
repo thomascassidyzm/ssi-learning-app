@@ -482,7 +482,7 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'admin-school-dashboard',
         component: NodeHomeView,
-        meta: { title: 'School Home', description: 'Node home for a school' },
+        meta: { title: 'School Home', description: 'Node home for a school', nodeSurface: true },
       },
       {
         path: 'classes',
@@ -527,7 +527,7 @@ const routes: RouteRecordRaw[] = [
         path: '',
         name: 'admin-group-dashboard',
         component: NodeHomeView,
-        meta: { title: 'Group Home', description: 'Node home for a group' },
+        meta: { title: 'Group Home', description: 'Node home for a group', nodeSurface: true },
       },
       {
         // The old Full-schools list — the URL lives, the separate design
@@ -548,12 +548,22 @@ const routes: RouteRecordRaw[] = [
   {
     // THE VIEW (docs/THE-VIEW.md): class level gets the same node home —
     // map rail, identity (lead + co-teachers, read-only), students as
-    // children. The rich class tools remain one tap away at
+    // children (with the full teaching data in-row). Deliberately the SAME
+    // container + view pair as /admin/groups/:id so drilling group → class
+    // reuses the mounted surface (one continuous map, no repaint — founder
+    // ruling 2026-07-19). The rich class tools remain one tap away at
     // /admin/schools/:schoolId/classes/:classId.
     path: '/admin/classes/:id',
-    name: 'admin-class-detail',
-    component: () => import('@/views/admin/AdminClassHome.vue'),
-    meta: { title: 'Class Home (Admin)' },
+    component: AdminGroupContainer,
+    meta: { hideAppEscape: true },
+    children: [
+      {
+        path: '',
+        name: 'admin-class-detail',
+        component: NodeHomeView,
+        meta: { title: 'Class Home (Admin)', nodeSurface: true },
+      },
+    ],
   },
   {
     // THE LENS at class level — "See insights" on a class node home.
@@ -563,10 +573,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Class Insights (Admin)' },
   },
   {
+    // The individual learner page is DEAD (founder ruling 2026-07-19) — its
+    // teacher-relevant content (journey, streak, last-7-days) lives as the
+    // in-place student-row expansion on the class node home. The URL
+    // survives as a redirect so old links never 404.
     path: '/admin/users/:learnerId/progress',
-    name: 'admin-user-progress',
-    component: () => import('@/views/admin/AdminUserProgress.vue'),
-    meta: { title: 'User Progress (Admin)' },
+    redirect: (to) => ({ path: `/admin/users/${to.params.learnerId}` }),
   },
   // Shareable redeem link. :code? is optional — a bare /redeem visit (e.g. a
   // teacher's whiteboard code, typed manually rather than clicked) drops into
@@ -662,9 +674,14 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(_to, _from, savedPosition) {
+  scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition
+    }
+    // Drilling within THE VIEW's node surface is movement inside ONE map —
+    // keep the scroll where it is (no jump-to-top jolt between nodes).
+    if (to.meta.nodeSurface && from.meta.nodeSurface) {
+      return false
     }
     return { top: 0 }
   },

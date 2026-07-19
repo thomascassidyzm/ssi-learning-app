@@ -56,9 +56,11 @@ function classPayload() {
       { user_id: 't2', name: 'Mr Rao', is_lead: false },
     ],
     students: [
-      { learner_id: 'l1', name: 'Asha', practice_hours: 2, last_active_at: '2026-07-18T10:00:00Z' },
-      { learner_id: 'l2', name: 'Ravi', practice_hours: 1, last_active_at: null },
+      { learner_id: 'l1', name: 'Asha', seeds_completed: 25, legos_mastered: 60, practice_hours: 2, last_active_at: new Date().toISOString(), streak_days: 3, last7_minutes: [0, 10, 5, 0, 20, 15, 10], week_minutes: 60 },
+      { learner_id: 'l2', name: 'Ravi', seeds_completed: 5, legos_mastered: 12, practice_hours: 1, last_active_at: null, streak_days: 0, last7_minutes: [0, 0, 0, 0, 0, 0, 0], week_minutes: 0 },
     ],
+    journey: { done: 60, total: 320 },
+    benchmark: { class: 90, school: 30, course: 24 },
     practiceHours: 3,
     schoolId: 'school-1',
     nodeId: 'school-node',
@@ -193,12 +195,43 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(pushMock).toHaveBeenCalledWith('/admin/groups/nation')
   })
 
-  it('class students click through to the learner progress view', async () => {
+  it('TEACHING-DATA PIN: class home shows per-student belts + the class cards (journey, belt distribution, benchmark)', async () => {
     routeMock.params = { id: 'class-1' }
     setupFetch(classPayload())
     const wrapper = mountView()
     await flushPromises()
+
+    const text = wrapper.text()
+    // Per-student belt derived from seeds (25 → orange, 5 → white) + LEGOs count
+    expect(text).toContain('orange')
+    expect(text).toContain('white')
+    expect(text).toContain('60')
+    expect(wrapper.findAll('.belt-dot').length).toBeGreaterThan(0)
+    // Class cards
+    expect(text).toContain('Course journey')
+    expect(text).toContain('Belt distribution')
+    expect(text).toContain('Practice min/student/week')
+    // Journey note speaks LEGOs (position-is-LEGO ruling: never "seed")
+    expect(text).toContain('LEGOs mastered on average')
+    expect(text).not.toMatch(/\bseed\b/i)
+  })
+
+  it('LEARNER-PAGE-DEAD PIN: clicking a student expands IN PLACE (journey, streak, last 7 days) — no navigation', async () => {
+    routeMock.params = { id: 'class-1' }
+    setupFetch(classPayload())
+    const wrapper = mountView()
+    await flushPromises()
+
     await wrapper.find('.child-btn').trigger('click')
-    expect(pushMock).toHaveBeenCalledWith('/admin/users/l1/progress')
+    expect(pushMock).not.toHaveBeenCalled()
+    const detail = wrapper.find('.child-detail')
+    expect(detail.exists()).toBe(true)
+    expect(detail.text()).toContain('Streak')
+    expect(detail.text()).toContain('3d')
+    expect(detail.text()).toContain('Last 7 days')
+    expect(detail.text()).toContain('60 min this week')
+    // Toggle closed again
+    await wrapper.find('.child-btn').trigger('click')
+    expect(wrapper.find('.child-detail').exists()).toBe(false)
   })
 })

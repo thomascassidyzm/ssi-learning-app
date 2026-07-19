@@ -425,18 +425,9 @@ async function handleCreateSigninLink() {
       </button>
       <span class="breadcrumb-sep">/</span>
       <span class="breadcrumb-current">{{ profile?.display_name || 'Loading…' }}</span>
-      <button
-        v-if="profile"
-        class="breadcrumb-action"
-        @click="$router.push(`/admin/users/${$route.params.learnerId}/progress`)"
-        title="Open the learner's own progress dashboard"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-        Learner dashboard
-      </button>
+      <!-- The "Learner dashboard" button died with the individual learner
+           page (founder ruling 2026-07-19) — a learner's teaching data
+           lives in their class's node home, expanded in place. -->
     </nav>
 
     <!-- Error -->

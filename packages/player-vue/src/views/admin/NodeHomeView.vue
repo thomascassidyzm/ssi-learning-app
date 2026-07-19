@@ -10,6 +10,11 @@ import { useAdminClient } from '@/composables/useAdminClient'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
+import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
+import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
+import BeltDot from '@/components/schools/shared/BeltDot.vue'
+import Bench from '@/components/schools/shared/Bench.vue'
+import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 
 const route = useRoute()
@@ -169,10 +174,71 @@ const classToolsLink = computed(() => {
 
 const structureLink = computed(() => '/admin/structure')
 
+// ─── Class teaching data (the density the old roster had, in THE VIEW's
+// grammar): per-student belt + health, class journey / belt distribution /
+// practice benchmark cards. Health rule mirrors the old ClassDetail page. ───
+type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
+function deriveStudentHealth(seeds: number, lastActiveAt: string | null, classAvg: number): Health {
+  if (!lastActiveAt) return 'inactive'
+  const diffDays = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 86400000)
+  if (diffDays > 14) return 'needs-attention'
+  if (classAvg > 0 && seeds < classAvg * 0.5) return 'needs-attention'
+  if (classAvg > 0 && seeds >= classAvg * 1.25 && diffDays <= 2) return 'excellent'
+  return 'good'
+}
+
+const classAvgSeeds = computed(() => {
+  const list = home.value?.students ?? []
+  if (!list.length) return 0
+  return Math.round(list.reduce((s: number, x: any) => s + (x.seeds_completed || 0), 0) / list.length)
+})
+
+const classAvgLegos = computed(() => {
+  const list = home.value?.students ?? []
+  if (!list.length) return 0
+  return Math.round(list.reduce((s: number, x: any) => s + (x.legos_mastered || 0), 0) / list.length)
+})
+
+const classBelt = computed<Belt>(() => deriveBelt(classAvgSeeds.value))
+
+const nextBeltInfo = computed(() => {
+  const idx = BELTS.findIndex((b) => b.key === classBelt.value)
+  const next = BELTS[idx + 1]
+  if (!next) return null
+  return { name: next.name, remaining: Math.max(0, next.min - classAvgSeeds.value) }
+})
+
+const beltDistribution = computed<Record<string, number>>(() => {
+  const dist: Record<string, number> = {}
+  for (const s of home.value?.students ?? []) {
+    const belt = deriveBelt(s.seeds_completed || 0)
+    dist[belt] = (dist[belt] || 0) + 1
+  }
+  return dist
+})
+
+const beltDistributionOrdered = computed(() =>
+  BELTS.filter((b) => beltDistribution.value[b.key]).map((b) => ({ belt: b.key, count: beltDistribution.value[b.key] })),
+)
+
+const journey = computed(() => home.value?.journey ?? null)
+const benchmark = computed(() => home.value?.benchmark ?? null)
+
+const enrichedStudents = computed(() => {
+  const avg = classAvgSeeds.value
+  const total = journey.value?.total || 0
+  return (home.value?.students ?? []).map((s: any) => ({
+    ...s,
+    belt: deriveBelt(s.seeds_completed || 0),
+    health: deriveStudentHealth(s.seeds_completed || 0, s.last_active_at, avg),
+    journey_total: total,
+  }))
+})
+
 // ─── Children payload for the list ───
 const listPayload = computed(() => {
   if (!home.value) return {}
-  if (isClass.value) return { students: home.value.students || [] }
+  if (isClass.value) return { students: enrichedStudents.value }
   if (lens.value === 'children') return { children: home.value.children || [] }
   return home.value
 })
@@ -245,6 +311,40 @@ const listPayload = computed(() => {
             <div v-for="s in stats" :key="s.word" class="stat-card schools-card">
               <span class="stat-value frost-mono-nums">{{ s.value }}</span>
               <span class="stat-word">{{ s.word }}</span>
+            </div>
+          </div>
+
+          <!-- CLASS TEACHING CARDS — the density the old class page had
+               (Course Journey · Belt distribution · practice benchmark),
+               in the same card grammar as the stats row. -->
+          <div v-if="isClass" class="class-cards">
+            <div class="schools-card class-card">
+              <span class="schools-kicker">Course journey</span>
+              <JourneyBar v-if="journey" :done="journey.done" :total="journey.total" label="Course Journey" />
+              <p class="class-card-note">
+                {{ classAvgLegos }} LEGOs mastered on average across the class.<br />
+                <template v-if="nextBeltInfo">{{ nextBeltInfo.remaining }} more to {{ nextBeltInfo.name }} belt.</template>
+                <template v-else>Reached Black belt — top of the ladder.</template>
+              </p>
+            </div>
+            <div class="schools-card class-card">
+              <span class="schools-kicker">Belt distribution</span>
+              <template v-if="enrichedStudents.length">
+                <BeltStrip :distribution="beltDistribution" :height="8" />
+                <div class="belt-legend">
+                  <div v-for="row in beltDistributionOrdered" :key="row.belt" class="belt-legend-item">
+                    <BeltDot :belt="row.belt" :size="18" ring />
+                    <span class="belt-legend-count frost-mono-nums">{{ row.count }}</span>
+                    <span class="belt-legend-label">{{ row.belt }}</span>
+                  </div>
+                </div>
+              </template>
+              <p v-else class="class-card-note">No students in this class yet.</p>
+            </div>
+            <div class="schools-card class-card">
+              <span class="schools-kicker">Practice min/student/week</span>
+              <Bench v-if="benchmark" :data="benchmark" unit="m" />
+              <p v-else class="class-card-note">Not enough practice recorded yet.</p>
             </div>
           </div>
 
@@ -338,6 +438,18 @@ const listPayload = computed(() => {
 .stat-card { display: flex; flex-direction: column; gap: 2px; padding: var(--space-4); }
 .stat-value { font-size: clamp(22px, 2.6vw, 30px); font-weight: var(--font-semibold); color: var(--ink-primary, #2C2622); line-height: 1.1; }
 .stat-word { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
+
+.class-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
+.class-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+.class-card .schools-kicker {
+  font-family: var(--font-mono, 'Spline Sans Mono', monospace);
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--schools-red, #DB1E17);
+}
+.class-card-note { margin: 0; font-size: var(--text-sm); color: var(--schools-fg-2, #555); line-height: 1.5; }
+.belt-legend { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.belt-legend-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.belt-legend-count { font-weight: var(--font-semibold); font-size: var(--text-sm); color: var(--ink-primary, #2C2622); }
+.belt-legend-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
 
 .children-section { padding: 0; overflow: hidden; }
 .children-head {

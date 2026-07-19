@@ -38,15 +38,27 @@ function resetTables(): void {
       { school_id: 'school-1', school_name: 'Sunrise Public School', teacher_count: 2, class_count: 1, student_count: 2, total_practice_hours: 135.1, has_admin: true },
     ],
     classes: [
-      { id: 'class-1', class_name: 'Year 6 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-uid-1', is_active: true },
+      { id: 'class-1', class_name: 'Year 6 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-uid-1', is_active: true, current_seed: 60 },
     ],
     class_teachers: [
       { class_id: 'class-1', teacher_user_id: 'teacher-uid-1', is_lead: true },
       { class_id: 'class-1', teacher_user_id: 'teacher-uid-2', is_lead: false },
     ],
     class_student_progress: [
-      { class_id: 'class-1', learner_id: 'learner-1', student_name: 'Asha', total_practice_seconds: 7200, last_active_at: '2026-07-18T10:00:00Z' },
-      { class_id: 'class-1', learner_id: 'learner-2', student_name: 'Ravi', total_practice_seconds: 3600, last_active_at: null },
+      { class_id: 'class-1', learner_id: 'learner-1', student_name: 'Asha', seeds_completed: 25, legos_mastered: 60, total_practice_seconds: 7200, last_active_at: '2026-07-18T10:00:00Z', joined_class_at: '2026-06-01T00:00:00Z' },
+      { class_id: 'class-1', learner_id: 'learner-2', student_name: 'Ravi', seeds_completed: 5, legos_mastered: 12, total_practice_seconds: 3600, last_active_at: null, joined_class_at: '2026-06-01T00:00:00Z' },
+    ],
+    course_legos: Array.from({ length: 320 }, (_, i) => ({ id: `lego-${i}`, course_code: 'hin_for_eng' })),
+    class_activity_stats: [
+      { class_id: 'class-1', total_practice_seconds: 10800, active_students: 2, school_id: 'school-1', region_code: null, course_code: 'hin_for_eng' },
+    ],
+    demographic_cycle_averages: [
+      { level: 'school', group_id: 'school-1', avg_cycles_per_session: 50 },
+      { level: 'course', group_id: 'hin_for_eng', avg_cycles_per_session: 40 },
+    ],
+    learner_speaking_opportunities: [
+      { learner_id: 'learner-1', day: new Date().toISOString().split('T')[0], play_seconds: 600 },
+      { learner_id: 'learner-1', day: new Date(Date.now() - 86400000).toISOString().split('T')[0], play_seconds: 1200 },
     ],
     user_tags: [
       { tag_type: 'school', tag_value: 'SCHOOL:school-1', role_in_context: 'teacher', user_id: 'teacher-uid-1', removed_at: null },
@@ -70,6 +82,7 @@ function applyFilters(rows: any[], calls: { method: string; args: any[] }[]): an
     if (c.method === 'eq') result = result.filter((r) => r[c.args[0]] === c.args[1])
     else if (c.method === 'in') result = result.filter((r) => (c.args[1] as any[]).includes(r[c.args[0]]))
     else if (c.method === 'is') result = result.filter((r) => r[c.args[0]] === c.args[1])
+    else if (c.method === 'gte') result = result.filter((r) => String(r[c.args[0]]) >= String(c.args[1]))
     else if (c.method === 'like') {
       const pattern = c.args[1] as string
       const prefix = pattern.endsWith('%') ? pattern.slice(0, -1) : pattern
@@ -87,6 +100,7 @@ function makeChainable(table: string) {
   builder.eq = chain('eq')
   builder.in = chain('in')
   builder.is = chain('is')
+  builder.gte = chain('gte')
   builder.like = chain('like')
   builder.order = chain('order')
   builder.insert = chain('insert')
@@ -100,7 +114,7 @@ function makeChainable(table: string) {
   }
   builder.then = (resolve: any) => {
     const rows = applyFilters(TABLES[table] || [], calls)
-    return resolve({ data: rows, error: null })
+    return resolve({ data: rows, count: rows.length, error: null })
   }
   return builder
 }
@@ -186,6 +200,30 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.body.students.map((s: any) => s.name)).toEqual(['Asha', 'Ravi'])
     expect(res.body.students[0].practice_hours).toBe(2)
     expect(res.body.node.rollup.learnerCount).toBe(2)
+  })
+
+  it('TEACHING-DATA PIN: class home carries the belt-bearing roster data + journey/benchmark cards', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('class-1'), res)
+    expect(res.statusCode).toBe(200)
+
+    // Per-student teaching data (what the old roster table showed): seeds
+    // (the belt input), LEGOs, streak + last-7-days for the in-place
+    // expansion that replaced the individual learner page.
+    const asha = res.body.students.find((s: any) => s.name === 'Asha')
+    expect(asha).toMatchObject({ seeds_completed: 25, legos_mastered: 60 })
+    expect(asha.last7_minutes).toHaveLength(7)
+    expect(asha.last7_minutes[6] + asha.last7_minutes[5]).toBe(30) // 600s today + 1200s yesterday
+    expect(asha.streak_days).toBeGreaterThanOrEqual(2)
+    expect(asha.week_minutes).toBe(30)
+    const ravi = res.body.students.find((s: any) => s.name === 'Ravi')
+    expect(ravi).toMatchObject({ seeds_completed: 5, legos_mastered: 12, streak_days: 0, week_minutes: 0 })
+
+    // Class cards: journey (course_legos total, class cursor done) +
+    // practice benchmark (class min/student vs school + course averages).
+    expect(res.body.journey).toEqual({ done: 60, total: 320 })
+    expect(res.body.benchmark).toEqual({ class: 90, school: 30, course: 24 })
   })
 
   it('lens=schools returns the subtree-wide schools list with teacher names', async () => {
