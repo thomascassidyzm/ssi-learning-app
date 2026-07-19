@@ -64,15 +64,18 @@ async function fetchHome(): Promise<void> {
 }
 
 // The ONE refresh protocol: register this node's loader so the navbar button
-// and pull-to-refresh drive it. Navigation between nodes/lenses still reloads
-// (that's a navigation, not auto-refresh) — routed through refresh() so it
-// stamps "Updated HH:MM". No polling: the node holds still until asked.
-const { refresh, registerRefresh } = useDashboardRefresh()
+// and pull-to-refresh drive it. No polling: the node holds still until asked.
+// Navigation loads call the loader DIRECTLY, not via refresh() — the
+// singleton's in-flight guard is for the button, and riding it let another
+// surface's still-running refresh swallow this page's only load when the
+// admin containers re-gate and remount as auth resolves (same wedge fixed in
+// NodeRateEngine, seen live on deployed dev).
+const { registerRefresh } = useDashboardRefresh()
 registerRefresh(fetchHome, { immediate: false })
 
 watch(
   [() => route.params.id, () => route.query.lens],
-  () => { void refresh() },
+  () => { void fetchHome() },
   { immediate: true },
 )
 
