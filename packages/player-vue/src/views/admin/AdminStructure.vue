@@ -19,6 +19,7 @@ import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import StructureTreeNode from '@/components/admin/StructureTreeNode.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import type { StructureApi, StructureNode } from '@/components/admin/structureApi'
+import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
 
 const router = useRouter()
 const { getAuthToken } = useAdminClient()
@@ -26,23 +27,10 @@ const { getAuthToken } = useAdminClient()
 // ─── Banners ───
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
-const inviteResult = ref<{ url: string; hint: string } | null>(null)
-const copiedCode = ref<string | null>(null)
 
-function setSuccess(message: string, invite: { url: string; hint: string } | null = null): void {
+function setSuccess(message: string): void {
   successMessage.value = message
-  inviteResult.value = invite
   error.value = null
-}
-
-async function copyCode(code: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(code)
-    copiedCode.value = code
-    setTimeout(() => { if (copiedCode.value === code) copiedCode.value = null }, 2000)
-  } catch {
-    copiedCode.value = null
-  }
 }
 
 function authHeaders(token: string | null): Record<string, string> {
@@ -239,83 +227,9 @@ function openDashboard(node: StructureNode): void {
   else router.push(`/admin/groups/${node.id}`)
 }
 
-async function createChild(parentId: string, name: string, label: string, isDemo: boolean): Promise<boolean> {
-  try {
-    const token = await getAuthToken()
-    if (!token) throw new Error('Not authenticated')
-    const body: Record<string, unknown> = { name, type: label, parent_id: parentId }
-    if (isDemo) body.is_demo = true
-    const resp = await fetch('/api/groups', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify(body),
-    })
-    const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    setSuccess(`"${name}" created`)
-    await refetchCurrentLens()
-    return true
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to create group'
-    return false
-  }
-}
-
-// Invites are people-only (THE-MODEL.md I8) — the endpoint is owned by
-// another worker per THE-MODEL.md §6; this UI calls it per the contract.
-async function submitInvite(node: StructureNode, opts: { role: 'teacher' | 'leader' | 'student' }): Promise<boolean> {
-  try {
-    const token = await getAuthToken()
-    if (!token) throw new Error('Not authenticated')
-    const resp = await fetch(`/api/groups/${node.id}/invites`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ role: opts.role, limits: {} }),
-    })
-    const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    const code = data.code as string | undefined
-    // Leader codes land on the /group landing door (govt_admin invite flow);
-    // teacher/student codes use the general shareable /redeem link.
-    const path = opts.role === 'leader' ? 'group' : 'redeem'
-    setSuccess(
-      `Invite created for "${node.name}"`,
-      code ? { url: `${window.location.origin}/${path}/${code}`, hint: 'Share this invite link.' } : null,
-    )
-    return true
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to create invite'
-    return false
-  }
-}
-
-// Demo-mint endpoint owned by another worker per THE-MODEL.md §6; called
-// per the contract.
-async function submitDemoMint(node: StructureNode, opts: { name: string; leaderEmail?: string }): Promise<boolean> {
-  try {
-    const token = await getAuthToken()
-    if (!token) throw new Error('Not authenticated')
-    const resp = await fetch(`/api/groups/${node.id}/demo-mint`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-      body: JSON.stringify({ name: opts.name, leader_email: opts.leaderEmail }),
-    })
-    const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-    // Links-first (THE-MODEL §1.10): the leader link is server-built
-    // (/group/<code>) — use it directly rather than re-deriving a URL.
-    const leaderLink = Array.isArray(data.links) ? data.links.find((l: any) => l.role === 'leader') : null
-    setSuccess(
-      `Demo org "${opts.name}" minted under "${node.name}"`,
-      leaderLink?.url ? { url: leaderLink.url, hint: 'Share this with the demo leader.' } : null,
-    )
-    await refetchCurrentLens()
-    return true
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to mint demo org'
-    return false
-  }
-}
+// Row verbs are maintenance-only (founder pass C, 2026-07-19): invite /
+// add-child / demo-mint moved to the node home's action bar (NodeActionBar).
+// Only root-level "+ Add organisation" creates structure from this page.
 
 function drillInto(node: StructureNode): void {
   focusedRootId.value = node.id
@@ -323,15 +237,8 @@ function drillInto(node: StructureNode): void {
   fetchTree()
 }
 
-// ─── Delete (unchanged wiring from the old Structure page) ───
-interface DeleteImpact {
-  classCount?: number
-  schoolCount?: number
-  sessionCount: number
-  learnerCount: number
-  teacherCount: number
-  hasRealActivity: boolean
-}
+// ─── Delete — honest impact lines (deleteImpact.ts states the actual
+// cascade consequence with names/counts) ───
 const deleteModalOpen = ref(false)
 const deleteModalTarget = ref<StructureNode | null>(null)
 const deleteModalImpact = ref<DeleteImpact | null>(null)
@@ -339,17 +246,7 @@ const deleteModalSubmitting = ref(false)
 const deleteModalError = ref('')
 
 const deleteModalTitle = computed(() => (deleteModalTarget.value?.commercial ? 'Delete school' : 'Delete group'))
-const deleteModalImpactLines = computed(() => {
-  const impact = deleteModalImpact.value
-  if (!impact) return []
-  const lines: string[] = []
-  if (impact.schoolCount !== undefined) lines.push(`${impact.schoolCount} school(s)`)
-  if (impact.classCount !== undefined) lines.push(`${impact.classCount} class(es)`)
-  lines.push(`${impact.sessionCount} session(s) recorded`)
-  lines.push(`${impact.learnerCount} learner(s)`)
-  lines.push(`${impact.teacherCount} teacher(s)`)
-  return lines
-})
+const deleteModalImpactLines = computed(() => formatDeleteImpactLines(deleteModalImpact.value))
 
 async function requestDelete(node: StructureNode): Promise<void> {
   deleteModalTarget.value = node
@@ -412,7 +309,7 @@ async function confirmDelete(typedName: string): Promise<void> {
 
 provide<StructureApi>('structureApi', {
   editingId, editingName, startRename, saveRename, cancelRename, updateLabel,
-  openDashboard, createChild, requestDelete, submitInvite, submitDemoMint, drillInto,
+  openDashboard, requestDelete, drillInto,
 })
 
 // The ONE refresh protocol: a full-page reload (both lenses) drives the navbar
@@ -443,23 +340,7 @@ onMounted(() => { void refresh() })
     </header>
 
     <Transition name="fade">
-      <div v-if="successMessage" class="banner banner-success" :class="{ 'banner-success--invite': inviteResult }">
-        <span class="banner-body">
-          <span>{{ successMessage }}</span>
-          <div v-if="inviteResult" class="invite-result">
-            <span class="schools-kicker">Invite link</span>
-            <button
-              type="button"
-              class="code-chip is-large"
-              :class="{ 'is-copied': copiedCode === inviteResult.url }"
-              @click="copyCode(inviteResult.url)"
-            >
-              <span class="code-value frost-mono-nums">{{ inviteResult.url }}</span>
-            </button>
-            <span class="invite-hint">{{ inviteResult.hint }}</span>
-          </div>
-        </span>
-      </div>
+      <div v-if="successMessage" class="banner banner-success">{{ successMessage }}</div>
     </Transition>
     <Transition name="fade">
       <div v-if="error" class="banner banner-error">{{ error }}</div>
@@ -620,19 +501,6 @@ onMounted(() => { void refresh() })
 .banner { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); font-size: var(--text-sm); }
 .banner-success { background: rgba(var(--tone-green), 0.10); border: 1px solid rgba(var(--tone-green), 0.28); color: rgb(var(--tone-green-ink)); }
 .banner-error { background: rgba(var(--tone-red), 0.08); border: 1px solid rgba(var(--tone-red), 0.28); color: rgb(var(--tone-red)); }
-.banner-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.invite-result { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin-top: 6px; }
-.invite-hint { font-size: var(--text-xs); color: var(--schools-fg-3); margin-top: 4px; }
-.code-chip {
-  display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.55); border: 1px solid rgba(44, 38, 34, 0.08);
-  border-radius: var(--radius-md); font: inherit; cursor: pointer; transition: all var(--transition-fast); color: var(--schools-fg-2);
-}
-.code-chip:hover { background: rgba(255, 255, 255, 0.82); border-color: rgba(44, 38, 34, 0.16); }
-.code-chip.is-copied { background: rgba(var(--tone-green), 0.16); border-color: rgba(var(--tone-green), 0.45); color: rgb(var(--tone-green-ink)); }
-.code-chip.is-large { padding: 10px 16px; font-size: var(--text-base); }
-.code-chip.is-large .code-value { font-size: var(--text-sm); letter-spacing: 0.03em; word-break: break-all; text-align: left; }
-
 .lens-toggle { display: inline-flex; gap: var(--space-1); background: rgba(44, 38, 34, 0.05); border-radius: var(--radius-full, 999px); padding: 3px; width: fit-content; }
 .lens-btn {
   padding: 6px 18px; border: none; background: transparent; border-radius: var(--radius-full, 999px);
@@ -696,8 +564,11 @@ onMounted(() => { void refresh() })
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3); border-bottom: 1px solid rgba(44, 38, 34, 0.08);
 }
 .structure-table td { padding: var(--space-2) var(--space-4); border-bottom: 1px solid rgba(44, 38, 34, 0.05); color: var(--schools-fg-2); }
+/* Zebra shading (founder pass C, 2026-07-19): a whisper of the warm ink so
+   the eye can track a row across seven columns — hover stays brighter. */
+.structure-table tbody tr:nth-child(even) td { background: rgba(44, 38, 34, 0.03); }
 .row-link { cursor: pointer; transition: background var(--transition-fast); }
-.row-link:hover td { background: rgba(255, 255, 255, 0.55); }
+.row-link:hover td { background: rgba(255, 255, 255, 0.75); }
 .row-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(var(--tone-red), 0.45); }
 .cell-name { display: flex; align-items: center; gap: var(--space-3); font-weight: var(--font-medium); color: var(--schools-fg); }
 .cell-actions { display: flex; gap: 4px; }

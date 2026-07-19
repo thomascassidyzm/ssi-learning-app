@@ -1,10 +1,10 @@
 /**
  * Tests for AdminStructure.vue — the Structure surface's two lenses
  * (THE-MODEL.md §1.9/§6/§7): table + tree on the same /api/groups/tree and
- * /api/groups/table data, shared search + filter chips, and the node
- * actions (create child, invite, demo-mint, relabel, rename, drill-in).
- * invites/demo-mint endpoints are owned by another worker per THE-MODEL.md
- * §6 — this file calls them per the contract and mocks the response.
+ * /api/groups/table data, shared search + filter chips, and the row
+ * maintenance actions (relabel, rename, delete, drill-in). Create/invite/
+ * demo-mint moved to the node home's action bar (founder pass C 2026-07-19)
+ * and are covered by NodeActionBar's usage.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -227,61 +227,18 @@ async function clickOverflowItem(wrapper: any, label: string): Promise<void> {
 }
 
 describe('AdminStructure — node actions (tree lens)', () => {
-  it('create child posts to /api/groups with the parent id and label', async () => {
+  // Structure verbs (add child / invite / demo-mint) moved to the node
+  // home's action bar (NodeActionBar) — founder pass C, 2026-07-19. Rows
+  // keep only maintenance verbs: Rename · Change label · Delete.
+  it('the ⋯ menu carries only maintenance verbs — no create/invite/mint on rows', async () => {
     setupFetch({
       '/api/groups/tree': { roots: [makeNode()] },
       '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
-      '/api/groups': { group: { id: 'new-1', name: 'New Sub-group' } },
     })
     const wrapper = await mountStructure()
-    await clickOverflowItem(wrapper, 'Add child group')
-    await wrapper.find('.structure-inline-form input.frost-input').setValue('New Sub-group')
-    await wrapper.find('.structure-inline-form .btn-ghost-sm').trigger('click')
-    await flushPromises()
-    const call = fetchMock.mock.calls.find((c) => c[0] === '/api/groups' && c[1]?.method === 'POST')
-    expect(call).toBeTruthy()
-    const body = JSON.parse(call![1].body)
-    expect(body).toMatchObject({ name: 'New Sub-group', parent_id: 'group-a' })
-  })
-
-  it('invite posts to /api/groups/:id/invites with the selected role and shows the invite link', async () => {
-    setupFetch({
-      '/api/groups/tree': { roots: [makeNode()] },
-      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
-      '/invites': { code: 'ABC123' },
-    })
-    const wrapper = await mountStructure()
-    await clickOverflowItem(wrapper, 'Invite people')
-    await wrapper.find('button.btn-ghost-sm').trigger('click') // "Create invite" — first ghost button in the invite form context
-    // Re-find the invite form's submit specifically (role select is default 'teacher').
-    const inviteForm = wrapper.findAll('.structure-inline-form').find((f) => f.find('select.frost-select').exists() && f.text().includes('Create invite'))
-    if (inviteForm) await inviteForm.find('.btn-ghost-sm').trigger('click')
-    await flushPromises()
-    const call = fetchMock.mock.calls.find((c) => (c[0] as string).includes('/invites'))
-    expect(call).toBeTruthy()
-    expect(call![1].method).toBe('POST')
-    const body = JSON.parse(call![1].body)
-    expect(body.role).toBe('teacher')
-    expect(wrapper.text()).toContain('ABC123')
-  })
-
-  it('demo-mint posts to /api/groups/:id/demo-mint with the given name', async () => {
-    setupFetch({
-      '/api/groups/tree': { roots: [makeNode()] },
-      '/api/groups/table': { rows: [], total: 0, page: 1, pageSize: 25 },
-      '/demo-mint': { group_id: 'demo-1', links: [{ role: 'leader', url: 'https://app/group/DEMO1', code: 'DEMO1' }] },
-    })
-    const wrapper = await mountStructure()
-    await clickOverflowItem(wrapper, 'Mint a demo org')
-    const demoForm = wrapper.findAll('.structure-inline-form').find((f) => f.text().includes('Mint'))!
-    await demoForm.find('input.frost-input').setValue('Demo Academy')
-    await demoForm.find('.btn-ghost-sm').trigger('click')
-    await flushPromises()
-    const call = fetchMock.mock.calls.find((c) => (c[0] as string).includes('/demo-mint'))
-    expect(call).toBeTruthy()
-    const body = JSON.parse(call![1].body)
-    expect(body.name).toBe('Demo Academy')
-    expect(wrapper.text()).toContain('https://app/group/DEMO1')
+    await wrapper.find('.overflow-toggle').trigger('click')
+    const items = wrapper.findAll('.overflow-item').map((b: any) => b.text())
+    expect(items).toEqual(['Rename', 'Change label', 'Delete'])
   })
 
   it('rename PATCHes /api/groups/:id with the new name', async () => {
@@ -308,7 +265,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
       '/api/groups/group-a': { group: { id: 'group-a', type: 'school' } },
     })
     const wrapper = await mountStructure()
-    await wrapper.find('.label-badge').trigger('click')
+    await clickOverflowItem(wrapper, 'Change label')
     await wrapper.find('select.label-select').setValue('school')
     await flushPromises()
     const call = fetchMock.mock.calls.find((c) => c[0] === '/api/groups/group-a' && c[1]?.method === 'PATCH')
