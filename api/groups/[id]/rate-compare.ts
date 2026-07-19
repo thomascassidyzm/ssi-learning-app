@@ -49,7 +49,6 @@ import {
   distributionStats,
   deltaPct,
   meanTrend,
-  coverageLabel,
   K_FLOOR,
   type ScopedSessionRow,
 } from '../../_utils/rateCompare'
@@ -420,6 +419,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const dist = distributionStats(cohortValues)
     const compareLabel = compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average'
 
+    // ─── Voice: the card speaks AS this node (founder ruling 2026-07-19) —
+    // never "You" (the entity here is never the viewer's own learner identity). ───
+    const levelNoun = nodeMeta.kind === 'class' ? 'class' : (nodeMeta.label || 'group')
+    const cohortUnit = classRow ? 'classes' : 'schools'
+    const cohortLabel = isGlobalCompare
+      ? (compareTo === 'global_all_courses' ? `all ${cohortUnit} · all courses` : `all ${cohortUnit} on this course`)
+      : `${cohortUnit} in ${compareAnc?.name ?? 'this scope'}`
+
+    // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
+    // ruling — render what the LEGO says, never raw S/L ids; no content
+    // resolved → no line at all). ───
+    let contextLine: string | undefined
+    if (entityWindow.furthestLegoId) {
+      const { data: lego } = await svc
+        .from('course_legos')
+        .select('target_text, target_text_roman, known_text')
+        .eq('course_code', courseCode)
+        .eq('lego_id', entityWindow.furthestLegoId)
+        .maybeSingle()
+      const target = (lego as any)?.target_text_roman || (lego as any)?.target_text
+      const known = (lego as any)?.known_text
+      if (target && known) contextLine = `Furthest LEGO · "${target}" — "${known}"`
+    }
+
     res.setHeader('Cache-Control', 'no-store')
     res.status(200).json({
       ...baseBody,
@@ -431,7 +454,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       average: { label: compareLabel, value: averageValue, trend: averageTrend },
       deltaPct: deltaPct(entityWindow.pace, averageValue),
       percentile: dist.percentileOf(entityWindow.pace),
-      contextLine: entityWindow.furthestLegoId ? `Furthest LEGO · ${coverageLabel(entityWindow.furthestLegoId)}` : undefined,
+      contextLine,
+      subject: nodeMeta.name,
+      subjectIsViewer: false,
+      levelNoun,
+      cohortLabel,
       distribution: {
         values: dist.values,
         min: dist.min,

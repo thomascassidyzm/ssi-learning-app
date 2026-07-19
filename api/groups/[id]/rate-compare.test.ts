@@ -55,7 +55,8 @@ let TABLES: Record<string, any[]>
 let SESSION_ROWS: any[]
 
 function sessions(classId: string, course: string, ords: [number, number][]): any[] {
-  // two sessions exactly 7 days apart -> weeks span = 1 -> pace = legos advanced
+  // two sessions: 7 days ago + now -> first-activity-to-now span = 1 week
+  // -> pace = legos advanced (pace math is anchored to NOW, not last session)
   return ords.map(([startOrd, endOrd], i) => ({
     class_id: classId,
     course_code: course,
@@ -64,7 +65,7 @@ function sessions(classId: string, course: string, ords: [number, number][]): an
     start_ord: startOrd,
     end_ord: endOrd,
     duration_seconds: 1800,
-    started_at: daysAgo(14 - i * 7),
+    started_at: daysAgo(7 - i * 7),
   }))
 }
 
@@ -89,6 +90,10 @@ function resetTables(): void {
       { id: 'c3', class_name: 'Year 4 Hindi', course_code: 'hin_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true },
       { id: 'c4', class_name: 'Year 6 Tamil', course_code: 'tam_for_eng', school_id: 'school-2', group_id: 's2-node', is_active: true },
       { id: 'c5', class_name: 'Year 3 Hindi', course_code: 'hin_for_eng', school_id: 'school-3', group_id: 's3-node', is_active: true },
+    ],
+    course_legos: [
+      // c1's furthest position (end_lego_id S10L01) — content the position line renders
+      { course_code: 'hin_for_eng', lego_id: 'S10L01', target_text: 'मैं सीखना चाहता हूँ', target_text_roman: 'main seekhna chaahta hoon', known_text: 'I want to learn' },
     ],
   }
   SESSION_ROWS = [
@@ -213,6 +218,28 @@ describe('GET /api/groups/:id/rate-compare', () => {
     for (const leak of ['c2', 'c3', 'Year 5', 'Year 4', 'St. Mary', 'school-2']) {
       expect(raw).not.toContain(leak)
     }
+  })
+
+  it('speaks AS the node: voice fields + LEGO-content position line, never raw ids', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme' }), res)
+    expect(res.statusCode).toBe(200)
+    // Voice: subject = the node's own name; "You" is reserved for the viewer's identity
+    expect(res.body.subject).toBe('Year 6 Hindi')
+    expect(res.body.subjectIsViewer).toBe(false)
+    expect(res.body.levelNoun).toBe('class')
+    expect(res.body.cohortLabel).toBe('classes in IME Demo Programme')
+    // Position line = the LEGO's content (roman preferred), not "S10 · L1"
+    expect(res.body.contextLine).toBe('Furthest LEGO · "main seekhna chaahta hoon" — "I want to learn"')
+
+    // A node whose furthest LEGO has no content row gets NO line (never a raw id)
+    const res2 = makeRes()
+    await handler(makeReq('school-2'), res2)
+    expect(res2.statusCode).toBe(200)
+    expect(res2.body.contextLine).toBeUndefined()
+    expect(res2.body.cohortLabel).toBe('schools in IME Demo Programme')
+    expect(res2.body.levelNoun).toBe('school')
   })
 
   it('admin · school id resolves to its node; course defaults to the busiest below', async () => {
