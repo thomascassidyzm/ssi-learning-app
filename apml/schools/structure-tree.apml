@@ -1,0 +1,61 @@
+# APML: Structure tree — row grammar + demo-refresh verb
+# Last updated: 2026-07-19
+# Contracts: docs/THE-MODEL.md §1.9/§1.12, docs/THE-VIEW.md §2; founder rulings 2026-07-19
+# (OPEN by the name; refresh demo data as a verb on a DEMO node)
+
+purpose: |
+  The Structure page (/admin/structure) is the org tree's editing surface —
+  two lenses (tree/table) over the same group nodes. This spec pins the ROW
+  GRAMMAR (how a row's verbs are laid out) and the demo-refresh verb.
+
+row_grammar:  # founder-ruled 2026-07-19 — obvious over clever, works on a phone
+  name: clicking the node NAME opens the quick-actions panel (NodePanel)
+  open: |
+    A labeled "Open" pill sits IMMEDIATELY NEXT TO the name — always visible
+    (never hover-gated), a word not an icon, >=36px tall at phone width.
+    Tapping it lands on the node's HOME (/admin/groups/:id, or
+    /admin/schools/:id for a commercial node) — THE-VIEW §2.
+  overflow: |
+    The less-used verbs fold into ONE always-visible ⋯ overflow menu with
+    labeled words: Rename · Add child group · Invite people · Mint a demo
+    org · Delete. No bare-icon strips, no hover-only reveals.
+  table_lens: same Open-pill-by-the-name treatment; rename/delete stay as row icons
+
+demo_refresh:  # the verb on a DEMO node (founder-ruled 2026-07-19)
+  verb: |
+    "Refresh demo activity" in NodePanel, rendered ONLY when node.is_demo.
+    Regenerates the node's subtree's synthetic telemetry up to the minute so
+    demo dashboards never read burst-then-dead. Reports counts inline.
+  endpoint: POST /api/groups/:id/demo-refresh   # api/groups/[id]/demo-refresh.ts
+  engine: api/_utils/demoNodeRefresh.ts (refreshDemoNodeActivity)
+  semantics:
+    - REPLACE not top-up: deletes the subtree's synthetic student telemetry
+      (sessions, seed_progress, lego_progress, class_sessions) then
+      regenerates — idempotent, refreshes never stack
+    - ~8 weeks of practice sessions, power-law weighted toward recent days
+      and today; fast/steady/idle personas (20/50/30) per learner
+    - positions anchored to each learner's existing enrollment cursor
+      (continuing cohort, never teleported); capped by the course seed count
+    - class_sessions form an ADVANCING start→end LEGO arc ending at the
+      class's current_seed with the newest session today — the school/class
+      rate-of-progress reads these ordinals, a fixed range rolls to zero
+  hard_safety:  # impossible to touch non-demo data; server-side, refuse not skip
+    - the target group row must be is_demo=true → else 403 refused
+    - every school in the subtree must be is_demo=true → else refused
+    - only is_demo=true learners enter the write set; STUDENT class-tags only
+      (demo staff are real logins — their practice history is never touched)
+    - admin-gated (verifyAdmin) + service-role writes; audit to player_events
+  legacy: |
+    api/_utils/demoSchoolRefresh.ts (demo_orgs-keyed, continuation top-up)
+    remains for pre-2026-07-17 orgs via /api/admin/demo-schools refresh.
+
+components:
+  - packages/player-vue/src/views/admin/AdminStructure.vue
+  - packages/player-vue/src/components/admin/StructureTreeNode.vue
+  - packages/player-vue/src/components/admin/NodePanel.vue
+
+tests:
+  - packages/player-vue/src/components/admin/StructureTreeNode.test.ts  # Open pill; overflow words
+  - packages/player-vue/src/components/admin/NodePanel.test.ts          # demo-only verb; POST + counts
+  - api/_utils/demoNodeRefresh.test.ts                                  # all three safety guards; replace; arc
+  - packages/player-vue/e2e/the-view/demo-refresh-walk.mjs              # deployed-dev walk (evidence in docs/the-view/demo-refresh/)

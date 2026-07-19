@@ -45,10 +45,44 @@ recent-weighted — the shape the ruling asked for.
   node home — one obvious verb per surface.
 - Node-home children rows were already whole-row open buttons — unchanged.
 
-## Verification on deployed dev
+## Verification on deployed dev (walk script: `packages/player-vue/e2e/the-view/demo-refresh-walk.mjs`)
 
-_(pending — walk script `packages/player-vue/e2e/the-view/demo-refresh-walk.mjs`
-runs against the deployed build: before/after IME Demo Programme insights,
-non-demo 403 guard, DB freshness lands today, phone-width OPEN walk.)_
+**Run 1 (build 9cf178a, 2026-07-19): 13/13 PASS.** Live refresh on IME Demo
+Programme: 3 schools · 6 classes · **80 learners touched, 989 sessions,
+2,276 seed rows, 7,973 lego rows, 56 class sessions written in 10s**. Latest
+demo session moved from 2026-07-17 (stale) to TODAY. Guard proven live: the
+same call against a real org (Welsh Gov Lang Office) → **403 "Refresh
+refused: this is not a demo node"**, zero writes.
+
+**Run 2 (same build): 15/15 PASS — idempotency proven live.** Session count
+989 → 944 (replaced, not stacked). School insights (Sunrise Pune) compares
+within the programme — "IME Demo Programme average", rank 1st of 2 — no
+"not enough data".
+
+**One honest finding:** the PROGRAMME-level insights view says "Not enough
+data to compare fairly yet" — correctly. A top-level demo group's only
+compare-to is the global course average, and global cohorts exclude demo
+data by design (feat_17). The demo comes alive at school/class level, where
+the cohort is its own programme peers. Not a bug; the honesty is the point.
+
+**One real bug found by looking at the chart, fixed (`edafe274`):** the
+school rate-trend still fell to zero at "now" — school/class rate-of-progress
+reads class_sessions start→end LEGO ordinals, and the regenerated teacher
+sessions all covered a fixed range. They now form an advancing arc (~6–10
+seeds over ~5 weeks, newest session today, ending at the class's current
+seed), so the rolling weekly rate reads alive at the right edge.
+
+**OPEN walk (390px phone viewport):** Open pill on all 35 visible tree rows,
+visible without hover, labeled "Open", 36px tall; tapping it lands on the
+node's dashboard. Evidence: `open-by-name-phone.png`,
+`open-tapped-node-home-phone.png`.
+
+## Promotion
+
+dev → staging held at time of writing: the api suite at dev HEAD carries 6
+failing tests in `api/groups/[id]/rate-compare.test.ts` — THE LENS agent's
+in-flight windows+measures work, not this scope (my suites: player-vue
+957/957, api demo-refresh 6/6, full api green before the lens commits
+landed). Promote once the lens suite is green.
 
 *Last updated: 2026-07-19*
