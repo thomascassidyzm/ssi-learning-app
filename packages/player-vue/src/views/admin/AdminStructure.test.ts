@@ -316,7 +316,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
     expect(JSON.parse(call![1].body)).toMatchObject({ type: 'school' })
   })
 
-  it('open dashboard routes to /admin/groups/:id for a plain group, /admin/schools/:id for a commercial node', async () => {
+  it('clicking a row (rows are links) routes to /admin/groups/:id for a plain group', async () => {
     setupFetch({
       '/api/groups/tree': {
         roots: [
@@ -329,7 +329,7 @@ describe('AdminStructure — node actions (tree lens)', () => {
     })
     const wrapper = await mountStructure()
     const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as any)
-    await wrapper.find('.open-btn').trigger('click')
+    await wrapper.find('.structure-row').trigger('click')
     await flushPromises()
     expect(pushSpy).toHaveBeenCalledWith('/admin/groups/group-a')
     pushSpy.mockRestore()

@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeMapRail from '@/components/admin/NodeMapRail.vue'
 import NodeChildrenList from '@/components/admin/NodeChildrenList.vue'
+import NodeActionBar from '@/components/admin/NodeActionBar.vue'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import BeltStrip from '@/components/schools/shared/BeltStrip.vue'
@@ -121,43 +122,8 @@ const stats = computed(() => {
   ]
 })
 
-// ─── Verbs (§1.12 — same corner every level, scoped to the node) ───
-const showInvite = ref(false)
-const inviteRole = ref<'teacher' | 'leader' | 'student'>('teacher')
-const isInviting = ref(false)
-const inviteUrl = ref<string | null>(null)
-const copied = ref(false)
-
-async function submitInvite(): Promise<void> {
-  if (isInviting.value) return
-  isInviting.value = true
-  try {
-    const token = await getAuthToken()
-    const nodeId = isClass.value ? home.value?.nodeId : home.value?.node?.id
-    const resp = await fetch(`/api/groups/${nodeId}/invites`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ role: inviteRole.value, limits: {} }),
-    })
-    const data = await resp.json().catch(() => ({}))
-    if (!resp.ok) throw new Error(data.error || 'Failed to create invite')
-    const path = inviteRole.value === 'leader' ? 'group' : 'redeem'
-    inviteUrl.value = data.code ? `${window.location.origin}/${path}/${data.code}` : null
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to create invite'
-  } finally {
-    isInviting.value = false
-  }
-}
-
-async function copyInvite(): Promise<void> {
-  if (!inviteUrl.value) return
-  try {
-    await navigator.clipboard.writeText(inviteUrl.value)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
-  } catch { /* clipboard unavailable */ }
-}
+// Node verbs (invite / add / rename / mint / delete / courses) live in
+// NodeActionBar.vue, which calls the endpoints and emits `changed` → fetchHome.
 
 // THE LENS: "See insights" on every node — the Insight Engine opens scoped to
 // THIS node, parent's average as the default mirror (docs/THE-VIEW.md sibling).
@@ -175,8 +141,6 @@ const classToolsLink = computed(() => {
   if (!n || !isClass.value) return null
   return home.value?.schoolId ? `/admin/schools/${home.value.schoolId}/classes/${n.id}` : null
 })
-
-const structureLink = computed(() => '/admin/structure')
 
 // ─── Class teaching data (the density the old roster had, in THE VIEW's
 // grammar): per-student belt + health, class journey / belt distribution /
@@ -286,28 +250,16 @@ const listPayload = computed(() => {
               </p>
             </div>
 
-            <!-- VERBS — same corner, every level -->
+            <!-- Lens/insight nav — same corner, every level -->
             <div class="verbs">
-              <button v-if="!isClass" type="button" class="verb-btn" @click="showInvite = !showInvite">Invite someone</button>
               <router-link v-if="insightsLink" :to="insightsLink" class="verb-btn verb-btn-secondary">See insights</router-link>
               <router-link v-if="classToolsLink" :to="classToolsLink" class="verb-btn verb-btn-secondary">Class tools</router-link>
-              <router-link v-if="!isClass" :to="structureLink" class="verb-btn verb-btn-secondary">Quick actions</router-link>
             </div>
           </header>
 
-          <div v-if="showInvite" class="invite-form">
-            <select v-model="inviteRole" class="frost-select">
-              <option value="teacher">Teacher</option>
-              <option value="leader">Leader</option>
-              <option value="student">Student</option>
-            </select>
-            <button type="button" class="verb-btn" :disabled="isInviting" @click="submitInvite">
-              {{ isInviting ? 'Creating…' : 'Create invite link' }}
-            </button>
-            <button v-if="inviteUrl" type="button" class="invite-url" :class="{ 'is-copied': copied }" @click="copyInvite">
-              {{ copied ? 'Copied!' : inviteUrl }}
-            </button>
-          </div>
+          <!-- ACTION BAR — the verbs, across the top of the node page
+               (founder-ruled 2026-07-19: rows are links, verbs live here). -->
+          <NodeActionBar v-if="!isClass && home.node" :node="home.node" @changed="fetchHome" />
 
           <!-- STATS ROW -->
           <div class="stats-updated"><UpdatedStamp /></div>
@@ -429,18 +381,6 @@ const listPayload = computed(() => {
 .verb-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .verb-btn-secondary { background: rgba(44, 38, 34, 0.06); color: var(--schools-fg, #0F1212); }
 .verb-btn-secondary:hover { background: rgba(44, 38, 34, 0.12); }
-
-.invite-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.frost-select {
-  font: inherit; font-size: var(--text-sm); padding: 8px 12px; color: var(--schools-fg, #0F1212);
-  background: rgba(255, 255, 255, 0.6); border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-lg);
-}
-.invite-url {
-  font-family: var(--font-mono); font-size: var(--text-xs); padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.55); border: 1px solid rgba(44, 38, 34, 0.10); border-radius: var(--radius-md);
-  color: var(--schools-fg-2, #555); cursor: pointer; word-break: break-all; text-align: left;
-}
-.invite-url.is-copied { background: rgba(var(--tone-green), 0.16); border-color: rgba(var(--tone-green), 0.45); color: rgb(var(--tone-green-ink)); }
 
 .stats-updated { display: flex; justify-content: flex-end; min-height: 14px; margin-bottom: 4px; }
 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3); }

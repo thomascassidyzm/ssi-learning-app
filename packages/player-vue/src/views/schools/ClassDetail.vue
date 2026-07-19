@@ -17,6 +17,7 @@ import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { getLanguageName } from '@/composables/useI18n'
 import { deriveBelt, BELTS, type Belt } from '@/composables/schools/belts'
 import { usePlayAsClass } from '@/composables/schools/usePlayAsClass'
+import { useSchoolsNav } from '@/composables/schools/useSchoolsNav'
 
 type Health = 'excellent' | 'good' | 'needs-attention' | 'inactive'
 
@@ -24,6 +25,7 @@ const router = useRouter()
 const route = useRoute()
 
 const isAdminView = inject<boolean>('isAdminView', false)
+const { schoolsLink } = useSchoolsNav()
 const { currentUser: selectedUser, isGovtAdmin } = useSchoolContext()
 const {
   classDetail,
@@ -225,7 +227,8 @@ onMounted(() => {
     void refresh()
   } else if (!classId) {
     const stored = sessionStorage.getItem('ssi-class-detail')
-    if (!stored) router.push({ name: 'classes' })
+    // Admin-aware: never fall back into the member /schools tree (see handleBack).
+    if (!stored) router.push(isAdminView ? schoolsLink('classes') : { name: 'classes' })
   }
 })
 
@@ -249,6 +252,16 @@ watch(classIdParam, (classId, previousClassId) => {
 })
 
 function handleBack() {
+  // In the ssi_admin read-view this component is mounted under
+  // /admin/schools/:id/classes/:classId. Hardcoded learner routes ('/schools',
+  // { name: 'classes' }) resolve into the member /schools tree, whose guard
+  // ejects platform admins to /admin/structure — the bounce founder-reported
+  // 2026-07-19 (e.g. after deleting a class). Route through schoolsLink so the
+  // admin stays on its own /admin/schools/:id surface. Learner paths unchanged.
+  if (isAdminView) {
+    router.push(schoolsLink(backToSchool.value ? 'schools-list' : 'classes'))
+    return
+  }
   // Govt drill-down returns to the school dashboard (viewingSchool stays set),
   // everyone else to the classes list.
   if (backToSchool.value) {
