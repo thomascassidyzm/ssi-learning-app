@@ -373,3 +373,30 @@ that already do several round-trips.
   zero benefit over refusing up front.
 **Search width:** visible-options
 **Decided by:** agent (incident + ruling from Tom: testing must never mutate operator roles)
+
+## 2026-07-19 — THE LENS: one node-scoped rate endpoint, not a second engine
+**Move:** `GET /api/groups/:id/rate-compare` — resolves group/school/class ids exactly like the
+node-home endpoint, returns picker options (courses below the node; the ancestor chain nearest-
+first) AND the resolved comparison in one round trip. `NodeRateEngine.vue` is the ONE engine
+component both admin node pages (mounted at the old analytics URLs; `AnalyticsView.vue` deleted)
+and the teacher surface consume; `plainWords` prop carries design law §1.12. Additive
+`p_include_demo` on the sessions RPC so a demo node reads its own sessions (canary-applied).
+**Better:** the compare-to chain IS the org tree (parent avg default) — same story as the map
+rail; teacher/leader/admin read the same numbers via the same math (api/_utils/rateCompare.ts);
+the engine tells the same story as the node-home stats row on demo orgs.
+**Simpler:** deletes the old-school AnalyticsView and the teacher view's demo-fixture fork;
+reuses home.ts id-resolution, resolveVisibleScope authz, and the existing RPC — no new tables,
+no new RPC, one new endpoint + one component.
+**Cheaper (total):** one round trip per view; no polling (refresh protocol); fewer surfaces to
+maintain; K_FLOOR privacy held for non-admin callers (admin floor 1 — they already hold row
+access, so the floor would blank the tool while protecting nothing).
+**Searched & rejected:**
+- Extending `/api/school/rate-compare` with node ids — rejected: its entity/compare vocabulary is
+  the fixed 3-level ladder; the node model needs the arbitrary-depth ancestor chain, and mixing
+  both grammars in one endpoint doubles every authz branch.
+- Client-side compare-chain derivation from the home payload — rejected: teacher surface has no
+  home payload, and cohort resolution must stay server-side (sovereignty).
+- Sibling-group cohort members above class level — rejected: structurally too sparse to ever
+  clear K_FLOOR; schools are the peers-like-me unit that yields a meaningful, k-clearable spread.
+**Search width:** visible-options
+**Decided by:** agent (founder frame: "insight engine at every node", compare chain = map rail)
