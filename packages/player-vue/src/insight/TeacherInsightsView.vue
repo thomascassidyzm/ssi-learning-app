@@ -101,16 +101,25 @@ const selectedClass = computed<ClassDetail | null>(
   () => classOptions.value.find((c) => c.id === selectedClassId.value) ?? null,
 )
 
-// ── Course / compare — mirrored into the route query so the view is
-// deep-linkable. The engine resolves defaults server-side and reflects them
-// back up via v-model. Local refs + ONE coalesced replace for all three
-// params — separate per-param query-setters raced each other (each replace
-// read the pre-replace query and clobbered the other's write). ──
+// ── Course / compare / window / measure — mirrored into the route query so
+// the view is deep-linkable. The engine resolves defaults server-side and
+// reflects them back up via v-model. Local refs + ONE coalesced replace for
+// all five params — separate per-param query-setters raced each other (each
+// replace read the pre-replace query and clobbered the other's write). ──
 const course = ref<string | null>(typeof route.query.course === 'string' ? route.query.course : null)
 const compare = ref<string | null>(typeof route.query.compare === 'string' ? route.query.compare : null)
-watch([selectedClassId, course, compare], ([cls, c, cmp]) => {
+const window_ = ref<string | null>(typeof route.query.window === 'string' ? route.query.window : null)
+const measure = ref<string | null>(typeof route.query.measure === 'string' ? route.query.measure : null)
+watch([selectedClassId, course, compare, window_, measure], ([cls, c, cmp, w, m]) => {
   void router.replace({
-    query: { ...route.query, class: cls || undefined, course: c || undefined, compare: cmp || undefined },
+    query: {
+      ...route.query,
+      class: cls || undefined,
+      course: c || undefined,
+      compare: cmp || undefined,
+      window: w || undefined,
+      measure: m || undefined,
+    },
   })
 })
 
@@ -191,6 +200,8 @@ const requestedLearnerName = computed(() => {
         v-if="selectedClassId"
         v-model:course="course"
         v-model:compare="compare"
+        v-model:window="window_"
+        v-model:measure="measure"
         :node-id="selectedClassId"
         :plain-words="true"
         :get-token="getToken"

@@ -21,20 +21,27 @@ const { getAuthToken } = useAdminClient()
 
 const nodeId = computed(() => String(route.params.id || ''))
 
-// ?course= / ?compare= are the deep link; the engine resolves defaults and
-// reflects them back here so a copied URL reproduces the exact view. Local
-// refs + ONE coalesced replace — two separate query-setters raced each other
-// (the second replace read the pre-first-replace query and clobbered it).
+// ?course= / ?compare= / ?window= / ?measure= are the deep link; the engine
+// resolves defaults and reflects them back here so a copied URL reproduces
+// the exact view. Local refs + ONE coalesced replace — separate query-setters
+// raced each other (the second replace read the pre-first-replace query and
+// clobbered it).
 const course = ref<string | null>(typeof route.query.course === 'string' ? route.query.course : null)
 const compare = ref<string | null>(typeof route.query.compare === 'string' ? route.query.compare : null)
-watch([course, compare], ([c, cmp]) => {
-  void router.replace({ query: { ...route.query, course: c || undefined, compare: cmp || undefined } })
+const window_ = ref<string | null>(typeof route.query.window === 'string' ? route.query.window : null)
+const measure = ref<string | null>(typeof route.query.measure === 'string' ? route.query.measure : null)
+watch([course, compare, window_, measure], ([c, cmp, w, m]) => {
+  void router.replace({
+    query: { ...route.query, course: c || undefined, compare: cmp || undefined, window: w || undefined, measure: m || undefined },
+  })
 })
 watch(
-  () => [route.query.course, route.query.compare],
-  ([qc, qcmp]) => {
+  () => [route.query.course, route.query.compare, route.query.window, route.query.measure],
+  ([qc, qcmp, qw, qm]) => {
     course.value = typeof qc === 'string' ? qc : null
     compare.value = typeof qcmp === 'string' ? qcmp : null
+    window_.value = typeof qw === 'string' ? qw : null
+    measure.value = typeof qm === 'string' ? qm : null
   },
 )
 
@@ -80,6 +87,8 @@ const homeLink = computed(() => {
     <NodeRateEngine
       v-model:course="course"
       v-model:compare="compare"
+      v-model:window="window_"
+      v-model:measure="measure"
       :node-id="nodeId"
       :get-token="getAuthToken"
       @state="state = $event"
