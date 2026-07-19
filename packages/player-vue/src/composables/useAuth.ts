@@ -15,6 +15,7 @@ import { useUserRole } from '@/composables/useUserRole'
 import { useResolvedSession } from '@/composables/useResolvedSession'
 import { useSharedSubscription } from '@/composables/useSubscription'
 import { useSharedUserEntitlements } from '@/composables/useUserEntitlements'
+import { isPlaceholderEmail } from '@/utils/placeholderEmail'
 import { useAccessClaim } from '@/composables/useAccessClaim'
 import { writeAuthHandoff, readAndConsumeAuthHandoff, isStandalone } from '@/utils/authHandoff'
 
@@ -246,7 +247,9 @@ export function useAuth(): AuthState & AuthActions {
         let emails: string[] = []
         try {
           emails = await loadMyVerifiedEmails()
-          if (email && !emails.includes(email)) {
+          // Never back-fill a link-auth placeholder into verified_emails — it's
+          // not a real inbox and would surface as the user's primary email.
+          if (email && !isPlaceholderEmail(email) && !emails.includes(email)) {
             emails = [...emails, email]
             await supabase.value
               .from('learners')
@@ -324,7 +327,10 @@ export function useAuth(): AuthState & AuthActions {
 
       // 3. Truly new user — create learner with this email in verified_emails
       if (fetchError?.code === 'PGRST116') {
-        const displayName = email?.split('@')[0] || 'Learner'
+        // A link-auth placeholder must not become the display name ("link-<uuid>")
+        // or land in verified_emails — treat it as "no email yet".
+        const realEmail = email && !isPlaceholderEmail(email) ? email : ''
+        const displayName = realEmail?.split('@')[0] || 'Learner'
 
         // This insert races api/code/redeem.ts's own learner-creation insert
         // (both fire off the same SIGNED_IN event — see RedeemCode.vue's
@@ -339,7 +345,7 @@ export function useAuth(): AuthState & AuthActions {
             user_id: userId,
             display_name: displayName,
             preferences: defaultPreferences(),
-            verified_emails: email ? [email] : [],
+            verified_emails: realEmail ? [realEmail] : [],
             needs_verification: needsEmailVerification,
           })
           .select()

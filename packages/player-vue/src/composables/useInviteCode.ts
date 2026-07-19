@@ -185,6 +185,39 @@ export function useInviteCode() {
     }
   }
 
+  /**
+   * Straight-in link redemption — the invite LINK is the credential. No email
+   * typed: the server mints the account + a session from possession of the
+   * (already-validated) pending code alone (api/auth/possession-redeem.ts
+   * linkAuth mode), flagging it for a real-email prompt on first run. Same
+   * return shape as possessionRedeem; caller owns setSession() + redeemCode().
+   */
+  async function linkPossessionRedeem(
+    displayName?: string
+  ): Promise<{ success: boolean; session?: { access_token: string; refresh_token: string }; reason?: string; error?: string }> {
+    if (!pendingCode.value || pendingCode.value.codeKind !== 'invite') {
+      return { success: false, error: 'No pending invite code' }
+    }
+    try {
+      const res = await fetch('/api/auth/possession-redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: pendingCode.value.code,
+          linkAuth: true,
+          displayName,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        return { success: true, session: data.session }
+      }
+      return { success: false, reason: data.reason, error: data.error || 'Failed to sign you in' }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to sign you in' }
+    }
+  }
+
   function clearPendingCode() {
     pendingCode.value = null
     validationError.value = null
@@ -199,6 +232,7 @@ export function useInviteCode() {
     validateCode,
     redeemCode,
     possessionRedeem,
+    linkPossessionRedeem,
     clearPendingCode,
   }
 }

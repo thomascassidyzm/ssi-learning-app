@@ -1,8 +1,10 @@
 /**
- * RedeemCode.vue — possession-based onboarding (docs/schools/
- * email-deliverability-plan.md, Option A): a possession-eligible invite
- * (teacher/school_admin/school_admin_join/govt_admin/student) defaults to
- * the no-OTP-wait "details" screen; everything else keeps the OTP flow.
+ * RedeemCode.vue — straight-in invite links (the founder's "magic link with a
+ * built-in token"): a possession-eligible invite
+ * (teacher/school_admin/school_admin_join/govt_admin/student) authenticates on
+ * click via api/auth/possession-redeem in linkAuth mode — NO form, NO OTP — and
+ * lands on the role dashboard. The email form / OTP stays as the fallback for
+ * anyone without a link and whenever the straight-in mint can't proceed.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -59,33 +61,52 @@ async function flushAsync() {
   await new Promise((r) => setTimeout(r, 0))
 }
 
-describe('RedeemCode.vue — possession-based onboarding', () => {
+describe('RedeemCode.vue — straight-in invite links', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('a teacher invite defaults to the no-email-wait details screen (no OTP sent)', async () => {
-    const { wrapper, supabase } = mountRedeemCode({
-      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-1', codeType: 'teacher', context: { schoolName: 'Test School' } },
-    })
-    await flushAsync()
-
-    expect(wrapper.find('#redeem-details-email').exists()).toBe(true)
-    expect(wrapper.find('#redeem-name').exists()).toBe(true)
-    expect(supabase.value.auth.signInWithOtp).not.toHaveBeenCalled()
-  })
-
-  it('submitting details mints a session, calls setSession, and redeems the code', async () => {
+  it('a teacher invite goes STRAIGHT IN on click — no form, no OTP, session minted from the code alone', async () => {
+    const posted: any[] = []
     const { wrapper, supabase, auth } = mountRedeemCode({
-      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-1', codeType: 'teacher', context: {} },
+      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-1', codeType: 'teacher', context: { schoolName: 'Test School' } },
       '/api/auth/possession-redeem': (body: any) => {
-        expect(body.code).toBe('TEACH-1')
-        expect(body.email).toBe('teacher@school.example')
+        posted.push(body)
         return { success: true, session: { access_token: 'at-1', refresh_token: 'rt-1' } }
       },
       '/api/code/redeem': { success: true, role: 'teacher', redirectTo: '/schools', label: 'Teacher Invite' },
     })
     await flushAsync()
+    await flushAsync()
+
+    // The link itself is the credential: linkAuth set, no email typed.
+    expect(posted[0]).toMatchObject({ code: 'TEACH-1', linkAuth: true })
+    expect(posted[0].email).toBeUndefined()
+    // Session established + redeemed, landing on the dashboard — no form ever shown.
+    expect(supabase.value.auth.setSession).toHaveBeenCalledWith({ access_token: 'at-1', refresh_token: 'rt-1' })
+    expect(auth.refreshRole).toHaveBeenCalled()
+    expect(wrapper.find('#redeem-details-email').exists()).toBe(false)
+    expect(supabase.value.auth.signInWithOtp).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain("You're all set!")
+  })
+
+  it('falls back to the email form when the straight-in mint can\'t proceed (still no OTP wait)', async () => {
+    const { wrapper, supabase } = mountRedeemCode({
+      '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-1', codeType: 'teacher', context: {} },
+      // Straight-in (linkAuth) fails → fall back to the typed-email form; the
+      // typed-email possession redeem then succeeds.
+      '/api/auth/possession-redeem': (body: any) =>
+        body.linkAuth
+          ? { success: false, error: 'transient' }
+          : { success: true, session: { access_token: 'at-1', refresh_token: 'rt-1' } },
+      '/api/code/redeem': { success: true, role: 'teacher', redirectTo: '/schools', label: 'Teacher Invite' },
+    })
+    await flushAsync()
+    await flushAsync()
+
+    // Form is offered as the fallback, no OTP sent.
+    expect(wrapper.find('#redeem-details-email').exists()).toBe(true)
+    expect(supabase.value.auth.signInWithOtp).not.toHaveBeenCalled()
 
     await wrapper.find('#redeem-details-email').setValue('teacher@school.example')
     await wrapper.find('form').trigger('submit.prevent')
@@ -93,19 +114,18 @@ describe('RedeemCode.vue — possession-based onboarding', () => {
     await flushAsync()
 
     expect(supabase.value.auth.setSession).toHaveBeenCalledWith({ access_token: 'at-1', refresh_token: 'rt-1' })
-    expect(auth.refreshRole).toHaveBeenCalled()
-    // pendingCode is cleared by useInviteCode.redeemCode() on success (same
-    // for the OTP path), so the success screen falls back to its generic
-    // copy rather than a role-specific heading — this is pre-existing
-    // behaviour, not something the possession path changes.
     expect(wrapper.text()).toContain("You're all set!")
   })
 
-  it('an already-registered email falls back to sign-in-instead, never minting a session', async () => {
+  it('an already-registered email on the fallback form offers sign-in-instead, never minting a session', async () => {
     const { wrapper, supabase } = mountRedeemCode({
       '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-1', codeType: 'teacher', context: {} },
-      '/api/auth/possession-redeem': { success: false, reason: 'already_registered', error: 'An account already exists for this email. Please sign in instead.' },
+      '/api/auth/possession-redeem': (body: any) =>
+        body.linkAuth
+          ? { success: false, error: 'transient' } // force the fallback form
+          : { success: false, reason: 'already_registered', error: 'An account already exists for this email. Please sign in instead.' },
     })
+    await flushAsync()
     await flushAsync()
 
     await wrapper.find('#redeem-details-email').setValue('existing@school.example')
@@ -126,6 +146,8 @@ describe('RedeemCode.vue — possession-based onboarding', () => {
 
     mountRedeemCode({
       '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-1', codeType: 'teacher', context: {} },
+      '/api/auth/possession-redeem': { success: true, session: { access_token: 'at-1', refresh_token: 'rt-1' } },
+      '/api/code/redeem': { success: true, role: 'teacher', redirectTo: '/schools', label: 'Teacher Invite' },
     })
     await flushAsync()
 
@@ -154,14 +176,15 @@ describe('RedeemCode.vue — class-course landing (2026-07-15 finding)', () => {
   // activeCourse is resolved ONCE at boot, before this page's redemption
   // completes, so a bare localStorage write (the old fix) was never re-read.
   // The fix routes through App.vue's own handleCourseSelect, the same
-  // machinery CourseSelector uses for an explicit switch.
+  // machinery CourseSelector uses for an explicit switch. Now driven by the
+  // straight-in flow on mount (no form).
   it('a student class-invite redemption switches the app onto the class course via handleCourseSelect', async () => {
     const handleCourseSelect = vi.fn().mockResolvedValue(undefined)
     const enrolledCourses = ref([
       { course_code: 'zho_for_eng', display_name: 'Chinese' },
       { course_code: 'cym_for_eng', display_name: 'Welsh' },
     ])
-    const { wrapper } = mountRedeemCode(
+    mountRedeemCode(
       {
         '/api/code/validate': { valid: true, codeKind: 'invite', inviteCodeId: 'inv-3', codeType: 'student', context: { className: 'Welsh 101' } },
         '/api/auth/possession-redeem': { success: true, session: { access_token: 'at-1', refresh_token: 'rt-1' } },
@@ -170,10 +193,6 @@ describe('RedeemCode.vue — class-course landing (2026-07-15 finding)', () => {
       {},
       { handleCourseSelect, enrolledCourses }
     )
-    await flushAsync()
-
-    await wrapper.find('#redeem-details-email').setValue('student@school.example')
-    await wrapper.find('form').trigger('submit.prevent')
     await flushAsync()
     await flushAsync()
 
@@ -207,13 +226,9 @@ describe('RedeemCode.vue — class-course landing (2026-07-15 finding)', () => {
       '/api/auth/possession-redeem': { success: true, session: { access_token: 'at-1', refresh_token: 'rt-1' } },
       '/api/code/redeem': { success: true, role: 'student', redirectTo: '/', courseCode: 'cym_for_eng', label: 'Student Invite' },
     }))
-    const wrapper = mount(RedeemCode, {
+    mount(RedeemCode, {
       global: { provide: { supabase: supabaseOverride, auth, handleCourseSelect, enrolledCourses } },
     })
-    await flushAsync()
-
-    await wrapper.find('#redeem-details-email').setValue('student@school.example')
-    await wrapper.find('form').trigger('submit.prevent')
     await flushAsync()
     await flushAsync()
 

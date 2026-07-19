@@ -15,6 +15,7 @@ import { useSharedUserEntitlements } from '../composables/useUserEntitlements'
 import { useReleaseNotes } from '../composables/useReleaseNotes'
 import { updateAvailable as pwaUpdateAvailable } from '../composables/usePwaUpdate'
 import { formatFurthestPoint, formatFurthestTarget, canRecoverToFurthest } from '../utils/furthestProgress'
+import { isPlaceholderEmail } from '../utils/placeholderEmail'
 
 const emit = defineEmits(['close', 'openExplorer', 'openListening', 'settingChanged'])
 
@@ -749,14 +750,20 @@ const isEmailUnverified = computed(() => {
   return metadata?.onboarded_via === 'possession' && metadata?.email_confirmed_manually !== true
 })
 
+// A link-auth (straight-in) account has no real email yet — its primary is a
+// placeholder (api/auth/possession-redeem.ts). The unverified-email prompt then
+// reads "add your email" rather than "verify link-<uuid>@…", and the verify
+// form starts blank instead of pre-filling the junk address.
+const isPrimaryEmailPlaceholder = computed(() => isPlaceholderEmail(primaryEmail.value))
+
 function handleVerifyPrimaryEmail() {
   addEmailError.value = ''
   addEmailSuccess.value = false
   addEmailStep.value = 'email'
-  addEmailInput.value = primaryEmail.value
+  addEmailInput.value = isPrimaryEmailPlaceholder.value ? '' : primaryEmail.value
   addEmailOtp.value = ''
   showAddEmailForm.value = true
-  handleSendAddEmailOtp()
+  if (!isPrimaryEmailPlaceholder.value) handleSendAddEmailOtp()
 }
 
 const handleSendAddEmailOtp = async () => {
@@ -1670,13 +1677,13 @@ const confirmReset = async () => {
           <div v-if="isEmailUnverified" class="setting-row">
             <div class="setting-info">
               <span class="setting-label">
-                {{ primaryEmail }}
-                <span class="unverified-badge">unverified</span>
+                {{ isPrimaryEmailPlaceholder ? 'Add your email' : primaryEmail }}
+                <span v-if="!isPrimaryEmailPlaceholder" class="unverified-badge">unverified</span>
               </span>
-              <span class="setting-desc">We haven't confirmed you can receive mail at this address yet</span>
+              <span class="setting-desc">{{ isPrimaryEmailPlaceholder ? 'Add an email so you can sign in on another device' : "We haven't confirmed you can receive mail at this address yet" }}</span>
             </div>
             <button class="inline-save-btn" :disabled="isSendingOtp" @click="handleVerifyPrimaryEmail">
-              {{ isSendingOtp ? 'Sending...' : 'Verify now' }}
+              {{ isSendingOtp ? 'Sending...' : (isPrimaryEmailPlaceholder ? 'Add email' : 'Verify now') }}
             </button>
           </div>
 

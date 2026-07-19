@@ -38,7 +38,9 @@ let inviteRow: any
 let rateCounts: { ip: number; code: number }
 let attempts: any[]
 let createUserResult: any
+let createUserArg: any
 let generateLinkResult: any
+let generateLinkArg: any
 let verifyOtpResult: any
 let deleteUserCalls: string[]
 
@@ -92,8 +94,8 @@ vi.mock('@supabase/supabase-js', () => ({
       },
       auth: {
         admin: {
-          createUser: () => Promise.resolve(createUserResult),
-          generateLink: () => Promise.resolve(generateLinkResult),
+          createUser: (arg: any) => { createUserArg = arg; return Promise.resolve(createUserResult) },
+          generateLink: (arg: any) => { generateLinkArg = arg; return Promise.resolve(generateLinkResult) },
           deleteUser: (id: string) => {
             deleteUserCalls.push(id)
             return Promise.resolve({ error: null })
@@ -129,6 +131,8 @@ describe('POST /api/auth/possession-redeem', () => {
     mxResolution = 'has-mx'
     attempts = []
     deleteUserCalls = []
+    createUserArg = undefined
+    generateLinkArg = undefined
     rateCounts = { ip: 0, code: 0 }
     inviteRow = {
       id: 'invite-1',
@@ -264,5 +268,64 @@ describe('POST /api/auth/possession-redeem', () => {
     await handler(makeReq({ code: 'TEACH-1', email: 'a@school.example' }), res)
     expect(res._status).toBe(200)
     expect(res._json.success).toBe(true)
+  })
+
+  // --- Link-auth (straight-in) mode: the invite link IS the credential, no
+  // email typed. The founder's "magic link with a built-in token". ---
+  describe('linkAuth (straight-in) mode', () => {
+    it('mints a session from the code alone — no email in the body', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(res._json.session).toEqual({ access_token: 'at-1', refresh_token: 'rt-1' })
+    })
+
+    it('mints the account against a unique placeholder address flagged link_auth', async () => {
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+
+      expect(createUserArg.email).toMatch(/^link-[0-9a-f-]+@invite\.saysomethingin\.app$/)
+      // Same address flows into the magic-link mint, so the session is for it.
+      expect(generateLinkArg.email).toBe(createUserArg.email)
+      // onboarded_via stays 'possession' so the needs-real-email prompt fires;
+      // link_auth is the analytics-only distinguisher.
+      expect(createUserArg.user_metadata.onboarded_via).toBe('possession')
+      expect(createUserArg.user_metadata.link_auth).toBe(true)
+    })
+
+    it('does not require a valid email and skips the MX gate', async () => {
+      mxResolution = 'no-mx' // would 400 a typed email; irrelevant to link-auth
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      expect(res._status).toBe(200)
+      expect(res._json.success).toBe(true)
+      expect(attempts.some((a) => a.outcome === 'no_mx_domain')).toBe(false)
+    })
+
+    it('still enforces code validity (expired code is rejected before minting)', async () => {
+      inviteRow.expires_at = '2020-01-01T00:00:00.000Z'
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      expect(res._json).toEqual({ success: false, error: 'Code expired' })
+      expect(createUserArg).toBeUndefined()
+    })
+
+    it('still rejects code types outside the possession-eligible set', async () => {
+      inviteRow.code_type = 'ssi_admin'
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      expect(res._json.success).toBe(false)
+      expect(attempts.some((a) => a.outcome === 'unsupported_code_type')).toBe(true)
+      expect(createUserArg).toBeUndefined()
+    })
+
+    it('still rate limits by code', async () => {
+      rateCounts.code = 20
+      const res = makeRes()
+      await handler(makeReq({ code: 'TEACH-1', linkAuth: true }), res)
+      expect(res._status).toBe(429)
+    })
   })
 })

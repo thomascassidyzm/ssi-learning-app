@@ -30,7 +30,7 @@ const supabase = inject<any>('supabase', ref(null))
 // instead of their class's).
 const handleCourseSelect = inject<((course: any) => Promise<void>) | null>('handleCourseSelect', null)
 const enrolledCourses = inject<{ value: any[] } | null>('enrolledCourses', null)
-const { validateCode, redeemCode, possessionRedeem, pendingCode, clearPendingCode, validationError } = useInviteCode()
+const { validateCode, redeemCode, possessionRedeem, linkPossessionRedeem, pendingCode, clearPendingCode, validationError } = useInviteCode()
 const { refresh: refreshEntitlements } = useSharedUserEntitlements()
 
 // Possession-based onboarding (docs/schools/email-deliverability-plan.md,
@@ -214,10 +214,51 @@ async function validateAndProceed(rawCode: string): Promise<void> {
     step.value = 'confirm'
     return
   }
-  // Default to the no-email-wait possession path for eligible invite types;
-  // everything else (entitlement codes, ssi_admin/tester invites) keeps the
-  // existing OTP-gated flow.
-  step.value = isPossessionEligible.value ? 'details' : 'auth'
+  // Straight-in (the founder's "magic link with a built-in token"): for
+  // possession-eligible invite types, the link IS the credential — establish
+  // the session from possession of the code with NO form and land on the role
+  // dashboard. The email form / OTP stays as the fallback for anyone without a
+  // link (bare /redeem, entitlement codes, ssi_admin/tester invites) and is
+  // reachable if the straight-in mint can't proceed (see handleLinkRedeem).
+  if (isPossessionEligible.value) {
+    await handleLinkRedeem()
+    return
+  }
+  step.value = 'auth'
+}
+
+// --- Step 1c (default path): straight-in link redemption, no form ---
+// The invite link authenticates on click: mint a session from possession of
+// the code and drop the user straight onto their dashboard (via doRedeem). On
+// any failure (rate-limited, transient, app not ready) fall back to the
+// details form so they can still get in by typing an email — never dead-end.
+async function handleLinkRedeem() {
+  const client = supabase.value
+  if (!client) {
+    step.value = 'details'
+    return
+  }
+  step.value = 'redeeming'
+  error.value = ''
+  try {
+    const result = await linkPossessionRedeem(displayName.value.trim() || undefined)
+    if (result.success && result.session) {
+      const { error: setSessionError } = await client.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      })
+      if (setSessionError) {
+        step.value = 'details'
+        return
+      }
+      await doRedeem()
+      return
+    }
+    // Couldn't mint straight in — offer the email form quietly as the fallback.
+    step.value = 'details'
+  } catch {
+    step.value = 'details'
+  }
 }
 
 // --- Step 1b (whiteboard path): manual code entry ---

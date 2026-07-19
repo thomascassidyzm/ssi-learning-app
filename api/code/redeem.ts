@@ -278,8 +278,15 @@ async function redeemInviteCode(
     const { data: authUser } = await supabase.auth.admin.getUserById(userId)
     const metadata = authUser?.user?.user_metadata as Record<string, unknown> | undefined
     const metadataName = metadata?.display_name
+    // A link-auth (straight-in) account carries a placeholder email
+    // (api/auth/possession-redeem.ts) — never derive a display name from it
+    // ("link-<uuid>"); fall back to a generic name until they add a real one.
+    const authEmail = authUser?.user?.email
+    const emailPrefix = authEmail && !authEmail.endsWith('@invite.saysomethingin.app')
+      ? authEmail.split('@')[0]
+      : undefined
     const displayName = (typeof metadataName === 'string' && metadataName.trim())
-      || authUser?.user?.email?.split('@')[0]
+      || emailPrefix
       || 'User'
     // Possession-onboarded accounts (api/auth/possession-redeem.ts) never
     // prove mailbox receipt — that endpoint mints a session without ever

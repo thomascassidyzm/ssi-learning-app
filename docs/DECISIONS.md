@@ -400,3 +400,43 @@ access, so the floor would blank the tool while protecting nothing).
   clear K_FLOOR; schools are the peers-like-me unit that yields a meaningful, k-clearable spread.
 **Search width:** visible-options
 **Decided by:** agent (founder frame: "insight engine at every node", compare chain = map rail)
+
+## 2026-07-19 — teacher/admin/leader invite links go STRAIGHT IN again (regression fix)
+**Move:** Restored the founder's "magic link with a built-in token" for possession-eligible invite
+types (teacher / school_admin / school_admin_join / govt_admin-leader / student). Clicking a
+`/redeem/CODE` (or `/group/CODE`) link now auto-establishes a session from possession of the code
+alone — NO email/name form, NO OTP — and lands on the role dashboard. Implemented as a `linkAuth`
+mode on `api/auth/possession-redeem.ts`: a brand-new user has no email at click-time, so the
+account is minted against a unique placeholder address (`link-<uuid>@invite.saysomethingin.app`,
+never emailed) and flagged `needs_verification` so first-run prompts for a real email (existing
+`SettingsScreen` + `api/email/verify.ts` machinery). `RedeemCode.vue` auto-runs it on mount; the
+email form / OTP remains the fallback for anyone without a link and whenever the mint can't proceed.
+**Diagnosis:** teacher/admin invite links were NEVER minted as Supabase `generateLink` magic links
+in git history (pickaxed all of `api/`); the "straight in" experience drifted off through
+`cecee5eb` (inline auth rewrite) → `afb2ea6e` (possession email+name form, never formless) → the
+the-model unified-invites redesign (`7826e513`/`386a3450`, invites became anonymous `/redeem`
+codes). So the invite code in the URL is the only token the link carried, and the recipient still
+had to authenticate — the "completely different type of magic link" the founder flagged.
+**Better:** clicking a teacher/admin/leader link authenticates you straight onto your dashboard —
+the experience the founder remembers, zero ceremony.
+**Simpler:** reuses the proven possession `generateLink→verifyOtp` mint and the existing
+needs-verification/add-real-email loop; no invite-creation change, no new table, one endpoint mode
++ the RedeemCode entry flow. `onboarded_via` stays `'possession'` for both paths so the whole
+downstream apparatus is untouched.
+**Cheaper (total):** no new infra; links stay revocable (unified invite list), single-use/expiring,
+and redemption still records through `invite_codes`.
+**Known trade-off (flagged to founder, dev-only until tasted):** formless straight-in mints against
+a placeholder email, so on a MULTI-use shared link the same person clicking on two devices makes two
+accounts. Clean resolution = per-person single-use straight-in links; deferred to founder's taste
+call on the dev artifact.
+**Searched & rejected:**
+- Email-bound magic link minted at invite-creation (true token-in-URL, real email, dedupe-safe) —
+  rejected for now: requires the inviter to supply the recipient's email at mint time, changing the
+  anonymous-shareable-link invite model the task spec said to keep ("links remain revocable…records
+  through invite_codes"). It's the cleaner long-term shape if the founder wants per-person links.
+- Supabase anonymous sign-in (no placeholder email, email=null) — rejected: hard dependency on a
+  project-level auth setting that can't be verified/toggled from here; the placeholder path reuses a
+  mint already proven in production.
+**Search width:** visible-options
+**Decided by:** agent (task spec: "token embedded, session established on click… email-OTP stays as
+the fallback for people without a link"); placeholder-vs-per-person shape held for founder taste-pass.

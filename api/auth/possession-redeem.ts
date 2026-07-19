@@ -43,7 +43,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
-import { createHash } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { isValidEmailFormat, isDisposableEmailDomain, hasMxRecord } from '../_utils/emailValidation'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
@@ -68,6 +68,16 @@ const POSSESSION_ELIGIBLE_CODE_TYPES = new Set([
 const RATE_WINDOW_MS = 15 * 60 * 1000
 const PER_CODE_LIMIT = 20
 const PER_IP_LIMIT = 10
+
+// Placeholder email domain for link-auth (straight-in) accounts. When a
+// teacher/admin/leader clicks their invite link, the LINK itself is the
+// credential — we sign them straight in with no form (the founder's "magic
+// link with a built-in token"). A brand-new user has no email to give at
+// click-time, so the account is minted against a unique address at this
+// domain, which never receives mail and is replaced when they add+verify a
+// real email on first run (SettingsScreen.vue / api/email/verify.ts). Mirrored
+// client-side as isPlaceholderEmail() in SettingsScreen.vue.
+const LINK_AUTH_EMAIL_DOMAIN = 'invite.saysomethingin.app'
 
 function hashIp(ip: string): string {
   return createHash('sha256').update(ip).digest('hex').slice(0, 16)
@@ -118,19 +128,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return
   }
 
-  const { code, email, displayName } = req.body || {}
+  const { code, email, displayName, linkAuth } = req.body || {}
   if (!code || typeof code !== 'string') {
     res.status(400).json({ success: false, error: 'Missing code' })
     return
   }
-  if (!isValidEmailFormat(email)) {
-    res.status(400).json({ success: false, error: 'Please enter a valid email address' })
-    return
-  }
-  const normalizedEmail = email.trim().toLowerCase()
-  if (isDisposableEmailDomain(normalizedEmail)) {
-    res.status(400).json({ success: false, error: 'Please use a real, permanent email address — disposable addresses aren\'t accepted.' })
-    return
+
+  // Link-auth (straight-in) mode: no client email — the invite link is the
+  // credential. The placeholder address is generated only AFTER the code is
+  // known-valid (below), so an invalid/guessed code never mints an account.
+  // The typed-email path keeps all its format/disposable/MX guards.
+  const isLinkAuth = linkAuth === true
+  let normalizedEmail = ''
+  if (!isLinkAuth) {
+    if (!isValidEmailFormat(email)) {
+      res.status(400).json({ success: false, error: 'Please enter a valid email address' })
+      return
+    }
+    normalizedEmail = email.trim().toLowerCase()
+    if (isDisposableEmailDomain(normalizedEmail)) {
+      res.status(400).json({ success: false, error: 'Please use a real, permanent email address — disposable addresses aren\'t accepted.' })
+      return
+    }
   }
   const cleanDisplayName = typeof displayName === 'string' ? displayName.trim().slice(0, 100) : ''
 
@@ -204,12 +223,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // MX lookup is a SOFT signal only (see emailValidation.ts) — a definitive
     // "no mail exchanger" blocks; any DNS flakiness fails open rather than
-    // stopping a legitimate teacher from onboarding.
-    const mxResult = await hasMxRecord(normalizedEmail)
-    if (mxResult === false) {
-      await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'no_mx_domain' })
-      res.status(400).json({ success: false, error: 'That email domain can\'t receive mail. Please check for a typo.' })
-      return
+    // stopping a legitimate teacher from onboarding. Skipped in link-auth mode:
+    // the placeholder address is internal and never receives mail by design.
+    if (!isLinkAuth) {
+      const mxResult = await hasMxRecord(normalizedEmail)
+      if (mxResult === false) {
+        await logAttempt(supabase, { inviteCodeId: inviteRow.id as string, email: normalizedEmail, ipHash, outcome: 'no_mx_domain' })
+        res.status(400).json({ success: false, error: 'That email domain can\'t receive mail. Please check for a typo.' })
+        return
+      }
+    }
+
+    // Link-auth: the code is now known-valid, non-expired, non-exhausted and of
+    // a supported type — mint the unique placeholder address for this account.
+    if (isLinkAuth) {
+      normalizedEmail = `link-${randomUUID()}@${LINK_AUTH_EMAIL_DOMAIN}`
     }
 
     // Create the account with no email sent. email_confirm:false — Supabase's
@@ -225,7 +253,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       email: normalizedEmail,
       email_confirm: false,
       user_metadata: {
+        // Deliberately 'possession' for both paths — the whole needs-real-email
+        // apparatus (useAuth.needs_verification, SettingsScreen's add-email
+        // prompt, api/code/redeem.ts) keys off this exact value, and a link-auth
+        // account needs that nudge MORE than a typed-email one, not less. The
+        // separate link_auth flag is analytics-only.
         onboarded_via: 'possession',
+        ...(isLinkAuth ? { link_auth: true } : {}),
         ...(cleanDisplayName ? { display_name: cleanDisplayName } : {}),
       },
     })
