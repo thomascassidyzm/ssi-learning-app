@@ -209,6 +209,9 @@ watch(viewingSchool, (school) => {
 // ---------- Display helpers ----------
 const firstName = computed(() => {
   const name = currentUser.value?.display_name || ''
+  // Link-auth accounts carry a machine placeholder ("link-<uuid>") until the
+  // person sets a real name — never greet anyone with it.
+  if (/^link-[0-9a-f]{8}/i.test(name)) return 'there'
   return name.split(/\s+/).filter(Boolean)[0] || 'there'
 })
 
