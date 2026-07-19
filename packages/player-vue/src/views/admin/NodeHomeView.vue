@@ -320,7 +320,12 @@ const listPayload = computed(() => {
           <div v-if="isClass" class="class-cards">
             <div class="schools-card class-card">
               <span class="schools-kicker">Course journey</span>
-              <JourneyBar v-if="journey" :done="journey.done" :total="journey.total" label="Course Journey" />
+              <!-- Bar runs in LEGOs on both sides (class average vs course
+                   total) — the server's journey.done is the class-entity's
+                   play-as-class SEED cursor, a different unit to the LEGO
+                   total, so it never drives this bar (the old page's latent
+                   mixed-unit bug, caught on the 2026-07-19 verify pass). -->
+              <JourneyBar v-if="journey" :done="classAvgLegos" :total="Math.max(journey.total, classAvgLegos)" label="Course Journey" />
               <p class="class-card-note">
                 {{ classAvgLegos }} LEGOs mastered on average across the class.<br />
                 <template v-if="nextBeltInfo">{{ nextBeltInfo.remaining }} more to {{ nextBeltInfo.name }} belt.</template>
