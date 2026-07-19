@@ -61,6 +61,12 @@ const engineState = ref<EngineState | null>(null)
 // stale response never overwrites a newer one.
 let fetchSeq = 0
 
+// What the server last resolved. When the wrapper mirrors the applied
+// defaults back into the v-models, the watch fires again with values we
+// already hold — refetching then is a pure echo (one wasted round trip and
+// a "Loading…" flash over an already-rendered comparison).
+let lastApplied: { nodeId: string; course: string | null; compare: string | null } | null = null
+
 async function fetchComparison(): Promise<void> {
   if (!props.nodeId) return
   const seq = ++fetchSeq
@@ -84,6 +90,7 @@ async function fetchComparison(): Promise<void> {
     const json = await resp.json()
     if (seq !== fetchSeq) return
     engineState.value = { node: json.node, options: json.options, applied: json.applied }
+    lastApplied = { nodeId: props.nodeId, course: json.applied.course_code ?? null, compare: json.applied.compare_to ?? null }
     emit('state', engineState.value)
     // Reflect server-resolved defaults back into the v-models (deep links stay
     // honest); identical values emit nothing, so no fetch loop.
@@ -115,7 +122,13 @@ const { registerRefresh } = useDashboardRefresh()
 registerRefresh(fetchComparison, { immediate: false })
 watch(
   [() => props.nodeId, () => props.course, () => props.compare],
-  () => { void fetchComparison() },
+  ([nid, course, compare]) => {
+    // Echo guard: a null prop means "server default", which is what we hold.
+    if (lastApplied && nid === lastApplied.nodeId
+      && (!course || course === lastApplied.course)
+      && (!compare || compare === lastApplied.compare)) return
+    void fetchComparison()
+  },
   { immediate: true },
 )
 
