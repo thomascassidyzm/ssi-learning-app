@@ -52,6 +52,7 @@ beforeEach(async () => {
     schools: [],
     class_teachers: [],
     classes: [],
+    groups: [],
   }
 })
 
@@ -118,7 +119,13 @@ describe('GET /api/me/teaching-context', () => {
   it('groupless tutor WITHOUT a class: empty everywhere, no capability', async () => {
     const res = makeRes()
     await handler(makeReq(), res)
-    expect(res.body).toEqual({ groups: [], classes: [], can_play_as_class: false })
+    expect(res.body).toEqual({
+      groups: [],
+      classes: [],
+      can_play_as_class: false,
+      groups_detail: [],
+      classes_detail: [],
+    })
   })
 
   it('unions class_teachers relationship + legacy lead pointer, deduped', async () => {
@@ -159,5 +166,38 @@ describe('GET /api/me/teaching-context', () => {
     const res = makeRes()
     await handler(makeReq(), res)
     expect(res.body.groups).toEqual([{ id: 'g1', label: 'group' }])
+  })
+
+  it('classes_detail carries name + course for every taught class', async () => {
+    DB.classes = [
+      { id: 'c1', teacher_user_id: 'auth-1', is_active: true, class_name: 'Year 6 Hindi', course_code: 'hin_for_eng' },
+      { id: 'c2', teacher_user_id: 'auth-1', is_active: true, class_name: 'Year 5 Hindi', course_code: 'hin_for_eng' },
+    ]
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.body.classes_detail).toEqual(
+      expect.arrayContaining([
+        { id: 'c1', name: 'Year 6 Hindi', course_code: 'hin_for_eng' },
+        { id: 'c2', name: 'Year 5 Hindi', course_code: 'hin_for_eng' },
+      ]),
+    )
+    expect(res.body.classes_detail.length).toBe(2)
+  })
+
+  it('groups_detail resolves a school name via schools and a group name via groups', async () => {
+    DB.user_tags = [
+      { user_id: 'auth-1', tag_type: 'school', tag_value: 'SCHOOL:s1', removed_at: null },
+      { user_id: 'auth-1', tag_type: 'group', tag_value: 'GROUP:g1', removed_at: null },
+    ]
+    DB.schools = [{ id: 's1', school_name: 'Sunrise Public School' }]
+    DB.groups = [{ id: 'g1', name: 'IME Demo Programme' }]
+    const res = makeRes()
+    await handler(makeReq(), res)
+    expect(res.body.groups_detail).toEqual(
+      expect.arrayContaining([
+        { id: 's1', label: 'school', name: 'Sunrise Public School' },
+        { id: 'g1', label: 'group', name: 'IME Demo Programme' },
+      ]),
+    )
   })
 })

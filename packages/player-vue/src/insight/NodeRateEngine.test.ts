@@ -103,7 +103,8 @@ describe('NodeRateEngine', () => {
     await flushPromises()
     // The compare picker's options all speak plain words (the closed
     // FrostSelect only paints the selection, so assert on its options).
-    const compareSelect = wrapper.findAllComponents({ name: 'FrostSelect' }).at(-1)!
+    const frostSelects = wrapper.findAllComponents({ name: 'FrostSelect' })
+    const compareSelect = frostSelects[frostSelects.length - 1]!
     const labels = (compareSelect.props('options') as { label: string }[]).map((o) => o.label)
     expect(labels).toEqual([
       'School average',

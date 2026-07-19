@@ -24,6 +24,18 @@ export interface TeachingGroup {
   label: 'school' | 'group'
 }
 
+export interface GroupDetail {
+  id: string
+  label: 'school' | 'group'
+  name: string
+}
+
+export interface ClassDetail {
+  id: string
+  name: string
+  course_code: string | null
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -59,10 +71,17 @@ export default async function handler(
       resolveTaughtClassIds(supabase, authUid),
     ])
 
+    const [groupsDetail, classesDetail] = await Promise.all([
+      resolveGroupsDetail(supabase, groups),
+      resolveClassesDetail(supabase, classes),
+    ])
+
     res.status(200).json({
       groups,
       classes,
       can_play_as_class: classes.length > 0,
+      groups_detail: groupsDetail,
+      classes_detail: classesDetail,
     })
   } catch (error: any) {
     console.error('[me/teaching-context] Error:', error)
@@ -130,4 +149,47 @@ async function resolveTaughtClassIds(supabase: any, authUid: string): Promise<st
   for (const c of owned ?? []) if (c.id) ids.add(c.id as string)
 
   return [...ids]
+}
+
+/**
+ * Display names for each group affiliation — school name via `schools`,
+ * group name via `groups`. A plain-words caller (TeacherInsightsView) needs
+ * a name to show, not just an id; kept as a parallel array (not fields added
+ * to `groups`) so the existing `groups: {id,label}[]` shape stays untouched.
+ */
+async function resolveGroupsDetail(supabase: any, groups: TeachingGroup[]): Promise<GroupDetail[]> {
+  const schoolIds = groups.filter((g) => g.label === 'school').map((g) => g.id)
+  const groupIds = groups.filter((g) => g.label === 'group').map((g) => g.id)
+
+  const [{ data: schools }, { data: groupRows }] = await Promise.all([
+    schoolIds.length
+      ? supabase.from('schools').select('id, school_name').in('id', schoolIds)
+      : Promise.resolve({ data: [] }),
+    groupIds.length
+      ? supabase.from('groups').select('id, name').in('id', groupIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const schoolNames = new Map((schools ?? []).map((s: any) => [s.id, s.school_name as string]))
+  const groupNames = new Map((groupRows ?? []).map((g: any) => [g.id, g.name as string]))
+
+  return groups.map((g) => ({
+    id: g.id,
+    label: g.label,
+    name: (g.label === 'school' ? schoolNames.get(g.id) : groupNames.get(g.id)) ?? '',
+  }))
+}
+
+/** Name + course for each taught class, so a caller can render a picker without a second round trip. */
+async function resolveClassesDetail(supabase: any, classIds: string[]): Promise<ClassDetail[]> {
+  if (!classIds.length) return []
+  const { data } = await supabase
+    .from('classes')
+    .select('id, class_name, course_code')
+    .in('id', classIds)
+  return (data ?? []).map((c: any) => ({
+    id: c.id,
+    name: c.class_name as string,
+    course_code: (c.course_code as string) ?? null,
+  }))
 }
