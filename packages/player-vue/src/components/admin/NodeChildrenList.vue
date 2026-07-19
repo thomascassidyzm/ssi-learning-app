@@ -231,6 +231,9 @@ function open(row: Row): void {
 .child-caption { display: inline-flex; align-items: center; gap: 4px; }
 
 .child-journey { display: flex; flex-direction: column; gap: 3px; width: 150px; flex-shrink: 0; }
+/* The row's own "X of Y LEGOs" note carries the numbers — JourneyBar's
+   built-in fraction head would say the same thing twice. */
+.child-journey :deep(.journey-head) { display: none; }
 .child-journey-note { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
 .child-spark { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
 
