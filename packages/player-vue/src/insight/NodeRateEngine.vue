@@ -24,22 +24,27 @@
 // ============================================================================
 import { ref, computed, watch } from 'vue'
 import RateCompare from './components/RateCompare.vue'
+import WindowChips from './components/WindowChips.vue'
 import FrostSelect from '@/components/FrostSelect.vue'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import type { RateComparisonData } from './spec'
 
 interface CourseOption { code: string; classCount: number }
 interface CompareOption { value: string; label: string; word: string }
+interface WindowOption { value: string; label: string }
+interface MeasureOption { value: string; label: string; desc: string }
 export interface EngineState {
   node: { id: string; name: string; label: string; kind: 'node' | 'class' }
-  options: { courses: CourseOption[]; compares: CompareOption[] }
-  applied: { course_code: string | null; compare_to: string; days: number }
+  options: { courses: CourseOption[]; compares: CompareOption[]; windows?: WindowOption[]; measures?: MeasureOption[] }
+  applied: { course_code: string | null; compare_to: string; days: number; window?: string; measure?: string }
 }
 
 const props = defineProps<{
   nodeId: string
   course?: string | null
   compare?: string | null
+  window?: string | null
+  measure?: string | null
   plainWords?: boolean
   getToken: () => Promise<string | null>
 }>()
@@ -47,6 +52,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:course': [value: string]
   'update:compare': [value: string]
+  'update:window': [value: string]
+  'update:measure': [value: string]
   state: [value: EngineState]
 }>()
 
@@ -65,7 +72,7 @@ let fetchSeq = 0
 // defaults back into the v-models, the watch fires again with values we
 // already hold — refetching then is a pure echo (one wasted round trip and
 // a "Loading…" flash over an already-rendered comparison).
-let lastApplied: { nodeId: string; course: string | null; compare: string | null } | null = null
+let lastApplied: { nodeId: string; course: string | null; compare: string | null; window: string | null; measure: string | null } | null = null
 
 async function fetchComparison(): Promise<void> {
   if (!props.nodeId) return
@@ -81,6 +88,8 @@ async function fetchComparison(): Promise<void> {
     const params = new URLSearchParams()
     if (props.course) params.set('course_code', props.course)
     if (props.compare) params.set('compare_to', props.compare)
+    if (props.window) params.set('window', props.window)
+    if (props.measure) params.set('measure', props.measure)
     const qs = params.toString()
     const resp = await fetch(`/api/groups/${props.nodeId}/rate-compare${qs ? `?${qs}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -90,12 +99,20 @@ async function fetchComparison(): Promise<void> {
     const json = await resp.json()
     if (seq !== fetchSeq) return
     engineState.value = { node: json.node, options: json.options, applied: json.applied }
-    lastApplied = { nodeId: props.nodeId, course: json.applied.course_code ?? null, compare: json.applied.compare_to ?? null }
+    lastApplied = {
+      nodeId: props.nodeId,
+      course: json.applied.course_code ?? null,
+      compare: json.applied.compare_to ?? null,
+      window: json.applied.window ?? null,
+      measure: json.applied.measure ?? null,
+    }
     emit('state', engineState.value)
     // Reflect server-resolved defaults back into the v-models (deep links stay
     // honest); identical values emit nothing, so no fetch loop.
     if (json.applied.course_code && json.applied.course_code !== props.course) emit('update:course', json.applied.course_code)
     if (json.applied.compare_to && json.applied.compare_to !== props.compare) emit('update:compare', json.applied.compare_to)
+    if (json.applied.window && json.applied.window !== props.window) emit('update:window', json.applied.window)
+    if (json.applied.measure && json.applied.measure !== props.measure) emit('update:measure', json.applied.measure)
     if (json.insufficientData) {
       insufficientReason.value = json.reason || 'Not enough data to compare fairly yet.'
     } else {
@@ -121,12 +138,14 @@ async function fetchComparison(): Promise<void> {
 const { registerRefresh } = useDashboardRefresh()
 registerRefresh(fetchComparison, { immediate: false })
 watch(
-  [() => props.nodeId, () => props.course, () => props.compare],
-  ([nid, course, compare]) => {
+  [() => props.nodeId, () => props.course, () => props.compare, () => props.window, () => props.measure],
+  ([nid, course, compare, win, measure]) => {
     // Echo guard: a null prop means "server default", which is what we hold.
     if (lastApplied && nid === lastApplied.nodeId
       && (!course || course === lastApplied.course)
-      && (!compare || compare === lastApplied.compare)) return
+      && (!compare || compare === lastApplied.compare)
+      && (!win || win === lastApplied.window)
+      && (!measure || measure === lastApplied.measure)) return
     void fetchComparison()
   },
   { immediate: true },
@@ -157,17 +176,46 @@ const compareModel = computed({
 
 const showCoursePicker = computed(() => (engineState.value?.options.courses.length ?? 0) > 1)
 
-// The one real metric — fixed, said plainly (the admin Stats boards carry the
-// browsable metric set; this page is the scoped door, not a fork).
-const METRIC_DESC = 'New LEGOs reached per week — the headline rate. Rate of progress '
+// ── Window chips: server-sent options; absent → no chip row at all (defensive
+// — renders exactly as today until the server ships options.windows). ──
+const windowOptions = computed(() => engineState.value?.options.windows ?? [])
+const showWindowChips = computed(() => windowOptions.value.length > 0)
+const windowModel = computed({
+  get: () => props.window || engineState.value?.applied.window || '',
+  set: (v: string) => emit('update:window', v),
+})
+
+// ── Measure picker: server-sent options; absent → the fixed legacy text. ──
+const measureOptions = computed(() => engineState.value?.options.measures ?? [])
+const showMeasurePicker = computed(() => measureOptions.value.length > 0)
+const measureSelectOptions = computed(() =>
+  measureOptions.value.map((m) => ({ value: m.value, label: m.label })))
+const measureModel = computed({
+  get: () => props.measure || engineState.value?.applied.measure || '',
+  set: (v: string) => emit('update:measure', v),
+})
+
+// The legacy fixed metric — kept as the fallback when the server hasn't (yet)
+// sent options.measures (the admin Stats boards carry the browsable metric
+// set; this page is the scoped door, not a fork).
+const LEGACY_METRIC_DESC = 'New LEGOs reached per week — the headline rate. Rate of progress '
   + 'matters more than position: a learner three seeds back but climbing fast is '
   + 'healthier than one parked far ahead.'
+const metricDesc = computed(() => {
+  const selected = measureOptions.value.find((m) => m.value === measureModel.value)
+  return selected?.desc || LEGACY_METRIC_DESC
+})
 </script>
 
 <template>
   <div class="nre">
     <!-- ── Controls ── -->
     <div v-if="engineState" class="nre-controls">
+      <div v-if="showWindowChips" class="nre-field">
+        <span class="nre-field-label">Window</span>
+        <WindowChips v-model="windowModel" :options="windowOptions" aria-label="Time window" />
+      </div>
+
       <label v-if="showCoursePicker" class="nre-field nre-field-wide">
         <span class="nre-field-label">Course</span>
         <FrostSelect v-model="courseModel" :options="courseSelectOptions" aria-label="Course" />
@@ -177,7 +225,11 @@ const METRIC_DESC = 'New LEGOs reached per week — the headline rate. Rate of p
         <p class="nre-fixed">{{ engineState.applied.course_code }}</p>
       </div>
 
-      <div class="nre-field">
+      <label v-if="showMeasurePicker" class="nre-field nre-field-wide">
+        <span class="nre-field-label">Measure</span>
+        <FrostSelect v-model="measureModel" :options="measureSelectOptions" aria-label="Measure" />
+      </label>
+      <div v-else class="nre-field">
         <span class="nre-field-label">Measure</span>
         <p class="nre-fixed">Rate of progress (LEGOs / week)</p>
       </div>
@@ -188,7 +240,7 @@ const METRIC_DESC = 'New LEGOs reached per week — the headline rate. Rate of p
       </label>
     </div>
 
-    <p class="nre-metric-desc">{{ METRIC_DESC }}</p>
+    <p class="nre-metric-desc">{{ metricDesc }}</p>
 
     <!-- ── The widget — or an honest state, never a fabricated number ── -->
     <div v-if="comparison" class="nre-widget-card">
