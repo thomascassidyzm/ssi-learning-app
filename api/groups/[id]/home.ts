@@ -210,9 +210,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // ─── Class kind — leaf home: teachers (read-only, co-teacher view) +
     // learners as children, carrying the teaching data the old roster had
-    // (belt-bearing seeds/LEGO counts, streak, last-7-days) so the class
-    // node home is the page teachers teach from — the individual learner
-    // page is gone (founder ruling 2026-07-19).
+    // (belt-bearing seeds/LEGO counts, last-7-days) so the class node home
+    // is the page teachers teach from — the individual learner page is gone
+    // (founder ruling 2026-07-19). No streaks anywhere: founder ruling
+    // 2026-07-19, reasoning in docs/gamification-done-right.md.
     if (classRow) {
       const [{ data: ct }, { data: csp }, { count: legoTotal }, { data: classStats }] = await Promise.all([
         svc.from('class_teachers').select('teacher_user_id, is_lead').eq('class_id', classRow.id),
@@ -265,19 +266,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         d.setDate(d.getDate() - offset)
         return d.toISOString().split('T')[0]
       }
-      // Same rule as the learner's own progress view: today may be skipped if
-      // they haven't played yet, then count consecutive practised days back.
-      const streakFor = (days: Map<string, number> | undefined): number => {
-        if (!days) return 0
-        const start = (days.get(dayKey(0)) || 0) > 0 ? 0 : 1
-        let streak = 0
-        for (let i = start; i < start + 14; i++) {
-          if ((days.get(dayKey(i)) || 0) > 0) streak++
-          else break
-        }
-        return streak
-      }
-
       const students = (csp ?? []).map((s: any) => {
         const days = secondsByLearnerDay.get(s.learner_id)
         const last7 = Array.from({ length: 7 }, (_, i) => Math.round(((days?.get(dayKey(6 - i)) || 0) / 60)))
@@ -289,7 +277,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           practice_hours: Math.round(((Number(s.total_practice_seconds) || 0) / 3600) * 10) / 10,
           last_active_at: s.last_active_at,
           joined_class_at: s.joined_class_at,
-          streak_days: streakFor(days),
           last7_minutes: last7,
           week_minutes: last7.reduce((a, b) => a + b, 0),
         }

@@ -229,21 +229,6 @@ const sparkline30d = computed(() => {
   return buckets
 })
 
-const currentStreak = computed(() => {
-  const days = new Set(sessions.value.map(s => s.started_at.slice(0, 10)))
-  if (days.size === 0) return 0
-  let streak = 0
-  const cursor = new Date()
-  // Grace: if today has no row yet, start counting from yesterday so a
-  // 9 AM check doesn't reset an actually-active streak.
-  if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1)
-  while (days.has(dayKey(cursor))) {
-    streak++
-    cursor.setDate(cursor.getDate() - 1)
-  }
-  return streak
-})
-
 const lastActiveAt = computed(() => sessions.value[0]?.started_at ?? null)
 
 function formatMinutes(seconds: number): string {
@@ -551,7 +536,9 @@ async function handleCreateSigninLink() {
 
       <!-- ─── Activity hero ──────────────────────────────────────────
            At-a-glance: is this user actually using the app?
-           Lifetime / 7-day / today / streak + a 30-day sparkline.
+           Lifetime / 7-day / today / last-active + a 30-day sparkline.
+           No streak — streaks are banned (founder ruling 2026-07-19,
+           docs/gamification-done-right.md).
            Reads from `sessions` (per-day rollup from
            learner_speaking_opportunities — the canonical telemetry). -->
       <section class="section">
@@ -568,12 +555,6 @@ async function handleCreateSigninLink() {
             <div class="activity-stat">
               <div class="schools-kicker">Today</div>
               <div class="arsenal activity-value">{{ formatMinutes(todayPracticeSeconds) }}</div>
-            </div>
-            <div class="activity-stat">
-              <div class="schools-kicker">Streak</div>
-              <div class="arsenal activity-value">
-                {{ currentStreak === 0 ? '—' : `${currentStreak}d` }}
-              </div>
             </div>
             <div class="activity-stat activity-stat-wide">
               <div class="schools-kicker">Last active</div>

@@ -73,7 +73,7 @@ Every node home is the same page, top to bottom:
 | Organisation / group | Its child groups & schools | Any interior node, however deep |
 | School | Its teachers (with their classes) | Deep school tools stay at `/admin/schools/:id/…` |
 | Class | Its learners | Header shows the lead teacher + the teachers list (co-teacher model), read-only for now. **Carries the full teaching density** (founder, 2026-07-19: "we need this level of data that we used to have"): per-student rows show belt · LEGOs · practice hours · last active · needs-attention flag, and the class home adds the Course Journey, Belt distribution and practice-min/student/week cards the old class page had — same five-part grammar, the cards sit between STATS ROW and CHILDREN LIST. |
-| Learner | — | **There is no individual learner page** (founder, 2026-07-19: "there's no need for an individual learner page"). A student row expands IN PLACE on the class home — journey progress, streak, last-7-days — and collapses back. `/admin/users/:id/progress` redirects to the user admin page so old links never 404. |
+| Learner | — | **There is no individual learner page** (founder, 2026-07-19: "there's no need for an individual learner page"). A student row on the class home is FLAT (founder pass B, 2026-07-19): journey position, belt, LEGOs, practice hours, last practised, needs-attention and last-7-days all on the one row, no click. No streaks anywhere (founder: streaks are an abomination — docs/gamification-done-right.md). `/admin/users/:id/progress` redirects to the user admin page so old links never 404. |
 
 A school is just a node with a commercial attachment (THE MODEL) — its home is the same page with
 a trial/paid state in the header and teachers as children. Nothing branches on the label.

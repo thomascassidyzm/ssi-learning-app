@@ -491,10 +491,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'School Classes' },
       },
       {
+        // The admin "Class tools" page is DEAD (founder ruling 2026-07-19):
+        // it duplicated the class node home with zero admin-usable verbs.
+        // The URL survives as a redirect so old links never 404.
         path: 'classes/:classId',
         name: 'admin-school-class-detail',
-        component: ClassDetail,
-        meta: { title: 'Class Detail' },
+        redirect: (to) => ({ path: `/admin/classes/${to.params.classId}` }),
       },
       {
         path: 'students',
@@ -551,8 +553,8 @@ const routes: RouteRecordRaw[] = [
     // children (with the full teaching data in-row). Deliberately the SAME
     // container + view pair as /admin/groups/:id so drilling group → class
     // reuses the mounted surface (one continuous map, no repaint — founder
-    // ruling 2026-07-19). The rich class tools remain one tap away at
-    // /admin/schools/:schoolId/classes/:classId.
+    // ruling 2026-07-19). This IS the class page for admins — the old
+    // "Class tools" page is dead (founder ruling 2026-07-19).
     path: '/admin/classes/:id',
     component: AdminGroupContainer,
     meta: { hideAppEscape: true },
@@ -574,9 +576,9 @@ const routes: RouteRecordRaw[] = [
   },
   {
     // The individual learner page is DEAD (founder ruling 2026-07-19) — its
-    // teacher-relevant content (journey, streak, last-7-days) lives as the
-    // in-place student-row expansion on the class node home. The URL
-    // survives as a redirect so old links never 404.
+    // teacher-relevant content (journey, last-7-days) lives flat on the
+    // student rows of the class node home. The URL survives as a redirect
+    // so old links never 404.
     path: '/admin/users/:learnerId/progress',
     redirect: (to) => ({ path: `/admin/users/${to.params.learnerId}` }),
   },

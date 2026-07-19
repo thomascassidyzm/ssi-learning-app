@@ -1,5 +1,5 @@
 # APML: Node Home — THE VIEW's one recursive dashboard
-# Last updated: 2026-07-19
+# Last updated: 2026-07-19 (founder pass B: flat student rows, streaks killed, Class tools page dead)
 # Contract: docs/THE-VIEW.md (founder-ruled 2026-07-19) — companion to docs/THE-MODEL.md
 
 purpose: |
@@ -20,7 +20,17 @@ grammar:  # the same five parts, every level (THE-VIEW §1)
   identity_header: node name + label badge + demo/trial/paid state; class level adds read-only teachers (lead first)
   stats_row: learners · teachers · classes · practice hours — SUBTREE totals via groupRollups.computeNodeExtras
   children_list: NodeChildrenList.vue # one row grammar for every lens payload
-  verbs: invite someone (role × node) · see analytics / class tools · quick actions (Structure flyout)
+  verbs: invite someone (role × node) · see insights · quick actions (Structure flyout)
+  # The admin "Class tools" page is DEAD (founder ruling 2026-07-19): it
+  # duplicated the class node home with zero admin-usable verbs. Its route
+  # (/admin/schools/:id/classes/:classId) redirects to /admin/classes/:classId.
+  student_rows: |
+    FLAT (founder ruling 2026-07-19): all per-student teaching data on the one
+    row, no click — health dot, last practised, course-journey bar (LEGOs done
+    of course total), belt, LEGOs, practice hours, last-7-days sparkline +
+    week minutes. No expansion panel, no individual learner page, and NO
+    STREAKS anywhere (docs/gamification-done-right.md). On phone the row
+    wraps: stats strip + journey bar under the name (sparkline hidden).
 
 lenses:  # filters over the one view, never separate pages; ?lens= in the URL
   children: direct child nodes (default)
