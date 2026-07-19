@@ -547,9 +547,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         median: dist.median,
         q3: dist.q3,
         max: dist.max,
-        entityValue: entityWindow.pace,
+        entityValue: entityMeasure.value,
         averageValue,
-        percentile: dist.percentileOf(entityWindow.pace),
+        percentile: dist.percentileOf(entityMeasure.value),
       },
       cohortSize: active.length,
     })

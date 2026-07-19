@@ -275,6 +275,48 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.deltaPct).toBe(-39.2)
   })
 
+  // ─── Compare-set fullness at every depth (THE LENS windows+measures
+  // contract, task 3). The founder observed region/group nodes offering only
+  // the two Global options. Live-data diagnosis: EVERY real+demo group in
+  // production tops out at 2 levels (a region/programme/org root -> its
+  // schools) — there is no 3rd tier anywhere, so a region node's ancestor
+  // chain is correctly empty (roots have no parent). The code itself walks
+  // parent_id with no depth cap; these tests pin that against this fixture's
+  // deeper tree (nation -> programme -> school -> class = 3 real levels). ───
+  it('full ancestor chain at CLASS depth: own school -> programme -> nation -> both globals, no thinning', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
+      ['s2-node', 'programme', 'nation', 'global', 'global_all_courses'])
+  })
+
+  it('full ancestor chain at SCHOOL depth: programme -> nation -> both globals', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.options.compares.map((o: any) => o.value)).toEqual(
+      ['programme', 'nation', 'global', 'global_all_courses'])
+  })
+
+  it('full ancestor chain at REGION/GROUP depth (programme, a non-root group): nation -> both globals', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.options.compares.map((o: any) => o.value)).toEqual(['nation', 'global', 'global_all_courses'])
+  })
+
+  it('a ROOT group (no parent) honestly offers only the two globals — data-shaped, not a bug', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('nation'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.options.compares.map((o: any) => o.value)).toEqual(['global', 'global_all_courses'])
+  })
+
   it('admin · explicit course_code is honoured; unknown falls back to default', async () => {
     verifyAdminResult = { userId: 'admin-1' }
     const res = makeRes()
@@ -371,5 +413,152 @@ describe('GET /api/groups/:id/rate-compare', () => {
     const res = makeRes()
     await handler(makeReq('nothing-here'), res)
     expect(res.statusCode).toBe(404)
+  })
+})
+
+describe('GET /api/groups/:id/rate-compare — windows (?window=)', () => {
+  it('defaults to "term" when neither window nor days is present', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme' }), res)
+    expect(res.body.applied.window).toBe('term')
+    expect(res.body.applied.days).toBe(84)
+    expect(res.body.windowLabel).toBe('This term')
+    expect(res.body.trendLabel).toBe('Weekly · last 12 weeks')
+    expect(res.body.trendPeriodDays).toBe(7)
+    expect(lastRpcArgs.p_days).toBe(91) // (12+1)*7
+  })
+
+  it('?window=week sets a 7-day headline period and a 7-point daily trend', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'week' }), res)
+    expect(res.body.applied.window).toBe('week')
+    expect(res.body.windowLabel).toBe('This week')
+    expect(res.body.trendLabel).toBe('Daily · last 7 days')
+    expect(res.body.trendPeriodDays).toBe(1)
+    expect(res.body.entity.trend).toHaveLength(7)
+    expect(lastRpcArgs.p_days).toBe(8) // (7+1)*1
+  })
+
+  it('?window=4w sets a 28-day headline period and a 4-point weekly trend', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: '4w' }), res)
+    expect(res.body.applied.window).toBe('4w')
+    expect(res.body.trendPeriodDays).toBe(7)
+    expect(res.body.entity.trend).toHaveLength(4)
+    expect(lastRpcArgs.p_days).toBe(35) // (4+1)*7
+  })
+
+  it('?window=all sets a practical-unbounded headline period and a 12-point monthly trend', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'all' }), res)
+    expect(res.body.applied.window).toBe('all')
+    expect(res.body.trendLabel).toBe('Monthly · last 12 months')
+    expect(res.body.trendPeriodDays).toBe(30)
+    expect(res.body.entity.trend).toHaveLength(12)
+    expect(lastRpcArgs.p_days).toBe(3650)
+  })
+
+  it('legacy ?days= alone still works — byte-identical trend shape, applied.window is null (no chip matches)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', days: '30' }), res)
+    expect(res.body.applied.window).toBeNull()
+    expect(res.body.applied.days).toBe(30)
+    expect(res.body.trendLabel).toBe('Weekly · last 8 weeks')
+    expect(res.body.entity.trend).toHaveLength(8)
+    expect(lastRpcArgs.p_days).toBe(63) // (8+1)*7
+  })
+
+  it('?window= wins over ?days= when both are present', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', window: 'week', days: '90' }), res)
+    expect(res.body.applied.window).toBe('week')
+    expect(res.body.applied.days).toBe(7)
+  })
+
+  it('options.windows always carries the 4 canonical chips', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1'), res)
+    expect(res.body.options.windows).toEqual([
+      { value: 'week', label: 'This week' },
+      { value: '4w', label: 'Last 4 weeks' },
+      { value: 'term', label: 'This term' },
+      { value: 'all', label: 'All time' },
+    ])
+  })
+})
+
+describe('GET /api/groups/:id/rate-compare — measures (?measure=)', () => {
+  it('measure=minutes_per_class: same grammar, a different metric — practice minutes per week', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'minutes_per_class' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.measure).toBe('minutes_per_class')
+    expect(res.body.metricLabel).toBe('Practice minutes per class')
+    expect(res.body.unit).toBe('min')
+    expect(res.body.per).toBe('week')
+    expect(res.body.entity.value).toBe(60) // 60 practice min total / 1-week span since first activity
+    expect(res.body.contextLine).toBeUndefined() // contextLine rides ONLY on the rate measure
+  })
+
+  it('measure=hours_total: a straight sum, unit hours, no per', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'hours_total' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.metricLabel).toBe('Practice hours')
+    expect(res.body.unit).toBe('hours')
+    expect(res.body.per).toBe('')
+    expect(res.body.entity.value).toBe(1) // 3600s of sessions in the window
+    expect(res.body.contextLine).toBeUndefined()
+  })
+
+  it('measure=active_classes: % of the entity’s own classes active — available at node level', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2', { measure: 'active_classes' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.measure).toBe('active_classes')
+    expect(res.body.metricLabel).toBe('Active classes share')
+    expect(res.body.unit).toBe('%')
+    expect(res.body.per).toBe('')
+    expect(res.body.entity.value).toBe(100) // both of school-2's hin classes (c2, c3) are active
+  })
+
+  it('measure=active_classes on a CLASS entity falls back to the default (rate) rather than erroring', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { measure: 'active_classes' }), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.applied.measure).toBe('rate')
+    expect(res.body.options.measures.map((m: any) => m.value)).not.toContain('active_classes')
+  })
+
+  it('options.measures: full 4 at node level, 3 (no active_classes) at class level; each carries a plain-language desc', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(res.body.options.measures.map((m: any) => m.value)).toEqual(
+      ['rate', 'minutes_per_class', 'hours_total', 'active_classes'])
+    expect(res.body.options.measures.every((m: any) => typeof m.desc === 'string' && m.desc.length > 0)).toBe(true)
+
+    const res2 = makeRes()
+    await handler(makeReq('c1'), res2)
+    expect(res2.body.options.measures.map((m: any) => m.value)).toEqual(['rate', 'minutes_per_class', 'hours_total'])
+  })
+
+  it('unknown measure falls back to the default (rate)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('c1', { compare_to: 'programme', measure: 'bogus' }), res)
+    expect(res.body.applied.measure).toBe('rate')
+    expect(res.body.metricLabel).toBe('Rate of progress')
   })
 })
