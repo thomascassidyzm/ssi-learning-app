@@ -69,6 +69,15 @@ async function pickLabel(label: string): Promise<void> {
   if (label === props.node.label) return
   await api.updateLabel(props.node, label)
 }
+
+// ROWS ARE LINKS (founder-ruled 2026-07-19): a click anywhere on the row —
+// including the name — opens that node's dashboard/node-home page. In-list
+// controls (label badge, the ⋯ menu, the rename input) stop propagation so
+// they never trigger this navigation. Never navigate while renaming.
+function onRowClick(): void {
+  if (editing.value) return
+  api.openDashboard(props.node)
+}
 const newChildName = ref('')
 const newChildLabel = ref('group')
 const newChildIsDemo = ref(false)
@@ -125,27 +134,31 @@ async function submitDemoMint(): Promise<void> {
 </script>
 
 <template>
-  <div class="structure-row" :style="indentStyle">
+  <!-- The whole row is a link to the node's dashboard (founder-ruled
+       2026-07-19). Interactive children below stop propagation. -->
+  <div
+    class="structure-row is-link"
+    :style="indentStyle"
+    role="link"
+    tabindex="0"
+    @click="onRowClick"
+    @keydown.enter.self="onRowClick"
+    @keydown.space.self.prevent="onRowClick"
+  >
     <template v-if="editing">
       <input
         class="structure-rename-input"
         :value="api.editingName.value"
+        @click.stop
         @input="api.editingName.value = ($event.target as HTMLInputElement).value"
         @blur="api.saveRename(node)"
         @keyup.enter="api.saveRename(node)"
         @keyup.escape="api.cancelRename()"
       />
     </template>
-    <span v-else class="structure-name" title="Quick actions" @click="api.selectNode(node)">
+    <span v-else class="structure-name">
       {{ node.name }}
     </span>
-
-    <!-- OPEN lives by the name (founder-ruled 2026-07-19): a labeled, always-
-         visible, thumb-sized affordance — never a bare icon hidden in a
-         hover-only strip on the far right (invisible on touch). -->
-    <button v-if="!editing" type="button" class="open-btn" @click="api.openDashboard(node)">
-      Open
-    </button>
 
     <select
       v-if="showLabelPicker"
@@ -153,6 +166,7 @@ async function submitDemoMint(): Promise<void> {
       class="label-select"
       :value="node.label"
       title="Change label"
+      @click.stop
       @change="pickLabel(($event.target as HTMLSelectElement).value)"
       @blur="showLabelPicker = false"
       @keyup.escape="showLabelPicker = false"
@@ -160,7 +174,7 @@ async function submitDemoMint(): Promise<void> {
       <option v-if="!LABEL_OPTIONS.includes(node.label)" :value="node.label">{{ node.label }}</option>
       <option v-for="opt in LABEL_OPTIONS" :key="opt" :value="opt">{{ opt === 'lea' ? 'LEA' : opt }}</option>
     </select>
-    <button v-else type="button" class="label-badge" title="Click to change label" @click="openLabelPicker">
+    <button v-else type="button" class="label-badge" title="Click to change label" @click.stop="openLabelPicker">
       {{ node.label === 'lea' ? 'LEA' : node.label }}
     </button>
 
@@ -178,8 +192,8 @@ async function submitDemoMint(): Promise<void> {
     <!-- Less-used verbs fold into one always-visible overflow — labeled words
          inside, no hover-gating, so the whole row works on a phone. -->
     <div class="row-overflow">
-      <button type="button" class="overflow-toggle" :aria-expanded="showOverflow" aria-label="More actions" @click="showOverflow = !showOverflow">⋯</button>
-      <div v-if="showOverflow" class="overflow-menu" @click="showOverflow = false">
+      <button type="button" class="overflow-toggle" :aria-expanded="showOverflow" aria-label="More actions" @click.stop="showOverflow = !showOverflow">⋯</button>
+      <div v-if="showOverflow" class="overflow-menu" @click.stop="showOverflow = false">
         <button type="button" class="overflow-item" @click="api.startRename(node)">Rename</button>
         <button type="button" class="overflow-item" @click="showAddChild = !showAddChild">Add child group</button>
         <button type="button" class="overflow-item" @click="showInvite = !showInvite">Invite people</button>
@@ -249,17 +263,19 @@ async function submitDemoMint(): Promise<void> {
   border-radius: var(--radius-md);
   color: var(--schools-fg-2);
 }
+.structure-row.is-link { cursor: pointer; }
+.structure-row.is-link:hover { background: rgba(255, 255, 255, 0.62); }
 .structure-row:hover { background: rgba(255, 255, 255, 0.48); }
+.structure-row.is-link:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(var(--tone-red), 0.45);
+}
 
 .structure-name {
-  cursor: pointer;
   padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
   color: var(--schools-fg);
   font-weight: var(--font-semibold);
 }
-.structure-name:hover { background: rgba(44, 38, 34, 0.06); }
 
 .structure-rename-input {
   font: inherit;
@@ -303,26 +319,6 @@ async function submitDemoMint(): Promise<void> {
   gap: var(--space-2);
   font-size: var(--text-xs);
   color: var(--schools-fg-3);
-}
-
-.open-btn {
-  padding: 4px 12px;
-  min-height: 28px;
-  font: inherit;
-  font-size: var(--text-xs);
-  font-weight: var(--font-semibold);
-  letter-spacing: 0.02em;
-  border-radius: var(--radius-full, 999px);
-  border: 1px solid rgba(var(--tone-red), 0.35);
-  background: rgba(255, 255, 255, 0.7);
-  color: var(--schools-red, #DB1E17);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
-}
-.open-btn:hover { background: var(--schools-red, #DB1E17); border-color: transparent; color: #fff; }
-@media (max-width: 768px) {
-  .open-btn { min-height: 36px; padding: 6px 16px; font-size: var(--text-sm); }
 }
 
 .row-overflow { position: relative; }

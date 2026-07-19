@@ -33,15 +33,21 @@ Every node home is the same page, top to bottom:
    - **All schools** — every school below, with its teachers
    - **All teachers** — every teacher below, with their classes
    - **All classes** — every class below, with student counts
-5. **VERBS** — the plain-language task buttons (THE-MODEL §1.12), same corner at every level,
-   scoped to the node: invite someone, add a school/group, share the links, see analytics.
+5. **VERBS** — the action bar across the top of node home (`NodeActionBar.vue`, founder-ruled
+   2026-07-19), scoped to the node, most-common-first: Invite people · Get join link · Add a
+   group · Add a school · Mint a demo org · Courses · Rename · Refresh demo activity (demo
+   nodes) · Delete. This is where the verbs live now — the Structure side-panel is retired.
 
 ## 2. Navigation rules
 
 - **Clicking any node NAME anywhere in the app goes to that node's HOME** — this page. One rule,
   no exceptions, no learning three behaviours.
-- **The Structure page stays as the quick-actions flyout** (the node panel with its verbs), but
-  its "open"/"see progress" action always lands on node home.
+- **Rows ARE links (founder-ruled 2026-07-19).** In the Structure page (both lenses), a click
+  anywhere on a row — including the name — opens that node's home. There is no separate "Open"
+  chip; the row IS the affordance. The ⋯ menu keeps the in-list actions and stops propagation so
+  it never triggers the row navigation. The old name-click→side-panel flow (`NodePanel.vue`) is
+  gone: its verbs moved onto node home's action bar (point 5 above), which is the whole point —
+  the row takes you to the page, and the page has the verbs.
 - **The old pages die but their URLs live:**
   - `/admin/groups/:id` **IS** node home for that group.
   - `/admin/schools/:id` **IS** node home for that school's node (deep tools — classes, students,

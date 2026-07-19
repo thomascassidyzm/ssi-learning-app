@@ -39,7 +39,6 @@ function makeApi(overrides: Partial<StructureApi> = {}): StructureApi {
     submitInvite: vi.fn(async () => true),
     submitDemoMint: vi.fn(async () => true),
     drillInto: vi.fn(),
-    selectNode: vi.fn(),
     ...overrides,
   }
 }
@@ -77,26 +76,37 @@ describe('StructureTreeNode — label is a badge, not a permanently-open form co
   })
 })
 
-describe('StructureTreeNode — OPEN by the name (founder-ruled 2026-07-19)', () => {
-  it('renders a labeled, always-visible Open button next to the name that opens the dashboard', async () => {
+describe('StructureTreeNode — rows are links (founder-ruled 2026-07-19)', () => {
+  it('no standalone Open chip — the whole row is the link', () => {
+    const wrapper = mountNode(makeNode(), makeApi())
+    expect(wrapper.find('.open-btn').exists()).toBe(false)
+  })
+
+  it('clicking anywhere on the row opens the node dashboard', async () => {
     const api = makeApi()
     const wrapper = mountNode(makeNode(), api)
-    const open = wrapper.find('.open-btn')
-    expect(open.exists()).toBe(true)
-    expect(open.text()).toBe('Open')
-    await open.trigger('click')
+    await wrapper.find('.structure-row').trigger('click')
     expect(api.openDashboard).toHaveBeenCalledWith(expect.objectContaining({ id: 'group-a' }))
   })
 
-  it('folds the less-used verbs into an overflow menu with labeled words, no bare-icon strip', async () => {
+  it('clicking the name (part of the row) opens the dashboard, not a rename', async () => {
     const api = makeApi()
     const wrapper = mountNode(makeNode(), api)
-    expect(wrapper.find('.overflow-menu').exists()).toBe(false)
+    await wrapper.find('.structure-name').trigger('click')
+    expect(api.openDashboard).toHaveBeenCalledWith(expect.objectContaining({ id: 'group-a' }))
+    expect(api.startRename).not.toHaveBeenCalled()
+  })
+
+  it('the ⋯ menu does NOT trigger row navigation, and its items still fire', async () => {
+    const api = makeApi()
+    const wrapper = mountNode(makeNode(), api)
     await wrapper.find('.overflow-toggle').trigger('click')
+    expect(api.openDashboard).not.toHaveBeenCalled()
     const items = wrapper.findAll('.overflow-item').map((i) => i.text())
     expect(items).toEqual(['Rename', 'Add child group', 'Invite people', 'Mint a demo org', 'Delete'])
     await wrapper.findAll('.overflow-item')[0].trigger('click')
     expect(api.startRename).toHaveBeenCalled()
+    expect(api.openDashboard).not.toHaveBeenCalled()
     expect(wrapper.find('.overflow-menu').exists()).toBe(false)
   })
 })

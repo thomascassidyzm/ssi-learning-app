@@ -324,6 +324,14 @@ All new org reads/writes are **server-mediated** (service-role + authz in code, 
 - **Structure view** (admin + leader): TABLE lens (paginated, sortable) + TREE lens (drill-in),
   toggle between them, state-shared search + filter chips (label, status, demo). Node actions:
   create child, invite people, demo-mint, relabel. Tree drill-in is the replacement for view-as.
+- **SUPERSEDED 2026-07-19 — rows are links, verbs live on node home.** The Structure side-panel
+  (`NodePanel.vue`) is retired. A row click now opens the node's home page directly (no side
+  panel, no "Open" chip); the verbs it used to carry moved to `NodeActionBar.vue` across the top
+  of node home (see docs/THE-VIEW.md §1.5 / §2). The bullet below describes the retired panel and
+  is kept only as design history. (Also fixed same day: ssi_admins deleting a class from within a
+  school's dashboard were bounced to Structure — ClassDetail's back-nav now routes through
+  `useSchoolsNav` so admins stay on `/admin/schools/:id` instead of falling into the member
+  `/schools` guard.)
 - **Node panel = the ways-in surface (§1.10), VERBS FIRST (§1.12).** The panel OPENS with 3–4 big
   task buttons in plain language — *Invite a teacher* / *Add a school* / *Share the join link* /
   *See progress* — each a short guided gesture ending with the artifact in hand. The shareable

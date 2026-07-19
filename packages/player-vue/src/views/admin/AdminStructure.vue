@@ -5,18 +5,18 @@
 // node; a school is just a node with label 'school' plus a commercial
 // attachment (schools.node_group_id) shown as a status pill. Data comes
 // from the server-mediated /api/groups/tree and /api/groups/table
-// endpoints — no client-direct org-table reads (§6). Selecting a node opens
-// NodePanel.vue — plain-language task buttons first (invite/add/see
-// progress), ways-in LINKS second (§1.10 — the invites page dies), the
-// deep dashboards (/admin/schools/:id, /admin/groups/:id) are one "See
-// progress" tap away, not a destination you have to find first.
+// endpoints — no client-direct org-table reads (§6). ROWS ARE LINKS
+// (founder-ruled 2026-07-19): a click anywhere on a row opens that node's home
+// page (/admin/schools/:id or /admin/groups/:id) — where the verbs now live
+// (NodeActionBar.vue). The ⋯ menu keeps the in-list actions and stops
+// propagation so it never triggers the row navigation. The old name-click
+// side-panel (NodePanel.vue) is retired.
 import { ref, computed, onMounted, provide, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import UpdatedStamp from '@/components/shared/UpdatedStamp.vue'
 import StructureTreeNode from '@/components/admin/StructureTreeNode.vue'
-import NodePanel from '@/components/admin/NodePanel.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
 import type { StructureApi, StructureNode } from '@/components/admin/structureApi'
 
@@ -69,10 +69,6 @@ const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: 'demo', label: 'Demo' },
 ]
 const quickFilter = ref<QuickFilter>('all')
-
-function flattenNodes(nodes: StructureNode[]): StructureNode[] {
-  return nodes.flatMap((n) => [n, ...flattenNodes(n.children || [])])
-}
 
 // ─── Tree lens ───
 const treeRoots = ref<StructureNode[]>([])
@@ -154,11 +150,6 @@ watch(lens, (v) => { if (v === 'table' && !tableFetchedOnce.value) fetchTable() 
 async function refetchCurrentLens(): Promise<void> {
   if (lens.value === 'tree') await fetchTree()
   if (lens.value === 'table' || tableFetchedOnce.value) await fetchTable()
-  // Keep an open node panel showing fresh counts/name after a mutating action.
-  if (selectedNode.value) {
-    const fresh = [...flattenNodes(treeRoots.value), ...tableRows.value].find((n) => n.id === selectedNode.value!.id)
-    if (fresh) selectedNode.value = fresh
-  }
 }
 
 // ─── Root "+ Add organisation" ───
@@ -332,15 +323,6 @@ function drillInto(node: StructureNode): void {
   fetchTree()
 }
 
-// ─── Node panel (THE-MODEL.md §1.12 — verbs on top) ───
-const selectedNode = ref<StructureNode | null>(null)
-function selectNode(node: StructureNode): void {
-  selectedNode.value = node
-}
-function closeNodePanel(): void {
-  selectedNode.value = null
-}
-
 // ─── Delete (unchanged wiring from the old Structure page) ───
 interface DeleteImpact {
   classCount?: number
@@ -430,7 +412,7 @@ async function confirmDelete(typedName: string): Promise<void> {
 
 provide<StructureApi>('structureApi', {
   editingId, editingName, startRename, saveRename, cancelRename, updateLabel,
-  openDashboard, createChild, requestDelete, submitInvite, submitDemoMint, drillInto, selectNode,
+  openDashboard, createChild, requestDelete, submitInvite, submitDemoMint, drillInto,
 })
 
 // The ONE refresh protocol: a full-page reload (both lenses) drives the navbar
@@ -506,7 +488,7 @@ onMounted(() => { void refresh() })
       </div>
     </div>
 
-    <div class="structure-layout" :class="{ 'has-panel': selectedNode }">
+    <div class="structure-layout">
       <div class="schools-card structure-panel">
         <div class="panel-head">
           <span class="schools-kicker">Organisations</span>
@@ -563,10 +545,21 @@ onMounted(() => { void refresh() })
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in tableRows" :key="row.id">
+              <!-- Rows are links (founder-ruled 2026-07-19): the whole row
+                   opens the node's dashboard; the action buttons stop
+                   propagation so they don't trigger it. -->
+              <tr
+                v-for="row in tableRows"
+                :key="row.id"
+                class="row-link"
+                role="link"
+                tabindex="0"
+                @click="openDashboard(row)"
+                @keydown.enter.self="openDashboard(row)"
+                @keydown.space.self.prevent="openDashboard(row)"
+              >
                 <td class="cell-name">
-                  <span class="cell-name-text" @click="selectNode(row)">{{ row.name }}</span>
-                  <button type="button" class="open-btn" @click="openDashboard(row)">Open</button>
+                  <span class="cell-name-text">{{ row.name }}</span>
                 </td>
                 <td>{{ row.label }}</td>
                 <td>{{ row.is_demo ? 'Demo' : '—' }}</td>
@@ -575,8 +568,8 @@ onMounted(() => { void refresh() })
                 <td>{{ row.rollup.classCount }}</td>
                 <td>{{ row.rollup.learnerCount }}</td>
                 <td class="cell-actions">
-                  <button class="row-action" title="Rename" @click="startRename(row)">✎</button>
-                  <button class="row-action is-danger" title="Delete" @click="requestDelete(row)">✕</button>
+                  <button class="row-action" title="Rename" @click.stop="startRename(row)">✎</button>
+                  <button class="row-action is-danger" title="Delete" @click.stop="requestDelete(row)">✕</button>
                 </td>
               </tr>
             </tbody>
@@ -591,10 +584,6 @@ onMounted(() => { void refresh() })
             <button class="btn-ghost-sm" :disabled="tablePage >= tablePageCount" @click="tablePage += 1">Next →</button>
           </div>
         </template>
-      </div>
-
-      <div v-if="selectedNode" class="schools-card node-panel-host">
-        <NodePanel :node="selectedNode" @close="closeNodePanel" />
       </div>
     </div>
 
@@ -664,11 +653,8 @@ onMounted(() => { void refresh() })
 .chip.is-active { background: rgba(var(--tone-gold), 0.18); border-color: rgba(var(--tone-gold), 0.45); color: rgb(var(--tone-gold-ink)); }
 
 .structure-layout { display: grid; grid-template-columns: 1fr; gap: var(--space-5); align-items: start; }
-.structure-layout.has-panel { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
-@media (max-width: 1000px) { .structure-layout.has-panel { grid-template-columns: 1fr; } }
 
 .structure-panel { padding: 0; overflow: hidden; }
-.node-panel-host { padding: 0; overflow: hidden; }
 .panel-head {
   padding: var(--space-4) var(--space-6) var(--space-3); border-bottom: 1px solid rgba(44, 38, 34, 0.06);
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap;
@@ -710,24 +696,10 @@ onMounted(() => { void refresh() })
   text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3); border-bottom: 1px solid rgba(44, 38, 34, 0.08);
 }
 .structure-table td { padding: var(--space-2) var(--space-4); border-bottom: 1px solid rgba(44, 38, 34, 0.05); color: var(--schools-fg-2); }
+.row-link { cursor: pointer; transition: background var(--transition-fast); }
+.row-link:hover td { background: rgba(255, 255, 255, 0.55); }
+.row-link:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(var(--tone-red), 0.45); }
 .cell-name { display: flex; align-items: center; gap: var(--space-3); font-weight: var(--font-medium); color: var(--schools-fg); }
-.cell-name-text { cursor: pointer; }
-.cell-name-text:hover { text-decoration: underline; }
-.open-btn {
-  padding: 4px 12px;
-  min-height: 28px;
-  font: inherit;
-  font-size: var(--text-xs);
-  font-weight: var(--font-semibold);
-  border-radius: var(--radius-full, 999px);
-  border: 1px solid rgba(var(--tone-red), 0.35);
-  background: rgba(255, 255, 255, 0.7);
-  color: var(--schools-red, #DB1E17);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all var(--transition-fast);
-}
-.open-btn:hover { background: var(--schools-red, #DB1E17); border-color: transparent; color: #fff; }
 .cell-actions { display: flex; gap: 4px; }
 .row-action {
   width: 26px; height: 26px; display: grid; place-items: center; background: transparent; border: 1px solid transparent;

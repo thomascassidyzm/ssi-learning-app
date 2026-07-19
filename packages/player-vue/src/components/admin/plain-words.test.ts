@@ -61,7 +61,6 @@ function makeApi(overrides: Partial<StructureApi> = {}): StructureApi {
     submitInvite: vi.fn(async () => true),
     submitDemoMint: vi.fn(async () => true),
     drillInto: vi.fn(),
-    selectNode: vi.fn(),
     ...overrides,
   }
 }
@@ -81,7 +80,7 @@ function setupFetch(handlers: Record<string, any>) {
 }
 
 describe('Structure surface — plain words only (§1.12.4)', () => {
-  it('AdminStructure.vue renders no banned words, including with a selected node panel open', async () => {
+  it('AdminStructure.vue renders no banned words', async () => {
     setupFetch({
       '/api/groups/tree': { roots: [makeNode()] },
       '/api/groups/table': { rows: [makeNode()], total: 1, page: 1, pageSize: 25 },
@@ -90,11 +89,6 @@ describe('Structure surface — plain words only (§1.12.4)', () => {
     await router.push('/admin/structure')
     await router.isReady()
     const wrapper = mount(AdminStructure, { global: { plugins: [router] } })
-    await flushPromises()
-    assertNoBannedWords(wrapper.text())
-
-    // Open the node panel — its own copy must stay clean too.
-    await wrapper.find('.structure-name').trigger('click')
     await flushPromises()
     assertNoBannedWords(wrapper.text())
     vi.unstubAllGlobals()
