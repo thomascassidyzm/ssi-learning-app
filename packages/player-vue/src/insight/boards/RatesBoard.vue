@@ -5,7 +5,9 @@
 // ONE reusable widget (RateCompare.vue) wrapped by three selectors:
 //   · Metric   — the 6 HERO_RATES (progressPace leads — the headline rate)
 //   · Entity   — a LEVEL switch (learner / class / school / course) + an entity picker
-//   · Average  — the metric's swappable comparison cohorts
+//   · Average  — the entity's ANCESTOR chain (class → its school avg → its course
+//                avg), nearest first = default. The cohort is the entity's
+//                SIBLINGS in that scope — never its own members (voice ruling).
 //
 // Design principle: RATE IS PRIMARY. Rate of progress matters more than
 // position; position rides along only as the small secondary contextLine.
@@ -34,7 +36,7 @@ import type { RateComparisonData } from '../spec'
 const metricId = ref<string>('progressPace')          // headline rate by default
 const entityLevel = ref<EntityLevel>('class')          // default: a class entity
 const entityId = ref<string>('')
-const averageId = ref<string>('course avg')            // default: course avg
+const averageId = ref<string>('')                      // snapped to the nearest ancestor below
 
 const ALL_LEVELS: { value: EntityLevel; label: string }[] = [
   { value: 'learner', label: 'Learner' },
@@ -56,23 +58,33 @@ const availableLevels = computed(() => {
 // Entities for the chosen (metric, level) — the entity picker's options.
 const entityOptions = computed(() => listEntities(metricId.value, entityLevel.value))
 
-// Averages valid for the chosen metric — the average picker's options.
-const averageOptions = computed(() => listAverages(metricId.value))
+// Compare-to = the selected entity's ANCESTOR chain (nearest first). The
+// options NAME each ancestor ("Gaelcholáiste Luimnigh avg"), so the defaulted
+// selection is always explicit — this control never sits empty.
+const averageOptions = computed(() =>
+  listAverages(metricId.value, entityLevel.value, entityId.value))
 
 // ── Keep the selection coherent as dropdowns change ─────────────────────────
-// When metric changes: snap level + average into the metric's valid sets.
+// Metric change: snap the level into the metric's valid set.
 watch(metricId, () => {
   const levels = listEntityLevels(metricId.value)
   if (!levels.includes(entityLevel.value)) entityLevel.value = levels[0] ?? 'class'
-  const avgs = listAverages(metricId.value)
-  if (!avgs.includes(averageId.value)) averageId.value = avgs[0] ?? 'course avg'
 })
 
-// When metric or level changes: re-anchor the entity to the cohort leader (first).
+// Metric or level change: re-anchor the entity to the first roster option.
 watch([metricId, entityLevel], () => {
   const opts = listEntities(metricId.value, entityLevel.value)
   if (!opts.find((o) => o.value === entityId.value)) {
     entityId.value = opts[0]?.value ?? ''
+  }
+}, { immediate: true })
+
+// Any selection change: snap compare-to onto the entity's own ancestor chain,
+// defaulting to the NEAREST ancestor (options[0]).
+watch([metricId, entityLevel, entityId], () => {
+  const opts = averageOptions.value
+  if (!opts.find((o) => o.value === averageId.value)) {
+    averageId.value = opts[0]?.value ?? ''
   }
 }, { immediate: true })
 
@@ -142,11 +154,11 @@ const comparison = computed<RateComparisonData>(() =>
         </select>
       </label>
 
-      <!-- Average picker -->
+      <!-- Average picker — the entity's ancestor chain, nearest first -->
       <label class="rtb-field">
         <span class="rtb-field-label">Compare to</span>
         <select v-model="averageId" class="rtb-select">
-          <option v-for="a in averageOptions" :key="a" :value="a">{{ a }}</option>
+          <option v-for="a in averageOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
         </select>
       </label>
     </div>
