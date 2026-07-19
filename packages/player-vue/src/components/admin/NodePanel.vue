@@ -126,36 +126,40 @@ async function submitAddSchool(): Promise<void> {
   }
 }
 
-// ─── Verb: share class link (copy student join link to clipboard) ───
-const shareClassLinkUrl = ref<string | null>(null)
-const isSharingClassLink = ref(false)
+// ─── Verb: share the JOIN link (copy the learner join link to clipboard) ───
+// This panel is a group/school node — those carry learner JOIN links, not a
+// class link. "Class link" language is reserved for a class context (which must
+// name its owner teacher); here the artifact is the learner join link at this
+// node (THE-MODEL.md §1.12, ruled 2026-07-19).
+const shareJoinLinkUrl = ref<string | null>(null)
+const isSharingJoinLink = ref(false)
 
-async function shareClassLink(): Promise<void> {
-  isSharingClassLink.value = true
+async function shareJoinLink(): Promise<void> {
+  isSharingJoinLink.value = true
   try {
-    // Copy student invite link to clipboard if available, or create one
+    // Copy the learner (student-role) join link to clipboard if available, or create one
     const studentLink = links.value.find((l) => l.role === 'student')
     if (studentLink?.url) {
       await navigator.clipboard.writeText(studentLink.url)
-      shareClassLinkUrl.value = studentLink.url
-      setTimeout(() => { shareClassLinkUrl.value = null }, 2000)
+      shareJoinLinkUrl.value = studentLink.url
+      setTimeout(() => { shareJoinLinkUrl.value = null }, 2000)
     } else {
-      // Create a student invite link
+      // Create a learner join link
       const ok = await api.submitInvite(props.node, { role: 'student' })
       if (ok) {
         await fetchLinks()
         const newStudentLink = links.value.find((l) => l.role === 'student')
         if (newStudentLink?.url) {
           await navigator.clipboard.writeText(newStudentLink.url)
-          shareClassLinkUrl.value = newStudentLink.url
-          setTimeout(() => { shareClassLinkUrl.value = null }, 2000)
+          shareJoinLinkUrl.value = newStudentLink.url
+          setTimeout(() => { shareJoinLinkUrl.value = null }, 2000)
         }
       }
     }
   } catch (err) {
-    console.error('Error sharing class link:', err)
+    console.error('Error sharing join link:', err)
   } finally {
-    isSharingClassLink.value = false
+    isSharingJoinLink.value = false
   }
 }
 
@@ -191,8 +195,8 @@ watch(() => props.node.id, fetchLinks, { immediate: true })
       <button type="button" class="verb-btn" @click="showAddSchoolForm = !showAddSchoolForm">
         Add a school
       </button>
-      <button v-if="node.rollup.classCount > 0" type="button" class="verb-btn" :disabled="isSharingClassLink" @click="shareClassLink">
-        {{ isSharingClassLink ? 'Copying…' : shareClassLinkUrl ? 'Copied!' : 'Share the class link' }}
+      <button v-if="node.rollup.classCount > 0" type="button" class="verb-btn" :disabled="isSharingJoinLink" @click="shareJoinLink">
+        {{ isSharingJoinLink ? 'Copying…' : shareJoinLinkUrl ? 'Copied!' : 'Share the join link' }}
       </button>
       <button type="button" class="verb-btn verb-btn-secondary" @click="seeProgress">
         See progress

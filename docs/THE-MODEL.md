@@ -108,8 +108,10 @@ for paid.)
 every surface leads with plain-language TASK actions, not concepts. Concretely:
 
 1. **The node panel opens with 3–4 big task buttons** — *Invite a teacher* / *Add a school* /
-   *Share the class link* / *See progress* — each a short guided gesture ending with the artifact
-   in hand (link copied, person invited).
+   *Share the join link* / *See progress* — each a short guided gesture ending with the artifact
+   in hand (link copied, person invited). (Group/school nodes have learner **join** links, so the
+   verb is *Share the join link*; "class link" language belongs only to a class context, which
+   must name its owner teacher — ruled 2026-07-19.)
 2. **Tree, labels, entitlements, staff lists are progressive disclosure BELOW the verbs.**
 3. **Empty states are teaching buttons** ("No teachers yet → Invite one"), never captions.
 4. **Plain words everywhere** — no "node", "entitlement", "primitive", "subtree" in user-facing
@@ -289,7 +291,7 @@ All new org reads/writes are **server-mediated** (service-role + authz in code, 
   toggle between them, state-shared search + filter chips (label, status, demo). Node actions:
   create child, invite people, demo-mint, relabel. Tree drill-in is the replacement for view-as.
 - **Node panel = the ways-in surface (§1.10), VERBS FIRST (§1.12).** The panel OPENS with 3–4 big
-  task buttons in plain language — *Invite a teacher* / *Add a school* / *Share the class link* /
+  task buttons in plain language — *Invite a teacher* / *Add a school* / *Share the join link* /
   *See progress* — each a short guided gesture ending with the artifact in hand. The shareable
   invite LINKS grouped by role (URL first, one-tap copy; codes are plumbing, never lead) +
   mint-new-invite inline sit with those verbs; tree mechanics, labels, entitlement state, staff
