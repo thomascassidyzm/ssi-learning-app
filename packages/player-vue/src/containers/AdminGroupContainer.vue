@@ -121,7 +121,12 @@ onUnmounted(() => ctx.clear())
 
 <style scoped>
 .schools-container {
-  min-height: 100vh;
+  /* Owns its scroll: body carries overflow:hidden app-wide (Android bounce
+     fix in style.css), so a full-page shell that only sets min-height
+     strands anything below the fold — the founder-pass-A scroll bug. Same
+     pattern as AdminContainer. */
+  height: 100vh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   background: var(--schools-bg, #f6f5f1);

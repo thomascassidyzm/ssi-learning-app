@@ -11,6 +11,7 @@ import { ref, computed } from 'vue'
 import { useAdminClient } from '@/composables/useAdminClient'
 import NodeEntitlementControl from '@/components/schools/NodeEntitlementControl.vue'
 import ConfirmDeleteModal from '@/components/schools/ConfirmDeleteModal.vue'
+import { formatDeleteImpactLines, type DeleteImpact } from '@/components/admin/deleteImpact'
 
 interface NodeShape {
   id: string
@@ -261,27 +262,14 @@ async function refreshDemo(): Promise<void> {
   }
 }
 
-// ─── Delete ───
-interface DeleteImpact {
-  classCount?: number; schoolCount?: number; sessionCount: number
-  learnerCount: number; teacherCount: number; hasRealActivity: boolean
-}
+// ─── Delete — honest impact lines (deleteImpact.ts states the actual
+// cascade consequence with names/counts) ───
 const deleteOpen = ref(false)
 const deleteImpact = ref<DeleteImpact | null>(null)
 const deleteSubmitting = ref(false)
 const deleteError = ref('')
 const deleteTitle = computed(() => (props.node.commercial ? 'Delete school' : 'Delete group'))
-const deleteImpactLines = computed(() => {
-  const i = deleteImpact.value
-  if (!i) return []
-  const lines: string[] = []
-  if (i.schoolCount !== undefined) lines.push(`${i.schoolCount} school(s)`)
-  if (i.classCount !== undefined) lines.push(`${i.classCount} class(es)`)
-  lines.push(`${i.sessionCount} session(s) recorded`)
-  lines.push(`${i.learnerCount} learner(s)`)
-  lines.push(`${i.teacherCount} teacher(s)`)
-  return lines
-})
+const deleteImpactLines = computed(() => formatDeleteImpactLines(deleteImpact.value))
 async function requestDelete(): Promise<void> {
   deleteImpact.value = null
   deleteError.value = ''

@@ -39,6 +39,15 @@ function labelWord(r: RailRef): string {
 
 <template>
   <nav class="map-rail" aria-label="Organisation map">
+    <!-- The way UP and OUT (founder pass C, 2026-07-19): from any depth,
+         one obvious control back to the Structure overview — the rail's
+         ancestors go up the tree; this goes up out of it. -->
+    <router-link to="/admin/structure" class="rail-up">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span>All organisations</span>
+    </router-link>
     <span class="schools-kicker rail-kicker">Where you are</span>
     <ol class="rail-list">
       <li v-for="(a, i) in props.ancestors" :key="a.id" class="rail-row is-ancestor" :style="{ '--depth': i }">
@@ -88,6 +97,17 @@ function labelWord(r: RailRef): string {
   gap: var(--space-2);
   min-width: 0;
 }
+.rail-up {
+  display: inline-flex; align-items: center; gap: 8px; width: fit-content;
+  padding: 6px 10px; margin-bottom: 2px;
+  font-size: var(--text-sm); font-weight: var(--font-medium);
+  color: var(--schools-fg-2, #555); text-decoration: none;
+  border: 1px solid rgba(44, 38, 34, 0.12); border-radius: var(--radius-md, 8px);
+  background: rgba(255, 255, 255, 0.5);
+}
+.rail-up:hover { background: rgba(255, 255, 255, 0.9); color: var(--schools-fg, #0F1212); }
+.rail-up svg { flex-shrink: 0; color: var(--schools-red, #DB1E17); }
+
 .rail-kicker {
   font-family: var(--font-mono, 'Spline Sans Mono', monospace);
   font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;

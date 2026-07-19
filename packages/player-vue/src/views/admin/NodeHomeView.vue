@@ -135,12 +135,10 @@ const insightsLink = computed(() => {
   return `/admin/groups/${n.id}/analytics`
 })
 
-// Class level keeps its rich tools (roster, settings) one tap away.
-const classToolsLink = computed(() => {
-  const n = home.value?.node
-  if (!n || !isClass.value) return null
-  return home.value?.schoolId ? `/admin/schools/${home.value.schoolId}/classes/${n.id}` : null
-})
+// The old "Class tools" page is DEAD (founder ruling 2026-07-19): in the
+// admin read-view it carried no verbs (play-as-class, rename, delete and
+// roster edits are all teacher-side) and no data this page doesn't already
+// show. Its route now redirects here.
 
 // ─── Class teaching data (the density the old roster had, in THE VIEW's
 // grammar): per-student belt + health, class journey / belt distribution /
@@ -253,7 +251,6 @@ const listPayload = computed(() => {
             <!-- Lens/insight nav — same corner, every level -->
             <div class="verbs">
               <router-link v-if="insightsLink" :to="insightsLink" class="verb-btn verb-btn-secondary">See insights</router-link>
-              <router-link v-if="classToolsLink" :to="classToolsLink" class="verb-btn verb-btn-secondary">Class tools</router-link>
             </div>
           </header>
 

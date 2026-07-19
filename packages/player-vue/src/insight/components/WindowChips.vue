@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // ============================================================================
-// components/WindowChips.vue — THE LENS: the time-window selector (This week /
-// Last 4 weeks / This term / All time). One chip row, reused by NodeRateEngine
+// components/WindowChips.vue — THE LENS: the time-window selector (Today /
+// Last 7 days / Last 30 days / All time). One chip row, reused by NodeRateEngine
 // (the real path) and RatesBoard (the demo path) so the picker reads identical
 // wherever it mounts.
 //

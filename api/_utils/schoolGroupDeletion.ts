@@ -46,8 +46,15 @@ export interface SchoolImpact extends DeletionImpact {
 export interface GroupImpact extends DeletionImpact {
   groupId: string
   groupName: string
+  /** Schools that will be DELETED (their own node is inside the subtree). */
   schoolCount: number
   schoolNames: string[]
+  /** Descendant groups that will be DELETED with this one (subtree cascade). */
+  descendantGroupCount: number
+  descendantGroupNames: string[]
+  /** Legacy-attached schools that survive but lose their parent (appear at top level). */
+  orphanedSchoolCount: number
+  orphanedSchoolNames: string[]
 }
 
 async function classActivity(
@@ -116,39 +123,74 @@ export async function computeSchoolImpact(supabase: SupabaseClient, schoolId: st
   }
 }
 
+/**
+ * Impact preview mirrors deleteGroupCascade EXACTLY (the honest-delete
+ * ruling, founder pass C 2026-07-19): the whole descendant subtree of
+ * groups is deleted; a school whose OWN node (`node_group_id`) is in the
+ * subtree dies with it; legacy-attached schools (group_id in the subtree,
+ * node elsewhere/none) are ungrouped — they survive and appear at top
+ * level. Counts (classes/sessions/learners/teachers) cover only what is
+ * actually deleted, i.e. the deleted schools' classes and rosters.
+ */
 export async function computeGroupImpact(supabase: SupabaseClient, groupId: string): Promise<GroupImpact> {
   const { data: group, error: groupErr } = await supabase
     .from('groups')
-    .select('id, name')
+    .select('id, name, path')
     .eq('id', groupId)
     .maybeSingle()
   if (groupErr) throw new Error(`groups read failed: ${groupErr.message}`)
   if (!group) throw new Error('Group not found')
 
-  const { data: schools, error: schoolsErr } = await supabase
-    .from('schools')
-    .select('id, school_name')
-    .eq('group_id', groupId)
-  if (schoolsErr) throw new Error(`schools read failed: ${schoolsErr.message}`)
-  const schoolRows = schools || []
-  const schoolIds = schoolRows.map((s) => s.id as string)
+  let descendants: { id: string; name: string }[] = []
+  if (group.path) {
+    const { data: rows, error: subErr } = await supabase
+      .from('groups')
+      .select('id, name, path')
+      .like('path', `${group.path}/%`)
+    if (subErr) throw new Error(`groups subtree read failed: ${subErr.message}`)
+    descendants = (rows || []).map((r) => ({ id: r.id as string, name: r.name as string }))
+  }
+  const subtreeIds = [groupId, ...descendants.map((d) => d.id)]
 
-  const { data: classes, error: classesErr } = schoolIds.length
-    ? await supabase.from('classes').select('id').in('school_id', schoolIds)
+  // One query per FK lane: schools attached anywhere in the subtree by
+  // parent (group_id) or by own node (node_group_id).
+  const [{ data: parented, error: parentedErr }, { data: noded, error: nodedErr }] = await Promise.all([
+    supabase.from('schools').select('id, school_name, node_group_id').in('group_id', subtreeIds),
+    supabase.from('schools').select('id, school_name, node_group_id').in('node_group_id', subtreeIds),
+  ])
+  if (parentedErr) throw new Error(`schools read failed: ${parentedErr.message}`)
+  if (nodedErr) throw new Error(`schools node read failed: ${nodedErr.message}`)
+  const subtreeIdSet = new Set(subtreeIds)
+  const byId = new Map<string, { id: string; school_name: string; node_group_id: string | null }>()
+  for (const s of [...(parented || []), ...(noded || [])] as any[]) byId.set(s.id, s)
+  const deletedSchools: { id: string; school_name: string }[] = []
+  const orphanedSchools: { id: string; school_name: string }[] = []
+  for (const s of byId.values()) {
+    if (s.node_group_id && subtreeIdSet.has(s.node_group_id)) deletedSchools.push(s)
+    else orphanedSchools.push(s)
+  }
+  const deletedSchoolIds = deletedSchools.map((s) => s.id)
+
+  const { data: classes, error: classesErr } = deletedSchoolIds.length
+    ? await supabase.from('classes').select('id').in('school_id', deletedSchoolIds)
     : { data: [] as { id: string }[], error: null }
   if (classesErr) throw new Error(`classes read failed: ${classesErr.message}`)
   const classIds = (classes || []).map((c) => c.id as string)
 
   const [{ sessionCount, hasRealActivity }, { learnerCount, teacherCount }] = await Promise.all([
     classActivity(supabase, classIds),
-    tagCounts(supabase, schoolIds.map((id) => `SCHOOL:${id}`)),
+    tagCounts(supabase, deletedSchoolIds.map((id) => `SCHOOL:${id}`)),
   ])
 
   return {
     groupId,
     groupName: group.name as string,
-    schoolCount: schoolIds.length,
-    schoolNames: schoolRows.map((s) => s.school_name as string),
+    schoolCount: deletedSchools.length,
+    schoolNames: deletedSchools.map((s) => s.school_name),
+    descendantGroupCount: descendants.length,
+    descendantGroupNames: descendants.map((d) => d.name),
+    orphanedSchoolCount: orphanedSchools.length,
+    orphanedSchoolNames: orphanedSchools.map((s) => s.school_name),
     classCount: classIds.length,
     sessionCount,
     learnerCount,
@@ -243,6 +285,22 @@ export async function deleteGroupCascade(supabase: SupabaseClient, groupId: stri
     // legacy attachments (no node in this subtree): ungrouped, not deleted
     const { error: ungroupError } = await supabase.from('schools').update({ group_id: null }).eq('group_id', group.id)
     if (ungroupError) throw new Error(`ungroup schools failed: ${ungroupError.message}`)
+
+    // classes.group_id (direct affiliation, THE MODEL I7) has NO ON DELETE
+    // behaviour — a class still pointing here would block the groups delete.
+    // school_id stays authoritative during the expand phase, so detaching is
+    // lossless: the class lives on under its school (or standalone).
+    const { error: detachErr } = await supabase.from('classes').update({ group_id: null }).eq('group_id', group.id)
+    if (detachErr) throw new Error(`detach classes failed: ${detachErr.message}`)
+
+    // group-affiliation tags are string-keyed (no FK) — remove them so no
+    // learner/teacher is left "affiliated" to a group that no longer exists.
+    const { error: groupTagsErr } = await supabase
+      .from('user_tags')
+      .delete()
+      .eq('tag_type', 'group')
+      .eq('tag_value', `GROUP:${group.id}`)
+    if (groupTagsErr) throw new Error(`group tags delete failed: ${groupTagsErr.message}`)
 
     const { error: deleteErr } = await supabase.from('groups').delete().eq('id', group.id)
     if (deleteErr) throw new Error(`groups delete failed: ${deleteErr.message}`)

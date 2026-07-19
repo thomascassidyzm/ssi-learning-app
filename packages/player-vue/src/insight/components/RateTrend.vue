@@ -28,7 +28,7 @@ const props = withDefaults(defineProps<{
   averageLabel: string
   average: number[]
   yLabel?: string        // the rate unit for the y-axis title, e.g. "LEGOs / week"
-  periodDays?: number    // spacing between trend points (1|7|30) — daily/weekly/monthly x labels
+  periodDays?: number    // spacing between trend points — <1 = hourly, 1 daily, 7 weekly, 30 monthly x labels
 }>(), {
   periodDays: 7,
 })
@@ -49,6 +49,7 @@ let resizeObserver: ResizeObserver | null = null
 const isEmpty = computed(() => !props.entity?.length && !props.average?.length)
 
 // Honest x labels spaced by periodDays, ending "now" (the newest point).
+// periodDays<1 (sub-day = hourly buckets, the Today window) reads as "HH:00";
 // periodDays=1 (daily) and 7 (weekly) both read as "dd MMM" — a day/week is a
 // point in time; periodDays=30 (monthly) reads as "MMM" — a whole month,
 // stepped by real calendar months rather than a fixed 30-day multiple so
@@ -61,7 +62,10 @@ const xLabels = computed(() => {
     const stepsBack = (n - 1) - j        // oldest → newest
     if (stepsBack === 0) { out.push('now'); continue }
     const d = new Date(now)
-    if (props.periodDays === 30) {
+    if (props.periodDays < 1) {
+      d.setTime(d.getTime() - stepsBack * props.periodDays * 86400000)
+      out.push(d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
+    } else if (props.periodDays === 30) {
       d.setMonth(d.getMonth() - stepsBack)
       out.push(d.toLocaleDateString('en-GB', { month: 'short' }))
     } else {

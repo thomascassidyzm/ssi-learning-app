@@ -1,8 +1,8 @@
 /**
- * Tests for StructureTreeNode.vue — THE-MODEL.md §1.12 founder visual fix:
- * the label is a quiet inline badge, click-to-edit (opens the picker on
- * demand, closes after), not a permanently-open <select> ("that makes the
- * tree read like a form").
+ * Tests for StructureTreeNode.vue — the decluttered row (founder pass C,
+ * 2026-07-19: "a bit of a mess"): name is the anchor, the label is quiet
+ * plain text (Change label lives in the ⋯ menu), the ⋯ carries only
+ * maintenance verbs, and one muted learner figure carries the size.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
@@ -34,10 +34,7 @@ function makeApi(overrides: Partial<StructureApi> = {}): StructureApi {
     cancelRename: vi.fn(),
     updateLabel: vi.fn(async () => {}),
     openDashboard: vi.fn(),
-    createChild: vi.fn(async () => true),
     requestDelete: vi.fn(),
-    submitInvite: vi.fn(async () => true),
-    submitDemoMint: vi.fn(async () => true),
     drillInto: vi.fn(),
     ...overrides,
   }
@@ -50,29 +47,54 @@ function mountNode(node: StructureNode, api: StructureApi) {
   })
 }
 
-describe('StructureTreeNode — label is a badge, not a permanently-open form control', () => {
-  it('shows the label as a quiet badge by default, no <select> in the DOM', () => {
+describe('StructureTreeNode — label is quiet text; Change label lives in the ⋯ menu', () => {
+  it('shows the label as plain text by default, no <select> in the DOM', () => {
     const wrapper = mountNode(makeNode({ label: 'school' }), makeApi())
-    expect(wrapper.find('.label-badge').exists()).toBe(true)
-    expect(wrapper.find('.label-badge').text()).toBe('school')
+    expect(wrapper.find('.label-word').exists()).toBe(true)
+    expect(wrapper.find('.label-word').text()).toBe('school')
     expect(wrapper.find('select.label-select').exists()).toBe(false)
   })
 
-  it('clicking the badge opens the picker; picking a value relabels and closes it again', async () => {
+  it('⋯ → Change label opens the picker; picking a value relabels and closes it again', async () => {
     const api = makeApi()
     const wrapper = mountNode(makeNode({ label: 'organisation' }), api)
-    await wrapper.find('.label-badge').trigger('click')
+    await wrapper.find('.overflow-toggle').trigger('click')
+    await wrapper.findAll('.overflow-item').find((b) => b.text() === 'Change label')!.trigger('click')
     expect(wrapper.find('select.label-select').exists()).toBe(true)
-    expect(wrapper.find('.label-badge').exists()).toBe(false)
+    expect(wrapper.find('.label-word').exists()).toBe(false)
     await wrapper.find('select.label-select').setValue('school')
     expect(api.updateLabel).toHaveBeenCalledWith(expect.objectContaining({ id: 'group-a' }), 'school')
     expect(wrapper.find('select.label-select').exists()).toBe(false)
-    expect(wrapper.find('.label-badge').exists()).toBe(true)
+    expect(wrapper.find('.label-word').exists()).toBe(true)
   })
 
-  it('LEA reads as an acronym in both badge and picker', async () => {
+  it('LEA reads as an acronym', async () => {
     const wrapper = mountNode(makeNode({ label: 'lea' }), makeApi())
-    expect(wrapper.find('.label-badge').text()).toBe('LEA')
+    expect(wrapper.find('.label-word').text()).toBe('LEA')
+  })
+})
+
+describe('StructureTreeNode — decluttered row (founder pass C)', () => {
+  it('shows one muted size figure (learners) with the full breakdown as tooltip', () => {
+    const wrapper = mountNode(
+      makeNode({ rollup: { childGroupCount: 0, teacherCount: 3, classCount: 4, learnerCount: 80 } }),
+      makeApi(),
+    )
+    expect(wrapper.find('.structure-meta').text()).toBe('80 learners')
+    expect(wrapper.find('.structure-meta').attributes('title')).toContain('3 teachers · 4 classes · 80 learners')
+  })
+
+  it('paid/active schools carry no status pill — only attention states show', () => {
+    const active = mountNode(
+      makeNode({ commercial: { schoolId: 's1', platformStatus: 'active', trialCourseCode: null, trialKind: null, platformExpiresAt: null, teacherSeats: 1 } }),
+      makeApi(),
+    )
+    expect(active.find('.status-pill').exists()).toBe(false)
+    const trial = mountNode(
+      makeNode({ commercial: { schoolId: 's1', platformStatus: 'trial', trialCourseCode: 'spa', trialKind: null, platformExpiresAt: null, teacherSeats: 1 } }),
+      makeApi(),
+    )
+    expect(trial.find('.status-pill').text()).toContain('trial')
   })
 })
 
@@ -103,7 +125,7 @@ describe('StructureTreeNode — rows are links (founder-ruled 2026-07-19)', () =
     await wrapper.find('.overflow-toggle').trigger('click')
     expect(api.openDashboard).not.toHaveBeenCalled()
     const items = wrapper.findAll('.overflow-item').map((i) => i.text())
-    expect(items).toEqual(['Rename', 'Add child group', 'Invite people', 'Mint a demo org', 'Delete'])
+    expect(items).toEqual(['Rename', 'Change label', 'Delete'])
     await wrapper.findAll('.overflow-item')[0].trigger('click')
     expect(api.startRename).toHaveBeenCalled()
     expect(api.openDashboard).not.toHaveBeenCalled()

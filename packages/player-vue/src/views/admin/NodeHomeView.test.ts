@@ -56,8 +56,8 @@ function classPayload() {
       { user_id: 't2', name: 'Mr Rao', is_lead: false },
     ],
     students: [
-      { learner_id: 'l1', name: 'Asha', seeds_completed: 25, legos_mastered: 60, practice_hours: 2, last_active_at: new Date().toISOString(), streak_days: 3, last7_minutes: [0, 10, 5, 0, 20, 15, 10], week_minutes: 60 },
-      { learner_id: 'l2', name: 'Ravi', seeds_completed: 5, legos_mastered: 12, practice_hours: 1, last_active_at: null, streak_days: 0, last7_minutes: [0, 0, 0, 0, 0, 0, 0], week_minutes: 0 },
+      { learner_id: 'l1', name: 'Asha', seeds_completed: 25, legos_mastered: 60, practice_hours: 2, last_active_at: new Date().toISOString(), last7_minutes: [0, 10, 5, 0, 20, 15, 10], week_minutes: 60 },
+      { learner_id: 'l2', name: 'Ravi', seeds_completed: 5, legos_mastered: 12, practice_hours: 1, last_active_at: null, last7_minutes: [0, 0, 0, 0, 0, 0, 0], week_minutes: 0 },
     ],
     journey: { done: 60, total: 320 },
     benchmark: { class: 90, school: 30, course: 24 },
@@ -216,22 +216,26 @@ describe('NodeHomeView — one grammar at every level', () => {
     expect(text).not.toMatch(/\bseed\b/i)
   })
 
-  it('LEARNER-PAGE-DEAD PIN: clicking a student expands IN PLACE (journey, streak, last 7 days) — no navigation', async () => {
+  it('LEARNER-PAGE-DEAD PIN: student rows are FLAT — everything in-row, no click, no navigation, no streak', async () => {
     routeMock.params = { id: 'class-1' }
     setupFetch(classPayload())
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.find('.child-btn').trigger('click')
+    // All the teaching data is on the row itself (founder ruling 2026-07-19):
+    // journey position, last-7-days minutes — no expansion panel exists.
+    const row = wrapper.find('.child-row.is-flat')
+    expect(row.exists()).toBe(true)
+    expect(row.find('.child-journey').exists()).toBe(true)
+    expect(row.text()).toContain('60 of 320 LEGOs')
+    expect(row.find('.child-spark').exists()).toBe(true)
+    expect(row.text()).toContain('60m this wk')
+    // Streaks are banned (founder ruling 2026-07-19,
+    // docs/gamification-done-right.md) — the word never renders.
+    expect(wrapper.text().toLowerCase()).not.toContain('streak')
+    // Clicking does nothing: no navigation, no expansion.
+    await row.find('.child-btn').trigger('click')
     expect(pushMock).not.toHaveBeenCalled()
-    const detail = wrapper.find('.child-detail')
-    expect(detail.exists()).toBe(true)
-    expect(detail.text()).toContain('Streak')
-    expect(detail.text()).toContain('3d')
-    expect(detail.text()).toContain('Last 7 days')
-    expect(detail.text()).toContain('60 min this week')
-    // Toggle closed again
-    await wrapper.find('.child-btn').trigger('click')
     expect(wrapper.find('.child-detail').exists()).toBe(false)
   })
 })

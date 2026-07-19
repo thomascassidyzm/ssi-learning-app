@@ -209,16 +209,17 @@ describe('GET /api/groups/:id/home', () => {
     expect(res.statusCode).toBe(200)
 
     // Per-student teaching data (what the old roster table showed): seeds
-    // (the belt input), LEGOs, streak + last-7-days for the in-place
-    // expansion that replaced the individual learner page.
+    // (the belt input), LEGOs + last-7-days for the flat student row that
+    // replaced the individual learner page. NO streak fields — streaks are
+    // banned (founder ruling 2026-07-19, docs/gamification-done-right.md).
     const asha = res.body.students.find((s: any) => s.name === 'Asha')
     expect(asha).toMatchObject({ seeds_completed: 25, legos_mastered: 60 })
     expect(asha.last7_minutes).toHaveLength(7)
     expect(asha.last7_minutes[6] + asha.last7_minutes[5]).toBe(30) // 600s today + 1200s yesterday
-    expect(asha.streak_days).toBeGreaterThanOrEqual(2)
     expect(asha.week_minutes).toBe(30)
+    expect(asha).not.toHaveProperty('streak_days')
     const ravi = res.body.students.find((s: any) => s.name === 'Ravi')
-    expect(ravi).toMatchObject({ seeds_completed: 5, legos_mastered: 12, streak_days: 0, week_minutes: 0 })
+    expect(ravi).toMatchObject({ seeds_completed: 5, legos_mastered: 12, week_minutes: 0 })
 
     // Class cards: journey (course_legos total, class cursor done) +
     // practice benchmark (class min/student vs school + course averages).

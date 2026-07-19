@@ -5,21 +5,13 @@
 // classes) are filters over this one list — each lens maps its payload onto
 // the same row shape: avatar initial, name (click → that thing's home),
 // caption, count columns.
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import BeltDot from '@/components/schools/shared/BeltDot.vue'
 import HealthDot from '@/components/schools/shared/HealthDot.vue'
 import JourneyBar from '@/components/schools/shared/JourneyBar.vue'
 import Sparkline from '@/components/schools/shared/Sparkline.vue'
 import type { Belt } from '@/composables/schools/belts'
-
-interface StudentDetail {
-  legos_mastered: number
-  journey_total: number
-  streak_days: number
-  last7_minutes: number[]
-  week_minutes: number
-}
 
 interface Row {
   key: string
@@ -30,8 +22,10 @@ interface Row {
   to: string | null
   belt?: Belt | null
   health?: string | null
-  /** In-place expansion payload (students) — the row opens here, not on a new page. */
-  detail?: StudentDetail | null
+  /** Course-journey position, rendered inline on the row (students). */
+  journey?: { done: number; total: number } | null
+  /** Last-7-days minutes, rendered as an inline sparkline (students). */
+  spark?: { minutes: number[]; week_minutes: number } | null
 }
 
 const props = defineProps<{
@@ -122,9 +116,11 @@ const rows = computed<Row[]>(() => {
     }))
   }
   if (props.lens === 'students') {
-    // The teaching row: belt · LEGOs · hours · last active · health flag —
-    // the density the old roster table had. Clicking expands IN PLACE
-    // (journey, streak, last 7 days); there is no individual learner page.
+    // The teaching row, FLAT (founder ruling 2026-07-19): everything a
+    // teacher needs on the one row, no click — health flag, last practised,
+    // course-journey position, belt, LEGOs, hours, last 7 days. There is no
+    // individual learner page and no expansion. No streak — streaks are
+    // banned (docs/gamification-done-right.md).
     return (p.students || []).map((s: any): Row => ({
       key: s.learner_id,
       name: s.name,
@@ -138,33 +134,22 @@ const rows = computed<Row[]>(() => {
         { value: `${s.practice_hours}h`, word: 'practised' },
       ],
       to: null,
-      detail: {
-        legos_mastered: s.legos_mastered ?? 0,
-        journey_total: s.journey_total ?? 0,
-        streak_days: s.streak_days ?? 0,
-        last7_minutes: s.last7_minutes ?? [],
-        week_minutes: s.week_minutes ?? 0,
-      },
+      journey: { done: s.legos_mastered ?? 0, total: Math.max(s.journey_total ?? 0, s.legos_mastered ?? 0) },
+      spark: { minutes: s.last7_minutes ?? [], week_minutes: s.week_minutes ?? 0 },
     }))
   }
   return []
 })
 
-const expandedKey = ref<string | null>(null)
-
 function open(row: Row): void {
-  if (row.detail) {
-    expandedKey.value = expandedKey.value === row.key ? null : row.key
-    return
-  }
   if (row.to) router.push(row.to)
 }
 </script>
 
 <template>
   <ul class="child-list">
-    <li v-for="row in rows" :key="row.key" class="child-row" :class="{ 'is-static': !row.to && !row.detail }">
-      <button type="button" class="child-btn" :disabled="!row.to && !row.detail" @click="open(row)">
+    <li v-for="row in rows" :key="row.key" class="child-row" :class="{ 'is-static': !row.to, 'is-flat': !!row.journey }">
+      <button type="button" class="child-btn" :disabled="!row.to" @click="open(row)">
         <span class="child-avatar">{{ initial(row.name) }}</span>
         <span class="child-main">
           <span class="child-name-line">
@@ -174,6 +159,14 @@ function open(row: Row): void {
           <span v-if="row.caption" class="child-caption">
             <template v-if="row.health"><HealthDot :health="row.health as any" /> {{ row.health.replace('-', ' ') }} · </template>{{ row.caption }}
           </span>
+        </span>
+        <span v-if="row.journey" class="child-journey">
+          <JourneyBar :done="row.journey.done" :total="row.journey.total" label="" />
+          <span class="child-journey-note">{{ row.journey.done }}<template v-if="row.journey.total"> of {{ row.journey.total }}</template> LEGOs</span>
+        </span>
+        <span v-if="row.spark" class="child-spark">
+          <Sparkline :data="row.spark.minutes" :width="96" :height="26" />
+          <span class="child-count-word">{{ row.spark.week_minutes }}m this wk</span>
         </span>
         <span class="child-counts">
           <span v-if="row.belt" class="child-count child-belt">
@@ -185,26 +178,8 @@ function open(row: Row): void {
             <span class="child-count-word">{{ c.word }}</span>
           </span>
         </span>
-        <span v-if="row.detail" class="child-open" aria-hidden="true">{{ expandedKey === row.key ? '▾' : '▸' }}</span>
-        <span v-else-if="row.to" class="child-open" aria-hidden="true">→</span>
+        <span v-if="row.to" class="child-open" aria-hidden="true">→</span>
       </button>
-      <div v-if="row.detail && expandedKey === row.key" class="child-detail">
-        <div class="detail-block detail-journey">
-          <span class="detail-word">Course journey</span>
-          <JourneyBar :done="row.detail.legos_mastered" :total="Math.max(row.detail.journey_total, row.detail.legos_mastered)" label="" />
-          <span class="detail-note">{{ row.detail.legos_mastered }} LEGOs mastered<template v-if="row.detail.journey_total"> of {{ row.detail.journey_total }}</template></span>
-        </div>
-        <div class="detail-block">
-          <span class="detail-word">Streak</span>
-          <span class="detail-big frost-mono-nums">{{ row.detail.streak_days }}d</span>
-          <span class="detail-note">{{ row.detail.streak_days ? 'practising daily' : 'no current streak' }}</span>
-        </div>
-        <div class="detail-block">
-          <span class="detail-word">Last 7 days</span>
-          <Sparkline :data="row.detail.last7_minutes" :width="120" :height="30" />
-          <span class="detail-note">{{ row.detail.week_minutes }} min this week</span>
-        </div>
-      </div>
     </li>
     <li v-if="rows.length === 0" class="child-empty">
       <slot name="empty">Nothing here yet.</slot>
@@ -255,21 +230,23 @@ function open(row: Row): void {
 .child-belt .child-count-value { display: inline-flex; align-items: center; gap: 5px; text-transform: capitalize; }
 .child-caption { display: inline-flex; align-items: center; gap: 4px; }
 
-.child-detail {
-  display: grid; grid-template-columns: minmax(180px, 1.4fr) 1fr 1fr; gap: var(--space-4);
-  padding: var(--space-3) var(--space-4) var(--space-4) calc(36px + var(--space-4) * 2);
-  background: rgba(255, 255, 255, 0.55); border-top: 1px dashed rgba(44, 38, 34, 0.08);
-}
-.detail-block { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.detail-word { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--schools-fg-3, #8A8078); }
-.detail-big { font-size: var(--text-lg); font-weight: var(--font-semibold); color: var(--ink-primary, #2C2622); }
-.detail-note { font-size: var(--text-xs); color: var(--schools-fg-2, #555); }
-@media (max-width: 640px) {
-  .child-detail { grid-template-columns: 1fr 1fr; padding-left: var(--space-4); }
-  .detail-journey { grid-column: 1 / -1; }
-}
+.child-journey { display: flex; flex-direction: column; gap: 3px; width: 150px; flex-shrink: 0; }
+/* The row's own "X of Y LEGOs" note carries the numbers — JourneyBar's
+   built-in fraction head would say the same thing twice. */
+.child-journey :deep(.journey-head) { display: none; }
+.child-journey-note { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
+.child-spark { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
 
 @media (max-width: 640px) {
-  .child-counts { display: none; }
+  /* Structure rows drop their counts on phone — the name is the point.
+     Student rows are the teaching surface: they WRAP instead, keeping
+     belt / LEGOs / hours / journey visible (founder ruling 2026-07-19). */
+  .child-row:not(.is-flat) .child-counts { display: none; }
+  .is-flat .child-btn { flex-wrap: wrap; }
+  .is-flat .child-main { flex-basis: calc(100% - 36px - var(--space-4)); }
+  .is-flat .child-journey { width: 100%; order: 4; }
+  .is-flat .child-counts { order: 2; width: 100%; justify-content: flex-start; padding-left: calc(36px + var(--space-4)); }
+  .is-flat .child-count { align-items: flex-start; min-width: 0; }
+  .is-flat .child-spark { display: none; }
 }
 </style>

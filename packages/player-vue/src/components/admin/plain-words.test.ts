@@ -56,10 +56,7 @@ function makeApi(overrides: Partial<StructureApi> = {}): StructureApi {
     cancelRename: vi.fn(),
     updateLabel: vi.fn(async () => {}),
     openDashboard: vi.fn(),
-    createChild: vi.fn(async () => true),
     requestDelete: vi.fn(),
-    submitInvite: vi.fn(async () => true),
-    submitDemoMint: vi.fn(async () => true),
     drillInto: vi.fn(),
     ...overrides,
   }
@@ -94,13 +91,16 @@ describe('Structure surface — plain words only (§1.12.4)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('StructureTreeNode.vue renders no banned words, including the label badge/picker and demo/status pills', async () => {
+  it('StructureTreeNode.vue renders no banned words, including the ⋯ menu, label picker and demo/status pills', async () => {
     const wrapper = mount(StructureTreeNode, {
       props: { node: makeNode(), depth: 0 },
       global: { provide: { structureApi: makeApi() } },
     })
     assertNoBannedWords(wrapper.text())
-    await wrapper.find('.label-badge').trigger('click')
+    await wrapper.find('.overflow-toggle').trigger('click')
+    assertNoBannedWords(wrapper.text())
+    const changeLabel = wrapper.findAll('.overflow-item').find((b) => b.text() === 'Change label')!
+    await changeLabel.trigger('click')
     assertNoBannedWords(wrapper.text())
   })
 
