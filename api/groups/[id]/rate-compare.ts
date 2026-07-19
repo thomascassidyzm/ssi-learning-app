@@ -45,19 +45,56 @@ import { ensureSchoolNode } from '../../_utils/schoolNode'
 import { isEntityCoverageExpired } from '../../_utils/schoolCoverageGate'
 import {
   aggregateWindowPace,
-  aggregateWeeklyTrend,
   distributionStats,
   deltaPct,
   meanTrend,
+  computeMeasureForClassIds,
   K_FLOOR,
   type ScopedSessionRow,
+  type MeasureId,
 } from '../../_utils/rateCompare'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
-const TREND_WEEKS = 8
 const MAX_COHORT_IDS = 2000
+
+// ─── Windows (docs/the-lens/windows-measures-REPORT.md contract, frozen) ───
+interface WindowConfig {
+  value: string
+  label: string
+  days: number       // headline period length; 'all' uses a practical-unbounded value
+  periods: number     // trend series point count
+  periodDays: number  // trend granularity in days
+  trendLabel: string  // honest chart caption
+}
+const WINDOWS: WindowConfig[] = [
+  { value: 'week', label: 'This week', days: 7, periods: 7, periodDays: 1, trendLabel: 'Daily · last 7 days' },
+  { value: '4w', label: 'Last 4 weeks', days: 28, periods: 4, periodDays: 7, trendLabel: 'Weekly · last 4 weeks' },
+  { value: 'term', label: 'This term', days: 84, periods: 12, periodDays: 7, trendLabel: 'Weekly · last 12 weeks' },
+  { value: 'all', label: 'All time', days: 3650, periods: 12, periodDays: 30, trendLabel: 'Monthly · last 12 months' },
+]
+const DEFAULT_WINDOW = 'term'
+const WINDOW_OPTIONS = WINDOWS.map((w) => ({ value: w.value, label: w.label }))
+// Legacy trend shape (unchanged) for callers that pass ?days= without ?window=.
+const LEGACY_TREND_WEEKS = 8
+
+// ─── Measures (same contract) ───
+interface MeasureConfig {
+  value: MeasureId
+  label: string
+  unit: string
+  per: string
+  desc: string
+  classLevelExcluded?: boolean
+}
+const MEASURES: MeasureConfig[] = [
+  { value: 'rate', label: 'Rate of progress', unit: 'LEGOs', per: 'week', desc: 'How fast new LEGOs are being learned, per week.' },
+  { value: 'minutes_per_class', label: 'Practice minutes per class', unit: 'min', per: 'week', desc: 'How many minutes each class practises, per week on average.' },
+  { value: 'hours_total', label: 'Practice hours', unit: 'hours', per: '', desc: 'Total hours of practice in the selected period.' },
+  { value: 'active_classes', label: 'Active classes share', unit: '%', per: '', desc: 'The share of classes that practised at least once in the selected period.', classLevelExcluded: true },
+]
+const DEFAULT_MEASURE: MeasureId = 'rate'
 
 interface GroupRow {
   id: string
@@ -145,7 +182,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const rawId = String(req.query.id || '')
   const requestedCourse = String(req.query.course_code || '').trim() || null
   const requestedCompare = String(req.query.compare_to || '').trim() || null
-  const days = Math.min(180, Math.max(7, parseInt(String(req.query.days || '90'), 10) || 90))
+
+  // ─── Window: ?window= wins; ?days= alone is the legacy path (still
+  // honoured, byte-identical trend shape); neither present -> new default
+  // 'term'. window is never inferred from days. ───
+  const requestedWindow = String(req.query.window || '').trim()
+  const requestedDaysRaw = req.query.days !== undefined ? String(req.query.days) : null
+  let windowConfig: WindowConfig
+  let appliedWindowValue: string | null
+  if (requestedWindow && WINDOWS.some((w) => w.value === requestedWindow)) {
+    windowConfig = WINDOWS.find((w) => w.value === requestedWindow)!
+    appliedWindowValue = windowConfig.value
+  } else if (requestedDaysRaw !== null) {
+    const legacyDays = Math.min(180, Math.max(7, parseInt(requestedDaysRaw, 10) || 90))
+    windowConfig = {
+      value: 'custom', label: `Last ${legacyDays} days`, days: legacyDays,
+      periods: LEGACY_TREND_WEEKS, periodDays: 7, trendLabel: `Weekly · last ${LEGACY_TREND_WEEKS} weeks`,
+    }
+    appliedWindowValue = null
+  } else {
+    windowConfig = WINDOWS.find((w) => w.value === DEFAULT_WINDOW)!
+    appliedWindowValue = DEFAULT_WINDOW
+  }
+  const days = windowConfig.days
 
   try {
     // ─── One opening wave: auth + every :id interpretation + the forest map.
@@ -306,10 +365,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ? { id: classRow.id, name: classRow.class_name, label: 'class', kind: 'class' as const }
       : { id: nodeId!, name: nodeRow!.name, label: nodeRow!.type, kind: 'node' as const }
 
+    // ─── Measure: options omit active_classes at class level (degenerate
+    // 0/100 — a class either ran or didn't). An unavailable/unknown request
+    // falls back to the default rather than erroring. ───
+    const availableMeasures = MEASURES.filter((m) => !(nodeMeta.kind === 'class' && m.classLevelExcluded))
+    const requestedMeasure = String(req.query.measure || '').trim()
+    const measureConfig = availableMeasures.find((m) => m.value === requestedMeasure)
+      ?? availableMeasures.find((m) => m.value === DEFAULT_MEASURE)!
+
     const baseBody = {
       node: nodeMeta,
-      options: { courses: courseOptions, compares: compareOptions },
-      applied: { course_code: courseCode, compare_to: compareTo, days },
+      options: {
+        courses: courseOptions,
+        compares: compareOptions,
+        windows: WINDOW_OPTIONS,
+        measures: availableMeasures.map((m) => ({ value: m.value, label: m.label, desc: m.desc })),
+      },
+      applied: { course_code: courseCode, compare_to: compareTo, days, window: appliedWindowValue, measure: measureConfig.value },
+      windowLabel: windowConfig.label,
+      trendLabel: windowConfig.trendLabel,
+      trendPeriodDays: windowConfig.periodDays,
       kFloor: isAdmin ? 1 : K_FLOOR,
     }
     const insufficient = (reason: string, cohortSize = 0): void => {
@@ -380,7 +455,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ─── Sessions + math (shared primitives). ───
-    const fetchDays = Math.max(days, (TREND_WEEKS + 1) * 7)
+    const fetchDays = Math.max(days, (windowConfig.periods + 1) * windowConfig.periodDays)
     const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
     // A DEMO node reads its own demo sessions (demo orgs are self-contained
     // subtrees, so its ancestor cohorts are demo peers); a real node keeps the
@@ -399,22 +474,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const rows = (rawRows as ScopedSessionRow[]) || []
     const now = new Date()
 
-    const entityWindow = aggregateWindowPace(rows, entityClassIds, days, now)
-    const entityTrend = aggregateWeeklyTrend(rows, entityClassIds, TREND_WEEKS, now)
-
-    const memberResults = members.map((m) => ({
-      window: aggregateWindowPace(rows, m.classIds, days, now),
-      trend: aggregateWeeklyTrend(rows, m.classIds, TREND_WEEKS, now),
-    }))
-    const active = memberResults.filter((m) => m.window.hasData)
+    // Gating (K_FLOOR / "does this peer have any data") is always decided by
+    // RATE activity — the same cohort, regardless of which measure is
+    // displayed (contract: "computed... over the SAME cohort members").
+    const entityRateWindow = aggregateWindowPace(rows, entityClassIds, days, now)
+    const active = members
+      .map((m) => ({ member: m, rateWindow: aggregateWindowPace(rows, m.classIds, days, now) }))
+      .filter((x) => x.rateWindow.hasData)
     const effectiveFloor = isAdmin ? 1 : K_FLOOR
     if (active.length < effectiveFloor) {
       insufficient('Not enough data to compare fairly yet.', active.length)
       return
     }
 
-    const cohortValues = active.map((m) => m.window.pace)
-    const averageTrend = meanTrend(active.map((m) => m.trend))
+    // ─── The displayed measure — entity + each active cohort member, via
+    // the SAME dispatch function so every measure follows one grammar. ───
+    const entityMeasure = computeMeasureForClassIds(
+      measureConfig.value, rows, entityClassIds, days, windowConfig.periods, windowConfig.periodDays, now)
+    const memberMeasures = active.map((x) =>
+      computeMeasureForClassIds(measureConfig.value, rows, x.member.classIds, days, windowConfig.periods, windowConfig.periodDays, now))
+
+    const cohortValues = memberMeasures.map((m) => m.value)
+    const averageTrend = meanTrend(memberMeasures.map((m) => m.trend))
     const averageValue = Math.round((cohortValues.reduce((a, b) => a + b, 0) / cohortValues.length) * 10) / 10
     const dist = distributionStats(cohortValues)
     const compareLabel = compareOptions.find((o) => o.value === compareTo)?.label ?? 'Average'
@@ -429,14 +510,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // ─── Position context: the furthest LEGO's own CONTENT (position-is-LEGO
     // ruling — render what the LEGO says, never raw S/L ids; no content
-    // resolved → no line at all). ───
+    // resolved → no line at all). Rides ONLY on the rate measure. ───
     let contextLine: string | undefined
-    if (entityWindow.furthestLegoId) {
+    if (measureConfig.value === 'rate' && entityRateWindow.furthestLegoId) {
       const { data: lego } = await svc
         .from('course_legos')
         .select('target_text, target_text_roman, known_text')
         .eq('course_code', courseCode)
-        .eq('lego_id', entityWindow.furthestLegoId)
+        .eq('lego_id', entityRateWindow.furthestLegoId)
         .maybeSingle()
       const target = (lego as any)?.target_text_roman || (lego as any)?.target_text
       const known = (lego as any)?.known_text
@@ -447,13 +528,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(200).json({
       ...baseBody,
       insufficientData: false,
-      metricLabel: 'Rate of progress',
-      unit: 'LEGOs',
-      per: 'week',
-      entity: { label: nodeMeta.name, value: entityWindow.pace, trend: entityTrend },
+      metricLabel: measureConfig.label,
+      unit: measureConfig.unit,
+      per: measureConfig.per,
+      entity: { label: nodeMeta.name, value: entityMeasure.value, trend: entityMeasure.trend },
       average: { label: compareLabel, value: averageValue, trend: averageTrend },
-      deltaPct: deltaPct(entityWindow.pace, averageValue),
-      percentile: dist.percentileOf(entityWindow.pace),
+      deltaPct: deltaPct(entityMeasure.value, averageValue),
+      percentile: dist.percentileOf(entityMeasure.value),
       contextLine,
       subject: nodeMeta.name,
       subjectIsViewer: false,
