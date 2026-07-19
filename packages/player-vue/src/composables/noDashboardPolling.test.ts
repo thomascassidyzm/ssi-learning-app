@@ -25,8 +25,21 @@ const GUARDED = [
   'views/admin/AdminUsers.vue',
   'views/admin/AdminStatsView.vue',
   'views/admin/AdminActivity.vue',
+  'views/admin/AdminUserDetail.vue',
+  'views/admin/AdminClassHome.vue',
+  'views/admin/AdminAnalytics.vue',
   'composables/admin/useAdminActivity.ts',
 ]
+
+// NOTE ON useAdminGate.ts (deliberately NOT guarded here): it runs a 60s
+// `refreshRole()` DB re-validation + a visibilitychange re-check on every admin
+// surface. That is a documented SECURITY control, not dashboard-data
+// auto-refresh — the org tables it protects are RLS-off by design, so this
+// UI gate IS the live-revocation enforcement (see useAdminGate's header and
+// docs/trinity/admin.md). It shows up as ~1 idle request/min on admin pages;
+// whether that periodic access-revalidation stays is a founder call, tracked
+// separately from the no-data-auto-refresh pin. Do NOT add it to GUARDED
+// without resolving that — the test would fail by design.
 
 describe('no auto-refresh on dashboard surfaces', () => {
   for (const rel of GUARDED) {

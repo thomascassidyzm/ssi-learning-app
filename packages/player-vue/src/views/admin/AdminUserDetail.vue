@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useDashboardRefresh } from '@/composables/useDashboardRefresh'
 import { useAdminClient } from '@/composables/useAdminClient'
 import { useAdminUserDetail } from '@/composables/admin/useAdminUserDetail'
 import { parseCourseCode, getBeltForSeeds, timeAgo, formatDuration } from '@/composables/admin/adminUtils'
@@ -305,31 +306,22 @@ const grantDurationDays = ref(365)
 const grantCourses = ref<string[]>([])
 const grantLoading = ref(false)
 
-// Auto-refresh: re-fetch when the page becomes visible / refocused so
-// flipping back from the player tab shows up-to-date telemetry without
-// a manual reload. No periodic polling — the player only writes on
-// natural session boundaries (stop / pause / tab hidden), so by the
-// time the admin tab gains focus the latest flush has already landed.
+// The ONE refresh protocol (founder ruling, 2026-07-19): data loads on
+// navigation and then HOLDS STILL. No focus/visibilitychange auto-refetch —
+// that was the old visibility-refetch class the protocol exists to kill, and
+// it fired a full telemetry re-fetch every time the admin flipped back from
+// another tab. Instead we register this page's loader with the shared
+// useDashboardRefresh so the navbar RefreshButton + pull-to-refresh drive it,
+// exactly like every sibling admin view. `immediate` runs the initial load
+// through the same path (spinner + "Updated" stamp).
 function refreshDetail() {
   const learnerId = route.params.learnerId as string
   if (!learnerId) return
   fetchUserDetail(learnerId)
 }
 
-function onVisibilityChange() {
-  if (document.visibilityState === 'visible') refreshDetail()
-}
-
-onMounted(() => {
-  refreshDetail()
-  document.addEventListener('visibilitychange', onVisibilityChange)
-  window.addEventListener('focus', refreshDetail)
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('visibilitychange', onVisibilityChange)
-  window.removeEventListener('focus', refreshDetail)
-})
+const { registerRefresh } = useDashboardRefresh()
+registerRefresh(refreshDetail)
 
 function goBack() {
   router.push('/admin/users')
