@@ -98,6 +98,23 @@ describe('NodeRateEngine', () => {
     expect(url).toContain('compare_to=programme')
   })
 
+  it('PIN: mirroring the applied defaults back into the props never refetches (cold load = ONE round trip)', async () => {
+    // The wrapper mirrors the server-resolved course/compare into the URL and
+    // back down as props — the watch firing on that echo must not refetch
+    // (it blanked the just-rendered comparison behind a second Loading…).
+    const wrapper = mountEngine()
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ course: 'hin_for_eng', compare: 's1-node' })
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // A REAL input change (user picks another course) still fetches.
+    await wrapper.setProps({ course: 'tam_for_eng' })
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[1][0])).toContain('course_code=tam_for_eng')
+  })
+
   it('plainWords: teacher language, never engine vocabulary', async () => {
     const wrapper = mountEngine({ plainWords: true })
     await flushPromises()
