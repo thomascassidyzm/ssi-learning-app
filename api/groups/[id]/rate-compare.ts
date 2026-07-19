@@ -66,6 +66,7 @@ interface GroupRow {
   type: string
   parent_id: string | null
   path: string | null
+  is_demo: boolean
 }
 
 interface CompareOption {
@@ -223,7 +224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ─── Forest map (one fetch — the home.ts pattern). ───
-    const { data: allGroupsData } = await svc.from('groups').select('id, name, type, parent_id, path')
+    const { data: allGroupsData } = await svc.from('groups').select('id, name, type, parent_id, path, is_demo')
     const allGroups = (allGroupsData ?? []) as GroupRow[]
     const byId = new Map(allGroups.map((g) => [g.id, g]))
     const nodeRow = nodeId ? byId.get(nodeId) : undefined
@@ -351,9 +352,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // ─── Sessions + math (shared primitives). ───
     const fetchDays = Math.max(days, (TREND_WEEKS + 1) * 7)
     const allClassIds = [...new Set([...entityClassIds, ...members.flatMap((m) => m.classIds)])].slice(0, MAX_COHORT_IDS)
+    // A DEMO node reads its own demo sessions (demo orgs are self-contained
+    // subtrees, so its ancestor cohorts are demo peers); a real node keeps the
+    // RPC's demo exclusion — a real cohort never gains a demo row.
+    const entityIsDemo = Boolean(nodeRow?.is_demo)
     const { data: rawRows, error: rpcError } = await svc.rpc('analytics_class_sessions_scoped', {
       p_class_ids: allClassIds,
       p_days: fetchDays,
+      p_include_demo: entityIsDemo,
     })
     if (rpcError) {
       console.error('[node-rate-compare] analytics_class_sessions_scoped error:', rpcError.message)

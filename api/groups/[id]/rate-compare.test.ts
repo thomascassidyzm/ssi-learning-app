@@ -71,12 +71,12 @@ function sessions(classId: string, course: string, ords: [number, number][]): an
 function resetTables(): void {
   TABLES = {
     groups: [
-      { id: 'nation', name: 'India', type: 'nation', parent_id: null, path: 'india' },
-      { id: 'programme', name: 'IME Demo Programme', type: 'programme', parent_id: 'nation', path: 'india/ime' },
-      { id: 'other-prog', name: 'Other Programme', type: 'programme', parent_id: 'nation', path: 'india/other' },
-      { id: 's1-node', name: 'Sunrise Public School', type: 'school', parent_id: 'programme', path: 'india/ime/s1' },
-      { id: 's2-node', name: 'St. Mary’s Academy', type: 'school', parent_id: 'programme', path: 'india/ime/s2' },
-      { id: 's3-node', name: 'Green Valley International', type: 'school', parent_id: 'other-prog', path: 'india/other/s3' },
+      { id: 'nation', name: 'India', type: 'nation', parent_id: null, path: 'india', is_demo: false },
+      { id: 'programme', name: 'IME Demo Programme', type: 'programme', parent_id: 'nation', path: 'india/ime', is_demo: false },
+      { id: 'other-prog', name: 'Other Programme', type: 'programme', parent_id: 'nation', path: 'india/other', is_demo: false },
+      { id: 's1-node', name: 'Sunrise Public School', type: 'school', parent_id: 'programme', path: 'india/ime/s1', is_demo: false },
+      { id: 's2-node', name: 'St. Mary’s Academy', type: 'school', parent_id: 'programme', path: 'india/ime/s2', is_demo: false },
+      { id: 's3-node', name: 'Green Valley International', type: 'school', parent_id: 'other-prog', path: 'india/other/s3', is_demo: false },
     ],
     schools: [
       { id: 'school-1', school_name: 'Sunrise Public School', group_id: 'programme', node_group_id: 's1-node' },
@@ -133,11 +133,13 @@ function makeChainable(table: string) {
   return builder
 }
 
+let lastRpcArgs: any = null
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from: (table: string) => makeChainable(table),
     rpc: (fn: string, args: any) => {
       if (fn !== 'analytics_class_sessions_scoped') return Promise.resolve({ data: null, error: { message: `unknown rpc ${fn}` } })
+      lastRpcArgs = args
       const ids = (args?.p_class_ids ?? []) as string[]
       return Promise.resolve({ data: SESSION_ROWS.filter((r) => ids.includes(r.class_id)), error: null })
     },
@@ -323,6 +325,18 @@ describe('GET /api/groups/:id/rate-compare', () => {
     expect(res.body.insufficientData).toBe(false)
     // schools 2 + 3 as peers (school-2's pool now includes the tam class)
     expect(res.body.cohortSize).toBe(2)
+  })
+
+  it('a DEMO node opts into its own demo sessions; a real node never does', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('school-2'), res)
+    expect(lastRpcArgs.p_include_demo).toBe(false)
+
+    TABLES.groups.find((g: any) => g.id === 's2-node').is_demo = true
+    const res2 = makeRes()
+    await handler(makeReq('school-2'), res2)
+    expect(lastRpcArgs.p_include_demo).toBe(true)
   })
 
   it('404s an unknown id', async () => {
