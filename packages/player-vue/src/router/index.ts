@@ -46,6 +46,8 @@ const AnalyticsView = () => import('@/views/schools/AnalyticsView.vue')
 const SettingsView = () => import('@/views/schools/SettingsView.vue')
 const SchoolsView = () => import('@/views/schools/SchoolsView.vue')
 const SetupView = () => import('@/views/schools/SetupView.vue')
+// THE VIEW — the one recursive node home (docs/THE-VIEW.md)
+const NodeHomeView = () => import('@/views/admin/NodeHomeView.vue')
 const UpgradeView = () => import('@/views/schools/UpgradeView.vue')
 // Teach (private tutor) views
 const TeachDashboard = () => import('@/views/teach/TeachDashboard.vue')
@@ -472,10 +474,13 @@ const routes: RouteRecordRaw[] = [
     meta: { hideAppEscape: true }, // carries AdminTopBar — the floating Back pill overlapped it
     children: [
       {
+        // THE VIEW (docs/THE-VIEW.md): the school's landing IS node home —
+        // same recursive page as every other level. Deep school tools stay
+        // at the sibling sub-routes below.
         path: '',
         name: 'admin-school-dashboard',
-        component: DashboardView,
-        meta: { title: 'School Dashboard', description: 'Admin view of a school' },
+        component: NodeHomeView,
+        meta: { title: 'School Home', description: 'Node home for a school' },
       },
       {
         path: 'classes',
@@ -516,16 +521,18 @@ const routes: RouteRecordRaw[] = [
     meta: { hideAppEscape: true }, // carries AdminTopBar — no floating Back pill on top
     children: [
       {
+        // THE VIEW (docs/THE-VIEW.md): the group's landing IS node home.
         path: '',
         name: 'admin-group-dashboard',
-        component: DashboardView,
-        meta: { title: 'Group Dashboard' },
+        component: NodeHomeView,
+        meta: { title: 'Group Home', description: 'Node home for a group' },
       },
       {
+        // The old Full-schools list — the URL lives, the separate design
+        // dies: node home with the All-schools lens preselected.
         path: 'schools',
         name: 'admin-group-schools',
-        component: SchoolsView,
-        meta: { title: 'Schools in Group' },
+        redirect: (to) => ({ path: `/admin/groups/${to.params.id}`, query: { lens: 'schools' } }),
       },
       {
         path: 'analytics',
@@ -537,10 +544,14 @@ const routes: RouteRecordRaw[] = [
   },
   // Standalone admin read-views
   {
+    // THE VIEW (docs/THE-VIEW.md): class level gets the same node home —
+    // map rail, identity (lead + co-teachers, read-only), students as
+    // children. The rich class tools remain one tap away at
+    // /admin/schools/:schoolId/classes/:classId.
     path: '/admin/classes/:id',
     name: 'admin-class-detail',
-    component: () => import('@/views/admin/AdminClassDetail.vue'),
-    meta: { title: 'Class Detail (Admin)' },
+    component: () => import('@/views/admin/AdminClassHome.vue'),
+    meta: { title: 'Class Home (Admin)' },
   },
   {
     path: '/admin/users/:learnerId/progress',

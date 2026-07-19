@@ -1,0 +1,194 @@
+<script setup lang="ts">
+// NodeChildrenList — the CHILDREN LIST of THE VIEW (docs/THE-VIEW.md §1.4):
+// whatever this node's children are, in the SAME row grammar at every depth.
+// The founder's lenses (All groups / All schools / All teachers / All
+// classes) are filters over this one list — each lens maps its payload onto
+// the same row shape: avatar initial, name (click → that thing's home),
+// caption, count columns.
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+
+interface Row {
+  key: string
+  name: string
+  caption: string
+  badge?: string | null
+  counts: { value: string | number; word: string }[]
+  to: string | null
+}
+
+const props = defineProps<{
+  lens: string
+  payload: Record<string, any>
+}>()
+
+const router = useRouter()
+
+function initial(name: string): string {
+  return (name.trim()[0] || '?').toUpperCase()
+}
+
+function joinNames(names: string[], cap = 3): string {
+  if (!names.length) return ''
+  if (names.length <= cap) return names.join(', ')
+  return `${names.slice(0, cap).join(', ')} +${names.length - cap} more`
+}
+
+const rows = computed<Row[]>(() => {
+  const p = props.payload
+  if (props.lens === 'children') {
+    return (p.children || []).map((n: any): Row => ({
+      key: n.id,
+      name: n.name,
+      caption: n.hasSchool || n.commercial ? 'School' : (n.label ? n.label[0].toUpperCase() + n.label.slice(1) : 'Group'),
+      badge: n.is_demo ? 'Demo' : null,
+      counts: [
+        ...(n.rollup?.childGroupCount ? [{ value: n.rollup.childGroupCount, word: 'below' }] : []),
+        { value: n.rollup?.teacherCount ?? 0, word: 'teachers' },
+        { value: n.rollup?.classCount ?? 0, word: 'classes' },
+        { value: n.rollup?.learnerCount ?? 0, word: 'learners' },
+      ],
+      to: `/admin/groups/${n.id}`,
+    }))
+  }
+  if (props.lens === 'groups') {
+    return (p.groups || []).map((g: any): Row => ({
+      key: g.id,
+      name: g.name,
+      caption: `${g.hasSchool ? 'School' : 'Group'}${g.parentName ? ` · under ${g.parentName}` : ''}`,
+      badge: g.is_demo ? 'Demo' : null,
+      counts: [
+        { value: g.rollup?.teacherCount ?? 0, word: 'teachers' },
+        { value: g.rollup?.classCount ?? 0, word: 'classes' },
+        { value: g.rollup?.learnerCount ?? 0, word: 'learners' },
+      ],
+      to: `/admin/groups/${g.id}`,
+    }))
+  }
+  if (props.lens === 'schools') {
+    return (p.schools || []).map((s: any): Row => ({
+      key: s.schoolId,
+      name: s.name,
+      caption: s.teachers?.length ? joinNames(s.teachers) : 'No teachers yet',
+      badge: !s.hasAdmin ? 'Awaiting admin' : null,
+      counts: [
+        { value: s.studentCount, word: 'students' },
+        { value: s.classCount, word: 'classes' },
+        { value: `${s.practiceHours}h`, word: 'practised' },
+      ],
+      to: `/admin/schools/${s.schoolId}`,
+    }))
+  }
+  if (props.lens === 'teachers') {
+    return (p.teachers || []).map((t: any): Row => ({
+      key: t.user_id,
+      name: t.name,
+      caption: t.classes?.length
+        ? joinNames(t.classes.map((c: any) => c.name))
+        : 'No classes yet',
+      counts: [{ value: t.classes?.length ?? 0, word: t.classes?.length === 1 ? 'class' : 'classes' }],
+      to: t.classes?.length === 1 ? `/admin/classes/${t.classes[0].id}` : null,
+    }))
+  }
+  if (props.lens === 'classes') {
+    return (p.classes || []).map((c: any): Row => ({
+      key: c.id,
+      name: c.name,
+      caption: [c.home, joinNames(c.teachers || [])].filter(Boolean).join(' · '),
+      counts: [
+        { value: c.studentCount, word: 'students' },
+        { value: `${c.practiceHours}h`, word: 'practised' },
+      ],
+      to: `/admin/classes/${c.id}`,
+    }))
+  }
+  if (props.lens === 'students') {
+    return (p.students || []).map((s: any): Row => ({
+      key: s.learner_id,
+      name: s.name,
+      caption: s.last_active_at
+        ? `Last practised ${new Date(s.last_active_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+        : 'Not started yet',
+      counts: [{ value: `${s.practice_hours}h`, word: 'practised' }],
+      to: `/admin/users/${s.learner_id}/progress`,
+    }))
+  }
+  return []
+})
+
+function open(row: Row): void {
+  if (row.to) router.push(row.to)
+}
+</script>
+
+<template>
+  <ul class="child-list">
+    <li v-for="row in rows" :key="row.key" class="child-row" :class="{ 'is-static': !row.to }">
+      <button type="button" class="child-btn" :disabled="!row.to" @click="open(row)">
+        <span class="child-avatar">{{ initial(row.name) }}</span>
+        <span class="child-main">
+          <span class="child-name-line">
+            <span class="child-name">{{ row.name }}</span>
+            <span v-if="row.badge" class="child-badge">{{ row.badge }}</span>
+          </span>
+          <span v-if="row.caption" class="child-caption">{{ row.caption }}</span>
+        </span>
+        <span class="child-counts">
+          <span v-for="(c, i) in row.counts" :key="i" class="child-count">
+            <span class="child-count-value frost-mono-nums">{{ c.value }}</span>
+            <span class="child-count-word">{{ c.word }}</span>
+          </span>
+        </span>
+        <span v-if="row.to" class="child-open" aria-hidden="true">→</span>
+      </button>
+    </li>
+    <li v-if="rows.length === 0" class="child-empty">
+      <slot name="empty">Nothing here yet.</slot>
+    </li>
+  </ul>
+</template>
+
+<style scoped>
+.child-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.child-row + .child-row { border-top: 1px solid rgba(44, 38, 34, 0.06); }
+
+.child-btn {
+  display: flex; align-items: center; gap: var(--space-4); width: 100%;
+  padding: 12px var(--space-4); border: none; background: none; font: inherit;
+  text-align: left; cursor: pointer; min-width: 0;
+}
+.child-btn:disabled { cursor: default; }
+.child-btn:not(:disabled):hover { background: rgba(255, 255, 255, 0.65); }
+.child-btn:not(:disabled):hover .child-name { text-decoration: underline; }
+
+.child-avatar {
+  width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center;
+  background: var(--schools-red, #DB1E17); color: #fff; border-radius: 10px;
+  font-weight: var(--font-bold, 700); font-size: var(--text-sm);
+}
+.child-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.child-name-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.child-name {
+  font-weight: var(--font-semibold); color: var(--schools-fg, #0F1212); font-size: var(--text-base);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.child-badge {
+  flex-shrink: 0; font-size: var(--text-xs); padding: 1px 8px; border-radius: 999px;
+  background: rgba(var(--tone-amber, 194 132 58), 0.12); color: rgb(var(--tone-amber-ink, 154 96 24));
+}
+.child-caption {
+  font-size: var(--text-xs); color: var(--schools-fg-3, #8A8078);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.child-counts { display: flex; gap: var(--space-4); flex-shrink: 0; }
+.child-count { display: flex; flex-direction: column; align-items: flex-end; min-width: 56px; }
+.child-count-value { font-weight: var(--font-semibold); color: var(--schools-fg, #0F1212); font-size: var(--text-sm); }
+.child-count-word { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--schools-fg-3, #8A8078); }
+.child-open { color: var(--schools-red, #DB1E17); flex-shrink: 0; font-size: var(--text-sm); }
+
+.child-empty { padding: var(--space-6); text-align: center; color: var(--schools-fg-3, #8A8078); font-size: var(--text-sm); }
+
+@media (max-width: 640px) {
+  .child-counts { display: none; }
+}
+</style>
