@@ -440,3 +440,25 @@ call on the dev artifact.
 **Search width:** visible-options
 **Decided by:** agent (task spec: "token embedded, session established on click… email-OTP stays as
 the fallback for people without a link"); placeholder-vs-per-person shape held for founder taste-pass.
+
+## 2026-07-19 — straight-in is the DESIGN: the link is the credential (founder sharpening, elevated to standing principle)
+**Move:** Founder sharpened the fix above into a standing principle, now written as `THE-MODEL.md`
+§1.13 + invariant **I12**. Verbatim: *"given that the email is not even verified before they get
+access, [the OTP step] is just an unnecessary friction point."* THE LINK IS THE CREDENTIAL —
+possession of the invite/access link already grants the account, so an OTP/email screen after the
+click re-proves possession of what the click just proved: **ceremony, not security**. Straight-in on
+click is the DESIGN, not a convenience; no future "standardisation"/"sign-in hardening" pass may
+reintroduce an interstitial on a valid link (that's a regression, pinned by I12 + the
+`RedeemCode.test.ts` "goes STRAIGHT IN" assertions: zero interstitial steps, no OTP input, no form).
+**Better:** the invariant is now load-bearing doc + executable pin, so the teacher/admin/leader
+experience can't silently regress back to a form.
+**Simpler:** one principle ("the link is the credential") replaces case-by-case arguments about which
+flows may skip OTP.
+**Cheaper (total):** the security budget is explicitly redirected to where it does real work — link
+revocability, expiry/single-use where configured, and the unified audit trail
+(`invite_codes` + `possession_mint_attempts`) — never on re-proving the click.
+**Searched & rejected:** keep OTP "for safety" — rejected on the founder's own ground: access is
+granted before any email is verified and nothing matches the typed email to the invitee, so the step
+protects nothing while taxing every teacher.
+**Search width:** founder-ruled
+**Decided by:** founder (verbatim ruling); agent recorded + pinned.

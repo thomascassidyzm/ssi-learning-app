@@ -82,10 +82,15 @@ describe('RedeemCode.vue — straight-in invite links', () => {
     // The link itself is the credential: linkAuth set, no email typed.
     expect(posted[0]).toMatchObject({ code: 'TEACH-1', linkAuth: true })
     expect(posted[0].email).toBeUndefined()
-    // Session established + redeemed, landing on the dashboard — no form ever shown.
+    // Session established + redeemed, landing on the dashboard.
     expect(supabase.value.auth.setSession).toHaveBeenCalledWith({ access_token: 'at-1', refresh_token: 'rt-1' })
     expect(auth.refreshRole).toHaveBeenCalled()
+    // THE-MODEL.md I12 pin: ZERO interstitial steps on a valid link — no
+    // details form, no OTP email input, no OTP code input, no OTP sent. Any
+    // future change that re-taxes a valid link with a sign-in step fails here.
     expect(wrapper.find('#redeem-details-email').exists()).toBe(false)
+    expect(wrapper.find('#redeem-email').exists()).toBe(false)
+    expect(wrapper.find('#redeem-otp').exists()).toBe(false)
     expect(supabase.value.auth.signInWithOtp).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain("You're all set!")
   })

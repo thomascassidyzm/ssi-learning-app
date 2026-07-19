@@ -121,6 +121,32 @@ every surface leads with plain-language TASK actions, not concepts. Concretely:
 
 Quality over speed from here — founder: "I want it done well: better × simpler × cheaper."
 
+### 1.13 The link IS the credential — straight-in, no sign-in ceremony (ruled 2026-07-19)
+
+> "given that the email is not even verified before they get access, [the OTP step] is just an
+> unnecessary friction point."
+
+**Possession of an invite/access link already grants the account.** An OTP or email screen after the
+click re-proves possession of something the click *just proved* — it is ceremony, not security.
+Nothing checks the typed email against who the invite was meant for, and access is granted before any
+email is verified, so the sign-in step protects nothing while it taxes every teacher/admin/leader.
+
+**Straight-in on click is the DESIGN, not a convenience shortcut.** Clicking a
+teacher/school-admin/leader/student invite (or access) link in a fresh context **authenticates
+immediately and lands on the role dashboard — zero interstitial steps.** The email/OTP flow exists
+ONLY as the fallback for someone who has no link. This is the standing shape: **no future
+"standardisation" or "sign-in hardening" pass may reintroduce an interstitial on a valid link** — that
+is a regression, pinned by I12.
+
+**Where the security budget actually goes** (it does real work only here): link **revocability**
+(the unified invite list / node panel toggle), **expiry and single-use** where configured, and the
+**unified audit trail** (`invite_codes` redemption + `possession_mint_attempts`). Spend there; never
+on re-proving the click.
+
+*Implemented 2026-07-19 (`075dd2ba`): `linkAuth` mode on `api/auth/possession-redeem.ts`; the link's
+code is the token, the session is minted from possession alone, real email collected first-run via
+`needs_verification`. Full rationale + the diagnosed drift-off history in `docs/DECISIONS.md`.*
+
 
 ---
 
@@ -188,6 +214,14 @@ new behaviour may key on it; the shells merge.
   destructive in tonight's migrations.
 - **I11 — View-as is not a product surface.** No product UI path mints or overlays another
   identity; the support harness lives in scripts, audit-logged (`admin_impersonation_audit`).
+- **I12 — The link is the credential; straight-in has zero interstitials (§1.13).** Clicking a
+  valid possession-eligible invite/access link in a **fresh context** (no prior session) lands the
+  user **authenticated on the role dashboard with no interstitial step** — no OTP, no email/name
+  form, no "sign in to continue". The email/OTP flow appears ONLY when there is no link, or when the
+  straight-in mint genuinely can't proceed (rate-limited/transient). A **revoked/expired/exhausted**
+  link fails **friendly** (no session, plain "this link is no longer valid"), never a hard error.
+  Pinned in `RedeemCode.test.ts` ("goes STRAIGHT IN on click") + `possession-redeem.test.ts`
+  (linkAuth mode). Any change that re-inserts a step on a valid link fails this pin by design.
 
 ---
 
@@ -351,5 +385,5 @@ its own scoped piece.
 
 ---
 
-*Last updated: 2026-07-18 (architect session — §1.10/§1.11 rulings and §9 commercial layer added
-during the night)*
+*Last updated: 2026-07-19 (§1.13 "the link is the credential — straight-in, no ceremony" ruling +
+I12 pin added; §1.10/§1.11 rulings and §9 commercial layer added 2026-07-18)*
