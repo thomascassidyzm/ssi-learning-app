@@ -34,13 +34,12 @@ import { provisionSchoolPlatformTrial, provisionTutorPlatformTrial } from '../_u
 import { ensureClassLearnerEntity } from '../_utils/classLearnerEntity'
 import { isDisposableEmailDomain } from '../_utils/emailValidation'
 import { OPERATOR_CAPTURE_ERROR } from '../_utils/operatorGuard'
+import { isCommercialCourse, trialDaysForCourse } from '../../packages/core/src/pricing'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
 
 const TRACKS = new Set(['school', 'tutor'])
-// Premium courses get a free trial then convert to paid; Free/Community are free.
-const PREMIUM_TRIAL_DAYS = 30
 
 export default async function handler(
   req: VercelRequest,
@@ -75,7 +74,7 @@ export default async function handler(
     //    client to pick a not_available/draft or wrong-track course.
     const { data: course, error: courseErr } = await supabase
       .from('courses')
-      .select('course_code, pricing_tier, new_app_status')
+      .select('course_code, target_lang, pricing_tier, new_app_status')
       .eq('course_code', course_code)
       .maybeSingle()
     if (courseErr) throw new Error(`course lookup failed: ${courseErr.message}`)
@@ -86,10 +85,14 @@ export default async function handler(
     // The OFFER is the course's tier: Free/Community = free (no grant needed — free
     // courses are already accessible to everyone); Premium = a free trial then paid.
     const isFree = course.pricing_tier === 'free' || course.pricing_tier === 'community'
-    // Welsh gets the long (1-year) platform window like free courses, even though
-    // it's a premium-tier course — it's the heritage flagship. Only affects the
-    // PLATFORM trial DURATION, not whether a learner play-trial is granted.
-    const isWelsh = (course.course_code || '').startsWith('cym')
+    // Trial LENGTH derives from the course's commercial class, not its tier
+    // (founder ruling 2026-07-19): commercial (Big-10 target) = 30 days;
+    // heritage (everything else — Welsh + minority languages) = 365 days. Welsh
+    // is priced premium yet is heritage-length, which target classification
+    // captures without a `cym` prefix hack. Governs BOTH the learner play-trial
+    // expiry (premium courses only) and the platform trial window.
+    const commercial = isCommercialCourse(course)
+    const trialDays = trialDaysForCourse(course)
 
     // 1b. Resolve the auth email — the stable identity the platform trial-burn
     //     is keyed on (trial_burns). Lower-cased + trimmed to normalise.
@@ -161,7 +164,7 @@ export default async function handler(
     //    single OTP'd account can't farm a trial for the whole premium catalogue.
     let expiresAt: string | null = null
     if (!isFree) {
-      expiresAt = new Date(Date.now() + PREMIUM_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString()
+      expiresAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString()
       const SELF_SERVICE_TRIAL_CAP = 3
       const { data: existingEnts } = await supabase
         .from('user_entitlements')
@@ -350,15 +353,16 @@ export default async function handler(
         return
       }
 
-      // PLATFORM TRIAL (school): premium → 1 month; free courses AND Welsh →
-      // 1 year (schools pay for the platform even on free courses). Email-burn
-      // first, then set the trial columns. Fails open if migration unapplied.
+      // PLATFORM TRIAL (school): commercial (Big-10) → 1 month; heritage
+      // (Welsh + free/minority courses) → 1 year (schools pay for the platform
+      // even on free courses). Email-burn first, then set the trial columns.
+      // Fails open if migration unapplied.
       const r = await provisionSchoolPlatformTrial(
         supabase,
         authEmail,
         schoolId,
         course_code,
-        isWelsh || isFree,
+        !commercial,
       )
       if (r.denied) {
         res.status(409).json({
@@ -383,7 +387,7 @@ export default async function handler(
     }
 
     res.status(200).json({
-      trial: isFree ? null : { course_code, expires_at: expiresAt, days: PREMIUM_TRIAL_DAYS },
+      trial: isFree ? null : { course_code, expires_at: expiresAt, days: trialDays },
       free: isFree,
       role,
       // The platform-subscription trial (lever-3): the dashboard window before

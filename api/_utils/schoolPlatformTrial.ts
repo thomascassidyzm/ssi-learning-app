@@ -110,10 +110,13 @@ export async function provisionSchoolPlatformTrial(
   email: string,
   schoolId: string,
   courseCode: string | null,
-  isFree: boolean,
+  // Heritage course (Welsh + free/minority languages) → 1-year window; a
+  // commercial (Big-10) course → 1-month. Callers derive this from
+  // !isCommercialCourse (@ssi/core) — the single trial-length source of truth.
+  isHeritage: boolean,
 ): Promise<{ trial: PlatformTrial | null; burned: boolean; denied: boolean }> {
-  const kind = isFree ? 'free_1yr' : 'premium_1mo'
-  const days = isFree ? PLATFORM_TRIAL_FREE_DAYS : PLATFORM_TRIAL_PREMIUM_DAYS
+  const kind = isHeritage ? 'free_1yr' : 'premium_1mo'
+  const days = isHeritage ? PLATFORM_TRIAL_FREE_DAYS : PLATFORM_TRIAL_PREMIUM_DAYS
   const expiresAt = isoIn(days)
 
   const burn = await burnTrial(supabase, email, 'school', schoolId)

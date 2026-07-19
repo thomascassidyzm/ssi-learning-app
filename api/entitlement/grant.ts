@@ -24,7 +24,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 import { verifyAdmin } from '../_utils/auth'
-import { PLATFORM_TRIAL_PREMIUM_DAYS, PLATFORM_TRIAL_FREE_DAYS } from '../_utils/schoolPlatformTrial'
+import { trialDaysForCourse } from '../../packages/core/src/pricing'
 
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim()
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim()
@@ -76,10 +76,15 @@ export default async function handler(
       }
 
       // Same validation the self-serve onboarding trial uses: course must be
-      // genuinely deployed, and its pricing_tier decides the trial length.
+      // genuinely deployed. Trial LENGTH derives from the course's commercial
+      // class (founder ruling 2026-07-19): commercial (Big-10 target) → 30 days;
+      // heritage (Welsh + minority languages) → 365 days — same single source of
+      // truth (trialDaysForCourse) as api/onboarding/provision.ts, so Welsh gets
+      // the long window here too (the old pricing_tier-only rule wrongly gave it
+      // 30).
       const { data: course, error: courseErr } = await supabase
         .from('courses')
-        .select('course_code, pricing_tier, new_app_status')
+        .select('course_code, target_lang, pricing_tier, new_app_status')
         .eq('course_code', course_code)
         .maybeSingle()
       if (courseErr) throw courseErr
@@ -88,8 +93,7 @@ export default async function handler(
         return
       }
 
-      const isFree = course.pricing_tier === 'free' || course.pricing_tier === 'community'
-      const days = isFree ? PLATFORM_TRIAL_FREE_DAYS : PLATFORM_TRIAL_PREMIUM_DAYS
+      const days = trialDaysForCourse(course)
       granted_courses = [course_code]
       expires_at = isoIn(days)
     } else {
