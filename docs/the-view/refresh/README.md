@@ -84,5 +84,17 @@ timestamp-on-success-only, and gesture behaviour.
 
 ## Verification
 
-Screenshots (deployed dev, 3 org levels) in this directory:
-`refresh-*.png`.
+- **Unit/integration**: full player-vue suite green (927 tests) incl. the three
+  refresh tests; `vue-tsc` typecheck clean; production build ok.
+- **Real-browser (Playwright, `e2e/the-view/refresh-affordance.spec.ts`)**: the
+  circular-arrow RefreshButton renders in the top bar, top-right adjacent to the
+  identity cluster, at desktop and mobile widths — screenshots in this directory
+  (`refresh-topbar-desktop.png`, `refresh-topbar-mobile.png`,
+  `refresh-schools-dashboard-desktop.png`). The "Updated" stamp is intentionally
+  absent in these harness shots: the E2E user has no live data, so the load
+  fails and the stamp is (correctly) not advanced — a visual of the
+  "failed refresh never looks up to date" rule.
+- **Pending**: authenticated node-home screenshots at all 3 org levels
+  (group / school / class) on the deployed dev alias need real ssi_admin auth +
+  seeded org data (the service-role key, absent from this sandbox's `.env`). The
+  spec is structured to add them when creds are present.
