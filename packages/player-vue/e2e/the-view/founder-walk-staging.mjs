@@ -222,12 +222,12 @@ const coldTargets = [
 for (const [url, sel, label] of coldTargets) {
   const times = []
   let allOk = true
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     const { ok, secs } = await coldLoad(url, sel)
     times.push(secs + 's')
     if (!ok) allOk = false
   }
-  step(`4 cold loads first-time OK ×3 — ${label}`, allOk, times.join(' '))
+  step(`4 cold loads first-time OK ×5 — ${label}`, allOk, times.join(' '))
 }
 
 // ════ WALK 5: idle ~3 min, zero background chatter; manual refresh works ════
