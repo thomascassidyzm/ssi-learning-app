@@ -46,6 +46,12 @@ const valueSuffix = computed(() => (isPercent.value ? '%' : ''))
 // e.g. "RANG A 1 v SCHOOL AVG · LEGOs / WEEK" (uppercased via CSS).
 const captionRest = computed(() => `${props.data.average.label} · ${perLabel.value}`)
 
+// The chart caption comes from the server (windows+measures contract); the
+// hardcoded "Rolling weekly · last 8 weeks" survives only as the fallback for
+// a payload that predates the contract (windowLabel/trendLabel absent).
+const trendCaption = computed(() => props.data.trendLabel || 'Rolling weekly · last 8 weeks')
+const trendPeriodDays = computed(() => props.data.trendPeriodDays ?? 7)
+
 // ── Voice: the card speaks AS the selected entity ───────────────────────────
 // "You" is allowed ONLY when the entity is the viewer's own learner identity
 // (subjectIsViewer). Otherwise the subject is the entity's own name, and the
@@ -225,7 +231,7 @@ const cohortTicks = computed<number[]>(() => {
       <div class="rc-trend-block">
         <div class="rc-trend-head">
           <span class="rc-section-label">{{ data.metricLabel }} over time</span>
-          <span class="rc-trend-window">Rolling weekly · last 8 weeks</span>
+          <span class="rc-trend-window">{{ trendCaption }}</span>
         </div>
         <RateTrend
           :entity-label="data.entity.label"
@@ -233,6 +239,7 @@ const cohortTicks = computed<number[]>(() => {
           :average-label="data.average.label"
           :average="data.average.trend"
           :y-label="perLabel"
+          :period-days="trendPeriodDays"
         />
       </div>
 

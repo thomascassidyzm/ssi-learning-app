@@ -1,15 +1,16 @@
 <script setup lang="ts">
 // ============================================================================
 // components/RateTrend.vue — THE HERO graph of RateCompare: the rate over time,
-// entity vs average, as a rolling weekly line.
+// entity vs average, as a rolling line.
 //
 // A rate is a TRAJECTORY, so the line is the story — where you're heading vs
 // where the cohort is heading (the curvature, per Measuring Progress, leads).
 //
-//   · props { entityLabel, entity[], averageLabel, average[], yLabel? }
-//   · x-axis = the last N CALENDAR WEEKS ending "now" (real week-ending dates),
-//     decoupled from the rate's own denominator — a per-hour rate is still
-//     plotted week by week, so "last 8 weeks" is always the honest window.
+//   · props { entityLabel, entity[], averageLabel, average[], yLabel?, periodDays? }
+//   · x-axis = the last N points ending "now" (real calendar dates), spaced by
+//     `periodDays` (1 = daily, 7 = weekly, 30 = monthly — the windows+measures
+//     contract's trendPeriodDays) so the axis is always the honest window,
+//     whichever time window the caller picked.
 //   · y-axis = the rate, titled with its unit ("LEGOs / week").
 //   · ENTITY = blue (--rc-entity / --rc-glow), area-filled + a "now" endpoint
 //     so you can read your current value off the line. AVERAGE = grey dashed.
@@ -21,13 +22,16 @@ import {
   type EChartsLike,
 } from '../theme'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   entityLabel: string
   entity: number[]
   averageLabel: string
   average: number[]
   yLabel?: string        // the rate unit for the y-axis title, e.g. "LEGOs / week"
-}>()
+  periodDays?: number    // spacing between trend points (1|7|30) — daily/weekly/monthly x labels
+}>(), {
+  periodDays: 7,
+})
 
 let echarts: (EChartsLike & {
   init: (el: HTMLElement, theme?: string | null, opts?: Record<string, unknown>) => EChartInstance
@@ -44,19 +48,26 @@ let resizeObserver: ResizeObserver | null = null
 
 const isEmpty = computed(() => !props.entity?.length && !props.average?.length)
 
-// Real WEEK-ENDING labels for the last N weeks, ending "now". Decoupled from the
-// rate denominator: every rate is plotted week-by-week, so the time axis is
-// always honest calendar weeks (no more "-7 … now" / "last 8 hours" ambiguity).
-const weekLabels = computed(() => {
+// Honest x labels spaced by periodDays, ending "now" (the newest point).
+// periodDays=1 (daily) and 7 (weekly) both read as "dd MMM" — a day/week is a
+// point in time; periodDays=30 (monthly) reads as "MMM" — a whole month,
+// stepped by real calendar months rather than a fixed 30-day multiple so
+// "last 12 months" lines up with actual month boundaries.
+const xLabels = computed(() => {
   const n = Math.max(props.entity?.length ?? 0, props.average?.length ?? 0) || 8
   const now = new Date()
   const out: string[] = []
   for (let j = 0; j < n; j++) {
-    const weeksBack = (n - 1) - j        // oldest → newest
-    if (weeksBack === 0) { out.push('now'); continue }
+    const stepsBack = (n - 1) - j        // oldest → newest
+    if (stepsBack === 0) { out.push('now'); continue }
     const d = new Date(now)
-    d.setDate(d.getDate() - weeksBack * 7)
-    out.push(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }))
+    if (props.periodDays === 30) {
+      d.setMonth(d.getMonth() - stepsBack)
+      out.push(d.toLocaleDateString('en-GB', { month: 'short' }))
+    } else {
+      d.setDate(d.getDate() - stepsBack * props.periodDays)
+      out.push(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }))
+    }
   }
   return out
 })
@@ -113,7 +124,7 @@ function buildOption(): Record<string, unknown> {
     grid: { left: 46, right: 52, top: 30, bottom: 40 },
     xAxis: {
       type: 'category',
-      data: weekLabels.value,
+      data: xLabels.value,
       boundaryGap: false,
       axisLine: { lineStyle: { color: p.line } },
       axisTick: { show: false },
@@ -202,7 +213,7 @@ onMounted(async () => {
   }
 })
 
-watch(() => [props.entity, props.average, props.entityLabel, props.averageLabel, props.yLabel],
+watch(() => [props.entity, props.average, props.entityLabel, props.averageLabel, props.yLabel, props.periodDays],
   () => { ensureChart() }, { deep: true })
 
 onBeforeUnmount(() => {
