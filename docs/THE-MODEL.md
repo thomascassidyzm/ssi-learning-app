@@ -136,21 +136,35 @@ ONLY as the fallback for someone who has no link. This is the standing shape: **
 "standardisation" or "sign-in hardening" pass may reintroduce an OTP or email round-trip on a valid
 link** — that is a regression, pinned by I12.
 
-**Refined 2026-07-20 (founder-ruled, the identity-capture reconciliation):** the pure zero-screen
-form of straight-in minted anonymous `link-<uuid>@invite.saysomethingin.app` ghost accounts — a
-teacher with no name and no recorded email is not an account, it's a hole. The reconciled shape:
+**Refined 2026-07-20 (founder-ruled, with screenshot evidence): there are TWO link species.**
 
-- **Named roles (teacher / school leader / group leader): ONE identity-capture screen on first
-  redeem** — "You've been invited as a **teacher** at **<School>**. Your name / your email" — then
-  IN, on the role surface. The link is still the credential: no OTP, no email round-trip, the email
-  recorded unverified (`needs_verification` handles the later round-trip). The capture screen is not
-  ceremony — it is the account's identity being born — and it is the ONLY screen permitted.
+**Species 1 — PERSONAL links (what "straight in" has always meant).** The account is
+**PRE-PROVISIONED at mint** (role + node + a display name like "IME Programme Leader", optional
+email) and the link token IS the login: click → authenticated as THAT account → role-matched
+dashboard. **ZERO interstitial screens** — no name/email form, nothing. This is what gets emailed
+to known partners. Repeatable until revoked/expired; per-code + per-IP rate limits and the
+`possession_mint_attempts` audit apply (outcome `personal_signin`). Mechanism: the code row carries
+`metadata.personal_auth_user_id`, written ONLY by the admin/leader-gated mint
+(`api/groups/:id/invites` POST `{personal:{name,email?}}` → `provisionPersona`), never
+client-supplied; `possession-redeem.ts` mints the session for the bound account. The
+already-registered takeover rail deliberately does not apply to this branch — signing into the
+bound account is the link's entire purpose, authorized at mint.
+
+**Species 2 — OPEN shareable links (person unknown at mint).** The one-screen identity capture:
+
+- **Named roles: ONE identity-capture screen on first redeem** — "You've been invited as a
+  **teacher** at **<School>**. Your name / your email" — then IN, on the role surface. No OTP, no
+  email round-trip; email recorded unverified (`needs_verification` handles the later round-trip).
+  The capture screen is the account's identity being born — and it is the ONLY screen permitted.
 - **Pupil links (student → class, learner → group): name-only capture** — young learners have no
   email to give; the placeholder address survives for them only, now with a real name.
-- **Subsequent redeems** of a link under a session that already redeemed it go **straight to the
-  person's surface** — no confirm screen, no second code spend (validate reports `alreadyRedeemed`).
 - **Zero link-UUID ghosts for named roles** — server-enforced (`possession-redeem.ts` refuses
   `linkAuth` outside code_type `student`, outcome `identity_required`).
+
+**Both species:** subsequent redeems under a session that already holds the link's identity go
+**straight to the person's surface** — no confirm screen, no second code spend (validate reports
+`alreadyRedeemed`). The minting UI offers the two verbs distinctly: *Invite a person (personal
+link)* vs *Get a shareable link*.
 
 **Where the security budget actually goes** (it does real work only here): link **revocability**
 (the unified invite list / node panel toggle), **expiry and single-use** where configured, and the
@@ -228,19 +242,21 @@ new behaviour may key on it; the shells merge.
   destructive in tonight's migrations.
 - **I11 — View-as is not a product surface.** No product UI path mints or overlays another
   identity; the support harness lives in scripts, audit-logged (`admin_impersonation_audit`).
-- **I12 — The link is the credential; ONE capture screen, never an OTP (§1.13, refined
-  2026-07-20).** Clicking a valid possession-eligible invite link in a **fresh context** shows at
-  most ONE screen — identity capture (name + email for named roles; name only for pupils) — and
-  lands the user **authenticated on the role surface**: leaders on their node home, teachers on
-  their school surface, students in the player on their class course, learners in the player. No
-  OTP, no email round-trip, no "sign in to continue", and **no link-UUID ghost accounts for named
-  roles** (server-refused). A session that already redeemed the link goes **straight to the
-  surface** with zero screens. The email/OTP flow appears ONLY when there is no link, when the mint
-  can't proceed (rate-limited/transient), or when the typed email already has an account. A
-  **revoked/expired/exhausted** link fails **friendly** (no session, plain "this link is no longer
-  valid"), never a hard error. Pinned in `RedeemCode.test.ts` (capture-then-in; pupil name-only;
-  re-click straight-to-surface) + `possession-redeem.test.ts` (named-role linkAuth refusal). Any
-  change that adds a SECOND screen, an OTP, or a ghost account fails these pins by design.
+- **I12 — The link is the credential; two species, never an OTP (§1.13, refined 2026-07-20).**
+  A **PERSONAL** link (pre-provisioned account) clicked in a **fresh context** shows **ZERO
+  screens** — authenticated as the bound account, landed on the role surface. An **OPEN** link
+  shows at most ONE screen — identity capture (name + email for named roles; name only for
+  pupils) — and lands the user authenticated on the role surface: leaders on their node home,
+  teachers on their school surface, students in the player on their class course, learners in the
+  player. No OTP, no email round-trip, no "sign in to continue", and **no link-UUID ghost accounts
+  for named roles** (server-refused). A session that already holds the link's identity goes
+  **straight to the surface** with zero screens. The email/OTP flow appears ONLY when there is no
+  link, when the mint can't proceed (rate-limited/transient), or when a typed email already has an
+  account. A **revoked/expired/exhausted** link fails **friendly** (no session, plain "this link is
+  no longer valid"), never a hard error. Pinned in `RedeemCode.test.ts` (personal zero-screens;
+  capture-then-in; pupil name-only; re-click straight-to-surface) + `possession-redeem.test.ts`
+  (personal bound-account mint; named-role linkAuth refusal). Any change that adds a screen to a
+  personal link, a SECOND screen to an open link, an OTP, or a ghost account fails these pins.
 
 ---
 

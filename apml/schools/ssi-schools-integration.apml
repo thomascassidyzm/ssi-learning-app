@@ -102,8 +102,39 @@ principle OfflineFirst:
     sync: "Background sync when online"
     fallback: "Full functionality offline after initial load"
 
+principle PersonalLinksAreTheLogin:
+  statement: "Species 1: a PERSONAL link is a pre-provisioned account's login — click -> authenticated -> role dashboard, ZERO screens, repeatable, revocable"
+
+  why: |
+    Founder clarification 2026-07-20 (screenshot evidence): what he emails
+    known partners is a personal link — the person is KNOWN at mint, so the
+    account exists before the click (role + node + display name, optional
+    email). Any screen on that click is ceremony. The capture flow below
+    (IdentityCaptureNotGhosts) applies ONLY to open shareable links where
+    the person is unknown at mint.
+
+  mint_flow: |
+    POST api/groups/:id/invites { role, personal: { name, email?, class_id? } }
+    (ssi_admin or governing leader) -> provisionPersona (api/_utils):
+    createUser (placeholder address when no email; needs_verification) +
+    learners row (display_name, educational_role, is_demo from the node) +
+    role wiring mirroring redeem.ts (govt_admins / SCHOOL admin tag / GROUP
+    +SCHOOL teacher tags / CLASS tag + enrolment / GROUP student tag) ->
+    invite_codes row with metadata.personal_auth_user_id (server-derived,
+    never client-supplied). Node verbs: "Invite a person" (this) vs "Get a
+    shareable link" (species 2).
+
+  redeem_flow: |
+    validate.ts returns personal:true + redirectTo -> RedeemCode.vue calls
+    possession-redeem directly (zero screens; replaces any foreign session
+    — the link IS the login) -> server mints the session for the BOUND
+    account (no createUser, already-registered rail deliberately N/A,
+    rate limits + possession_mint_attempts outcome personal_signin) ->
+    router lands on the role surface. Revocation = is_active; expiry and
+    max_uses respected; revoked links fail friendly.
+
 principle IdentityCaptureNotGhosts:
-  statement: "The link is the credential; ONE identity-capture screen on first redeem — never an OTP, never a link-UUID ghost for a named role"
+  statement: "Species 2 (OPEN shareable links): ONE identity-capture screen on first redeem — never an OTP, never a link-UUID ghost for a named role"
 
   why: |
     The pure zero-screen straight-in (2026-07-19) minted anonymous
