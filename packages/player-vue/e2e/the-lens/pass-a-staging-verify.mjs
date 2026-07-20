@@ -154,7 +154,7 @@ const coldMs = Date.now() - t0
 check('Cold load: /admin/structure content < 8s', coldMs < 8000, `${coldMs}ms`)
 
 await p3.waitForTimeout(5000) // let startup settle
-let idleReqs = []
+const idleReqs = []
 p3.on('request', req => { if (!['image', 'font'].includes(req.resourceType())) idleReqs.push(req.url()) })
 await p3.waitForTimeout(65000)
 const polling = idleReqs.filter(u => !u.includes('sw.js') && !u.includes('workbox'))
