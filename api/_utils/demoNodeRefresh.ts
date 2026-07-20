@@ -135,30 +135,40 @@ export async function refreshDemoNodeActivity(
   }))
   if (!classes.length) return emptyResult
 
-  // ---- the students: class-tag role student, then guard 3 (is_demo only) ----
+  // ---- the students: class-tag role student, then guard 3 (is_demo only).
+  // A learner can belong to MORE THAN ONE class (dual-course learners in the
+  // international-school segment) — keep every (user, class) membership so
+  // each course gets its own coherent telemetry, not just the last tag read.
   const { data: tagRows } = await supabase
     .from('user_tags')
     .select('user_id, tag_value')
     .in('tag_value', classes.map((c) => `CLASS:${c.id}`))
     .eq('role_in_context', 'student')
-  const classByUserId = new Map<string, (typeof classes)[number]>()
+  const classesByUserId = new Map<string, (typeof classes)[number][]>()
   for (const r of tagRows || []) {
     const cls = classes.find((c) => `CLASS:${c.id}` === (r.tag_value as string))
-    if (cls) classByUserId.set(r.user_id as string, cls)
+    if (!cls) continue
+    const uid = r.user_id as string
+    const list = classesByUserId.get(uid) || []
+    if (!list.some((c) => c.id === cls.id)) list.push(cls)
+    classesByUserId.set(uid, list)
   }
-  if (!classByUserId.size) return emptyResult
+  if (!classesByUserId.size) return emptyResult
 
   const { data: learnerRows } = await supabase
     .from('learners')
     .select('id, user_id, is_demo')
-    .in('user_id', Array.from(classByUserId.keys()))
+    .in('user_id', Array.from(classesByUserId.keys()))
     .eq('is_demo', true) // guard 3 — non-demo learners can never enter the write set
+  // One work item per (learner, class) pair; personas draw per pair, so a
+  // dual-course learner can honestly be fast in French and idle in Spanish.
   const learners = (learnerRows || [])
     .filter((l) => l.is_demo === true) // belt-and-braces re-check of the filter
-    .map((l) => ({ learnerId: l.id as string, cls: classByUserId.get(l.user_id as string)! }))
-    .filter((l) => !!l.cls)
+    .flatMap((l) =>
+      (classesByUserId.get(l.user_id as string) || []).map((cls) => ({ learnerId: l.id as string, cls })),
+    )
   if (!learners.length) return emptyResult
-  const learnerIds = learners.map((l) => l.learnerId)
+  const learnerIds = Array.from(new Set(learners.map((l) => l.learnerId)))
 
   // ---- existing enrollments (anchor positions so refresh reads as the same
   // cohort continuing, not a different class teleported) ----
@@ -166,8 +176,9 @@ export async function refreshDemoNodeActivity(
     .from('course_enrollments')
     .select('learner_id, course_id, enrolled_at, highest_completed_seed')
     .in('learner_id', learnerIds)
-  const enrollmentByLearner = new Map<string, any>()
-  for (const e of enrollments || []) enrollmentByLearner.set(e.learner_id as string, e)
+  // Keyed by (learner, course) — a dual-course learner has one anchor per course.
+  const enrollmentByLearnerCourse = new Map<string, any>()
+  for (const e of enrollments || []) enrollmentByLearnerCourse.set(`${e.learner_id}:${e.course_id}`, e)
 
   const seedCeilingByCourse = new Map<string, number>()
   for (const c of classes) {
@@ -200,7 +211,7 @@ export async function refreshDemoNodeActivity(
   for (const { learnerId, cls } of learners) {
     const persona = drawPersona()
     const ceiling = seedCeilingByCourse.get(cls.courseCode) || 40
-    const enrollment = enrollmentByLearner.get(learnerId)
+    const enrollment = enrollmentByLearnerCourse.get(`${learnerId}:${cls.courseCode}`)
     const prevSeed = (enrollment?.highest_completed_seed as number) || 0
     // Anchor to where this learner already was (or seed near the class if
     // fresh), then advance by a persona-sized gain — coherent belts/positions.
@@ -329,7 +340,7 @@ export async function refreshDemoNodeActivity(
       event_type: 'admin_demo_node_activity_refreshed',
       payload: {
         actor_user_id: actorId, group_id: groupId, group_name: group.name,
-        learners_touched: learners.length, sessions_written: sessionRowsAll.length,
+        learners_touched: learnerIds.length, sessions_written: sessionRowsAll.length,
         class_sessions_written: classSessionRows.length,
       },
     })
@@ -341,7 +352,7 @@ export async function refreshDemoNodeActivity(
     groupId,
     schools: schoolIds.length,
     classes: classes.length,
-    learnersTouched: learners.length,
+    learnersTouched: learnerIds.length,
     sessionsWritten: sessionRowsAll.length,
     classSessionsWritten: classSessionRows.length,
     seedRowsWritten: seedRowsAll.length,
