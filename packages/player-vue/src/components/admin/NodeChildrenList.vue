@@ -109,13 +109,21 @@ const rows = computed<Row[]>(() => {
     }))
   }
   if (props.lens === 'classes') {
+    // Class practice leads (founder ruling: play-as-class is the primary
+    // school metric); the students' own hours stay on the class home below.
     return (p.classes || []).map((c: any): Row => ({
       key: c.id,
       name: c.name,
-      caption: [c.home, joinNames(c.teachers || [])].filter(Boolean).join(' · '),
+      caption: [
+        c.home,
+        joinNames(c.teachers || []),
+        c.lastClassSessionAt
+          ? `Last class session ${new Date(c.lastClassSessionAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`
+          : 'No class practice yet',
+      ].filter(Boolean).join(' · '),
       counts: [
+        { value: `${c.classPracticeHours ?? 0}h`, word: 'class practice' },
         { value: c.studentCount, word: 'students' },
-        { value: `${c.practiceHours}h`, word: 'practised' },
       ],
       to: classHomePath(c.id, member.value),
     }))

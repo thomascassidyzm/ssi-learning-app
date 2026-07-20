@@ -38,7 +38,17 @@ function resetTables(): void {
       { school_id: 'school-1', school_name: 'Sunrise Public School', teacher_count: 2, class_count: 1, student_count: 2, total_practice_hours: 135.1, has_admin: true },
     ],
     classes: [
-      { id: 'class-1', class_name: 'Year 6 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-uid-1', is_active: true, current_seed: 60 },
+      { id: 'class-1', class_name: 'Year 6 Hindi', course_code: 'hin_for_eng', school_id: 'school-1', group_id: 'school-node', teacher_user_id: 'teacher-uid-1', is_active: true, current_seed: 60, last_lego_id: 'S0060L02', class_learner_id: 'class-learner-1' },
+    ],
+    // PLAY-AS-CLASS: the class's own teacher-led sessions (the primary
+    // metric) + the class-entity's enrollment cursor (THE-MODEL I6).
+    class_sessions: [
+      { class_id: 'class-1', started_at: new Date().toISOString(), ended_at: new Date().toISOString(), duration_seconds: 1800, cycles_completed: 160, end_lego_id: 'S0060L02' },
+      { class_id: 'class-1', started_at: new Date(Date.now() - 3 * 86400000).toISOString(), ended_at: new Date(Date.now() - 3 * 86400000).toISOString(), duration_seconds: 1200, cycles_completed: 110, end_lego_id: 'S0059L03' },
+      { class_id: 'class-1', started_at: new Date(Date.now() - 35 * 86400000).toISOString(), ended_at: new Date(Date.now() - 35 * 86400000).toISOString(), duration_seconds: 1500, cycles_completed: 130, end_lego_id: 'S0054L01' },
+    ],
+    course_enrollments: [
+      { learner_id: 'class-learner-1', course_id: 'hin_for_eng', highest_completed_lego_id: 'S0060L02', last_completed_lego_id: 'S0060L02', last_practiced_at: new Date().toISOString(), total_practice_minutes: 75 },
     ],
     class_teachers: [
       { class_id: 'class-1', teacher_user_id: 'teacher-uid-1', is_lead: true },
@@ -48,7 +58,9 @@ function resetTables(): void {
       { class_id: 'class-1', learner_id: 'learner-1', student_name: 'Asha', seeds_completed: 25, legos_mastered: 60, total_practice_seconds: 7200, last_active_at: '2026-07-18T10:00:00Z', joined_class_at: '2026-06-01T00:00:00Z' },
       { class_id: 'class-1', learner_id: 'learner-2', student_name: 'Ravi', seeds_completed: 5, legos_mastered: 12, total_practice_seconds: 3600, last_active_at: null, joined_class_at: '2026-06-01T00:00:00Z' },
     ],
-    course_legos: Array.from({ length: 320 }, (_, i) => ({ id: `lego-${i}`, course_code: 'hin_for_eng' })),
+    // 80 seeds × 4 legos — seed_number/lego_index carried so the class
+    // journey's LEGO-ordinal math (legoOrdinal) is exercised for real.
+    course_legos: Array.from({ length: 320 }, (_, i) => ({ id: `lego-${i}`, course_code: 'hin_for_eng', seed_number: Math.floor(i / 4) + 1, lego_index: (i % 4) + 1 })),
     class_activity_stats: [
       { class_id: 'class-1', total_practice_seconds: 10800, active_students: 2, school_id: 'school-1', region_code: null, course_code: 'hin_for_eng' },
     ],
@@ -83,6 +95,14 @@ function applyFilters(rows: any[], calls: { method: string; args: any[] }[]): an
     else if (c.method === 'in') result = result.filter((r) => (c.args[1] as any[]).includes(r[c.args[0]]))
     else if (c.method === 'is') result = result.filter((r) => r[c.args[0]] === c.args[1])
     else if (c.method === 'gte') result = result.filter((r) => String(r[c.args[0]]) >= String(c.args[1]))
+    else if (c.method === 'lt') result = result.filter((r) => r[c.args[0]] < c.args[1])
+    else if (c.method === 'lte') result = result.filter((r) => r[c.args[0]] <= c.args[1])
+    else if (c.method === 'order') {
+      const [col, opts] = c.args
+      const asc = (opts?.ascending ?? true) !== false
+      result = [...result].sort((a, b) => (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0) * (asc ? 1 : -1))
+    }
+    else if (c.method === 'limit') result = result.slice(0, c.args[0])
     else if (c.method === 'like') {
       const pattern = c.args[1] as string
       const prefix = pattern.endsWith('%') ? pattern.slice(0, -1) : pattern
@@ -101,8 +121,11 @@ function makeChainable(table: string) {
   builder.in = chain('in')
   builder.is = chain('is')
   builder.gte = chain('gte')
+  builder.lt = chain('lt')
+  builder.lte = chain('lte')
   builder.like = chain('like')
   builder.order = chain('order')
+  builder.limit = chain('limit')
   builder.insert = chain('insert')
   builder.single = () => {
     const rows = applyFilters(TABLES[table] || [], calls)
@@ -221,10 +244,51 @@ describe('GET /api/groups/:id/home', () => {
     const ravi = res.body.students.find((s: any) => s.name === 'Ravi')
     expect(ravi).toMatchObject({ seeds_completed: 5, legos_mastered: 12, week_minutes: 0 })
 
-    // Class cards: journey (course_legos total, class cursor done) +
-    // practice benchmark (class min/student vs school + course averages).
-    expect(res.body.journey).toEqual({ done: 60, total: 320 })
+    // Class cards: journey — now the CLASS's own play-as-class position as a
+    // LEGO ordinal (S0060L02 in an 80-seed × 4-lego course = 59×4 + 2 = 238)
+    // — + practice benchmark (class min/student vs school + course averages).
+    expect(res.body.journey).toEqual({ done: 238, total: 320, source: 'class-play', legoId: 'S0060L02', seedNumber: 60 })
     expect(res.body.benchmark).toEqual({ class: 90, school: 30, course: 24 })
+  })
+
+  it('CLASS-PRACTICE PIN: class home leads with the class practising together — classPractice block from class_sessions, journey from the class-entity enrollment', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('class-1'), res)
+    expect(res.statusCode).toBe(200)
+    // Two of the three teacher-led sessions land in the last 7 days; the
+    // newest one is today. 4500s total = 1.3h (1dp).
+    expect(res.body.classPractice).toMatchObject({
+      weekSessions: 2,
+      sessions28d: 2,
+      totalSessions: 3,
+      hours: 1.3,
+    })
+    expect(typeof res.body.classPractice.lastSessionAt).toBe('string')
+    // Journey rides the class-entity's own play-as-class cursor.
+    expect(res.body.journey.source).toBe('class-play')
+    expect(res.body.journey.done).toBe(238)
+  })
+
+  it('a class with NO play-as-class history falls back to the current_seed journey estimate', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    TABLES.class_sessions = []
+    TABLES.course_enrollments = []
+    TABLES.classes[0].last_lego_id = null
+    TABLES.classes[0].class_learner_id = null
+    const res = makeRes()
+    await handler(makeReq('class-1'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classPractice).toMatchObject({ weekSessions: 0, totalSessions: 0, hours: 0, lastSessionAt: null })
+    expect(res.body.journey).toEqual({ done: 60, total: 320, source: 'estimate', legoId: null, seedNumber: null })
+  })
+
+  it('node home carries the subtree CLASS PRACTICE rollup (hours, weekly sessions, active classes)', async () => {
+    verifyAdminResult = { userId: 'admin-1' }
+    const res = makeRes()
+    await handler(makeReq('programme'), res)
+    expect(res.statusCode).toBe(200)
+    expect(res.body.classPractice).toEqual({ hours: 1.3, sessions7d: 2, activeClasses7d: 1, classCount: 1 })
   })
 
   it('lens=schools returns the subtree-wide schools list with teacher names', async () => {
@@ -259,7 +323,8 @@ describe('GET /api/groups/:id/home', () => {
     await handler(makeReq('programme', { lens: 'classes' }), res)
     expect(res.statusCode).toBe(200)
     expect(res.body.classes).toHaveLength(1)
-    expect(res.body.classes[0]).toMatchObject({ name: 'Year 6 Hindi', studentCount: 2, practiceHours: 3 })
+    expect(res.body.classes[0]).toMatchObject({ name: 'Year 6 Hindi', studentCount: 2, practiceHours: 3, classPracticeHours: 1.3 })
+    expect(typeof res.body.classes[0].lastClassSessionAt).toBe('string')
   })
 
   it('a group leader is scope-trimmed: no ancestors or siblings above their own group', async () => {
