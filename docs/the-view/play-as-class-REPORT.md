@@ -79,4 +79,34 @@ Working session 2026-07-20. Incremental findings land here as the work proceeds.
 
 ## 3. BUILD LOG
 
-*(updated as work lands)*
+### Lane C — dashboards lead with class practice ✅ (0cd92c08 + 39864b3c)
+
+- **`/api/groups/:id/home` class kind:** new `classPractice` block (weekSessions, sessions28d,
+  totalSessions, lastSessionAt, hours) straight from `class_sessions`; `journey` is now the CLASS's
+  own play-as-class position as a **LEGO ordinal** (class-entity enrollment cursor → newest class
+  session end LEGO → `classes.last_lego_id`), `source`-tagged `class-play` vs `estimate` (the old
+  current_seed heuristic survives only for classes that have never played together — fixing the
+  latent mixed-unit journey bug properly rather than working around it client-side).
+- **Node kind (school/programme/region/nation):** subtree `classPractice` rollup — hours,
+  sessions7d, activeClasses7d, classCount — from the same class-id union the lenses use.
+- **NodeHomeView:** class home leads with a **Class practice** card (sessions this week, last class
+  session, hours together); journey bar + class belt ride the class's play position; stats row
+  leads with class practice at every level (`Class practice` hours + `Classes practising this
+  week`); students stay below as the bonus layer. Classes lens rows lead with class practice hours
+  + last class session. Copy says "Class practice"/"Play as class" — never internal jargon.
+- **THE LENS: no change needed** — default measure is already `rate` (class_sessions-derived), and
+  all four measures are class-practice measures. Individual measures remain in student rows/lenses.
+- **Pins:** `home.test.ts` (CLASS-PRACTICE PIN, no-play fallback, subtree rollup, classes-lens
+  columns — 13 green) + `NodeHomeView.test.ts` (leads-with-class-practice pin, no-practice
+  invitation copy — 11 green). Typecheck green.
+
+### Lane A — production session recording (worker, in flight)
+
+`/api/school/class-progress` + class-aware session store + LearningPlayer wiring — closes audit
+gap §1.2 so real play-as-class lands `sessions` rows on the class identity.
+
+### Lane B — demo world re-anchor (worker, in flight)
+
+`demoNodeRefresh` — class-identity sessions mirroring the class_sessions arcs, class-entity
+enrollment advanced (journey/belt from class play), demo flags on class entities, thinner student
+layer.
