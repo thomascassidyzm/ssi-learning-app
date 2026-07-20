@@ -75,7 +75,7 @@ async function claimCodeUse(
  * Returns an error message on failure, or null on success.
  */
 async function affiliateToGroupNode(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   groupId: string,
   roleInContext: 'teacher' | 'student'

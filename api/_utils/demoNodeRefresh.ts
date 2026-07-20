@@ -263,10 +263,10 @@ export async function refreshDemoNodeActivity(
     // Anchor to where this learner already was (or seed near the class if
     // fresh), then advance by a persona-sized gain — coherent belts/positions.
     const base = prevSeed > 0 ? prevSeed : Math.max(1, cls.currentSeed - between(8, 14))
-    const seeds = Math.max(1, Math.min(ceiling, base + between(...persona.seedGain)))
+    const seeds = Math.max(1, Math.min(ceiling, base + between(persona.seedGain[0], persona.seedGain[1])))
 
-    const nSessions = between(...persona.sessions)
-    const recency = between(...persona.recencyDays)
+    const nSessions = between(persona.sessions[0], persona.sessions[1])
+    const recency = between(persona.recencyDays[0], persona.recencyDays[1])
     // Latest session lands exactly `recency` days back — fast personas today,
     // idle personas stale enough to trip needs-attention honestly.
     let latestMs = 0

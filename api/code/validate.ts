@@ -18,7 +18,7 @@ import { verifyAuthToken } from '../_utils/auth'
  * code's context, else null.
  */
 async function checkAlreadyRedeemed(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   userId: string,
   inviteRow: any
 ): Promise<string | null> {

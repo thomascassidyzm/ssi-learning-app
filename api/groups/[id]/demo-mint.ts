@@ -40,7 +40,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { verifyAdmin, verifyAuthToken } from '../../_utils/auth'
 import { isStrictDescendantGroup } from '../../_utils/schoolScope'
 import { ensureDemoLeafClass, resolveDemoOrgCourseCode } from '../../_utils/demoLeaf'
@@ -74,7 +74,7 @@ function getAppOrigin(req: VercelRequest): string {
 async function resolveAdminOrGroupLeader(
   req: VercelRequest,
   res: VercelResponse,
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   groupId: string,
 ): Promise<string | null> {
   const adminResult = await verifyAdmin(req)
