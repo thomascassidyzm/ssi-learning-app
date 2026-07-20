@@ -264,11 +264,14 @@ export default async function handler(
       created_by: callerUserId,
       is_active: true,
       // school_leader grants the school-admin seat by school id (what
-      // redeem.ts's school_admin_join branch reads); everything else is
-      // node-scoped by group id.
+      // redeem.ts's school_admin_join branch reads); a personal class-student
+      // link is class-scoped (so validate can surface class + course for the
+      // client's course landing); everything else is node-scoped by group id.
       ...(role === 'school_leader'
         ? { grants_school_id: schoolLeaderSchoolId }
-        : { grants_group_id: groupId }),
+        : personal?.class_id
+          ? { grants_class_id: personal.class_id }
+          : { grants_group_id: groupId }),
       // Personal binding — server-derived from the account we just
       // provisioned above, never client-supplied.
       ...(personaUserId
