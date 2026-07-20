@@ -176,7 +176,8 @@ console.log('MINTED open leader link:', open.code, open.url)
   await p.waitForTimeout(6000)
   const body = (await p.textContent('body').catch(() => '')) || ''
   check('B: open leader lands on member node home', new URL(p.url()).pathname === `/schools/org/${PROGRAMME}`, p.url())
-  check('B: rail + identity + stats present', body.includes("you're here") && body.includes('IME Demo Programme') && body.includes('Practice hours'))
+  // Stats vocabulary shifted with LANE B (class practice leads) — accept either card set.
+  check('B: rail + identity + stats present', body.includes("you're here") && body.includes('IME Demo Programme') && /practice/i.test(body) && body.includes('Learners'))
   check('B: no admin escape', !body.includes('All organisations'))
   await shot('2-landing')
   check('B: zero page errors', errors.length === 0, errors.slice(0, 3).join(' | '))

@@ -31,9 +31,16 @@ check('learner home loads', body.length > 200, `${loadMs}ms — ${page.url()}`)
 check('no streak language', !/streak/i.test(body))
 await page.screenshot({ path: `${OUT}1-home.png` })
 
-const startBtn = page.locator('button:has-text("Start"), button:has-text("Continue"), button:has-text("Play"), [class*="play-button"], [aria-label*="play" i]').first()
+// The learner start control is BottomNav's center play button (.center-btn).
+// A comma-list locator picks by DOCUMENT order, which can land on a hidden
+// earlier match — so try the known control first, then fall back.
 let clicked = false
-try { await startBtn.click({ timeout: 8000 }); clicked = true } catch { /* fallthrough */ }
+for (const sel of ['.center-btn', 'button:has-text("Start")', 'button:has-text("Continue")', '[aria-label*="play" i]']) {
+  const btn = page.locator(sel).first()
+  if (await btn.count()) {
+    try { await btn.click({ timeout: 8000 }); clicked = true; break } catch { /* try next */ }
+  }
+}
 check('lesson start control found + clicked', clicked)
 await page.waitForTimeout(9000)
 await page.screenshot({ path: `${OUT}2-playing.png` })
