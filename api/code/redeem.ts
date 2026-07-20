@@ -89,7 +89,11 @@ async function affiliateToGroupNode(
       role_in_context: roleInContext,
       added_by: userId,
     })
-  if (groupTagError) return groupTagError.message
+  // 23505 → idempotent no-op (concurrent/retried redemption already tagged this
+  // user for this group). Same principle the legacy teacher/student/admin
+  // branches use — every tag-insert path in this file must survive a duplicate
+  // as success, not a 500.
+  if (groupTagError && groupTagError.code !== '23505') return groupTagError.message
 
   const { data: schoolNode } = await supabase
     .from('schools')
@@ -106,7 +110,11 @@ async function affiliateToGroupNode(
         role_in_context: roleInContext,
         added_by: userId,
       })
-    if (schoolTagError) return schoolTagError.message
+    // 23505 → idempotent no-op. This is reachable DETERMINISTICALLY, not just
+    // via a race: a user already carrying this SCHOOL: tag (e.g. from an earlier
+    // school-scoped code) who then redeems a group code whose node IS this
+    // school would otherwise 500 on the dual-write.
+    if (schoolTagError && schoolTagError.code !== '23505') return schoolTagError.message
   }
   return null
 }

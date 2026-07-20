@@ -793,6 +793,55 @@ describe('POST /api/code/redeem (invite codes, region-tier slice 1)', () => {
     })
   })
 
+  it('INTERIOR-NODE JOIN idempotency: a 23505 on the group tag OR the school dual-write insert is idempotent success, not a 500 (a user already carrying the tag re-redeems)', async () => {
+    responders.invite_codes = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) {
+        return {
+          data: {
+            id: 'invite-teacher-group-dup',
+            code: 'TEACH-GRP-DUP',
+            code_type: 'teacher',
+            grants_region: null,
+            grants_school_id: null,
+            grants_class_id: null,
+            grants_group_id: 'group-school-node-dup',
+            metadata: {},
+            max_uses: null,
+            use_count: 0,
+            expires_at: null,
+            is_active: true,
+          },
+          error: null,
+        }
+      }
+      return { data: null, error: null }
+    }
+    responders.learners = () => ({ data: { id: 'learner-teacher-group-dup' }, error: null })
+    // The node IS a school, so the dual-write is attempted too.
+    responders.schools = (calls) => {
+      const isSelect = calls.some((c) => c[0] === 'select')
+      if (isSelect) return { data: { id: 'school-dup' }, error: null }
+      return { data: null, error: null }
+    }
+    // Both user_tags inserts lose the race / find the tag already present → 23505.
+    responders.user_tags = (calls) => {
+      const isInsert = calls.some((c) => c[0] === 'insert')
+      if (isInsert) {
+        return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "user_tags_active_natural_key"' } }
+      }
+      return { data: null, error: null }
+    }
+
+    const res = makeRes()
+    await handler(makeReq({ body: { code: 'TEACH-GRP-DUP', codeKind: 'invite' } }), res)
+
+    // 23505 on either affiliateToGroupNode insert is idempotent success, NOT a 500.
+    expect(res._status).toBe(200)
+    expect(res._json.success).toBe(true)
+    expect(res._json.role).toBe('teacher')
+  })
+
   it('INTERIOR-NODE JOIN (I7): a student code carrying only grants_group_id (no grants_class_id) affiliates at the group node — writes a GROUP: tag, no dual-write when the node is not a school, and no course_enrollments write (no class to enrol into)', async () => {
     responders.invite_codes = (calls) => {
       const isSelect = calls.some((c) => c[0] === 'select')
