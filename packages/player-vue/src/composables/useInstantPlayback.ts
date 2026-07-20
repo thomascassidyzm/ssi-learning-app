@@ -275,6 +275,42 @@ interface CoalescedJson {
   data: unknown
 }
 
+// ---------------------------------------------------------------------------
+// AUTH TOKEN for the fast-path content fetches (round-map / cycles / infplay).
+// ---------------------------------------------------------------------------
+// The /cycles + /infplay-cycles endpoints are entitlement-gated server-side
+// (d4396730): a PREMIUM course past the free-preview window (seed <=19) returns
+// 403 to any caller the server can't see a valid session for. These fetches
+// used to go out as bare GETs with NO Authorization header, so a SIGNED-IN
+// paid/admin learner past seed 19 was treated as anonymous → 403 → the client
+// silently fell back to the slow legacy full-course walk. Invisible to guests
+// (they never get past seed 19), which is why guest cold-switch benchmarks
+// looked fine. Attaching the caller's Supabase access token makes the gate
+// authorise paid users and the fast path holds.
+//
+// The provider is a module-level getter set once at app init (App.vue, after
+// the Supabase client exists). getSession() reads the token from local storage
+// with no network round-trip, so calling it per fetch is cheap. Null provider
+// or null token → the fetch goes out anonymous exactly as before (correct for
+// guests and free courses).
+let authTokenProvider: (() => Promise<string | null>) | null = null
+
+export function setInstantPlaybackAuthProvider(
+  fn: (() => Promise<string | null>) | null,
+): void {
+  authTokenProvider = fn
+}
+
+async function authHeaders(): Promise<Record<string, string> | undefined> {
+  if (!authTokenProvider) return undefined
+  try {
+    const token = await authTokenProvider()
+    return token ? { Authorization: `Bearer ${token}` } : undefined
+  } catch {
+    return undefined
+  }
+}
+
 const inflightGets = new Map<string, Promise<CoalescedJson>>()
 
 /** AbortError shaped like a real fetch abort, so existing
@@ -296,8 +332,21 @@ function sharedJsonGet(url: string): Promise<CoalescedJson> {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), BOOT_FETCH_TIMEOUT_MS)
     try {
-      const res = await fetch(url, { signal: ctrl.signal })
+      const headers = await authHeaders()
+      const res = await fetch(url, headers ? { signal: ctrl.signal, headers } : { signal: ctrl.signal })
       if (!res.ok) {
+        // LOUD on entitlement denial — a signed-in paid user hitting 403 here
+        // means the fast path is about to silently degrade to the slow legacy
+        // walk. This must never pass unnoticed again (regression: d4396730 shipped
+        // the gate; the client wasn't sending the token). Callers also surface
+        // this to telemetry via the `.status` on the thrown error.
+        if (res.status === 403) {
+          console.error(
+            `[InstantPlayback] 403 on ${url} — entitlement gate denied the fast path. ` +
+            `If the learner is signed-in and paid, the auth token is not reaching the server; ` +
+            `playback will degrade to the slow legacy walk.`,
+          )
+        }
         return { ok: false, status: res.status, statusText: res.statusText, data: null }
       }
       return { ok: true, status: res.status, statusText: res.statusText, data: await res.json() }
@@ -482,8 +531,9 @@ export function useInstantPlayback(
         ctrl.signal,
       )
       if (!res.ok) {
-        throw new Error(
-          `[InstantPlayback] round-map fetch failed: ${res.status} ${res.statusText}`,
+        throw Object.assign(
+          new Error(`[InstantPlayback] round-map fetch failed: ${res.status} ${res.statusText}`),
+          { status: res.status },
         )
       }
       const map = res.data as RoundMap
@@ -554,8 +604,9 @@ export function useInstantPlayback(
 
     const res = await coalescedJsonGet(url, signal)
     if (!res.ok) {
-      throw new Error(
-        `[InstantPlayback] cycles fetch failed: ${res.status} ${res.statusText}`,
+      throw Object.assign(
+        new Error(`[InstantPlayback] cycles fetch failed: ${res.status} ${res.statusText}`),
+        { status: res.status },
       )
     }
     const response = res.data as CyclesResponse
@@ -656,9 +707,23 @@ export function useInstantPlayback(
     const code = courseCode.value
     if (!code) throw new Error('[InstantPlayback] courseCode is empty')
     const url = `${apiBase}/${encodeURIComponent(code)}/infplay-cycles?from_round=${fromRound}&limit=${limit}`
-    const res = await fetch(url, { signal })
+    // INF PLAY is even more strongly gated than /cycles — non-entitled callers
+    // get a hard 403 (no partial-preview slice). Attach the session token so a
+    // signed-in paid learner isn't seen as anonymous. (Same regression class as
+    // /cycles above.)
+    const headers = await authHeaders()
+    const res = await fetch(url, headers ? { signal, headers } : { signal })
     if (!res.ok) {
-      throw new Error(`[InstantPlayback] infplay-cycles fetch failed: ${res.status}`)
+      if (res.status === 403) {
+        console.error(
+          `[InstantPlayback] 403 on ${url} — entitlement gate denied INF PLAY; ` +
+          `signed-in paid session token not reaching the server.`,
+        )
+      }
+      throw Object.assign(
+        new Error(`[InstantPlayback] infplay-cycles fetch failed: ${res.status}`),
+        { status: res.status },
+      )
     }
     const json = (await res.json()) as {
       course_code: string

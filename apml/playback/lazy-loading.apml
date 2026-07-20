@@ -195,6 +195,20 @@ spec lazy_loading_architecture:
         localStorage, validated against the current round-map version on read,
         so a content edit that bumps the version evicts stale cycles.
 
+    auth_on_fast_path: |
+      round-map / cycles / infplay-cycles are entitlement-gated server-side
+      (d4396730): a PREMIUM course past the free-preview window (seed <=19) 403s
+      any caller the server can't see a valid session for. ALL these fast-path
+      GETs therefore attach the caller's Supabase access token
+      (Authorization: Bearer). The token comes from a module-level provider set
+      once at app init (setInstantPlaybackAuthProvider, wired in App.vue from
+      supabaseClient.auth.getSession — a local read, no network). Without it a
+      signed-in paid learner past seed 19 was seen as anonymous → 403 → silent
+      fallback to the slow legacy walk (invisible to guests, who never pass
+      seed 19). A 403 on this path is now LOUD: console.error + a
+      player_events 'instant_playback_entitlement_fallback' telemetry row, so
+      the degradation can never recur silently.
+
     bootstrap_critical_path: |
       bootstrap(legoId?):
         1. Resolve start LEGO — resolveStartLegoId() (the enrollment's
