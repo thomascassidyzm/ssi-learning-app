@@ -320,6 +320,14 @@ async function handlePersonalSignIn() {
       })
       if (!setSessionError) {
         await auth?.refreshRole?.()
+        // A personal class-student link carries the class's course in the
+        // validate context — switch onto it NOW, exactly like the open-link
+        // redemption path does (App.vue resolved its course before this
+        // session existed, so without this the pupil lands on the catalogue
+        // default instead of their class course).
+        if (pendingCode.value?.courseName) {
+          await switchActiveCourseTo(pendingCode.value.courseName).catch(() => {})
+        }
         const surface = pendingCode.value?.redirectTo || '/'
         clearPendingCode()
         useSchoolContext().clear()
