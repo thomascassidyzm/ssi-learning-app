@@ -173,18 +173,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     // Per-IP rate limit first — cheapest check, blocks code-guessing sweeps
-    // before we even touch invite_codes. Successful personal sign-ins
-    // (outcome 'personal_signin') are EXCLUDED from this count: every login
-    // on a personal link is a possession mint, so a founder demo or a
-    // several-people-one-NAT office would otherwise burn the guessing budget
-    // just by using their own links (live repro 2026-07-20: the acceptance
-    // walk rate-limited itself). Guessing stays bounded — failed attempts
-    // all still count here, and the per-code limit below counts everything.
+    // before we even touch invite_codes. Two outcome classes are EXCLUDED
+    // from the count (live repro 2026-07-20: the acceptance walk
+    // rate-limited itself, then stayed limited):
+    //   1. 'personal_signin' — every login on a personal link is a
+    //      possession mint; a founder demo or several people on one NAT
+    //      must not burn the guessing budget by using their own links.
+    //   2. 'rate_limited_*' — the refusals themselves. Counting them makes
+    //      a block self-perpetuating: any client retrying keeps the window
+    //      full forever. A limiter counts actions, not its own refusals.
+    // Substantive attempts (invalid/expired/exhausted/minted/errors) all
+    // still count, and the per-code limit below counts everything.
     const { count: ipCount } = await supabase
       .from('possession_mint_attempts')
       .select('id', { count: 'exact', head: true })
       .eq('ip_hash', ipHash)
       .neq('outcome', 'personal_signin')
+      .neq('outcome', 'rate_limited_ip')
+      .neq('outcome', 'rate_limited_code')
       .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
 
     if ((ipCount ?? 0) >= PER_IP_LIMIT) {
@@ -225,11 +231,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     // Per-code rate limit — bounds abuse of a single leaked/guessed valid
     // code. Runs BEFORE the personal branch so a personal login link gets the
-    // same brute-bounding as everything else.
+    // same brute-bounding as everything else (personal_signin DOES count
+    // here — 20 logins/15min on one link is ample for a person, hostile to a
+    // script). Refusal rows are excluded for the same
+    // no-self-perpetuation reason as the per-IP limit above.
     const { count: codeCount } = await supabase
       .from('possession_mint_attempts')
       .select('id', { count: 'exact', head: true })
       .eq('invite_code_id', inviteRow.id as string)
+      .neq('outcome', 'rate_limited_ip')
+      .neq('outcome', 'rate_limited_code')
       .gte('created_at', new Date(Date.now() - RATE_WINDOW_MS).toISOString())
 
     if ((codeCount ?? 0) >= PER_CODE_LIMIT) {
