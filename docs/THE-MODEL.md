@@ -131,12 +131,26 @@ click re-proves possession of something the click *just proved* — it is ceremo
 Nothing checks the typed email against who the invite was meant for, and access is granted before any
 email is verified, so the sign-in step protects nothing while it taxes every teacher/admin/leader.
 
-**Straight-in on click is the DESIGN, not a convenience shortcut.** Clicking a
-teacher/school-admin/leader/student invite (or access) link in a fresh context **authenticates
-immediately and lands on the role dashboard — zero interstitial steps.** The email/OTP flow exists
+**Straight-in on click is the DESIGN, not a convenience shortcut.** The email/OTP flow exists
 ONLY as the fallback for someone who has no link. This is the standing shape: **no future
-"standardisation" or "sign-in hardening" pass may reintroduce an interstitial on a valid link** — that
-is a regression, pinned by I12.
+"standardisation" or "sign-in hardening" pass may reintroduce an OTP or email round-trip on a valid
+link** — that is a regression, pinned by I12.
+
+**Refined 2026-07-20 (founder-ruled, the identity-capture reconciliation):** the pure zero-screen
+form of straight-in minted anonymous `link-<uuid>@invite.saysomethingin.app` ghost accounts — a
+teacher with no name and no recorded email is not an account, it's a hole. The reconciled shape:
+
+- **Named roles (teacher / school leader / group leader): ONE identity-capture screen on first
+  redeem** — "You've been invited as a **teacher** at **<School>**. Your name / your email" — then
+  IN, on the role surface. The link is still the credential: no OTP, no email round-trip, the email
+  recorded unverified (`needs_verification` handles the later round-trip). The capture screen is not
+  ceremony — it is the account's identity being born — and it is the ONLY screen permitted.
+- **Pupil links (student → class, learner → group): name-only capture** — young learners have no
+  email to give; the placeholder address survives for them only, now with a real name.
+- **Subsequent redeems** of a link under a session that already redeemed it go **straight to the
+  person's surface** — no confirm screen, no second code spend (validate reports `alreadyRedeemed`).
+- **Zero link-UUID ghosts for named roles** — server-enforced (`possession-redeem.ts` refuses
+  `linkAuth` outside code_type `student`, outcome `identity_required`).
 
 **Where the security budget actually goes** (it does real work only here): link **revocability**
 (the unified invite list / node panel toggle), **expiry and single-use** where configured, and the
@@ -214,14 +228,19 @@ new behaviour may key on it; the shells merge.
   destructive in tonight's migrations.
 - **I11 — View-as is not a product surface.** No product UI path mints or overlays another
   identity; the support harness lives in scripts, audit-logged (`admin_impersonation_audit`).
-- **I12 — The link is the credential; straight-in has zero interstitials (§1.13).** Clicking a
-  valid possession-eligible invite/access link in a **fresh context** (no prior session) lands the
-  user **authenticated on the role dashboard with no interstitial step** — no OTP, no email/name
-  form, no "sign in to continue". The email/OTP flow appears ONLY when there is no link, or when the
-  straight-in mint genuinely can't proceed (rate-limited/transient). A **revoked/expired/exhausted**
-  link fails **friendly** (no session, plain "this link is no longer valid"), never a hard error.
-  Pinned in `RedeemCode.test.ts` ("goes STRAIGHT IN on click") + `possession-redeem.test.ts`
-  (linkAuth mode). Any change that re-inserts a step on a valid link fails this pin by design.
+- **I12 — The link is the credential; ONE capture screen, never an OTP (§1.13, refined
+  2026-07-20).** Clicking a valid possession-eligible invite link in a **fresh context** shows at
+  most ONE screen — identity capture (name + email for named roles; name only for pupils) — and
+  lands the user **authenticated on the role surface**: leaders on their node home, teachers on
+  their school surface, students in the player on their class course, learners in the player. No
+  OTP, no email round-trip, no "sign in to continue", and **no link-UUID ghost accounts for named
+  roles** (server-refused). A session that already redeemed the link goes **straight to the
+  surface** with zero screens. The email/OTP flow appears ONLY when there is no link, when the mint
+  can't proceed (rate-limited/transient), or when the typed email already has an account. A
+  **revoked/expired/exhausted** link fails **friendly** (no session, plain "this link is no longer
+  valid"), never a hard error. Pinned in `RedeemCode.test.ts` (capture-then-in; pupil name-only;
+  re-click straight-to-surface) + `possession-redeem.test.ts` (named-role linkAuth refusal). Any
+  change that adds a SECOND screen, an OTP, or a ghost account fails these pins by design.
 
 ---
 
@@ -393,5 +412,6 @@ its own scoped piece.
 
 ---
 
-*Last updated: 2026-07-19 (§1.13 "the link is the credential — straight-in, no ceremony" ruling +
-I12 pin added; §1.10/§1.11 rulings and §9 commercial layer added 2026-07-18)*
+*Last updated: 2026-07-20 (§1.13 refined + I12 re-pinned: role-shaped links with ONE
+identity-capture screen for named roles, name-only for pupils, zero link-UUID ghosts, re-click
+straight-to-surface. Previous: §1.13 straight-in ruling 2026-07-19; §1.10/§1.11 + §9 2026-07-18)*

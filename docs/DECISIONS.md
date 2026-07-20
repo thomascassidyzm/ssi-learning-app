@@ -462,3 +462,37 @@ granted before any email is verified and nothing matches the typed email to the 
 protects nothing while taxing every teacher.
 **Search width:** founder-ruled
 **Decided by:** founder (verbatim ruling); agent recorded + pinned.
+
+## 2026-07-20 — role-shaped invite links: ONE identity-capture screen replaces the ghost mint (founder reconciliation)
+**Move:** Founder-ruled reconciliation of §1.13 after the staging shambles (every node's link felt
+generic; redeem minted anonymous `link-<uuid>@invite.saysomethingin.app` accounts and dumped every
+role wherever). The link stays the credential — NO OTP, NO email round-trip — but **named roles
+(teacher / school leader / group leader) get ONE identity-capture screen on first redeem** ("You've
+been invited as a teacher at <School>. Your name / your email") and the account is born REAL: their
+name, their recorded (unverified-is-fine) email. Pupil links (student→class, learner→group) keep
+lighter capture: name only — young learners have no email; the placeholder address survives for
+code_type `student` ONLY, server-enforced (`identity_required` refusal otherwise). Re-clicking a
+link under a session that already redeemed it goes straight to the person's surface — no confirm
+screen, no second code spend. `validate.ts` now resolves node context (group/school name) for
+node-scoped codes so no capture screen is ever anonymous. THE-MODEL §1.13 + I12 rewritten; pins
+updated in `RedeemCode.test.ts` / `possession-redeem.test.ts` / `invites.test.ts`.
+**Better:** teachers/leaders arrive as real named people on the right surface; the founder can send
+IME links that say who and where they're for.
+**Simpler:** one capture screen IS the account creation — no ghost-account + later-repair loop
+(SettingsScreen add-email nudge stops being the only source of identity for staff).
+**Cheaper (total):** deletes the support cost of nameless accounts on teacher rosters and dead
+"who is link-3f2a…?" dashboards; no new tables, no new endpoints — same possession mint, one new
+refusal branch.
+**Generic-link ruling (my read, journalled):** the node's "Get join link" learner path (role
+`student`, `grants_group_id` = the node) is NOT the generic-link bug and is kept — it is node-scoped
+and learner-only, the low-friction path the model wants for pupils. What died is the ghost mint for
+named roles and the anonymous screens. Per-person single-use links remain OPEN (held for founder
+taste, `project_straight_in_invite_links` memory).
+**Searched & rejected:**
+- Full email verification (OTP) for named roles — rejected: re-proves possession the click just
+  proved (§1.13 verbatim); school gateways still quarantine the mail (the original Option A driver).
+- Capture email lazily after landing (keep zero screens, prompt on the dashboard) — rejected: the
+  ghost exists in that window, appears on rosters/audits, and the founder ruled the capture screen
+  is the account being born, not ceremony.
+**Search width:** founder-ruled shape; agent owned the enforcement layers.
+**Decided by:** founder (reconciled design, project brief 2026-07-20); agent implementation.
