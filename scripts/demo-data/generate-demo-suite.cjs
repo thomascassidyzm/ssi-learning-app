@@ -279,6 +279,14 @@ async function deleteDemoAuthUsers(){
       await q(`insert into public.classes (id, school_id, teacher_user_id, class_name, course_code, student_join_code, current_seed, last_lego_id, is_active)
                values ($1,$2,$3,$4,$5,$6,$7,$8,true)`,
         [classId,schoolId,teacherUid,cls.name,sc.courseCode,`DEMO-${sc.key.toUpperCase().slice(0,2)}-${ci+3}`,cls.classSeed,classLego])
+      // Register the student join code in invite_codes — without this the
+      // class's /redeem link is dead (same fix as generate-ime-demo.cjs).
+      await q(
+        `insert into public.invite_codes (code, code_type, created_by, grants_class_id, is_active)
+         values ($1,'student',$2,$3,true)
+         on conflict (code) do nothing`,
+        [`DEMO-${sc.key.toUpperCase().slice(0,2)}-${ci+3}`,adminUid,classId],
+      )
 
       // class-play history: teacher-led sessions over the past month
       const nCs=between(6,14)
