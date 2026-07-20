@@ -1,5 +1,5 @@
 # APML: Structure tree — row grammar + demo-refresh verb
-# Last updated: 2026-07-19
+# Last updated: 2026-07-20
 # Contracts: docs/THE-MODEL.md §1.9/§1.12, docs/THE-VIEW.md §2; founder rulings 2026-07-19
 # (OPEN by the name; refresh demo data as a verb on a DEMO node)
 
@@ -34,6 +34,11 @@ demo_refresh:  # the verb on a DEMO node (founder-ruled 2026-07-19)
       regenerates — idempotent, refreshes never stack
     - ~8 weeks of practice sessions, power-law weighted toward recent days
       and today; fast/steady/idle personas (20/50/30) per learner
+    - per (learner, CLASS) pair, not per learner (2026-07-20): a dual-course
+      learner (two class tags) gets coherent telemetry in BOTH courses, each
+      anchored to its OWN enrollment cursor; personas draw per pair (fast in
+      French, idle in Spanish is honest); learnersTouched counts distinct
+      learners
     - positions anchored to each learner's existing enrollment cursor
       (continuing cohort, never teleported); capped by the course seed count
     - class_sessions form an ADVANCING start→end LEGO arc ending at the

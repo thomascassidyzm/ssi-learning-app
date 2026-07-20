@@ -37,6 +37,11 @@ const loadedId = ref('')
 const switching = computed(() => isLoading.value && !!home.value && String(route.params.id || '') !== loadedId.value)
 const childrenBodyEl = ref<HTMLElement | null>(null)
 const childrenHoldPx = ref<number | null>(null)
+// The identity header holds its height too: on phone widths the node name
+// wraps to two lines, so blanking it to a single nbsp mid-switch dropped a
+// line and shoved everything below up then down (390px probe, 2026-07-20).
+const identityEl = ref<HTMLElement | null>(null)
+const identityHoldPx = ref<number | null>(null)
 const NBSP = '\u00A0'
 
 const LENSES = [
@@ -64,6 +69,7 @@ async function fetchHome(): Promise<void> {
   // Measure the children body BEFORE the loading state swaps in, so the
   // section can hold exactly this height until the new rows land.
   childrenHoldPx.value = childrenBodyEl.value?.offsetHeight || null
+  identityHoldPx.value = identityEl.value?.offsetHeight || null
   isLoading.value = true
   error.value = null
   try {
@@ -250,7 +256,7 @@ const listPayload = computed(() => {
 
         <div class="main-col">
           <!-- IDENTITY HEADER -->
-          <header class="identity">
+          <header ref="identityEl" class="identity" :style="switching && identityHoldPx ? { minHeight: `${identityHoldPx}px` } : undefined">
             <!-- While a different node loads, VALUES blank (never the old
                  node's identity) but every box keeps its size — the switch
                  settles once, when the new node's data lands. -->

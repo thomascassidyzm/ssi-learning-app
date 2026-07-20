@@ -26,5 +26,8 @@ export * from './audio';
 // Pricing (Big 10 languages, access control)
 export * from './pricing';
 
+// Course display names (code → "French for English speakers")
+export * from './courses';
+
 // Script generation (unified main-loop + INF PLAY generator, CourseBundle wire format)
 export * from './script';

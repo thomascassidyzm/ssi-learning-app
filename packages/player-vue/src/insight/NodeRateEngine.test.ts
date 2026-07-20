@@ -76,8 +76,10 @@ describe('NodeRateEngine', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(String(fetchMock.mock.calls[0][0])).toBe('/api/groups/c1/rate-compare')
     expect(wrapper.find('.rate-compare-stub').text()).toContain('Year 6 Hindi')
-    // course picker present (2 courses below the node)
-    expect(wrapper.text()).toContain('hin_for_eng')
+    // course picker present (2 courses below the node) — shows the human
+    // display name, not the raw code (deep-link value stays the code)
+    expect(wrapper.text()).toContain('Hindi for English speakers')
+    expect(wrapper.text()).not.toContain('hin_for_eng')
     // compare picker carries the ancestor chain labels
     expect(wrapper.text()).toContain('Sunrise Public School average')
   })

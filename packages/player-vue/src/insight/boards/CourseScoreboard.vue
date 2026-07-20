@@ -34,6 +34,7 @@ import type {
 } from '../spec'
 import type { CourseValueData } from '../data/courseValue'
 import { isInsightDemo, demoCourseValue, demoRetention, demoGrowthRows } from '../data/demo'
+import { courseDisplayName } from '@ssi/core'
 
 // ── Supabase client ─────────────────────────────────────────────────────────
 const { getClient } = useAdminClient()
@@ -120,7 +121,7 @@ const resolvedRankedBar = computed<ResolvedInsight>(() => {
   const rows = courseValueData.value?.rows ?? []
   const bars = rows.map(r => ({
     id: r.courseCode,
-    label: r.courseCode,
+    label: courseDisplayName(r.courseCode),
     // Total learner-hours = enrolled × median stickiness hours per learner
     value: Math.round(r.enrolled * r.stickinessHours * 10) / 10,
     tone: r.ltvProxy > 0 ? (r.ltvProxy >= (courseValueData.value?.rows[0]?.ltvProxy ?? 0) * 0.6 ? 'good' as const : 'neutral' as const) : 'neutral' as const,
@@ -175,7 +176,10 @@ const resolvedTimeSeries = computed<ResolvedInsight>(() => {
 // ── Spec literals (authored; no LLM call) ────────────────────────────────────
 
 // The top-value course for annotation (computed from courseValueData)
+// topCourse = the row's code (matches node/bar ids for annotation highlighting);
+// topCourseName = the human display name for the note text the learner reads.
 const topCourse = computed(() => courseValueData.value?.rows[0]?.courseCode ?? '')
+const topCourseName = computed(() => courseDisplayName(topCourse.value))
 const topCourseHours = computed(() => {
   const rows = courseValueData.value?.rows ?? []
   if (!rows.length) return 0
@@ -252,7 +256,7 @@ const specTreemap = computed<AnyInsightSpec>(() => ({
     ? [{
         at: 'datum' as const,
         key: topCourse.value,
-        note: `${topCourse.value} leads — highest composite score.`,
+        note: `${topCourseName.value} leads — highest composite score.`,
         tone: 'good' as const,
       }]
     : [],
@@ -287,7 +291,7 @@ const specRankedBar = computed<AnyInsightSpec>(() => ({
     ? [{
         at: 'datum' as const,
         key: topCourse.value,
-        note: `${topCourse.value}: ~${topCourseHours.value} total learner-hours accumulated.`,
+        note: `${topCourseName.value}: ~${topCourseHours.value} total learner-hours accumulated.`,
         tone: 'good' as const,
       }]
     : [],
